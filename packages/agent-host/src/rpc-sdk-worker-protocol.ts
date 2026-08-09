@@ -149,6 +149,30 @@ export type WorkerExtensionUiResponseFrame = {
   error?: string;
 };
 
+/**
+ * Parent → worker: internal resource query (ADR 0040 §8). The worker answers
+ * with its current `process.memoryUsage()` snapshot. Strict frame: no
+ * per-process secrets, PIDs, or environment details cross the boundary.
+ */
+export type WorkerResourceRequestFrame = {
+  type: 'resource-request';
+  id: string;
+};
+
+/** Worker → parent: resource query answer with current memory usage. */
+export type WorkerResourceResponseFrame = {
+  type: 'resource-response';
+  id: string;
+  memory: {
+    rssBytes: number;
+    heapUsedBytes: number;
+    heapTotalBytes: number;
+    externalBytes: number;
+  };
+  /** Monotonic worker timestamp of the sample. */
+  sampledAtMs: number;
+};
+
 /** Union of all worker → parent frames. */
 export type WorkerFrame =
   | WorkerResponse
@@ -156,7 +180,8 @@ export type WorkerFrame =
   | WorkerToolCallFrame
   | WorkerHelloFrame
   | WorkerShutdownFrame
-  | WorkerExtensionUiRequestFrame;
+  | WorkerExtensionUiRequestFrame
+  | WorkerResourceResponseFrame;
 
 /** Payload variants for worker requests. */
 export type WorkerRequestPayload =
@@ -249,11 +274,30 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
       ) {
         return parsed as WorkerExtensionUiRequestFrame;
       }
+      if (
+        parsed.type === 'resource-response' &&
+        typeof parsed.id === 'string' &&
+        isMemorySnapshot(parsed.memory) &&
+        typeof parsed.sampledAtMs === 'number'
+      ) {
+        return parsed as WorkerResourceResponseFrame;
+      }
     }
     return undefined;
   } catch {
     return undefined;
   }
+}
+
+function isMemorySnapshot(value: unknown): value is WorkerResourceResponseFrame['memory'] {
+  if (!value || typeof value !== 'object') return false;
+  const memory = value as Record<string, unknown>;
+  return (
+    typeof memory.rssBytes === 'number' &&
+    typeof memory.heapUsedBytes === 'number' &&
+    typeof memory.heapTotalBytes === 'number' &&
+    typeof memory.externalBytes === 'number'
+  );
 }
 
 function isFrameContext(value: unknown): value is WorkerFrameContext {
@@ -271,5 +315,10 @@ function isFrameContext(value: unknown): value is WorkerFrameContext {
 
 /** Serialize a WorkerRequest to a JSONL line. */
 export function serializeWorkerRequest(request: WorkerRequest): string {
+  return JSON.stringify(request);
+}
+
+/** Serialize an internal resource query to a JSONL line (ADR 0040 §8). */
+export function serializeWorkerResourceRequest(request: WorkerResourceRequestFrame): string {
   return JSON.stringify(request);
 }

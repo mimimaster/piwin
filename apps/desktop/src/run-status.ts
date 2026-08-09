@@ -10,6 +10,7 @@ export type RunStatusKind =
   | 'preparing'
   | 'connecting-model'
   | 'waiting-first-token'
+  | 'waiting-resource'
   | 'planning'
   | 'working'
   | 'waiting-permission'
@@ -39,6 +40,8 @@ export type DeriveRunStatusInput = {
   tools: ToolCardUi[];
   plan: SessionPlan | null;
   jobs: JobRecord[];
+  /** Optional locale for presentation labels (defaults to English). */
+  locale?: 'en' | 'zh-CN';
 };
 
 export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
@@ -85,6 +88,21 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
             summary: detail,
           }
         : {}),
+      ...baseCounts,
+      canStop: true,
+      ...(input.chat.activeRunStartedAt !== null
+        ? { elapsedMs: Math.max(0, Date.now() - input.chat.activeRunStartedAt) }
+        : {}),
+    };
+  }
+
+  // ADR 0040: cold prompt waiting for runtime capacity — subtle restoring phase.
+  if (activePhase === 'waiting-resource') {
+    const isZh = input.locale === 'zh-CN';
+    return {
+      kind: 'waiting-resource',
+      label: isZh ? '正在恢复运行时' : 'Restoring runtime',
+      summary: isZh ? '正在恢复会话运行时…' : 'Restoring the session runtime…',
       ...baseCounts,
       canStop: true,
       ...(input.chat.activeRunStartedAt !== null

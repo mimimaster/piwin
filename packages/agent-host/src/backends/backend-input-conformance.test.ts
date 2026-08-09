@@ -88,16 +88,23 @@ function createPiModuleForTest(): {
   createAgentSession: ReturnType<typeof vi.fn>;
   getSessionOptions: () => Record<string, unknown>;
   getPromptCalls: () => Array<[string, unknown?]>;
+  emit: (event: unknown) => void;
 } {
   let resourceLoaderOptions: Record<string, unknown> | undefined;
   let sessionOptions: Record<string, unknown> | undefined;
   const promptCalls: Array<[string, unknown?]> = [];
+  let eventListener: ((event: unknown) => void) | undefined;
   const fakeSession = {
     prompt: async (text: string, options?: unknown): Promise<void> => {
       promptCalls.push([text, options]);
     },
     abort: async (): Promise<void> => undefined,
-    subscribe: (): (() => void) => () => undefined,
+    subscribe: (listener: (event: unknown) => void): (() => void) => {
+      eventListener = listener;
+      return () => {
+        eventListener = undefined;
+      };
+    },
   };
   const createAgentSession = vi.fn(
     async (options: Record<string, unknown>): Promise<{ session: typeof fakeSession }> => {
@@ -131,6 +138,7 @@ function createPiModuleForTest(): {
       ...(resourceLoaderOptions ? { resourceLoaderOptions } : {}),
     }),
     getPromptCalls: () => promptCalls,
+    emit: (event) => eventListener?.(event),
   };
 }
 
@@ -186,9 +194,7 @@ describe('backend input conformance', () => {
 
     // Pi filters customTools through the global `tools` allowlist. Host tool
     // names must appear there or bash/MCP/web never reach the model.
-    expect(sdkOptions.tools).toEqual(
-      expect.arrayContaining(['read', 'mcp__server__dynamic']),
-    );
+    expect(sdkOptions.tools).toEqual(expect.arrayContaining(['read', 'mcp__server__dynamic']));
 
     const sdkTool = sdkTools[0];
     if (!sdkTool) {
@@ -201,6 +207,21 @@ describe('backend input conformance', () => {
     expect(moduleFixture.getPromptCalls()).toEqual([
       ['inspect image', { images: [{ data: 'AAAA', mimeType: 'image/png' }] }],
     ]);
+
+    const events: import('@piwin/contracts').AgentEvent[] = [];
+    sdkHandle.subscribe((event) => events.push(event));
+    moduleFixture.emit({
+      type: 'message_update',
+      messageId: 'backend-message-1',
+      assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'message/text_delta',
+      messageId: expect.stringMatching(/^piw-m-/),
+      delta: 'hello',
+    });
+    expect(events[0]).not.toMatchObject({ messageId: 'backend-message-1' });
   });
 
   it('rejects malformed Blueprints before calling createAgentSession', async () => {

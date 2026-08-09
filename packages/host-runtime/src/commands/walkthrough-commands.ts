@@ -25,7 +25,7 @@ import type {
   WalkthroughErrorCode,
   WalkthroughMode,
 } from '@piwin/contracts';
-import { formatError,  createDefaultWalkthroughConfig } from '@piwin/contracts';
+import { formatError, createDefaultWalkthroughConfig } from '@piwin/contracts';
 import {
   collectWalkthroughEvidence,
   assembleSystemPrompt,
@@ -57,6 +57,11 @@ export type WalkthroughCommandContext = {
   piwinRoot?: string;
   push: (message: HostPush) => void;
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
+  getTranscriptMessage: (
+    sessionId: string,
+    messageId: string,
+  ) => Promise<SessionTranscriptMessage | undefined>;
+  hasLaterAssistant: (sessionId: string, messageId: string, runId?: string) => Promise<boolean>;
   loadSessionPlan: (sessionId: string) => Promise<SessionPlan | null>;
   loadConfig: () => Promise<PiwinConfig>;
   /**
@@ -66,6 +71,17 @@ export type WalkthroughCommandContext = {
    */
   resolveSessionModel: (sessionId: string) => ModelRef | undefined;
 };
+
+function createLaterAssistantSentinel(runId?: string): SessionTranscriptMessage {
+  return {
+    id: '__piwin-later-assistant-sentinel__',
+    role: 'assistant',
+    text: 'sentinel',
+    createdAt: new Date(0).toISOString(),
+    status: 'done',
+    ...(runId !== undefined ? { runId } : {}),
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* §11.3 Concurrency: in-flight generation registry                     */
@@ -307,15 +323,13 @@ export async function handleWalkthroughList(
   context: WalkthroughCommandContext,
 ): Promise<HostResponse> {
   const rootDir = getPiwinRoot(context.piwinRoot);
-  const knownMessageIds =
-    'knownMessageIds' in command && Array.isArray(command.knownMessageIds)
-      ? command.knownMessageIds
-      : undefined;
-  const artifacts = await listWalkthroughs(
-    rootDir,
-    command.sessionId,
-    knownMessageIds ? { validMessageIds: knownMessageIds } : undefined,
-  );
+  const artifacts = await listWalkthroughs(rootDir, command.sessionId, {
+    // A hydrated shell now owns only a bounded transcript window. Treating
+    // that partial client projection as the authoritative id set would hide
+    // valid artifacts attached to older rows.
+    messageExists: async (messageId) =>
+      (await context.getTranscriptMessage(command.sessionId, messageId)) !== undefined,
+  });
   return ok(requestId, 'walkthrough/list', { sessionId: command.sessionId, artifacts });
 }
 
@@ -377,7 +391,9 @@ export async function handleWalkthroughGenerate(
 
   // Load transcript and validate the target message.
   const messages = await context.loadTranscriptMessages(sessionId);
-  const targetMessage = messages.find((m) => m.id === messageId);
+  const targetMessage =
+    messages.find((message) => message.id === messageId) ??
+    (await context.getTranscriptMessage(sessionId, messageId));
   if (!targetMessage) {
     return fail(
       requestId,
@@ -386,7 +402,12 @@ export async function handleWalkthroughGenerate(
     );
   }
 
-  if (!isWalkthroughEligibleMessage(targetMessage, messages)) {
+  const targetWindow = messages.some((message) => message.id === targetMessage.id)
+    ? messages
+    : (await context.hasLaterAssistant(sessionId, targetMessage.id, targetMessage.runId))
+      ? [targetMessage, createLaterAssistantSentinel(targetMessage.runId)]
+      : [targetMessage];
+  if (!isWalkthroughEligibleMessage(targetMessage, targetWindow)) {
     return fail(
       requestId,
       'walkthrough/generate',

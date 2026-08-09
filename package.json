@@ -25,6 +25,7 @@
     "test:bundle": "node scripts/smoke-bundled-host.mjs",
     "package:desktop": "pnpm bundle:host && pnpm fetch:node-runtime && pnpm --dir apps/desktop package",
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",
+    "soak:session-runtime": "tsx scripts/session-runtime-rss-soak.mjs",
     "e2e:host-jsonl": "NODE_ENV=test node scripts/e2e-host-jsonl.mjs",
     "test:architecture": "node scripts/check-package-boundaries.mjs",
     "audit:prod": "pnpm audit --prod || true",

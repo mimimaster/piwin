@@ -17,6 +17,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Open workspace + trust | green | Tauri picker + path dialog |
 | Chat stream (mock/SDK) | green | Product transcript resume |
 | Desktop renderer bounds | green (automated) / native evidence pending | Bounded Host batches, 256 KiB visible tool output, 500-turn virtualization, and a separate pet overlay entry; 30-minute Gate A remains open |
+| Session runtime residency (ADR 0040) | green (core) / soak evidence pending | Host-owned cold/activate/suspend; TTL/LRU/memory budgets; Desktop settings + CLI doctor/status aggregate metrics; SQLite transcript store landed with legacy fallback |
 | Session rename/archive/delete/duplicate | green | PD-SESS archive-first |
 | Pin + search | green | Pinned group in sidebar |
 | Project rail density | green | Project section folds; recent projects are capped in the rail with a searchable all-project picker |

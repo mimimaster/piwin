@@ -27,6 +27,7 @@ import {
 } from '../seeded-pi-session.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
+import { normalizeAgentEventIds } from '../generation-identity.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -132,8 +133,7 @@ export async function createBackendSdkSession(
     const bridgedContext = createExtensionUiContext(
       input.blueprint.sessionId,
       {
-        request: (request) =>
-          extensionUiPort.request(request, new AbortController().signal),
+        request: (request) => extensionUiPort.request(request, new AbortController().signal),
       },
       createRequestId,
     );
@@ -172,9 +172,7 @@ async function createBackendModelRuntime(
   return modelRuntime;
 }
 
-function resolveBackendProviderApiKey(
-  provider: SerializableProviderRuntime,
-): string | undefined {
+function resolveBackendProviderApiKey(provider: SerializableProviderRuntime): string | undefined {
   switch (provider.auth.kind) {
     case 'env':
       return process.env[provider.auth.envName];
@@ -265,19 +263,25 @@ function wrapBackendPiSession(
           },
         }
       : {}),
-    ...(piSession.abortCompaction
-      ? { abortCompaction: () => piSession.abortCompaction?.() }
-      : {}),
+    ...(piSession.abortCompaction ? { abortCompaction: () => piSession.abortCompaction?.() } : {}),
     ...(piSession.getAutoCompactionEnabled
       ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
       : {}),
     ...(piSession.setAutoCompactionEnabled
-      ? { setAutoCompactionEnabled: (enabled: boolean) => piSession.setAutoCompactionEnabled?.(enabled) }
+      ? {
+          setAutoCompactionEnabled: (enabled: boolean) =>
+            piSession.setAutoCompactionEnabled?.(enabled),
+        }
       : {}),
     subscribe(listener) {
       return piSession.subscribe((rawEvent) => {
         for (const mappedEvent of eventMapper.map(rawEvent)) {
-          listener(mappedEvent.event);
+          listener(
+            normalizeAgentEventIds(mappedEvent.event, {
+              sessionId: input.blueprint.sessionId,
+              runtimeGenerationId: input.blueprint.runtimeGenerationId,
+            }),
+          );
         }
       });
     },
@@ -287,7 +291,10 @@ function wrapBackendPiSession(
 type PiLikeSession = {
   prompt: (
     text: string,
-    options?: { images?: Array<{ data: string; mimeType: string }>; streamingBehavior?: 'steer' | 'followUp' },
+    options?: {
+      images?: Array<{ data: string; mimeType: string }>;
+      streamingBehavior?: 'steer' | 'followUp';
+    },
   ) => Promise<void>;
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;

@@ -336,4 +336,117 @@ describe('TranscriptRecorder', () => {
     expect(messages).toHaveLength(0);
   });
 
+  it('records generation provenance and treats same-generation replay as idempotent', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-provenance-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+      runtimeGenerationId: 'gen-a',
+    });
+
+    // SDK subscription recovery replays lifecycle events within one generation.
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'piw-m-replay',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'piw-m-replay',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'piw-m-replay',
+      delta: 'replayed answer',
+    });
+    await recorder.recordEvent({ type: 'message/end', messageId: 'piw-m-replay' });
+    await recorder.flush();
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    const rows = messages.filter((message) => message.role === 'assistant');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe('piw-m-replay');
+    expect(rows[0]?.text).toBe('replayed answer');
+    expect(rows[0]?.runtimeGenerationId).toBe('gen-a');
+  });
+
+  it('emits a bounded diagnostic and never mutates the older row on cross-generation collision', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-collision-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const { writeFile } = await import('node:fs/promises');
+    // A prior generation persisted an assistant row under the same naked id.
+    await writeFile(
+      transcriptPath,
+      JSON.stringify({
+        version: 1,
+        sessionId: 'session-1',
+        projectPath: '/tmp/project',
+        messages: [
+          {
+            id: 'piw-m-collide',
+            role: 'assistant',
+            text: 'older generation answer',
+            createdAt: new Date().toISOString(),
+            status: 'done',
+            runtimeGenerationId: 'gen-old',
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      }),
+      'utf8',
+    );
+
+    const diagnostics: string[] = [];
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+      runtimeGenerationId: 'gen-new',
+      onDiagnostic: (message) => diagnostics.push(message),
+    });
+
+    // The reconstructed generation emits the same backend row id. Normalized
+    // ids are generation-scoped so this can only be an anomaly — the older row
+    // must survive untouched and the collision is surfaced, never merged.
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'piw-m-collide',
+      role: 'assistant',
+      runId: 'run-new',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'piw-m-collide',
+      delta: ' must not be appended',
+      runId: 'run-new',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'piw-t-collide',
+      toolName: 'read',
+      runId: 'run-new',
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'piw-m-collide',
+      runId: 'run-new',
+    });
+    await recorder.flush();
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toContain('message/start collision');
+    expect(diagnostics[0]).toContain('gen-old');
+    expect(diagnostics[0]).toContain('gen-new');
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id).toBe('piw-m-collide');
+    expect(messages[0]?.text).toBe('older generation answer');
+    expect(messages[0]?.runtimeGenerationId).toBe('gen-old');
+    expect(messages[0]?.tools).toBeUndefined();
+    expect(messages[0]?.status).toBe('done');
+  });
 });

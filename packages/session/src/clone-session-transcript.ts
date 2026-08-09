@@ -43,50 +43,9 @@ export function cloneTranscript(options: CloneTranscriptOptions): CloneTranscrip
   const idMap = new Map<string, string>();
 
   const clonedMessages: SessionTranscriptMessage[] = sourceMessages.map((message) => {
-    const newId = randomUUID();
+    const next = cloneTranscriptMessage(message);
+    const newId = next.id;
     idMap.set(message.id, newId);
-    const next: SessionTranscriptMessage = {
-      id: newId,
-      role: message.role,
-      text: message.text,
-      createdAt: message.createdAt,
-      status: message.status === 'streaming' ? 'done' : message.status,
-    };
-    if (message.thinking !== undefined) {
-      next.thinking = message.thinking;
-    }
-    if (message.tools) {
-      next.tools = message.tools.map((tool) => ({ ...tool }));
-    }
-    if (message.attachments) {
-      // Attachment paths are rewritten by the media clone step after this.
-      // Here we preserve the structure; the host orchestrates path rewriting.
-      next.attachments = message.attachments.map((attachment) => ({ ...attachment }));
-    }
-    if (message.runId) {
-      next.runId = message.runId;
-    }
-    if (message.phaseHistory) {
-      next.phaseHistory = message.phaseHistory.map((entry) => ({ ...entry }));
-    }
-    if (message.startedAt) {
-      next.startedAt = message.startedAt;
-    }
-    if (message.endedAt) {
-      next.endedAt = message.endedAt;
-    }
-    if (message.outcome) {
-      next.outcome = message.outcome;
-    }
-    if (message.terminalMessage) {
-      next.terminalMessage = message.terminalMessage;
-    }
-    if (message.model) {
-      next.model = message.model;
-    }
-    if (message.subagentActivity) {
-      next.subagentActivity = { ...message.subagentActivity };
-    }
     return next;
   });
 
@@ -104,6 +63,33 @@ export function cloneTranscript(options: CloneTranscriptOptions): CloneTranscrip
     transcript.workingDirectory = source.workingDirectory;
   }
   return { transcript, idMap };
+}
+
+/** Clone one row for a streamed duplicate/fork without retaining its siblings. */
+export function cloneTranscriptMessage(
+  message: SessionTranscriptMessage,
+): SessionTranscriptMessage {
+  const next: SessionTranscriptMessage = {
+    id: randomUUID(),
+    role: message.role,
+    text: message.text,
+    createdAt: message.createdAt,
+    status: message.status === 'streaming' ? 'done' : message.status,
+  };
+  if (message.thinking !== undefined) next.thinking = message.thinking;
+  if (message.tools) next.tools = message.tools.map((tool) => ({ ...tool }));
+  if (message.attachments) {
+    next.attachments = message.attachments.map((attachment) => ({ ...attachment }));
+  }
+  if (message.runId) next.runId = message.runId;
+  if (message.phaseHistory) next.phaseHistory = message.phaseHistory.map((entry) => ({ ...entry }));
+  if (message.startedAt) next.startedAt = message.startedAt;
+  if (message.endedAt) next.endedAt = message.endedAt;
+  if (message.outcome) next.outcome = message.outcome;
+  if (message.terminalMessage) next.terminalMessage = message.terminalMessage;
+  if (message.model) next.model = message.model;
+  if (message.subagentActivity) next.subagentActivity = { ...message.subagentActivity };
+  return next;
 }
 
 /**

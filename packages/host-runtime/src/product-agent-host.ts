@@ -167,6 +167,29 @@ export class ProductAgentHost implements AgentHost {
     return this.prepareSessionWithIdentity(input, sessionId, runtimeGenerationId, 'pending');
   }
 
+  /**
+   * Cold activation (ADR 0040 §7): create and commit a runtime generation for
+   * the *stable* product `sessionId` instead of letting the Product Shell
+   * lazily create a second randomly identified backend session. Unlike
+   * `createSession`, the caller supplies both the product session id and the
+   * fresh runtime generation id so Host-owned identity stays stable.
+   */
+  async activateSession(
+    sessionId: string,
+    input: CreateSessionInput,
+    runtimeGenerationId: string,
+    options: CreateSessionOptions = {},
+  ): Promise<SessionHandle> {
+    const prepared = await this.prepareSessionWithIdentity(
+      input,
+      sessionId,
+      runtimeGenerationId,
+      'active',
+      options,
+    );
+    return this.commitPreparedSession(prepared);
+  }
+
   /** Promote a prepared candidate into the ProductAgentHost session map. */
   commitPreparedSession(prepared: PreparedProductSession): SessionHandle {
     this.sessions.set(prepared.sessionId, prepared.session);
@@ -379,11 +402,27 @@ export class ProductAgentHost implements AgentHost {
   async dropSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
-    await this.options.onGenerationDetached?.(sessionId);
-    if (session) {
-      await session.abort().catch(() => undefined);
+    const cleanupErrors: unknown[] = [];
+    try {
+      await this.options.onGenerationDetached?.(sessionId);
+    } catch (error) {
+      cleanupErrors.push(error);
     }
-    await this.backend?.dropSession(sessionId);
+    if (session) {
+      try {
+        await session.abort();
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    try {
+      await this.backend?.dropSession(sessionId);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(cleanupErrors, `failed to fully drop session ${sessionId}`);
+    }
   }
 
   async dispose(): Promise<void> {
@@ -395,11 +434,11 @@ export class ProductAgentHost implements AgentHost {
   }
 }
 
-function createProductSessionId(): string {
+export function createProductSessionId(): string {
   return `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function createRuntimeGenerationId(): string {
+export function createRuntimeGenerationId(): string {
   return `generation-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 

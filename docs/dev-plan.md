@@ -193,6 +193,7 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 | M7.2 | logging + redaction | no secrets in logs |
 | M7.3 | Runtime Refactor Phases 1-3 | done — Job/Run ownership unified; RPC worker isolated; SDK/worker conformance green |
 | M7.4 | performance: session list, artifact init, renderer egress/transcript bounds | bounded mounted turns and acceptable native memory slope on large history |
+| M7.6 | Host session runtime residency (ADR 0040 WP0–WP8) | cold history free; idle TTL/LRU/memory eviction; generation-scoped ids; Desktop/CLI visibility; SQLite transcript store + doctor metrics |
 | M7.5 | security review pass | permissions + CSP + path rules |
 
 ### M8 — Host Server + multi-client deployment (next architecture slice)

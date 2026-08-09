@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
  * Live session IPC: create/spawn/prompt/compact/export and sub-agent lifecycle.
  * HostRuntime provides SessionLiveContext (maps + ensureLiveSession/bindSession/…).
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, open, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import type {
   AgentHost,
@@ -27,7 +27,6 @@ import type {
   SessionRunAcceptedData,
   SessionTranscriptPageData,
   SessionTranscriptMessage,
-  SessionTranscriptDocument,
 } from '@piwin/contracts';
 import {
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
@@ -48,35 +47,24 @@ import {
   formatRunAbortReason,
 } from '../run-abort-reason.js';
 import {
-  buildSessionOutline,
-  buildProductHistoryContext,
-  createSessionTranscriptPage,
-  projectTranscriptMessagesForUi,
-  SessionTranscriptCursorError,
   clearSessionPlan,
   createSessionRecord,
-  exportTranscript,
+  streamTranscriptExport,
   getSessionRecord,
   listChildSessions,
-  listTranscriptMessages,
   loadSessionPlan,
   mergeProductHistoryIntoPrompt,
   saveSessionPlan,
   exportCompactionMarkdown,
   buildCompactionSeedMessages,
-  cloneTranscriptForDuplicate,
   suggestSessionExportBasename,
   suggestCompactionExportBasename,
-  truncateTranscriptFrom,
   upsertSessionRecord,
+  type SessionTranscriptStore,
 } from '@piwin/session';
-import {
-  formatSideChatContextBlock,
-  mergeSideChatContextIntoPrompt,
-} from '@piwin/session';
+import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
-import { createProductShellSession } from '../product-shell-session.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
@@ -84,9 +72,8 @@ import {
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
   getPiwinSessionPlanPath,
-  getPiwinSessionTranscriptPath,
 } from '../paths.js';
-import type { createTranscriptRecorder } from '../transcript-recorder.js';
+import type { TranscriptRecorder } from '../transcript-recorder.js';
 import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
 import {
@@ -122,7 +109,7 @@ export type SessionLiveContext = {
   sessionModels: Map<string, ModelRef>;
   sessionAutoCompactionOverrides: Map<string, boolean>;
   unsubscribers: Map<string, () => void>;
-  transcriptRecorders: Map<string, ReturnType<typeof createTranscriptRecorder>>;
+  transcriptRecorders: Map<string, TranscriptRecorder>;
   /**
    * Session runtime generation registry (spec §12). Reports stale/live state
    * and validates explicit reloads; HostRuntime owns one instance.
@@ -155,6 +142,11 @@ export type SessionLiveContext = {
     },
   ) => Promise<void>;
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
+  getTranscriptStore: (sessionId: string) => Promise<SessionTranscriptStore>;
+  withTranscriptStore: <T>(
+    sessionId: string,
+    operation: (store: SessionTranscriptStore) => Promise<T>,
+  ) => Promise<T>;
   /** SIDE: resolved inherited context snapshot for a side-chat session (undefined otherwise). */
   loadSideChatSnapshot: (
     sessionId: string,
@@ -171,6 +163,27 @@ export type SessionLiveContext = {
   touchSession: (sessionId: string, previewText: string) => Promise<void>;
   needsProductHistoryInjection: (sessionId: string) => boolean;
   ensureLiveSession: (sessionId: string) => Promise<SessionHandle>;
+  /**
+   * ADR 0040 §7: Host-owned cold activation. Returns the resident handle,
+   * creating a fresh runtime generation for the stable product session id
+   * when the session is cold. Deduplicated by session id. `runId` attaches
+   * the new generation to the already accepted Run before tool admission.
+   */
+  activateSessionRuntime: (
+    sessionId: string,
+    runId?: string,
+    signal?: AbortSignal,
+  ) => Promise<SessionHandle>;
+  /** Clear the one-shot product-history injection for a reconstructed runtime. */
+  markProductHistoryInjected: (sessionId: string) => void;
+  /**
+   * ADR 0040 §5: acquire an explicit residency protection lease (compaction
+   * or any backend operation not represented in RunRegistry). Returns false
+   * when no resident runtime exists for the session.
+   */
+  protectRuntime: (sessionId: string) => boolean;
+  /** Release one residency protection lease. */
+  releaseRuntimeProtection: (sessionId: string) => void;
   resolveAutoCompaction: (
     sessionId: string,
   ) => Promise<{ enabled: boolean; source: string; globalDefault: boolean }>;
@@ -215,6 +228,11 @@ export type SessionLiveContext = {
   resetSessionEventState?: (sessionId: string) => void;
   /** Cancel an in-flight runtime replacement before dropping the live session. */
   cancelRuntimeReplacement: (sessionId: string) => Promise<void>;
+  /** Drop runtime-only state while preserving durable session/index data. */
+  disposeLiveSession: (
+    sessionId: string,
+    reason?: import('@piwin/contracts').SessionRuntimeEvictionReason,
+  ) => Promise<void>;
   reloadRuntime: (request: {
     sessionId: string;
     expectedSettingsRevision: string;
@@ -227,6 +245,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/list-children',
   'session/truncate-from',
   'session/resume',
+  'session/outline-page',
   'session/transcript-page',
   'session/messages',
   'session/prompt',
@@ -271,49 +290,57 @@ async function compactSessionHandle(
 ): Promise<SessionCompactResult> {
   const compact = session.compact;
   if (!compact) {
-    throw new Error(
-      'compaction is not supported on this session (RPC or inactive product shell)',
-    );
+    throw new Error('compaction is not supported on this session (RPC or inactive product shell)');
   }
 
   const startedAt = Date.now();
-  const result = customInstructions ? await compact(customInstructions) : await compact();
-  const durationMs =
-    typeof result.durationMs === 'number' ? result.durationMs : Date.now() - startedAt;
-  const fileOps =
-    result.fileOps ??
-    extractFileOpsFromUnknown(result) ??
-    extractFileOpsFromUnknown({ summary: result.summary });
-  const enrichedResult: SessionCompactResult = {
-    ...result,
-    durationMs,
-    ...(fileOps ? { fileOps } : {}),
-  };
+  // ADR 0040 §5: compaction is a backend operation outside RunRegistry, so it
+  // takes an explicit residency protection lease — a compacting runtime is
+  // never evicted.
+  const protectedRuntime = context.protectRuntime(sessionId);
+  try {
+    const result = customInstructions ? await compact(customInstructions) : await compact();
+    const durationMs =
+      typeof result.durationMs === 'number' ? result.durationMs : Date.now() - startedAt;
+    const fileOps =
+      result.fileOps ??
+      extractFileOpsFromUnknown(result) ??
+      extractFileOpsFromUnknown({ summary: result.summary });
+    const enrichedResult: SessionCompactResult = {
+      ...result,
+      durationMs,
+      ...(fileOps ? { fileOps } : {}),
+    };
 
-  if (emitSessionFacts && fileOps) {
-    const block = formatFilesTouchedBlock(fileOps);
-    context.sessionFilesTouched.set(sessionId, block);
-    context.push({
-      type: 'event',
-      sessionId,
-      event: {
-        type: 'compaction/end',
-        ok: enrichedResult.ok,
-        ...(enrichedResult.message ? { message: enrichedResult.message } : {}),
-        ...(enrichedResult.summary ? { summary: enrichedResult.summary } : {}),
-        ...(typeof enrichedResult.tokensBefore === 'number'
-          ? { tokensBefore: enrichedResult.tokensBefore }
-          : {}),
-        ...(typeof enrichedResult.tokensAfter === 'number'
-          ? { tokensAfter: enrichedResult.tokensAfter }
-          : {}),
-        durationMs,
-        fileOps,
-      },
-    });
+    if (emitSessionFacts && fileOps) {
+      const block = formatFilesTouchedBlock(fileOps);
+      context.sessionFilesTouched.set(sessionId, block);
+      context.push({
+        type: 'event',
+        sessionId,
+        event: {
+          type: 'compaction/end',
+          ok: enrichedResult.ok,
+          ...(enrichedResult.message ? { message: enrichedResult.message } : {}),
+          ...(enrichedResult.summary ? { summary: enrichedResult.summary } : {}),
+          ...(typeof enrichedResult.tokensBefore === 'number'
+            ? { tokensBefore: enrichedResult.tokensBefore }
+            : {}),
+          ...(typeof enrichedResult.tokensAfter === 'number'
+            ? { tokensAfter: enrichedResult.tokensAfter }
+            : {}),
+          durationMs,
+          fileOps,
+        },
+      });
+    }
+
+    return enrichedResult;
+  } finally {
+    if (protectedRuntime) {
+      context.releaseRuntimeProtection(sessionId);
+    }
   }
-
-  return enrichedResult;
 }
 
 /**
@@ -326,21 +353,17 @@ async function compactTranscriptSnapshot(
   record: SessionIndexRecord,
   customInstructions?: string,
 ): Promise<SessionCompactResult> {
-  const messages = await context.loadTranscriptMessages(record.id);
-  const sourceTranscript: SessionTranscriptDocument = {
-    version: 1,
-    sessionId: record.id,
-    projectPath: record.projectPath,
-    messages,
-    updatedAt: new Date().toISOString(),
-    ...(record.scope ? { scope: record.scope } : {}),
-    ...(record.workingDirectory ? { workingDirectory: record.workingDirectory } : {}),
-  };
-  const snapshotTranscript = cloneTranscriptForDuplicate(
-    sourceTranscript,
-    `compact-snapshot-${randomUUID()}`,
+  const history = await context.withTranscriptStore(record.id, (store) =>
+    store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
   );
-  const seedMessages = buildCompactionSeedMessages(snapshotTranscript.messages);
+  const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
+    id: `compact-history-${index}`,
+    role: message.role as SessionTranscriptMessage['role'],
+    text: message.text,
+    createdAt: new Date().toISOString(),
+    status: 'done',
+  }));
+  const seedMessages = buildCompactionSeedMessages(snapshotMessages);
   if (seedMessages.length === 0) {
     return { ok: false, message: 'Session has no messages to summarize' };
   }
@@ -375,7 +398,7 @@ async function compactTranscriptSnapshot(
   } finally {
     if (temporarySession) {
       try {
-        await context.host.dropSession(temporarySession.id);
+        await context.disposeLiveSession(temporarySession.id);
       } catch (cleanupError) {
         if (operationFailed) {
           throw new AggregateError(
@@ -464,39 +487,8 @@ async function preparePromptInput(
   const promptInput: PromptInput = {
     ...preparedFromHost,
     text: preparedFromHost.text,
-    ...(preparedFromHost.attachments
-      ? { attachments: [...preparedFromHost.attachments] }
-      : {}),
+    ...(preparedFromHost.attachments ? { attachments: [...preparedFromHost.attachments] } : {}),
   };
-  throwIfPromptPreparationAborted(context, run.runId);
-
-  // A continuous Pi SDK session keeps native context itself. Inject product
-  // history only when a recovered Product Shell is about to create its first
-  // live handle, otherwise the model receives the same prior turns twice.
-  if (context.needsProductHistoryInjection(command.sessionId)) {
-    try {
-      const transcriptMessages = await context.loadTranscriptMessages(command.sessionId);
-      throwIfPromptPreparationAborted(context, run.runId);
-      const lastMessageId = transcriptMessages[transcriptMessages.length - 1]?.id;
-      const history = buildProductHistoryContext(
-        transcriptMessages,
-        lastMessageId ? { excludeMessageId: lastMessageId } : {},
-      );
-      if (history) {
-        promptInput.text = mergeProductHistoryIntoPrompt(history, promptInput.text);
-      }
-    } catch (error) {
-      if (error instanceof PromptPreparationCancelledError) {
-        throw error;
-      }
-      const message = formatError(error);
-      context.push({
-        type: 'host/log',
-        level: 'warn',
-        message: `product history inject failed: ${message}`,
-      });
-    }
-  }
   throwIfPromptPreparationAborted(context, run.runId);
 
   // SIDE §7.5(5)/§9.2: inject the side chat's inherited context snapshot
@@ -531,10 +523,7 @@ async function preparePromptInput(
   // mutating the recorded user transcript.
   if (command.input.contextRefs && command.input.contextRefs.length > 0) {
     try {
-      const resolvedContext = await resolvePromptContextRefs(
-        context,
-        command.input.contextRefs,
-      );
+      const resolvedContext = await resolvePromptContextRefs(context, command.input.contextRefs);
       if (resolvedContext) {
         promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
       }
@@ -632,6 +621,60 @@ async function preparePromptInput(
 }
 
 /**
+ * ADR 0040 §7(6): inject bounded product history into the model prompt exactly
+ * once for a reconstructed runtime generation. Called after cold activation so
+ * the marker set by activation is honored; later turns reuse the backend's own
+ * conversation state and never see duplicate history.
+ */
+async function injectProductHistoryOnce(
+  context: SessionLiveContext,
+  sessionId: string,
+  promptInput: PromptInput,
+): Promise<void> {
+  if (!context.needsProductHistoryInjection(sessionId)) {
+    return;
+  }
+  try {
+    const store = await context.getTranscriptStore(sessionId);
+    const historyRows = await store.buildHistoryWindow({
+      maxMessages: 40,
+      maxChars: 24_000,
+      ...(promptInput.clientMessageId !== undefined
+        ? { excludeMessageId: promptInput.clientMessageId }
+        : {}),
+    });
+    const history = formatBoundedHistory(historyRows);
+    if (history) {
+      promptInput.text = mergeProductHistoryIntoPrompt(history, promptInput.text);
+    }
+  } catch (error) {
+    const message = formatError(error);
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `product history inject failed: ${message}`,
+    });
+  }
+  context.markProductHistoryInjected(sessionId);
+}
+
+function formatBoundedHistory(rows: ReadonlyArray<{ role: string; text: string }>): string {
+  if (rows.length === 0) {
+    return '';
+  }
+  const lines = [
+    '[piwin-product-history]',
+    'Prior conversation (product transcript; not Pi JSONL):',
+  ];
+  for (const row of rows) {
+    const role = row.role === 'user' ? 'User' : row.role === 'assistant' ? 'Assistant' : 'System';
+    lines.push(`${role}: ${row.text.trim()}`);
+  }
+  lines.push('[/piwin-product-history]');
+  return lines.join('\n');
+}
+
+/**
  * Resolve structured context refs (SIDE §8.2) into a bounded, labeled context
  * block for the model prompt. The user transcript keeps the original text +
  * refs; this resolution only shapes what the model sees. File refs are
@@ -645,27 +688,32 @@ async function resolvePromptContextRefs(
   for (const ref of refs) {
     switch (ref.kind) {
       case 'side-chat-message': {
-        const messages = await context.loadTranscriptMessages(ref.sideChatSessionId);
-        const message = messages.find((item) => item.id === ref.messageId);
+        const message = await context.withTranscriptStore(ref.sideChatSessionId, (store) =>
+          store.getMessage(ref.messageId),
+        );
         if (message) {
           blocks.push(`[side-chat-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`);
         }
         break;
       }
       case 'main-message': {
-        const messages = await context.loadTranscriptMessages(ref.sourceSessionId);
-        const message = messages.find((item) => item.id === ref.messageId);
+        const message = await context.withTranscriptStore(ref.sourceSessionId, (store) =>
+          store.getMessage(ref.messageId),
+        );
         if (message) {
-          blocks.push(`[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`);
+          blocks.push(
+            `[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`,
+          );
         }
         break;
       }
       case 'file': {
         const content = await readBoundedFileForRef(ref.projectPath, ref.relativePath);
         if (content !== undefined) {
-          const range = ref.lineStart !== undefined
-            ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
-            : '';
+          const range =
+            ref.lineStart !== undefined
+              ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
+              : '';
           blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${content}`);
         }
         break;
@@ -674,7 +722,9 @@ async function resolvePromptContextRefs(
         blocks.push(`[diff-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
         break;
       case 'terminal-output':
-        blocks.push(`[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
+        blocks.push(
+          `[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`,
+        );
         break;
       case 'error':
         blocks.push(`[error-reference: ${ref.title}]\n${ref.detail.slice(0, 8000)}`);
@@ -702,10 +752,7 @@ async function readBoundedFileForRef(
   let realCandidate: string;
   let realRoot: string;
   try {
-    [realCandidate, realRoot] = await Promise.all([
-      realpath(candidate),
-      realpath(rootAbsolute),
-    ]);
+    [realCandidate, realRoot] = await Promise.all([realpath(candidate), realpath(rootAbsolute)]);
   } catch {
     return undefined;
   }
@@ -828,12 +875,17 @@ export async function handleSessionLiveCommand(
       if (command.input.task) {
         lineage.task = command.input.task;
       }
-      await context.bindSession(
-        session,
-        createInput.projectPath,
-        command.input.sessionName,
-        lineage,
-      );
+      try {
+        await context.bindSession(
+          session,
+          createInput.projectPath,
+          command.input.sessionName,
+          lineage,
+        );
+      } catch (error) {
+        await context.disposeLiveSession(session.id).catch(() => undefined);
+        throw error;
+      }
       // Seed the session composer profile at create time so a new session
       // remembers the model even before the first prompt is sent.
       if (command.input.model || command.input.thinkingLevel !== undefined) {
@@ -870,58 +922,30 @@ export async function handleSessionLiveCommand(
       if (!record) {
         return fail(requestId, 'session/truncate-from', `Unknown session: ${command.sessionId}`);
       }
-      const transcriptPath = getPiwinSessionTranscriptPath(rootDir, command.sessionId);
-      const truncated = await truncateTranscriptFrom(transcriptPath, command.messageId);
-      if (!truncated.found) {
+      const store = await context.getTranscriptStore(command.sessionId);
+      if ((await store.getMessage(command.messageId)) === undefined) {
         return fail(
           requestId,
           'session/truncate-from',
           `Message not found in transcript: ${command.messageId}`,
         );
       }
-      const replacementCleanup = context.cancelRuntimeReplacement(command.sessionId);
-      // Drop live handle so next prompt rebuilds from product transcript only.
-      const live = context.sessions.get(command.sessionId);
-      if (live) {
-        try {
-          await live.abort();
-        } catch {
-          // ignore
-        }
-        const unsub = context.unsubscribers.get(command.sessionId);
-        if (unsub) {
-          unsub();
-          context.unsubscribers.delete(command.sessionId);
-        }
-        // Dispose before delete so a pending flush cannot rewrite the cut file.
-        const recorder = context.transcriptRecorders.get(command.sessionId);
-        if (recorder) {
-          recorder.dispose();
-          context.transcriptRecorders.delete(command.sessionId);
-        }
-      } else {
-        const recorder = context.transcriptRecorders.get(command.sessionId);
-        if (recorder) {
-          recorder.dispose();
-          context.transcriptRecorders.delete(command.sessionId);
-        }
+      // Runtime reset is a Host lifecycle transaction: it cancels replacement
+      // and active work, flushes/detaches the generation, releases residency,
+      // and preserves the durable session record that is about to be cut.
+      await context.disposeLiveSession(command.sessionId, 'manual');
+      const truncated = await store.truncateFrom(command.messageId);
+      if (!truncated.found) {
+        throw new Error(`Transcript changed before truncate: ${command.messageId}`);
       }
-      await replacementCleanup;
-      context.sessions.delete(command.sessionId);
-      // Clear run correlation so late events from the aborted handle cannot
-      // poison the rebuilt shell's next prompt.
-      context.resetSessionEventState?.(command.sessionId);
-      // Invalidate the adapter's cached session handle. The Product Shell /
-      // live Pi session it holds would otherwise keep the pre-truncation
-      // history and be reused by ensureLiveSession on the next prompt.
-      await context.host.dropSession(command.sessionId);
-      // Rebuild a fresh Product Shell from the truncated transcript now so
-      // the next session/prompt passes requireSession and injects the
-      // truncated history (needsProductHistoryInjection) into the rebuild.
-      await context.ensureLiveSession(command.sessionId);
-      const remaining = truncated.document?.messages ?? [];
-      record.messageCount = remaining.length;
-      const last = remaining[remaining.length - 1];
+      // ADR 0040 §7: no eager rebuild. The next session/prompt activates a
+      // fresh runtime generation for the stable product session id and
+      // injects the truncated product history exactly once. Keep the durable
+      // history requirement pending so a cold prompt rebuilds from the cut
+      // transcript only.
+      const remaining = await store.listTail(50);
+      record.messageCount = truncated.remainingCount;
+      const last = remaining.at(-1);
       if (last?.text) {
         record.lastPreview = last.text.slice(0, 160);
       } else {
@@ -933,11 +957,7 @@ export async function handleSessionLiveCommand(
         sessionId: command.sessionId,
         removedCount: truncated.removedCount,
         remainingCount: truncated.remainingCount,
-        ...createSessionMessageResponse(
-          command.sessionId,
-          remaining,
-          command.messageProjection,
-        ),
+        ...createSessionMessageResponse(command.sessionId, remaining, command.messageProjection),
         session: indexRecordToSummary(record),
       });
     }
@@ -948,11 +968,21 @@ export async function handleSessionLiveCommand(
       if (!existing) {
         return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
       }
-      const messages = await context.loadTranscriptMessages(command.sessionId);
+      const store = await context.getTranscriptStore(command.sessionId);
+      const transcriptPage = await store.transcriptPage({
+        sessionId: command.sessionId,
+        limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+        maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+      });
+      if (transcriptPage.status !== 'page') {
+        throw new Error('Cursorless transcript tail unexpectedly returned stale');
+      }
+      const firstUserMessage = await store.firstMessageByRole('user');
       const [repairedExisting] = await repairLegacySessionNames({
         indexPath,
         records: [existing],
-        loadTranscriptMessages: async () => messages,
+        loadTranscriptMessages: async () =>
+          firstUserMessage === undefined ? [] : [firstUserMessage],
         onRepaired: (record) => {
           if (record.name) {
             context.push({
@@ -968,57 +998,26 @@ export async function handleSessionLiveCommand(
         },
       });
       existing = repairedExisting ?? existing;
-      // Full messages seed the product shell / history inject. Shells receive
-      // only a bounded newest page; older durable history stays Host-owned.
-      const transcriptPage = createSessionTranscriptPage(messages, {
-        sessionId: command.sessionId,
-        limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
-        maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
-      });
-      if (transcriptPage.status !== 'page') {
-        throw new Error('Cursorless transcript tail unexpectedly returned stale');
-      }
-      let session: SessionHandle;
-      let live = true;
-      try {
-        session = await context.host.resumeSession(command.sessionId);
-      } catch (error) {
-        // Cross-process: adapter may not hold the Pi handle. Bind a product shell
-        // that keeps stable id + transcript and creates a live session on first prompt.
-        const message = formatError(error);
-        context.push({
-          type: 'host/log',
-          level: 'info',
-          message: `resume fallback to product shell: ${message}`,
-        });
-        const shellOptions: Parameters<typeof createProductShellSession>[0] = {
-          sessionId: command.sessionId,
-          projectPath: existing.projectPath,
-          seedMessages: messages,
-          createLiveSession: async (input: CreateSessionInput) => context.createSession(input),
-        };
-        if (existing.name) {
-          shellOptions.sessionName = existing.name;
-        }
-        session = createProductShellSession(shellOptions);
-        live = true;
-      }
-      await context.bindSession(session, existing.projectPath, existing.name);
+      // Durable read (ADR 0040 §1): selecting a chat must not allocate a Pi
+      // session or worker. Only a bounded newest page is returned; older
+      // history stays Host-owned and is paged on demand.
+      // Residency is actual bound-handle state, not product-session existence.
+      const live = context.sessions.has(command.sessionId);
       // Restore the last composer model into the in-memory map so subsequent
       // host features (walkthrough, naming, transcript snapshot) see it even
       // before the next prompt. Prefer index, then last assistant message.
-      const restoredModel =
-        existing.model ?? recoverModelFromTranscript(messages) ?? undefined;
+      const restoredModel = existing.model ?? (await store.recentModel()) ?? undefined;
       if (restoredModel) {
         context.sessionModels.set(command.sessionId, restoredModel);
       }
       const data: SessionResumeData = {
-        sessionId: session.id,
+        sessionId: command.sessionId,
         live,
         messages: transcriptPage.messages,
         transcriptPage: transcriptPage.page,
         projectPath: existing.projectPath,
-        outline: buildSessionOutline(messages),
+        // ADR 0040 §9: bounded recent window, never the complete outline.
+        outline: (await store.outlinePage({ sessionId: command.sessionId, limit: 40 })).nodes,
       };
       const resumeScope = scopeFromIndexRecord(existing);
       data.scope = resumeScope;
@@ -1037,6 +1036,31 @@ export async function handleSessionLiveCommand(
       }
       return ok(requestId, 'session/resume', data);
     }
+    case 'session/outline-page': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const existing = await getSessionRecord(
+        getPiwinSessionIndexPath(rootDir),
+        command.query.sessionId,
+      );
+      if (!existing) {
+        return fail(
+          requestId,
+          'session/outline-page',
+          `Unknown session: ${command.query.sessionId}`,
+        );
+      }
+      try {
+        const page = await (
+          await context.getTranscriptStore(command.query.sessionId)
+        ).outlinePage(command.query);
+        return ok(requestId, 'session/outline-page', page);
+      } catch (error) {
+        if (error instanceof RangeError) {
+          return fail(requestId, 'session/outline-page', error.message);
+        }
+        throw error;
+      }
+    }
     case 'session/transcript-page': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const existing = await getSessionRecord(
@@ -1050,22 +1074,27 @@ export async function handleSessionLiveCommand(
           `Unknown session: ${command.query.sessionId}`,
         );
       }
-      const messages = await context.loadTranscriptMessages(command.query.sessionId);
       try {
-        const page: SessionTranscriptPageData = createSessionTranscriptPage(
-          messages,
-          command.query,
-        );
+        const page = await (
+          await context.getTranscriptStore(command.query.sessionId)
+        ).transcriptPage(command.query);
         return ok(requestId, 'session/transcript-page', page);
       } catch (error) {
-        if (error instanceof SessionTranscriptCursorError || error instanceof RangeError) {
+        if (error instanceof RangeError) {
           return fail(requestId, 'session/transcript-page', error.message);
         }
         throw error;
       }
     }
     case 'session/runtime-status': {
-      context.requireSession(command.sessionId);
+      // ADR 0040: cold sessions have no live handle but still need truthful
+      // residency diagnostics (Cold + lastEvictionReason). Accept any durable
+      // product session id; do not require a resident runtime.
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), command.sessionId);
+      if (!record && !context.sessions.has(command.sessionId)) {
+        return fail(requestId, 'session/runtime-status', `Unknown session: ${command.sessionId}`);
+      }
       const status = context.runtimeController.getStatus(command.sessionId);
       return ok(requestId, 'session/runtime-status', { status });
     }
@@ -1089,10 +1118,19 @@ export async function handleSessionLiveCommand(
       }
     }
     case 'session/messages': {
-      const messages = await context.loadTranscriptMessages(command.sessionId);
+      const page = await (
+        await context.getTranscriptStore(command.sessionId)
+      ).transcriptPage({
+        sessionId: command.sessionId,
+        limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+        maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+      });
+      if (page.status !== 'page') {
+        throw new Error('Cursorless transcript tail unexpectedly returned stale');
+      }
       return ok(requestId, 'session/messages', {
         sessionId: command.sessionId,
-        messages: projectTranscriptMessagesForUi(messages),
+        messages: page.messages,
       });
     }
     case 'session/prompt': {
@@ -1120,13 +1158,20 @@ export async function handleSessionLiveCommand(
         );
       }
 
-      // Validate the session before registering ownership. Everything after
-      // this point is tracked preparation and must not delay the ack.
-      try {
-        context.requireSession(command.sessionId);
-      } catch (error) {
-        const message = formatError(error);
-        return fail(requestId, 'session/prompt', message);
+      // Validate the durable session record before registering ownership
+      // (ADR 0040 §1). A bound live handle is already validated; a cold
+      // prompt must pass a durable index record — prompting must not require
+      // an already-bound handle, since the detached Run activates it on
+      // demand. Everything after this point is tracked preparation and must
+      // not delay the ack.
+      if (!context.sessions.has(command.sessionId)) {
+        const durableRecord = await getSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+          command.sessionId,
+        );
+        if (!durableRecord) {
+          return fail(requestId, 'session/prompt', `Unknown session: ${command.sessionId}`);
+        }
       }
       // Validate synchronous security-sensitive input before accepting the
       // run. Preparation may move to the background, but invalid media
@@ -1160,9 +1205,7 @@ export async function handleSessionLiveCommand(
           );
         } catch (error) {
           const message =
-            error instanceof OrchestrationSchemeError
-              ? error.message
-              : formatError(error);
+            error instanceof OrchestrationSchemeError ? error.message : formatError(error);
           return fail(requestId, 'session/prompt', message);
         }
       }
@@ -1189,8 +1232,23 @@ export async function handleSessionLiveCommand(
             return;
           }
 
-          // Ensure a live session exists after truncate (product shell rebuild).
-          const liveSession = await context.ensureLiveSession(command.sessionId);
+          // ADR 0040 §7: activate a cold runtime for the stable product
+          // session id. The new generation is attached to this Run before
+          // tool execution is admitted, so Host tool frames pass admission.
+          const liveSession = await context.activateSessionRuntime(
+            command.sessionId,
+            run.runId,
+            context.getRunSignal(run.runId),
+          );
+          if (context.getRunSignal(run.runId)?.aborted) {
+            await finalizeCancelledRun(context, command.sessionId, run.runId);
+            return;
+          }
+
+          // A reconstructed generation owns no native context: inject bounded
+          // product history exactly once before provider execution. Later
+          // turns reuse the backend's own conversation state.
+          await injectProductHistoryOnce(context, command.sessionId, promptInput);
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeCancelledRun(context, command.sessionId, run.runId);
             return;
@@ -1250,7 +1308,14 @@ export async function handleSessionLiveCommand(
             return;
           }
           const message = formatError(error);
-          await context.terminateRun(command.sessionId, run.runId, 'failed', undefined, message);
+          // ADR 0040 §4: a memory-pressure admission failure terminalizes the
+          // Run with the stable code so clients can distinguish it from an
+          // ordinary provider failure.
+          const terminalCode =
+            (error as { code?: string } | null)?.code === 'runtime-memory-pressure'
+              ? ('runtime-memory-pressure' as const)
+              : undefined;
+          await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, message);
           context.push({
             type: 'event',
             sessionId: command.sessionId,
@@ -1385,11 +1450,7 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/compact-export', `Unknown session: ${command.sessionId}`);
       }
 
-      const result = await compactTranscriptSnapshot(
-        context,
-        record,
-        command.customInstructions,
-      );
+      const result = await compactTranscriptSnapshot(context, record, command.customInstructions);
       if (!result.ok) {
         return fail(
           requestId,
@@ -1413,9 +1474,7 @@ export async function handleSessionLiveCommand(
         path: outputPath,
         byteLength: Buffer.byteLength(content, 'utf8'),
         ...(result.summary ? { summary: result.summary } : {}),
-        ...(typeof result.tokensBefore === 'number'
-          ? { tokensBefore: result.tokensBefore }
-          : {}),
+        ...(typeof result.tokensBefore === 'number' ? { tokensBefore: result.tokensBefore } : {}),
         ...(typeof result.tokensAfter === 'number' ? { tokensAfter: result.tokensAfter } : {}),
         ...(typeof result.durationMs === 'number' ? { durationMs: result.durationMs } : {}),
       };
@@ -1465,16 +1524,17 @@ export async function handleSessionLiveCommand(
       if (!record) {
         return fail(requestId, 'session/export', `Unknown session: ${command.sessionId}`);
       }
-      const format = command.format === 'html' ? 'html' : 'md';
+      const format: 'html' | 'md' = command.format === 'html' ? 'html' : 'md';
       const redactTools = command.redactTools === true;
-      const messages = await context.loadTranscriptMessages(command.sessionId);
-      const exported = exportTranscript(messages, {
+      const store = await context.getTranscriptStore(command.sessionId);
+      const exportOptions = {
         format,
         redactTools,
         sessionId: command.sessionId,
         projectPath: record.projectPath,
         ...(record.name ? { title: record.name } : {}),
-      });
+        exportedAt: new Date().toISOString(),
+      };
       const outputPath = resolveSessionOutputPath(
         rootDir,
         command.sessionId,
@@ -1482,8 +1542,16 @@ export async function handleSessionLiveCommand(
         suggestSessionExportBasename(command.sessionId, format),
       );
       await mkdir(dirname(outputPath), { recursive: true });
-      await writeFile(outputPath, exported.content, 'utf8');
-      const byteLength = Buffer.byteLength(exported.content, 'utf8');
+      const output = await open(outputPath, 'w');
+      let byteLength = 0;
+      try {
+        for await (const chunk of streamTranscriptExport(store.iterateAll(100), exportOptions)) {
+          await output.write(chunk, undefined, 'utf8');
+          byteLength += Buffer.byteLength(chunk, 'utf8');
+        }
+      } finally {
+        await output.close();
+      }
       return ok(requestId, 'session/export', {
         sessionId: command.sessionId,
         format,

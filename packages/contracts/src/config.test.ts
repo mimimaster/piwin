@@ -12,6 +12,11 @@ import type {
   ImageGenerationConfig,
   SubagentConfig,
 } from './config.js';
+import {
+  deriveMemoryHighWaterMiB,
+  deriveMemoryLowWaterMiB,
+  normalizeSessionRuntimeRetentionConfig,
+} from './config.js';
 
 describe('ModelConfigEntry capabilities + routes', () => {
   it('accepts capabilities and routes', () => {
@@ -245,5 +250,57 @@ describe('PiwinConfig.subagents', () => {
     };
     expect(cfg.profiles).toHaveLength(0);
     expect(cfg.processIsolation).toBe('best-effort');
+  });
+});
+
+describe('SessionRuntimeRetentionConfig normalization (ADR 0040)', () => {
+  it('applies ADR defaults when the config is omitted', () => {
+    const normalized = normalizeSessionRuntimeRetentionConfig(undefined);
+    expect(normalized.idleTtlSeconds).toBe(600);
+    expect(normalized.maxIdleRuntimes).toBe(2);
+    expect(normalized.maxResidentRuntimes).toBeUndefined();
+    expect(normalized.memoryHighWaterMiB).toBeUndefined();
+  });
+
+  it('clamps values into the supported range', () => {
+    const normalized = normalizeSessionRuntimeRetentionConfig({
+      idleTtlSeconds: -10,
+      maxIdleRuntimes: -1,
+      maxResidentRuntimes: 99,
+      memoryHighWaterMiB: 10,
+    });
+    expect(normalized.idleTtlSeconds).toBe(0);
+    expect(normalized.maxIdleRuntimes).toBe(0);
+    expect(normalized.maxResidentRuntimes).toBe(8);
+    expect(normalized.memoryHighWaterMiB).toBe(512);
+  });
+
+  it('derives the adaptive memory high water from system memory', () => {
+    // 16 GiB system => 4096 MiB at 25%, clamped to 2048.
+    expect(deriveMemoryHighWaterMiB(16 * 1024)).toBe(2048);
+    // 1 GiB system => 256 MiB at 25%, clamped up to 512.
+    expect(deriveMemoryHighWaterMiB(1024)).toBe(512);
+    // 8 GiB system => 2048 MiB at 25%, within clamp.
+    expect(deriveMemoryHighWaterMiB(8 * 1024)).toBe(2048);
+  });
+
+  it('derives the low-water target as 80% of the high water', () => {
+    expect(deriveMemoryLowWaterMiB(2048)).toBe(1638);
+    expect(deriveMemoryLowWaterMiB(512)).toBe(410);
+  });
+
+  it('keeps optional overrides as provided within clamps', () => {
+    const normalized = normalizeSessionRuntimeRetentionConfig({
+      idleTtlSeconds: 120,
+      maxIdleRuntimes: 4,
+      maxResidentRuntimes: 6,
+      memoryHighWaterMiB: 1024,
+    });
+    expect(normalized).toEqual({
+      idleTtlSeconds: 120,
+      maxIdleRuntimes: 4,
+      maxResidentRuntimes: 6,
+      memoryHighWaterMiB: 1024,
+    });
   });
 });

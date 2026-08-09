@@ -24,6 +24,22 @@ function writeLine(frame: unknown): void {
   process.stdout.write(`${JSON.stringify(frame)}\n`);
 }
 
+/** Answer an internal resource query with current memory usage (ADR 0040 §8). */
+function handleResourceRequest(id: string): void {
+  const memory = process.memoryUsage();
+  writeLine({
+    type: 'resource-response',
+    id,
+    memory: {
+      rssBytes: memory.rss,
+      heapUsedBytes: memory.heapUsed,
+      heapTotalBytes: memory.heapTotal,
+      externalBytes: memory.external,
+    },
+    sampledAtMs: Date.now(),
+  });
+}
+
 // Startup handshake (Phase 7 plan §4.1).
 writeLine({
   type: 'hello',
@@ -47,7 +63,7 @@ rl.on('line', (line: string) => {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
-    const parsed = JSON.parse(trimmed) as { type?: string };
+    const parsed = JSON.parse(trimmed) as { type?: string; id?: unknown };
     if (parsed.type === 'tool-result') {
       // Parent → worker: tool result for a pending proxy call.
       runtime.handleToolResult(parsed as WorkerToolResultFrame);
@@ -55,6 +71,11 @@ rl.on('line', (line: string) => {
     }
     if (parsed.type === 'extension-ui-response') {
       runtime.handleExtensionUiResponse(parsed as WorkerExtensionUiResponseFrame);
+      return;
+    }
+    if (parsed.type === 'resource-request' && typeof parsed.id === 'string') {
+      // Parent → worker: internal memory query (no session identity needed).
+      handleResourceRequest(parsed.id);
       return;
     }
     const request = parsed as WorkerRequest;

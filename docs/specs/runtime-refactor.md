@@ -673,7 +673,7 @@ for RPC mode, and no temporary environment switch selecting incomplete paths.
 | WI-12 | Pi-native event shapes never cross the worker boundary. |
 | WI-13 | Agent worker processes are internal infrastructure, not Phase 1 Jobs. |
 | WI-14 | `agent-host` owns worker spawn/termination and does not import `@piwin/process`. |
-| WI-15 | No automatic idle eviction ships in this phase. |
+| WI-15 | ~~No automatic idle eviction ships in this phase.~~ **Superseded by ADR 0040** — Host-owned automatic idle eviction (TTL/LRU/memory) ships via the session runtime residency program. |
 
 ### 4.3 Component boundary
 
