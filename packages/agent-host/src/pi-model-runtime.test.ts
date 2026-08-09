@@ -99,4 +99,16 @@ describe('pi-model-runtime', () => {
     expect(registration.models[0]?.input).toEqual(['text']);
     expect(registration.models[0]?.reasoning).toBe(true);
   });
+
+  it('does not register ASR-only models in Pi chat runtime', () => {
+    const provider: ModelProviderConfig = {
+      id: 'speech-provider',
+      protocol: 'openai-compatible',
+      name: 'Speech provider',
+      baseUrl: 'https://api.example.test/v1',
+      models: [{ id: 'whisper-1', capabilities: ['speech-to-text'] }, { id: 'chat-1' }],
+    };
+    const registration = buildPiProviderRegistration(provider);
+    expect(registration.models.map((model) => model.id)).toEqual(['chat-1']);
+  });
 });

@@ -41,6 +41,12 @@ export function createTranscriptRecorder(options: {
   maxToolOutputBytes?: number;
   onError?: (error: unknown) => void;
   /**
+   * Diagnostic channel for transcript mutations that are silently dropped
+   * (unknown messageId / unmapped runId). Used to surface "model output was
+   * generated but never persisted" cases instead of leaving empty bubbles.
+   */
+  onDiagnostic?: (message: string) => void;
+  /**
    * Returns the model snapshot to write onto assistant transcript messages
    * (spec §7.3). Called when an assistant message is created (`message/start`).
    * May return undefined for legacy sessions without a resolved model.
@@ -137,9 +143,16 @@ export function createTranscriptRecorder(options: {
   function updateMessage(
     messageId: string,
     update: (message: SessionTranscriptMessage) => SessionTranscriptMessage,
+    droppedContext?: string,
   ): void {
     const message = findMessage(messageId);
     if (!message || !document) {
+      if (droppedContext) {
+        options.onDiagnostic?.(
+          `transcript delta dropped (${droppedContext}): messageId=${messageId} ` +
+            `knownMessages=${document?.messages.length ?? 0}`,
+        );
+      }
       return;
     }
     const messageIndex = document.messages.findIndex((item) => item.id === messageId);
@@ -219,24 +232,36 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'message/text_delta': {
-            updateMessage(event.messageId, (message) => ({
-              ...message,
-              text: message.text + event.delta,
-              status: 'streaming',
-            }));
+            updateMessage(
+              event.messageId,
+              (message) => ({
+                ...message,
+                text: message.text + event.delta,
+                status: 'streaming',
+              }),
+              `text_delta runId=${event.runId ?? 'none'} deltaLen=${event.delta.length}`,
+            );
             scheduleFlush();
             break;
           }
           case 'message/thinking_delta': {
-            updateMessage(event.messageId, (message) => ({
-              ...message,
-              thinking: (message.thinking ?? '') + event.delta,
-            }));
+            updateMessage(
+              event.messageId,
+              (message) => ({
+                ...message,
+                thinking: (message.thinking ?? '') + event.delta,
+              }),
+              `thinking_delta runId=${event.runId ?? 'none'} deltaLen=${event.delta.length}`,
+            );
             scheduleFlush();
             break;
           }
           case 'message/end': {
-            updateMessage(event.messageId, (message) => ({ ...message, status: 'done' }));
+            updateMessage(
+              event.messageId,
+              (message) => ({ ...message, status: 'done' }),
+              `message_end runId=${event.runId ?? 'none'}`,
+            );
             const currentDocument = document;
             const messageIndex =
               currentDocument?.messages.findIndex((message) => message.id === event.messageId) ??
@@ -262,7 +287,13 @@ export function createTranscriptRecorder(options: {
             const assistantId = event.runId
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;
-            if (!assistantId) break;
+            if (!assistantId) {
+              options.onDiagnostic?.(
+                `tool/start dropped (no assistant target): runId=${event.runId ?? 'none'} ` +
+                  `tool=${event.toolName} lastAssistantId=${lastAssistantId ?? 'none'}`,
+              );
+              break;
+            }
             updateMessage(assistantId, (message) => ({
               ...message,
               tools: appendToolCard(message.tools, {
@@ -281,7 +312,13 @@ export function createTranscriptRecorder(options: {
             const assistantId = event.runId
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;
-            if (!assistantId) break;
+            if (!assistantId) {
+              options.onDiagnostic?.(
+                `tool/update dropped (no assistant target): runId=${event.runId ?? 'none'} ` +
+                  `toolCallId=${event.toolCallId} lastAssistantId=${lastAssistantId ?? 'none'}`,
+              );
+              break;
+            }
             updateMessage(assistantId, (message) => ({
               ...message,
               tools: (message.tools ?? []).map((tool) =>
@@ -307,7 +344,13 @@ export function createTranscriptRecorder(options: {
             const assistantId = event.runId
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;
-            if (!assistantId) break;
+            if (!assistantId) {
+              options.onDiagnostic?.(
+                `tool/end dropped (no assistant target): runId=${event.runId ?? 'none'} ` +
+                  `toolCallId=${event.toolCallId} lastAssistantId=${lastAssistantId ?? 'none'}`,
+              );
+              break;
+            }
             updateMessage(assistantId, (message) => {
               const attachments = event.isError
                 ? message.attachments

@@ -8,7 +8,7 @@ import type {
   ModelRef,
   PiwinConfig,
 } from '@piwin/contracts';
-import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
+import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
 
 export function getEnabledProviders(config: {
   providers: readonly ModelProviderConfig[];
@@ -58,7 +58,10 @@ export function resolveConfiguredDefaultModelRef(
   if (
     !provider ||
     !provider.models.some(
-      (model) => model.id === config.defaultModelId && isModelEnabled(model),
+      (model) =>
+        model.id === config.defaultModelId &&
+        isModelEnabled(model) &&
+        modelSupportsCapability(model, 'chat'),
     )
   ) {
     return undefined;
@@ -90,7 +93,10 @@ export function resolveDefaultModelRef(
     const provider = findEnabledProvider(config, config.defaultProviderId);
     if (
       provider?.models.some(
-        (model) => model.id === config.defaultModelId && isModelEnabled(model),
+        (model) =>
+          model.id === config.defaultModelId &&
+          isModelEnabled(model) &&
+          modelSupportsCapability(model, 'chat'),
       )
     ) {
       return {
@@ -105,7 +111,9 @@ export function resolveDefaultModelRef(
   if (!first) {
     return undefined;
   }
-  const firstModel = first.models.find((model) => isModelEnabled(model));
+  const firstModel = first.models.find(
+    (model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'),
+  );
   if (!firstModel) {
     return undefined;
   }

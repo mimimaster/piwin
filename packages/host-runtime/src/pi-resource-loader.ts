@@ -7,7 +7,7 @@ import type {
   SessionScope,
 } from '@piwin/contracts';
 import { normalizeResourceId } from '@piwin/contracts';
-import { scanSkills } from '@piwin/skills';
+import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { collectExtensionEntryPaths, scanExtensions } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { collectPromptEntryPaths, scanPrompts } from './prompt-scanner.js';
@@ -55,6 +55,7 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
 
   await ensureBundledExtensionsInstalled(options.piwinRoot);
   await ensureBundledPromptsInstalled(options.piwinRoot);
+  await ensureBundledSkillsInstalled(options.piwinRoot);
 
   const discoveredExtensions = await scanExtensions({
     piwinRoot: options.piwinRoot,

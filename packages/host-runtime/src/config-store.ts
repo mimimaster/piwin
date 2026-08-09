@@ -16,6 +16,7 @@ import type {
   ProcessConfig,
   PromptsConfig,
   SessionConfig,
+  SpeechConfig,
   SkillsConfig,
   SubagentConfig,
   SubagentProfileSettings,
@@ -228,6 +229,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   if (videoGeneration) {
     normalized.videoGeneration = videoGeneration;
   }
+  const speech = normalizeSpeechConfig(record.speech);
+  if (speech) {
+    normalized.speech = speech;
+  }
   const visionDelegation = normalizeVisionDelegationConfig(record.visionDelegation);
   if (visionDelegation) {
     normalized.visionDelegation = visionDelegation;
@@ -313,6 +318,43 @@ function normalizeVideoGenerationConfig(value: unknown): VideoGenerationConfig |
     return undefined;
   }
   return { defaultModel };
+}
+
+function normalizeSpeechConfig(value: unknown): SpeechConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const normalized: SpeechConfig = {};
+  const asrRecord = asRecord(record.asr);
+  if (asrRecord) {
+    const asr: NonNullable<SpeechConfig['asr']> = {};
+    const defaultModel = normalizeModelRef(asrRecord.defaultModel);
+    if (defaultModel) {
+      asr.defaultModel = defaultModel;
+    }
+    if (typeof asrRecord.language === 'string' && asrRecord.language.trim()) {
+      asr.language = asrRecord.language.trim();
+    }
+    if (Object.keys(asr).length > 0) {
+      normalized.asr = asr;
+    }
+  }
+  const ttsRecord = asRecord(record.tts);
+  if (ttsRecord) {
+    const tts: NonNullable<SpeechConfig['tts']> = {};
+    const defaultModel = normalizeModelRef(ttsRecord.defaultModel);
+    if (defaultModel) {
+      tts.defaultModel = defaultModel;
+    }
+    if (typeof ttsRecord.voice === 'string' && ttsRecord.voice.trim()) {
+      tts.voice = ttsRecord.voice.trim();
+    }
+    if (Object.keys(tts).length > 0) {
+      normalized.tts = tts;
+    }
+  }
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
 /**
@@ -888,7 +930,6 @@ function normalizeSubagentConfig(value: unknown): SubagentConfig {
   }
   return config;
 }
-
 
 function normalizeOrchestrationSchemeMember(
   value: unknown,

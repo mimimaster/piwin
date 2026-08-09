@@ -132,4 +132,19 @@ describe('provider-helpers', () => {
     };
     expect(resolveDefaultModelRef(config)).toBeUndefined();
   });
+
+  it('does not select an ASR-only model as a chat default', () => {
+    const config = {
+      defaultProviderId: 'speech',
+      defaultModelId: 'whisper-1',
+      providers: [
+        makeProvider({
+          id: 'speech',
+          models: [{ id: 'whisper-1', capabilities: ['speech-to-text'] }, { id: 'chat-1' }],
+        }),
+      ],
+    };
+    expect(resolveConfiguredDefaultModelRef(config)).toBeUndefined();
+    expect(resolveDefaultModelRef(config)?.modelId).toBe('chat-1');
+  });
 });

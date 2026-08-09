@@ -1,10 +1,23 @@
-import type { HostPush, ModelProviderConfig, ModelRef } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
-import { deriveDefaultNameFromMessage, setSessionAutoName } from '@piwin/session';
+import type { HostPush, ModelProviderConfig, ModelRef } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
+import {
+  deriveDefaultNameFromMessage,
+  extractUserFacingBody,
+  setSessionAutoName,
+} from '@piwin/session';
 import { generateTitleViaProvider } from './lightweight-completion.js';
 import { loadPiwinConfig } from './config-store.js';
 import { getPiwinRoot, getPiwinSessionIndexPath } from './paths.js';
 import type { SecretResolver } from './secret-resolver.js';
+
+/** Title generation needs the task, not an unbounded copy of the conversation. */
+const MAX_TITLE_CONTEXT_CHARS = 4_000;
+
+function boundTitleContext(text: string): string {
+  return text.length <= MAX_TITLE_CONTEXT_CHARS
+    ? text
+    : `${text.slice(0, MAX_TITLE_CONTEXT_CHARS - 1).trimEnd()}…`;
+}
 
 /**
  * Orchestrate auto-naming for a session after a completed exchange.
@@ -50,6 +63,17 @@ export async function maybeAutoNameSession(input: {
       return;
     }
     const indexPath = getPiwinSessionIndexPath(rootDir);
+    // Treat PromptInput.text as untrusted legacy input at this boundary. New
+    // clients send the human body cleanly, while older transcripts may still
+    // contain mode/skill/model-facing wrappers.
+    const userMessage = boundTitleContext(extractUserFacingBody(firstMessage));
+    if (!userMessage) {
+      warn(`no user-authored message found for ${sessionId}`);
+      return;
+    }
+    const assistantContext = assistantReply
+      ? boundTitleContext(assistantReply.trim())
+      : '';
 
     // Attempt LLM title when a model ref + matching provider are available.
     let llmTitle: string | null = null;
@@ -61,9 +85,9 @@ export async function maybeAutoNameSession(input: {
           const apiKey = await secretResolver.resolveProviderSecret(provider);
           if (apiKey) {
             llmAttempted = true;
-            const userPrompt = assistantReply
-              ? `User: ${firstMessage}\nAssistant: ${assistantReply}`
-              : firstMessage;
+            const userPrompt = assistantContext
+              ? `User: ${userMessage}\nAssistant: ${assistantContext}`
+              : userMessage;
             llmTitle = await generateTitleViaProvider({
               provider,
               modelId: modelRef.modelId,
@@ -88,7 +112,7 @@ export async function maybeAutoNameSession(input: {
     // An LLM title upgrades a `default` or `text` name to `llm`; the text
     // fallback only ever fills a `default` name (see setSessionAutoName).
     const source = llmTitle ? 'llm' : 'text';
-    const finalName = llmTitle ?? deriveDefaultNameFromMessage(firstMessage);
+    const finalName = llmTitle ?? deriveDefaultNameFromMessage(userMessage);
     if (!finalName) {
       warn(`no usable name derived for ${sessionId}`);
       return;

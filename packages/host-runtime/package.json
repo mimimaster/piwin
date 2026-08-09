@@ -40,6 +40,7 @@
     "@piwin/process": "workspace:*",
     "@piwin/project": "workspace:*",
     "@piwin/session": "workspace:*",
+    "@piwin/speech": "workspace:*",
     "@piwin/skills": "workspace:*",
     "@piwin/theme": "workspace:*",
     "@piwin/tools-web": "workspace:*",

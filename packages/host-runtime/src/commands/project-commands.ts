@@ -1,16 +1,17 @@
 /**
- * project/open + trust + permissions + list-dir + read-file.
+ * project/open + remove + trust + permissions + list-dir + read-file.
  */
 import { readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostCommand, HostResponse } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import type { HostCommand, HostResponse } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import {
   listProjects,
   listRememberedPermissions,
   loadProjectStore,
   openOrCreateProject,
+  removeProject,
   resolveInsideRoot,
   revokeRememberedPermission,
   setProjectTrust,
@@ -21,6 +22,7 @@ import { getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
 const PROJECT_TYPES = new Set<HostCommand['type']>([
   'project/list',
   'project/open',
+  'project/remove',
   'project/trust',
   'project/authorize-terminal',
   'project/permissions-list',
@@ -56,6 +58,16 @@ export async function handleProjectCommand(
         trusted: project.trust === 'trusted',
         trust: project.trust,
         project,
+      });
+    }
+    case 'project/remove': {
+      const project = await removeProject(projectsPath, command.path);
+      if (!project) {
+        return fail(requestId, 'project/remove', `Project not found: ${command.path}`);
+      }
+      return ok(requestId, 'project/remove', {
+        path: project.path,
+        removed: true,
       });
     }
     case 'project/trust': {

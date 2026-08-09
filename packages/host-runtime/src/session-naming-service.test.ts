@@ -115,6 +115,49 @@ describe('maybeAutoNameSession', () => {
     });
   });
 
+  it('removes legacy prompt wrappers before calling the title model', async () => {
+    const root = await makeRoot();
+    await seedSession(root, { id: 's1', messageCount: 2 });
+    mockFetchTitle('Tool definition context usage');
+    const pushes: HostPush[] = [];
+    const wrappedMessage = [
+      '[piwin-mode:agent]',
+      '[piwin-prompt-meta kind="mode:agent" version="2"]',
+      'Operating contract for this turn:',
+      'Success: satisfy the goal.',
+      '',
+      '---',
+      'User:',
+      '排查下为什么 piwin 空窗口 Tool definitions 占那么多上下文',
+    ].join('\n');
+
+    await maybeAutoNameSession({
+      piwinRoot: root,
+      sessionId: 's1',
+      firstMessage: wrappedMessage,
+      assistantReply: 'The breakdown is an estimate.',
+      modelRef: {
+        protocol: 'openai-compatible',
+        providerId: 'openai',
+        modelId: 'gpt-4o-mini',
+      },
+      providers: [provider],
+      secretResolver,
+      push: (message) => pushes.push(message),
+    });
+
+    const requestBody = vi.mocked(fetch).mock.calls[0]?.[1]?.body;
+    expect(typeof requestBody).toBe('string');
+    const parsed = JSON.parse(typeof requestBody === 'string' ? requestBody : '{}') as {
+      messages?: Array<{ role?: string; content?: string }>;
+    };
+    const titlePrompt = parsed.messages?.find((message) => message.role === 'user')?.content ?? '';
+    expect(titlePrompt).toContain('排查下为什么 piwin 空窗口 Tool definitions');
+    expect(titlePrompt).toContain('The breakdown is an estimate.');
+    expect(titlePrompt).not.toContain('[piwin-mode:');
+    expect(titlePrompt).not.toContain('Operating contract');
+  });
+
   it('does NOT push or write when nameSource is user', async () => {
     const root = await makeRoot();
     await seedSession(root, { id: 's1', name: 'my name', nameSource: 'user' });

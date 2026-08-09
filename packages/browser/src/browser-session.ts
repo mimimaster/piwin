@@ -30,10 +30,7 @@ export type BrowserStatePush = Extract<HostPush, { type: 'browser/state' }>;
 export type BrowserConsolePush = Extract<HostPush, { type: 'browser/console' }>;
 export type BrowserNetworkPush = Extract<HostPush, { type: 'browser/network' }>;
 export type BrowserSessionEvent =
-  | BrowserFramePush
-  | BrowserStatePush
-  | BrowserConsolePush
-  | BrowserNetworkPush;
+  BrowserFramePush | BrowserStatePush | BrowserConsolePush | BrowserNetworkPush;
 
 export type BrowserSessionOptions = {
   /** Default true. When false the browser runs headed (useful for debugging). */
@@ -65,6 +62,18 @@ export type ScreenshotResult = {
 };
 
 export type BrowserSession = {
+  /**
+   * Acquire the desktop mirror lease. This launches Chromium lazily and starts
+   * bounded frame streaming, but does not change the lifetime of this service
+   * object.
+   */
+  start(leaseId?: string): Promise<BrowserSessionState>;
+  /**
+   * Release one desktop mirror lease. Releasing the final lease also releases
+   * the current Chromium process. The service remains reusable so a later
+   * panel open or agent tool can relaunch.
+   */
+  stop(leaseId?: string): Promise<void>;
   navigate(url: string, options?: { signal?: AbortSignal }): Promise<void>;
   snapshot(options?: { signal?: AbortSignal }): Promise<BrowserSnapshotNode[]>;
   click(target: string, options?: { signal?: AbortSignal }): Promise<void>;
@@ -118,6 +127,8 @@ export class BrowserSessionClosedError extends BrowserSessionError {
 const HTTP_URL_RE = /^https?:\/\//i;
 /** Playwright aria refs look like `e5`; anything else is treated as a CSS selector. */
 const ARIA_REF_RE = /^e\d+$/i;
+const MAX_MIRROR_LEASE_ID_CHARS = 128;
+const MAX_RELEASED_MIRROR_LEASES = 256;
 
 export function assertHttpUrl(url: string): void {
   const trimmed = url.trim();
@@ -231,6 +242,9 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   let context: BrowserContext | undefined;
   let page: Page | undefined;
   let launchPromise: Promise<Page> | undefined;
+  let legacyMirrorLeaseActive = false;
+  const activeMirrorLeaseIds = new Set<string>();
+  const releasedMirrorLeaseIds = new Set<string>();
   let closed = false;
 
   const state: BrowserSessionState = {};
@@ -241,8 +255,17 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     if (closed) throw new BrowserSessionClosedError('browser session is closed');
     if (page !== undefined) return page;
     if (launchPromise !== undefined) return launchPromise;
-    launchPromise = launch();
-    return launchPromise;
+    const pendingLaunch = launch();
+    launchPromise = pendingLaunch;
+    try {
+      return await pendingLaunch;
+    } catch (error) {
+      // A failed initialization must not poison this reusable service with a
+      // permanently rejected promise. `launch()` has already closed any
+      // context it created, so a later panel/tool operation may retry.
+      if (launchPromise === pendingLaunch) launchPromise = undefined;
+      throw error;
+    }
   }
 
   async function launch(): Promise<Page> {
@@ -273,26 +296,43 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         { cause: error },
       );
     }
-    browser = launched.browser() ?? undefined;
-    context = launched;
-    // Context-level init script so @medv/finder is present on every page and
-    // navigation (including the initial about:blank document).
-    await injectFinder(context);
-    page = await context.newPage();
+    try {
+      // Persistent Chromium starts with one about:blank page. Reuse it rather
+      // than creating a second renderer for every browser-panel lifetime.
+      await injectFinder(launched);
+      const initializedPage = launched.pages()[0] ?? (await launched.newPage());
 
-    page.on('framenavigated', () => {
-      void emitState();
-    });
-    page.on('load', () => {
-      void emitState();
-      void frameLoop.requestFrame();
-    });
+      browser = launched.browser() ?? undefined;
+      context = launched;
+      page = initializedPage;
 
-    if (captureConsoleAndNetwork) {
-      attachConsoleAndNetworkListeners(page, context, subscribers);
+      initializedPage.on('framenavigated', () => {
+        void emitState();
+      });
+      initializedPage.on('load', () => {
+        void emitState();
+        void frameLoop.requestFrame();
+      });
+
+      if (captureConsoleAndNetwork) {
+        attachConsoleAndNetworkListeners(initializedPage, launched, subscribers);
+      }
+
+      return initializedPage;
+    } catch (error) {
+      // Runtime initialization is transactional. A context that launched but
+      // failed Finder injection/page setup must not survive until a later
+      // panel cleanup that may never arrive.
+      try {
+        await launched.close();
+      } catch (closeError) {
+        throw new AggregateError(
+          [error, closeError],
+          'browser runtime initialization and cleanup both failed',
+        );
+      }
+      throw error;
     }
-
-    return page;
   }
 
   function emitState(): Promise<void> {
@@ -327,7 +367,10 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         height: viewport.height,
       };
     },
-    hasSubscriber: () => subscribers.size > 0,
+    // HostRuntime keeps one event subscriber for the service lifetime so tool
+    // state can still be forwarded. That subscriber must not itself keep the
+    // frame timer or Chromium alive while the desktop panel is closed.
+    hasSubscriber: () => hasActiveMirrorLease() && subscribers.size > 0,
     intervalMs: Math.round(1000 / maxFps),
     emit: (frame) => {
       const event: BrowserFramePush = { type: 'browser/frame', ...frame };
@@ -337,23 +380,85 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
   function subscribe(listener: (event: BrowserSessionEvent) => void): () => void {
     subscribers.add(listener);
-    if (subscribers.size === 1) frameLoop.start();
-    void pushInitialState();
+    // Subscription is deliberately passive. HostRuntime subscribes while
+    // composing tools; launching here would make Chromium resident before the
+    // browser panel or an agent tool has actually requested it.
+    if (hasActiveMirrorLease() && page !== undefined) {
+      frameLoop.start();
+      void emitState();
+      void frameLoop.requestFrame();
+    }
     return () => {
       subscribers.delete(listener);
       if (subscribers.size === 0) frameLoop.stop();
     };
   }
 
-  /** Launches (if needed) so the first state push and frame reflect a real page. */
-  async function pushInitialState(): Promise<void> {
-    try {
-      await getPage();
-    } catch {
-      // Launch failures surface on the first real operation, not here.
+  function hasActiveMirrorLease(): boolean {
+    return legacyMirrorLeaseActive || activeMirrorLeaseIds.size > 0;
+  }
+
+  function validateMirrorLeaseId(leaseId: string | undefined): string | undefined {
+    if (leaseId === undefined) return undefined;
+    if (leaseId.length === 0 || leaseId.length > MAX_MIRROR_LEASE_ID_CHARS) {
+      throw new RangeError('browser mirror lease id is invalid');
     }
-    await emitState();
-    await frameLoop.requestFrame();
+    return leaseId;
+  }
+
+  function rememberReleasedMirrorLease(leaseId: string): void {
+    releasedMirrorLeaseIds.delete(leaseId);
+    releasedMirrorLeaseIds.add(leaseId);
+    while (releasedMirrorLeaseIds.size > MAX_RELEASED_MIRROR_LEASES) {
+      const oldestLeaseId = releasedMirrorLeaseIds.values().next().value;
+      if (typeof oldestLeaseId !== 'string') break;
+      releasedMirrorLeaseIds.delete(oldestLeaseId);
+    }
+  }
+
+  /**
+   * Release only the current Playwright runtime. Keeping this separate from
+   * permanent `close()` lets already-registered agent tools relaunch after the
+   * desktop mirror has been closed.
+   */
+  async function releaseRuntime(): Promise<void> {
+    const pendingLaunch = launchPromise;
+    if (pendingLaunch !== undefined) {
+      try {
+        await pendingLaunch;
+      } catch {
+        // Launch failed before a process became usable; clear the rejected
+        // promise so a later start/tool call can retry.
+      }
+    }
+
+    const activeContext = context;
+    const activeBrowser = browser;
+    page = undefined;
+    context = undefined;
+    browser = undefined;
+    launchPromise = undefined;
+
+    let contextCloseError: unknown;
+    if (activeContext !== undefined) {
+      try {
+        // A persistent BrowserContext owns its Chromium process. Closing the
+        // context is Playwright's authoritative shutdown path and waits for
+        // the child process to exit.
+        await activeContext.close();
+        return;
+      } catch (error) {
+        contextCloseError = error;
+      }
+    }
+    if (activeBrowser !== undefined) {
+      // Fallback for partially initialized contexts or a failed context close.
+      await activeBrowser.close();
+      return;
+    }
+    if (contextCloseError instanceof Error) {
+      throw contextCloseError;
+    }
   }
 
   function withAbort<T>(operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -362,6 +467,45 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   }
 
   return {
+    start: (leaseId) =>
+      runExclusive(async () => {
+        if (closed) throw new BrowserSessionClosedError('browser session is closed');
+        const normalizedLeaseId = validateMirrorLeaseId(leaseId);
+        if (normalizedLeaseId !== undefined && releasedMirrorLeaseIds.has(normalizedLeaseId)) {
+          // A cleanup that overtook its setup owns the final intent. Lease ids
+          // are one-shot, so a delayed/retried start must not resurrect a panel
+          // that has already unmounted.
+          return { ...state };
+        }
+        if (normalizedLeaseId === undefined) {
+          legacyMirrorLeaseActive = true;
+        } else {
+          activeMirrorLeaseIds.add(normalizedLeaseId);
+        }
+        await getPage();
+        if (subscribers.size > 0) frameLoop.start();
+        await emitState();
+        await frameLoop.requestFrame();
+        return { ...state };
+      }),
+
+    stop: (leaseId) =>
+      runExclusive(async () => {
+        if (closed) return;
+        const normalizedLeaseId = validateMirrorLeaseId(leaseId);
+        if (normalizedLeaseId === undefined) {
+          legacyMirrorLeaseActive = false;
+        } else {
+          activeMirrorLeaseIds.delete(normalizedLeaseId);
+          rememberReleasedMirrorLease(normalizedLeaseId);
+        }
+        if (hasActiveMirrorLease()) return;
+        frameLoop.stop();
+        await releaseRuntime();
+        delete state.url;
+        delete state.title;
+      }),
+
     navigate: (url, options) =>
       withAbort(async () => {
         assertHttpUrl(url);
@@ -504,26 +648,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       runExclusive(async () => {
         if (closed) return;
         closed = true;
+        legacyMirrorLeaseActive = false;
+        activeMirrorLeaseIds.clear();
+        releasedMirrorLeaseIds.clear();
         frameLoop.stop();
         subscribers.clear();
-        // A launch kicked off by subscribe()/pushInitialState() runs outside
-        // the mutex and may still be in flight when close() lands. Wait for it
-        // so the spawned Chromium child is always closed — otherwise the child
-        // is orphaned and its stdio pipes keep the host's event loop alive.
-        if (launchPromise !== undefined) {
-          try {
-            await launchPromise;
-          } catch {
-            // Launch failed (e.g. missing binary); there is no browser to close.
-          }
-        }
-        if (browser !== undefined) {
-          await browser.close();
-          browser = undefined;
-          context = undefined;
-          page = undefined;
-          launchPromise = undefined;
-        }
+        await releaseRuntime();
+        delete state.url;
+        delete state.title;
       }),
   };
 }

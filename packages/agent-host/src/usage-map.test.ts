@@ -18,6 +18,42 @@ describe('usage-map', () => {
     expect(snapshot?.contextRatio).toBeCloseTo(0.15);
   });
 
+  it('maps normalized assistant cache usage and model id', () => {
+    const snapshot = mapUsageSnapshot(
+      's1',
+      {
+        model: 'gpt-4o',
+        usage: { input: 700, output: 200, cacheRead: 100, cacheWrite: 50, totalTokens: 1050 },
+      },
+      'assistant-usage',
+    );
+    expect(snapshot).toMatchObject({
+      modelId: 'gpt-4o',
+      promptTokens: 700,
+      completionTokens: 200,
+      cacheReadTokens: 100,
+      cacheWriteTokens: 50,
+      totalTokens: 1050,
+      source: 'assistant-usage',
+    });
+  });
+
+  it('maps provider cache aliases and derives totals including cache tokens', () => {
+    const snapshot = mapUsageSnapshot('s1', {
+      input_tokens: 700,
+      output_tokens: 200,
+      cache_read_input_tokens: 100,
+      cache_creation_input_tokens: 50,
+    });
+    expect(snapshot).toMatchObject({
+      promptTokens: 700,
+      completionTokens: 200,
+      cacheReadTokens: 100,
+      cacheWriteTokens: 50,
+      totalTokens: 1050,
+    });
+  });
+
   it('returns null when no token fields present', () => {
     expect(mapUsageSnapshot('s1', { foo: 1 })).toBeNull();
   });

@@ -1,0 +1,16 @@
+{
+  "type": "agent_end",
+  "messages": [
+    {
+      "role": "assistant",
+      "model": "gpt-4o",
+      "usage": {
+        "input": 700,
+        "output": 200,
+        "cacheRead": 100,
+        "cacheWrite": 50,
+        "totalTokens": 1050
+      }
+    }
+  ]
+}

@@ -83,6 +83,33 @@ describe('createFrameLoop', () => {
     expect(emitted.length).toBeGreaterThan(0);
   });
 
+  it('drops an in-flight frame when the final subscriber lease is released', async () => {
+    let releaseCapture: (() => void) | undefined;
+    const captureGate = new Promise<void>((resolve) => {
+      releaseCapture = resolve;
+    });
+    let active = true;
+    const emitted: unknown[] = [];
+    const loop = createFrameLoop({
+      capture: async () => {
+        await captureGate;
+        return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+      },
+      hasSubscriber: () => active,
+      intervalMs: 0,
+      emit: (frame) => emitted.push(frame),
+    });
+
+    const pendingFrame = loop.requestFrame();
+    active = false;
+    loop.stop();
+    if (releaseCapture === undefined) throw new Error('capture gate was not initialized');
+    releaseCapture();
+    await pendingFrame;
+
+    expect(emitted).toHaveLength(0);
+  });
+
   it('resolves requestFrame when capture rejects (must not break navigate-style awaits)', async () => {
     let shouldFail = true;
     const capture = async (): Promise<FramePayload> => {

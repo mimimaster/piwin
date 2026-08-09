@@ -32,7 +32,7 @@ import type {
   HostToolDescriptor,
   McpConfigDocument,
 } from '@piwin/contracts';
-import { normalizeResourceId } from '@piwin/contracts';
+import { modelSupportsCapability, normalizeResourceId } from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
 import { loadPiwinConfig } from './config-store.js';
@@ -747,14 +747,18 @@ async function buildSingleProviderRuntime(
       protocol: provider.protocol,
       baseUrl: provider.baseUrl,
       ...(provider.headers ? { headers: provider.headers } : {}),
-      models: provider.models.map((model) => ({
-        id: model.id,
-        ...(model.label ? { label: model.label } : {}),
-        ...(model.input ? { input: [...model.input] } : {}),
-        ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-        ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-        ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
-      })),
+      models: provider.models
+        .filter((model) => modelSupportsCapability(model, 'chat'))
+        .map((model) => ({
+          id: model.id,
+          ...(model.label ? { label: model.label } : {}),
+          ...(model.input ? { input: [...model.input] } : {}),
+          ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+          ...(model.maxOutputTokens !== undefined
+            ? { maxOutputTokens: model.maxOutputTokens }
+            : {}),
+        })),
       auth: { kind: 'env', envName: provider.apiKeyEnv.trim() },
     };
   }
@@ -777,16 +781,18 @@ async function buildSingleProviderRuntime(
           protocol: provider.protocol,
           baseUrl: provider.baseUrl,
           ...(provider.headers ? { headers: provider.headers } : {}),
-          models: provider.models.map((model) => ({
-            id: model.id,
-            ...(model.label ? { label: model.label } : {}),
-            ...(model.input ? { input: [...model.input] } : {}),
-            ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-            ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-            ...(model.maxOutputTokens !== undefined
-              ? { maxOutputTokens: model.maxOutputTokens }
-              : {}),
-          })),
+          models: provider.models
+            .filter((model) => modelSupportsCapability(model, 'chat'))
+            .map((model) => ({
+              id: model.id,
+              ...(model.label ? { label: model.label } : {}),
+              ...(model.input ? { input: [...model.input] } : {}),
+              ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+              ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+              ...(model.maxOutputTokens !== undefined
+                ? { maxOutputTokens: model.maxOutputTokens }
+                : {}),
+            })),
           auth: { kind: 'inline', apiKey },
         };
       }
@@ -802,14 +808,16 @@ async function buildSingleProviderRuntime(
     protocol: provider.protocol,
     baseUrl: provider.baseUrl,
     ...(provider.headers ? { headers: provider.headers } : {}),
-    models: provider.models.map((model) => ({
-      id: model.id,
-      ...(model.label ? { label: model.label } : {}),
-      ...(model.input ? { input: [...model.input] } : {}),
-      ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-      ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-      ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
-    })),
+    models: provider.models
+      .filter((model) => modelSupportsCapability(model, 'chat'))
+      .map((model) => ({
+        id: model.id,
+        ...(model.label ? { label: model.label } : {}),
+        ...(model.input ? { input: [...model.input] } : {}),
+        ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+        ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+        ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
+      })),
     auth: { kind: 'none' },
   };
 }

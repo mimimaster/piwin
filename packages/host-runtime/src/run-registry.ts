@@ -109,6 +109,7 @@ export class RunRegistry {
 
     const record: ExecutionRunRecord = {
       runId,
+      revision: 1,
       kind: input.kind,
       status: 'queued',
       rootRunId,
@@ -142,7 +143,7 @@ export class RunRegistry {
       parent.children.add(runId);
     }
 
-    this.onRunUpdated?.(record);
+    this.onRunUpdated?.({ ...record });
     return { ...record };
   }
 
@@ -172,8 +173,7 @@ export class RunRegistry {
       node.record.phase = 'accepted';
       node.record.phaseUpdatedAt = node.record.startedAt;
     }
-    this.onRunUpdated?.({ ...node.record });
-    return { ...node.record };
+    return this.publishUpdated(node);
   }
 
   /** Return the active foreground session-turn for a session, if any. */
@@ -222,8 +222,7 @@ export class RunRegistry {
     } else {
       node.record.phaseDetail = detail;
     }
-    this.onRunUpdated?.({ ...node.record });
-    return { ...node.record };
+    return this.publishUpdated(node);
   }
 
   /** Project provider events into the foreground Run phase. */
@@ -239,11 +238,15 @@ export class RunRegistry {
       return { ...node.record };
     }
 
+    let changed = false;
     let nextPhase: SessionRunPhase | undefined;
     switch (event.type) {
       case 'message/text_delta':
       case 'message/thinking_delta':
-        node.record.firstTokenReceived = true;
+        if (node.record.firstTokenReceived !== true) {
+          node.record.firstTokenReceived = true;
+          changed = true;
+        }
         if (node.record.phase !== 'streaming' && node.record.phase !== 'tool-running') {
           nextPhase = 'streaming';
         }
@@ -260,11 +263,14 @@ export class RunRegistry {
       default:
         break;
     }
-    if (nextPhase !== undefined) {
+    if (nextPhase !== undefined && node.record.phase !== nextPhase) {
       node.record.phase = nextPhase;
       node.record.phaseUpdatedAt = new Date().toISOString();
+      changed = true;
     }
-    this.onRunUpdated?.({ ...node.record });
+    if (changed) {
+      this.publishUpdated(node);
+    }
     return { ...node.record };
   }
 
@@ -305,8 +311,8 @@ export class RunRegistry {
     if (terminalCode) node.record.terminalCode = terminalCode;
     if (error) node.record.error = error;
 
-    this.onRunUpdated?.({ ...node.record });
-    this.onRunTerminal?.({ ...node.record });
+    const snapshot = this.publishUpdated(node);
+    this.onRunTerminal?.(snapshot);
 
     // Resolve join waiters.
     for (const resolve of node.joinResolvers) {
@@ -354,7 +360,7 @@ export class RunRegistry {
           node.record.phase = 'cancelling';
           node.record.phaseUpdatedAt = new Date().toISOString();
         }
-        this.onRunUpdated?.({ ...node.record });
+        this.publishUpdated(node);
       }
 
       // Abort this node's controller.
@@ -405,12 +411,20 @@ export class RunRegistry {
       if (node.record.kind === 'session-turn') {
         node.record.phase = 'cancelling';
       }
-      this.onRunUpdated?.({ ...node.record });
+      this.publishUpdated(node);
     }
     if (!node.abortController.signal.aborted) {
       node.abortController.abort(reason);
     }
     return { ...node.record };
+  }
+
+  /** Publish one authoritative Run mutation with exactly one revision bump. */
+  private publishUpdated(node: RunNode): ExecutionRunRecord {
+    node.record.revision = (node.record.revision ?? 0) + 1;
+    const snapshot = { ...node.record };
+    this.onRunUpdated?.(snapshot);
+    return snapshot;
   }
 
   /** Check if a run exists and is non-terminal. */

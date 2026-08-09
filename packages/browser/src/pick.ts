@@ -11,9 +11,11 @@
 import { MAX_WEB_ELEMENT_HTML_BYTES, MAX_WEB_ELEMENT_TEXT_BYTES } from '@piwin/contracts';
 import type { WebElementPickResult } from '@piwin/contracts';
 import { buildSync } from 'esbuild';
+import { createRequire } from 'node:module';
 import { matchRefByPoint, parseAriaSnapshot } from './snapshot.js';
 
 const FINDER_GLOBAL = 'FinderModule';
+const requireFromBrowserPackage = createRequire(import.meta.url);
 
 /** The parts of a Playwright Page that pick uses (structural, for easy mocking). */
 export interface PickPage {
@@ -42,11 +44,16 @@ export class PickError extends Error {
 
 let finderBundleCache: string | null = null;
 
+/** Resolve from this package, never from the Host process working directory. */
+export function resolveFinderEntryPath(): string {
+  return requireFromBrowserPackage.resolve('@medv/finder');
+}
+
 /** Bundles `@medv/finder` into a self-contained IIFE string, cached after first build. */
 export function getFinderBundle(): string {
   if (finderBundleCache === null) {
     const result = buildSync({
-      entryPoints: ['@medv/finder'],
+      entryPoints: [resolveFinderEntryPath()],
       bundle: true,
       format: 'iife',
       globalName: FINDER_GLOBAL,
@@ -69,8 +76,9 @@ export function getFinderBundle(): string {
 
 /**
  * Installs the finder bundle as an init script on a context/page. Context-level
- * injection (before `newPage`) also covers the initial about:blank document;
- * `addInitScript` re-runs on every navigation either way.
+ * injection covers pages created afterward and re-runs on every navigation.
+ * BrowserSession also reuses Chromium's existing initial page to avoid an
+ * otherwise redundant renderer; normal use navigates that page before picks.
  */
 export async function injectFinder(target: InitScriptTarget): Promise<void> {
   await target.addInitScript({ content: getFinderBundle() });

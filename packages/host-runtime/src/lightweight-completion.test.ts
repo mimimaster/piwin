@@ -35,6 +35,7 @@ describe('generateTitleViaProvider', () => {
       systemPrompt: 'Generate a title', userPrompt: 'Fix the login bug please',
     });
     expect(title).toBe('Fix login bug');
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('strips surrounding quotes from title', async () => {

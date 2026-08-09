@@ -44,6 +44,9 @@ export function createFrameLoop(options: FrameLoopOptions): FrameLoop {
     inFlight = true;
     try {
       const payload = await options.capture();
+      // The consumer may have released its lease while an asynchronous
+      // screenshot was in flight. Do not forward that now-unowned data URL.
+      if (!options.hasSubscriber()) return;
       const ts = now();
       lastEmit = ts;
       options.emit({ ...payload, ts });
@@ -74,6 +77,8 @@ export function createFrameLoop(options: FrameLoopOptions): FrameLoop {
         clearInterval(timer);
         timer = undefined;
       }
+      pending = false;
+      lastEmit = -Infinity;
     },
     requestFrame(): Promise<void> {
       return attemptCapture();

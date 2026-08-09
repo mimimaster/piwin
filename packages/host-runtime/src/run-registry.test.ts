@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RunRegistry } from './run-registry.js';
-import type { ExecutionRunRecord } from '@piwin/contracts';
+import type { AgentEvent, ExecutionRunRecord } from '@piwin/contracts';
 import { isRunTerminal } from '@piwin/contracts';
 
 /** Deterministic ID generator that returns incrementing IDs. */
@@ -26,6 +26,7 @@ describe('RunRegistry.create()', () => {
     expect(run.runId).toBe('run-1');
     expect(run.kind).toBe('session-turn');
     expect(run.status).toBe('queued');
+    expect(run.revision).toBe(1);
     expect(run.sessionId).toBe('sess-1');
     expect(run.rootRunId).toBe('run-1');
     expect(run.parentRunId).toBeUndefined();
@@ -159,6 +160,103 @@ describe('RunRegistry.start()', () => {
     reg.start(run.runId);
     reg.terminate(run.runId, 'completed', 'completed');
     expect(reg.start(run.runId)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2a. semantic AgentEvent publication
+// ---------------------------------------------------------------------------
+
+describe('RunRegistry semantic AgentEvent publication', () => {
+  it('publishes only real phase or first-token transitions', () => {
+    const updates: ExecutionRunRecord[] = [];
+    const reg = new RunRegistry({
+      createId: makeIdGen(),
+      onRunUpdated: (record) => updates.push(record),
+    });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
+    updates.length = 0;
+
+    const textDelta: AgentEvent = {
+      type: 'message/text_delta',
+      messageId: 'message-1',
+      delta: 'a',
+    };
+    const first = reg.noteAgentEvent(run.runId, textDelta);
+    expect(first?.phase).toBe('streaming');
+    expect(first?.firstTokenReceived).toBe(true);
+    expect(first?.revision).toBe(2);
+    expect(updates).toHaveLength(1);
+
+    for (let index = 0; index < 100; index += 1) {
+      reg.noteAgentEvent(run.runId, { ...textDelta, delta: String(index) });
+    }
+    reg.noteAgentEvent(run.runId, {
+      type: 'message/thinking_delta',
+      messageId: 'message-1',
+      delta: 'thinking',
+    });
+    expect(updates).toHaveLength(1);
+    expect(reg.get(run.runId)?.revision).toBe(2);
+
+    const toolStart: AgentEvent = {
+      type: 'tool/start',
+      toolCallId: 'tool-1',
+      toolName: 'shell',
+    };
+    const toolRunning = reg.noteAgentEvent(run.runId, toolStart);
+    expect(toolRunning?.phase).toBe('tool-running');
+    expect(toolRunning?.revision).toBe(3);
+    expect(updates).toHaveLength(2);
+
+    reg.noteAgentEvent(run.runId, toolStart);
+    expect(updates).toHaveLength(2);
+
+    const toolEnd: AgentEvent = {
+      type: 'tool/end',
+      toolCallId: 'tool-1',
+      isError: false,
+    };
+    const streaming = reg.noteAgentEvent(run.runId, toolEnd);
+    expect(streaming?.phase).toBe('streaming');
+    expect(streaming?.revision).toBe(4);
+    expect(updates).toHaveLength(3);
+
+    const permission: AgentEvent = {
+      type: 'permission/request',
+      requestId: 'permission-1',
+      action: 'shell',
+      detail: 'run shell',
+      defaultDecision: 'ask',
+    };
+    const waiting = reg.noteAgentEvent(run.runId, permission);
+    expect(waiting?.phase).toBe('waiting-permission');
+    expect(waiting?.revision).toBe(5);
+    expect(updates).toHaveLength(4);
+
+    reg.noteAgentEvent(run.runId, permission);
+    expect(updates).toHaveLength(4);
+  });
+
+  it('ignores an explicitly mismatched Run ID without publishing', () => {
+    const updates: ExecutionRunRecord[] = [];
+    const reg = new RunRegistry({
+      createId: makeIdGen(),
+      onRunUpdated: (record) => updates.push(record),
+    });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
+    updates.length = 0;
+
+    const result = reg.noteAgentEvent(run.runId, {
+      type: 'message/text_delta',
+      messageId: 'message-1',
+      delta: 'ignored',
+      runId: 'different-run',
+    });
+
+    expect(result).toBeUndefined();
+    expect(updates).toHaveLength(0);
+    expect(reg.get(run.runId)?.revision).toBe(1);
   });
 });
 

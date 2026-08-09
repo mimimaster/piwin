@@ -1,8 +1,13 @@
 /**
  * Host IPC handlers: catalog.
  */
-import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  MediaSaveData,
+  SpeechTranscribeData,
+} from '@piwin/contracts';
+import { SPEECH_MAX_DURATION_MS, formatError, modelSupportsCapability } from '@piwin/contracts';
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
@@ -29,6 +34,7 @@ import { decodeBase64Media } from '../media-decode.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
 import { searchPiCatalog, searchPiImagesCatalog } from '@piwin/agent-host';
 import { testProviderModel } from '../provider-model-test.js';
+import { decodeBase64Audio, transcribeOpenAiCompatible } from '@piwin/speech';
 import {
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
   VisionDelegationCache,
@@ -43,7 +49,7 @@ import type { VisionDelegateResult } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
-import { findEnabledProvider } from '../provider-helpers.js';
+import { findEnabledModel, findEnabledProvider } from '../provider-helpers.js';
 import { resolveWebRuntimeCredentials } from '../web-credentials.js';
 import { testSearchSource } from '@piwin/tools-web';
 import type { HostCommandContext } from './host-command-context.js';
@@ -57,6 +63,7 @@ const activePetAborts = new Map<string, AbortController>();
 
 const TYPES = new Set<HostCommand['type']>([
   'media/save',
+  'speech/transcribe',
   'skills/list',
   'skills/set_enabled',
   'skills/install',
@@ -105,6 +112,58 @@ export async function handleCatalogCommand(
     return null;
   }
   switch (command.type) {
+    case 'speech/transcribe': {
+      try {
+        const rootDir = getPiwinRoot(context.piwinRoot);
+        const config = await loadPiwinConfig(rootDir);
+        const asrConfig = config.speech?.asr;
+        const modelRef = asrConfig?.defaultModel;
+        if (!modelRef) {
+          return fail(requestId, 'speech/transcribe', 'ASR model is not configured.');
+        }
+        const provider = findEnabledProvider(config, modelRef.providerId);
+        if (!provider) {
+          return fail(requestId, 'speech/transcribe', 'Configured ASR provider is unavailable.');
+        }
+        const model = findEnabledModel(config, modelRef.providerId, modelRef.modelId);
+        if (!model || !modelSupportsCapability(model, 'speech-to-text')) {
+          return fail(requestId, 'speech/transcribe', 'Configured ASR model is unavailable.');
+        }
+        const durationMs = command.input.durationMs;
+        if (
+          durationMs !== undefined &&
+          (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > SPEECH_MAX_DURATION_MS)
+        ) {
+          return fail(requestId, 'speech/transcribe', 'Audio recording duration is invalid.');
+        }
+        const audio = decodeBase64Audio(command.input.base64Data);
+        const secretResolver = createSecretResolver();
+        let apiKey: string | null = null;
+        if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
+          try {
+            apiKey = await secretResolver.resolveProviderSecret(provider);
+          } catch (error) {
+            return fail(requestId, 'speech/transcribe', formatError(error));
+          }
+        }
+        const result = await transcribeOpenAiCompatible({
+          provider,
+          model,
+          apiKey,
+          audio,
+          mimeType: command.input.mimeType,
+          ...(asrConfig?.language ? { language: asrConfig.language } : {}),
+        });
+        const data: SpeechTranscribeData = {
+          text: result.text,
+          model: modelRef,
+          durationMs: result.durationMs,
+        };
+        return ok(requestId, 'speech/transcribe', data);
+      } catch (error) {
+        return fail(requestId, 'speech/transcribe', formatError(error));
+      }
+    }
     case 'media/save': {
       context.requireSession(command.input.sessionId);
       const rootDir = getPiwinRoot(context.piwinRoot);

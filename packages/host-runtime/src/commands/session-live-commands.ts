@@ -25,10 +25,13 @@ import type {
   SessionIndexRecord,
   SessionResumeData,
   SessionRunAcceptedData,
+  SessionTranscriptPageData,
   SessionTranscriptMessage,
   SessionTranscriptDocument,
 } from '@piwin/contracts';
 import {
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
   formatError,
   DEFAULT_PERMISSION_PRESET,
   resolvePreset,
@@ -47,7 +50,9 @@ import {
 import {
   buildSessionOutline,
   buildProductHistoryContext,
+  createSessionTranscriptPage,
   projectTranscriptMessagesForUi,
+  SessionTranscriptCursorError,
   clearSessionPlan,
   createSessionRecord,
   exportTranscript,
@@ -83,12 +88,14 @@ import {
 } from '../paths.js';
 import type { createTranscriptRecorder } from '../transcript-recorder.js';
 import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
+import { createSessionMessageResponse } from '../session-message-response.js';
 import {
   indexProjectPathForScope,
   resolveSessionLocation,
   scopeFromIndexRecord,
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
+import { repairLegacySessionNames } from '../session-name-repair.js';
 
 export type SessionLiveContext = {
   piwinRoot?: string;
@@ -220,6 +227,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/list-children',
   'session/truncate-from',
   'session/resume',
+  'session/transcript-page',
   'session/messages',
   'session/prompt',
   'session/abort',
@@ -925,20 +933,51 @@ export async function handleSessionLiveCommand(
         sessionId: command.sessionId,
         removedCount: truncated.removedCount,
         remainingCount: truncated.remainingCount,
-        messages: remaining,
+        ...createSessionMessageResponse(
+          command.sessionId,
+          remaining,
+          command.messageProjection,
+        ),
         session: indexRecordToSummary(record),
       });
     }
     case 'session/resume': {
       const rootDir = getPiwinRoot(context.piwinRoot);
-      const existing = await getSessionRecord(getPiwinSessionIndexPath(rootDir), command.sessionId);
+      const indexPath = getPiwinSessionIndexPath(rootDir);
+      let existing = await getSessionRecord(indexPath, command.sessionId);
       if (!existing) {
         return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
       }
       const messages = await context.loadTranscriptMessages(command.sessionId);
-      // Full messages seed the product shell / history inject; IPC gets a slim
-      // projection so Desktop does not deserialize multi-MB tool bodies.
-      const uiMessages = projectTranscriptMessagesForUi(messages);
+      const [repairedExisting] = await repairLegacySessionNames({
+        indexPath,
+        records: [existing],
+        loadTranscriptMessages: async () => messages,
+        onRepaired: (record) => {
+          if (record.name) {
+            context.push({
+              type: 'session/name-updated',
+              sessionId: record.id,
+              name: record.name,
+              nameSource: 'text',
+            });
+          }
+        },
+        onWarning: (message) => {
+          context.push({ type: 'host/log', level: 'warn', message });
+        },
+      });
+      existing = repairedExisting ?? existing;
+      // Full messages seed the product shell / history inject. Shells receive
+      // only a bounded newest page; older durable history stays Host-owned.
+      const transcriptPage = createSessionTranscriptPage(messages, {
+        sessionId: command.sessionId,
+        limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+        maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+      });
+      if (transcriptPage.status !== 'page') {
+        throw new Error('Cursorless transcript tail unexpectedly returned stale');
+      }
       let session: SessionHandle;
       let live = true;
       try {
@@ -976,7 +1015,8 @@ export async function handleSessionLiveCommand(
       const data: SessionResumeData = {
         sessionId: session.id,
         live,
-        messages: uiMessages,
+        messages: transcriptPage.messages,
+        transcriptPage: transcriptPage.page,
         projectPath: existing.projectPath,
         outline: buildSessionOutline(messages),
       };
@@ -996,6 +1036,33 @@ export async function handleSessionLiveCommand(
         data.thinkingLevel = existing.thinkingLevel;
       }
       return ok(requestId, 'session/resume', data);
+    }
+    case 'session/transcript-page': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const existing = await getSessionRecord(
+        getPiwinSessionIndexPath(rootDir),
+        command.query.sessionId,
+      );
+      if (!existing) {
+        return fail(
+          requestId,
+          'session/transcript-page',
+          `Unknown session: ${command.query.sessionId}`,
+        );
+      }
+      const messages = await context.loadTranscriptMessages(command.query.sessionId);
+      try {
+        const page: SessionTranscriptPageData = createSessionTranscriptPage(
+          messages,
+          command.query,
+        );
+        return ok(requestId, 'session/transcript-page', page);
+      } catch (error) {
+        if (error instanceof SessionTranscriptCursorError || error instanceof RangeError) {
+          return fail(requestId, 'session/transcript-page', error.message);
+        }
+        throw error;
+      }
     }
     case 'session/runtime-status': {
       context.requireSession(command.sessionId);

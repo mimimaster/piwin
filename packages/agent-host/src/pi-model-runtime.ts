@@ -3,6 +3,7 @@ import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   isModelEnabled,
+  modelSupportsCapability,
 } from '@piwin/contracts';
 
 export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
@@ -63,26 +64,26 @@ export function buildPiProviderRegistration(
     api,
     authHeader: Boolean(apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim()),
     models: provider.models
-      .filter((model) => isModelEnabled(model))
+      .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
       .map((model) => ({
-      id: model.id,
-      name: model.label?.trim() || model.id,
-      api,
-      baseUrl: provider.baseUrl,
-      // Omit → true: preserve legacy "all models reasoning-capable" registration.
-      reasoning: model.reasoning ?? true,
-      // Omit → ['text']: safe default; do not claim vision without config.
-      input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
-      cost: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-      },
-      contextWindow: model.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW,
-      maxTokens: model.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
-      ...(provider.headers ? { headers: provider.headers } : {}),
-    })),
+        id: model.id,
+        name: model.label?.trim() || model.id,
+        api,
+        baseUrl: provider.baseUrl,
+        // Omit → true: preserve legacy "all models reasoning-capable" registration.
+        reasoning: model.reasoning ?? true,
+        // Omit → ['text']: safe default; do not claim vision without config.
+        input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
+        cost: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        contextWindow: model.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW,
+        maxTokens: model.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+        ...(provider.headers ? { headers: provider.headers } : {}),
+      })),
   };
   if (apiKey) {
     registration.apiKey = apiKey;
