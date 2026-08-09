@@ -19,6 +19,7 @@
     "@piwin/doc-rag": "workspace:*",
     "@piwin/flashcards": "workspace:*",
     "@piwin/host-runtime": "workspace:*",
+    "@piwin/host-server": "workspace:*",
     "@piwin/marketplace": "workspace:*",
     "@piwin/mcp": "workspace:*",
     "@piwin/media": "workspace:*",
