@@ -94,12 +94,26 @@ describe('side-chat contracts', () => {
         messageId: 'msg-3',
         label: 'Side chat explanation',
       },
+      {
+        kind: 'selection',
+        relativePath: 'src/index.ts',
+        lineStart: 1,
+        lineEnd: 3,
+        snapshotText: 'const x = 1;',
+        label: 'index.ts selection',
+      },
+      {
+        kind: 'folder',
+        projectPath: '/Users/dev/piwin',
+        relativePath: 'src',
+        label: 'src/',
+      },
     ];
     for (const ref of refs) {
       expect(ref.kind).toEqual(expect.any(String));
       expect(ref.label).toEqual(expect.any(String));
     }
-    expect(refs).toHaveLength(6);
+    expect(refs).toHaveLength(8);
   });
 
   it('treats main refs as valid prompt context refs (handoff path)', () => {
