@@ -291,7 +291,7 @@ describe('chatUiReducer', () => {
     expect(state.streaming).toBe(false);
   });
 
-  it('keeps previous transcript painted while resume awaits load-messages', () => {
+  it('cold resume paints empty (not previous session) and ignores stream until load-messages', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, {
@@ -317,17 +317,17 @@ describe('chatUiReducer', () => {
     });
     expect(state.activeSessionId).toBe('s2');
     expect(state.awaitingTranscript).toBe(true);
-    // Previous rows stay painted (no blank flash).
-    expect(state.messages[0]?.text).toBe('hello from s1');
+    // Cold: empty paint — s1 lives only in warm cache.
+    expect(state.messages).toHaveLength(0);
+    expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toBe('hello from s1');
 
-    // Stream events for the new session must not append onto stale rows.
+    // Stream events for the new session must not invent rows while awaiting.
     state = chatUiReducer(state, {
       type: 'event',
       sessionId: 's2',
       event: { type: 'message/start', messageId: 'a-new', role: 'assistant' },
     });
-    expect(state.messages).toHaveLength(1);
-    expect(state.messages[0]?.id).toBe('u1');
+    expect(state.messages).toHaveLength(0);
 
     state = chatUiReducer(state, {
       type: 'session/load-messages',
@@ -2509,7 +2509,7 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toContain('keep me');
   });
 
-  it('warms the last sessions and restores a warm hit instantly', () => {
+  it('cold switch paints empty (never another session), warm hit restores instantly', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'from s1' });
@@ -2518,8 +2518,11 @@ describe('chatUiReducer subagent hydration', () => {
       sessionId: 's2',
       awaitTranscript: true,
     });
-    // Cold s2 still paints previous rows while awaiting (no warm hit).
-    expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(true);
+    // Cold s2: empty paint — do not show s1 rows under s2.
+    expect(state.messages).toHaveLength(0);
+    expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toContain('from s1');
+    expect(state.awaitingTranscript).toBe(true);
+
     state = chatUiReducer(state, {
       type: 'session/load-messages',
       sessionId: 's2',
@@ -2535,14 +2538,30 @@ describe('chatUiReducer subagent hydration', () => {
     });
     expect(state.messages.some((message) => message.text.includes('from s2'))).toBe(true);
 
-    // Switch back to s1 — warm hit restores s1 without keeping s2 rows.
+    // Switch back to s1 — warm hit restores s1; s1 leaves the warm set (promoted).
     state = chatUiReducer(state, {
       type: 'session/set',
       sessionId: 's1',
       awaitTranscript: true,
     });
     expect(state.warmSessionCache.order).toContain('s2');
+    expect(state.warmSessionCache.byId.s1).toBeUndefined();
     expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(true);
     expect(state.messages.some((message) => message.text.includes('from s2'))).toBe(false);
+  });
+
+  it('evicts oldest inactive warm when a third left session is stashed', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'one' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'two' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's3' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'three' });
+    // Leave s3 for s4 → warm holds s2,s3 (s1 evicted); active is empty s4.
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's4' });
+    expect(state.warmSessionCache.order).toEqual(['s2', 's3']);
+    expect(state.warmSessionCache.byId.s1).toBeUndefined();
+    expect(state.messages).toHaveLength(0);
   });
 });
