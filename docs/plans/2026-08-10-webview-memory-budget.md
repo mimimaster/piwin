@@ -14,13 +14,18 @@ footprint — WebKit retains heaps, decoded images, and GPU layers.
 
 ## What already shipped
 
-1. **Viewport + 5s TTL recycle** for Inline Artifact iframes (geometry re-check,
-   loading shell, no blank park).
+1. ~~Viewport + 5s TTL recycle~~ **Removed** — little process-footprint win;
+   complexity hurt parked-viewport UX.
 2. **Hard live cap** `MAX_LIVE_ARTIFACT_IFRAMES = 2` via `live-host-registry`
    (evict lowest priority when claiming a new slot). Stream/Canvas are
-   `forceKeep`.
-3. **Show code side rail** + no full-bleed clip (layout correctness, not RAM).
-4. Transcript cache already bounds messages (`retainBoundedTranscriptWindow`).
+   `forceKeep`. Virtualization still limits how many frames mount.
+3. **Session warm LRU (3)** — Desktop keeps message JSON for the last three
+   sessions (`session-warm-cache` + `chat-reducer`). Active session alone mounts
+   UI/iframes; other sessions cold-load from Host on miss. Switch among the
+   warm set is instant paint + optional Host refresh.
+4. **Show code side rail** + no full-bleed clip (layout correctness, not RAM).
+5. Transcript cache already bounds messages (`retainBoundedTranscriptWindow`).
+6. Transcript fade `backdrop-filter` removed (sticky GPU cost).
 
 ## Ranked next levers (impact × effort)
 
