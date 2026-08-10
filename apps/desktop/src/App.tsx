@@ -2017,8 +2017,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [state.contextUsage, selectedModelContextWindow],
   );
 
+  // While resuming a session, keep docked layout even if paint is still
+  // previous/warm rows or briefly empty — never treat that as a brand-new chat.
   const composerLayoutMode =
-    state.messages.length === 0 ? ('centered' as const) : ('docked' as const);
+    state.messages.length === 0 && !state.awaitingTranscript
+      ? ('centered' as const)
+      : ('docked' as const);
 
   const lastUserMessageId = useMemo(() => {
     for (let index = state.messages.length - 1; index >= 0; index -= 1) {
@@ -2708,6 +2712,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   />
                 </div>
               ) : null}
+              {state.awaitingTranscript ? (
+                <div
+                  className="transcript-awaiting-banner"
+                  data-testid="transcript-awaiting-banner"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {desktopLocale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
+                </div>
+              ) : null}
               <TranscriptViewport
                 key={state.activeSessionId ?? 'no-session'}
                 messageCount={state.messages.length}
@@ -2876,7 +2890,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           }
           composerDock={
             <>
-              {state.messages.length === 0 ? <InkWashEmptyVignette theme={activeTheme} /> : null}
+              {state.messages.length === 0 && !state.awaitingTranscript ? (
+                <InkWashEmptyVignette theme={activeTheme} />
+              ) : null}
               <ComposerDock {...composerCard} />
             </>
           }

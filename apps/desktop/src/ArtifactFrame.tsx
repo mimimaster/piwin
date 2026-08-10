@@ -27,6 +27,7 @@ import {
   releaseArtifactInit,
   releaseArtifactLiveHost,
   requestArtifactInit,
+  requestArtifactLiveHost,
   resolveImmediateArtifactHeight,
   resolveInteractiveArtifactShrink,
   type ArtifactHeightPhase,
@@ -369,8 +370,9 @@ function ArtifactRenderFrame(props: {
     }, ARTIFACT_STREAM_RENDER_THROTTLE_MS - elapsed);
   }, [channelId, decision.mode, decision.renderSource, granted, usesStreamLifecycle]);
 
-  // Hard live-host budget only (no time-based viewport TTL). Virtualization
-  // limits how many frames mount; the registry caps concurrent srcdocs.
+  // Hard live-host budget (no time-based viewport TTL). Virtualization limits
+  // how many frames mount; the registry caps concurrent srcdocs. Denied claims
+  // wait and re-admit when a slot frees; user can also click to load.
   // Canvas / stream-preview are forceKeep and never budget-evicted.
   const forceHostIframe = presentation === 'canvas' || decision.mode === 'stream-preview';
   useEffect(() => {
@@ -386,12 +388,37 @@ function ArtifactRenderFrame(props: {
       evict: () => {
         setHostIframe(false);
       },
+      onAdmit: () => {
+        setHostIframe(true);
+      },
     });
     setHostIframe(claim.admitted);
     return () => {
       releaseArtifactLiveHost(channelId);
     };
   }, [channelId, forceHostIframe, presentation]);
+
+  const loadPreviewNow = (): void => {
+    const priority = forceHostIframe
+      ? presentation === 'canvas'
+        ? ARTIFACT_LIVE_PRIORITY_CANVAS
+        : ARTIFACT_LIVE_PRIORITY_STREAM
+      : ARTIFACT_LIVE_PRIORITY_VISIBLE;
+    const claim = requestArtifactLiveHost({
+      id: channelId,
+      forceKeep: forceHostIframe,
+      priority,
+      evict: () => {
+        setHostIframe(false);
+      },
+      onAdmit: () => {
+        setHostIframe(true);
+      },
+    });
+    if (claim.admitted) {
+      setHostIframe(true);
+    }
+  };
 
   // Init queue: grant before assigning srcdoc. Re-runs when the live budget
   // re-admits this frame. Stream keeps a stable channelId for the lifecycle.
@@ -704,14 +731,26 @@ function ArtifactRenderFrame(props: {
           className="artifact-iframe-placeholder artifact-iframe-placeholder--recycled"
           data-testid="artifact-iframe-placeholder"
           style={{
-            minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
-            height,
+            minHeight: Math.max(height, 88),
+            height: Math.max(height, 88),
             maxHeight,
             width: '100%',
           }}
-          aria-hidden
         >
           <span className="artifact-preparing-sheen" aria-hidden="true" />
+          <div className="artifact-iframe-placeholder-body">
+            <span className="artifact-iframe-placeholder-copy">
+              {locale === 'zh-CN' ? '预览已暂停以节省内存' : 'Preview paused to save memory'}
+            </span>
+            <button
+              type="button"
+              className="artifact-iframe-load-btn"
+              data-testid="artifact-load-preview"
+              onClick={loadPreviewNow}
+            >
+              {locale === 'zh-CN' ? '加载预览' : 'Load preview'}
+            </button>
+          </div>
         </div>
       ) : (
         <div

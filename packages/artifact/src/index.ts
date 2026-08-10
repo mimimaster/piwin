@@ -142,10 +142,13 @@ export type {
 export {
   MAX_LIVE_ARTIFACT_IFRAMES,
   claimArtifactLiveHost,
+  requestArtifactLiveHost,
   touchArtifactLiveHost,
   releaseArtifactLiveHost,
   getLiveArtifactHostCount,
+  getWaitingArtifactHostCount,
   getLiveArtifactHostIdsForTests,
+  getWaitingArtifactHostIdsForTests,
   resetArtifactLiveHostRegistryForTests,
 } from './live-host-registry.js';
 export type { ArtifactLiveHostRegistration } from './live-host-registry.js';

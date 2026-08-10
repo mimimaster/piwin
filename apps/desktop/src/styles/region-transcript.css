@@ -3583,22 +3583,70 @@ html[data-theme-mode='light'] .permission-detail {
   margin: 0;
 }
 
-/* Viewport-recycled Inline artifact: keep last measured height so the
-   transcript does not collapse while the sandboxed iframe is unmounted. */
+/* Session resume in flight — sits above the transcript, not empty-chat UI. */
+.transcript-awaiting-banner {
+  flex: none;
+  margin: 0 auto 8px;
+  max-width: var(--chat-max, 760px);
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* Live-budget recycled Inline artifact: keep height + offer click-to-load. */
 .artifact-iframe-placeholder {
   position: relative;
-  display: block;
+  display: grid;
+  place-items: center;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
   border-radius: 10px;
   background: color-mix(in srgb, var(--card, var(--panel)) 70%, transparent);
-  pointer-events: none;
 }
 
 .artifact-iframe-placeholder--recycled {
   border: 1px dashed color-mix(in srgb, var(--line) 55%, transparent);
+  pointer-events: auto;
+}
+
+.artifact-iframe-placeholder-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+
+.artifact-iframe-placeholder-copy {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.artifact-iframe-load-btn {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.artifact-iframe-load-btn:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
 }
 
 .artifact-iframe-stage {
@@ -4471,4 +4519,66 @@ html[data-theme-visual-style='ink-wash'] .artifact-preview-card {
   background: rgba(26, 27, 30, 0.9) !important;
   border: 1px solid rgba(194, 77, 67, 0.25) !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ── Ink Wash Completion Status Badge & Icons (朱砂钤印“成” 仅在水墨主题下生效) ── */
+
+/* 1. 图片/视频生成与完成指示器 (Image & Video Generation Completed Badge) */
+html[data-theme-visual-style='ink-wash'] .image-generation-progress-status-icon,
+html[data-theme-visual-style='ink-wash'] .video-generation-progress-status-icon {
+  position: relative !important;
+  background: #c24d43 !important;
+  border: 1px solid #d85c52 !important;
+  border-radius: 4px !important;
+  color: #f8f6f0 !important;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.5) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .image-generation-progress.status-done .image-generation-progress-status-icon,
+html[data-theme-visual-style='ink-wash'] .video-generation-progress.status-done .video-generation-progress-status-icon {
+  background: #c24d43 !important;
+  border-color: #d85c52 !important;
+  color: #f8f6f0 !important;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.6) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .image-generation-progress.status-done .image-generation-progress-status-icon svg,
+html[data-theme-visual-style='ink-wash'] .video-generation-progress.status-done .video-generation-progress-status-icon svg {
+  display: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .image-generation-progress.status-done .image-generation-progress-status-icon::after,
+html[data-theme-visual-style='ink-wash'] .video-generation-progress.status-done .video-generation-progress-status-icon::after {
+  content: '成' !important;
+  font-family: STKaiti, KaiTi, serif !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #f8f6f0 !important;
+  line-height: 1 !important;
+}
+
+/* 2. Subagent & Execution 完成标识 (Subagent & Plan Step Completed Status) */
+html[data-theme-visual-style='ink-wash'] .subagent-activity-state.state-completed,
+html[data-theme-visual-style='ink-wash'] .subagent-activity-state.state-merged,
+html[data-theme-visual-style='ink-wash'] .subagent-working-row-state.state-completed {
+  background: rgba(194, 77, 67, 0.2) !important;
+  color: #f8f6f0 !important;
+  border: 1px solid rgba(194, 77, 67, 0.45) !important;
+  border-radius: 4px !important;
+  font-family: STKaiti, KaiTi, serif !important;
+}
+
+/* 3. 计划卡片完成勾 (Plan Card Completed Step) */
+html[data-theme-visual-style='ink-wash'] .plan-card .step.done .step-icon {
+  color: #c24d43 !important;
+  filter: drop-shadow(0 0 6px rgba(194, 77, 67, 0.5)) !important;
+}
+
+/* 4. 通用对话与工具完成 CheckCircle 图标替换 (CheckCircle Icons in Transcript) */
+html[data-theme-visual-style='ink-wash'] .run-complete-notice .status-icon,
+html[data-theme-visual-style='ink-wash'] .execution-complete-pill .status-icon {
+  background: #c24d43 !important;
+  color: #f8f6f0 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 8px rgba(194, 77, 67, 0.5) !important;
 }

@@ -484,4 +484,52 @@ describe('ArtifactFrame chrome', () => {
     }
     expect(container.querySelector('[data-testid="artifact-frame"]')).not.toBeNull();
   });
+
+  it('offers Load preview when the live budget rejects the frame', async () => {
+    const { MAX_LIVE_ARTIFACT_IFRAMES, claimArtifactLiveHost, releaseArtifactLiveHost } =
+      await import('@piwin/artifact');
+    // Fill the budget with forceKeep hosts so the next claim is denied.
+    for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
+      claimArtifactLiveHost({
+        id: `force-fill-${index}`,
+        forceKeep: true,
+        priority: 1,
+        evict: () => undefined,
+      });
+    }
+
+    const { container, root } = renderFrame();
+    instances.push({ container, root });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-load-preview"]')).not.toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe')).toBeNull();
+
+    // Free a slot then click load — should admit and mount iframe path.
+    releaseArtifactLiveHost('force-fill-0');
+    const loadBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-load-preview"]',
+    );
+    await act(async () => {
+      loadBtn?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    // After admit, either iframe or loading shell (still painting).
+    expect(
+      container.querySelector('iframe.artifact-iframe') !== null ||
+        container.querySelector('[data-testid="artifact-iframe-loading"]') !== null ||
+        container
+          .querySelector('[data-testid="artifact-frame"]')
+          ?.getAttribute('data-artifact-host') === 'live' ||
+        container
+          .querySelector('[data-testid="artifact-frame"]')
+          ?.getAttribute('data-artifact-host') === 'loading',
+    ).toBe(true);
+  });
 });

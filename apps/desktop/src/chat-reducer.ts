@@ -213,11 +213,11 @@ export type ChatUiState = {
   activeSessionArchived: boolean;
   /**
    * True after resume `session/set({ awaitTranscript: true })` until
-   * `session/load-messages` arrives. Ignores stream events for the newly
-   * selected session until hydrate completes. Paint policy on set:
-   * warm hit → restore that session's rows; cold → empty (never paint a
-   * different session's transcript under the new id). New empty sessions
-   * leave this false (no load-messages is coming).
+   * `session/load-messages` arrives. Ignores stream events for the new
+   * session until hydrate completes. Paint policy on set:
+   * warm hit → that session's rows; cold + awaiting → keep previous rows
+   * under a loading banner (no empty flash); Host load replaces them.
+   * New empty sessions leave this false (no load-messages is coming).
    */
   awaitingTranscript: boolean;
   /**
@@ -738,9 +738,6 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         state.activeSessionId !== null && state.activeSessionId !== action.sessionId;
 
       // Stash the session we leave into the inactive warm LRU (message JSON only).
-      // Never paint session A rows under session B's selection (old keepPrevious
-      // did that for no-flash; warm hit replaces it for recent sessions, cold
-      // paints empty until Host load-messages).
       let warmSessionCache = state.warmSessionCache;
       if (switchingAway && state.messages.length > 0 && state.activeSessionId) {
         warmSessionCache = putWarmSessionSnapshot(warmSessionCache, {
@@ -759,11 +756,21 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           ? getWarmSessionSnapshot(warmSessionCache, action.sessionId)
           : null;
       // Promote warm → active: drop the inactive slot so we do not hold two
-      // copies of the same session's rows (active messages + warm entry).
-      // On next leave, putWarm stashes it again.
+      // copies of the same session's rows. On next leave, putWarm stashes again.
       if (warmHit) {
         warmSessionCache = removeWarmSessionSnapshot(warmSessionCache, action.sessionId);
       }
+
+      // Paint policy while Host resume is in flight:
+      // 1) warm hit → that session's rows (correct id)
+      // 2) cold + awaiting → keep previous rows under a loading banner (no empty flash)
+      // 3) else → empty
+      // Stream events stay ignored while awaitingTranscript is true.
+      const keepPreviousWhileLoading =
+        !warmHit &&
+        awaitingTranscript &&
+        switchingAway &&
+        state.messages.length > 0;
 
       return {
         ...state,
@@ -773,8 +780,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           ? state.messages
           : warmHit
             ? warmHit.messages
-            : [],
-        transcriptWindow: warmHit ? warmHit.transcriptWindow : null,
+            : keepPreviousWhileLoading
+              ? state.messages
+              : [],
+        transcriptWindow: warmHit
+          ? warmHit.transcriptWindow
+          : keepPreviousWhileLoading
+            ? state.transcriptWindow
+            : null,
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
@@ -783,20 +796,34 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
         activeSkill: preserveOptimisticDraftSend ? state.activeSkill : null,
-        outline: warmHit ? warmHit.outline : [],
+        outline: warmHit
+          ? warmHit.outline
+          : keepPreviousWhileLoading
+            ? state.outline
+            : [],
         activeSessionArchived: false,
         awaitingTranscript,
         runTerminal: { kind: 'none' },
         // C1: clear event id ring for the new session
         receivedEventIds: [],
         lastAcceptedSequenceByRun: {},
-        runRecordsById: warmHit ? warmHit.runRecordsById : {},
-        walkthroughsByMessageId: warmHit ? warmHit.walkthroughsByMessageId : {},
+        runRecordsById: warmHit
+          ? warmHit.runRecordsById
+          : keepPreviousWhileLoading
+            ? state.runRecordsById
+            : {},
+        walkthroughsByMessageId: warmHit
+          ? warmHit.walkthroughsByMessageId
+          : keepPreviousWhileLoading
+            ? state.walkthroughsByMessageId
+            : {},
         contextUsage: warmHit
           ? warmHit.contextUsage
-          : state.activeSessionId === action.sessionId
+          : keepPreviousWhileLoading
             ? state.contextUsage
-            : null,
+            : state.activeSessionId === action.sessionId
+              ? state.contextUsage
+              : null,
         // Subagent activity belongs to the previously active parent; the new
         // session hydrates its own children on resume.
         subagentStreams: {},
