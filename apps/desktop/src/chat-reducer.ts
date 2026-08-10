@@ -40,6 +40,14 @@ import {
   prependBoundedTranscriptPage,
   retainBoundedTranscriptWindow,
 } from './transcript-page-cache';
+import {
+  createEmptyWarmSessionCache,
+  getWarmSessionSnapshot,
+  putWarmSessionSnapshot,
+  removeWarmSessionSnapshot,
+  touchWarmSessionOrder,
+  type WarmSessionCache,
+} from './session-warm-cache';
 
 const MAX_RETAINED_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
@@ -186,6 +194,12 @@ export type ChatUiState = {
   sessionListsWindowed: boolean;
   activeSessionId: string | null;
   messages: ChatMessageUi[];
+  /**
+   * LRU of recently left sessions (≤ MAX_WARM_SESSIONS). Message JSON only —
+   * not live Artifact iframes. Hit on session/set restores instantly; miss
+   * cold-loads from Host. Active session is always the foreground resident.
+   */
+  warmSessionCache: WarmSessionCache;
   /** Host revision/cursor and bounded resident-history accounting. */
   transcriptWindow: {
     revision: string;
@@ -417,6 +431,7 @@ export function createInitialChatUiState(): ChatUiState {
     sessionListsWindowed: false,
     activeSessionId: null,
     messages: [],
+    warmSessionCache: createEmptyWarmSessionCache(),
     transcriptWindow: null,
     outline: [],
     activeSessionArchived: false,
@@ -718,18 +733,57 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       // Explicit opt-in from handleResumeSession only. session/create → session/set
       // must NOT await (no load-messages follows; events/walkthrough would stall).
       const awaitingTranscript = !preserveOptimisticDraftSend && action.awaitTranscript === true;
-      // Keep previous rows painted only on the resume path (awaitTranscript).
-      // Plain session/set switches still clear immediately.
+      const switchingAway =
+        state.activeSessionId !== null && state.activeSessionId !== action.sessionId;
+
+      // Stash the session we leave into the warm LRU (message JSON only).
+      let warmSessionCache = state.warmSessionCache;
+      if (switchingAway && state.messages.length > 0 && state.activeSessionId) {
+        warmSessionCache = putWarmSessionSnapshot(warmSessionCache, {
+          sessionId: state.activeSessionId,
+          messages: state.messages,
+          transcriptWindow: state.transcriptWindow,
+          outline: state.outline,
+          runRecordsById: state.runRecordsById,
+          walkthroughsByMessageId: state.walkthroughsByMessageId,
+          contextUsage: state.contextUsage,
+        });
+      }
+
+      // Codex-style warm hit: restore last N sessions instantly; Host still
+      // refreshes via load-messages when awaitTranscript is set.
+      const warmHit =
+        switchingAway || state.activeSessionId === null
+          ? getWarmSessionSnapshot(warmSessionCache, action.sessionId)
+          : null;
+      if (warmHit) {
+        warmSessionCache = touchWarmSessionOrder(warmSessionCache, action.sessionId);
+      }
+
+      // Prefer warm hit over painting the *previous* session's rows while
+      // resume loads. Fall back to keepPrevious only when cold.
       const keepPreviousTranscript =
+        !warmHit &&
         awaitingTranscript &&
-        state.activeSessionId !== null &&
-        state.activeSessionId !== action.sessionId &&
+        switchingAway &&
         state.messages.length > 0;
+
       return {
         ...state,
         activeSessionId: action.sessionId,
-        messages: preserveOptimisticDraftSend || keepPreviousTranscript ? state.messages : [],
-        transcriptWindow: null,
+        warmSessionCache,
+        messages: preserveOptimisticDraftSend
+          ? state.messages
+          : warmHit
+            ? warmHit.messages
+            : keepPreviousTranscript
+              ? state.messages
+              : [],
+        transcriptWindow: warmHit
+          ? warmHit.transcriptWindow
+          : keepPreviousTranscript
+            ? state.transcriptWindow
+            : null,
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
@@ -738,16 +792,24 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
         activeSkill: preserveOptimisticDraftSend ? state.activeSkill : null,
-        outline: keepPreviousTranscript ? state.outline : [],
+        outline: warmHit ? warmHit.outline : keepPreviousTranscript ? state.outline : [],
         activeSessionArchived: false,
         awaitingTranscript,
         runTerminal: { kind: 'none' },
         // C1: clear event id ring for the new session
         receivedEventIds: [],
         lastAcceptedSequenceByRun: {},
-        runRecordsById: keepPreviousTranscript ? state.runRecordsById : {},
-        walkthroughsByMessageId: {},
-        contextUsage: state.activeSessionId === action.sessionId ? state.contextUsage : null,
+        runRecordsById: warmHit
+          ? warmHit.runRecordsById
+          : keepPreviousTranscript
+            ? state.runRecordsById
+            : {},
+        walkthroughsByMessageId: warmHit ? warmHit.walkthroughsByMessageId : {},
+        contextUsage: warmHit
+          ? warmHit.contextUsage
+          : state.activeSessionId === action.sessionId
+            ? state.contextUsage
+            : null,
         // Subagent activity belongs to the previously active parent; the new
         // session hydrates its own children on resume.
         subagentStreams: {},
@@ -1148,6 +1210,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         sessions: nextSessions,
         generalSessions: nextGeneralSessions,
         projectSessionsByPath: nextProjectSessionsByPath,
+        warmSessionCache: removeWarmSessionSnapshot(state.warmSessionCache, action.sessionId),
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,
         messages: activeRemoved ? [] : state.messages,

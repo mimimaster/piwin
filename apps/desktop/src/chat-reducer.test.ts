@@ -2495,15 +2495,54 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.workingSessionIds).toEqual({ 'new-session': true });
   });
 
-  it('still clears messages when switching without awaitTranscript', () => {
+  it('still clears messages when switching without awaitTranscript (cold target)', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'keep me' });
-    // Non-resume session/set (no awaitTranscript) clears immediately.
+    // Non-resume session/set (no awaitTranscript): cold target paints empty,
+    // but the left session is stashed in the warm LRU.
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
     expect(state.activeSessionId).toBe('s2');
     expect(state.awaitingTranscript).toBe(false);
     expect(state.messages).toHaveLength(0);
     expect(state.streaming).toBe(false);
+    expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toContain('keep me');
+  });
+
+  it('warms the last sessions and restores a warm hit instantly', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'from s1' });
+    state = chatUiReducer(state, {
+      type: 'session/set',
+      sessionId: 's2',
+      awaitTranscript: true,
+    });
+    // Cold s2 still paints previous rows while awaiting (no warm hit).
+    expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(true);
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's2',
+      messages: [
+        {
+          id: 's2-u',
+          role: 'user',
+          text: 'from s2',
+          createdAt: new Date(0).toISOString(),
+        } as never,
+      ],
+      live: false,
+    });
+    expect(state.messages.some((message) => message.text.includes('from s2'))).toBe(true);
+
+    // Switch back to s1 — warm hit restores s1 without keeping s2 rows.
+    state = chatUiReducer(state, {
+      type: 'session/set',
+      sessionId: 's1',
+      awaitTranscript: true,
+    });
+    expect(state.warmSessionCache.order).toContain('s2');
+    expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(true);
+    expect(state.messages.some((message) => message.text.includes('from s2'))).toBe(false);
   });
 });

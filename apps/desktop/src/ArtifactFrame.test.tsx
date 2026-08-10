@@ -6,7 +6,6 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ArtifactPreviewDecision } from '@piwin/artifact';
 import {
-  ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
   resetArtifactInitQueueForTests,
   resetArtifactLiveHostRegistryForTests,
 } from '@piwin/artifact';
@@ -16,60 +15,6 @@ import { ArtifactFrame } from './ArtifactFrame.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
-}
-
-type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0];
-
-class IntersectionObserverFixture {
-  static instances: IntersectionObserverFixture[] = [];
-
-  private readonly callback: ObserverCallback;
-  private target: Element | null = null;
-
-  constructor(callback: ObserverCallback, _options?: IntersectionObserverInit) {
-    this.callback = callback;
-    IntersectionObserverFixture.instances.push(this);
-  }
-
-  disconnect(): void {
-    this.target = null;
-  }
-
-  observe(target: Element): void {
-    this.target = target;
-  }
-
-  takeRecords(): IntersectionObserverEntry[] {
-    return [];
-  }
-
-  unobserve(target: Element): void {
-    if (this.target === target) {
-      this.target = null;
-    }
-  }
-
-  trigger(isIntersecting: boolean): void {
-    const target = this.target;
-    if (target === null) {
-      return;
-    }
-    const bounds = target.getBoundingClientRect();
-    this.callback(
-      [
-        {
-          boundingClientRect: bounds,
-          intersectionRatio: isIntersecting ? 1 : 0,
-          intersectionRect: bounds,
-          isIntersecting,
-          rootBounds: null,
-          target,
-          time: performance.now(),
-        },
-      ],
-      this as unknown as IntersectionObserver,
-    );
-  }
 }
 
 function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render' }> {
@@ -171,7 +116,6 @@ describe('ArtifactFrame chrome', () => {
     instances = [];
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
-    IntersectionObserverFixture.instances = [];
   });
 
   afterEach(() => {
@@ -182,11 +126,9 @@ describe('ArtifactFrame chrome', () => {
       container.remove();
     }
     vi.useRealTimers();
-    vi.unstubAllGlobals();
     vi.restoreAllMocks();
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
-    IntersectionObserverFixture.instances = [];
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -522,127 +464,6 @@ describe('ArtifactFrame chrome', () => {
     });
     expect(onComposerProposal).toHaveBeenCalledTimes(1);
     expect(onComposerProposal).toHaveBeenCalledWith({ text: 'Use React.', label: 'Stack' });
-  });
-
-  it('recycles the sandboxed iframe after leaving the viewport for the TTL, then remounts on re-entry', async () => {
-    vi.stubGlobal('IntersectionObserver', IntersectionObserverFixture);
-    vi.useFakeTimers();
-
-    const { container, root } = renderFrame();
-    instances.push({ container, root });
-
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const observer = IntersectionObserverFixture.instances[0];
-    expect(observer).toBeDefined();
-
-    // Near-viewport: host iframe immediately (loading shell until paint is OK).
-    await act(async () => {
-      observer?.trigger(true);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
-    ).toMatch(/^(live|loading)$/);
-
-    // Leave viewport but still within TTL → keep iframe.
-    // Stub geometry far off-screen so the TTL re-check does not fail-open.
-    const frame = container.querySelector('[data-testid="artifact-frame"]');
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: -4000,
-      top: -4000,
-      right: 400,
-      bottom: -3800,
-      left: 0,
-      width: 400,
-      height: 200,
-      toJSON: () => ({}),
-    } as DOMRect);
-
-    await act(async () => {
-      observer?.trigger(false);
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(ARTIFACT_VIEWPORT_RECYCLE_TTL_MS - 1);
-    });
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
-    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).toBeNull();
-
-    // Past TTL → recycle (placeholder keeps height; iframe unmounted).
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-      await Promise.resolve();
-    });
-    expect(container.querySelector('iframe.artifact-iframe')).toBeNull();
-    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).not.toBeNull();
-    expect(
-      frame?.getAttribute('data-artifact-host') ??
-        container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
-    ).toBe('recycled');
-
-    // Re-enter → remount via init queue; loading shell while paint pending.
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      x: 0,
-      y: 80,
-      top: 80,
-      right: 400,
-      bottom: 280,
-      left: 0,
-      width: 400,
-      height: 200,
-      toJSON: () => ({}),
-    } as DOMRect);
-    await act(async () => {
-      observer?.trigger(true);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
-    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).toBeNull();
-    expect(
-      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
-    ).toMatch(/^(live|loading)$/);
-    // Loading shell must appear rather than a pure blank while paint is pending.
-    const host = container
-      .querySelector('[data-testid="artifact-frame"]')
-      ?.getAttribute('data-artifact-host');
-    if (host === 'loading') {
-      expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).not.toBeNull();
-    }
-  });
-
-  it('does not recycle an active stream-preview iframe while off-screen', async () => {
-    vi.stubGlobal('IntersectionObserver', IntersectionObserverFixture);
-    vi.useFakeTimers();
-
-    const decision = makeStreamDecision('<div>stream</div>', '<html>stream</html>');
-    const { container, root } = renderFrame(decision);
-    instances.push({ container, root });
-
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const observer = IntersectionObserverFixture.instances[0];
-    // forceHostIframe true for stream-preview → observer effect returns early,
-    // so no observer may be installed. Either way the iframe must stay hosted.
-    await act(async () => {
-      observer?.trigger(false);
-      vi.advanceTimersByTime(ARTIFACT_VIEWPORT_RECYCLE_TTL_MS * 2);
-      await Promise.resolve();
-    });
-
-    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
-    ).toMatch(/^(live|loading)$/);
   });
 
   it('shows a loading shell instead of a blank frame while the iframe paints', async () => {
