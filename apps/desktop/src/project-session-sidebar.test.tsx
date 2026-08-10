@@ -149,8 +149,8 @@ describe('ProjectSessionSidebar bounded lazy session windows', () => {
     expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
   });
 
-  it('enables Host cursor boundaries only after See all and resets on Show less', () => {
-    const onSessionPageChange = vi.fn();
+  it('enables Host cursor boundaries only after See all and resets on Show less', async () => {
+    const onSessionPageChange = vi.fn(async () => undefined);
     const onSessionWindowReset = vi.fn();
     const sessions = createMockSessions(4);
     const { container } = renderSidebar({
@@ -187,20 +187,31 @@ describe('ProjectSessionSidebar bounded lazy session windows', () => {
     expect(onSessionPageChange).not.toHaveBeenCalled();
 
     const disclosure = container.querySelector('[data-testid="see-all-btn"]');
-    act(() => {
+    await act(async () => {
       (disclosure as HTMLButtonElement).click();
+      await Promise.resolve();
     });
     expect(container.querySelector('[data-testid="session-lazy-previous"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="session-lazy-next"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="load-more-project-sessions"]')).not.toBeNull();
+    // See all eagerly requests the next Host page so the list is not stuck
+    // on the first six rows waiting for a zero-height intersection sentinel.
+    expect(onSessionPageChange).toHaveBeenCalledWith(
+      { kind: 'project', projectPath: '/Users/test/project-a' },
+      'next-cursor',
+      'next',
+    );
 
-    act(() => {
+    await act(async () => {
       (disclosure as HTMLButtonElement).click();
+      await Promise.resolve();
     });
     expect(onSessionWindowReset).toHaveBeenCalledWith({
       kind: 'project',
       projectPath: '/Users/test/project-a',
     });
     expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
+    expect(container.querySelector('[data-testid="load-more-project-sessions"]')).toBeNull();
   });
 
   it('selects an old active session page without expanding a 1,003-row project', () => {

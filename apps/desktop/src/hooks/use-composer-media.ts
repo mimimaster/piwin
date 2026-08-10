@@ -59,7 +59,6 @@ export type UseComposerMediaArgs = {
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
   onCompact?: (customInstructions?: string) => Promise<void>;
   onAbort?: () => Promise<void>;
-  onPause?: () => Promise<void>;
   /** Create (or ensure) a live session when the user sends without one. */
   ensureSession?: (options?: {
     projectPath?: string;
@@ -960,8 +959,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (promptSubmissionInProgress.current) {
         return;
       }
-      if (args.state.runTerminal.kind === 'paused') {
-        return;
+      // Legacy Host checkpoint pause (CLI): clear it so a normal prompt can
+      // proceed. Desktop no longer exposes Pause/Continue as a second control.
+      if (args.state.runTerminal.kind === 'paused' && args.state.activeSessionId) {
+        const clearPause = await args.hostClient.request({
+          type: 'session/abort',
+          sessionId: args.state.activeSessionId,
+        });
+        if (!clearPause.success) {
+          args.dispatch({ type: 'error', message: clearPause.error });
+          return;
+        }
+        args.dispatch({ type: 'run/terminal-dismiss' });
       }
 
       // Only wait on media when something is actually in flight. Pure text
@@ -1379,7 +1388,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       !sessionId ||
       args.state.streaming ||
       args.state.runPhase !== 'idle' ||
-      args.state.runTerminal.kind === 'paused' ||
       args.state.workingSessionIds[sessionId] === true ||
       queueDrainInProgressRef.current
     ) {

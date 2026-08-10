@@ -72,8 +72,18 @@ export function mapUsageSnapshot(
         (cacheWriteTokens ?? 0)
       : undefined);
 
+  // Context occupancy ≠ billable turn total. When providers only report turn
+  // fields, input-side tokens (prompt + cache) best approximate window fill.
+  const inputSideTokens =
+    promptTokens !== undefined ||
+    cacheReadTokens !== undefined ||
+    cacheWriteTokens !== undefined
+      ? (promptTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
+      : undefined;
+  const resolvedTokensUsed = tokensUsed ?? inputSideTokens;
+
   const hasAny =
-    tokensUsed !== undefined ||
+    resolvedTokensUsed !== undefined ||
     tokensLimit !== undefined ||
     promptTokens !== undefined ||
     completionTokens !== undefined ||
@@ -90,7 +100,7 @@ export function mapUsageSnapshot(
     source,
   };
   if (modelId !== undefined) snapshot.modelId = modelId;
-  if (tokensUsed !== undefined) snapshot.tokensUsed = tokensUsed;
+  if (resolvedTokensUsed !== undefined) snapshot.tokensUsed = resolvedTokensUsed;
   if (tokensLimit !== undefined) snapshot.tokensLimit = tokensLimit;
   if (promptTokens !== undefined) snapshot.promptTokens = promptTokens;
   if (completionTokens !== undefined) snapshot.completionTokens = completionTokens;
@@ -98,7 +108,7 @@ export function mapUsageSnapshot(
   if (cacheWriteTokens !== undefined) snapshot.cacheWriteTokens = cacheWriteTokens;
   if (totalTokens !== undefined) snapshot.totalTokens = totalTokens;
 
-  const usedForRatio = tokensUsed ?? totalTokens;
+  const usedForRatio = resolvedTokensUsed ?? totalTokens;
   if (
     usedForRatio !== undefined &&
     tokensLimit !== undefined &&

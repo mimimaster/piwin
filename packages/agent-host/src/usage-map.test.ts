@@ -34,6 +34,8 @@ describe('usage-map', () => {
       cacheReadTokens: 100,
       cacheWriteTokens: 50,
       totalTokens: 1050,
+      // Context occupancy = input-side (prompt + cache), not billable turn total.
+      tokensUsed: 850,
       source: 'assistant-usage',
     });
   });
@@ -51,6 +53,7 @@ describe('usage-map', () => {
       cacheReadTokens: 100,
       cacheWriteTokens: 50,
       totalTokens: 1050,
+      tokensUsed: 850,
     });
   });
 

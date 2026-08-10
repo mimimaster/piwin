@@ -64,7 +64,7 @@ export function SessionListLazyBoundary(props: SessionListLazyBoundaryProps): Re
 
   useEffect(() => {
     const boundary = boundaryRef.current;
-    if (boundary === null || typeof IntersectionObserver === 'undefined') {
+    if (boundary === null) {
       return;
     }
     const scrollRoot = boundary.closest<HTMLElement>('.sidebar-folder-tree');
@@ -72,56 +72,86 @@ export function SessionListLazyBoundary(props: SessionListLazyBoundaryProps): Re
       return;
     }
     let disposed = false;
+
+    const requestLoad = (): void => {
+      const cursor = cursorRef.current;
+      if (loadingRef.current || lastRequestedCursorRef.current === cursor) {
+        return;
+      }
+      lastRequestedCursorRef.current = cursor;
+      loadingRef.current = true;
+      setLoading(true);
+      const anchor = captureScrollAnchor(scrollRoot);
+      void Promise.resolve(onLoadRef.current())
+        .catch((error: unknown) => {
+          console.warn(
+            `[session-list] ${props.direction} lazy load failed for ${props.scopeKey}`,
+            error,
+          );
+          return false;
+        })
+        .then(async () => {
+          await waitForTwoAnimationFrames();
+          if (disposed) {
+            return;
+          }
+          restoreScrollAnchor(scrollRoot, anchor);
+          // A successful load changes/removes the cursor. If it did not,
+          // allow a later leave/re-enter intersection to retry the same page.
+          if (cursorRef.current === cursor) {
+            lastRequestedCursorRef.current = null;
+          }
+        })
+        .finally(() => {
+          loadingRef.current = false;
+          if (!disposed) {
+            setLoading(false);
+          }
+        });
+    };
+
+    // Eager attempt: after See all the next-page sentinel is often already in
+    // view (or has a tiny height). IntersectionObserver alone has missed that
+    // case in WebKit and left only the collapsed first page + Show less.
+    const initialFrame = window.requestAnimationFrame(() => {
+      if (disposed) {
+        return;
+      }
+      const bounds = boundary.getBoundingClientRect();
+      const rootBounds = scrollRoot.getBoundingClientRect();
+      const alreadyVisible =
+        bounds.bottom >= rootBounds.top - 120 && bounds.top <= rootBounds.bottom + 120;
+      if (alreadyVisible) {
+        requestLoad();
+      }
+    });
+
+    if (typeof IntersectionObserver === 'undefined') {
+      return () => {
+        disposed = true;
+        window.cancelAnimationFrame(initialFrame);
+      };
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
-        const intersects = entries.some((entry) => entry.isIntersecting);
-        const cursor = cursorRef.current;
-        if (!intersects || loadingRef.current || lastRequestedCursorRef.current === cursor) {
-          return;
+        if (entries.some((entry) => entry.isIntersecting)) {
+          requestLoad();
         }
-        lastRequestedCursorRef.current = cursor;
-        loadingRef.current = true;
-        setLoading(true);
-        const anchor = captureScrollAnchor(scrollRoot);
-        void Promise.resolve(onLoadRef.current())
-          .catch((error: unknown) => {
-            console.warn(
-              `[session-list] ${props.direction} lazy load failed for ${props.scopeKey}`,
-              error,
-            );
-            return false;
-          })
-          .then(async () => {
-            await waitForTwoAnimationFrames();
-            if (disposed) {
-              return;
-            }
-            restoreScrollAnchor(scrollRoot, anchor);
-            // A successful load changes/removes the cursor. If it did not,
-            // allow a later leave/re-enter intersection to retry the same page.
-            if (cursorRef.current === cursor) {
-              lastRequestedCursorRef.current = null;
-            }
-          })
-          .finally(() => {
-            loadingRef.current = false;
-            if (!disposed) {
-              setLoading(false);
-            }
-          });
       },
       {
         root: scrollRoot,
-        rootMargin: '120px 0px',
+        rootMargin: '160px 0px',
         threshold: 0,
       },
     );
     observer.observe(boundary);
     return () => {
       disposed = true;
+      window.cancelAnimationFrame(initialFrame);
       observer.disconnect();
     };
-  }, [props.direction, props.scopeKey]);
+  }, [props.cursor, props.direction, props.scopeKey]);
 
   return (
     <li

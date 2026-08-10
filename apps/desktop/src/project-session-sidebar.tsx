@@ -502,6 +502,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   >({});
   const [generalSessionListExpanded, setGeneralSessionListExpanded] = useState(false);
   const pendingSessionWindowLoads = useRef(new Set<string>());
+  const sessionListWindowsRef = useRef(props.sessionListWindows);
+  sessionListWindowsRef.current = props.sessionListWindows;
   const sidebarRef = useRef<HTMLElement>(null);
   const sessionSearchInputRef = useRef<HTMLInputElement>(null);
   const hasActiveSessionSearch = props.sessionSearch.trim().length > 0;
@@ -540,6 +542,38 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       }
     },
     [props.onSessionPageChange],
+  );
+
+  /**
+   * See all must not leave the user with only the first Host page + Show less.
+   * Eagerly append pages until the sliding window is full or Host has no next
+   * cursor. Further pages still come from the lazy boundary while scrolling.
+   */
+  const fillExpandedSessionWindow = useCallback(
+    async (scope: SessionScope): Promise<void> => {
+      for (let attempt = 0; attempt < SESSION_LIST_WINDOW_MAX_PAGES; attempt += 1) {
+        const windows = sessionListWindowsRef.current;
+        if (windows === undefined) {
+          return;
+        }
+        const window = getSessionListWindow(windows, scope);
+        if (window === null) {
+          return;
+        }
+        const bounds = getSessionListWindowBounds(window);
+        if (bounds === null || bounds.nextCursor === undefined) {
+          return;
+        }
+        if (window.pages.length >= SESSION_LIST_WINDOW_MAX_PAGES) {
+          return;
+        }
+        const loaded = await loadSessionWindowPage(scope, bounds.nextCursor, 'next');
+        if (!loaded) {
+          return;
+        }
+      }
+    },
+    [loadSessionWindowPage],
   );
 
   const resetSessionWindow = useCallback(
@@ -1127,15 +1161,34 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                       />
                     ))}
                     {isProjectSessionListExpanded && projectNextCursor !== undefined ? (
-                      <SessionListLazyBoundary
-                        scopeKey={projectScopeKey}
-                        direction="next"
-                        cursor={projectNextCursor}
-                        loadingLabel={sidebarCopy.loadingSessions}
-                        onLoad={() =>
-                          loadSessionWindowPage(projectScope, projectNextCursor, 'next')
-                        }
-                      />
+                      <>
+                        <SessionListLazyBoundary
+                          scopeKey={projectScopeKey}
+                          direction="next"
+                          cursor={projectNextCursor}
+                          loadingLabel={sidebarCopy.loadingSessions}
+                          onLoad={() =>
+                            loadSessionWindowPage(projectScope, projectNextCursor, 'next')
+                          }
+                        />
+                        <li className="session-list-disclosure-row">
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            className="session-list-disclosure"
+                            data-testid="load-more-project-sessions"
+                            onClick={() => {
+                              void loadSessionWindowPage(
+                                projectScope,
+                                projectNextCursor,
+                                'next',
+                              );
+                            }}
+                          >
+                            {sidebarCopy.loadMoreSessions}
+                          </Button>
+                        </li>
+                      </>
                     ) : null}
                     {hasProjectSessionDisclosure ? (
                       <li className="session-list-disclosure-row">
@@ -1145,11 +1198,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                           className="session-list-disclosure"
                           data-testid="see-all-btn"
                           onClick={() => {
+                            const nextExpanded = !isProjectSessionListExpanded;
                             setExpandedProjectSessionLists((previous) => ({
                               ...previous,
-                              [project.path]: !isProjectSessionListExpanded,
+                              [project.path]: nextExpanded,
                             }));
-                            if (isProjectSessionListExpanded) {
+                            if (nextExpanded) {
+                              void fillExpandedSessionWindow(projectScope);
+                            } else {
                               resetSessionWindow(projectScope);
                             }
                           }}
@@ -1265,15 +1321,34 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                       />
                     ))}
                     {isGeneralSessionListExpanded && generalNextCursor !== undefined ? (
-                      <SessionListLazyBoundary
-                        scopeKey={generalScopeKey}
-                        direction="next"
-                        cursor={generalNextCursor}
-                        loadingLabel={sidebarCopy.loadingSessions}
-                        onLoad={() =>
-                          loadSessionWindowPage(generalScope, generalNextCursor, 'next')
-                        }
-                      />
+                      <>
+                        <SessionListLazyBoundary
+                          scopeKey={generalScopeKey}
+                          direction="next"
+                          cursor={generalNextCursor}
+                          loadingLabel={sidebarCopy.loadingSessions}
+                          onLoad={() =>
+                            loadSessionWindowPage(generalScope, generalNextCursor, 'next')
+                          }
+                        />
+                        <li className="session-list-disclosure-row">
+                          <Button
+                            variant="ghost"
+                            size="compact"
+                            className="session-list-disclosure"
+                            data-testid="load-more-general-sessions"
+                            onClick={() => {
+                              void loadSessionWindowPage(
+                                generalScope,
+                                generalNextCursor,
+                                'next',
+                              );
+                            }}
+                          >
+                            {sidebarCopy.loadMoreSessions}
+                          </Button>
+                        </li>
+                      </>
                     ) : null}
                     {hasGeneralSessionDisclosure ? (
                       <li className="session-list-disclosure-row">
@@ -1283,8 +1358,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                           className="session-list-disclosure"
                           data-testid="see-all-general-btn"
                           onClick={() => {
-                            setGeneralSessionListExpanded(!isGeneralSessionListExpanded);
-                            if (isGeneralSessionListExpanded) {
+                            const nextExpanded = !isGeneralSessionListExpanded;
+                            setGeneralSessionListExpanded(nextExpanded);
+                            if (nextExpanded) {
+                              void fillExpandedSessionWindow(generalScope);
+                            } else {
                               resetSessionWindow(generalScope);
                             }
                           }}
