@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest';
+import type { ModelConfigEntry } from '@piwin/contracts';
+import { modelCaps } from './provider-row.js';
+
+describe('modelCaps', () => {
+  it('renders the native web search chip with localized labels', () => {
+    const model: ModelConfigEntry = {
+      id: 'search-model',
+      capabilities: ['native-web-search'],
+    };
+
+    expect(modelCaps(model, false)).toContainEqual({
+      key: 'native-web-search',
+      label: 'Native search',
+      bg: '#e5ecfd',
+      fg: '#3558b8',
+    });
+    expect(modelCaps(model, true)).toContainEqual({
+      key: 'native-web-search',
+      label: '内置搜索',
+      bg: '#e5ecfd',
+      fg: '#3558b8',
+    });
+  });
+});

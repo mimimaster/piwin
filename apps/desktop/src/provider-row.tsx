@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { modelSupportsCapability } from '@piwin/contracts';
 import type {
   DiscoveredModel,
   ModelCatalogEntry,
@@ -52,7 +53,7 @@ function hostOf(url: string): string {
   }
 }
 
-function modelCaps(
+export function modelCaps(
   model: ModelConfigEntry,
   isChinese: boolean,
 ): Array<{ key: string; label: string; bg: string; fg: string }> {
@@ -94,6 +95,14 @@ function modelCaps(
       label: isChinese ? '视频' : 'Video',
       bg: '#dcefff',
       fg: '#0066cc',
+    });
+  }
+  if (modelSupportsCapability(model, 'native-web-search')) {
+    caps.push({
+      key: 'native-web-search',
+      label: isChinese ? '内置搜索' : 'Native search',
+      bg: '#e5ecfd',
+      fg: '#3558b8',
     });
   }
   return caps;
