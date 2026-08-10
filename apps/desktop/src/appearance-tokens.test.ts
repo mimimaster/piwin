@@ -6,6 +6,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
   PIWIN_APPEARANCE_DARK,
+  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
   PIWIN_APPEARANCE_ORANGE_WHITE,
   applyAppearanceToDocument,
@@ -185,6 +186,24 @@ describe('applyAppearanceToDocument', () => {
     }
   });
 
+  it('emits the same documented variable set for the token-only ink-wash manifest', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_INK_WASH);
+
+    const style = document.documentElement.style;
+    const optionalInkWashVariables = ['--ink-wash-hero', '--ink-wash-conversation-texture'];
+    expect(
+      emittedVariableNames(style).filter((name) => !optionalInkWashVariables.includes(name)),
+    ).toEqual([...DOCUMENTED_APPEARANCE_VARIABLES]);
+    for (const name of optionalInkWashVariables) {
+      expect(style.getPropertyValue(name), `ink-wash ${name}`).not.toBe('');
+    }
+    expect(style.getPropertyValue('--canvas')).toBe('#0b0b0c');
+    expect(style.getPropertyValue('--panel')).toBe('#121214');
+    expect(style.getPropertyValue('--text')).toBe('#e8e3da');
+    expect(style.getPropertyValue('--accent')).toBe('#5a7b86');
+    expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
+  });
+
   it('makes theme switching a value swap only — identical variable-name sets', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
     const darkNames = emittedVariableNames(document.documentElement.style);
@@ -213,6 +232,7 @@ describe('applyAppearanceToDocument', () => {
       PIWIN_APPEARANCE_DARK,
       PIWIN_APPEARANCE_LIGHT,
       PIWIN_APPEARANCE_ORANGE_WHITE,
+      PIWIN_APPEARANCE_INK_WASH,
     ]) {
       applyAppearanceToDocument(manifest);
       for (const alias of REMOVED_LEGACY_ALIASES) {
@@ -324,9 +344,11 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
     expect(PIWIN_APPEARANCE_LIGHT.id).toBe('piwin-light');
     expect(PIWIN_APPEARANCE_DARK.id).toBe('piwin-dark');
     expect(PIWIN_APPEARANCE_ORANGE_WHITE.id).toBe('piwin-orange-white');
+    expect(PIWIN_APPEARANCE_INK_WASH.id).toBe('piwin-ink-wash');
     expect(PIWIN_APPEARANCE_LIGHT.name).toBe('Paper');
     expect(PIWIN_APPEARANCE_DARK.name).toBe('Noir');
     expect(PIWIN_APPEARANCE_ORANGE_WHITE.name).toBe('橙白');
+    expect(PIWIN_APPEARANCE_INK_WASH.name).toBe('砚夜泼墨');
   });
 });
 

@@ -100,6 +100,7 @@ import type { DesktopCommandId } from './desktop-commands';
 import { deriveRunStatus } from './run-status';
 import { ContextBar } from './context-bar';
 import { WorkspaceShell } from './workspace-shell';
+import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
@@ -1705,6 +1706,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }
 
   function handleToggleAppearance(): void {
+    if (activeTheme.visualStyle !== undefined) {
+      dispatchNotification({
+        type: 'notify/push',
+        notification: {
+          level: 'info',
+          message:
+            desktopLocale === 'zh-CN'
+              ? '当前主题包已接管外观；请在设置 → 外观 → 主题包中切换。'
+              : 'The active theme package owns appearance. Switch it from Settings → Appearance → Theme Library.',
+        },
+      });
+      return;
+    }
     // Instant local flip: same Appearance prefs path as Settings (no host IPC wait).
     const nextMode = activeTheme.mode === 'light' ? 'dark' : 'light';
     const nextThemeSettings =
@@ -2598,7 +2612,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 : {})}
             />
           }
-          chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
+          chatColumnClassName={
+            [
+              composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
+              activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
+            ]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
           activityDock={
             activeSubagentViews.length > 0 ? (
               <SubagentWorkingDock items={activeSubagentViews} onInspect={handleInspectSubagent} />
@@ -2828,7 +2849,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               />
             ) : null
           }
-          composerDock={<ComposerDock {...composerCard} />}
+          composerDock={
+            <>
+              {state.messages.length === 0 ? <InkWashEmptyVignette theme={activeTheme} /> : null}
+              <ComposerDock {...composerCard} />
+            </>
+          }
           statusBar={
             <StatusBar
               modelLabel={selectedModelLabel}

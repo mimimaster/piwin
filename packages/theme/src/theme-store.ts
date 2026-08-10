@@ -7,6 +7,13 @@ import type { ThemeManifest, ThemePreference, ThemeSummary } from '@piwin/contra
 import { validateThemeManifest } from './validate-manifest.js';
 import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
+const BUNDLED_THEME_IDS = new Set([
+  'piwin-dark',
+  'piwin-light',
+  'piwin-orange-white',
+  'piwin-ink-wash',
+]);
+
 export function getThemesDir(piwinRoot: string): string {
   return join(piwinRoot, 'themes');
 }
@@ -121,10 +128,9 @@ export async function listThemes(piwinRoot: string): Promise<{
       const raw = await readFile(manifestPath, 'utf8');
       const validated = validateThemeManifest(JSON.parse(raw));
       if (!validated.ok) continue;
-      const source: ThemeSummary['source'] =
-        entry === 'piwin-dark' || entry === 'piwin-light' || entry === 'piwin-orange-white'
-          ? 'bundled'
-          : 'user';
+      const source: ThemeSummary['source'] = BUNDLED_THEME_IDS.has(entry)
+        ? 'bundled'
+        : 'user';
       themes.push({
         id: validated.manifest.id,
         name: validated.manifest.name,

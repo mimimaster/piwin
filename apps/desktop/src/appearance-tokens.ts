@@ -1,7 +1,12 @@
 /** Built-in dark / light appearance. Shared by shell CSS vars and artifact mapping. */
 
 import type { ThemeManifest } from '@piwin/contracts';
+import inkWashManifest from '@piwin/theme/bundled/piwin-ink-wash';
 import type { AppearanceThemeSettings } from './ui-preferences';
+import { getThemeAsset } from './ink-wash-assets';
+
+/** Browser-safe projection of the bundled token-only ink-wash manifest. */
+export const PIWIN_APPEARANCE_INK_WASH: ThemeManifest = inkWashManifest as ThemeManifest;
 
 /** UI sans — system first (Cursor uses SF Pro / -apple-system; Inter is optional fallback). */
 const SHARED_FONT =
@@ -121,6 +126,7 @@ export const BUILTIN_APPEARANCES: ThemeManifest[] = [
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
   PIWIN_APPEARANCE_ORANGE_WHITE,
+  PIWIN_APPEARANCE_INK_WASH,
 ];
 
 /** Resolve the browser system preference without making SSR/test assumptions. */
@@ -170,6 +176,9 @@ export function resolveBuiltinAppearance(themeId: string | undefined): ThemeMani
   if (themeId === 'piwin-orange-white') {
     return PIWIN_APPEARANCE_ORANGE_WHITE;
   }
+  if (themeId === 'piwin-ink-wash') {
+    return PIWIN_APPEARANCE_INK_WASH;
+  }
   return PIWIN_APPEARANCE_DARK;
 }
 
@@ -182,7 +191,8 @@ export function resolveDesktopAppearance(theme: ThemeManifest): ThemeManifest {
   if (
     theme.id === 'piwin-dark' ||
     theme.id === 'piwin-light' ||
-    theme.id === 'piwin-orange-white'
+    theme.id === 'piwin-orange-white' ||
+    theme.id === 'piwin-ink-wash'
   ) {
     return resolveBuiltinAppearance(theme.id);
   }
@@ -242,6 +252,21 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   const root = document.documentElement;
   const tokens = theme.tokens;
   const isLight = theme.mode === 'light';
+  root.dataset.themeId = theme.id;
+  root.dataset.themeMode = theme.mode;
+  root.dataset.themeVisualStyle = theme.visualStyle ?? 'flat';
+  const inkWashHero = getThemeAsset(theme, 'hero');
+  const inkWashTexture = getThemeAsset(theme, 'conversationTexture');
+  if (inkWashHero) {
+    root.style.setProperty('--ink-wash-hero', `url("${inkWashHero}")`);
+  } else {
+    root.style.removeProperty('--ink-wash-hero');
+  }
+  if (inkWashTexture) {
+    root.style.setProperty('--ink-wash-conversation-texture', `url("${inkWashTexture}")`);
+  } else {
+    root.style.removeProperty('--ink-wash-conversation-texture');
+  }
   /** 橙白 uses warm-tinted derived values (shadows, hover, faint) that differ
    *  from Paper's neutral cool ramp even though both are mode: light. */
   const isWarmLight = theme.id === 'piwin-orange-white';

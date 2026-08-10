@@ -34,7 +34,9 @@ export type HostRequestAdapters = {
       | 'usage/get-rollup'
       | 'session/runtime-status'
       | 'session/compact-export'
-      | 'host/runtime-resources';
+      | 'host/runtime-resources'
+      | 'theme/list'
+      | 'theme/set-active';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -50,6 +52,7 @@ export type HostRequestAdapters = {
     sessionId?: string;
     customInstructions?: string;
     outputPath?: string;
+    themeId?: string;
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
       | import('@piwin/contracts').VisionDelegateInput;
@@ -371,6 +374,12 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
             : {}),
           ...(command.outputPath?.trim() ? { outputPath: command.outputPath.trim() } : {}),
         });
+      }
+      if (command.type === 'theme/list') {
+        return hostClient.request({ type: 'theme/list' });
+      }
+      if (command.type === 'theme/set-active') {
+        return hostClient.request({ type: 'theme/set-active', themeId: command.themeId ?? '' });
       }
       if (!command.config) {
         return {

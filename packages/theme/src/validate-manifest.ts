@@ -30,8 +30,7 @@ export type ThemeValidationIssue = {
 };
 
 export type ThemeValidationResult =
-  | { ok: true; manifest: ThemeManifest }
-  | { ok: false; issues: ThemeValidationIssue[] };
+  { ok: true; manifest: ThemeManifest } | { ok: false; issues: ThemeValidationIssue[] };
 
 export function validateThemeManifest(value: unknown): ThemeValidationResult {
   const issues: ThemeValidationIssue[] = [];
@@ -55,6 +54,17 @@ export function validateThemeManifest(value: unknown): ThemeValidationResult {
   const mode = record.mode === 'light' || record.mode === 'dark' ? record.mode : null;
   if (!mode) {
     issues.push({ path: 'mode', message: 'mode must be dark|light' });
+  }
+  const visualStyle =
+    record.visualStyle === 'flat' ||
+    record.visualStyle === 'paper' ||
+    record.visualStyle === 'ink-wash'
+      ? record.visualStyle
+      : record.visualStyle === undefined
+        ? undefined
+        : null;
+  if (visualStyle === null) {
+    issues.push({ path: 'visualStyle', message: 'visualStyle must be flat|paper|ink-wash' });
   }
 
   const tokensRaw = record.tokens;
@@ -82,7 +92,11 @@ export function validateThemeManifest(value: unknown): ThemeValidationResult {
       continue;
     }
     if (key === 'font') {
-      if (!SAFE_FONT.test(tokenValue) || tokenValue.includes('url(') || tokenValue.includes('@import')) {
+      if (
+        !SAFE_FONT.test(tokenValue) ||
+        tokenValue.includes('url(') ||
+        tokenValue.includes('@import')
+      ) {
         issues.push({ path: `tokens.${key}`, message: 'unsafe font token' });
         continue;
       }
@@ -91,7 +105,11 @@ export function validateThemeManifest(value: unknown): ThemeValidationResult {
         issues.push({ path: `tokens.${key}`, message: 'invalid radius token' });
         continue;
       }
-    } else if (!COLOR_OR_CSS.test(tokenValue) || tokenValue.includes('url(') || tokenValue.includes('expression')) {
+    } else if (
+      !COLOR_OR_CSS.test(tokenValue) ||
+      tokenValue.includes('url(') ||
+      tokenValue.includes('expression')
+    ) {
       issues.push({ path: `tokens.${key}`, message: 'invalid color token' });
       continue;
     }
@@ -109,6 +127,9 @@ export function validateThemeManifest(value: unknown): ThemeValidationResult {
     mode,
     tokens,
   };
+  if (visualStyle !== undefined && visualStyle !== null) {
+    manifest.visualStyle = visualStyle;
+  }
   const description = asNonEmptyString(record.description);
   if (description) {
     manifest.description = description;

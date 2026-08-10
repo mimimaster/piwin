@@ -37,4 +37,14 @@ describe('validateThemeManifest', () => {
     const result = validateThemeManifest({ id: 'BAD ID', name: 'x', version: '1', mode: 'dark' });
     expect(result.ok).toBe(false);
   });
+
+  it('accepts the optional visual style without making it executable', () => {
+    const result = validateThemeManifest({ ...valid, visualStyle: 'ink-wash' });
+    expect(result).toMatchObject({ ok: true, manifest: { visualStyle: 'ink-wash' } });
+  });
+
+  it('rejects unknown visual styles', () => {
+    const result = validateThemeManifest({ ...valid, visualStyle: 'custom-css' });
+    expect(result.ok).toBe(false);
+  });
 });

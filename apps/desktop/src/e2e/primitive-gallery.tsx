@@ -23,6 +23,7 @@ import {
 } from '@piwin/ui-kit';
 import {
   PIWIN_APPEARANCE_DARK,
+  PIWIN_APPEARANCE_INK_WASH,
   PIWIN_APPEARANCE_LIGHT,
 } from '../appearance-tokens';
 
@@ -73,6 +74,12 @@ export function PrimitiveGallery(props: PrimitiveGalleryProps): ReactElement {
           onClick={() => props.onApplyTheme(PIWIN_APPEARANCE_LIGHT)}
         >
           Light
+        </Button>
+        <Button
+          data-testid="gallery-theme-ink-wash"
+          onClick={() => props.onApplyTheme(PIWIN_APPEARANCE_INK_WASH)}
+        >
+          Ink wash
         </Button>
       </GallerySection>
 
