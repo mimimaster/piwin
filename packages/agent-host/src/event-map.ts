@@ -254,9 +254,13 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
           : typeof event.exit_code === 'number'
             ? event.exit_code
             : undefined;
+      // Prefer args when Pi includes them on end so image/video keep prompt
+      // summaries; Desktop merge also preserves start-time summary as a backstop.
+      const args = event.args ?? event.arguments ?? event.input;
       const presentation = buildToolPresentation({
         toolName,
         isError,
+        ...(args !== undefined ? { args } : {}),
         ...(outputText !== undefined ? { outputText } : {}),
         ...(exitCode !== undefined ? { exitCode } : {}),
       });

@@ -136,17 +136,15 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('streaming mode materializes Artifact UI without exposing source beside it', () => {
+  it('streaming mode materializes live Artifact preview (owi-style)', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" />,
     );
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
-    expect(container.querySelector('.artifact-frame-header')).toBeNull();
   });
 
   it('keeps the same Artifact frame across real Markdown streaming deltas', () => {
-    const onOpenArtifactCanvas = vi.fn();
     const firstText = [
       '```artifact-html',
       '<style>.card { padding: 12px; }</style><div class="card"><p>Hel',
@@ -160,12 +158,13 @@ describe('MarkdownView artifact preview policy', () => {
         text={firstText}
         renderingPhase="streaming"
         artifactTheme={createDefaultArtifactTheme('dark')}
-        artifactOrigin={{ sessionId: 'session-stream', messageId: 'message-stream' }}
-        onOpenArtifactCanvas={onOpenArtifactCanvas}
+        artifactOrigin={{ sessionId: 's1', messageId: 'm-stream-stable' }}
       />,
     );
-    const firstFrame = container.querySelector<HTMLElement>('.artifact-frame');
-    expect(firstFrame).not.toBeNull();
+    const firstHost = container.querySelector<HTMLElement>('[data-testid="artifact-stream-live"]');
+    const firstId = firstHost?.getAttribute('data-artifact-id');
+    expect(firstHost).not.toBeNull();
+    expect(firstId).toBe('m-stream-stable-artifact-0');
 
     act(() => {
       root.render(
@@ -174,14 +173,50 @@ describe('MarkdownView artifact preview policy', () => {
             text={nextText}
             renderingPhase="streaming"
             artifactTheme={createDefaultArtifactTheme('dark')}
-            artifactOrigin={{ sessionId: 'session-stream', messageId: 'message-stream' }}
-            onOpenArtifactCanvas={onOpenArtifactCanvas}
+            artifactOrigin={{ sessionId: 's1', messageId: 'm-stream-stable' }}
           />
         </PiwinUiProvider>,
       );
     });
 
-    expect(container.querySelector<HTMLElement>('.artifact-frame')).toBe(firstFrame);
+    const secondHost = container.querySelector<HTMLElement>('[data-testid="artifact-stream-live"]');
+    expect(secondHost).toBe(firstHost);
+    expect(secondHost?.getAttribute('data-artifact-id')).toBe('m-stream-stable-artifact-0');
+  });
+
+  it('keeps the same Artifact frame host when streaming becomes completed', () => {
+    const streamingText = [
+      '```artifact-html',
+      '<style>.card { padding: 12px; }</style><div class="card"><p>Hel',
+    ].join('\n');
+    const completedText = [
+      '```artifact-html',
+      '<style>.card { padding: 12px; }</style><div class="card"><p>Hello</p></div>',
+      '```',
+    ].join('\n');
+    const { container, root } = renderMarkdown(
+      <MarkdownView
+        text={streamingText}
+        renderingPhase="streaming"
+        artifactOrigin={{ sessionId: 's1', messageId: 'm-stream-final' }}
+      />,
+    );
+    const streamingFrame = container.querySelector<HTMLElement>('.artifact-frame');
+    expect(streamingFrame).not.toBeNull();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MarkdownView
+            text={completedText}
+            renderingPhase="completed"
+            artifactOrigin={{ sessionId: 's1', messageId: 'm-stream-final' }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector<HTMLElement>('.artifact-frame')).toBe(streamingFrame);
   });
 
   it('capability off + flashcard source: shows Preview card affordance', () => {
@@ -233,7 +268,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(toggle?.textContent).toContain('Preview SVG');
   });
 
-  it('streaming mode materializes SVG through the stable Artifact frame', () => {
+  it('streaming mode materializes SVG through a live Artifact frame', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={SVG_FENCE} renderingPhase="streaming" />,
     );
@@ -310,7 +345,9 @@ describe('MarkdownView artifact preview policy', () => {
     });
     // Source code block is gone; rendered frame replaces it in place.
     expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
-    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    const artifactFrame = container.querySelector<HTMLElement>('.artifact-frame');
+    expect(artifactFrame).not.toBeNull();
+    expect(artifactFrame?.classList.contains('has-artifact-action')).toBe(true);
     expect(
       container
         .querySelector('.artifact-with-source')
@@ -321,6 +358,8 @@ describe('MarkdownView artifact preview policy', () => {
       '[data-testid="artifact-preview-toggle"]',
     );
     expect(showCode?.textContent).toContain('Show code');
+    expect(showCode?.classList.contains('artifact-frame-text-action')).toBe(true);
+    expect(showCode?.classList.contains('piwin-button--ghost')).toBe(true);
     // Switch back to source.
     act(() => {
       showCode?.click();

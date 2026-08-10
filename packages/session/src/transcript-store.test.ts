@@ -595,4 +595,66 @@ describe('SessionTranscriptStore', () => {
     ).rejects.toThrow(/closed/);
     await expect(store.count()).rejects.toThrow(/closed/);
   });
+
+  it('persists an idempotent active pause checkpoint and consumes it', async () => {
+    const { store } = await openStore('pause-checkpoint');
+    const input = {
+      sessionId: 'session-pause-checkpoint',
+      sourceRunId: 'run-1',
+      runtimeGenerationId: 'generation-1',
+      createdAt: '2026-08-10T00:00:00.000Z',
+      sourceUserMessageId: 'user-1',
+      lastAssistantMessageId: 'assistant-1',
+      transcriptRevision: 4,
+    };
+    const created = await store.createPauseCheckpoint(input);
+    expect(created).toMatchObject({
+      sourceRunId: 'run-1',
+      status: 'active',
+      transcriptRevision: 4,
+    });
+    expect(await store.getActivePauseCheckpoint()).toEqual(created);
+    expect(await store.createPauseCheckpoint(input)).toEqual(created);
+    expect(await store.consumePauseCheckpoint(created.checkpointId)).toBe(true);
+    expect(await store.getActivePauseCheckpoint()).toBeUndefined();
+    expect(await store.getPauseCheckpoint(created.checkpointId)).toMatchObject({
+      checkpointId: created.checkpointId,
+      status: 'consumed',
+    });
+    store.close();
+  });
+
+  it('allows replacing an active checkpoint only when its id is retained', async () => {
+    const { store } = await openStore('pause-checkpoint-replace');
+    const first = await store.createPauseCheckpoint({
+      sessionId: 'session-pause-checkpoint-replace',
+      sourceRunId: 'run-1',
+      createdAt: '2026-08-10T00:00:00.000Z',
+      transcriptRevision: 1,
+    });
+    await expect(
+      store.createPauseCheckpoint({
+        sessionId: 'session-pause-checkpoint-replace',
+        sourceRunId: 'run-2',
+        createdAt: '2026-08-10T00:01:00.000Z',
+        transcriptRevision: 2,
+      }),
+    ).rejects.toThrow(/pause-checkpoint-active/);
+    const replaced = await store.createPauseCheckpoint({
+      checkpointId: first.checkpointId,
+      sessionId: 'session-pause-checkpoint-replace',
+      sourceRunId: 'run-2',
+      createdAt: '2026-08-10T00:01:00.000Z',
+      transcriptRevision: 2,
+    });
+    expect(replaced).toMatchObject({
+      checkpointId: first.checkpointId,
+      sourceRunId: 'run-2',
+      transcriptRevision: 2,
+      status: 'active',
+    });
+    expect(await store.clearPauseCheckpoint(first.checkpointId)).toBe(true);
+    expect(await store.getActivePauseCheckpoint()).toBeUndefined();
+    store.close();
+  });
 });

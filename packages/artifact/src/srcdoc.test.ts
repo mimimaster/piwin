@@ -54,6 +54,52 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('margin-inline: auto;');
   });
 
+  it('keeps the document canvas transparent and appends the theme guard after model content', () => {
+    const modelSource = '<style>html,body{background:#fff}</style><main>card</main>';
+    const dark = buildHtmlArtifactSrcdoc({
+      source: modelSource,
+      channelId: 'dark-bg',
+      theme: {
+        '--piwin-artifact-theme': 'dark',
+        '--piwin-artifact-bg': 'transparent',
+        '--piwin-artifact-surface': '#222',
+        '--piwin-artifact-text': '#fff',
+        '--piwin-artifact-muted': '#aaa',
+        '--piwin-artifact-accent': '#6ea8fe',
+        '--piwin-artifact-border': '#333',
+        '--piwin-artifact-radius': '8px',
+        '--piwin-artifact-font': 'sans-serif',
+      },
+    });
+    expect(dark.srcdoc).toContain('--piwin-artifact-bg: transparent');
+    expect(dark.srcdoc).toContain('data-piwin-artifact-theme-guard');
+    expect(dark.srcdoc).toContain('background: transparent !important');
+    expect(dark.srcdoc).toContain('.owi-artifact-root');
+    expect(dark.srcdoc).toContain('[class*="bg-[rgba(255" i]');
+    expect(dark.srcdoc.indexOf('data-piwin-artifact-theme-guard')).toBeGreaterThan(
+      dark.srcdoc.indexOf(modelSource),
+    );
+    expect(dark.srcdoc).not.toContain('background:#141416');
+
+    const light = buildHtmlArtifactSrcdoc({
+      source: '<div>card</div>',
+      channelId: 'light-bg',
+      theme: {
+        '--piwin-artifact-theme': 'light',
+        '--piwin-artifact-bg': 'transparent',
+        '--piwin-artifact-surface': '#fff',
+        '--piwin-artifact-text': '#111',
+        '--piwin-artifact-muted': '#666',
+        '--piwin-artifact-accent': '#2563eb',
+        '--piwin-artifact-border': '#ddd',
+        '--piwin-artifact-radius': '8px',
+        '--piwin-artifact-font': 'sans-serif',
+      },
+    });
+    expect(light.srcdoc).toContain('--piwin-artifact-bg: transparent');
+    expect(light.srcdoc).not.toContain('background:#f6f6f7');
+  });
+
   it('lets Inline content flow without a document scrollport', () => {
     const modelSource = '<style>body { overflow: auto !important; }</style><section>Flowing content</section>';
     const { srcdoc } = buildHtmlArtifactSrcdoc({
@@ -105,6 +151,9 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(streaming.srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
     expect(streaming.srcdoc).toContain('syncChildren(root, template.content)');
     expect(streaming.srcdoc).toContain('event.source !== parent');
+    expect(streaming.srcdoc).toContain('data.final === true');
+    expect(streaming.srcdoc).toContain('activateFinalScripts');
+    expect(streaming.srcdoc).toContain("new Event('DOMContentLoaded')");
     expect(interactive.srcdoc).not.toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
     const script = streaming.srcdoc.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeDefined();

@@ -159,7 +159,9 @@ export function evaluateArtifactDescriptor(
 
   const theme = options.theme ?? createDefaultArtifactTheme('dark');
   const renderSurface = options.renderSurface ?? descriptor.surface;
-  const channelId = mode === 'stream-preview' ? `${descriptor.id}-stream` : descriptor.id;
+  // One channel spans stream-preview and final commit. Changing it at `done`
+  // tears down the Desktop iframe init lifecycle and creates a white frame.
+  const channelId = descriptor.id;
   const { srcdoc, csp } = buildHtmlArtifactSrcdoc({
     source: bodySource,
     channelId,
@@ -177,6 +179,7 @@ export function evaluateArtifactDescriptor(
     security,
     srcdoc,
     csp,
+    renderSource: bodySource,
     ...(mode === 'stream-preview' ? { streamSource: bodySource } : {}),
     themeRepairs,
     layoutRepairs: layout.repairs,

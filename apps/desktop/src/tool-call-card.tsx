@@ -376,10 +376,57 @@ function FetchCommandCode(props: { source: string }): ReactElement {
 export function looksLikeArgsDumpSummary(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length < 2) return false;
-  return (
-    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  );
+  // Full dumps end with }/]; clipSummary-truncated dumps keep the opening brace
+  // but end with `…` / `...` and must still be suppressed in the tool title row.
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Recover a human label from tool inputPreview when the stored summary is a
+ * raw JSON dump (legacy image_gen presentations after tool/end overwrite).
+ */
+export function recoverSummaryFromInputPreview(inputPreview: string | undefined): string | undefined {
+  if (!inputPreview) {
+    return undefined;
+  }
+  const trimmed = inputPreview.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const record = parsed as Record<string, unknown>;
+      for (const key of ['prompt', 'description', 'query', 'command', 'cmd']) {
+        const value = record[key];
+        if (typeof value === 'string' && value.trim()) {
+          return clipHeaderSummary(value);
+        }
+      }
+    }
+  } catch {
+    // inputPreview may itself be clipSummary-truncated and not valid JSON.
+    // Best-effort: pull a quoted prompt/description field from the partial text.
+    for (const key of ['prompt', 'description', 'query', 'command', 'cmd']) {
+      const match = new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)`, 'i').exec(trimmed);
+      const captured = match?.[1];
+      if (captured && captured.trim()) {
+        return clipHeaderSummary(captured.replace(/\\"/g, '"').replace(/\\n/g, ' '));
+      }
+    }
+  }
+  return undefined;
+}
+
+function clipHeaderSummary(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  if (!compact) {
+    return compact;
+  }
+  return compact.length > 96 ? `${compact.slice(0, 95)}…` : compact;
 }
 
 /**
@@ -485,12 +532,23 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     baseBehaviorId === 'mcp.call' ||
     baseBehaviorId === 'mcp.discovery';
   const isPathLike = behaviorId === 'read' || behaviorId === 'edit' || behaviorId === 'git';
-  const summary =
+  const rawSummary =
     tool.presentation?.summary ??
     tool.presentation?.command ??
     (targetPaths.length > 0
       ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
       : summarizeToolOutput(tool.toolName, tool.output, previewMax));
+  // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
+  const inputPreview =
+    tool.presentation?.inputPreview ||
+    (looksLikeArgsDumpSummary(rawSummary) ? rawSummary : undefined);
+  // Legacy image_gen rows stored paths JSON as summary after tool/end; recover the
+  // prompt from inputPreview so the header stays human-readable on old transcripts.
+  const recoveredSummary =
+    looksLikeArgsDumpSummary(rawSummary) || !rawSummary
+      ? recoverSummaryFromInputPreview(tool.presentation?.inputPreview)
+      : undefined;
+  const summary = recoveredSummary ?? rawSummary;
 
   // Cursor-style head:
   //  - Read/Edited/Git path tools → file pill (single or "a and N other files")
@@ -503,12 +561,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const primaryOpenPath = primaryTargetPath
     ? resolveToolOpenPath(primaryTargetPath, props.projectPath)
     : null;
-  // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
-  const inputPreview =
-    tool.presentation?.inputPreview || (looksLikeArgsDumpSummary(summary) ? summary : undefined);
   const hasDetailInBody = Boolean(tool.presentation?.command || inputPreview);
   const isArgsDumpSummary =
-    Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary);
+    !recoveredSummary &&
+    (Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary));
   const isMcpBehavior = baseBehaviorId === 'mcp.call' || baseBehaviorId === 'mcp.discovery';
   const isFetchStyle =
     baseBehaviorId === 'web.fetch' ||

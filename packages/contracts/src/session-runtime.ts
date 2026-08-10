@@ -1,6 +1,7 @@
 /** Session runtime status + reload contracts (spec §12). */
 
 import type { SettingsDomain } from './settings.js';
+import type { SessionPauseCheckpoint } from './session-pause.js';
 
 /** Live vs product-shell runtime state for one product session (spec §12.2). */
 export type SessionRuntimeState =
@@ -44,6 +45,8 @@ export type SessionRuntimeStatus = {
   reconstructionMode?: 'native-live' | 'product-history';
   candidateState?: 'compiling' | 'creating-backend' | 'rebuilding' | 'active' | 'failed';
   candidateError?: string;
+  /** Active resumable checkpoint, when the session has no live foreground run. */
+  pauseCheckpoint?: SessionPauseCheckpoint;
 };
 
 /**

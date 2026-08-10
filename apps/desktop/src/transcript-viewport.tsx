@@ -136,6 +136,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     <TranscriptScrollProvider
       sessionId={props.sessionId ?? null}
       scrollElementRef={scroll.containerRef}
+      notifyContentGrew={scroll.notifyContentGrew}
     >
       <div className="transcript-viewport">
         <HistoryTicksDrawer messages={props.messages} />

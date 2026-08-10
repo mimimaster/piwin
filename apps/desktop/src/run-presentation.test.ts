@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildTurnPresentation,
-  resolveWorkDetailsDefaultOpen,
-} from './run-presentation';
+import { buildTurnPresentation, resolveWorkDetailsDefaultOpen } from './run-presentation';
 import type { ChatMessageUi, RunRecordUi } from './chat-reducer';
 
 function assistantMessage(overrides: Partial<ChatMessageUi> = {}): ChatMessageUi {
@@ -188,7 +185,7 @@ describe('resolveWorkDetailsDefaultOpen', () => {
     expect(resolveWorkDetailsDefaultOpen(base, 'collapsed')).toBe(false);
   });
 
-  it('auto-opens for active turns during thinking, and auto-collapses when answer starts or tools execute', () => {
+  it('keeps active thinking collapsed in auto mode while preserving failure details', () => {
     const activeThinking = {
       ...base,
       isActive: true,
@@ -212,7 +209,7 @@ describe('resolveWorkDetailsDefaultOpen', () => {
     };
     const failed = { ...base, isActive: false, hasFailure: true };
     const quiet = { ...base, isActive: false, hasFailure: false };
-    expect(resolveWorkDetailsDefaultOpen(activeThinking, 'auto')).toBe(true);
+    expect(resolveWorkDetailsDefaultOpen(activeThinking, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(activeWithAnswer, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(activeWithTools, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(failed, 'auto')).toBe(true);
