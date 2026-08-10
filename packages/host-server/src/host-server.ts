@@ -104,6 +104,8 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/transcript-page',
   'session/messages',
   'session/prompt',
+  'session/pause',
+  'session/resume-run',
   'session/abort',
   'session/steer',
   'session/follow_up',

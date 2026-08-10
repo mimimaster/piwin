@@ -23,6 +23,16 @@ describe('isNearBottom', () => {
     } as HTMLElement;
     expect(isNearBottom(element, 64)).toBe(false);
   });
+
+  it('treats a large remaining distance as not near bottom (artifact growth lag)', () => {
+    // Typical intermediate state: Artifact iframe grew 400px before stick ran.
+    const element = {
+      scrollHeight: 2000,
+      scrollTop: 1400,
+      clientHeight: 200,
+    } as HTMLElement;
+    expect(isNearBottom(element, 64)).toBe(false);
+  });
 });
 
 describe('computeScrollProgress', () => {

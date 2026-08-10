@@ -1442,7 +1442,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     if (!state.activeSessionId || state.runPhase === 'aborting') {
       return;
     }
-    dispatch({ type: 'run/aborting' });
+    const hasActiveRun = state.activeRunId !== null;
+    if (hasActiveRun || state.streaming) {
+      dispatch({ type: 'run/aborting' });
+    }
     const response = await hostClient.request({
       type: 'session/abort',
       sessionId: state.activeSessionId,
@@ -1459,6 +1462,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           'Run stopped — in-flight tools were cancelled. The model should re-run them if needed.',
         ),
       );
+    } else if (!hasActiveRun && state.runTerminal.kind === 'paused') {
+      dispatch({ type: 'run/terminal-dismiss' });
     }
   }, [
     dispatch,
@@ -1467,6 +1472,65 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     state.activeRunId,
     state.activeSessionId,
     state.runPhase,
+    state.runTerminal.kind,
+    state.streaming,
+  ]);
+
+  const handlePause = useCallback(async (): Promise<void> => {
+    if (!state.activeSessionId || state.runPhase === 'aborting') {
+      return;
+    }
+    dispatch({ type: 'run/aborting' });
+    const response = await hostClient.request({
+      type: 'session/pause',
+      sessionId: state.activeSessionId,
+      ...(state.activeRunId ? { runId: state.activeRunId } : {}),
+    });
+    if (!response.success) {
+      dispatch({ type: 'error', message: response.error });
+      return;
+    }
+    const data = response.data as { state?: string } | undefined;
+    if (data?.state === 'pausing') {
+      dispatchNotification(pushInfo('Run is pausing and saving a resumable checkpoint…'));
+    }
+  }, [
+    dispatch,
+    dispatchNotification,
+    hostClient,
+    state.activeRunId,
+    state.activeSessionId,
+    state.runPhase,
+  ]);
+
+  const handleResumeRun = useCallback(async (): Promise<void> => {
+    if (!state.activeSessionId || state.runTerminal.kind !== 'paused') {
+      return;
+    }
+    const response = await hostClient.request({
+      type: 'session/resume-run',
+      sessionId: state.activeSessionId,
+      ...(state.runTerminal.checkpointId
+        ? { checkpointId: state.runTerminal.checkpointId }
+        : {}),
+    });
+    if (!response.success) {
+      dispatch({ type: 'error', message: response.error });
+      return;
+    }
+    const data = response.data as { runId?: string; acceptedAt?: string } | undefined;
+    if (typeof data?.runId === 'string') {
+      dispatch({
+        type: 'run/accepted',
+        runId: data.runId,
+        ...(data.acceptedAt ? { acceptedAt: data.acceptedAt } : {}),
+      });
+    }
+  }, [
+    dispatch,
+    hostClient,
+    state.activeSessionId,
+    state.runTerminal,
   ]);
 
   const handleCompact = useCallback(
@@ -1562,6 +1626,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleEditAndResend,
     handleRetryFromMessage,
     handleAbort,
+    handlePause,
+    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,

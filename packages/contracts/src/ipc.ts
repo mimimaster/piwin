@@ -206,6 +206,8 @@ export type HostCommand =
     }
   | { id?: string; type: 'session/messages'; sessionId: string }
   | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
+  | { id?: string; type: 'session/pause'; sessionId: string; runId?: string }
+  | { id?: string; type: 'session/resume-run'; sessionId: string; checkpointId?: string }
   | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
   | {
       id?: string;
@@ -814,6 +816,8 @@ export type HostStatusData = {
     usage?: boolean;
     /** CE-SHARE-01: local session export MD/HTML. */
     sessionExport?: boolean;
+    /** Resumable cooperative pause checkpoints for foreground turns. */
+    sessionPause?: boolean;
     /** ADR 0027: host accepts remote gateway push sinks. */
     remoteGateway?: boolean;
     /** ADR 0027: host tags pushes with seq/eventId and supports host/replay. */

@@ -101,7 +101,7 @@ html {
   min-width: 0;
   min-height: auto !important;
   height: auto !important;
-  background: transparent !important;
+  background: transparent;
   overflow-x: ${pageOverflow} !important;
   overflow-y: ${pageOverflow} !important;
 }
@@ -114,7 +114,7 @@ body {
   max-width: 100%;
   min-height: auto !important;
   height: auto !important;
-  background: transparent !important;
+  background: transparent;
   color: var(--piwin-artifact-text);
   font-family: var(--piwin-artifact-font);
   overflow-x: ${pageOverflow} !important;
@@ -134,6 +134,7 @@ img, svg, canvas, video { max-width: 100%; height: auto; }
   max-width: 100%;
   height: auto;
   margin-inline: auto;
+  background: transparent;
 }
 a { color: var(--piwin-artifact-accent); }
 button, input, select, textarea { font: inherit; }
@@ -146,7 +147,7 @@ button, input, select, textarea { font: inherit; }
   min-height: auto !important;
   height: auto !important;
   padding: 4px 0;
-  background: transparent !important;
+  background: transparent;
   color: var(--piwin-artifact-text);
 }
 .piwin-artifact-surface {
@@ -190,6 +191,54 @@ function buildArtifactMotionPolicyCss(): string {
 .piwin-artifact-root animateTransform,
 .piwin-artifact-root set {
   display: none !important;
+}
+`;
+}
+
+/**
+ * Final cascade layer ported from openwebui_m's artifactThemeContract.
+ * The document canvas stays transparent while fixed-light model surfaces are
+ * mapped to the active Artifact surface token. This is deliberately emitted
+ * after model HTML.
+ */
+function buildArtifactThemeGuardCss(): string {
+  return `
+html,
+body,
+.piwin-artifact-root,
+.artifact-root,
+.owi-artifact-root {
+  background: transparent !important;
+  color: var(--piwin-artifact-text) !important;
+}
+.piwin-artifact-surface,
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-gray-200,
+.bg-gray-300,
+[class*="bg-[rgba(255" i],
+[class*="bg-[#fff" i],
+[class*="bg-[#fafafa" i],
+[class*="bg-[#f5f5f5" i],
+[style*="background: white" i],
+[style*="background-color: white" i],
+[style*="background: #fff" i],
+[style*="background-color: #fff" i],
+[style*="background: #fafafa" i],
+[style*="background-color: #fafafa" i],
+[style*="background: #f5f5f5" i],
+[style*="background-color: #f5f5f5" i],
+[style*="background: rgb(255" i],
+[style*="background-color: rgb(255" i],
+[style*="background: rgb(250" i],
+[style*="background-color: rgb(250" i],
+[style*="background: rgba(255" i],
+[style*="background-color: rgba(255" i],
+[style*="background: rgba(250" i],
+[style*="background-color: rgba(250" i] {
+  background: var(--piwin-artifact-surface) !important;
+  color: var(--piwin-artifact-text);
 }
 `;
 }
@@ -280,12 +329,40 @@ export function buildArtifactBridgeBootstrapScript(
       removableChild.remove();
     }
   };
-  var applyStreamSnapshot = function (source) {
+  var appliedFinalSource = null;
+  var activateFinalScripts = function (root) {
+    Array.prototype.slice.call(root.querySelectorAll('script')).forEach(function (current) {
+      var replacement = document.createElement('script');
+      Array.prototype.slice.call(current.attributes).forEach(function (attribute) {
+        replacement.setAttribute(attribute.name, attribute.value);
+      });
+      replacement.textContent = current.textContent || '';
+      current.replaceWith(replacement);
+    });
+  };
+  var applyStreamSnapshot = function (source, final) {
     var root = document.querySelector('.piwin-artifact-root');
     if (!root) return;
+    if (final && appliedFinalSource === source) {
+      ready();
+      return;
+    }
     var template = document.createElement('template');
     template.innerHTML = source;
     syncChildren(root, template.content);
+    if (final) {
+      appliedFinalSource = source;
+      activateFinalScripts(root);
+      // Dynamically activated scripts must observe the same lifecycle events
+      // they receive during a normal final srcdoc load.
+      setTimeout(function () {
+        document.dispatchEvent(new Event('DOMContentLoaded'));
+        window.dispatchEvent(new Event('load'));
+        ready();
+        scheduleMeasureLadder('trim');
+      }, 0);
+      return;
+    }
     scheduleMeasure();
   };
   window.addEventListener('message', function (event) {
@@ -297,7 +374,7 @@ export function buildArtifactBridgeBootstrapScript(
       data.channelId !== channelId ||
       typeof data.source !== 'string'
     ) return;
-    applyStreamSnapshot(data.source);
+    applyStreamSnapshot(data.source, data.final === true);
   });`
     : '';
 
@@ -488,6 +565,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const includeBridge = input.includeBridge !== false;
   const csp = buildStrictArtifactCsp(iframePolicy);
   const css = buildResponsiveCss(theme, surface);
+  const themeGuardCss = buildArtifactThemeGuardCss();
   const surfacePolicyCss = buildArtifactSurfacePolicyCss(surface);
   const motionPolicyCss = buildArtifactMotionPolicyCss();
   const channelId = input.channelId;
@@ -507,6 +585,7 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
 </head>
 <body>
   <div class="piwin-artifact-root">${input.source}</div>
+  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>
   <style data-piwin-artifact-surface-policy>${surfacePolicyCss}</style>
   <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>
 ${bridge}

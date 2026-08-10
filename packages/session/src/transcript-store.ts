@@ -16,7 +16,7 @@
  * stream in batches.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -31,6 +31,8 @@ import {
   type SessionOutlineNode,
   type SessionOutlinePageData,
   type SessionOutlinePageQuery,
+  type SessionPauseCheckpoint,
+  type SessionPauseCheckpointInput,
   type SessionTranscriptDocument,
   type SessionTranscriptMessage,
   type SessionTranscriptPageData,
@@ -130,6 +132,18 @@ export type SessionTranscriptStore = {
   transcriptPage(query: SessionTranscriptPageQuery): Promise<SessionTranscriptPageData>;
   /** Number of persisted rows. */
   count(): Promise<number>;
+  /** Current monotonic transcript revision used by durable checkpoints. */
+  getRevision(): Promise<number>;
+  /** Read a checkpoint by id, including consumed/cleared records. */
+  getPauseCheckpoint(checkpointId: string): Promise<SessionPauseCheckpoint | undefined>;
+  /** Read the one active checkpoint for this session. */
+  getActivePauseCheckpoint(): Promise<SessionPauseCheckpoint | undefined>;
+  /** Create one active checkpoint; repeated creation by the same Run is idempotent. */
+  createPauseCheckpoint(input: SessionPauseCheckpointInput): Promise<SessionPauseCheckpoint>;
+  /** Mark an active checkpoint consumed after a resumed Run completes. */
+  consumePauseCheckpoint(checkpointId: string): Promise<boolean>;
+  /** Mark an active checkpoint cleared by an irreversible Stop or reset. */
+  clearPauseCheckpoint(checkpointId?: string): Promise<boolean>;
   /** Bounded model-facing history window (role + text only). */
   buildHistoryWindow(options?: {
     maxMessages?: number;
@@ -208,6 +222,19 @@ type MessageRow = {
   metadata_json: string | null;
 };
 
+type PauseCheckpointRow = {
+  checkpoint_id: string;
+  session_id: string;
+  source_run_id: string;
+  runtime_generation_id: string | null;
+  created_at: string;
+  source_user_message_id: string | null;
+  last_assistant_message_id: string | null;
+  transcript_revision: number;
+  status: string;
+  consumed_at: string | null;
+};
+
 /** Compute a canonical digest covering every field persisted by the Store. */
 export function computeLegacyTranscriptDigest(document: SessionTranscriptDocument): string {
   return digestStoredMessages(
@@ -255,6 +282,22 @@ export async function openSessionTranscriptStore(
       ON transcript_message(runtime_generation_id, backend_message_id);
     CREATE INDEX IF NOT EXISTS idx_message_sequence
       ON transcript_message(sequence);
+    CREATE TABLE IF NOT EXISTS pause_checkpoint(
+      checkpoint_id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      source_run_id TEXT NOT NULL,
+      runtime_generation_id TEXT,
+      created_at TEXT NOT NULL,
+      source_user_message_id TEXT,
+      last_assistant_message_id TEXT,
+      transcript_revision INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      consumed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_pause_checkpoint_session
+      ON pause_checkpoint(session_id, created_at DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_pause_checkpoint_active_session
+      ON pause_checkpoint(session_id) WHERE status = 'active';
   `);
   const metaColumns = db.prepare('PRAGMA table_info(transcript_meta)').all() as Array<{
     name: string;
@@ -349,6 +392,30 @@ export async function openSessionTranscriptStore(
     return message;
   }
 
+  function rowToPauseCheckpoint(row: PauseCheckpointRow): SessionPauseCheckpoint {
+    const checkpoint: SessionPauseCheckpoint = {
+      checkpointId: row.checkpoint_id,
+      sessionId: row.session_id,
+      sourceRunId: row.source_run_id,
+      createdAt: row.created_at,
+      transcriptRevision: row.transcript_revision,
+      status: row.status as SessionPauseCheckpoint['status'],
+    };
+    if (row.runtime_generation_id !== null) {
+      checkpoint.runtimeGenerationId = row.runtime_generation_id;
+    }
+    if (row.source_user_message_id !== null) {
+      checkpoint.sourceUserMessageId = row.source_user_message_id;
+    }
+    if (row.last_assistant_message_id !== null) {
+      checkpoint.lastAssistantMessageId = row.last_assistant_message_id;
+    }
+    if (row.consumed_at !== null) {
+      checkpoint.consumedAt = row.consumed_at;
+    }
+    return checkpoint;
+  }
+
   function queryTail(limit: number, beforeSequence?: number): SessionTranscriptMessage[] {
     validatePositiveBoundedInteger(limit, 'Transcript tail limit', MAX_TAIL_MESSAGES);
     if (
@@ -366,6 +433,18 @@ export async function openSessionTranscriptStore(
             )
             .all(beforeSequence, limit);
     return (rows as unknown as MessageRow[]).reverse().map(rowToMessage);
+  }
+
+  async function readActivePauseCheckpoint(): Promise<SessionPauseCheckpoint | undefined> {
+    ensureOpen();
+    const row = db
+      .prepare(
+        `SELECT * FROM pause_checkpoint
+         WHERE session_id = ? AND status = 'active'
+         ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get(options.sessionId) as unknown as PauseCheckpointRow | undefined;
+    return row === undefined ? undefined : rowToPauseCheckpoint(row);
   }
 
   return {
@@ -631,6 +710,138 @@ export async function openSessionTranscriptStore(
         count: number;
       };
       return row.count;
+    },
+
+    async getRevision() {
+      ensureOpen();
+      return currentRevision();
+    },
+
+    async getPauseCheckpoint(checkpointId) {
+      ensureOpen();
+      const row = db
+        .prepare(
+          'SELECT * FROM pause_checkpoint WHERE checkpoint_id = ? AND session_id = ?',
+        )
+        .get(checkpointId, options.sessionId) as unknown as PauseCheckpointRow | undefined;
+      return row === undefined ? undefined : rowToPauseCheckpoint(row);
+    },
+
+    async getActivePauseCheckpoint() {
+      return readActivePauseCheckpoint();
+    },
+
+    async createPauseCheckpoint(input) {
+      ensureOpen();
+      if (input.sessionId !== options.sessionId) {
+        throw new Error(
+          `Pause checkpoint session mismatch: expected ${options.sessionId}, got ${input.sessionId}`,
+        );
+      }
+      if (!Number.isSafeInteger(input.transcriptRevision) || input.transcriptRevision < 0) {
+        throw new RangeError('Pause checkpoint transcript revision must be a non-negative integer');
+      }
+      const existing = await readActivePauseCheckpoint();
+      if (existing !== undefined) {
+        if (existing.sourceRunId === input.sourceRunId) {
+          return existing;
+        }
+        if (input.checkpointId === existing.checkpointId) {
+          db.prepare(
+            `UPDATE pause_checkpoint
+             SET source_run_id = ?, runtime_generation_id = ?, created_at = ?,
+                 source_user_message_id = ?, last_assistant_message_id = ?,
+                 transcript_revision = ?, status = 'active', consumed_at = NULL
+             WHERE checkpoint_id = ? AND session_id = ?`,
+          ).run(
+            input.sourceRunId,
+            input.runtimeGenerationId ?? null,
+            input.createdAt,
+            input.sourceUserMessageId ?? null,
+            input.lastAssistantMessageId ?? null,
+            input.transcriptRevision,
+            existing.checkpointId,
+            options.sessionId,
+          );
+          return (await readActivePauseCheckpoint()) ?? existing;
+        }
+        throw new Error(`pause-checkpoint-active: session ${options.sessionId} already has one`);
+      }
+      const checkpoint: SessionPauseCheckpoint = {
+        checkpointId: input.checkpointId ?? randomUUID(),
+        sessionId: input.sessionId,
+        sourceRunId: input.sourceRunId,
+        createdAt: input.createdAt,
+        transcriptRevision: input.transcriptRevision,
+        status: 'active',
+      };
+      if (input.runtimeGenerationId !== undefined) {
+        checkpoint.runtimeGenerationId = input.runtimeGenerationId;
+      }
+      if (input.sourceUserMessageId !== undefined) {
+        checkpoint.sourceUserMessageId = input.sourceUserMessageId;
+      }
+      if (input.lastAssistantMessageId !== undefined) {
+        checkpoint.lastAssistantMessageId = input.lastAssistantMessageId;
+      }
+      try {
+        db.prepare(
+          `INSERT INTO pause_checkpoint(
+             checkpoint_id, session_id, source_run_id, runtime_generation_id,
+             created_at, source_user_message_id, last_assistant_message_id,
+             transcript_revision, status
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+        ).run(
+          checkpoint.checkpointId,
+          checkpoint.sessionId,
+          checkpoint.sourceRunId,
+          checkpoint.runtimeGenerationId ?? null,
+          checkpoint.createdAt,
+          checkpoint.sourceUserMessageId ?? null,
+          checkpoint.lastAssistantMessageId ?? null,
+          checkpoint.transcriptRevision,
+        );
+      } catch (error) {
+        if (isSqliteUniqueConstraint(error)) {
+          const concurrent = await readActivePauseCheckpoint();
+          if (concurrent?.sourceRunId === input.sourceRunId) {
+            return concurrent;
+          }
+        }
+        throw error;
+      }
+      return checkpoint;
+    },
+
+    async consumePauseCheckpoint(checkpointId) {
+      ensureOpen();
+      const result = db
+        .prepare(
+          `UPDATE pause_checkpoint
+           SET status = 'consumed', consumed_at = ?
+           WHERE checkpoint_id = ? AND session_id = ? AND status = 'active'`,
+        )
+        .run(new Date().toISOString(), checkpointId, options.sessionId);
+      return result.changes > 0;
+    },
+
+    async clearPauseCheckpoint(checkpointId) {
+      ensureOpen();
+      const result =
+        checkpointId === undefined
+          ? db
+              .prepare(
+                `UPDATE pause_checkpoint SET status = 'cleared', consumed_at = ?
+                 WHERE session_id = ? AND status = 'active'`,
+              )
+              .run(new Date().toISOString(), options.sessionId)
+          : db
+              .prepare(
+                `UPDATE pause_checkpoint SET status = 'cleared', consumed_at = ?
+                 WHERE checkpoint_id = ? AND session_id = ? AND status = 'active'`,
+              )
+              .run(new Date().toISOString(), checkpointId, options.sessionId);
+      return result.changes > 0;
     },
 
     async buildHistoryWindow(options = {}) {

@@ -27,6 +27,7 @@ import type {
   AgentEventEnvelope,
   PushSink,
   RemoteSinkId,
+  RunTerminalCode,
 } from '@piwin/contracts';
 import {
   createEventEnvelopeGenerator,
@@ -265,6 +266,8 @@ import type {
 
 const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/resume',
+  'session/pause',
+  'session/resume-run',
   'session/outline-page',
   'session/transcript-page',
   'session/messages',
@@ -2922,10 +2925,20 @@ export class HostRuntime {
       runWithContext: (runId, operation) => {
         void this.runExecutionContext.run(runId, operation);
       },
+      flushTranscriptRecorder: async (sessionId) => {
+        const recorder = this.transcriptRecorders.get(sessionId);
+        if (recorder) {
+          await recorder.flush();
+        }
+      },
       getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
-      registerForegroundRun: (sessionId) => {
+      registerForegroundRun: (sessionId, resumeCheckpointId) => {
         const generationId = this.runtimeController.getStatus(sessionId).generationId;
-        const run = this.runRegistry.createForegroundRun(sessionId, generationId);
+        const run = this.runRegistry.createForegroundRun(
+          sessionId,
+          generationId,
+          resumeCheckpointId,
+        );
         // ADR 0040 §5: a runtime with an active Run is busy and never evicted.
         if (generationId !== undefined) {
           this.residencyController.markBusy(sessionId, generationId);
@@ -2952,6 +2965,29 @@ export class HostRuntime {
         if (!active || (runId !== undefined && active.runId !== runId)) return undefined;
         return this.runRegistry.requestCancel(active.runId, reason);
       },
+      requestPauseRun: (sessionId, runId, reason) => {
+        const active = this.runRegistry.getForegroundRun(sessionId);
+        if (!active || (runId !== undefined && active.runId !== runId)) return undefined;
+        return this.runRegistry.requestPause(active.runId, reason);
+      },
+      isPauseRequested: (runId) => this.runRegistry.isPauseRequested(runId),
+      hasActiveDescendants: (runId) => this.runRegistry.hasActiveDescendants(runId),
+      attachResumeCheckpoint: (runId, checkpointId) => {
+        const attached = this.runRegistry.attachResumeCheckpoint(runId, checkpointId);
+        if (!attached) {
+          throw new Error(`cannot attach pause checkpoint to run ${runId}`);
+        }
+      },
+      getActivePauseCheckpoint: (sessionId) =>
+        this.withTranscriptStore(sessionId, (store) => store.getActivePauseCheckpoint()),
+      getPauseCheckpoint: (sessionId, checkpointId) =>
+        this.withTranscriptStore(sessionId, (store) => store.getPauseCheckpoint(checkpointId)),
+      createPauseCheckpoint: (sessionId, input) =>
+        this.withTranscriptStore(sessionId, (store) => store.createPauseCheckpoint(input)),
+      consumePauseCheckpoint: (sessionId, checkpointId) =>
+        this.withTranscriptStore(sessionId, (store) => store.consumePauseCheckpoint(checkpointId)),
+      clearPauseCheckpoint: (sessionId, checkpointId) =>
+        this.withTranscriptStore(sessionId, (store) => store.clearPauseCheckpoint(checkpointId)),
       updateRunPhase: (runId, phase, detail) => {
         this.runRegistry.updatePhase(runId, phase, detail);
       },
@@ -2967,9 +3003,9 @@ export class HostRuntime {
         const jobReason =
           outcome === 'completed'
             ? 'run-completed'
-            : outcome === 'cancelled'
-              ? 'run-cancelled'
-              : 'failed';
+            : outcome === 'failed'
+              ? 'failed'
+              : 'run-cancelled';
         let cleanupFailed = false;
         if (this.jobController) {
           try {
@@ -2986,12 +3022,14 @@ export class HostRuntime {
           }
         }
         const effectiveOutcome = cleanupFailed ? 'failed' : outcome;
-        const effectiveCode = cleanupFailed
+        const effectiveCode: RunTerminalCode = cleanupFailed
           ? 'job-cleanup-failed'
           : outcome === 'cancelled'
             ? 'cancelled'
             : outcome === 'completed'
               ? 'completed'
+              : outcome === 'paused'
+                ? 'paused'
               : code === 'model-connect-timeout' ||
                   code === 'model-first-token-timeout' ||
                   code === 'model-turn-timeout' ||
@@ -3001,9 +3039,30 @@ export class HostRuntime {
                   ? code
                   : 'failed';
         const effectiveMessage = cleanupFailed ? (message ?? 'job cleanup failed') : message;
+        const terminalStatus = effectiveOutcome === 'paused' ? 'interrupted' : effectiveOutcome;
+        const checkpointId = run.resumeCheckpointId;
+        if (checkpointId !== undefined) {
+          try {
+            if (effectiveOutcome === 'completed') {
+              await this.withTranscriptStore(sessionId, (store) =>
+                store.consumePauseCheckpoint(checkpointId),
+              );
+            } else if (effectiveOutcome === 'cancelled') {
+              await this.withTranscriptStore(sessionId, (store) =>
+                store.clearPauseCheckpoint(checkpointId),
+              );
+            }
+          } catch (error) {
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `pause checkpoint finalization failed for ${runId}: ${formatError(error)}`,
+            });
+          }
+        }
         const terminal = this.runRegistry.terminate(
           runId,
-          effectiveOutcome,
+          terminalStatus,
           effectiveCode,
           effectiveMessage,
         );
@@ -3302,6 +3361,7 @@ export class HostRuntime {
         sessionSearch: true,
         sessionPin: true,
         sessionLifecycle: true,
+        sessionPause: true,
         runtimeResidency: true,
         sessionOutlinePage: true,
         usage: true,

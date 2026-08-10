@@ -24,6 +24,7 @@ import {
   Notice,
   PasswordInput,
   PiwinUiProvider,
+  RadialBellow,
   StatusBadge,
   TextArea,
   TextInput,
@@ -61,6 +62,7 @@ export function App(): ReactElement {
   const [messages, setMessages] = useState<RemoteTranscriptMessage[]>([]);
   const [composerText, setComposerText] = useState('');
   const [activeRunId, setActiveRunId] = useState<string | undefined>();
+  const [pausedCheckpointId, setPausedCheckpointId] = useState<string | undefined>();
   const [permissionRequest, setPermissionRequest] = useState<RemotePermissionRequest | undefined>();
   const [attachments, setAttachments] = useState<MobileMediaAttachment[]>([]);
   const [isSending, setIsSending] = useState(false);
@@ -97,6 +99,7 @@ export function App(): ReactElement {
         const resumeResponse = await client.request({ type: 'session/resume', sessionId });
         if (clientRef.current === client && resumeResponse.success) {
           setMessages(readSessionMessages(resumeResponse));
+          setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
         }
       }
     } catch (error) {
@@ -122,6 +125,7 @@ export function App(): ReactElement {
     activeSessionRef.current = undefined;
     setMessages([]);
     setActiveRunId(undefined);
+    setPausedCheckpointId(undefined);
     setAttachments([]);
 
     const client = createMobileHostClient(normalizedEndpoint, authToken.trim());
@@ -137,7 +141,14 @@ export function App(): ReactElement {
     );
     unsubscribeRef.current.push(
       client.subscribePush((push) =>
-        handleRemotePush(push, activeSessionRef, setMessages, setActiveRunId, setPermissionRequest),
+        handleRemotePush(
+          push,
+          activeSessionRef,
+          setMessages,
+          setActiveRunId,
+          setPausedCheckpointId,
+          setPermissionRequest,
+        ),
       ),
     );
 
@@ -162,6 +173,7 @@ export function App(): ReactElement {
     activeSessionRef.current = undefined;
     setMessages([]);
     setActiveRunId(undefined);
+    setPausedCheckpointId(undefined);
     setPermissionRequest(undefined);
     setAttachments([]);
   };
@@ -174,6 +186,7 @@ export function App(): ReactElement {
     activeSessionRef.current = sessionId;
     setActiveSessionId(sessionId);
     setActiveRunId(undefined);
+    setPausedCheckpointId(undefined);
     setPermissionRequest(undefined);
     setAttachments([]);
     setErrorMessage(undefined);
@@ -181,6 +194,7 @@ export function App(): ReactElement {
       const resumeResponse = await client.request({ type: 'session/resume', sessionId });
       if (resumeResponse.success) {
         setMessages(readSessionMessages(resumeResponse));
+        setPausedCheckpointId(readPauseCheckpointId(resumeResponse.data));
         return;
       }
       const messagesResponse = await client.request({ type: 'session/messages', sessionId });
@@ -221,7 +235,13 @@ export function App(): ReactElement {
     const client = clientRef.current;
     const sessionId = activeSessionRef.current;
     const text = composerText.trim();
-    if (client === undefined || sessionId === undefined || text.length === 0 || isSending) {
+    if (
+      client === undefined ||
+      sessionId === undefined ||
+      text.length === 0 ||
+      isSending ||
+      pausedCheckpointId !== undefined
+    ) {
       return;
     }
     setIsSending(true);
@@ -266,9 +286,54 @@ export function App(): ReactElement {
       });
       if (!response.success) {
         setErrorMessage(response.error);
+        return;
+      }
+      if (activeRunId === undefined && response.data && isRecord(response.data)) {
+        if (response.data.reason === 'no-active-run') {
+          setPausedCheckpointId(undefined);
+        }
       }
     } catch (error) {
       setErrorMessage(toError(error, '停止运行失败。').message);
+    }
+  };
+
+  const handlePause = async (): Promise<void> => {
+    const client = clientRef.current;
+    const sessionId = activeSessionRef.current;
+    if (client === undefined || sessionId === undefined) return;
+    try {
+      const response = await client.request({
+        type: 'session/pause',
+        sessionId,
+        ...(activeRunId === undefined ? {} : { runId: activeRunId }),
+      });
+      if (!response.success) setErrorMessage(response.error);
+    } catch (error) {
+      setErrorMessage(toError(error, '暂停运行失败。').message);
+    }
+  };
+
+  const handleResumeRun = async (): Promise<void> => {
+    const client = clientRef.current;
+    const sessionId = activeSessionRef.current;
+    if (client === undefined || sessionId === undefined || pausedCheckpointId === undefined) {
+      return;
+    }
+    try {
+      const response = await client.request({
+        type: 'session/resume-run',
+        sessionId,
+        checkpointId: pausedCheckpointId,
+      });
+      if (!response.success) {
+        setErrorMessage(response.error);
+        return;
+      }
+      setActiveRunId(readRunId(response.data));
+      setPausedCheckpointId(undefined);
+    } catch (error) {
+      setErrorMessage(toError(error, '继续运行失败。').message);
     }
   };
 
@@ -361,6 +426,12 @@ export function App(): ReactElement {
 
   const connectionView = describeConnectionState(connectionState);
   const isConnected = connectionState.kind === 'ready';
+  const activeStreamingAssistant = [...messages]
+    .reverse()
+    .find((message) => message.role === 'assistant' && message.status === 'streaming');
+  const showMobileSendActivity =
+    (isSending || activeRunId !== undefined) &&
+    (activeStreamingAssistant === undefined || activeStreamingAssistant.text.trim().length === 0);
 
   return (
     <PiwinUiProvider manifest={MOBILE_THEME}>
@@ -549,9 +620,23 @@ export function App(): ReactElement {
                   </h2>
                 </div>
                 {activeRunId !== undefined ? (
-                  <Button variant="secondary" size="compact" onClick={() => void handleAbort()}>
-                    停止
-                  </Button>
+                  <>
+                    <Button variant="secondary" size="compact" onClick={() => void handlePause()}>
+                      暂停
+                    </Button>
+                    <Button variant="danger" size="compact" onClick={() => void handleAbort()}>
+                      停止
+                    </Button>
+                  </>
+                ) : pausedCheckpointId !== undefined ? (
+                  <div className="mobile-run-actions">
+                    <Button variant="primary" size="compact" onClick={() => void handleResumeRun()}>
+                      继续
+                    </Button>
+                    <Button variant="danger" size="compact" onClick={() => void handleAbort()}>
+                      清除暂停点
+                    </Button>
+                  </div>
                 ) : null}
               </div>
               <div className="mobile-chat-messages" aria-live="polite">
@@ -570,6 +655,21 @@ export function App(): ReactElement {
                     </article>
                   ))
                 )}
+                {showMobileSendActivity ? (
+                  <div
+                    className="mobile-send-activity"
+                    data-testid="mobile-send-activity"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <RadialBellow
+                      size="sm"
+                      label="Agent 正在处理"
+                      testId="mobile-send-activity-animation"
+                    />
+                    <span>正在连接模型…</span>
+                  </div>
+                ) : null}
               </div>
               <div className="mobile-composer">
                 <div className="mobile-composer-tools">
@@ -714,6 +814,15 @@ function readRunId(value: unknown): string | undefined {
   return isRecord(value) && typeof value.runId === 'string' ? value.runId : undefined;
 }
 
+function readPauseCheckpointId(value: unknown): string | undefined {
+  if (!isRecord(value) || !isRecord(value.pauseCheckpoint)) {
+    return undefined;
+  }
+  return typeof value.pauseCheckpoint.checkpointId === 'string'
+    ? value.pauseCheckpoint.checkpointId
+    : undefined;
+}
+
 function readRemoteMediaAsset(value: unknown): RemoteMediaAsset | undefined {
   if (!isRecord(value) || !isRecord(value.asset)) {
     return undefined;
@@ -777,6 +886,7 @@ function handleRemotePush(
   activeSessionRef: { current: string | undefined },
   setMessages: Dispatch<SetStateAction<RemoteTranscriptMessage[]>>,
   setRunId: Dispatch<SetStateAction<string | undefined>>,
+  setPausedCheckpointId: Dispatch<SetStateAction<string | undefined>>,
   setPermissionRequest: Dispatch<SetStateAction<RemotePermissionRequest | undefined>>,
 ): void {
   const activeSessionId = activeSessionRef.current;
@@ -787,6 +897,16 @@ function handleRemotePush(
     return;
   }
   if (activeSessionId === undefined) {
+    return;
+  }
+
+  if (push.type === 'run/terminal' && push.run.sessionId === activeSessionId) {
+    setRunId(undefined);
+    if (push.run.status === 'interrupted' && push.run.terminalCode === 'paused') {
+      setPausedCheckpointId(push.run.resumeCheckpointId);
+    } else {
+      setPausedCheckpointId(undefined);
+    }
     return;
   }
 

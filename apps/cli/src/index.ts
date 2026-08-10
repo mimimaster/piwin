@@ -78,6 +78,8 @@ Usage:
   piwin session list [--project <path>] [--mock]
   piwin session pin <sessionId> [--mock]
   piwin session unpin <sessionId> [--mock]
+  piwin session pause <sessionId> [--run-id <runId>] [--mock]
+  piwin session resume-run <sessionId> [--checkpoint <checkpointId>] [--mock]
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin status [--project <path>] [--mock]
@@ -585,6 +587,33 @@ async function commandSession(argv: string[]): Promise<void> {
       return;
     }
 
+    if (sub === 'pause' || sub === 'resume-run') {
+      const sessionId = argv[2];
+      if (!sessionId) {
+        console.error(
+          `Usage: piwin session ${sub} <sessionId>${
+            sub === 'pause' ? ' [--run-id <runId>]' : ' [--checkpoint <checkpointId>]'
+          } [--mock]`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      const runId = readOption(argv, '--run-id');
+      const checkpointId = readOption(argv, '--checkpoint');
+      const command: HostCommand =
+        sub === 'pause'
+          ? { type: 'session/pause', sessionId, ...(runId ? { runId } : {}) }
+          : { type: 'session/resume-run', sessionId, ...(checkpointId ? { checkpointId } : {}) };
+      const response = await runtime.handleCommand(command);
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(JSON.stringify(response.data ?? {}, null, 2));
+      return;
+    }
+
     if (sub === 'search') {
       const queryTokens: string[] = [];
       const args = argv.slice(2);
@@ -683,7 +712,7 @@ async function commandSession(argv: string[]): Promise<void> {
     }
 
     console.error(`Unknown session subcommand: ${sub}`);
-    console.error('Usage: piwin session list|pin|unpin|search|export');
+    console.error('Usage: piwin session list|pin|unpin|pause|resume-run|search|export');
     process.exitCode = 1;
   } finally {
     await runtime.dispose();

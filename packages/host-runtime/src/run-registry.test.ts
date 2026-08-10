@@ -1058,3 +1058,44 @@ describe('RunRegistry.attachRuntimeGeneration()', () => {
     });
   });
 });
+
+describe('RunRegistry checkpoint pause', () => {
+  it('closes admission, aborts the signal, and keeps pause distinct from cancel', () => {
+    const reg = makeRegistry();
+    const run = reg.createForegroundRun('sess-pause');
+    const requested = reg.requestPause(run.runId, { code: 'pause-requested' });
+
+    expect(requested?.status).toBe('cancelling');
+    expect(requested?.phase).toBe('pausing');
+    expect(reg.isPauseRequested(run.runId)).toBe(true);
+    expect(reg.getSignal(run.runId)?.aborted).toBe(true);
+    expect(reg.getSignal(run.runId)?.reason).toEqual({ code: 'pause-requested' });
+    expect(reg.terminate(run.runId, 'interrupted', 'paused')?.terminalCode).toBe('paused');
+  });
+
+  it('attaches the checkpoint reference before the interrupted terminal push', () => {
+    const reg = makeRegistry();
+    const run = reg.createForegroundRun('sess-pause');
+    reg.requestPause(run.runId);
+    expect(reg.attachResumeCheckpoint(run.runId, 'checkpoint-1')?.resumeCheckpointId).toBe(
+      'checkpoint-1',
+    );
+    expect(reg.terminate(run.runId, 'interrupted', 'paused')?.resumeCheckpointId).toBe(
+      'checkpoint-1',
+    );
+  });
+
+  it('reports active descendants so callers can reject partial tree pauses', () => {
+    const reg = makeRegistry();
+    const parent = reg.createForegroundRun('sess-pause');
+    const child = reg.create({
+      kind: 'subagent-task',
+      sessionId: 'sess-pause',
+      parentRunId: parent.runId,
+    });
+    expect(reg.hasActiveDescendants(parent.runId)).toBe(true);
+    reg.start(child.runId);
+    reg.terminate(child.runId, 'completed', 'completed');
+    expect(reg.hasActiveDescendants(parent.runId)).toBe(false);
+  });
+});

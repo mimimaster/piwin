@@ -617,7 +617,12 @@ function createPromptContext(session: SessionHandle): {
     }
   };
   control.context.terminateRun = (sessionId, runId, outcome, code, message): boolean => {
-    const terminal = control.registry.terminate(runId, outcome, code, message);
+    const terminal = control.registry.terminate(
+      runId,
+      outcome === 'paused' ? 'interrupted' : outcome,
+      code,
+      message,
+    );
     if (terminal) {
       events.push({ type: 'run/terminal', run: terminal });
     }
@@ -688,16 +693,38 @@ function createControlContext(
       void operation();
     },
     getForegroundRun: (sessionId) => registry.getForegroundRun(sessionId),
-    registerForegroundRun: (sessionId) => registry.createForegroundRun(sessionId),
+    registerForegroundRun: (sessionId, resumeCheckpointId) =>
+      registry.createForegroundRun(sessionId, undefined, resumeCheckpointId),
     getRunSignal: (runId) => registry.getSignal(runId),
     hasRunReceivedFirstToken: (runId) => registry.hasFirstToken(runId),
     requestCancelRun: (_sessionId, runId) =>
       runId === undefined ? undefined : registry.requestCancel(runId),
+    requestPauseRun: (_sessionId, runId, reason) =>
+      runId === undefined ? undefined : registry.requestPause(runId, reason),
+    isPauseRequested: (runId) => registry.isPauseRequested(runId),
+    hasActiveDescendants: (runId) => registry.hasActiveDescendants(runId),
+    attachResumeCheckpoint: (runId, checkpointId): void => {
+      registry.attachResumeCheckpoint(runId, checkpointId);
+    },
+    getActivePauseCheckpoint: async () => undefined,
+    getPauseCheckpoint: async () => undefined,
+    createPauseCheckpoint: async (_sessionId, input) => ({
+      ...input,
+      checkpointId: input.checkpointId ?? 'test-checkpoint',
+      status: 'active' as const,
+    }),
+    consumePauseCheckpoint: async () => false,
+    clearPauseCheckpoint: async () => false,
     updateRunPhase: (runId, phase, detail): void => {
       registry.updatePhase(runId, phase, detail);
     },
     terminateRun: (_sessionId, runId, outcome, code, message): boolean =>
-      registry.terminate(runId, outcome, code, message) !== undefined,
+      registry.terminate(
+        runId,
+        outcome === 'paused' ? 'interrupted' : outcome,
+        code,
+        message,
+      ) !== undefined,
     settlePendingPermissionsForSession: (): void => undefined,
     settlePendingExtensionUiForSession: (): void => undefined,
     setSessionPermissionOverride: (): void => undefined,

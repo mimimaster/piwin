@@ -313,6 +313,9 @@
      stays aligned with the composer dock; floating chrome is on the shell. */
   overflow-x: hidden;
   overflow-y: auto;
+  /* Browser scroll anchoring fights follow-tail when Artifact iframes grow or
+     virtualized turns remeasure — it can yank the viewport up into history. */
+  overflow-anchor: none;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
   padding: 0 var(--chat-inline-pad, 24px) 24px;
@@ -3314,35 +3317,95 @@ html[data-theme-mode='light'] .permission-detail {
   overflow: visible;
 }
 
+.artifact-frame.has-artifact-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 12px;
+  align-items: start;
+}
+
+.artifact-frame.has-artifact-action > :not(.artifact-frame-actions) {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.artifact-frame.preparing,
+.artifact-frame-waiting {
+  background: transparent;
+  min-height: 80px;
+}
+
 .artifact-frame.blocked {
   border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
   border-radius: 8px;
 }
 
 .artifact-frame-actions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  padding: 5px;
-  background: color-mix(in srgb, var(--surface-inset, var(--surface)) 88%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--line-soft, var(--border));
-  border-radius: 9px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   opacity: 0;
   pointer-events: none;
   z-index: 3;
+  transition: opacity var(--motion-fast, 120ms) var(--motion-ease, ease);
 }
 
 .artifact-frame:hover > .artifact-frame-actions,
 .artifact-frame:focus-within > .artifact-frame-actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+.artifact-frame-actions .artifact-frame-text-action {
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.artifact-frame-actions .artifact-frame-text-action:hover:not(:disabled),
+.artifact-frame-actions .artifact-frame-text-action:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .artifact-frame.has-artifact-action {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .artifact-frame.has-artifact-action > :not(.artifact-frame-actions) {
+    order: 2;
+  }
+
+  .artifact-frame.has-artifact-action > .artifact-frame-actions {
+    order: 1;
+    justify-content: flex-end;
+    margin-top: 0;
+    margin-bottom: 6px;
+  }
 }
 
 .artifact-frame .muted {
@@ -3354,6 +3417,7 @@ html[data-theme-mode='light'] .permission-detail {
   width: 100%;
   border: 0 !important;
   background: transparent !important;
+  color-scheme: inherit;
   display: block;
   border-radius: 0;
 }

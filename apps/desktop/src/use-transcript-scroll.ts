@@ -8,6 +8,10 @@
  * - Never rely on onScroll alone: programmatic stick-to-bottom often does not
  *   fire a scroll event when already near the bottom, which previously left
  *   scrollRatio stuck at 1 and made the floating scrollbar flash in/out.
+ * - Programmatic sticks must not clear followTail. Artifact iframe growth and
+ *   virtualizer remeasures can leave the viewport briefly not near bottom;
+ *   treating those intermediate scroll events as user intent was the main
+ *   "jumps to history while streaming" failure mode.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TranscriptScrollPosition } from './transcript-scroll-memory';
@@ -15,7 +19,6 @@ import type { TranscriptScrollPosition } from './transcript-scroll-memory';
 const BOTTOM_THRESHOLD_PX = 64;
 /** Treat near-full viewports as non-overflowing to avoid 1px thrash. */
 const OVERFLOW_EPSILON = 0.002;
-
 export type TranscriptScrollState = {
   followTail: boolean;
   showJumpToLatest: boolean;
@@ -68,6 +71,11 @@ export function useTranscriptScroll(options: {
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const followTailRef = useRef(true);
+  /** True while we own scrollTop writes; blocks followTail clear on onScroll. */
+  const programmaticScrollRef = useRef(false);
+  const stickFramesRef = useRef<number[]>([]);
+  /** Last observed scroll geometry — distinguishes user scroll from growth. */
+  const lastScrollGeometryRef = useRef({ scrollTop: 0, scrollHeight: 0 });
   const [followTail, setFollowTailState] = useState(true);
   const [scrollProgress, setScrollProgress] = useState(1);
   const [scrollRatio, setScrollRatio] = useState(1);
@@ -83,13 +91,65 @@ export function useTranscriptScroll(options: {
     setFollowTailState(nextFollowTail);
   }, []);
 
+  const cancelScheduledSticks = useCallback(() => {
+    for (const frameId of stickFramesRef.current) {
+      window.cancelAnimationFrame(frameId);
+    }
+    stickFramesRef.current = [];
+  }, []);
+
+  /**
+   * Ignore only the synchronous scroll event from our own scrollTop write.
+   * Cleared on microtask so a real user scroll in the same frame still works.
+   */
+  const beginProgrammaticScroll = useCallback(() => {
+    programmaticScrollRef.current = true;
+    queueMicrotask(() => {
+      programmaticScrollRef.current = false;
+    });
+  }, []);
+
   const stickToBottomIfFollowing = useCallback(() => {
     const element = containerRef.current;
     if (!element || !followTailRef.current) {
       return;
     }
+    beginProgrammaticScroll();
     element.scrollTop = element.scrollHeight;
-  }, []);
+    lastScrollGeometryRef.current = {
+      scrollTop: element.scrollTop,
+      scrollHeight: element.scrollHeight,
+    };
+  }, [beginProgrammaticScroll]);
+
+  /**
+   * Stick now and once more on the following frames. Artifact iframe height
+   * and tanstack virtual totalSize often land 1–2 frames after the first
+   * resize notification; a single stick against a stale scrollHeight is a
+   * no-op and leaves the viewport on older turns.
+   */
+  const stickToBottomAcrossFrames = useCallback(() => {
+    if (!followTailRef.current) {
+      return;
+    }
+    cancelScheduledSticks();
+    stickToBottomIfFollowing();
+    const frame1 = window.requestAnimationFrame(() => {
+      stickToBottomIfFollowing();
+      const frame2 = window.requestAnimationFrame(() => {
+        stickToBottomIfFollowing();
+        const element = containerRef.current;
+        if (element) {
+          applyMetrics(element);
+        }
+        stickFramesRef.current = stickFramesRef.current.filter(
+          (id) => id !== frame1 && id !== frame2,
+        );
+      });
+      stickFramesRef.current.push(frame2);
+    });
+    stickFramesRef.current.push(frame1);
+  }, [applyMetrics, cancelScheduledSticks, stickToBottomIfFollowing]);
 
   const measure = useCallback(() => {
     const element = containerRef.current;
@@ -103,10 +163,11 @@ export function useTranscriptScroll(options: {
     const element = containerRef.current;
     setFollowTail(true);
     if (element) {
+      beginProgrammaticScroll();
       element.scrollTop = element.scrollHeight;
       applyMetrics(element);
     }
-  }, [applyMetrics, setFollowTail]);
+  }, [applyMetrics, beginProgrammaticScroll, setFollowTail]);
 
   const handleScroll = useCallback(() => {
     const element = containerRef.current;
@@ -114,10 +175,38 @@ export function useTranscriptScroll(options: {
       return;
     }
     const metrics = readScrollMetrics(element);
-    setFollowTail(metrics.nearBottom);
     setScrollProgress(metrics.progress);
     setScrollRatio(metrics.ratio);
-  }, [setFollowTail]);
+
+    const previous = lastScrollGeometryRef.current;
+    const scrollTopDelta = element.scrollTop - previous.scrollTop;
+    const scrollHeightDelta = element.scrollHeight - previous.scrollHeight;
+    lastScrollGeometryRef.current = {
+      scrollTop: element.scrollTop,
+      scrollHeight: element.scrollHeight,
+    };
+
+    if (programmaticScrollRef.current) {
+      // Stick / restore write — do not demote followTail from intermediate
+      // layout (Artifact height jump, virtualizer remeasure).
+      return;
+    }
+
+    // Content grew under a following viewport (Artifact iframe / virtualizer)
+    // while scrollTop stayed put. That is not user navigation — re-stick and
+    // keep follow-tail rather than locking onto historical turns.
+    if (
+      followTailRef.current &&
+      !metrics.nearBottom &&
+      scrollHeightDelta > 0 &&
+      Math.abs(scrollTopDelta) < 1
+    ) {
+      stickToBottomAcrossFrames();
+      return;
+    }
+
+    setFollowTail(metrics.nearBottom);
+  }, [setFollowTail, stickToBottomAcrossFrames]);
 
   const restorePosition = useCallback(
     (position: TranscriptScrollPosition): void => {
@@ -126,12 +215,13 @@ export function useTranscriptScroll(options: {
       if (!element) {
         return;
       }
+      beginProgrammaticScroll();
       element.scrollTop = position.followTail
         ? element.scrollHeight
         : Math.max(0, position.scrollTop);
       applyMetrics(element);
     },
-    [applyMetrics, setFollowTail],
+    [applyMetrics, beginProgrammaticScroll, setFollowTail],
   );
 
   // Observe scrollport size and content tree so height changes remeasure even
@@ -143,13 +233,18 @@ export function useTranscriptScroll(options: {
     }
 
     const remeasureFromResize = () => {
-      stickToBottomIfFollowing();
-      measure();
+      if (followTailRef.current) {
+        stickToBottomAcrossFrames();
+      } else {
+        measure();
+      }
     };
 
     if (typeof ResizeObserver === 'undefined') {
       remeasureFromResize();
-      return;
+      return () => {
+        cancelScheduledSticks();
+      };
     }
 
     const resizeObserver = new ResizeObserver(() => {
@@ -184,8 +279,9 @@ export function useTranscriptScroll(options: {
     return () => {
       resizeObserver.disconnect();
       mutationObserver?.disconnect();
+      cancelScheduledSticks();
     };
-  }, [measure, stickToBottomIfFollowing]);
+  }, [cancelScheduledSticks, measure, stickToBottomAcrossFrames]);
 
   // Activity / message growth: stick then remeasure after layout commits.
   useLayoutEffect(() => {
@@ -193,16 +289,12 @@ export function useTranscriptScroll(options: {
     if (!element) {
       return;
     }
-    stickToBottomIfFollowing();
-    measure();
-    const frameId = window.requestAnimationFrame(() => {
-      stickToBottomIfFollowing();
+    if (followTailRef.current) {
+      stickToBottomAcrossFrames();
+    } else {
       measure();
-    });
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [options.activitySignal, options.messageCount, measure, stickToBottomIfFollowing]);
+    }
+  }, [options.activitySignal, options.messageCount, measure, stickToBottomAcrossFrames]);
 
   return {
     containerRef,
@@ -212,6 +304,8 @@ export function useTranscriptScroll(options: {
     handleScroll,
     setFollowTail,
     restorePosition,
+    /** Immediate follow-tail stick for nested growers (Artifact iframe height). */
+    notifyContentGrew: stickToBottomAcrossFrames,
     scrollProgress,
     scrollRatio,
     isOverflowing: isScrollOverflowing(scrollRatio),

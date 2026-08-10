@@ -197,6 +197,37 @@ describe('buildToolPresentation', () => {
     expect(presentation.summary).toBe('a red cube on a table');
   });
 
+  it('does not use image_gen paths JSON as summary when args are missing', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'image_gen',
+      outputText: JSON.stringify(
+        {
+          paths: ['/Users/me/.piwin/media/session-1/asset.png'],
+          mimeType: 'image/png',
+          byteSize: 2048,
+        },
+        null,
+        2,
+      ),
+    });
+    expect(presentation.actionVerb).toBe('Generated image');
+    expect(presentation.summary).toBeUndefined();
+    expect(presentation.output?.text).toContain('paths');
+  });
+
+  it('keeps image_gen prompt summary when both args and paths output are present', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'image_gen',
+      args: { prompt: 'Makima tying hair in a bathroom, business attire' },
+      outputText: JSON.stringify({
+        paths: ['/tmp/.piwin/media/s1/a.png'],
+        mimeType: 'image/png',
+        byteSize: 128,
+      }),
+    });
+    expect(presentation.summary).toBe('Makima tying hair in a bathroom, business attire');
+  });
+
   it('presents video_gen with prompt summary', () => {
     expect(classifyToolKind('video_gen')).toBe('other');
     const presentation = buildToolPresentation({
@@ -205,6 +236,15 @@ describe('buildToolPresentation', () => {
     });
     expect(presentation.actionVerb).toBe('Generated video');
     expect(presentation.summary).toContain('paper boat');
+  });
+
+  it('does not use video_gen paths JSON as summary when args are missing', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'video_gen',
+      outputText: JSON.stringify({ paths: ['/tmp/video.mp4'], mimeType: 'video/mp4' }),
+    });
+    expect(presentation.actionVerb).toBe('Generated video');
+    expect(presentation.summary).toBeUndefined();
   });
 
   it('presents MCP tools with server label', () => {

@@ -173,6 +173,54 @@ describe('ComposerDock host status', () => {
     expect(handleAbort).toHaveBeenCalledTimes(1);
   });
 
+  it('renders a single pause control while streaming when pause is available', () => {
+    const handlePause = vi.fn();
+    const handleAbort = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        onPause={handlePause}
+        onAbort={handleAbort}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const pauseBtn = container.querySelector('[data-testid="pause-btn"]') as HTMLButtonElement;
+    expect(pauseBtn).not.toBeNull();
+    // One primary action — Stop only appears after pause (discard) or when
+    // pause capability is absent.
+    expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
+
+    act(() => {
+      pauseBtn.click();
+    });
+    expect(handlePause).toHaveBeenCalledTimes(1);
+    expect(handleAbort).not.toHaveBeenCalled();
+  });
+
+  it('renders continue action for a paused run', () => {
+    const handleResume = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} paused={true} onResume={handleResume} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const resumeBtn = container.querySelector(
+      '[data-testid="resume-run-btn"]',
+    ) as HTMLButtonElement;
+    expect(resumeBtn).not.toBeNull();
+    expect(container.querySelector('[data-testid="discard-pause-btn"]')).not.toBeNull();
+
+    act(() => {
+      resumeBtn.click();
+    });
+    expect(handleResume).toHaveBeenCalledTimes(1);
+  });
+
   it('reuses the Composer textarea for Other input and keeps Stop instead of Steer', () => {
     const handleResolve = vi.fn();
     const handleAbort = vi.fn();

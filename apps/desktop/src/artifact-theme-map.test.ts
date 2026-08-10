@@ -34,10 +34,13 @@ describe('mapThemeToArtifactVariables', () => {
     expect(vars['--piwin-artifact-surface']).toBe('rgba(30, 35, 48, 0.95)');
     expect(vars['--piwin-artifact-accent']).toBe('#93c5fd');
     expect(vars['--piwin-artifact-text']).toBe('#e8ecf5');
+    // Inline Artifact documents remain transparent and visually join the transcript.
+    expect(vars['--piwin-artifact-bg']).toBe('transparent');
   });
 
   it('falls back to default dark when theme missing', () => {
     const vars = mapThemeToArtifactVariables(null);
     expect(vars['--piwin-artifact-theme']).toBe('dark');
+    expect(vars['--piwin-artifact-bg']).toBe('transparent');
   });
 });

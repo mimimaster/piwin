@@ -36,6 +36,8 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'session/compact':
     case 'session/compact-export':
     case 'session/abort':
+    case 'session/pause':
+    case 'session/resume-run':
     case 'session/compact-abort':
     case 'session/steer':
     case 'session/follow_up':

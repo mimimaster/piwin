@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collectSessionTools,
   looksLikeArgsDumpSummary,
+  recoverSummaryFromInputPreview,
   resolveToolCallHeaderPreview,
   resolveToolOpenPath,
 } from './tool-call-card';
@@ -132,6 +133,42 @@ describe('looksLikeArgsDumpSummary', () => {
     expect(looksLikeArgsDumpSummary('[1, 2]')).toBe(true);
     expect(looksLikeArgsDumpSummary('agent_memory_get_context')).toBe(false);
     expect(looksLikeArgsDumpSummary('ls -la')).toBe(false);
+  });
+
+  it('detects clipSummary-truncated JSON dumps that no longer close braces', () => {
+    expect(
+      looksLikeArgsDumpSummary(
+        '{ "paths": [ "/Users/me/.piwin/media/session-1/f8d3cd99-537f-42cc-bc5c-b…',
+      ),
+    ).toBe(true);
+    expect(looksLikeArgsDumpSummary('{"prompt":"a long prompt that got cut…')).toBe(true);
+    expect(looksLikeArgsDumpSummary('[ "/tmp/a.png", "/tmp/b…')).toBe(true);
+  });
+});
+
+describe('recoverSummaryFromInputPreview', () => {
+  it('extracts prompt from image_gen inputPreview JSON', () => {
+    expect(
+      recoverSummaryFromInputPreview(
+        JSON.stringify({
+          prompt: 'Makima tying hair in a bathroom, business attire',
+        }),
+      ),
+    ).toBe('Makima tying hair in a bathroom, business attire');
+  });
+
+  it('extracts prompt from clipSummary-truncated inputPreview', () => {
+    expect(
+      recoverSummaryFromInputPreview(
+        '{"prompt":"Photorealistic personal life photo of Makima from Chainsaw Man: a young woman with l…',
+      ),
+    ).toContain('Photorealistic personal life photo of Makima');
+  });
+
+  it('returns undefined for non-JSON or prompt-less previews', () => {
+    expect(recoverSummaryFromInputPreview('not json')).toBeUndefined();
+    expect(recoverSummaryFromInputPreview(JSON.stringify({ n: 1 }))).toBeUndefined();
+    expect(recoverSummaryFromInputPreview(undefined)).toBeUndefined();
   });
 });
 

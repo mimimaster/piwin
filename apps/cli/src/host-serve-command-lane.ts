@@ -8,6 +8,8 @@ export type HostServeCommandLane = 'control' | 'serialized' | 'concurrent';
 
 const CONTROL_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/abort',
+  'session/pause',
+  'session/resume-run',
   'session/compact-abort',
   'session/steer',
   'session/follow_up',

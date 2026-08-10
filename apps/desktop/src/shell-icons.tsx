@@ -344,6 +344,14 @@ export function IconStop(props: IconProps): ReactElement {
   );
 }
 
+export function IconPause(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M8 5v14M16 5v14" />
+    </IconBase>
+  );
+}
+
 export function IconMoon(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>

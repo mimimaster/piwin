@@ -932,6 +932,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     handleEditAndResend,
     handleRetryFromMessage,
     handleAbort,
+    handlePause,
+    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,
@@ -1521,6 +1523,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     menuSkills,
     onCompact: handleCompact,
     onAbort: handleAbort,
+    onPause: handlePause,
     ensureSession,
     onNeedWorkspace: handleOpenWorkspaceClick,
     selectedModelKey,
@@ -1928,15 +1931,31 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [state, sessionTools, sessionPlan, jobs, runClock, desktopLocale],
   );
 
-  // Artifact height signal: bumped whenever an ArtifactFrame's iframe grows
-  // via the postMessage height bridge. Included in activitySignal so the
-  // transcript scroll system re-fires follow-tail scrolling even when the
-  // markdown text length hasn't changed (e.g. SVG growing inside iframe).
+  // Artifact height signal: bumped when an ArtifactFrame iframe grows via the
+  // postMessage bridge, so follow-tail can keep up with SVG/HTML stream growth
+  // even when markdown text length is unchanged.
+  //
+  // Coalesce hard: every tick re-renders App + stickToBottom. During SVG stream
+  // that produced a white flash near the composer (glass stage repaint thrash).
   const [artifactHeightTick, setArtifactHeightTick] = useState(0);
+  const lastNotifiedArtifactHeightRef = useRef(0);
+  const artifactHeightNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const artifactHeightSignal = useMemo<ArtifactHeightSignalContextValue>(
     () => ({
-      notifyHeightChange: () => {
-        setArtifactHeightTick((tick) => tick + 1);
+      notifyHeightChange: (height: number) => {
+        const previous = lastNotifiedArtifactHeightRef.current;
+        // Ignore noise; ResizeObserver often covers sub-threshold growth.
+        if (Math.abs(height - previous) < 12) {
+          return;
+        }
+        lastNotifiedArtifactHeightRef.current = height;
+        if (artifactHeightNotifyTimerRef.current) {
+          return;
+        }
+        artifactHeightNotifyTimerRef.current = setTimeout(() => {
+          artifactHeightNotifyTimerRef.current = null;
+          setArtifactHeightTick((tick) => tick + 1);
+        }, 280);
       },
     }),
     [],
@@ -1978,35 +1997,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [modelOptions, selectedModelKey, config?.defaultProviderId, config?.defaultModelId]);
 
   /**
-   * Status-bar percent must match ContextUsageRing: recompute used/limit against
-   * the selected model window rather than trusting host `contextRatio`, which may
-   * have been computed against a different limit (e.g. 128K vs 1M).
+   * Status-bar percent must match ContextUsageRing (shared used/limit math).
+   * Undefined until the first usage sample so chrome does not show a fake 0%.
    */
-  const contextUsagePercent = useMemo(() => {
-    const usage = state.contextUsage;
-    if (!usage) return 0;
-    const used =
-      typeof usage.tokensUsed === 'number'
-        ? usage.tokensUsed
-        : typeof usage.totalTokens === 'number'
-          ? usage.totalTokens
-          : typeof usage.promptTokens === 'number' || typeof usage.completionTokens === 'number'
-            ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
-            : undefined;
-    const limit =
-      typeof selectedModelContextWindow === 'number' && selectedModelContextWindow > 0
-        ? selectedModelContextWindow
-        : typeof usage.tokensLimit === 'number' && usage.tokensLimit > 0
-          ? usage.tokensLimit
-          : undefined;
-    if (typeof used === 'number' && typeof limit === 'number' && limit > 0) {
-      return Math.round(Math.min(1, Math.max(0, used / limit)) * 100);
-    }
-    if (typeof usage.contextRatio === 'number') {
-      return Math.round(Math.min(1, Math.max(0, usage.contextRatio)) * 100);
-    }
-    return 0;
-  }, [state.contextUsage, selectedModelContextWindow]);
+  const contextUsagePercent = useMemo(
+    () => computeContextUsagePercent(state.contextUsage, selectedModelContextWindow),
+    [state.contextUsage, selectedModelContextWindow],
+  );
 
   const composerLayoutMode =
     state.messages.length === 0 ? ('centered' as const) : ('docked' as const);
@@ -2096,6 +2093,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const handleComposerAbort = useCallback((): void => {
     void handleAbort();
   }, [handleAbort]);
+  const handleComposerPause = useCallback((): void => {
+    void handlePause();
+  }, [handlePause]);
+  const handleComposerResume = useCallback((): void => {
+    void handleResumeRun();
+  }, [handleResumeRun]);
   const handleComposerCompact = useCallback((): void => {
     void handleCompact();
   }, [handleCompact]);
@@ -2122,6 +2125,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       activeSessionId: state.activeSessionId,
       streaming: state.streaming,
       runPhase: state.runPhase,
+      paused: state.runTerminal.kind === 'paused',
       compacting: state.compacting,
       composer,
       onComposerChange: setComposer,
@@ -2168,6 +2172,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onThinkingLevelChange: handleThinkingLevelChange,
       ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
       onAbort: handleComposerAbort,
+      onPause: handleComposerPause,
+      onResume: handleComposerResume,
       onCompact: handleComposerCompact,
       compactionSupported: hostStatus?.capabilities?.compaction !== false,
       contextUsage: state.contextUsage,
@@ -2211,6 +2217,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       extensionUiInput,
       extensionUiRequest,
       handleComposerAbort,
+      handleComposerPause,
+      handleComposerResume,
       handleComposerAttachImage,
       handleComposerAttachFile,
       handleComposerCompact,
@@ -2269,6 +2277,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       state.projectPath,
       state.projectTrusted,
       state.runPhase,
+      state.runTerminal.kind,
       state.streaming,
       thinkingLevel,
     ],
@@ -2682,7 +2691,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
               >
                 <ArtifactHeightSignalProvider value={artifactHeightSignal}>
-                  {state.messages.length > 0 ? (
+                  {/*
+                   * Keep the thread mounted during the pre-ACK window. The
+                   * optimistic send marks the run as streaming before the
+                   * Host returns a run id, and ChatThread owns the waiting
+                   * activity locator for that state.
+                   */}
+                  {state.messages.length > 0 || state.streaming ? (
                     <ChatThread
                       messages={state.messages}
                       {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
