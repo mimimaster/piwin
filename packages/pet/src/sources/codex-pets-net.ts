@@ -313,7 +313,12 @@ export async function installPetFromCodexPetsNet(
     }
     await rm(backup, { recursive: true, force: true });
     await rm(staging, { recursive: true, force: true });
-    return { petId: finalPetId, source: 'registry', path: target };
+    return {
+      petId: finalPetId,
+      source: 'registry',
+      path: target,
+      registryLabel: 'codex-pets.net',
+    };
   } catch (err) {
     await rm(staging, { recursive: true, force: true });
     throw err;

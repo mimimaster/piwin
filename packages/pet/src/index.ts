@@ -50,6 +50,8 @@ export {
   CODEXPETHUB_ORIGIN,
   INSTALL_MANIFEST_SCHEMA,
 } from './sources/install-manifest.js';
+export { parsePetInstallInput } from './pet-install-input.js';
+export type { ParsedPetInstallInput } from './pet-install-input.js';
 export {
   installPetFromCodexPetsNet,
   fetchCodexPetsNetDetail,
