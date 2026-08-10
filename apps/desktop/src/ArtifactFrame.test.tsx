@@ -8,6 +8,7 @@ import type { ArtifactPreviewDecision } from '@piwin/artifact';
 import {
   ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
   resetArtifactInitQueueForTests,
+  resetArtifactLiveHostRegistryForTests,
 } from '@piwin/artifact';
 import { Button, PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
@@ -169,6 +170,7 @@ describe('ArtifactFrame chrome', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     instances = [];
     resetArtifactInitQueueForTests();
+    resetArtifactLiveHostRegistryForTests();
     IntersectionObserverFixture.instances = [];
   });
 
@@ -183,6 +185,7 @@ describe('ArtifactFrame chrome', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     resetArtifactInitQueueForTests();
+    resetArtifactLiveHostRegistryForTests();
     IntersectionObserverFixture.instances = [];
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });

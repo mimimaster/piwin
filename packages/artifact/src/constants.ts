@@ -38,8 +38,16 @@ export const MAX_CONCURRENT_ARTIFACT_INITS = 1;
  * Inline Artifact iframe viewport recycle: after leaving the transcript
  * viewport for this long, drop srcdoc/iframe to free WebContent memory.
  * Re-enter remounts via the init queue. Canvas presentation never recycles.
+ * Combined with MAX_LIVE_ARTIFACT_IFRAMES (live-host-registry) for a hard cap.
  */
 export const ARTIFACT_VIEWPORT_RECYCLE_TTL_MS = 5_000;
+
+/** Priority bands for the live-host registry (higher = keep). */
+export const ARTIFACT_LIVE_PRIORITY_OFFSCREEN = 10;
+export const ARTIFACT_LIVE_PRIORITY_NEAR = 50;
+export const ARTIFACT_LIVE_PRIORITY_VISIBLE = 100;
+export const ARTIFACT_LIVE_PRIORITY_STREAM = 1_000;
+export const ARTIFACT_LIVE_PRIORITY_CANVAS = 1_000;
 
 /**
  * IntersectionObserver rootMargin for Inline artifacts. Generous vertical

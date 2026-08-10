@@ -15,6 +15,11 @@ export {
   MAX_CONCURRENT_ARTIFACT_INITS,
   ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
   ARTIFACT_VIEWPORT_ROOT_MARGIN,
+  ARTIFACT_LIVE_PRIORITY_OFFSCREEN,
+  ARTIFACT_LIVE_PRIORITY_NEAR,
+  ARTIFACT_LIVE_PRIORITY_VISIBLE,
+  ARTIFACT_LIVE_PRIORITY_STREAM,
+  ARTIFACT_LIVE_PRIORITY_CANVAS,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
@@ -133,6 +138,17 @@ export type {
   ResolveArtifactViewportHostIntentInput,
   RectLike,
 } from './viewport-lifecycle.js';
+
+export {
+  MAX_LIVE_ARTIFACT_IFRAMES,
+  claimArtifactLiveHost,
+  touchArtifactLiveHost,
+  releaseArtifactLiveHost,
+  getLiveArtifactHostCount,
+  getLiveArtifactHostIdsForTests,
+  resetArtifactLiveHostRegistryForTests,
+} from './live-host-registry.js';
+export type { ArtifactLiveHostRegistration } from './live-host-registry.js';
 
 export {
   findOpenArtifactFence,

@@ -32,8 +32,9 @@
   left: 0;
   height: 24px;
   background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 72%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  /* No backdrop-filter: blur is a large WebContent/GPU retention cost. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   pointer-events: none;
@@ -53,8 +54,8 @@
     transparent 0%,
     color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 28%, transparent) 100%
   );
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   pointer-events: none;
