@@ -31,11 +31,17 @@ import {
   type McpLifecycleManager,
 } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
+import {
+  defaultNativeSearchAdapterSupport,
+  findConfiguredModel,
+  resolveSearchRoute,
+  shouldExposeExternalWebSearch,
+} from '../capabilities/search-route-resolver.js';
 import type { BrowserSession } from '@piwin/browser';
 import type { NoteStore, NoteIndex, SearchNotesOptions } from '@piwin/notes';
 import type { CardStore } from '@piwin/flashcards';
 import type { JobController } from '@piwin/contracts';
-import type { PiwinConfig } from '@piwin/contracts';
+import type { ModelRef, PiwinConfig } from '@piwin/contracts';
 import { getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
 import { getPiwinMediaDir } from '../paths.js';
 import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
@@ -92,6 +98,9 @@ export type BuildSessionHostToolsOptions = {
   /** Config for tool availability checks (web, notes, flashcards, image-gen). */
   config?: PiwinConfig;
 
+  /** Selected chat model for this generation (ADR 0043 search routing). */
+  model?: ModelRef;
+
   /** Secret resolver for provider-backed media generation. */
   secretResolver?: SecretResolver;
 
@@ -136,13 +145,19 @@ export async function buildSessionHostTools(
     );
   const mcpConfig = mcpSnapshot.config;
   // --- Web tools (web_search, web_fetch) ---
+  // ADR 0043: expose external web_search only when the resolved search route
+  // selected the external backend for this generation's model/policy.
   if (options.config?.web) {
     const webRegistration = buildSessionTools({
       webConfig: options.config.web,
     });
-    const webSearchReady = resolveWebConfig(options.config.web).searchSources.some(
-      (source) => source.enabled,
-    );
+    const configuredModel = findConfiguredModel(options.config, options.model);
+    const searchRoute = resolveSearchRoute({
+      ...(configuredModel?.model ? { model: configuredModel.model } : {}),
+      web: resolveWebConfig(options.config.web),
+      adapter: defaultNativeSearchAdapterSupport(),
+    });
+    const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
     tools.push(
       ...webRegistration.tools.filter(
         (tool) => tool.descriptor.name !== 'web_search' || webSearchReady,

@@ -14,6 +14,7 @@ import type {
   SessionSummary,
   ThemeManifest,
   SubagentBatchProjection,
+  SearchRoutePreviewInput,
 } from '@piwin/contracts';
 import type { SkillsPanelProps } from '../SkillsPanel';
 import type { McpPanelProps } from '../McpPanel';
@@ -41,6 +42,7 @@ export type SettingsConfigRequest = (command: {
     | 'secrets/set'
     | 'secrets/get'
     | 'web/test-search-source'
+    | 'web/search-route-preview'
     | 'project/permissions-list'
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
@@ -67,7 +69,8 @@ export type SettingsConfigRequest = (command: {
   themeId?: string;
   input?:
     | import('@piwin/contracts').ModelCatalogSearchRequest
-    | import('@piwin/contracts').VisionDelegateInput;
+    | import('@piwin/contracts').VisionDelegateInput
+    | SearchRoutePreviewInput;
   webTest?: import('@piwin/contracts').WebSearchTestInput;
 }) => Promise<HostResponse>;
 

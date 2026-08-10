@@ -12,6 +12,7 @@ import type {
   SessionTreeView,
   AgentMessageView,
   McpConfigDocument,
+  ModelRef,
   SessionToolFamily,
 } from '@piwin/contracts';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
@@ -55,6 +56,7 @@ type ProductAgentHostCommonOptions = {
   buildToolFamilyIndex?: (
     sessionId: string,
     runtimeGenerationId: string,
+    model?: ModelRef,
     mode?: ProductAgentHostToolRegistrationMode,
   ) => Promise<ReadonlyMap<SessionToolFamily, readonly string[]>>;
   /** Read the MCP document frozen for the same generation surface. */
@@ -99,6 +101,7 @@ export type ProductAgentHostOptions =
       buildToolDescriptors: (
         sessionId: string,
         runtimeGenerationId: string,
+        model?: ModelRef,
         mode?: ProductAgentHostToolRegistrationMode,
       ) => Promise<HostToolDescriptor[]>;
     });
@@ -296,11 +299,13 @@ export class ProductAgentHost implements AgentHost {
       const hostToolDescriptors = await this.options.buildToolDescriptors(
         sessionId,
         runtimeGenerationId,
+        input.model,
         registrationMode,
       );
       const hostToolFamilyIndex = await this.options.buildToolFamilyIndex?.(
         sessionId,
         runtimeGenerationId,
+        input.model,
         registrationMode,
       );
       const mcpConfig = await this.options.getMcpConfig?.(sessionId, runtimeGenerationId);

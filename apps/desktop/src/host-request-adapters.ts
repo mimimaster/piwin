@@ -29,6 +29,7 @@ export type HostRequestAdapters = {
       | 'secrets/set'
       | 'secrets/get'
       | 'web/test-search-source'
+      | 'web/search-route-preview'
       | 'project/permissions-list'
       | 'project/permissions-revoke'
       | 'usage/get-rollup'
@@ -55,7 +56,8 @@ export type HostRequestAdapters = {
     themeId?: string;
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
-      | import('@piwin/contracts').VisionDelegateInput;
+      | import('@piwin/contracts').VisionDelegateInput
+      | import('@piwin/contracts').SearchRoutePreviewInput;
     webTest?: import('@piwin/contracts').WebSearchTestInput;
   }) => Promise<HostResponse>;
   requestSkills: (command: {
@@ -326,6 +328,20 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         return hostClient.request({
           type: 'web/test-search-source',
           input: command.webTest,
+        });
+      }
+      if (command.type === 'web/search-route-preview') {
+        if (!command.input) {
+          return {
+            type: 'response',
+            command: 'web/search-route-preview',
+            success: false,
+            error: 'search route preview input is required',
+          };
+        }
+        return hostClient.request({
+          type: 'web/search-route-preview',
+          input: command.input as import('@piwin/contracts').SearchRoutePreviewInput,
         });
       }
       if (command.type === 'usage/get-rollup') {

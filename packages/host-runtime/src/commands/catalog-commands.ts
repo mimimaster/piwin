@@ -52,6 +52,7 @@ import { createSecretResolver } from '../secret-resolver.js';
 import { findEnabledModel, findEnabledProvider } from '../provider-helpers.js';
 import { resolveWebRuntimeCredentials } from '../web-credentials.js';
 import { testSearchSource } from '@piwin/tools-web';
+import { buildSearchRoutePreview } from '../capabilities/search-route-preview.js';
 import type { HostCommandContext } from './host-command-context.js';
 
 /**
@@ -92,6 +93,7 @@ const TYPES = new Set<HostCommand['type']>([
   'models/catalog/search',
   'models/image-catalog/search',
   'models/test',
+  'web/search-route-preview',
   'vision/delegate',
   'vision/cache/clear',
   'secrets/set',
@@ -437,6 +439,11 @@ export async function handleCatalogCommand(
         }
         throw error;
       }
+    }
+    case 'web/search-route-preview': {
+      const config = await loadPiwinConfig(context.piwinRoot);
+      const data = buildSearchRoutePreview(config, command.input);
+      return ok(requestId, 'web/search-route-preview', data);
     }
     case 'models/discover': {
       try {
