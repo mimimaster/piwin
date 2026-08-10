@@ -107,12 +107,11 @@ export const registryProvider: PetSourceProvider = {
     const catalogUrl = reg.registryUrl ?? DEFAULT_REGISTRY_URL;
     const response = await fetchFn(catalogUrl, init);
     if (!response.ok) {
-      // CodexPetHub no longer ships a public catalog.json (often 404). Browse
-      // is best-effort — surface a clear hint instead of a raw HTTP code.
+      // CodexPetHub no longer ships a public catalog.json (commonly HTTP 404).
+      // Browse is optional — return empty results instead of failing the UI.
+      // Install-by-id uses install-manifest / codex-pets.net and does not need this.
       if (response.status === 404) {
-        throw new Error(
-          `registry catalog unavailable (${catalogUrl} → HTTP 404). Use “Install by ID” with a pet slug (e.g. guga) instead of browsing.`,
-        );
+        return [];
       }
       throw new Error(`registry query failed: HTTP ${response.status} (${catalogUrl})`);
     }

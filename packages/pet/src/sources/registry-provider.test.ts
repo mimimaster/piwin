@@ -71,6 +71,28 @@ describe('registryProvider.queryStore', () => {
     const results = await registryProvider.queryStore!(ctx as never, '');
     expect(results[0]?.installed).toBe(true);
   });
+
+  it('returns empty results when catalog.json is HTTP 404 (browse optional)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-pet-reg-404-'));
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    }));
+    const ctx = {
+      piwinRoot: root,
+      petsDir: join(root, 'pets'),
+      codexPetsDir: join(root, 'codex'),
+      registryUrl: 'https://codexpethub.com/catalog.json',
+      fetch: fetchMock as never,
+    };
+    try {
+      const results = await registryProvider.queryStore!(ctx as never, 'anything');
+      expect(results).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 /**
