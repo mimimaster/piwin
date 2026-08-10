@@ -2,7 +2,7 @@
  * Pi model catalog projection types (static reference from @earendil-works/pi-ai).
  * Apps never import Pi packages; they query via IPC `models/catalog/search`.
  */
-import type { ModelInputModality } from './config.js';
+import type { ModelInputModality, VideoGenerationApiStyle } from './config.js';
 
 export type ModelCatalogEntry = {
   /**
@@ -306,4 +306,159 @@ function toStringArrayMap(
   if (!value) return new Map();
   if (value instanceof Map) return new Map(value);
   return new Map(Object.entries(value));
+}
+
+
+/**
+ * Curated video-generation model registry entry (ADR 0043).
+ * Keyed by provider protocol and exact model id / aliases.
+ */
+export type VideoGenerationRegistryEntry = {
+  /** Optional protocol filter; omit means any protocol. */
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  /** Canonical model id. */
+  modelId: string;
+  /** Case-insensitive aliases matched against discovered / configured ids. */
+  aliases?: readonly string[];
+  /** Display label for settings. */
+  label?: string;
+  /** Preferred async API style for the Video settings form. */
+  apiStyle: VideoGenerationApiStyle;
+  /** Default create-task path for the adapter. */
+  path?: string;
+};
+
+/**
+ * Versioned curated registry of known video-generation models.
+ * Exact id / alias matches may auto-tag `video-generation`; heuristics only suggest.
+ */
+export const VIDEO_GENERATION_MODEL_REGISTRY_VERSION = '2026-08-10';
+
+export const VIDEO_GENERATION_MODEL_REGISTRY: readonly VideoGenerationRegistryEntry[] = [
+  {
+    protocol: 'openai-compatible',
+    modelId: 'sora-2',
+    aliases: ['sora-2-pro', 'sora-2-turbo', 'openai/sora-2'],
+    label: 'Sora 2',
+    apiStyle: 'openai-videos',
+    path: '/videos',
+  },
+  {
+    protocol: 'openai-compatible',
+    modelId: 'sora',
+    aliases: ['openai/sora'],
+    label: 'Sora',
+    apiStyle: 'openai-videos',
+    path: '/videos',
+  },
+  {
+    protocol: 'google-gemini',
+    modelId: 'veo-3.0-generate-001',
+    aliases: [
+      'veo-3',
+      'veo-3.0',
+      'veo-2.0-generate-001',
+      'veo-2',
+      'models/veo-3.0-generate-001',
+      'models/veo-2.0-generate-001',
+    ],
+    label: 'Google Veo',
+    apiStyle: 'google-veo',
+    path: '/models/{model}:predictLongRunning',
+  },
+  {
+    modelId: 'gen4-turbo',
+    aliases: ['runway-gen4', 'gen4', 'gen3a_turbo', 'gen3-turbo'],
+    label: 'Runway Gen',
+    apiStyle: 'runway-tasks',
+    path: '/v1/text_to_video',
+  },
+  {
+    modelId: 'ray-2',
+    aliases: ['ray-flash-2', 'luma-ray-2', 'dream-machine'],
+    label: 'Luma Ray',
+    apiStyle: 'luma-generations',
+    path: '/dream-machine/v1/generations/video',
+  },
+  {
+    modelId: 'MiniMax-Hailuo-02',
+    aliases: ['minimax-video', 'hailuo-02', 'T2V-01', 'I2V-01'],
+    label: 'MiniMax Hailuo',
+    apiStyle: 'minimax-tasks',
+    path: '/v2/video_generation',
+  },
+];
+
+/** Tokens that strongly suggest video *generation* (not understanding/vision). */
+const VIDEO_GENERATION_HINT_PATTERN =
+  /(?:^|[^a-z0-9])(?:sora|veo[-_]?\d*|runway|gen[-_]?[34]|ray[-_]?\d*|hailuo|luma|dream-?machine|text2video|txt2vid|t2v|i2v|video-?gen(?:eration)?|kling|pika|lumaai)(?:[^a-z0-9]|$)/i;
+
+/** Tokens that indicate video understanding / vision rather than generation. */
+const VIDEO_UNDERSTANDING_HINT_PATTERN =
+  /(?:^|[^a-z0-9])(?:video-?(?:understand|understanding|analysis|analyze|caption|qa|chat|llm)|multimodal-?video|vision-?video)(?:[^a-z0-9]|$)/i;
+
+export type VideoGenerationLookupResult = {
+  entry: VideoGenerationRegistryEntry;
+  matchedId: string;
+  matchKind: 'exact' | 'alias';
+};
+
+/**
+ * Look up a curated video-generation registry entry by protocol + model id.
+ * Matching is case-insensitive on full id, split name after `/`, and aliases.
+ */
+export function lookupVideoGenerationRegistry(
+  modelId: string,
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
+): VideoGenerationLookupResult | undefined {
+  const trimmed = modelId.trim();
+  if (!trimmed) return undefined;
+  const fullLower = trimmed.toLowerCase();
+  const splitLower = splitModelName(trimmed).toLowerCase();
+
+  for (const entry of VIDEO_GENERATION_MODEL_REGISTRY) {
+    if (entry.protocol && protocol && entry.protocol !== protocol) {
+      continue;
+    }
+    const candidates = [entry.modelId, ...(entry.aliases ?? [])].map((value) =>
+      value.trim().toLowerCase(),
+    );
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const candidateSplit = splitModelName(candidate).toLowerCase();
+      if (
+        fullLower === candidate ||
+        splitLower === candidate ||
+        fullLower === candidateSplit ||
+        splitLower === candidateSplit
+      ) {
+        return {
+          entry,
+          matchedId: trimmed,
+          matchKind: candidate === entry.modelId.toLowerCase() ? 'exact' : 'alias',
+        };
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Heuristic: does this model look like a video-*generation* model?
+ * Deliberately excludes bare "video" so vision/understanding models are not
+ * silently tagged (ADR 0043).
+ */
+export function isLikelyVideoGenerationModel(
+  modelId: string,
+  label?: string,
+  capabilities?: readonly string[],
+): boolean {
+  if (capabilities?.includes('video-generation')) {
+    return true;
+  }
+  const haystack = `${modelId} ${label ?? ''}`.toLowerCase();
+  if (VIDEO_UNDERSTANDING_HINT_PATTERN.test(haystack)) {
+    return false;
+  }
+  return VIDEO_GENERATION_HINT_PATTERN.test(haystack);
 }
