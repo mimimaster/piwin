@@ -96,7 +96,6 @@
 
 /* ── Stage ────────────────────────────────────────────────────────── */
 
-
 .workspace {
   position: relative;
   display: flex;
@@ -156,6 +155,18 @@
 .chat-column-empty {
   padding: 0;
   overflow: hidden;
+}
+
+/* Ink wash is opt-in and only paints the empty composer canvas. Transcript,
+   call-chain cards, permissions, logs, terminal, and code remain image-free. */
+html[data-theme-visual-style='ink-wash'] .chat-column-empty {
+  background-color: var(--canvas, var(--bg));
+  background-image:
+    linear-gradient(180deg, rgba(11, 11, 12, 0.16), rgba(11, 11, 12, 0.72)),
+    var(--ink-wash-hero, none);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .chat-column-empty .chat-stage {

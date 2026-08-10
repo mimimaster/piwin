@@ -21,6 +21,8 @@ export type ThemeManifest = {
   version: string;
   description?: string;
   mode: 'dark' | 'light';
+  /** Optional product-owned visual layer; absent means token-only rendering. */
+  visualStyle?: 'flat' | 'paper' | 'ink-wash';
   tokens: ThemeColorTokens;
   /** Maps to @piwin/artifact theme CSS variables. */
   artifact?: Partial<{

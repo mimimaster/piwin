@@ -2817,3 +2817,15 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   cursor: pointer;
   padding: 4px 8px;
 }
+.ink-wash-empty-vignette {
+  display: block;
+  width: min(280px, 34vw);
+  max-height: 150px;
+  margin: 0 auto 8px;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 8px;
+  opacity: 0.84;
+  pointer-events: none;
+  user-select: none;
+}

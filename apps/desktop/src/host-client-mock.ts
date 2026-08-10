@@ -2,6 +2,7 @@ import { isPlaceholderSessionName } from './title-display';
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 import { buildForkSessionName } from '@piwin/session/fork-session-name';
 import { createMockSessionTranscriptPage } from './mock-session-transcript-page';
+import { PIWIN_APPEARANCE_INK_WASH } from './appearance-tokens';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
   AgentEvent,
@@ -63,7 +64,11 @@ export class MockHostBackend {
   private mockDisabledExtensionIds = new Set<string>();
   private mockBundledExtensionsInstalled = true;
   private mockDisabledPromptIds = new Set<string>();
-  private mockActiveThemeId: 'piwin-dark' | 'piwin-light' | 'piwin-orange-white' = 'piwin-dark';
+  private mockActiveThemeId:
+    | 'piwin-dark'
+    | 'piwin-light'
+    | 'piwin-orange-white'
+    | 'piwin-ink-wash' = 'piwin-dark';
   private mockJobs = new Map<string, import('@piwin/contracts').JobRecord>();
   private mockJobLogs = new Map<string, string>();
   private mockPtys = new Map<string, { projectPath: string }>();
@@ -1393,6 +1398,15 @@ export class MockHostBackend {
                 source: 'bundled',
                 active: activeThemeId === 'piwin-orange-white',
               },
+              {
+                id: 'piwin-ink-wash',
+                name: '砚夜泼墨',
+                version: '1.0.0',
+                mode: 'dark',
+                path: '/mock/themes/piwin-ink-wash',
+                source: 'bundled',
+                active: activeThemeId === 'piwin-ink-wash',
+              },
             ],
           },
         };
@@ -1401,12 +1415,23 @@ export class MockHostBackend {
       case 'theme/set-active': {
         if (command.type === 'theme/set-active') {
           const nextId =
-            command.themeId === 'piwin-light' || command.themeId === 'piwin-orange-white'
+            command.themeId === 'piwin-light' ||
+            command.themeId === 'piwin-orange-white' ||
+            command.themeId === 'piwin-ink-wash'
               ? command.themeId
               : 'piwin-dark';
           this.mockActiveThemeId = nextId;
         }
         const themeId = this.mockActiveThemeId;
+        if (themeId === 'piwin-ink-wash') {
+          return {
+            id,
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: { theme: PIWIN_APPEARANCE_INK_WASH },
+          };
+        }
         const isLight = themeId !== 'piwin-dark';
         const themeName =
           themeId === 'piwin-orange-white' ? '橙白' : isLight ? 'Piwin Light' : 'Piwin Dark';

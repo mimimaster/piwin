@@ -182,6 +182,10 @@ export type DesktopCopy = {
     dark: string;
     lightTheme: string;
     darkTheme: string;
+    themeLibrary: string;
+    themeLibraryDescription: string;
+    themeLibraryLoading: string;
+    themeLibraryFallback: string;
     preset: string;
     background: string;
     foreground: string;
@@ -624,6 +628,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       dark: 'Dark',
       lightTheme: 'Light Theme',
       darkTheme: 'Dark Theme',
+      themeLibrary: '主题包',
+      themeLibraryDescription: '选择只含 token 的主题包；视觉资产是可选的，也可以随时移除。',
+      themeLibraryLoading: '正在加载主题…',
+      themeLibraryFallback: '如果可选图像资产不可用，此主题会自动退回纯 token 渲染。',
       preset: 'Preset',
       background: 'Background',
       foreground: 'Foreground',
@@ -832,6 +840,12 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       dark: 'Dark',
       lightTheme: 'Light Theme',
       darkTheme: 'Dark Theme',
+      themeLibrary: 'Theme Library',
+      themeLibraryDescription:
+        'Choose a token-only theme package. Visual assets are optional and removable.',
+      themeLibraryLoading: 'Loading themes…',
+      themeLibraryFallback:
+        'This theme uses token-only rendering when optional artwork is unavailable.',
       preset: 'Preset',
       background: 'Background',
       foreground: 'Foreground',

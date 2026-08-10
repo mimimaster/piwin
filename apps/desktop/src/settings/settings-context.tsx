@@ -46,7 +46,9 @@ export type SettingsConfigRequest = (command: {
     | 'usage/get-rollup'
     | 'session/runtime-status'
     | 'session/compact-export'
-    | 'host/runtime-resources';
+    | 'host/runtime-resources'
+    | 'theme/list'
+    | 'theme/set-active';
   config?: PiwinConfig;
   provider?: ModelProviderConfig;
   apiKey?: string;
@@ -62,6 +64,7 @@ export type SettingsConfigRequest = (command: {
   sessionId?: string;
   customInstructions?: string;
   outputPath?: string;
+  themeId?: string;
   input?:
     | import('@piwin/contracts').ModelCatalogSearchRequest
     | import('@piwin/contracts').VisionDelegateInput;

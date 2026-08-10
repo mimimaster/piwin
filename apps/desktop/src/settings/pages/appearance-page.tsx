@@ -1,5 +1,6 @@
 /** Settings → Appearance: chat preferences and editable light/dark themes. */
-import type { ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
+import type { ThemeSummary } from '@piwin/contracts';
 import { Button, ColorInput, Select, SegmentedControl, Switch } from '@piwin/ui-kit';
 import { buildAppearanceTheme, resolveSystemThemeMode } from '../../appearance-tokens';
 import { getDesktopCopy, type DesktopCopy } from '../../desktop-locale';
@@ -165,12 +166,82 @@ function ThemeSettingsCard(props: {
   );
 }
 
+function ThemeLibraryCard(): ReactElement {
+  const { locale } = useDesktopLocale();
+  const copy = getDesktopCopy(locale).appearance;
+  const { request, activeTheme, onThemeApplied, setError, setInfo } = useSettings();
+  const [themes, setThemes] = useState<ThemeSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let disposed = false;
+    setLoading(true);
+    void request({ type: 'theme/list' }).then((response) => {
+      if (disposed) return;
+      setLoading(false);
+      if (!response.success) {
+        setError(response.error);
+        return;
+      }
+      const data = response.data as { themes?: ThemeSummary[] } | undefined;
+      setThemes(data?.themes ?? []);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [request, setError]);
+
+  async function handleThemeChange(themeId: string): Promise<void> {
+    if (!themeId || themeId === activeTheme.id) return;
+    const response = await request({ type: 'theme/set-active', themeId });
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as { theme?: import('@piwin/contracts').ThemeManifest } | undefined;
+    if (!data?.theme) {
+      setError('theme/set-active returned no theme');
+      return;
+    }
+    onThemeApplied(data.theme);
+    setInfo(
+      locale === 'zh-CN' ? `已切换到 ${data.theme.name}。` : `Switched to ${data.theme.name}.`,
+      'success',
+    );
+  }
+
+  return (
+    <section className="settings-section settings-section-card appearance-theme-library">
+      <PageTitle title={copy.themeLibrary} description={copy.themeLibraryDescription} />
+      <div className="appearance-theme-setting-row">
+        <span>{activeTheme.name}</span>
+        <Select
+          value={activeTheme.id}
+          onChange={(event) => void handleThemeChange(event.currentTarget.value)}
+          data={themes.map((theme) => ({
+            value: theme.id,
+            label: `${theme.name} · ${theme.mode}`,
+          }))}
+          aria-label={copy.themeLibrary}
+          disabled={loading || themes.length === 0}
+          testId="theme-library-select"
+        />
+      </div>
+      <p className="appearance-theme-library-note">
+        {loading ? copy.themeLibraryLoading : copy.themeLibraryFallback}
+      </p>
+    </section>
+  );
+}
+
 export function AppearancePage(): ReactElement {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).appearance;
   const { preferences, onPreferencesChange, onThemeApplied, activeTheme } = useSettings();
+  const themePackageActive = activeTheme.visualStyle !== undefined;
 
   function handleAppearanceModeChange(mode: AppearanceMode): void {
+    if (themePackageActive) return;
     const nextPreferences = { ...preferences, appearanceMode: mode };
     onPreferencesChange(nextPreferences);
     saveDesktopPreferences(nextPreferences);
@@ -182,6 +253,7 @@ export function AppearancePage(): ReactElement {
   }
 
   function handleThemeColorChange(mode: ThemeMode, key: ThemeColorKey, value: string): void {
+    if (themePackageActive) return;
     const currentThemeSettings = getAppearanceThemeSettings(preferences, mode);
     const nextThemeSettings: AppearanceThemeSettings = {
       ...currentThemeSettings,
@@ -199,6 +271,7 @@ export function AppearancePage(): ReactElement {
   }
 
   function resetAppearanceDefaults(): void {
+    if (themePackageActive) return;
     const nextPreferences: DesktopPreferences = {
       ...preferences,
       verboseAgentChat: true,
@@ -217,6 +290,7 @@ export function AppearancePage(): ReactElement {
 
   return (
     <div className="settings-card appearance-page" data-testid="settings-appearance">
+      <ThemeLibraryCard />
       <section className="settings-section settings-section-card">
         <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />
         <FieldRow label={copy.verboseAgentChat} description={copy.verboseAgentChatDescription}>
@@ -388,7 +462,6 @@ export function AppearancePage(): ReactElement {
           </Button>
         </div>
       </div>
-
     </div>
   );
 }

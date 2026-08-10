@@ -1,0 +1,32 @@
+{
+  "id": "piwin-ink-wash",
+  "name": "砚夜泼墨",
+  "version": "1.0.0",
+  "description": "Splash-ink night desk with charcoal xuan paper, quiet blue-black accents, and a restrained cinnabar mark.",
+  "mode": "dark",
+  "visualStyle": "ink-wash",
+  "tokens": {
+    "bg": "#0b0b0c",
+    "panel": "#121214",
+    "panel2": "#1b1b1e",
+    "border": "rgba(214, 205, 190, 0.12)",
+    "text": "#e8e3da",
+    "muted": "#a19a90",
+    "accent": "#5a7b86",
+    "accent2": "#89a3a8",
+    "danger": "#c24d43",
+    "ok": "#6d9277",
+    "radius": "8px",
+    "font": "Inter, -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Segoe UI\", system-ui, sans-serif"
+  },
+  "artifact": {
+    "bg": "transparent",
+    "surface": "rgba(18, 18, 20, 0.98)",
+    "text": "#e8e3da",
+    "muted": "#a19a90",
+    "accent": "#89a3a8",
+    "border": "rgba(214, 205, 190, 0.14)",
+    "radius": "0.5rem",
+    "font": "Inter, -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Segoe UI\", system-ui, sans-serif"
+  }
+}
