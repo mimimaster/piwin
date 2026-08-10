@@ -23,7 +23,10 @@ export type StatusBarProps = {
   terminalAttention?: boolean;
   /** Current branch name */
   branch?: string;
-  /** Context usage percent (0-100) */
+  /**
+   * Context usage percent (0–100). Omit until the first Host usage sample so
+   * empty sessions do not show a fake 0% ring.
+   */
   contextPercent?: number;
   /** Click handlers */
   onOpenSkills?: () => void;
@@ -34,8 +37,16 @@ export type StatusBarProps = {
 
 export function StatusBar(props: StatusBarProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
-  const contextPercent = props.contextPercent ?? 0;
-  const contextTone = contextPercent >= 90 ? 'critical' : contextPercent >= 70 ? 'warn' : 'ok';
+  const contextPercent =
+    typeof props.contextPercent === 'number' ? props.contextPercent : undefined;
+  const contextTone =
+    contextPercent === undefined
+      ? 'ok'
+      : contextPercent >= 90
+        ? 'critical'
+        : contextPercent >= 70
+          ? 'warn'
+          : 'ok';
 
   const agentState = props.agentState ?? 'idle';
   const terminalAttention = props.terminalAttention === true && agentState !== 'running';
@@ -78,20 +89,26 @@ export function StatusBar(props: StatusBarProps): ReactElement {
       </div>
 
       <div className="status-bar-right">
-        {/* Context usage */}
-        <span className={`status-bar-context tone-${contextTone}`} title={`Context ${contextPercent}%`}>
-          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
-            <circle
-              cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5"
-              strokeDasharray={`${2 * Math.PI * 6}`}
-              strokeDashoffset={`${2 * Math.PI * 6 * (1 - contextPercent / 100)}`}
-              strokeLinecap="round"
-              transform="rotate(-90 8 8)"
-            />
-          </svg>
-          {contextPercent}%
-        </span>
+        {/* Context usage — only after the first measured usage sample */}
+        {typeof contextPercent === 'number' ? (
+          <span
+            className={`status-bar-context tone-${contextTone}`}
+            title={`Context ${contextPercent}%`}
+            data-testid="status-bar-context"
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+              <circle
+                cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5"
+                strokeDasharray={`${2 * Math.PI * 6}`}
+                strokeDashoffset={`${2 * Math.PI * 6 * (1 - contextPercent / 100)}`}
+                strokeLinecap="round"
+                transform="rotate(-90 8 8)"
+              />
+            </svg>
+            {contextPercent}%
+          </span>
+        ) : null}
 
         {/* Skills count */}
         <button

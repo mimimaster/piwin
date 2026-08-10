@@ -11,7 +11,10 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import {
   CACHE_EXPIRY_ESTIMATE_MS,
+  computeContextUsagePercent,
   ContextUsageRing,
+  hasRenderableContextUsage,
+  resolveContextTokensUsed,
   type ContextUsageRingProps,
 } from './context-usage-ring.js';
 
@@ -79,6 +82,53 @@ function pressKey(target: Element, key: string): void {
   });
 }
 
+describe('context usage resolution', () => {
+  it('hides the ring until a real usage sample exists', () => {
+    expect(hasRenderableContextUsage(null)).toBe(false);
+    expect(computeContextUsagePercent(null, 128_000)).toBeUndefined();
+  });
+
+  it('prefers tokensUsed for context occupancy', () => {
+    expect(
+      resolveContextTokensUsed({
+        sessionId: 's1',
+        tokensUsed: 1_200,
+        totalTokens: 1_500,
+        updatedAt: '2026-07-26T00:00:00.000Z',
+      }),
+    ).toBe(1_200);
+  });
+
+  it('uses input-side tokens (prompt + cache) when tokensUsed is absent', () => {
+    // Assistant turn total includes completion; window fill is input-side.
+    expect(
+      resolveContextTokensUsed({
+        sessionId: 's1',
+        promptTokens: 700,
+        completionTokens: 200,
+        cacheReadTokens: 100,
+        cacheWriteTokens: 50,
+        totalTokens: 1_050,
+        updatedAt: '2026-07-26T00:00:00.000Z',
+        source: 'assistant-usage',
+      }),
+    ).toBe(850);
+    expect(
+      computeContextUsagePercent(
+        {
+          sessionId: 's1',
+          promptTokens: 700,
+          cacheReadTokens: 100,
+          cacheWriteTokens: 50,
+          totalTokens: 1_050,
+          updatedAt: '2026-07-26T00:00:00.000Z',
+        },
+        10_000,
+      ),
+    ).toBe(9);
+  });
+});
+
 describe('ContextUsageRing', () => {
   let container: HTMLElement;
   let root: Root;
@@ -106,6 +156,11 @@ describe('ContextUsageRing', () => {
       container.parentNode.removeChild(container);
     }
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('does not render before the first usage sample', () => {
+    render(createBaseProps({ usage: null }), root);
+    expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
   });
 
   it('renders a closed ring with the usage tone and title', () => {
@@ -297,12 +352,10 @@ describe('ContextUsageRing', () => {
     expect(popover?.textContent).not.toContain('Cache estimate');
   });
 
-  it('hides the estimate when usage is null', () => {
+  it('hides the ring entirely when usage is null (no sample yet)', () => {
     render(createBaseProps({ usage: null }), root);
-    activateTrigger();
-
-    const popover = queryPopover();
-    expect(popover?.textContent).not.toContain('Cache estimate');
+    expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
+    expect(queryPopover()).toBeNull();
   });
 
   it('clamps a future updatedAt to 5:00', () => {

@@ -84,6 +84,7 @@ export type DesktopCopy = {
     expandProject: string;
     showLess: string;
     seeAll: (count: number) => string;
+    loadMoreSessions: string;
     conversations: string;
     noGeneralConversations: string;
     loadingSessions: string;
@@ -522,6 +523,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProject: '展开项目',
       showLess: '收起',
       seeAll: (count) => `查看全部 (${count})`,
+      loadMoreSessions: '加载更多会话',
       conversations: '会话',
       noGeneralConversations: '暂无通用会话',
       loadingSessions: '正在加载会话…',
@@ -729,6 +731,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProject: 'Expand project',
       showLess: 'Show less',
       seeAll: (count) => `See all (${count})`,
+      loadMoreSessions: 'Load more sessions',
       conversations: 'Conversations',
       noGeneralConversations: 'No general conversations',
       loadingSessions: 'Loading sessions…',

@@ -46,7 +46,7 @@ import {
   IconClose,
   IconDocument,
   IconMic,
-  IconPause,
+
   IconPlus,
   IconSend,
   IconStop,
@@ -140,10 +140,8 @@ export type ComposerDockProps = {
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
   onSend: () => void;
+  /** Interrupt the active run (Cursor/Claude-style single stop intent). */
   onAbort: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  paused?: boolean;
   /** Model-originated question rendered inline above the composer input. */
   extensionUiRequest?: ExtensionUiRequestState | null;
   extensionUiInput?: string;
@@ -212,7 +210,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const copy = getDesktopCopy(locale).composer;
   const interruptionCopy = translator.interruption;
   const agentModeDefinition = getAgentMode(props.agentMode);
-  const isPaused = props.paused === true;
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
   const extensionUiRequest = props.extensionUiRequest ?? null;
@@ -719,74 +716,25 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     autoResize();
   }, [composerValue, props.layoutMode, autoResize]);
 
-  const renderPausedActions = (): ReactElement => (
+  // Single interrupt control while a run is live — matches Cursor/Claude Code
+  // (Stop/Esc). Checkpoint pause remains Host/CLI capability, not a second
+  // composer affordance.
+  const renderStreamingActions = (): ReactElement => (
     <div className="composer-v2-action-group">
       <button
         type="button"
-        className="composer-v2-send-btn"
-        data-testid="resume-run-btn"
-        disabled={!props.activeSessionId || !props.onResume}
-        onClick={props.onResume}
-        aria-label={copy.continueRun}
-        title={copy.continueRun}
-      >
-        <IconSend />
-      </button>
-      <button
-        type="button"
         className="composer-v2-stop-btn is-running"
-        data-testid="discard-pause-btn"
+        data-testid="stop-btn"
         data-action="stop"
-        disabled={!props.activeSessionId}
+        disabled={!props.activeSessionId || props.runPhase === 'aborting'}
         onClick={props.onAbort}
-        aria-label={copy.stop}
-        title={copy.stop}
+        aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+        title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
       >
         <IconStop />
       </button>
     </div>
   );
-
-  // One primary control while a run is live. Prefer Pause (checkpoint) when the
-  // Host supports it; fall back to irreversible Stop. Paused state still offers
-  // Continue + discard via renderPausedActions.
-  const renderStreamingActions = (): ReactElement => {
-    if (props.onPause) {
-      const isAborting = props.runPhase === 'aborting';
-      return (
-        <div className="composer-v2-action-group">
-          <button
-            type="button"
-            className="composer-v2-stop-btn composer-v2-pause-btn is-running"
-            data-testid="pause-btn"
-            data-action="pause"
-            disabled={!props.activeSessionId || isAborting}
-            onClick={props.onPause}
-            aria-label={isAborting ? copy.pausing : copy.pause}
-            title={isAborting ? copy.pausing : copy.pause}
-          >
-            {isAborting ? <IconStop /> : <IconPause />}
-          </button>
-        </div>
-      );
-    }
-    return (
-      <div className="composer-v2-action-group">
-        <button
-          type="button"
-          className="composer-v2-stop-btn is-running"
-          data-testid="stop-btn"
-          data-action="stop"
-          disabled={!props.activeSessionId || props.runPhase === 'aborting'}
-          onClick={props.onAbort}
-          aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-          title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-        >
-          <IconStop />
-        </button>
-      </div>
-    );
-  };
 
   return (
     <div
@@ -1141,9 +1089,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
           {/* Send / Stop Action Button */}
           <div className="composer-v2-action-slot">
-            {isPaused ? (
-              renderPausedActions()
-            ) : isStreamingRun ? (
+            {isStreamingRun ? (
               isExtensionUiActive ? (
                 renderStreamingActions()
               ) : hasContent ? (

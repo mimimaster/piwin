@@ -104,6 +104,7 @@ import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import { StatusBar } from './status-bar';
+import { computeContextUsagePercent } from './context-usage-ring';
 
 import { useRightPanelResize } from './hooks/use-right-panel-resize';
 import { useSidebarResize } from './hooks/use-sidebar-resize';
@@ -932,8 +933,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     handleEditAndResend,
     handleRetryFromMessage,
     handleAbort,
-    handlePause,
-    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,
@@ -1523,7 +1522,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     menuSkills,
     onCompact: handleCompact,
     onAbort: handleAbort,
-    onPause: handlePause,
     ensureSession,
     onNeedWorkspace: handleOpenWorkspaceClick,
     selectedModelKey,
@@ -2093,12 +2091,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const handleComposerAbort = useCallback((): void => {
     void handleAbort();
   }, [handleAbort]);
-  const handleComposerPause = useCallback((): void => {
-    void handlePause();
-  }, [handlePause]);
-  const handleComposerResume = useCallback((): void => {
-    void handleResumeRun();
-  }, [handleResumeRun]);
   const handleComposerCompact = useCallback((): void => {
     void handleCompact();
   }, [handleCompact]);
@@ -2125,7 +2117,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       activeSessionId: state.activeSessionId,
       streaming: state.streaming,
       runPhase: state.runPhase,
-      paused: state.runTerminal.kind === 'paused',
       compacting: state.compacting,
       composer,
       onComposerChange: setComposer,
@@ -2172,8 +2163,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onThinkingLevelChange: handleThinkingLevelChange,
       ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
       onAbort: handleComposerAbort,
-      onPause: handleComposerPause,
-      onResume: handleComposerResume,
       onCompact: handleComposerCompact,
       compactionSupported: hostStatus?.capabilities?.compaction !== false,
       contextUsage: state.contextUsage,
@@ -2217,8 +2206,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       extensionUiInput,
       extensionUiRequest,
       handleComposerAbort,
-      handleComposerPause,
-      handleComposerResume,
       handleComposerAttachImage,
       handleComposerAttachFile,
       handleComposerCompact,
@@ -2277,7 +2264,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       state.projectPath,
       state.projectTrusted,
       state.runPhase,
-      state.runTerminal.kind,
       state.streaming,
       thinkingLevel,
     ],
@@ -2850,7 +2836,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               mcpCount={menuMcp.filter((m) => m.running).length}
               agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
               terminalAttention={terminalAttention}
-              contextPercent={contextUsagePercent}
+              {...(typeof contextUsagePercent === 'number'
+                ? { contextPercent: contextUsagePercent }
+                : {})}
               onOpenSkills={() => openSettingsSection('skills')}
               onOpenMcp={() => openSettingsSection('tools')}
               locale={desktopLocale}

@@ -235,18 +235,24 @@ export function App(): ReactElement {
     const client = clientRef.current;
     const sessionId = activeSessionRef.current;
     const text = composerText.trim();
-    if (
-      client === undefined ||
-      sessionId === undefined ||
-      text.length === 0 ||
-      isSending ||
-      pausedCheckpointId !== undefined
-    ) {
+    if (client === undefined || sessionId === undefined || text.length === 0 || isSending) {
       return;
     }
     setIsSending(true);
     setErrorMessage(undefined);
     try {
+      // Clear any legacy Host checkpoint pause so a normal prompt can proceed.
+      if (pausedCheckpointId !== undefined) {
+        const clearPause = await client.request({
+          type: 'session/abort',
+          sessionId,
+        });
+        if (!clearPause.success) {
+          setErrorMessage(clearPause.error);
+          return;
+        }
+        setPausedCheckpointId(undefined);
+      }
       const response = await client.request({
         type: 'session/prompt',
         sessionId,
@@ -295,45 +301,6 @@ export function App(): ReactElement {
       }
     } catch (error) {
       setErrorMessage(toError(error, '停止运行失败。').message);
-    }
-  };
-
-  const handlePause = async (): Promise<void> => {
-    const client = clientRef.current;
-    const sessionId = activeSessionRef.current;
-    if (client === undefined || sessionId === undefined) return;
-    try {
-      const response = await client.request({
-        type: 'session/pause',
-        sessionId,
-        ...(activeRunId === undefined ? {} : { runId: activeRunId }),
-      });
-      if (!response.success) setErrorMessage(response.error);
-    } catch (error) {
-      setErrorMessage(toError(error, '暂停运行失败。').message);
-    }
-  };
-
-  const handleResumeRun = async (): Promise<void> => {
-    const client = clientRef.current;
-    const sessionId = activeSessionRef.current;
-    if (client === undefined || sessionId === undefined || pausedCheckpointId === undefined) {
-      return;
-    }
-    try {
-      const response = await client.request({
-        type: 'session/resume-run',
-        sessionId,
-        checkpointId: pausedCheckpointId,
-      });
-      if (!response.success) {
-        setErrorMessage(response.error);
-        return;
-      }
-      setActiveRunId(readRunId(response.data));
-      setPausedCheckpointId(undefined);
-    } catch (error) {
-      setErrorMessage(toError(error, '继续运行失败。').message);
     }
   };
 
@@ -620,23 +587,9 @@ export function App(): ReactElement {
                   </h2>
                 </div>
                 {activeRunId !== undefined ? (
-                  <>
-                    <Button variant="secondary" size="compact" onClick={() => void handlePause()}>
-                      暂停
-                    </Button>
-                    <Button variant="danger" size="compact" onClick={() => void handleAbort()}>
-                      停止
-                    </Button>
-                  </>
-                ) : pausedCheckpointId !== undefined ? (
-                  <div className="mobile-run-actions">
-                    <Button variant="primary" size="compact" onClick={() => void handleResumeRun()}>
-                      继续
-                    </Button>
-                    <Button variant="danger" size="compact" onClick={() => void handleAbort()}>
-                      清除暂停点
-                    </Button>
-                  </div>
+                  <Button variant="danger" size="compact" onClick={() => void handleAbort()}>
+                    停止
+                  </Button>
                 ) : null}
               </div>
               <div className="mobile-chat-messages" aria-live="polite">
@@ -902,11 +855,9 @@ function handleRemotePush(
 
   if (push.type === 'run/terminal' && push.run.sessionId === activeSessionId) {
     setRunId(undefined);
-    if (push.run.status === 'interrupted' && push.run.terminalCode === 'paused') {
-      setPausedCheckpointId(push.run.resumeCheckpointId);
-    } else {
-      setPausedCheckpointId(undefined);
-    }
+    // Pause checkpoints may still arrive from CLI/Host; mobile UI only exposes
+    // Stop, so clear the pause id and let the next send/abort clean Host state.
+    setPausedCheckpointId(undefined);
     return;
   }
 

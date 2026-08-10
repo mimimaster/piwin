@@ -4,7 +4,10 @@
  */
 import { useMemo, type ReactElement } from 'react';
 import type { ContextUsageSnapshot } from '@piwin/contracts';
-import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
+import {
+  resolveContextTokensLimit,
+  resolveContextTokensUsed,
+} from './context-usage-ring';
 
 export type ContextWindowPanelProps = {
   usage: ContextUsageSnapshot | null;
@@ -37,24 +40,15 @@ function formatTokens(value: number): string {
 export function ContextWindowPanel(props: ContextWindowPanelProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
 
-  const limit = useMemo(() => {
-    if (typeof props.modelContextWindow === 'number' && props.modelContextWindow > 0) {
-      return props.modelContextWindow;
-    }
-    if (typeof props.usage?.tokensLimit === 'number' && props.usage.tokensLimit > 0) {
-      return props.usage.tokensLimit;
-    }
-    return DEFAULT_MODEL_CONTEXT_WINDOW;
-  }, [props.usage?.tokensLimit, props.modelContextWindow]);
+  const limit = useMemo(
+    () => resolveContextTokensLimit(props.usage, props.modelContextWindow),
+    [props.usage, props.modelContextWindow],
+  );
 
-  const used = useMemo(() => {
-    if (typeof props.usage?.tokensUsed === 'number') return props.usage.tokensUsed;
-    if (typeof props.usage?.totalTokens === 'number') return props.usage.totalTokens;
-    if (typeof props.usage?.promptTokens === 'number' || typeof props.usage?.completionTokens === 'number') {
-      return (props.usage.promptTokens ?? 0) + (props.usage.completionTokens ?? 0);
-    }
-    return 0;
-  }, [props.usage]);
+  const used = useMemo(
+    () => resolveContextTokensUsed(props.usage) ?? 0,
+    [props.usage],
+  );
 
   const breakdown = props.breakdown ?? props.usage?.breakdown;
 

@@ -606,7 +606,9 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 1px;
+  /* Zero-height sentinels often never intersect in WebKit/Tauri, so the
+     next Host page never loads after See all. Keep a real hit target. */
+  min-height: 12px;
   margin: 0;
   list-style: none;
 }
