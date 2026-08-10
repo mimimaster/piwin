@@ -16,6 +16,8 @@ import {
   lookupCatalogByModelId,
   searchPiImagesCatalog,
 } from '@piwin/agent-host';
+import { readExplicitVideoGenerationMetadata } from './provider-model-capabilities.js';
+import type { ExplicitVideoGenerationMetadata } from './provider-model-capabilities.js';
 
 const DISCOVERY_TIMEOUT_MS = 15_000;
 const ANTHROPIC_API_VERSION = '2023-06-01';
@@ -60,8 +62,9 @@ export async function discoverProviderModels(
       );
     }
     const payload: unknown = await response.json();
-    const models = parseDiscoveredModels(provider.protocol, payload).map((model) =>
-      enrichDiscoveredModelFromCatalog(model),
+    const models = parseDiscoveredModels(provider.protocol, payload).map(
+      ({ model, videoMetadata }) =>
+        enrichDiscoveredModelFromCatalog(model, provider.protocol, videoMetadata),
     );
     return { providerId: provider.id, protocol: provider.protocol, models };
   } catch (error) {
@@ -155,10 +158,15 @@ function applyCustomHeaders(
   }
 }
 
+type ParsedDiscoveredModel = {
+  model: DiscoveredModel;
+  videoMetadata: ExplicitVideoGenerationMetadata | undefined;
+};
+
 function parseDiscoveredModels(
   protocol: ModelProviderConfig['protocol'],
   payload: unknown,
-): DiscoveredModel[] {
+): ParsedDiscoveredModel[] {
   if (!isRecord(payload)) {
     throw new ProviderModelDiscoveryError('Model discovery returned an invalid response');
   }
@@ -167,7 +175,7 @@ function parseDiscoveredModels(
     throw new ProviderModelDiscoveryError('Model discovery response did not contain a model list');
   }
 
-  const deduplicated = new Map<string, DiscoveredModel>();
+  const deduplicated = new Map<string, ParsedDiscoveredModel>();
   for (const rawModel of rawModels) {
     if (!isRecord(rawModel)) {
       continue;
@@ -185,18 +193,31 @@ function parseDiscoveredModels(
     if (typeof displayName === 'string' && displayName.trim() && displayName !== id) {
       model.label = displayName.trim();
     }
-    deduplicated.set(id, model);
+    deduplicated.set(id, {
+      model,
+      videoMetadata: readExplicitVideoGenerationMetadata(protocol, rawModel),
+    });
   }
-  return [...deduplicated.values()].sort((left, right) => left.id.localeCompare(right.id));
+  return [...deduplicated.values()].sort((left, right) =>
+    left.model.id.localeCompare(right.model.id),
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function enrichDiscoveredModelFromCatalog(model: DiscoveredModel): DiscoveredModel {
+function enrichDiscoveredModelFromCatalog(
+  model: DiscoveredModel,
+  protocol: ModelProviderConfig['protocol'],
+  videoMetadata: ExplicitVideoGenerationMetadata | undefined,
+): DiscoveredModel {
   const enriched = enrichFromCatalog(model, lookupCatalogByModelId(model.id));
-  return enrichImageGenerationCapability(enriched);
+  return enrichVideoGenerationCapability(
+    enrichImageGenerationCapability(enriched),
+    protocol,
+    videoMetadata,
+  );
 }
 
 /**

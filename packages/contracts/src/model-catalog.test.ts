@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   filterSuggestions,
   isLikelyImageGenerationModel,
+  isLikelyVideoGenerationModel,
+  lookupVideoGenerationRegistry,
   matchImageCatalog,
   splitModelName,
 } from './model-catalog.js';
@@ -142,5 +144,40 @@ describe('filterSuggestions', () => {
     // gpt-image-1, gemini-3-pro-image
     expect(filtered[0]!.modelId).toBe('openai/gpt-image-1');
     expect(filtered[1]!.modelId).toBe('google/gemini-3-pro-image');
+  });
+});
+
+describe('video generation discovery helpers', () => {
+  it('matches Sora registry metadata for an OpenAI-compatible model', () => {
+    expect(lookupVideoGenerationRegistry('sora-2', 'openai-compatible')).toMatchObject({
+      entry: {
+        apiStyle: 'openai-videos',
+        path: '/videos',
+        label: 'Sora 2',
+      },
+      matchKind: 'exact',
+    });
+  });
+
+  it('matches Veo registry metadata for a Google model alias', () => {
+    expect(lookupVideoGenerationRegistry('veo-3', 'google-gemini')).toMatchObject({
+      entry: {
+        apiStyle: 'google-veo',
+        path: '/models/{model}:predictLongRunning',
+        label: 'Google Veo',
+      },
+      matchKind: 'alias',
+    });
+  });
+
+  it('recognizes generation-oriented heuristic names', () => {
+    expect(isLikelyVideoGenerationModel('kling-v1')).toBe(true);
+    expect(isLikelyVideoGenerationModel('pika-1.0')).toBe(true);
+  });
+
+  it('does not treat video-understanding names as video generation', () => {
+    expect(isLikelyVideoGenerationModel('video-understanding-model')).toBe(false);
+    expect(isLikelyVideoGenerationModel('vision-video-chat')).toBe(false);
+    expect(isLikelyVideoGenerationModel('video-model')).toBe(false);
   });
 });

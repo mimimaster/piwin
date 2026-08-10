@@ -190,6 +190,18 @@ export type DiscoveredModel = {
    * `['image-generation']` when the model id matches Pi's image catalog.
    */
   capabilities?: ModelCapability[];
+  /**
+   * Video-generation suggestion from explicit provider metadata, the curated
+   * registry, or a name heuristic. Registry and provider matches may also set
+   * `capabilities` to include `video-generation`; heuristic-only matches never
+   * auto-enable the capability (ADR 0043).
+   */
+  videoGenerationSuggestion?: {
+    reason: 'provider' | 'registry' | 'heuristic';
+    apiStyle?: VideoGenerationApiStyle;
+    path?: string;
+    label?: string;
+  };
 };
 
 /** Safe model discovery payload. Never includes API credentials. */

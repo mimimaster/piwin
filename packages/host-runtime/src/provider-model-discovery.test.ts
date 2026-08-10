@@ -178,4 +178,114 @@ describe('discoverProviderModels', () => {
     const imageModel = result.models.find((model) => model.id === 'gemini-3-pro-image');
     expect(imageModel?.capabilities).toContain('image-generation');
   });
+
+  it('suggests Sora with curated registry metadata', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => createJsonResponse({ data: [{ id: 'sora-2' }] }),
+    });
+
+    expect(result.models).toEqual([
+      {
+        id: 'sora-2',
+        capabilities: ['video-generation'],
+        videoGenerationSuggestion: {
+          reason: 'registry',
+          apiStyle: 'openai-videos',
+          path: '/videos',
+          label: 'Sora 2',
+        },
+        label: 'Sora 2',
+      },
+    ]);
+  });
+
+  it('suggests Veo with curated registry metadata', async () => {
+    const result = await discoverProviderModels(
+      createProvider({
+        protocol: 'google-gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      }),
+      {
+        resolveSecret: async () => 'gemini-secret',
+        fetch: async () =>
+          createJsonResponse({
+            models: [{ name: 'models/veo-3', displayName: 'Veo 3' }],
+          }),
+      },
+    );
+
+    expect(result.models).toEqual([
+      {
+        id: 'veo-3',
+        label: 'Veo 3',
+        capabilities: ['video-generation'],
+        videoGenerationSuggestion: {
+          reason: 'registry',
+          apiStyle: 'google-veo',
+          path: '/models/{model}:predictLongRunning',
+          label: 'Google Veo',
+        },
+      },
+    ]);
+  });
+
+  it('gives explicit provider metadata precedence over registry metadata', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () =>
+        createJsonResponse({
+          data: [{ id: 'sora-2', capabilities: { video_generation: true } }],
+        }),
+    });
+
+    expect(result.models).toEqual([
+      {
+        id: 'sora-2',
+        capabilities: ['video-generation'],
+        videoGenerationSuggestion: { reason: 'provider' },
+      },
+    ]);
+  });
+
+  it('suggests Kling and Pika heuristically without auto-tagging', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => createJsonResponse({ data: [{ id: 'kling-v1' }, { id: 'pika-1.0' }] }),
+    });
+
+    expect(result.models).toEqual([
+      {
+        id: 'kling-v1',
+        videoGenerationSuggestion: { reason: 'heuristic' },
+      },
+      {
+        id: 'pika-1.0',
+        videoGenerationSuggestion: { reason: 'heuristic' },
+      },
+    ]);
+    expect(result.models.every((model) => !model.capabilities?.includes('video-generation'))).toBe(
+      true,
+    );
+  });
+
+  it('does not suggest video generation for video-understanding models', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () =>
+        createJsonResponse({
+          data: [
+            { id: 'video-understanding-model' },
+            { id: 'vision-video-chat' },
+            { id: 'video-model', input_modalities: ['video'] },
+          ],
+        }),
+    });
+
+    expect(result.models).toEqual([
+      { id: 'video-model' },
+      { id: 'video-understanding-model' },
+      { id: 'vision-video-chat' },
+    ]);
+  });
 });
