@@ -291,7 +291,7 @@ describe('chatUiReducer', () => {
     expect(state.streaming).toBe(false);
   });
 
-  it('cold resume paints empty (not previous session) and ignores stream until load-messages', () => {
+  it('cold resume keeps previous rows while awaiting and ignores stream until load-messages', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, {
@@ -317,17 +317,18 @@ describe('chatUiReducer', () => {
     });
     expect(state.activeSessionId).toBe('s2');
     expect(state.awaitingTranscript).toBe(true);
-    // Cold: empty paint — s1 lives only in warm cache.
-    expect(state.messages).toHaveLength(0);
+    // Cold: keep previous rows under loading banner (no empty flash).
+    expect(state.messages[0]?.text).toBe('hello from s1');
     expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toBe('hello from s1');
 
-    // Stream events for the new session must not invent rows while awaiting.
+    // Stream events for the new session must not append onto the painted rows.
     state = chatUiReducer(state, {
       type: 'event',
       sessionId: 's2',
       event: { type: 'message/start', messageId: 'a-new', role: 'assistant' },
     });
-    expect(state.messages).toHaveLength(0);
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]?.id).toBe('u1');
 
     state = chatUiReducer(state, {
       type: 'session/load-messages',
@@ -2509,7 +2510,7 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toContain('keep me');
   });
 
-  it('cold switch paints empty (never another session), warm hit restores instantly', () => {
+  it('cold switch keeps previous while loading; warm hit restores the target session', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'from s1' });
@@ -2518,8 +2519,8 @@ describe('chatUiReducer subagent hydration', () => {
       sessionId: 's2',
       awaitTranscript: true,
     });
-    // Cold s2: empty paint — do not show s1 rows under s2.
-    expect(state.messages).toHaveLength(0);
+    // Cold s2: keep s1 rows under loading (no empty vignette flash).
+    expect(state.messages.some((message) => message.text.includes('from s1'))).toBe(true);
     expect(state.warmSessionCache.byId.s1?.messages[0]?.text).toContain('from s1');
     expect(state.awaitingTranscript).toBe(true);
 

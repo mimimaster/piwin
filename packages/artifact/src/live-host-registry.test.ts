@@ -4,7 +4,10 @@ import {
   claimArtifactLiveHost,
   getLiveArtifactHostCount,
   getLiveArtifactHostIdsForTests,
+  getWaitingArtifactHostCount,
+  getWaitingArtifactHostIdsForTests,
   releaseArtifactLiveHost,
+  requestArtifactLiveHost,
   resetArtifactLiveHostRegistryForTests,
   touchArtifactLiveHost,
 } from './live-host-registry.js';
@@ -42,7 +45,6 @@ describe('artifact live host registry', () => {
         evicted.push('old-high');
       },
     });
-    // Fill to cap if MAX > 2
     for (let index = 2; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
       claimArtifactLiveHost({
         id: `pad-${index}`,
@@ -63,6 +65,33 @@ describe('artifact live host registry', () => {
     expect(evicted).not.toContain('old-high');
     expect(getLiveArtifactHostIdsForTests()).toContain('new');
     expect(getLiveArtifactHostIdsForTests()).not.toContain('old-low');
+  });
+
+  it('queues a denied claim and re-admits when a slot frees', () => {
+    const onAdmit = vi.fn();
+    // forceKeep fills the cap so a plain claim cannot evict and must wait.
+    for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
+      claimArtifactLiveHost({
+        id: `keep-${index}`,
+        forceKeep: true,
+        priority: 100,
+        evict: () => undefined,
+      });
+    }
+    const denied = claimArtifactLiveHost({
+      id: 'waiter',
+      priority: 10,
+      evict: () => undefined,
+      onAdmit,
+    });
+    expect(denied.admitted).toBe(false);
+    expect(getWaitingArtifactHostCount()).toBe(1);
+    expect(getWaitingArtifactHostIdsForTests()).toContain('waiter');
+
+    releaseArtifactLiveHost('keep-0');
+    expect(onAdmit).toHaveBeenCalledTimes(1);
+    expect(getLiveArtifactHostIdsForTests()).toContain('waiter');
+    expect(getWaitingArtifactHostCount()).toBe(0);
   });
 
   it('never evicts forceKeep hosts for budget (can exceed soft intent)', () => {
@@ -104,6 +133,30 @@ describe('artifact live host registry', () => {
     });
     expect(result.admitted).toBe(false);
     expect(getLiveArtifactHostIdsForTests()).not.toContain('plain');
+    expect(getWaitingArtifactHostIdsForTests()).toContain('plain');
+  });
+
+  it('requestArtifactLiveHost can evict a lower-priority live host', () => {
+    claimArtifactLiveHost({
+      id: 'low',
+      priority: 1,
+      evict: () => undefined,
+    });
+    for (let index = 1; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
+      claimArtifactLiveHost({
+        id: `mid-${index}`,
+        priority: 20,
+        evict: () => undefined,
+      });
+    }
+    const result = requestArtifactLiveHost({
+      id: 'click',
+      priority: 10,
+      evict: () => undefined,
+    });
+    expect(result.admitted).toBe(true);
+    expect(getLiveArtifactHostIdsForTests()).toContain('click');
+    expect(getLiveArtifactHostIdsForTests()).not.toContain('low');
   });
 
   it('touch updates priority used for later eviction', () => {
@@ -123,7 +176,6 @@ describe('artifact live host registry', () => {
       },
     });
     touchArtifactLiveHost('a', { priority: 1 });
-    // Fill remaining slots so a new claim must evict.
     for (let index = 2; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
       claimArtifactLiveHost({
         id: `pad-${index}`,
@@ -147,15 +199,5 @@ describe('artifact live host registry', () => {
     expect(result.admitted).toBe(true);
     expect(getLiveArtifactHostIdsForTests()).toEqual(expect.arrayContaining(['b', 'c']));
     expect(getLiveArtifactHostIdsForTests()).not.toContain('a');
-  });
-
-  it('evict callback is invoked when sacrificed', () => {
-    const onEvict = vi.fn();
-    claimArtifactLiveHost({ id: 'victim', priority: 0, evict: onEvict });
-    for (let index = 1; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
-      claimArtifactLiveHost({ id: `keep-${index}`, priority: 10, evict: () => undefined });
-    }
-    claimArtifactLiveHost({ id: 'winner', priority: 99, evict: () => undefined });
-    expect(onEvict).toHaveBeenCalledTimes(1);
   });
 });
