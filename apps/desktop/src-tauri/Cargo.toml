@@ -1,8 +1,8 @@
 [package]
 name = "piwin-desktop"
 version = "0.0.0"
-description = "piwin desktop shell"
-authors = ["piwin"]
+description = "piwinwin desktop shell"
+authors = ["piwinwin"]
 edition = "2021"
 
 [lib]

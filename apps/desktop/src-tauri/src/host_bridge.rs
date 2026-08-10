@@ -71,7 +71,7 @@ struct HostLogPayload {
 
 /// Status payload emitted to the UI so it can show reconnecting / fatal states
 /// without leaking the word "host" into user-facing copy. The UI maps
-/// `reconnecting` → "piwin 正在重连" and `fatal` → "piwin 遇到问题".
+/// `reconnecting` → "piwinwin 正在重连" and `fatal` → "piwinwin 遇到问题".
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct HostStatusPayload {

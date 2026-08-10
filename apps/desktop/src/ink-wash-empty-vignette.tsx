@@ -22,7 +22,7 @@ export function InkWashEmptyVignette(props: { theme: ThemeManifest }): ReactElem
             className="ink-wash-agent-seal-stamp"
             src={sealSource}
             alt="砚"
-            title="piwin 砚"
+            title="piwinwin 砚"
             decoding="async"
           />
         ) : null}
