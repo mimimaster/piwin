@@ -12,6 +12,7 @@ describe('evaluateCodeFence', () => {
     if (decision.kind === 'render') {
       expect(decision.mode).toBe('interactive');
       expect(decision.srcdoc).toContain('<h1>Hello</h1>');
+      expect(decision.renderSource).toContain('<h1>Hello</h1>');
       expect(decision.srcdoc).toContain('piwin-artifact:ready');
       expect(decision.csp).toContain("default-src 'none'");
       expect(decision.themeRepairs).toEqual([]);
@@ -61,7 +62,10 @@ describe('evaluateCodeFence', () => {
       expect(decision.mode).toBe('stream-preview');
       expect(decision.srcdoc).not.toContain('<script');
       expect(decision.streamSource).toBe('<div><p>Hi</p></div>');
+      expect(decision.renderSource).toBe('<div><p>Hi</p></div>');
       expect(decision.srcdoc).toContain('piwin-artifact:stream-update');
+      expect(decision.srcdoc).toContain('name="piwin-artifact-channel" content="stream"');
+      expect(decision.srcdoc).not.toContain('content="stream-stream"');
     } else {
       expect(['preparing', 'blocked', 'code']).toContain(decision.kind);
     }

@@ -59,6 +59,7 @@ export type UseComposerMediaArgs = {
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
   onCompact?: (customInstructions?: string) => Promise<void>;
   onAbort?: () => Promise<void>;
+  onPause?: () => Promise<void>;
   /** Create (or ensure) a live session when the user sends without one. */
   ensureSession?: (options?: {
     projectPath?: string;
@@ -959,6 +960,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (promptSubmissionInProgress.current) {
         return;
       }
+      if (args.state.runTerminal.kind === 'paused') {
+        return;
+      }
 
       // Only wait on media when something is actually in flight. Pure text
       // must paint in the same turn as Enter (no microtask hop before bubble).
@@ -1375,6 +1379,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       !sessionId ||
       args.state.streaming ||
       args.state.runPhase !== 'idle' ||
+      args.state.runTerminal.kind === 'paused' ||
       args.state.workingSessionIds[sessionId] === true ||
       queueDrainInProgressRef.current
     ) {
@@ -1398,6 +1403,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   }, [
     args.state.activeSessionId,
     args.state.runPhase,
+    args.state.runTerminal.kind,
     args.state.streaming,
     args.state.workingSessionIds,
     steerQueuesBySession,

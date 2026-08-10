@@ -43,6 +43,7 @@ export type RemoteCapabilitySummary = {
   snapshot: boolean;
   sessionRead: boolean;
   sessionControl: boolean;
+  sessionPause?: boolean;
   permissionResolve: boolean;
   mediaUpload: boolean;
   pushBatching?: boolean;

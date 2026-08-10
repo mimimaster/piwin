@@ -61,6 +61,7 @@ export function buildCapabilityMatrix(
       capabilities.sessionLifecycle === true || capabilities.sessionPin === true,
     ),
     row('sessionSearch', 'Session search', capabilities.sessionSearch === true),
+    row('sessionPause', 'Resumable session pause', capabilities.sessionPause === true),
     row('process', 'Managed processes', capabilities.process === true),
     row('pty', 'Interactive terminal (PTY)', capabilities.pty === true, ptyNote),
     row(

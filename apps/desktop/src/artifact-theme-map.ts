@@ -18,6 +18,8 @@ export function mapThemeToArtifactVariables(
 
   return {
     '--piwin-artifact-theme': theme.mode,
+    // The iframe document joins the transcript canvas. Initial paint is gated
+    // by ArtifactFrame; making the document opaque creates a page-like block.
     '--piwin-artifact-bg': artifact?.bg ?? 'transparent',
     '--piwin-artifact-surface': artifact?.surface ?? tokens.panel,
     '--piwin-artifact-text': artifact?.text ?? tokens.text,

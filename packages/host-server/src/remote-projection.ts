@@ -112,6 +112,7 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     snapshot: true,
     sessionRead: true,
     sessionControl: true,
+    sessionPause: true,
     permissionResolve: true,
     mediaUpload: true,
     pushBatching: true,

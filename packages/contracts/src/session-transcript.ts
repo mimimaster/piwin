@@ -109,6 +109,8 @@ export type SessionResumeData = {
   thinkingLevel?: import('./host.js').ThinkingLevel;
   /** Last authoritative context usage restored by the Host. */
   contextUsage?: import('./usage.js').ContextUsageSnapshot;
+  /** Active resumable checkpoint, when the last foreground turn was paused. */
+  pauseCheckpoint?: import('./session-pause.js').SessionPauseCheckpoint;
   /** Linear message outline for jump-scroll UI (not a multi-branch Pi tree). */
   outline?: SessionOutlineNode[];
 };

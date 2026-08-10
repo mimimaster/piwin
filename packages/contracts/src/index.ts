@@ -25,6 +25,7 @@ export * from './resource-manifest.js';
 export * from './context-manifest.js';
 export * from './session-capability.js';
 export * from './session-runtime.js';
+export * from './session-pause.js';
 export * from './extensions.js';
 export * from './prompts.js';
 export * from './mcp.js';

@@ -157,6 +157,7 @@ export type SessionListItemUi = {
 export type RunTerminalState =
   | { kind: 'none' }
   | { kind: 'stopped'; at: number }
+  | { kind: 'paused'; at: number; checkpointId?: string }
   | { kind: 'failed'; message: string; at: number }
   | { kind: 'complete'; at: number };
 
@@ -2194,7 +2195,9 @@ function applyRunRecord(
   const outcome =
     run.status === 'completed'
       ? ('completed' as const)
-      : run.status === 'cancelled' || run.status === 'interrupted'
+      : run.status === 'interrupted' && run.terminalCode === 'paused'
+        ? ('paused' as const)
+        : run.status === 'cancelled' || run.status === 'interrupted'
         ? ('cancelled' as const)
         : run.status === 'failed'
           ? ('failed' as const)
@@ -2272,7 +2275,13 @@ function applyRunRecord(
     activeSkill: null,
     error: outcome === 'failed' ? (run.error ?? 'Run failed') : state.error,
     runTerminal:
-      outcome === 'cancelled'
+      outcome === 'paused'
+        ? {
+            kind: 'paused',
+            at: Date.now(),
+            ...(run.resumeCheckpointId ? { checkpointId: run.resumeCheckpointId } : {}),
+          }
+        : outcome === 'cancelled'
         ? { kind: 'stopped', at: Date.now() }
         : outcome === 'failed'
           ? { kind: 'failed', message: run.error ?? 'Run failed', at: Date.now() }
@@ -2511,6 +2520,21 @@ function appendGeneratedAttachmentsToToolOwner(
   return matched ? { ...state, messages: nextMessages } : state;
 }
 
+/**
+ * True when a tool presentation summary is a raw JSON/args dump (including
+ * clipSummary-truncated dumps that no longer end with `}` / `]`).
+ */
+function isJsonishToolSummary(text: string | undefined): boolean {
+  if (!text) {
+    return false;
+  }
+  const trimmed = text.trim();
+  if (trimmed.length < 2) {
+    return false;
+  }
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
+}
+
 function mergeToolPresentation(
   existing: ToolPresentation | undefined,
   incoming: ToolPresentation,
@@ -2543,6 +2567,21 @@ function mergeToolPresentation(
   }
   if (changedPaths !== undefined) {
     merged.changedPaths = changedPaths;
+  }
+  // tool/end often rebuilds presentation without args (image_gen → paths JSON).
+  // Keep the start-time human summary and inputPreview instead of the dump.
+  if (
+    existing.summary &&
+    incoming.summary &&
+    isJsonishToolSummary(incoming.summary) &&
+    !isJsonishToolSummary(existing.summary)
+  ) {
+    merged.summary = existing.summary;
+  } else if (existing.summary && !incoming.summary) {
+    merged.summary = existing.summary;
+  }
+  if (existing.inputPreview && !incoming.inputPreview) {
+    merged.inputPreview = existing.inputPreview;
   }
   return merged;
 }

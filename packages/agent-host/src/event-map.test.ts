@@ -163,6 +163,46 @@ describe('mapPiSessionEvent', () => {
         },
       ],
     });
+    // Without args, do not promote paths JSON into the tool header summary.
+    expect(endEvents[0]).toMatchObject({
+      presentation: {
+        actionVerb: 'Generated image',
+      },
+    });
+    expect(
+      (endEvents[0] as { presentation?: { summary?: string } }).presentation?.summary,
+    ).toBeUndefined();
+  });
+
+  it('keeps image_gen prompt summary on tool_execution_end when args are present', () => {
+    const endEvents = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call-image-2',
+      toolName: 'image_gen',
+      isError: false,
+      args: { prompt: 'a red-haired woman tying her hair in a bathroom' },
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              paths: ['/tmp/.piwin/media/s1/a.png'],
+              mimeType: 'image/png',
+              byteSize: 128,
+            }),
+          },
+        ],
+        details: {},
+      },
+    });
+
+    expect(endEvents[0]).toMatchObject({
+      type: 'tool/end',
+      presentation: {
+        actionVerb: 'Generated image',
+        summary: 'a red-haired woman tying her hair in a bathroom',
+      },
+    });
   });
 
   it('ignores malformed media attachment details', () => {

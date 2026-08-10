@@ -157,6 +157,10 @@ export type PromptInput = {
    * injection. Unknown id fails the prompt — never silent Off.
    */
   orchestrationSchemeId?: string;
+  /** Internal Host continuation source; normal clients should omit this. */
+  source?: 'user' | 'resume';
+  /** Internal Host checkpoint reference used by session/resume-run. */
+  resumeCheckpointId?: string;
 };
 
 /** Structured failure for unavailable/over-limit turn profiles (HostResponse data). */
@@ -306,12 +310,14 @@ export type SessionRunPhase =
   | 'streaming'
   | 'tool-running'
   | 'waiting-permission'
+  | 'pausing'
   | 'cancelling'
   | 'waiting-resource';
 
 /** ADR 0015: stable terminal codes for run outcomes. */
 export type SessionRunTerminalCode =
   | 'cancelled'
+  | 'paused'
   | 'job-cleanup-failed'
   | 'model-connect-timeout'
   | 'model-first-token-timeout'
@@ -328,7 +334,7 @@ export type SessionRunAcceptedData = {
 };
 
 /** ADR 0015: terminal outcome for a run. */
-export type SessionRunOutcome = 'completed' | 'cancelled' | 'failed';
+export type SessionRunOutcome = 'completed' | 'cancelled' | 'failed' | 'paused';
 
 /**
  * Additive envelope for idempotent event delivery.

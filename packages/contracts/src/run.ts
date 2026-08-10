@@ -46,6 +46,8 @@ export type ExecutionRunRecord = {
   phaseDetail?: string;
   /** Timestamp of the latest phase transition. */
   phaseUpdatedAt?: string;
+  /** Durable checkpoint attached to a paused or resumed foreground run. */
+  resumeCheckpointId?: string;
   /** Whether the provider has produced the first model token for this Run. */
   firstTokenReceived?: boolean;
   startedAt?: string;
@@ -80,6 +82,7 @@ export const RUN_TERMINAL_CODES = {
   failed: 'failed',
   cancelled: 'cancelled',
   interrupted: 'interrupted',
+  paused: 'paused',
   integrationRequired: 'integration-required',
   jobCleanupFailed: 'job-cleanup-failed',
   workerCrash: 'worker-crash',

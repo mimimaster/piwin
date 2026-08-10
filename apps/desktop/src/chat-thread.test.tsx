@@ -562,6 +562,34 @@ describe('ChatThread render isolation (E1)', () => {
     expect(slot?.textContent).toContain('Connecting to model…');
   });
 
+  it('renders the run-activity slot when the optimistic transcript is still empty', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const slot = container.querySelector('[data-testid="run-activity-slot"]');
+    expect(slot).not.toBeNull();
+    expect(slot?.textContent).toContain('Connecting to model…');
+  });
+
   it('removes run-activity slot when a streaming assistant message arrives', () => {
     const userMessage = createUserMessage('u2', 'Hello');
     act(() => {
@@ -1097,6 +1125,10 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="turn-work-details"]')?.getAttribute('data-open'),
+    ).toBe('false');
     expect(container.querySelector('[data-testid="turn-summary-active-animation"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="turn-summary-radial-bellow"]')).toMatchObject({
       className: expect.stringContaining('ui-anim--sm'),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 import type { ArtifactActionMessage, ArtifactPreviewDecision } from '@piwin/artifact';
 import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
@@ -20,9 +20,20 @@ import {
   type ArtifactHeightPhase,
 } from '@piwin/artifact';
 import { useArtifactHeightSignal } from './artifact-height-signal';
+import { useTranscriptScrollPort } from './transcript-scroll-port';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
+
+/**
+ * Aligned with openwebui_m ArtifactBlock streaming cadence:
+ * first snapshot immediate, then at most one body update per window.
+ */
+const ARTIFACT_STREAM_RENDER_THROTTLE_MS = 300;
+/** Coalesce height bridge posts (owi: rAF + 120ms). */
+const ARTIFACT_BRIDGE_RESIZE_THROTTLE_MS = 120;
+/** Ignore sub-pixel / 1–2px height noise that reads as layout flicker. */
+const ARTIFACT_BRIDGE_HEIGHT_EPSILON_PX = 2;
 
 export type ArtifactFrameProps = {
   decision: Extract<
@@ -63,18 +74,18 @@ function postArtifactStreamUpdate(
   iframe: HTMLIFrameElement | null,
   channelId: string,
   source: string | undefined,
+  final = false,
 ): void {
   if (!iframe?.contentWindow || source === undefined) {
     return;
   }
-  iframe.contentWindow.postMessage(
-    {
-      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
-      channelId,
-      source,
-    },
-    '*',
-  );
+  const message = {
+    type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+    channelId,
+    source,
+    ...(final ? { final: true as const } : {}),
+  };
+  iframe.contentWindow.postMessage(message, '*');
 }
 
 /**
@@ -118,7 +129,8 @@ export function ArtifactFrame({
 
   return (
     <ArtifactRenderFrame
-      key={`${decision.descriptor.id}:${decision.mode}`}
+      // One id owns the stream and completed lifecycle; mode is state, not identity.
+      key={decision.descriptor.id}
       decision={decision}
       initPriority={initPriority}
       presentation={presentation}
@@ -138,13 +150,20 @@ function ArtifactRenderFrame(props: {
   extraHeaderAction?: ReactElement;
 }): ReactElement {
   const { decision, initPriority, presentation, onArtifactAction, onComposerProposal, extraHeaderAction } = props;
-  const channelId =
-    decision.mode === 'stream-preview'
-      ? `${decision.descriptor.id}-stream`
-      : decision.descriptor.id;
+  // Stable for the whole Artifact lifecycle. Stream completion must not
+  // re-run the init queue or replace the iframe browsing context.
+  const channelId = decision.descriptor.id;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const initialSrcdocRef = useRef(decision.srcdoc);
-  const latestStreamSourceRef = useRef(decision.streamSource);
+  const streamLifecycleRef = useRef(decision.mode === 'stream-preview');
+  if (decision.mode === 'stream-preview') {
+    streamLifecycleRef.current = true;
+  }
+  const usesStreamLifecycle = streamLifecycleRef.current;
+  const latestRenderSourceRef = useRef(decision.renderSource);
+  const latestUpdateIsFinalRef = useRef(decision.mode !== 'stream-preview');
+  const latestDescriptorSourceRef = useRef(decision.descriptor.source);
+  latestDescriptorSourceRef.current = decision.descriptor.source;
+  const lastFinalSourceRef = useRef<string | null>(null);
   const [granted, setGranted] = useState(false);
   const [height, setHeight] = useState(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const [contentOverflowing, setContentOverflowing] = useState(false);
@@ -152,6 +171,7 @@ function ArtifactRenderFrame(props: {
   const [statusLabel, setStatusLabel] = useState<'loading' | 'ready' | 'timeout' | 'streaming'>(
     decision.mode === 'stream-preview' ? 'streaming' : 'loading',
   );
+  const [paintedDocumentKey, setPaintedDocumentKey] = useState<string | null>(null);
   const floorRef = useRef(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const heightRef = useRef(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const phaseRef = useRef<ArtifactHeightPhase>('protected');
@@ -159,10 +179,29 @@ function ArtifactRenderFrame(props: {
   const shrinkPendingRef = useRef<number | null>(null);
   const slotReleasedRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastStreamPostAtRef = useRef(0);
+  const streamPostedOnceRef = useRef(false);
+  const pendingStreamSourceRef = useRef<string | undefined>(undefined);
+  const streamThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingBridgeHeightRef = useRef<number | null>(null);
+  const bridgeResizeRafRef = useRef<number | null>(null);
+  const bridgeResizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxHeight = MAX_ARTIFACT_INLINE_FLOW_HEIGHT;
   const heightSignal = useArtifactHeightSignal();
-  const iframeSrcdoc =
-    decision.mode === 'stream-preview' ? initialSrcdocRef.current : decision.srcdoc;
+  const transcriptScrollPort = useTranscriptScrollPort();
+  // A frame first mounted for streaming keeps its bootstrap srcdoc through the
+  // final commit; repaired body content and scripts are committed in place.
+  // A directly-mounted completed/history frame still loads its final srcdoc.
+  // evaluateCodeFence builds a NEW srcdoc string every render — reassigning
+  // iframe.srcdoc reloads the document (white flash) even if content matches.
+  const documentKey = usesStreamLifecycle
+    ? `stream-lifecycle:${decision.descriptor.id}`
+    : `${decision.mode}:${decision.descriptor.id}:${decision.srcdoc}`;
+  const frozenSrcdocRef = useRef({ key: documentKey, srcdoc: decision.srcdoc });
+  if (frozenSrcdocRef.current.key !== documentKey) {
+    frozenSrcdocRef.current = { key: documentKey, srcdoc: decision.srcdoc };
+  }
+  const iframeSrcdoc = frozenSrcdocRef.current.srcdoc;
 
   /**
    * Enter final-trim: allow measured heights to shrink back to the real content
@@ -173,9 +212,11 @@ function ArtifactRenderFrame(props: {
     if (settleTimerRef.current) {
       clearTimeout(settleTimerRef.current);
     }
+    phaseRef.current = 'final-trim';
     setPhase('final-trim');
     settleTimerRef.current = setTimeout(() => {
       settleTimerRef.current = null;
+      phaseRef.current = 'interactive';
       setPhase('interactive');
     }, ARTIFACT_FINAL_TRIM_SETTLE_MS);
   };
@@ -184,22 +225,86 @@ function ArtifactRenderFrame(props: {
     heightRef.current = height;
   }, [height]);
 
+  // After the iframe layout height commits, re-stick the transcript tail.
+  // App-level activitySignal is coalesced (~280ms) to avoid shell repaint
+  // thrash; this path sticks immediately without re-rendering App.
+  useLayoutEffect(() => {
+    transcriptScrollPort?.notifyContentGrew();
+  }, [height, transcriptScrollPort]);
+
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
 
+  // Stream body updates: first snapshot immediate, then ≤1 per 300ms. The final
+  // repaired body bypasses the throttle and commits inside the same iframe.
   useEffect(() => {
-    latestStreamSourceRef.current = decision.streamSource;
-    if (granted && decision.mode === 'stream-preview') {
-      postArtifactStreamUpdate(iframeRef.current, channelId, decision.streamSource);
+    latestRenderSourceRef.current = decision.renderSource;
+    latestUpdateIsFinalRef.current = decision.mode !== 'stream-preview';
+    if (!granted || !usesStreamLifecycle) {
+      return;
     }
-  }, [channelId, decision.mode, decision.streamSource, granted]);
 
-  // Init queue: grant before assigning srcdoc
+    const source = decision.renderSource;
+    const final = decision.mode !== 'stream-preview';
+    const postNow = (nextSource: string, isFinal = false): void => {
+      postArtifactStreamUpdate(iframeRef.current, channelId, nextSource, isFinal);
+      lastStreamPostAtRef.current = Date.now();
+      streamPostedOnceRef.current = true;
+    };
+
+    if (final) {
+      if (lastFinalSourceRef.current === source) {
+        return;
+      }
+      if (streamThrottleTimerRef.current) {
+        clearTimeout(streamThrottleTimerRef.current);
+        streamThrottleTimerRef.current = null;
+      }
+      pendingStreamSourceRef.current = undefined;
+      lastFinalSourceRef.current = source;
+      postNow(source, true);
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - lastStreamPostAtRef.current;
+    if (!streamPostedOnceRef.current || elapsed >= ARTIFACT_STREAM_RENDER_THROTTLE_MS) {
+      if (streamThrottleTimerRef.current) {
+        clearTimeout(streamThrottleTimerRef.current);
+        streamThrottleTimerRef.current = null;
+      }
+      pendingStreamSourceRef.current = undefined;
+      postNow(source);
+      return;
+    }
+
+    pendingStreamSourceRef.current = source;
+    if (streamThrottleTimerRef.current) {
+      return;
+    }
+    streamThrottleTimerRef.current = setTimeout(() => {
+      streamThrottleTimerRef.current = null;
+      const pending = pendingStreamSourceRef.current;
+      pendingStreamSourceRef.current = undefined;
+      if (pending !== undefined) {
+        postNow(pending);
+      }
+    }, ARTIFACT_STREAM_RENDER_THROTTLE_MS - elapsed);
+  }, [channelId, decision.mode, decision.renderSource, granted, usesStreamLifecycle]);
+
+  // Init queue: grant before assigning srcdoc.
+  // Depend ONLY on channelId. Re-running this effect sets granted=false and
+  // unmounts the iframe (white flash). owi keeps one ArtifactBlock instance for
+  // the whole stream; we must do the same.
+  const initPriorityRef = useRef(initPriority);
+  initPriorityRef.current = initPriority;
   useEffect(() => {
     let cancelled = false;
     setGranted(false);
-    void requestArtifactInit(channelId, { priority: initPriority }).then(() => {
+    streamPostedOnceRef.current = false;
+    lastStreamPostAtRef.current = 0;
+    void requestArtifactInit(channelId, { priority: initPriorityRef.current }).then(() => {
       if (!cancelled) {
         setGranted(true);
       }
@@ -218,14 +323,28 @@ function ArtifactRenderFrame(props: {
         clearTimeout(settleTimerRef.current);
         settleTimerRef.current = null;
       }
+      if (streamThrottleTimerRef.current) {
+        clearTimeout(streamThrottleTimerRef.current);
+        streamThrottleTimerRef.current = null;
+      }
+      if (bridgeResizeRafRef.current !== null) {
+        window.cancelAnimationFrame(bridgeResizeRafRef.current);
+        bridgeResizeRafRef.current = null;
+      }
+      if (bridgeResizeTimerRef.current) {
+        clearTimeout(bridgeResizeTimerRef.current);
+        bridgeResizeTimerRef.current = null;
+      }
     };
-  }, [channelId, initPriority]);
+  }, [channelId]);
 
   // Height bridge listener
   useEffect(() => {
     if (!granted) {
       return;
     }
+
+    let readyTimeout: number | null = null;
 
     const applyHeight = (nextHeight: number): void => {
       setContentOverflowing(nextHeight > maxHeight);
@@ -235,11 +354,32 @@ function ArtifactRenderFrame(props: {
         maxHeight,
         INITIAL_ARTIFACT_IFRAME_HEIGHT,
       );
+      if (Math.abs(clamped - heightRef.current) < ARTIFACT_BRIDGE_HEIGHT_EPSILON_PX) {
+        return;
+      }
       floorRef.current = Math.max(floorRef.current, clamped);
       setHeight(clamped);
-      // Notify the transcript scroll system that the iframe grew, so
-      // follow-tail scrolling re-fires even without text length changes.
+      // Notify scroll follow-tail (coalesced in App). Pass measured height so
+      // sub-threshold noise does not re-render the whole shell.
       heightSignal?.notifyHeightChange(clamped);
+    };
+
+    const scheduleHeight = (nextHeight: number): void => {
+      pendingBridgeHeightRef.current = nextHeight;
+      if (bridgeResizeRafRef.current !== null || bridgeResizeTimerRef.current) {
+        return;
+      }
+      bridgeResizeRafRef.current = window.requestAnimationFrame(() => {
+        bridgeResizeRafRef.current = null;
+        bridgeResizeTimerRef.current = setTimeout(() => {
+          bridgeResizeTimerRef.current = null;
+          const pending = pendingBridgeHeightRef.current;
+          pendingBridgeHeightRef.current = null;
+          if (pending !== null) {
+            applyHeight(pending);
+          }
+        }, ARTIFACT_BRIDGE_RESIZE_THROTTLE_MS);
+      });
     };
 
     const onMessage = (event: MessageEvent): void => {
@@ -257,8 +397,11 @@ function ArtifactRenderFrame(props: {
         if (
           actionMessage.channelId === channelId &&
           onArtifactAction &&
-          (actionMessage.action === 'flashcard/rate' || actionMessage.action === 'flashcard/open-source') &&
-          decision.descriptor.source.includes(`data-card-id="${actionMessage.payload.cardId}"`)
+          (actionMessage.action === 'flashcard/rate' ||
+            actionMessage.action === 'flashcard/open-source') &&
+          latestDescriptorSourceRef.current.includes(
+            `data-card-id="${actionMessage.payload.cardId}"`,
+          )
         ) {
           onArtifactAction(actionMessage);
         }
@@ -316,27 +459,42 @@ function ArtifactRenderFrame(props: {
         return;
       }
 
-      applyHeight(immediate);
-
+      // First ready height applies immediately so the frame appears promptly;
+      // later resizes are coalesced (owi-style) to avoid layout thrash.
       if (isArtifactBridgeReadyMessage(message) && phaseRef.current === 'protected') {
+        if (readyTimeout !== null) {
+          window.clearTimeout(readyTimeout);
+          readyTimeout = null;
+        }
+        applyHeight(immediate);
         setStatusLabel(decision.mode === 'stream-preview' ? 'streaming' : 'ready');
-        // Enter a short settle window: measured heights may shrink back to the
-        // real content height, then lock grow-only. Also frees the init slot so
-        // other artifacts in history can mount.
-        startFinalTrim();
+        setPaintedDocumentKey(documentKey);
+        // Stream-preview must stay grow-only (`protected`). Opening final-trim
+        // while tokens still arrive lets measured height shrink between
+        // snapshots — very visible flicker for SVG canvases and HTML cards.
+        if (decision.mode !== 'stream-preview') {
+          startFinalTrim();
+        }
         if (!slotReleasedRef.current) {
           slotReleasedRef.current = true;
           releaseArtifactInit(channelId);
         }
+        return;
       }
+
+      scheduleHeight(immediate);
     };
 
     window.addEventListener('message', onMessage);
 
-    const readyTimeout = window.setTimeout(() => {
+    readyTimeout = window.setTimeout(() => {
       if (phaseRef.current === 'protected') {
         setStatusLabel('timeout');
-        startFinalTrim();
+        setPaintedDocumentKey(documentKey);
+        // Never open final-trim while still in stream-preview.
+        if (decision.mode !== 'stream-preview') {
+          startFinalTrim();
+        }
         if (!slotReleasedRef.current) {
           slotReleasedRef.current = true;
           releaseArtifactInit(channelId);
@@ -346,7 +504,17 @@ function ArtifactRenderFrame(props: {
 
     return () => {
       window.removeEventListener('message', onMessage);
-      window.clearTimeout(readyTimeout);
+      if (readyTimeout !== null) {
+        window.clearTimeout(readyTimeout);
+      }
+      if (bridgeResizeRafRef.current !== null) {
+        window.cancelAnimationFrame(bridgeResizeRafRef.current);
+        bridgeResizeRafRef.current = null;
+      }
+      if (bridgeResizeTimerRef.current) {
+        clearTimeout(bridgeResizeTimerRef.current);
+        bridgeResizeTimerRef.current = null;
+      }
     };
   }, [
     granted,
@@ -356,17 +524,35 @@ function ArtifactRenderFrame(props: {
     onArtifactAction,
     onComposerProposal,
     presentation,
+    heightSignal,
+    documentKey,
   ]);
 
-  // Reset height state only when the iframe document changes. Streaming body
-  // snapshots use postMessage, so iframeSrcdoc stays stable for the whole run.
+  // Reset height only when the iframe *document identity* changes (not every
+  // parent re-render with a freshly-built but equivalent srcdoc string).
   useEffect(() => {
-    if (decision.mode === 'stream-preview') {
+    if (usesStreamLifecycle && decision.mode === 'stream-preview') {
       floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
       setContentOverflowing(false);
+      phaseRef.current = 'protected';
       setPhase('protected');
       setStatusLabel('streaming');
       slotReleasedRef.current = false;
+      streamPostedOnceRef.current = false;
+      lastStreamPostAtRef.current = 0;
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+      return;
+    }
+    if (usesStreamLifecycle) {
+      // Preserve the visible frame and its measured height while the final body
+      // is committed. The final ready/trim messages may then shrink cleanly.
+      setContentOverflowing(false);
+      phaseRef.current = 'protected';
+      setPhase('protected');
+      setStatusLabel('loading');
       if (settleTimerRef.current) {
         clearTimeout(settleTimerRef.current);
         settleTimerRef.current = null;
@@ -376,18 +562,19 @@ function ArtifactRenderFrame(props: {
     setHeight(INITIAL_ARTIFACT_IFRAME_HEIGHT);
     setContentOverflowing(false);
     floorRef.current = INITIAL_ARTIFACT_IFRAME_HEIGHT;
+    phaseRef.current = 'protected';
     setPhase('protected');
-    // After the stream-preview early return above, decision.mode is
-    // narrowed to 'interactive' — always use 'loading' here.
     setStatusLabel('loading');
     slotReleasedRef.current = false;
     if (settleTimerRef.current) {
       clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
     }
-  }, [decision.mode, iframeSrcdoc]);
+    setPaintedDocumentKey(null);
+  }, [decision.mode, documentKey, usesStreamLifecycle]);
 
   const isCanvas = presentation === 'canvas';
+  const hasExtraHeaderAction = extraHeaderAction !== undefined;
   return (
     <div
       data-testid="artifact-frame"
@@ -395,7 +582,7 @@ function ArtifactRenderFrame(props: {
       data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
       data-tool-status={statusLabel === 'ready' ? 'done' : 'running'}
       data-content-overflowing={contentOverflowing ? 'true' : undefined}
-      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}`}
+      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${hasExtraHeaderAction ? ' has-artifact-action' : ''}`}
     >
       {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
       {granted ? (
@@ -407,28 +594,42 @@ function ArtifactRenderFrame(props: {
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           onLoad={() => {
-            if (decision.mode === 'stream-preview') {
+            if (usesStreamLifecycle) {
+              // Force first paint snapshot on load (bypass throttle window).
+              streamPostedOnceRef.current = false;
+              lastStreamPostAtRef.current = 0;
               postArtifactStreamUpdate(
                 iframeRef.current,
                 channelId,
-                latestStreamSourceRef.current,
+                latestRenderSourceRef.current,
+                latestUpdateIsFinalRef.current,
               );
+              streamPostedOnceRef.current = true;
+              lastStreamPostAtRef.current = Date.now();
             }
           }}
           style={
             isCanvas
-              ? { minHeight: '100%', height: '100%', maxHeight: '100%', width: '100%', border: 0 }
+              ? {
+                  minHeight: '100%',
+                  height: '100%',
+                  maxHeight: '100%',
+                  width: '100%',
+                  border: 0,
+                  visibility: paintedDocumentKey === documentKey ? 'visible' : 'hidden',
+                }
               : {
                   minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
                   height,
                   maxHeight,
                   width: '100%',
                   border: 0,
+                  visibility: paintedDocumentKey === documentKey ? 'visible' : 'hidden',
                 }
           }
         />
       ) : (
-        <p className="muted">Waiting for artifact init slot…</p>
+        <p className="muted artifact-frame-waiting">Waiting for artifact init slot…</p>
       )}
     </div>
   );
