@@ -1,6 +1,8 @@
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  modelSupportsCapability,
+  resolveNativeWebSearchMode,
   THINKING_LEVEL_OPTIONS,
 } from '@piwin/contracts';
 import type {
@@ -10,6 +12,7 @@ import type {
   ModelConfigEntry,
   ModelInputModality,
   ModelProviderConfig,
+  NativeWebSearchMode,
   ThinkingLevel,
 } from '@piwin/contracts';
 import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
@@ -30,6 +33,10 @@ export type ModelConfigurationDraft = {
   supportsSpeechToText: boolean;
   /** Maps to `capabilities` including `text-to-speech`. */
   supportsTextToSpeech: boolean;
+  /** Maps to `capabilities` including `native-web-search`. */
+  supportsNativeWebSearch: boolean;
+  /** Controls whether provider-native search can be disabled for a request. */
+  nativeWebSearchMode: NativeWebSearchMode;
   /** Maps to `reasoning`. */
   reasoning: boolean;
 };
@@ -78,6 +85,8 @@ export function createModelConfigurationDraft(
     supportsImageGeneration: effective.capabilities?.includes('image-generation') ?? false,
     supportsSpeechToText: effective.capabilities?.includes('speech-to-text') ?? false,
     supportsTextToSpeech: effective.capabilities?.includes('text-to-speech') ?? false,
+    supportsNativeWebSearch: modelSupportsCapability(effective, 'native-web-search'),
+    nativeWebSearchMode: resolveNativeWebSearchMode(effective),
     reasoning: effective.reasoning ?? true,
   };
 }
@@ -127,6 +136,10 @@ export function createModelConfigurationEntry(
   }
   if (draft.supportsTextToSpeech) {
     capabilities.push('text-to-speech');
+  }
+  if (draft.supportsNativeWebSearch) {
+    capabilities.push('native-web-search');
+    model.nativeWebSearchMode = draft.nativeWebSearchMode;
   }
   if (capabilities.length > 0) {
     model.capabilities = capabilities;
@@ -182,21 +195,38 @@ export function applyModelConfigurationDraft(
   if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
   // Preserve capability tags that this editor does not expose (for example
-  // video-generation), while replacing the image and speech flags it owns.
+  // video-generation), while replacing the image, speech, and native-search
+  // flags it owns.
   const preservedCapabilities = (original.capabilities ?? []).filter(
     (capability) =>
       capability !== 'image-generation' &&
       capability !== 'speech-to-text' &&
-      capability !== 'text-to-speech',
+      capability !== 'text-to-speech' &&
+      capability !== 'native-web-search',
   );
   const editedCapabilities = new Set<ModelCapability>(preservedCapabilities);
   if (draft.supportsImageGeneration) editedCapabilities.add('image-generation');
   if (draft.supportsSpeechToText) editedCapabilities.add('speech-to-text');
   if (draft.supportsTextToSpeech) editedCapabilities.add('text-to-speech');
+  if (draft.supportsNativeWebSearch) editedCapabilities.add('native-web-search');
   if (editedCapabilities.size > 0) {
     updated.capabilities = [...editedCapabilities];
   } else {
     delete updated.capabilities;
+  }
+  if (draft.supportsNativeWebSearch) {
+    updated.nativeWebSearchMode = draft.nativeWebSearchMode;
+  } else {
+    delete updated.nativeWebSearchMode;
+    if (updated.routes && 'native-web-search' in updated.routes) {
+      const preservedRoutes = { ...updated.routes };
+      delete preservedRoutes['native-web-search'];
+      if (Object.keys(preservedRoutes).length > 0) {
+        updated.routes = preservedRoutes;
+      } else {
+        delete updated.routes;
+      }
+    }
   }
   if (draft.thinkingLevels.length === 0) {
     delete updated.thinkingLevels;

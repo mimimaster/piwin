@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { formatError } from '@piwin/contracts';
+import { formatError, modelSupportsCapability } from '@piwin/contracts';
 import type {
   DiscoveredModel,
   ModelConfigEntry,
@@ -280,6 +280,18 @@ export function ModelWorkbench({
                           {isChinese ? '思考度' : 'Thinking'}: {model.thinkingLevel}
                         </span>
                       )}
+                      {modelSupportsCapability(model, 'native-web-search') ? (
+                        <span
+                          className="pill"
+                          data-testid={`model-pill-native-search-${model.id}`}
+                          style={{
+                            background: 'var(--surface-hover, rgba(255,255,255,0.08))',
+                            color: 'var(--accent, #60a5fa)',
+                          }}
+                        >
+                          {copy.nativeSearch}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
                       {formatTokenCount(model.contextWindow)} ctx ·{' '}
