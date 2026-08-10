@@ -25,6 +25,7 @@ import type {
   PlanExecutionMode,
 } from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
+import { CitationCards } from './CitationCards';
 import { MediaPreview } from './MediaPreview';
 import { WebElementChip } from './WebElementChip';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
@@ -750,6 +751,16 @@ const ChatMessageRow = memo(
       );
     }
 
+    if (
+      message.role === 'assistant' &&
+      message.text.trim().length === 0 &&
+      message.tools.length === 0 &&
+      message.attachments.length === 0 &&
+      (message.searchEvidence?.citations.length ?? 0) === 0
+    ) {
+      // Keep citation-only assistant rows visible while suppressing empty lifecycle rows.
+      return null;
+    }
     const isEditingThis = props.editingMessageId === message.id;
 
     const rowClass = [
@@ -855,10 +866,13 @@ const ChatMessageRow = memo(
             messageId={message.id}
             initialText={message.text}
             composerCard={props.composerCard}
+        {message.role === 'assistant' && message.searchEvidence !== undefined ? (
+          <CitationCards evidence={message.searchEvidence} />
+        ) : null}
             onCancel={props.onCancelEdit}
             onResend={(text) => props.onEditResend(message.id, text)}
           />
-        ) : (
+        ) : message.role === 'assistant' ? null : (
           <UserMessageContent
             message={message}
             streaming={props.streaming}

@@ -187,6 +187,32 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('round-trips native search evidence through metadata_json', async () => {
+    const { store } = await openStore('search-evidence');
+    const searchEvidence = {
+      query: 'piwin',
+      provenance: 'native' as const,
+      citations: [
+        { title: 'Piwin', url: 'https://example.com/piwin', provenance: 'native' as const },
+        { title: 'Piwin docs', url: 'https://example.com/docs', provenance: 'native' as const },
+      ],
+    };
+    await store.appendMessage({
+      ...messageInput({
+        id: 'piw-m-search',
+        runtimeGenerationId: 'gen-search',
+        backendMessageId: 'backend-search',
+      }),
+      metadata: { searchEvidence },
+    });
+
+    await expect(store.getMessage('piw-m-search')).resolves.toMatchObject({
+      id: 'piw-m-search',
+      searchEvidence,
+    });
+    store.close();
+  });
+
   it('keeps cross-generation tool-call cards attached to their own assistant rows', async () => {
     const { store } = await openStore('tools');
     await store.appendMessage(

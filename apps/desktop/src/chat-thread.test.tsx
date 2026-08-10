@@ -18,6 +18,7 @@ import { RightPanel } from './right-panel';
 import {
   chatUiReducer,
   createInitialChatUiState,
+  mapTranscriptMessagesToUi,
   type ChatUiAction,
   type ChatUiState,
   type ChatMessageUi,
@@ -1031,6 +1032,81 @@ describe('ChatThread render isolation (E1)', () => {
       tools: [{ ...imageTool, toolCallId: 'video-tool-1', toolName: 'video_gen' }],
     });
     expect(container.querySelector('[data-testid="video-generation-progress"]')).not.toBeNull();
+  });
+
+  it('renders native citations for live and hydrated assistant messages only', () => {
+    const evidence = {
+      query: 'piwin',
+      provenance: 'native' as const,
+      citations: [
+        {
+          title: 'Piwin docs',
+          url: 'https://example.com/piwin',
+          snippet: 'A normalized citation.',
+          provenance: 'native' as const,
+        },
+      ],
+    };
+    const liveMessage: ChatMessageUi = {
+      ...createStreamingAssistant('native-live'),
+      text: 'Grounded answer',
+      status: 'done',
+      searchEvidence: evidence,
+    };
+    const [hydratedMessage] = mapTranscriptMessagesToUi([
+      {
+        id: 'native-hydrated',
+        role: 'assistant',
+        text: 'Hydrated answer',
+        createdAt: '2026-08-10T00:00:00.000Z',
+        status: 'done',
+        searchEvidence: evidence,
+      },
+    ]);
+
+    function renderMessage(message: ChatMessageUi | undefined): void {
+      if (!message) throw new Error('expected hydrated message');
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ChatThread
+              messages={[message]}
+              streaming={false}
+              editingMessageId={null}
+              lastUserMessageId={null}
+              activeTheme={null}
+              artifactThemeKey={0}
+              onEdit={noop}
+              onCancelEdit={noop}
+              onEditResend={noop}
+              onRetry={noop}
+              onInspectSubagent={undefined}
+              composerCard={composerCard}
+              locale="en"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    }
+
+    renderMessage(liveMessage);
+    expect(container.querySelector('[data-testid="native-search-citations"]')).toMatchObject({
+      textContent: expect.stringContaining('Native search'),
+    });
+    expect(container.querySelector('.citation-url')?.textContent).toBe('https://example.com/piwin');
+    expect(container.querySelector('.citation-snippet')?.textContent).toContain(
+      'A normalized citation.',
+    );
+
+    renderMessage(hydratedMessage);
+    expect(container.querySelector('[data-testid="native-search-citations"]')).not.toBeNull();
+
+    renderMessage({
+      ...liveMessage,
+      id: 'native-empty',
+      searchEvidence: { provenance: 'native', citations: [] },
+    });
+    expect(container.querySelector('[data-testid="native-search-citations"]')).toBeNull();
   });
 
   it('updates existing thinking details when verbose Agent chat changes', () => {

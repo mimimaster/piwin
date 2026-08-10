@@ -8,6 +8,7 @@ import type {
   SessionRunPhase,
   ToolPresentation,
 } from './host.js';
+import type { SearchEvidence } from './web.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -58,6 +59,7 @@ export type SessionTranscriptMessage = {
   terminalMessage?: string;
   thinking?: string;
   tools?: SessionToolCardView[];
+  searchEvidence?: SearchEvidence;
   attachments?: MediaAttachmentRef[];
   /** When set, UI renders a SubagentActivityCard instead of plain system text. */
   subagentActivity?: SubagentActivityView;

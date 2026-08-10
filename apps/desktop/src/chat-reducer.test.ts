@@ -43,6 +43,61 @@ describe('chatUiReducer', () => {
     expect(state.streaming).toBe(false);
   });
 
+  it('projects live native search evidence onto the assistant message', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'native-a1', role: 'assistant' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/search_evidence',
+        messageId: 'native-a1',
+        evidence: {
+          query: 'piwin',
+          provenance: 'native',
+          citations: [{ title: 'Piwin', url: 'https://example.com/piwin', provenance: 'native' }],
+        },
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/end', messageId: 'native-a1' },
+    });
+
+    expect(state.messages[0]?.searchEvidence).toEqual({
+      query: 'piwin',
+      provenance: 'native',
+      citations: [{ title: 'Piwin', url: 'https://example.com/piwin', provenance: 'native' }],
+    });
+  });
+
+  it('hydrates normalized search evidence without provider payload fields', () => {
+    const [assistant] = mapTranscriptMessagesToUi([
+      {
+        id: 'native-hydrated',
+        role: 'assistant',
+        text: 'grounded answer',
+        createdAt: '2026-08-10T00:00:00.000Z',
+        status: 'done',
+        searchEvidence: {
+          provenance: 'native',
+          citations: [{ title: 'Piwin', url: 'https://example.com/piwin', provenance: 'native' }],
+        },
+      },
+    ]);
+
+    expect(assistant?.searchEvidence).toEqual({
+      provenance: 'native',
+      citations: [{ title: 'Piwin', url: 'https://example.com/piwin', provenance: 'native' }],
+    });
+  });
+
   it('does not create duplicate bubbles for a replayed assistant start event', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
