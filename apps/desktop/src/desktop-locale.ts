@@ -287,6 +287,15 @@ export type DesktopTranslator = {
       shortcuts: string;
       animations: string;
     };
+    web: {
+      searchRoute: string;
+      searchRouteDescription: string;
+      nativeSearchFirst: string;
+      externalSearchFirst: string;
+      nativeSearchOnly: string;
+      externalSearchOnly: string;
+      previewRequestFailed: string;
+    };
     provider: {
       search: string;
       configuredHeading: string;
@@ -959,6 +968,19 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         usage: isChinese ? '用量统计' : 'Usage',
         shortcuts: isChinese ? '快捷键' : 'Shortcuts',
         animations: isChinese ? '动效' : 'Animations',
+      },
+      web: {
+        searchRoute: isChinese ? '搜索路由' : 'Search route',
+        searchRouteDescription: isChinese
+          ? '每次生成只选择一个搜索出口；不会在请求失败后静默重试另一个出口。'
+          : 'Each generation uses one search outlet; a completed or failed request is never silently retried through the other outlet.',
+        nativeSearchFirst: isChinese ? '内置搜索优先' : 'Native search first',
+        externalSearchFirst: isChinese ? '外部搜索优先（默认）' : 'External search first (default)',
+        nativeSearchOnly: isChinese ? '仅内置搜索' : 'Native search only',
+        externalSearchOnly: isChinese ? '仅外部搜索' : 'External search only',
+        previewRequestFailed: isChinese
+          ? '暂时无法计算搜索路由，已保留上一次成功的预览。'
+          : 'Could not resolve the search route right now; the last successful preview is still shown.',
       },
       provider: {
         search: isChinese ? '搜索提供商…' : 'Search providers…',
