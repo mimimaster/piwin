@@ -1,5 +1,7 @@
 /** Web search / fetch contracts for @piwin/tools-web */
 
+import type { ModelRef } from './host.js';
+
 /**
  * Legacy single-provider id (still written as a mirror of the multi-source list).
  * Prefer {@link WebConfig.searchSources} for configuration.
@@ -68,6 +70,101 @@ export type WebSearchStrategy = {
 };
 
 /**
+ * Product policy for choosing between model-native search and the Host
+ * external `web_search` tool (ADR 0043). Distinct from multi-source
+ * {@link WebSearchStrategy}, which only schedules external backends.
+ *
+ * Migration default is `external-first` so existing permission/citation
+ * behavior is preserved until the user opts into native search.
+ */
+export type SearchRoutePolicy = 'native-first' | 'external-first' | 'native-only' | 'external-only';
+
+/** Logical search backend selected for one generation. */
+export type SearchBackend = 'native' | 'external';
+
+/** Provenance tag for search citations rendered in the product UI. */
+export type SearchCitationProvenance = 'native' | 'external';
+
+/** Default search-route policy for new and migrated configs. */
+export const DEFAULT_SEARCH_ROUTE_POLICY: SearchRoutePolicy = 'external-first';
+
+/** Per-backend readiness facts used by the pure search-route resolver. */
+export type SearchBackendReadiness = {
+  ready: boolean;
+  /** Model carries the `native-web-search` capability and is enabled. */
+  modelTagged?: boolean;
+  /** Active Pi adapter can express enable/disable for this provider. */
+  adapterRequestSupported?: boolean;
+  /**
+   * Whether native citation/grounding metadata can be normalized into product
+   * events. Lack of citation support does not block request enablement, but
+   * must not be reported as full native-search readiness in the UI.
+   */
+  adapterCitationSupported?: boolean;
+  /** Provider search is always on and cannot be disabled. */
+  alwaysOn?: boolean;
+  /** At least one external search source is enabled. */
+  hasEnabledSources?: boolean;
+  reasons: string[];
+};
+
+export type SearchRouteReadiness = {
+  native: SearchBackendReadiness;
+  external: SearchBackendReadiness;
+};
+
+/**
+ * Resolved single search outlet for one generation. Exactly one of
+ * `selected` / neither may be set; never both backends at once.
+ */
+export type ResolvedSearchRoute = {
+  policy: SearchRoutePolicy;
+  /** Backend that will run for this generation, or null when neither is ready. */
+  selected: SearchBackend | null;
+  /**
+   * Capability that would have been used if the first choice was unavailable
+   * before the request started. Not a silent post-failure retry target.
+   */
+  fallback: SearchBackend | null;
+  readiness: SearchRouteReadiness;
+  /** Human-readable issues (missing sources, always-on conflict, …). */
+  issues: string[];
+  /**
+   * True when the configured policy cannot be honored (e.g. `external-only`
+   * on an always-on native-search model). Settings must warn instead of
+   * claiming exclusivity.
+   */
+  incompatible: boolean;
+};
+
+export type SearchRoutePreviewInput = {
+  policy: SearchRoutePolicy;
+  searchSources: WebSearchSource[];
+};
+
+export type SearchRoutePreviewData = {
+  route: ResolvedSearchRoute;
+  model?: ModelRef;
+  modelLabel?: string;
+};
+
+/** One normalized citation/grounding item with backend provenance. */
+export type SearchCitation = {
+  title: string;
+  url: string;
+  snippet?: string;
+  source?: string;
+  provenance: SearchCitationProvenance;
+};
+
+/** Product-normalized search evidence attached to assistant activity. */
+export type SearchEvidence = {
+  query?: string;
+  provenance: SearchCitationProvenance;
+  citations: SearchCitation[];
+};
+
+/**
  * How web_fetch turns a page into readable text.
  * - supermarkdown: local HTML→text/markdown-like extract (zero config)
  * - jina: r.jina.ai reader proxy (handles JS-heavy pages)
@@ -125,6 +222,11 @@ export type WebConfig = {
   searchSources: WebSearchSource[];
   /** Merge / run strategy for multi-source search. */
   searchStrategy: WebSearchStrategy;
+  /**
+   * Native vs external search outlet policy (ADR 0043).
+   * Default / migration value: {@link DEFAULT_SEARCH_ROUTE_POLICY}.
+   */
+  searchRoutePolicy?: SearchRoutePolicy;
   /** Reader backend for HTML pages. Default: local supermarkdown. */
   fetchProvider: WebFetchProvider;
   /** Keychain reference for the selected fetch provider. */

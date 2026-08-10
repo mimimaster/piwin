@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ModelRef } from '@piwin/contracts';
 import { ProductAgentHost, type ProductAgentHostOptions } from './product-agent-host.js';
 
 describe('ProductAgentHost', () => {
@@ -10,5 +11,40 @@ describe('ProductAgentHost', () => {
           mock: false,
         } as ProductAgentHostOptions),
     ).toThrow('ProductAgentHost requires a parent-owned HostToolExecutionPort');
+  });
+
+  it('passes the CreateSessionInput model to Host tool composition', async () => {
+    const expectedModel: ModelRef = {
+      protocol: 'openai-compatible',
+      providerId: 'provider-1',
+      modelId: 'model-1',
+    };
+    let receivedModel: typeof expectedModel | undefined;
+    const host = new ProductAgentHost({
+      mode: 'sdk',
+      mock: false,
+      hostToolExecution: {
+        execute: async () => ({
+          ok: false,
+          code: 'tool-not-available' as const,
+          message: 'test',
+        }),
+      },
+      restrictToolSurface: () => undefined,
+      buildToolDescriptors: async (_sessionId, _runtimeGenerationId, model) => {
+        receivedModel = model;
+        throw new Error('stop after composition assertion');
+      },
+    });
+
+    await expect(
+      host.prepareSession(
+        'session-test',
+        { scope: { kind: 'general' }, model: expectedModel },
+        'generation-test',
+      ),
+    ).rejects.toThrow('stop after composition assertion');
+    expect(receivedModel).toEqual(expectedModel);
+    await host.dispose();
   });
 });

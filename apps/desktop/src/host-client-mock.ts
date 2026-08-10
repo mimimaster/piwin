@@ -19,6 +19,7 @@ import type {
   SessionTranscriptPageData,
   SessionSummary,
   SessionTranscriptMessage,
+  SearchRoutePreviewData,
   UsageBucket,
   UsageRollup,
   WalkthroughArtifact,
@@ -2347,6 +2348,45 @@ export class MockHostBackend {
             },
           },
         };
+      case 'web/search-route-preview': {
+        const hasEnabledSources = command.input.searchSources.some((source) => source.enabled);
+        const data: SearchRoutePreviewData = {
+          route: {
+            policy: command.input.policy,
+            selected: hasEnabledSources ? 'external' : null,
+            fallback: null,
+            readiness: {
+              native: {
+                ready: false,
+                modelTagged: false,
+                adapterRequestSupported: false,
+                adapterCitationSupported: false,
+                alwaysOn: false,
+                reasons: ['mock host does not provide a selected native-search model'],
+              },
+              external: {
+                ready: hasEnabledSources,
+                hasEnabledSources,
+                reasons: hasEnabledSources ? [] : ['no enabled external search source'],
+              },
+            },
+            issues: hasEnabledSources
+              ? []
+              : [
+                  'no enabled external search source',
+                  'no search backend is ready for the configured policy',
+                ],
+            incompatible: false,
+          },
+        };
+        return {
+          id,
+          type: 'response',
+          command: 'web/search-route-preview',
+          success: true,
+          data,
+        };
+      }
       case 'settings/apply': {
         const input = command.input;
         if (

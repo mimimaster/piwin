@@ -72,7 +72,7 @@ import type {
 } from './session-ops.js';
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 import type { PluginInstallSource } from './plugin.js';
-import type { WebSearchTestInput } from './web.js';
+import type { SearchRoutePreviewInput, WebSearchTestInput } from './web.js';
 import type { ApplySettingsInput } from './settings.js';
 import type {
   JobHostPush,
@@ -401,6 +401,11 @@ export type HostCommand =
       id?: string;
       type: 'web/test-search-source';
       input: WebSearchTestInput;
+    }
+  | {
+      id?: string;
+      type: 'web/search-route-preview';
+      input: SearchRoutePreviewInput;
     }
   | {
       id?: string;

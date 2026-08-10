@@ -776,18 +776,20 @@ export class HostRuntime {
         ...commonHostOptions,
         mock: false,
         hostToolExecution: this.sessionHostToolPort,
-        buildToolDescriptors: async (sessionId, runtimeGenerationId, mode = 'active') => {
+        buildToolDescriptors: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
           const tools = await this.buildSessionHostToolsForSession(
             sessionId,
             runtimeGenerationId,
+            model,
             mode,
           );
           return descriptorsFromTools(tools);
         },
-        buildToolFamilyIndex: async (sessionId, runtimeGenerationId, mode = 'active') => {
+        buildToolFamilyIndex: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
           const tools = await this.buildSessionHostToolsForSession(
             sessionId,
             runtimeGenerationId,
+            model,
             mode,
           );
           return toolFamilyIndex(tools);
@@ -2219,6 +2221,7 @@ export class HostRuntime {
     const hostTools = await this.buildSessionHostToolsForSession(
       input.childSessionId,
       input.runtimeGenerationId,
+      input.task.model,
     );
     const rulesRevision = this.generationPermissionRuleRevisions.get(
       `${input.childSessionId}\u0000${input.runtimeGenerationId}`,
@@ -2456,12 +2459,17 @@ export class HostRuntime {
   private async buildSessionHostToolsForSession(
     sessionId: string,
     runtimeGenerationId: string,
+    model?: ModelRef,
     mode: ProductAgentHostToolRegistrationMode = 'active',
   ): Promise<HostToolRegistration[]> {
     const surfaceKey = `${sessionId}\u0000${runtimeGenerationId}`;
     let surfacePromise = this.generationToolSurfaces.get(surfaceKey);
     if (!surfacePromise) {
-      surfacePromise = this.composeSessionHostToolsForSession(sessionId, runtimeGenerationId);
+      surfacePromise = this.composeSessionHostToolsForSession(
+        sessionId,
+        runtimeGenerationId,
+        model,
+      );
       this.generationToolSurfaces.set(surfaceKey, surfacePromise);
     }
     try {
@@ -2491,6 +2499,7 @@ export class HostRuntime {
   private async composeSessionHostToolsForSession(
     sessionId: string,
     runtimeGenerationId: string,
+    model?: ModelRef,
   ): Promise<ComposedSessionHostTools> {
     const childContext = this.subagentSessionContexts.get(sessionId);
     const projectPath = childContext?.workingDirectory ?? this.sessionProjects.get(sessionId);
@@ -2561,6 +2570,7 @@ export class HostRuntime {
       mcpSnapshot,
       runtimeGenerationId,
       ...(config ? { config } : {}),
+      ...(model ? { model } : {}),
       ...(config ? { secretResolver: createSecretResolver() } : {}),
       getBrowserSession: () => this.browserSession ?? undefined,
       getNotesServices: () => this.getNotesServices(),
