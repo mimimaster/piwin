@@ -45,7 +45,6 @@ import {
   getWarmSessionSnapshot,
   putWarmSessionSnapshot,
   removeWarmSessionSnapshot,
-  touchWarmSessionOrder,
   type WarmSessionCache,
 } from './session-warm-cache';
 
@@ -195,9 +194,10 @@ export type ChatUiState = {
   activeSessionId: string | null;
   messages: ChatMessageUi[];
   /**
-   * LRU of recently left sessions (≤ MAX_WARM_SESSIONS). Message JSON only —
-   * not live Artifact iframes. Hit on session/set restores instantly; miss
-   * cold-loads from Host. Active session is always the foreground resident.
+   * LRU of recently *left* sessions (≤ MAX_WARM_INACTIVE_SESSIONS). Message
+   * JSON only — never live Artifact iframes. Active session is separate.
+   * Resident budget ≈ 1 active + N warm inactive (default 2 → three total).
+   * Hit on session/set paints instantly; miss paints empty and Host cold-loads.
    */
   warmSessionCache: WarmSessionCache;
   /** Host revision/cursor and bounded resident-history accounting. */
@@ -213,10 +213,11 @@ export type ChatUiState = {
   activeSessionArchived: boolean;
   /**
    * True after resume `session/set({ awaitTranscript: true })` until
-   * `session/load-messages` arrives. Keeps the previous transcript painted
-   * (no blank flash) while ignoring stream events for the newly selected
-   * session so they cannot append onto the still-visible previous rows.
-   * New empty sessions must leave this false (no load-messages is coming).
+   * `session/load-messages` arrives. Ignores stream events for the newly
+   * selected session until hydrate completes. Paint policy on set:
+   * warm hit → restore that session's rows; cold → empty (never paint a
+   * different session's transcript under the new id). New empty sessions
+   * leave this false (no load-messages is coming).
    */
   awaitingTranscript: boolean;
   /**
@@ -736,7 +737,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const switchingAway =
         state.activeSessionId !== null && state.activeSessionId !== action.sessionId;
 
-      // Stash the session we leave into the warm LRU (message JSON only).
+      // Stash the session we leave into the inactive warm LRU (message JSON only).
+      // Never paint session A rows under session B's selection (old keepPrevious
+      // did that for no-flash; warm hit replaces it for recent sessions, cold
+      // paints empty until Host load-messages).
       let warmSessionCache = state.warmSessionCache;
       if (switchingAway && state.messages.length > 0 && state.activeSessionId) {
         warmSessionCache = putWarmSessionSnapshot(warmSessionCache, {
@@ -750,23 +754,16 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         });
       }
 
-      // Codex-style warm hit: restore last N sessions instantly; Host still
-      // refreshes via load-messages when awaitTranscript is set.
       const warmHit =
         switchingAway || state.activeSessionId === null
           ? getWarmSessionSnapshot(warmSessionCache, action.sessionId)
           : null;
+      // Promote warm → active: drop the inactive slot so we do not hold two
+      // copies of the same session's rows (active messages + warm entry).
+      // On next leave, putWarm stashes it again.
       if (warmHit) {
-        warmSessionCache = touchWarmSessionOrder(warmSessionCache, action.sessionId);
+        warmSessionCache = removeWarmSessionSnapshot(warmSessionCache, action.sessionId);
       }
-
-      // Prefer warm hit over painting the *previous* session's rows while
-      // resume loads. Fall back to keepPrevious only when cold.
-      const keepPreviousTranscript =
-        !warmHit &&
-        awaitingTranscript &&
-        switchingAway &&
-        state.messages.length > 0;
 
       return {
         ...state,
@@ -776,14 +773,8 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           ? state.messages
           : warmHit
             ? warmHit.messages
-            : keepPreviousTranscript
-              ? state.messages
-              : [],
-        transcriptWindow: warmHit
-          ? warmHit.transcriptWindow
-          : keepPreviousTranscript
-            ? state.transcriptWindow
-            : null,
+            : [],
+        transcriptWindow: warmHit ? warmHit.transcriptWindow : null,
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
@@ -792,18 +783,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
         activeSkill: preserveOptimisticDraftSend ? state.activeSkill : null,
-        outline: warmHit ? warmHit.outline : keepPreviousTranscript ? state.outline : [],
+        outline: warmHit ? warmHit.outline : [],
         activeSessionArchived: false,
         awaitingTranscript,
         runTerminal: { kind: 'none' },
         // C1: clear event id ring for the new session
         receivedEventIds: [],
         lastAcceptedSequenceByRun: {},
-        runRecordsById: warmHit
-          ? warmHit.runRecordsById
-          : keepPreviousTranscript
-            ? state.runRecordsById
-            : {},
+        runRecordsById: warmHit ? warmHit.runRecordsById : {},
         walkthroughsByMessageId: warmHit ? warmHit.walkthroughsByMessageId : {},
         contextUsage: warmHit
           ? warmHit.contextUsage
