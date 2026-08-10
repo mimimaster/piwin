@@ -2,11 +2,27 @@
  * Settings → Web tools page.
  * Multi-select search sources + web_fetch. Draft state lives in settings context.
  */
-import { useEffect, useState, type ReactElement } from 'react';
-import { createDefaultWebConfig, type WebSearchSourceKind } from '@piwin/contracts';
-import { Button, Field, SegmentedControl, Switch, TextArea, TextInput } from '@piwin/ui-kit';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import {
+  DEFAULT_SEARCH_ROUTE_POLICY,
+  type SearchRoutePolicy,
+  type SearchRoutePreviewData,
+  type SearchRoutePreviewInput,
+  createDefaultWebConfig,
+  type WebSearchSourceKind,
+} from '@piwin/contracts';
+import {
+  Button,
+  Field,
+  Notice,
+  SegmentedControl,
+  Switch,
+  TextArea,
+  TextInput,
+} from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
+import { SearchRouteStatus } from '../search-route-status';
 import { useSettings } from '../settings-context';
 import { WebSecretEditor } from '../web-secret-editor';
 import { CLI_SEARCH_EXAMPLES, formatCliSearchExample } from '../cli-search-examples';
@@ -66,7 +82,7 @@ const FETCH_PROVIDER_OPTIONS = [
 ];
 
 export function WebPage(): ReactElement {
-  const { locale } = useDesktopLocale();
+  const { locale, translator } = useDesktopLocale();
   const {
     webDraft,
     setWebDraft,
@@ -81,11 +97,64 @@ export function WebPage(): ReactElement {
   const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch'>('search');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set());
+  const [routePreview, setRoutePreview] = useState<SearchRoutePreviewData | null>(null);
+  const [routePreviewLoading, setRoutePreviewLoading] = useState(false);
+  const [routePreviewError, setRoutePreviewError] = useState(false);
   const zh = locale === 'zh-CN';
   const isDirty = config
     ? JSON.stringify(draftToWeb(webDraft)) !==
       JSON.stringify(config.web ?? createDefaultWebConfig())
     : false;
+  const previewInput = useMemo<SearchRoutePreviewInput>(() => {
+    const web = draftToWeb(webDraft);
+    return {
+      policy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
+      searchSources: web.searchSources,
+    };
+  }, [webDraft]);
+
+  useEffect(() => {
+    let disposed = false;
+    setRoutePreviewLoading(true);
+    setRoutePreviewError(false);
+    const timerId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await request({
+            type: 'web/search-route-preview',
+            input: previewInput,
+          });
+          if (disposed) {
+            return;
+          }
+          if (!response.success) {
+            setRoutePreviewError(true);
+            setRoutePreviewLoading(false);
+            return;
+          }
+          const data = response.data as SearchRoutePreviewData | undefined;
+          if (!data) {
+            setRoutePreviewError(true);
+            setRoutePreviewLoading(false);
+            return;
+          }
+          setRoutePreview(data);
+          setRoutePreviewError(false);
+          setRoutePreviewLoading(false);
+        } catch {
+          if (!disposed) {
+            setRoutePreviewError(true);
+            setRoutePreviewLoading(false);
+          }
+        }
+      })();
+    }, 150);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(timerId);
+    };
+  }, [previewInput, request]);
 
   useEffect(() => {
     if (isDirty && saveStatus === 'saved') {
@@ -368,6 +437,40 @@ export function WebPage(): ReactElement {
               })}
             </div>
 
+            <Field
+              label={translator.settings.web.searchRoute}
+              description={translator.settings.web.searchRouteDescription}
+              className="web-search-route-field"
+            >
+              <select
+                value={webDraft.searchRoutePolicy}
+                onChange={(event) =>
+                  setWebDraft({
+                    ...webDraft,
+                    searchRoutePolicy: event.currentTarget.value as SearchRoutePolicy,
+                  })
+                }
+                data-testid="web-search-route-policy"
+              >
+                <option value="native-first">{translator.settings.web.nativeSearchFirst}</option>
+                <option value="external-first">
+                  {translator.settings.web.externalSearchFirst}
+                </option>
+                <option value="native-only">{translator.settings.web.nativeSearchOnly}</option>
+                <option value="external-only">{translator.settings.web.externalSearchOnly}</option>
+              </select>
+            </Field>
+            <SearchRouteStatus
+              preview={routePreview}
+              loading={routePreviewLoading}
+              locale={locale}
+            />
+            {routePreviewError ? (
+              <Notice tone="warning" testId="search-route-preview-error">
+                {translator.settings.web.previewRequestFailed}
+              </Notice>
+            ) : null}
+
             <details className="web-search-advanced" data-testid="web-search-advanced">
               <summary>{zh ? '高级搜索设置' : 'Advanced search settings'}</summary>
               <div className="web-tools-options">
@@ -568,7 +671,7 @@ function CliSearchExamples(props: { zh: boolean }): ReactElement {
       <div className="web-cli-examples-list">
         <p className="web-cli-examples-intro">
           {props.zh
-          ? '下面只是配置参考，不会自动安装服务。AnySearch 有官方 CLI 形态，其他示例需要你自己准备 wrapper。'
+            ? '下面只是配置参考，不会自动安装服务。AnySearch 有官方 CLI 形态，其他示例需要你自己准备 wrapper。'
             : 'These are configuration references, not automatic integrations. AnySearch has a documented CLI shape; prepare the other wrappers yourself.'}
         </p>
         {CLI_SEARCH_EXAMPLES.map((example) => (

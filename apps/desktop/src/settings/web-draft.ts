@@ -2,10 +2,12 @@
  * Pure draft<->config conversion for the Web tools settings form.
  * Draft keeps raw strings so users can type freely; parsing happens on save.
  */
-import type {
-  WebConfig,
-  WebSearchSource,
-  WebSearchSourceKind,
+import {
+  DEFAULT_SEARCH_ROUTE_POLICY,
+  type SearchRoutePolicy,
+  type WebConfig,
+  type WebSearchSource,
+  type WebSearchSourceKind,
 } from '@piwin/contracts';
 
 export type DraftSearchSource = {
@@ -23,6 +25,7 @@ export type DraftSearchSource = {
 
 export type DraftWeb = {
   searchSources: DraftSearchSource[];
+  searchRoutePolicy: SearchRoutePolicy;
   perSourceTimeoutMs: string;
   searchMaxResults: string;
   searchTimeoutMs: string;
@@ -37,6 +40,7 @@ export type DraftWeb = {
 export function webToDraft(web: WebConfig): DraftWeb {
   return {
     searchSources: web.searchSources.map(sourceToDraft),
+    searchRoutePolicy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
     perSourceTimeoutMs: String(web.searchStrategy.perSourceTimeoutMs),
     searchMaxResults: String(web.searchMaxResults),
     searchTimeoutMs: String(web.searchTimeoutMs),
@@ -70,6 +74,7 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
   return {
     searchProvider,
     searchApiKeyEnv: firstKey,
+    searchRoutePolicy: draft.searchRoutePolicy,
     searchMaxResults: Number.isFinite(maxResults) && maxResults > 0 ? Math.floor(maxResults) : 10,
     searchTimeoutMs:
       Number.isFinite(searchTimeoutMs) && searchTimeoutMs > 0 ? Math.floor(searchTimeoutMs) : 15000,
