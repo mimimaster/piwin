@@ -9,9 +9,11 @@ import {
   type ModelCatalogEntry,
   type ModelConfigEntry,
   type ModelProviderConfig,
+  type NativeWebSearchMode,
   type ThinkingLevel,
 } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
+import { getDesktopTranslator } from './desktop-locale.js';
 import {
   createModelConfigurationDraft,
   validateModelConfigurationDraft,
@@ -159,6 +161,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
     flashSaved(isManual ? 'manual' : 'auto');
   }
 
+  const providerCopy = getDesktopTranslator(isChinese ? 'zh-CN' : 'en').settings.provider;
   const t = isChinese
     ? {
         label: '显示名称',
@@ -173,6 +176,11 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         imageGen: '生图',
         asr: '语音识别',
         tts: '语音合成',
+        nativeSearch: providerCopy.nativeSearch,
+        nativeSearchMode: providerCopy.nativeSearchMode,
+        nativeSearchControllable: providerCopy.nativeSearchControllable,
+        nativeSearchAlwaysOn: providerCopy.nativeSearchAlwaysOn,
+        nativeSearchAlwaysOnDescription: providerCopy.nativeSearchAlwaysOnDescription,
         cancel: '取消',
         save: '保存',
         savedAuto: '已自动保存',
@@ -191,6 +199,11 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         imageGen: 'Image gen',
         asr: 'ASR',
         tts: 'TTS',
+        nativeSearch: providerCopy.nativeSearch,
+        nativeSearchMode: providerCopy.nativeSearchMode,
+        nativeSearchControllable: providerCopy.nativeSearchControllable,
+        nativeSearchAlwaysOn: providerCopy.nativeSearchAlwaysOn,
+        nativeSearchAlwaysOnDescription: providerCopy.nativeSearchAlwaysOnDescription,
         cancel: 'Cancel',
         save: 'Save',
         savedAuto: 'Auto-saved',
@@ -342,7 +355,47 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           />
           <span>{t.tts}</span>
         </label>
+        <label className="model-edit-inline-cap">
+          <input
+            type="checkbox"
+            checked={localDraft.supportsNativeWebSearch}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              updateDraft((current) => ({
+                ...current,
+                supportsNativeWebSearch: event.target.checked,
+              }))
+            }
+            data-testid="model-edit-native-web-search"
+            disabled={disabled}
+          />
+          <span>{t.nativeSearch}</span>
+        </label>
       </div>
+
+      {localDraft.supportsNativeWebSearch ? (
+        <label className="model-edit-inline-field">
+          <span className="model-edit-inline-label">{t.nativeSearchMode}</span>
+          <select
+            value={localDraft.nativeWebSearchMode}
+            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+              updateDraft((current) => ({
+                ...current,
+                nativeWebSearchMode: event.target.value as NativeWebSearchMode,
+              }))
+            }
+            data-testid="model-edit-native-web-search-mode"
+            disabled={disabled}
+          >
+            <option value="controllable">{t.nativeSearchControllable}</option>
+            <option value="always-on">{t.nativeSearchAlwaysOn}</option>
+          </select>
+          {localDraft.nativeWebSearchMode === 'always-on' ? (
+            <span className="model-edit-inline-thinking-hint">
+              {t.nativeSearchAlwaysOnDescription}
+            </span>
+          ) : null}
+        </label>
+      ) : null}
 
       {localDraft.reasoning ? (
         <div className="model-edit-inline-thinking">
@@ -442,6 +495,8 @@ function draftsEqual(left: ModelConfigurationDraft, right: ModelConfigurationDra
     left.supportsImageGeneration === right.supportsImageGeneration &&
     left.supportsSpeechToText === right.supportsSpeechToText &&
     left.supportsTextToSpeech === right.supportsTextToSpeech &&
+    left.supportsNativeWebSearch === right.supportsNativeWebSearch &&
+    left.nativeWebSearchMode === right.nativeWebSearchMode &&
     left.reasoning === right.reasoning &&
     left.thinkingLevels.length === right.thinkingLevels.length &&
     left.thinkingLevels.every((level, index) => level === right.thinkingLevels[index])

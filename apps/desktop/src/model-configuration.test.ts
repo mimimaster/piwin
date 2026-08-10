@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelCatalogEntry } from '@piwin/contracts';
+import type { ModelCatalogEntry, ModelConfigEntry } from '@piwin/contracts';
 import {
   applyModelConfigurationDraft,
   createModelConfigurationDraft,
@@ -51,6 +51,8 @@ describe('model configuration', () => {
         supportsImageGeneration: false,
         supportsSpeechToText: false,
         supportsTextToSpeech: false,
+        supportsNativeWebSearch: false,
+        nativeWebSearchMode: 'controllable',
         reasoning: true,
       }),
     ).toEqual({
@@ -109,6 +111,8 @@ describe('model configuration', () => {
         supportsImageGeneration: false,
         supportsSpeechToText: false,
         supportsTextToSpeech: false,
+        supportsNativeWebSearch: false,
+        nativeWebSearchMode: 'controllable',
         reasoning: true,
       }),
     ).toBeNull();
@@ -315,5 +319,45 @@ describe('model configuration', () => {
       'openai-compatible',
     );
     expect(draft.thinkingLevels).toEqual(['off', 'high']);
+  });
+
+  it('round-trips native web search and its controllability mode', () => {
+    const draft = createModelConfigurationDraft({
+      id: 'search-model',
+      capabilities: ['native-web-search'],
+      nativeWebSearchMode: 'always-on',
+    });
+
+    expect(draft.supportsNativeWebSearch).toBe(true);
+    expect(draft.nativeWebSearchMode).toBe('always-on');
+    expect(createModelConfigurationEntry(draft)).toMatchObject({
+      id: 'search-model',
+      capabilities: ['native-web-search'],
+      nativeWebSearchMode: 'always-on',
+    });
+  });
+
+  it('removes stale native-search metadata when the capability is disabled', () => {
+    const original: ModelConfigEntry = {
+      id: 'search-model',
+      capabilities: ['native-web-search', 'video-generation'],
+      nativeWebSearchMode: 'always-on',
+      routes: {
+        'native-web-search': { nativeSearchMode: 'always-on' },
+        'video-generation': { apiStyle: 'custom' },
+      },
+    };
+    const draft = createModelConfigurationDraft({
+      ...original,
+      capabilities: ['video-generation'],
+    });
+    draft.supportsNativeWebSearch = false;
+
+    const models = applyModelConfigurationDraft([original], original.id, draft);
+    expect(models?.[0]).not.toHaveProperty('nativeWebSearchMode');
+    expect(models?.[0]?.capabilities).toEqual(['video-generation']);
+    expect(models?.[0]?.routes).toEqual({
+      'video-generation': { apiStyle: 'custom' },
+    });
   });
 });

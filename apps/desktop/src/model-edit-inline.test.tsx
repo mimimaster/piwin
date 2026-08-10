@@ -6,8 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import type { ModelCatalogEntry } from '@piwin/contracts';
+import type { ModelCatalogEntry, ModelProviderConfig } from '@piwin/contracts';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
+import { ModelWorkbench } from './ModelWorkbench';
 import { ModelEditInline } from './model-edit-inline.js';
 
 declare global {
@@ -104,15 +105,89 @@ function render(node: ReactElement): { container: HTMLDivElement; root: Root } {
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
-    root.render(
-      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>,
-    );
+    root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>);
   });
   instances.push({ container, root });
   return { container, root };
 }
 
 describe('ModelEditInline', () => {
+  it('renders native search capability controls and its always-on mode', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{
+          id: 'search-model',
+          capabilities: ['native-web-search'],
+          nativeWebSearchMode: 'always-on',
+        }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese={false}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const checkbox = query<HTMLInputElement>('[data-testid="model-edit-native-web-search"]');
+    const mode = query<HTMLSelectElement>('[data-testid="model-edit-native-web-search-mode"]');
+    expect(checkbox?.checked).toBe(true);
+    expect(mode?.value).toBe('always-on');
+    expect(mode?.options[1]?.textContent).toBe('Always on');
+    expect(document.body.textContent).toContain('external-only cannot disable it');
+
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        supportsNativeWebSearch: true,
+        nativeWebSearchMode: 'always-on',
+      }),
+    );
+  });
+
+  it('does not show the native search mode selector for models without the capability', () => {
+    render(
+      <ModelEditInline
+        model={{ id: 'text-model' }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese={false}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(query('[data-testid="model-edit-native-web-search"]')).not.toBeNull();
+    expect(query('[data-testid="model-edit-native-web-search-mode"]')).toBeNull();
+  });
+
+  it('shows the native search badge in the model workbench row', () => {
+    const provider: ModelProviderConfig = {
+      id: 'search-provider',
+      name: 'Search Provider',
+      protocol: 'openai-compatible',
+      baseUrl: 'https://provider.example/v1',
+      models: [{ id: 'search-model', capabilities: ['native-web-search'] }],
+    };
+    render(
+      <ModelWorkbench
+        provider={provider}
+        disabled={false}
+        defaultModelId={null}
+        onModelsChange={vi.fn()}
+        onSetDefaultModel={vi.fn()}
+        onDiscoverModels={vi.fn(async () => ({
+          providerId: 'search-provider',
+          protocol: 'openai-compatible' as const,
+          models: [],
+        }))}
+        onTestModel={vi.fn(async () => ({ durationMs: 0 }))}
+      />,
+    );
+
+    expect(query('[data-testid="model-pill-native-search-search-model"]')).not.toBeNull();
+  });
+
   it('renders inline with all fields visible (no popover trigger needed)', () => {
     render(
       <ModelEditInline
@@ -157,7 +232,9 @@ describe('ModelEditInline', () => {
     );
     await waitFor(() => input('model-edit-context').value === '200000');
     expect(input('model-edit-output').value).toBe('32000');
-    expect(query<HTMLInputElement>('[data-testid="model-edit-supports-image"]')?.checked).toBe(true);
+    expect(query<HTMLInputElement>('[data-testid="model-edit-supports-image"]')?.checked).toBe(
+      true,
+    );
   });
 
   it('shows thinking effort chips when reasoning is enabled and saves with selected levels', () => {
@@ -271,9 +348,7 @@ describe('ModelEditInline', () => {
       await new Promise((resolve) => setTimeout(resolve, 900));
     });
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ contextWindow: '256000' }),
-    );
+    expect(onSave.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ contextWindow: '256000' }));
     // The Save button stays available next to the auto-save behavior.
     expect(query('[data-testid="model-edit-save"]')).not.toBeNull();
   });
@@ -325,8 +400,6 @@ describe('ModelEditInline', () => {
       root.unmount();
     });
     expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ contextWindow: '256000' }),
-    );
+    expect(onSave.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ contextWindow: '256000' }));
   });
 });

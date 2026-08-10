@@ -380,6 +380,11 @@ export type DesktopTranslator = {
       runtimeLimits: string;
       modelId: string;
       modelDisplayName: string;
+      nativeSearch: string;
+      nativeSearchMode: string;
+      nativeSearchControllable: string;
+      nativeSearchAlwaysOn: string;
+      nativeSearchAlwaysOnDescription: string;
       contextLimit: string;
       outputLimit: string;
       tooltipMarkdown: string;
@@ -1095,6 +1100,13 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           : 'Runtime limits are explicit per model.',
         modelId: isChinese ? '模型 ID' : 'Model ID',
         modelDisplayName: isChinese ? '模型名称' : 'Model name',
+        nativeSearch: isChinese ? '内置搜索' : 'Native search',
+        nativeSearchMode: isChinese ? '内置搜索模式' : 'Native search mode',
+        nativeSearchControllable: isChinese ? '可控' : 'Controllable',
+        nativeSearchAlwaysOn: isChinese ? '始终开启' : 'Always on',
+        nativeSearchAlwaysOnDescription: isChinese
+          ? '提供商始终启用此功能，external-only 无法将其关闭。'
+          : 'The provider feature is always enabled; external-only cannot disable it.',
         contextLimit: isChinese ? 'Context 上限' : 'Context token limit',
         outputLimit: isChinese ? '最大输出' : 'Max output tokens',
         tooltipMarkdown: isChinese ? 'Tooltip Markdown' : 'Tooltip markdown',
