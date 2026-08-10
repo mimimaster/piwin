@@ -6,7 +6,7 @@ import type {
   SessionToolCardView,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
-import { USER_AUTHORED_GENERATION } from '@piwin/contracts';
+import { mergeSearchEvidence, USER_AUTHORED_GENERATION } from '@piwin/contracts';
 import type { SessionTranscriptStore, TranscriptStoreMessagePatch } from '@piwin/session';
 import { appendToolCard } from '@piwin/session';
 import type { TranscriptRecorder } from './transcript-recorder.js';
@@ -245,6 +245,19 @@ export function createStoreTranscriptRecorder(options: {
             scheduleFlush();
             break;
           }
+          case 'message/search_evidence': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
+            await mutateActive(
+              event.messageId,
+              (message) => ({
+                ...message,
+                searchEvidence: mergeSearchEvidence(message.searchEvidence, event.evidence),
+              }),
+              'message/search_evidence',
+            );
+            await flushNow();
+            break;
+          }
           case 'message/end': {
             if (quarantinedMessageIds.has(event.messageId)) break;
             const completed = await mutateActive(
@@ -256,7 +269,8 @@ export function createStoreTranscriptRecorder(options: {
             if (
               completed.text.trim().length === 0 &&
               (completed.thinking ?? '').trim().length === 0 &&
-              (completed.tools?.length ?? 0) === 0
+              (completed.tools?.length ?? 0) === 0 &&
+              (completed.searchEvidence?.citations.length ?? 0) === 0
             ) {
               dirtyMessageIds.delete(event.messageId);
               await options.store.deleteMessage(event.messageId);

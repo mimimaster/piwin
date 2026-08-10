@@ -24,6 +24,110 @@ describe('mapPiSessionEvent', () => {
     expect(events).toEqual([{ type: 'message/text_delta', messageId: 'm1', delta: 'hello' }]);
   });
 
+  it('maps only normalized search evidence from assistant message metadata', () => {
+    const events = mapPiSessionEvent({
+      type: 'message_end',
+      messageId: 'm-native',
+      assistantMessage: {
+        citations: [
+          { title: 'Safe', url: 'https://example.com/safe' },
+          { title: 'Unsafe', url: 'javascript:alert(1)' },
+        ],
+        providerPayload: { private: 'must not cross the boundary' },
+      },
+    });
+
+    expect(events).toEqual([
+      {
+        type: 'message/search_evidence',
+        messageId: 'm-native',
+        evidence: {
+          provenance: 'native',
+          citations: [{ title: 'Safe', url: 'https://example.com/safe', provenance: 'native' }],
+        },
+      },
+      { type: 'message/end', messageId: 'm-native' },
+    ]);
+    expect(events[0]).not.toHaveProperty('providerPayload');
+    expect(events[0]).not.toHaveProperty('assistantMessage');
+  });
+
+  it('deduplicates streamed and final native evidence per message', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+
+    expect(unwrap({ type: 'message_start', messageId: 'm-native', role: 'assistant' })).toEqual([
+      { type: 'message/start', messageId: 'm-native', role: 'assistant' },
+    ]);
+    expect(
+      unwrap({
+        type: 'message_update',
+        messageId: 'm-native',
+        assistantMessageEvent: {
+          type: 'text_delta',
+          delta: 'answer',
+          annotations: [
+            { type: 'url_citation', url_citation: { url: 'https://example.com/a', title: 'A' } },
+          ],
+        },
+      }),
+    ).toEqual([
+      { type: 'message/text_delta', messageId: 'm-native', delta: 'answer' },
+      {
+        type: 'message/search_evidence',
+        messageId: 'm-native',
+        evidence: {
+          provenance: 'native',
+          citations: [{ title: 'A', url: 'https://example.com/a', provenance: 'native' }],
+        },
+      },
+    ]);
+
+    expect(
+      unwrap({
+        type: 'message_end',
+        messageId: 'm-native',
+        message: {
+          citations: [
+            { title: 'A changed', url: 'HTTPS://EXAMPLE.COM/a' },
+            { title: 'B', url: 'https://example.com/b' },
+          ],
+          providerPayload: { raw: true },
+        },
+      }),
+    ).toEqual([
+      {
+        type: 'message/search_evidence',
+        messageId: 'm-native',
+        evidence: {
+          provenance: 'native',
+          citations: [{ title: 'B', url: 'https://example.com/b', provenance: 'native' }],
+        },
+      },
+      { type: 'message/end', messageId: 'm-native' },
+    ]);
+
+    // Clearing on message_end permits the same backend URL on the next message.
+    expect(
+      unwrap({
+        type: 'message_start',
+        messageId: 'm-next',
+        role: 'assistant',
+      }),
+    ).toEqual([{ type: 'message/start', messageId: 'm-next', role: 'assistant' }]);
+    expect(
+      unwrap({
+        type: 'message_update',
+        messageId: 'm-next',
+        assistantMessageEvent: {
+          type: 'text_delta',
+          delta: 'next',
+          annotations: [{ type: 'url_citation', url_citation: { url: 'https://example.com/a' } }],
+        },
+      }).some((event) => event.type === 'message/search_evidence'),
+    ).toBe(true);
+  });
+
   it('keeps separate SDK messages distinct when Pi omits message ids', () => {
     const mapper = createPiSessionEventMapper();
     const unwrap = (raw: unknown) => mapper.map(raw).map((w) => w.event);

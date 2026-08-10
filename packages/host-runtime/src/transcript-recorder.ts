@@ -10,6 +10,7 @@ import type {
   SessionTranscriptDocument,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { mergeSearchEvidence } from '@piwin/contracts';
 import {
   appendToolCard,
   createAssistantTranscriptMessage,
@@ -321,6 +322,19 @@ export function createTranscriptRecorder(options: {
             scheduleFlush();
             break;
           }
+          case 'message/search_evidence': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
+            updateMessage(
+              event.messageId,
+              (message) => ({
+                ...message,
+                searchEvidence: mergeSearchEvidence(message.searchEvidence, event.evidence),
+              }),
+              'message/search_evidence',
+            );
+            await persistDocument();
+            break;
+          }
           case 'message/end': {
             if (quarantinedMessageIds.has(event.messageId)) break;
             updateMessage(
@@ -341,7 +355,8 @@ export function createTranscriptRecorder(options: {
               completedMessage?.role === 'assistant' &&
               completedMessage.text.trim().length === 0 &&
               (completedMessage.thinking ?? '').trim().length === 0 &&
-              (completedMessage.tools?.length ?? 0) === 0
+              (completedMessage.tools?.length ?? 0) === 0 &&
+              (completedMessage.searchEvidence?.citations.length ?? 0) === 0
             ) {
               currentDocument?.messages.splice(messageIndex, 1);
               documentRevision += 1;

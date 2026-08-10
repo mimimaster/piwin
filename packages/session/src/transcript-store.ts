@@ -67,6 +67,7 @@ export type TranscriptStoreMessageInput = {
     outcome?: SessionTranscriptMessage['outcome'];
     terminalMessage?: string;
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
+    searchEvidence?: SessionTranscriptMessage['searchEvidence'];
   };
 };
 
@@ -387,6 +388,9 @@ export async function openSessionTranscriptStore(
         message.terminalMessage = metadata.terminalMessage;
       if (metadata.subagentActivity !== undefined) {
         message.subagentActivity = metadata.subagentActivity;
+      }
+      if (metadata.searchEvidence !== undefined) {
+        message.searchEvidence = metadata.searchEvidence;
       }
     }
     return message;
@@ -1170,7 +1174,8 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
     message.endedAt !== undefined ||
     message.outcome !== undefined ||
     message.terminalMessage !== undefined ||
-    message.subagentActivity !== undefined;
+    message.subagentActivity !== undefined ||
+    message.searchEvidence !== undefined;
   return {
     id: message.id,
     runtimeGenerationId: LEGACY_IMPORT_GENERATION,
@@ -1196,6 +1201,9 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
               : {}),
             ...(message.subagentActivity !== undefined
               ? { subagentActivity: message.subagentActivity }
+              : {}),
+            ...(message.searchEvidence !== undefined
+              ? { searchEvidence: message.searchEvidence }
               : {}),
           },
         }
@@ -1409,6 +1417,7 @@ function clipOversizedMessage(
   if (message.endedAt !== undefined) base.endedAt = message.endedAt;
   if (message.outcome !== undefined) base.outcome = message.outcome;
   if (message.model !== undefined) base.model = message.model;
+  if (message.searchEvidence !== undefined) base.searchEvidence = message.searchEvidence;
   if (serializedMessageBytes(base) > maximumEncodedBytes) {
     throw new RangeError('Session transcript page byte limit cannot fit message metadata');
   }

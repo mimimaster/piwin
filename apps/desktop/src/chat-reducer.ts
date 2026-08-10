@@ -11,6 +11,7 @@ import type {
   SessionRunOutcome,
   SessionRunPhase,
   SessionScope,
+  SearchEvidence,
   SessionSummary,
   SessionTranscriptMessage,
   SessionTranscriptPageInfo,
@@ -21,7 +22,11 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { SessionOutlineNode } from '@piwin/contracts';
-import { SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS, shouldAcceptContextUsage } from '@piwin/contracts';
+import {
+  mergeSearchEvidence,
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+  shouldAcceptContextUsage,
+} from '@piwin/contracts';
 import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 import {
   appendBoundedText,
@@ -72,6 +77,7 @@ export type ChatMessageUi = {
   tools: ToolCardUi[];
   attachments: PromptAttachment[];
   status: 'streaming' | 'done' | 'error';
+  searchEvidence?: SearchEvidence;
   createdAt?: string;
   /** Run that produced this assistant message when host provided run identity. */
   runId?: string;
@@ -491,6 +497,7 @@ export function mapTranscriptMessagesToUi(
         : message.status === 'streaming'
           ? 'done'
           : message.status,
+    ...(message.searchEvidence ? { searchEvidence: message.searchEvidence } : {}),
     ...(message.createdAt ? { createdAt: message.createdAt } : {}),
     ...(message.runId ? { runId: message.runId } : {}),
     ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
@@ -1890,6 +1897,18 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         ...message,
         thinking: message.thinking + event.delta,
       }));
+    case 'message/search_evidence': {
+      if (isStaleOptionalRunEvent(state, event.runId)) {
+        return state;
+      }
+      if (!state.messages.some((message) => message.id === event.messageId)) {
+        return state;
+      }
+      return updateMessage(state, event.messageId, (message) => ({
+        ...message,
+        searchEvidence: mergeSearchEvidence(message.searchEvidence, event.evidence),
+      }));
+    }
     case 'message/end': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -1906,7 +1925,8 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         completedMessage?.role === 'assistant' &&
         completedMessage.text.trim().length === 0 &&
         completedMessage.thinking.trim().length === 0 &&
-        completedMessage.tools.length === 0
+        completedMessage.tools.length === 0 &&
+        (completedMessage.searchEvidence?.citations.length ?? 0) === 0
       ) {
         next.messages = next.messages.filter((message) => message.id !== event.messageId);
       }

@@ -163,6 +163,7 @@ function readEventIdentity(event: AgentEvent): string | undefined {
     case 'message/start':
     case 'message/text_delta':
     case 'message/thinking_delta':
+    case 'message/search_evidence':
     case 'message/end':
       return `message:${event.messageId}`;
     case 'tool/start':
@@ -182,6 +183,7 @@ function isForegroundEvent(event: AgentEvent): boolean {
     case 'message/start':
     case 'message/text_delta':
     case 'message/thinking_delta':
+    case 'message/search_evidence':
     case 'message/end':
     case 'session/aborted':
     case 'tool/start':
@@ -204,6 +206,7 @@ function addRunId(event: AgentEvent, runId: string): AgentEvent {
     case 'message/start':
     case 'message/text_delta':
     case 'message/thinking_delta':
+    case 'message/search_evidence':
     case 'message/end':
     case 'tool/start':
     case 'tool/update':

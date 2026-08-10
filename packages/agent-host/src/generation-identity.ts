@@ -45,10 +45,7 @@ const PERMISSION_REQUEST_ID_PREFIX = 'piw-p';
  * the same product id) and generation-scoped (so a rebuilt backend with the
  * same naked backend id cannot collide with an older generation's row).
  */
-function hashGenerationIdentity(
-  context: GenerationIdentityContext,
-  backendId: string,
-): string {
+function hashGenerationIdentity(context: GenerationIdentityContext, backendId: string): string {
   return createHash('sha256')
     .update(context.sessionId)
     .update('\u0000')
@@ -109,6 +106,7 @@ export function normalizeAgentEventIds(
     case 'message/text_delta':
     case 'message/text_snapshot':
     case 'message/thinking_delta':
+    case 'message/search_evidence':
     case 'message/end': {
       return {
         ...event,

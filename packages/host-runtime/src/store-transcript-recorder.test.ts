@@ -63,6 +63,65 @@ describe('createStoreTranscriptRecorder', () => {
     store.close();
   });
 
+  it('persists and merges native search evidence before assistant finalization', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-search-evidence-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-search-evidence',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-search-evidence',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-search',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'message/search_evidence',
+      messageId: 'assistant-search',
+      evidence: {
+        query: 'piwin',
+        provenance: 'native',
+        citations: [{ title: 'First', url: 'https://example.com/a', provenance: 'native' }],
+      },
+    });
+    await recorder.recordEvent({
+      type: 'message/search_evidence',
+      messageId: 'assistant-search',
+      evidence: {
+        query: 'changed query',
+        provenance: 'native',
+        citations: [
+          { title: 'Changed', url: 'HTTPS://EXAMPLE.COM/a', provenance: 'native' },
+          { title: 'Second', url: 'https://example.com/b', provenance: 'native' },
+        ],
+      },
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-search',
+    });
+    await recorder.flush();
+
+    expect(await store.getMessage('assistant-search')).toMatchObject({
+      status: 'done',
+      searchEvidence: {
+        query: 'piwin',
+        provenance: 'native',
+        citations: [
+          { title: 'First', url: 'https://example.com/a', provenance: 'native' },
+          { title: 'Second', url: 'https://example.com/b', provenance: 'native' },
+        ],
+      },
+    });
+    recorder.dispose();
+    store.close();
+  });
+
   it('quarantines a normalized-id/provenance collision', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-collision-'));
     const store = await openSessionTranscriptStore({

@@ -30,6 +30,7 @@ describe('classifyHostPush', () => {
       barrierKeys: [
         ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'text'],
         ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'thinking'],
+        ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'search-evidence'],
         ['session', 'session-1', 'run', 'run-1', 'message', 'message-1', 'text-snapshot'],
       ],
       runBarrierId: 'run-1',

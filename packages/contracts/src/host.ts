@@ -13,6 +13,7 @@ import type { PromptAttachment } from './browser.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { AgentModeId } from './permission.js';
 import type { CreateSessionOptions } from './session-seed.js';
+import type { SearchEvidence } from './web.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -401,6 +402,12 @@ export type AgentEvent =
   /** C1: complete snapshot emitted when host detects cumulative text (replaces, does not append). */
   | { type: 'message/text_snapshot'; messageId: string; text: string; runId?: string }
   | { type: 'message/thinking_delta'; messageId: string; delta: string; runId?: string }
+  | {
+      type: 'message/search_evidence';
+      messageId: string;
+      evidence: SearchEvidence;
+      runId?: string;
+    }
   | { type: 'message/end'; messageId: string; runId?: string }
   | {
       type: 'tool/start';

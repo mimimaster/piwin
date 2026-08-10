@@ -5,6 +5,7 @@ import type {
   MediaAttachmentRef,
 } from '@piwin/contracts';
 import { mapUsageSnapshot } from './usage-map.js';
+import { normalizeNativeSearchCitations } from './native-web-search.js';
 import { boundToolOutput, buildToolPresentation } from './tool-presentation.js';
 
 /**
@@ -91,6 +92,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   let generatedMessageSequence = 0;
   const toolNamesById = new Map<string, string>();
   const rawToolOutputById = new Map<string, string>();
+  const citationUrlsByMessageId = new Map<string, Set<string>>();
   const envelopeGenerator = createEventEnvelopeGenerator();
 
   return {
@@ -106,61 +108,67 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         activeMessageId = explicitMessageId ?? `pi-message-${++generatedMessageSequence}`;
       }
 
-      const mappedEvents = mapPiSessionEvent(raw, activeMessageId).map((event) => {
-        if (event.type === 'tool/start') {
-          toolNamesById.set(event.toolCallId, event.toolName);
-          rawToolOutputById.set(event.toolCallId, '');
-          return event;
-        }
-        if (event.type === 'tool/update') {
-          const rawEvent = raw as Record<string, unknown>;
-          const rawDelta =
-            typeof rawEvent.delta === 'string'
-              ? rawEvent.delta
-              : typeof rawEvent.output === 'string'
-                ? rawEvent.output
-                : (extractToolResultText(rawEvent.partialResult) ?? event.delta);
-          const fullOutput = `${rawToolOutputById.get(event.toolCallId) ?? ''}${rawDelta}`;
-          // Keep the cross-chunk redaction buffer bounded. This still preserves
-          // enough cumulative context to catch secrets split across chunks,
-          // while preventing a long-running tool from growing host memory.
-          const boundedOutput = boundToolOutput(fullOutput).text;
-          rawToolOutputById.set(event.toolCallId, boundedOutput);
-          const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
-          return {
-            ...event,
-            presentation: buildToolPresentation({
-              toolName,
-              outputText: boundedOutput,
-            }),
-          };
-        }
-        if (event.type === 'tool/end') {
-          const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
-          const accumulated = rawToolOutputById.get(event.toolCallId) ?? '';
-          toolNamesById.delete(event.toolCallId);
-          rawToolOutputById.delete(event.toolCallId);
-          // Pi custom tools often emit only tool_execution_end (no streaming
-          // updates). Prefer presentation.output from mapPiSessionEvent; fall
-          // back to any accumulated update buffer.
-          const existingOutput = event.presentation?.output?.text;
-          if (existingOutput && existingOutput.length > 0) {
+      const mappedEvents = mapPiSessionEvent(raw, activeMessageId)
+        .flatMap((event) => filterDuplicateSearchEvidence(event, citationUrlsByMessageId))
+        .map((event) => {
+          if (event.type === 'tool/start') {
+            toolNamesById.set(event.toolCallId, event.toolName);
+            rawToolOutputById.set(event.toolCallId, '');
             return event;
           }
-          if (accumulated.length > 0) {
+          if (event.type === 'tool/update') {
+            const rawEvent = raw as Record<string, unknown>;
+            const rawDelta =
+              typeof rawEvent.delta === 'string'
+                ? rawEvent.delta
+                : typeof rawEvent.output === 'string'
+                  ? rawEvent.output
+                  : (extractToolResultText(rawEvent.partialResult) ?? event.delta);
+            const fullOutput = `${rawToolOutputById.get(event.toolCallId) ?? ''}${rawDelta}`;
+            // Keep the cross-chunk redaction buffer bounded. This still preserves
+            // enough cumulative context to catch secrets split across chunks,
+            // while preventing a long-running tool from growing host memory.
+            const boundedOutput = boundToolOutput(fullOutput).text;
+            rawToolOutputById.set(event.toolCallId, boundedOutput);
+            const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
             return {
               ...event,
               presentation: buildToolPresentation({
                 toolName,
-                isError: event.isError,
-                outputText: accumulated,
+                outputText: boundedOutput,
               }),
             };
           }
-        }
-        return event;
-      });
+          if (event.type === 'tool/end') {
+            const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
+            const accumulated = rawToolOutputById.get(event.toolCallId) ?? '';
+            toolNamesById.delete(event.toolCallId);
+            rawToolOutputById.delete(event.toolCallId);
+            // Pi custom tools often emit only tool_execution_end (no streaming
+            // updates). Prefer presentation.output from mapPiSessionEvent; fall
+            // back to any accumulated update buffer.
+            const existingOutput = event.presentation?.output?.text;
+            if (existingOutput && existingOutput.length > 0) {
+              return event;
+            }
+            if (accumulated.length > 0) {
+              return {
+                ...event,
+                presentation: buildToolPresentation({
+                  toolName,
+                  isError: event.isError,
+                  outputText: accumulated,
+                }),
+              };
+            }
+          }
+          return event;
+        });
       if (type === 'message_end') {
+        const endedMessage = mappedEvents.find((event) => event.type === 'message/end');
+        if (endedMessage?.type === 'message/end') {
+          citationUrlsByMessageId.delete(endedMessage.messageId);
+        }
         activeMessageId = null;
       }
       return wrapEvents(mappedEvents, envelopeGenerator);
@@ -198,13 +206,17 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
       }
       const assistantType = readString(assistantEvent.type);
       const delta = readString(assistantEvent.delta) ?? '';
+      const mapped: AgentEvent[] = [];
       if (assistantType === 'text_delta') {
-        return [{ type: 'message/text_delta', messageId, delta }];
+        mapped.push({ type: 'message/text_delta', messageId, delta });
+      } else if (assistantType === 'thinking_delta') {
+        mapped.push({ type: 'message/thinking_delta', messageId, delta });
       }
-      if (assistantType === 'thinking_delta') {
-        return [{ type: 'message/thinking_delta', messageId, delta }];
+      const evidence = normalizeNativeSearchCitations(assistantEvent);
+      if (evidence) {
+        mapped.push({ type: 'message/search_evidence', messageId, evidence });
       }
-      return [];
+      return mapped;
     }
     case 'message_end': {
       const messageId =
@@ -212,7 +224,15 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
         readNestedId(event, 'message') ??
         activeMessageId ??
         'unknown';
-      return [{ type: 'message/end', messageId }];
+      const evidence = normalizeNativeSearchCitations(
+        event.message ?? event.assistantMessage ?? event,
+      );
+      const mapped: AgentEvent[] = [];
+      if (evidence) {
+        mapped.push({ type: 'message/search_evidence', messageId, evidence });
+      }
+      mapped.push({ type: 'message/end', messageId });
+      return mapped;
     }
     case 'tool_execution_start': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
@@ -501,6 +521,38 @@ function readRole(value: unknown): AgentMessageRole | undefined {
     return value;
   }
   return undefined;
+}
+
+function filterDuplicateSearchEvidence(
+  event: AgentEvent,
+  citationUrlsByMessageId: Map<string, Set<string>>,
+): AgentEvent[] {
+  if (event.type !== 'message/search_evidence') {
+    return [event];
+  }
+  const seenUrls = citationUrlsByMessageId.get(event.messageId) ?? new Set<string>();
+  const citations = event.evidence.citations.filter((citation) => {
+    const key = citation.url.trim().toLowerCase();
+    if (key.length === 0 || seenUrls.has(key)) {
+      return false;
+    }
+    seenUrls.add(key);
+    return true;
+  });
+  citationUrlsByMessageId.set(event.messageId, seenUrls);
+  if (citations.length === 0) {
+    return [];
+  }
+  return [
+    {
+      ...event,
+      evidence: {
+        ...(event.evidence.query !== undefined ? { query: event.evidence.query } : {}),
+        provenance: event.evidence.provenance,
+        citations,
+      },
+    },
+  ];
 }
 
 function readNestedId(event: Record<string, unknown>, key: string): string | undefined {

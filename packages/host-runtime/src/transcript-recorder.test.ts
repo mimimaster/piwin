@@ -43,6 +43,60 @@ describe('TranscriptRecorder', () => {
     ]);
   });
 
+  it('persists and merges native search evidence in the legacy JSON transcript', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-search-evidence-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-search-evidence',
+      projectPath: '/tmp/project',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-search',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'message/search_evidence',
+      messageId: 'assistant-search',
+      evidence: {
+        query: 'piwin',
+        provenance: 'native',
+        citations: [{ title: 'First', url: 'https://example.com/a', provenance: 'native' }],
+      },
+    });
+    await recorder.recordEvent({
+      type: 'message/search_evidence',
+      messageId: 'assistant-search',
+      evidence: {
+        query: 'changed query',
+        provenance: 'native',
+        citations: [
+          { title: 'Changed', url: 'HTTPS://EXAMPLE.COM/a', provenance: 'native' },
+          { title: 'Second', url: 'https://example.com/b', provenance: 'native' },
+        ],
+      },
+    });
+    await recorder.recordEvent({ type: 'message/end', messageId: 'assistant-search' });
+    await recorder.flush();
+
+    const assistant = (await listTranscriptMessages(transcriptPath)).find(
+      (message) => message.id === 'assistant-search',
+    );
+    expect(assistant).toMatchObject({
+      status: 'done',
+      searchEvidence: {
+        query: 'piwin',
+        provenance: 'native',
+        citations: [
+          { title: 'First', url: 'https://example.com/a', provenance: 'native' },
+          { title: 'Second', url: 'https://example.com/b', provenance: 'native' },
+        ],
+      },
+    });
+  });
+
   it('keeps a high-rate delta stream exact with one final snapshot flush', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-batch-'));
     const transcriptPath = join(rootDir, 'transcript.json');

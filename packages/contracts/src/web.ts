@@ -165,6 +165,43 @@ export type SearchEvidence = {
 };
 
 /**
+ * Merge normalized evidence emitted by multiple stream updates. The first
+ * citation for a case-insensitive URL remains authoritative so later provider
+ * updates cannot replace a title, snippet, or source already shown to users.
+ */
+export function mergeSearchEvidence(
+  existing: SearchEvidence | undefined,
+  incoming: SearchEvidence,
+): SearchEvidence {
+  if (existing === undefined) {
+    return {
+      ...(incoming.query !== undefined ? { query: incoming.query } : {}),
+      provenance: incoming.provenance,
+      citations: [...incoming.citations],
+    };
+  }
+
+  const citations = [...existing.citations];
+  const seenUrls = new Set(citations.map((citation) => citation.url.trim().toLowerCase()));
+  for (const citation of incoming.citations) {
+    const key = citation.url.trim().toLowerCase();
+    if (key.length === 0 || seenUrls.has(key)) continue;
+    seenUrls.add(key);
+    citations.push(citation);
+  }
+
+  return {
+    ...(existing.query !== undefined
+      ? { query: existing.query }
+      : incoming.query !== undefined
+        ? { query: incoming.query }
+        : {}),
+    provenance: existing.provenance,
+    citations,
+  };
+}
+
+/**
  * How web_fetch turns a page into readable text.
  * - supermarkdown: local HTML→text/markdown-like extract (zero config)
  * - jina: r.jina.ai reader proxy (handles JS-heavy pages)
