@@ -142,6 +142,7 @@ export function PetPanel(props: PetPanelProps) {
   async function handleQueryRegistry(): Promise<void> {
     setRegistryBusy(true);
     setError(null);
+    setInfo(null);
     const response = await props.request({
       type: 'pet/store-query',
       query: { query: registryQuery, source: 'registry' },
@@ -153,6 +154,13 @@ export function PetPanel(props: PetPanelProps) {
     }
     const data = response.data as { results: PetStoreQueryResult[] };
     setRegistryResults(data.results);
+    if (data.results.length === 0) {
+      setInfo(
+        isChinese
+          ? '远程 catalog 不可用或无结果（codexpethub.com/catalog.json 常为 404）。请用上方「按 ID 安装」，例如输入 clawd 或 guga。'
+          : 'Remote catalog unavailable or empty (catalog.json often 404). Use “Install by ID” above with a slug such as clawd or guga.',
+      );
+    }
   }
 
   async function handleInstallRegistry(result: PetStoreQueryResult): Promise<void> {
