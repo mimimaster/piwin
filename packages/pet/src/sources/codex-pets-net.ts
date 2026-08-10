@@ -1,9 +1,11 @@
 /**
  * codex-pets.net (codex-pet-share) install path.
  *
- * Protocol:
- *   GET {origin}/api/pets/{slug}            → pet detail JSON (display, downloadUrl)
- *   GET {origin}/api/pets/{slug}/download   → zip (pet.json + spritesheet.webp)
+ * Protocol (matches `npx codex-pets add`):
+ *   GET {origin}/api/pets/{slug}/share-data  → { pet: { id, downloadUrl, ... } }
+ *   GET {origin}/api/pets/{slug}/download    → zip (pet.json + spritesheet.webp)
+ *
+ * Note: downloadUrl is nested under `pet`, not at the top level.
  *
  * Unlike CodexPetHub, this registry serves a single zip with no upfront
  * sha256. We trust-on-download with the same guards as `npx codex-pets add`:
@@ -61,9 +63,27 @@ export type CodexPetsNetPetDetail = {
     displayName?: string;
     description?: string;
     spritesheetPath?: string;
+    /** Relative or absolute download path (live API nests it here). */
+    downloadUrl?: string;
   };
+  /** Legacy / mistaken top-level field — still accepted if present. */
   downloadUrl?: string;
 };
+
+/** Resolve download URL from share-data / detail JSON shapes. */
+export function resolveCodexPetsNetDownloadUrl(
+  detail: CodexPetsNetPetDetail,
+  slug: string,
+): string {
+  const nested = detail.pet?.downloadUrl?.trim();
+  const top = detail.downloadUrl?.trim();
+  const resolved = nested || top;
+  if (resolved) {
+    return resolved;
+  }
+  // Official CLI falls back to /api/pets/{id}/download when missing.
+  return `/api/pets/${encodeURIComponent(slug)}/download`;
+}
 
 async function defaultUnzip(zipPath: string, destDir: string): Promise<void> {
   await execFileAsync('unzip', ['-o', zipPath, '-d', destDir]);
@@ -86,7 +106,8 @@ function assertAllowedUrl(urlString: string, allowedHosts: ReadonlySet<string>):
 }
 
 /**
- * Fetch pet detail from codex-pets.net to resolve the download URL.
+ * Fetch pet detail from codex-pets.net (share-data, same as npx codex-pets add).
+ * Falls back to /api/pets/{slug} if share-data is unavailable.
  */
 export async function fetchCodexPetsNetDetail(
   slug: string,
@@ -98,21 +119,33 @@ export async function fetchCodexPetsNetDetail(
   }
   const origin = (options.registryOrigin ?? CODEX_PETS_NET_ORIGIN).replace(/\/$/, '');
   const allowedHosts = options.allowedHosts ?? ALLOWED_HOSTS;
-  const detailUrl = `${origin}/api/pets/${encodeURIComponent(trimmed)}`;
-  assertAllowedUrl(detailUrl, allowedHosts);
+  const encoded = encodeURIComponent(trimmed);
+  const candidates = [
+    `${origin}/api/pets/${encoded}/share-data`,
+    `${origin}/api/pets/${encoded}`,
+  ];
 
   const fetchFn = options.fetch ?? fetch;
   const init: RequestInit = { redirect: 'follow' };
   if (options.signal) init.signal = options.signal;
-  const response = await fetchFn(detailUrl, init);
-  if (!response.ok) {
-    throw new Error(`codex-pets.net detail fetch failed for "${trimmed}": HTTP ${response.status}`);
+
+  let lastStatus = 0;
+  for (const detailUrl of candidates) {
+    assertAllowedUrl(detailUrl, allowedHosts);
+    const response = await fetchFn(detailUrl, init);
+    lastStatus = response.status;
+    if (!response.ok) {
+      continue;
+    }
+    const raw = (await response.json()) as CodexPetsNetPetDetail;
+    if (!raw?.pet?.id) {
+      throw new Error('codex-pets.net detail missing pet.id');
+    }
+    return raw;
   }
-  const raw = (await response.json()) as CodexPetsNetPetDetail;
-  if (!raw?.pet?.id) {
-    throw new Error('codex-pets.net detail missing pet.id');
-  }
-  return raw;
+  throw new Error(
+    `codex-pets.net detail fetch failed for "${trimmed}": HTTP ${lastStatus || 'unknown'}`,
+  );
 }
 
 /**
@@ -196,11 +229,9 @@ export async function installPetFromCodexPetsNet(
     throw new Error(`unsafe pet id from registry: ${petId}`);
   }
 
-  // Resolve download URL: detail.downloadUrl is usually relative ("/api/...").
-  const relativeDownload = detail.downloadUrl?.trim();
-  if (!relativeDownload) {
-    throw new Error(`codex-pets.net detail missing downloadUrl for "${trimmed}"`);
-  }
+  // Live API nests downloadUrl under pet (share-data); also accept top-level
+  // and fall back to /api/pets/{id}/download like the official CLI.
+  const relativeDownload = resolveCodexPetsNetDownloadUrl(detail, petId);
   let downloadUrl: string;
   if (relativeDownload.startsWith('https://')) {
     downloadUrl = relativeDownload;

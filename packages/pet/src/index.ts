@@ -55,6 +55,7 @@ export type { ParsedPetInstallInput } from './pet-install-input.js';
 export {
   installPetFromCodexPetsNet,
   fetchCodexPetsNetDetail,
+  resolveCodexPetsNetDownloadUrl,
   CODEX_PETS_NET_ORIGIN,
 } from './sources/codex-pets-net.js';
 
