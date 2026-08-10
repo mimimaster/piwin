@@ -201,6 +201,117 @@
   color: var(--content-muted);
 }
 
+/* Video model discovery selector */
+
+.video-model-suggest {
+  position: relative;
+  width: 100%;
+}
+
+.video-model-suggest-dropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  left: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-md);
+}
+
+.video-model-suggest-loading,
+.video-model-suggest-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  font-size: 12px;
+}
+
+.video-model-suggest-list,
+.video-model-suggest-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.video-model-suggest-group + .video-model-suggest-group {
+  border-top: 1px solid var(--line-soft);
+}
+
+.video-model-suggest-group-label {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--content-muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.video-model-suggest-option {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--content-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-model-suggest-option:hover,
+.video-model-suggest-option.is-active {
+  background: var(--surface-hover);
+}
+
+.video-model-suggest-option-main,
+.video-model-suggest-option-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.video-model-suggest-option-main {
+  flex: 1;
+}
+
+.video-model-suggest-option-id {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-model-suggest-option-label,
+.video-model-suggest-option-meta {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.video-model-suggest-option-label {
+  overflow: hidden;
+  color: var(--content-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-model-suggest-option-meta {
+  flex: 0 0 auto;
+  align-items: flex-end;
+  text-align: right;
+}
+
 .model-dir-editor-input,
 .model-dir-editor-textarea {
   width: 100%;
