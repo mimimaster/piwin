@@ -236,6 +236,56 @@ describe('ProjectSessionSidebar bounded lazy session windows', () => {
     ).toBe('显示选项');
   });
 
+  it('collapses and expands the Projects and Conversations sections independently', () => {
+    const projects = createMockProjects(2);
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      filteredSessions: createMockSessions(1),
+      generalSessions: createMockSessions(1),
+    });
+
+    const projectsToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="projects-section-toggle"]',
+    );
+    const projectsContent = container.querySelector<HTMLElement>(
+      '[data-testid="projects-section-content"]',
+    );
+    const conversationsToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="conversations-section-toggle"]',
+    );
+    const conversationsContent = container.querySelector<HTMLElement>(
+      '[data-testid="conversations-section-content"]',
+    );
+
+    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(projectsContent?.hidden).toBe(false);
+    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(conversationsContent?.hidden).toBe(false);
+
+    act(() => {
+      projectsToggle?.click();
+    });
+    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(projectsContent?.hidden).toBe(true);
+    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(conversationsContent?.hidden).toBe(false);
+
+    act(() => {
+      conversationsToggle?.click();
+    });
+    expect(projectsContent?.hidden).toBe(true);
+    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(conversationsContent?.hidden).toBe(true);
+
+    act(() => {
+      projectsToggle?.click();
+      conversationsToggle?.click();
+    });
+    expect(projectsContent?.hidden).toBe(false);
+    expect(conversationsContent?.hidden).toBe(false);
+  });
+
   it('renders New Agent / Search as flat action rows and expands search on click', () => {
     const { container, root } = renderSidebar();
 
@@ -456,7 +506,30 @@ it('shows a completion marker and replaces the session timestamp', () => {
   const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
   expect(item?.getAttribute('data-completed')).toBe('true');
   expect(container.querySelector('[data-testid="session-completed-indicator"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-completed-dismiss"]')).not.toBeNull();
   expect(container.querySelector('.session-item-time')).toBeNull();
+});
+
+it('dismisses the completion marker on checkmark click without opening the session', () => {
+  const sessions = createMockSessions(1);
+  const onResumeSession = vi.fn();
+  const onDismissCompletedAttention = vi.fn();
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    completedAttentionSessionIds: { 'session-1': true },
+    onResumeSession,
+    onDismissCompletedAttention,
+  });
+
+  const dismiss = container.querySelector<HTMLButtonElement>(
+    '[data-testid="session-completed-dismiss"]',
+  );
+  expect(dismiss).not.toBeNull();
+  act(() => {
+    dismiss?.click();
+  });
+  expect(onDismissCompletedAttention).toHaveBeenCalledWith('session-1');
+  expect(onResumeSession).not.toHaveBeenCalled();
 });
 
 it('archived row shows pin, unarchive, and delete actions', () => {

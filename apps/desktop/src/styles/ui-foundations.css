@@ -642,3 +642,35 @@ textarea {
   width: 100%;
   min-height: 120px;
 }
+
+/* ── Ink Wash UI Foundations Refinements ────────────────────────────── */
+
+html[data-theme-visual-style='ink-wash'] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+html[data-theme-visual-style='ink-wash'] ::-webkit-scrollbar-thumb {
+  background: rgba(137, 163, 168, 0.25);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+html[data-theme-visual-style='ink-wash'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(137, 163, 168, 0.5);
+}
+
+html[data-theme-visual-style='ink-wash'] .status-pill-yolo,
+html[data-theme-visual-style='ink-wash'] [data-testid='agent-mode-pill'] {
+  background: rgba(194, 77, 67, 0.16) !important;
+  border: none !important;
+  color: #e8867d !important;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.25);
+  transition: transform 0.1s ease;
+}
+
+html[data-theme-visual-style='ink-wash'] .status-pill-yolo:active,
+html[data-theme-visual-style='ink-wash'] [data-testid='agent-mode-pill']:active {
+  transform: scale(0.96);
+}

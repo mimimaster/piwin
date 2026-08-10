@@ -3,6 +3,8 @@ import type { ThemeManifest } from '@piwin/contracts';
 export type InkWashAssetKind =
   | 'hero'
   | 'conversationTexture'
+  | 'sidebarBg'
+  | 'rightPanelBg'
   | 'agentSeal'
   | 'dryBrushDivider'
   | 'emptySession'
@@ -13,6 +15,8 @@ export type InkWashAssetKind =
 const ASSET_PATHS: Record<InkWashAssetKind, string> = {
   hero: '/ui/ink-wash/hero.jpg',
   conversationTexture: '/ui/ink-wash/conversation-texture.jpg',
+  sidebarBg: '/ui/ink-wash/sidebar-bg.jpg',
+  rightPanelBg: '/ui/ink-wash/right-panel-bg.jpg',
   agentSeal: '/ui/ink-wash/agent-seal.jpg',
   dryBrushDivider: '/ui/ink-wash/dry-brush-divider.jpg',
   emptySession: '/ui/ink-wash/empty-session.jpg',

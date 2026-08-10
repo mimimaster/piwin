@@ -24,6 +24,12 @@ import {
   type PiModelRegistration,
   type PiProviderApi,
 } from '../pi-model-runtime.js';
+
+import {
+  providerNeedsNativeSearchWrapper,
+  wrapStreamSimpleForNativeSearch,
+  type NativeSearchStreamSimple,
+} from '../native-web-search.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   SerializableBlueprint,
@@ -116,12 +122,13 @@ export async function createBlueprintResourceLoader(
 export function registerWorkerProviders(
   modelRuntime: PiModelRuntime,
   providers: SerializableProviderRuntime[],
+  searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null | undefined,
 ): void {
   for (const provider of providers) {
     const apiKey = resolveWorkerProviderApiKey(provider);
     modelRuntime.registerProvider(
       provider.providerId,
-      buildWorkerProviderRegistration(provider, apiKey),
+      buildWorkerProviderRegistration(provider, apiKey, searchRoute),
     );
   }
 }
@@ -155,38 +162,59 @@ function resolveWorkerApi(protocol: SerializableProviderRuntime['protocol']): Pi
 export function buildWorkerProviderRegistration(
   provider: SerializableProviderRuntime,
   apiKey: string | undefined,
+  searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null | undefined,
+  streamSimple?: NativeSearchStreamSimple,
 ): ReturnType<typeof buildPiProviderRegistration> {
   const api = resolveWorkerApi(provider.protocol);
+  const models = provider.models.map((model) => {
+    const thinkingLevelMap =
+      model.reasoning === false
+        ? undefined
+        : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
+    return {
+      id: model.id,
+      name: model.label?.trim() || model.id,
+      api,
+      baseUrl: provider.baseUrl,
+      reasoning: model.reasoning ?? true,
+      ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+      input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: model.contextWindow ?? 128_000,
+      maxTokens: model.maxOutputTokens ?? 8_192,
+      ...(provider.headers ? { headers: provider.headers } : {}),
+      ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
+      ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
+    };
+  });
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
     name: provider.providerId,
     baseUrl: provider.baseUrl,
     api,
     authHeader: Boolean(apiKey || provider.auth.kind !== 'none'),
-    models: provider.models.map((model) => {
-      const thinkingLevelMap =
-        model.reasoning === false
-          ? undefined
-          : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
-      return {
-        id: model.id,
-        name: model.label?.trim() || model.id,
-        api,
-        baseUrl: provider.baseUrl,
-        reasoning: model.reasoning ?? true,
-        ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
-        input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: model.contextWindow ?? 128_000,
-        maxTokens: model.maxOutputTokens ?? 8_192,
-        ...(provider.headers ? { headers: provider.headers } : {}),
-      };
-    }),
+    models,
   };
   if (apiKey) {
     registration.apiKey = apiKey;
   }
   if (provider.headers) {
     registration.headers = provider.headers;
+  }
+  const nativeFlags = models.map((model) => ({
+    id: model.id,
+    ...(model.capabilities ? { capabilities: model.capabilities } : {}),
+    ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
+  }));
+  if (providerNeedsNativeSearchWrapper(nativeFlags, searchRoute)) {
+    const wrapped = wrapStreamSimpleForNativeSearch(streamSimple, {
+      models: nativeFlags,
+      searchRoute: searchRoute ?? null,
+    });
+    if (wrapped) {
+      registration.streamSimple = wrapped;
+    }
+  } else if (streamSimple) {
+    registration.streamSimple = streamSimple;
   }
   return registration;
 }
@@ -222,7 +250,7 @@ export function createWorkerPiSessionFactory(
       options.modelRuntime ??
       (await createWorkerModelRuntime(piModule as Record<string, unknown>, agentDir));
     if (providers && providers.length > 0) {
-      registerWorkerProviders(modelRuntime, providers);
+      registerWorkerProviders(modelRuntime, providers, input.blueprint.searchRoute);
     }
     await modelRuntime.refresh({ allowNetwork: false });
 

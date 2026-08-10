@@ -49,7 +49,7 @@ export function providerNeedsNativeSearchWrapper(
   }
   return models.some((model) =>
     modelSupportsCapability(
-      { capabilities: model.capabilities as ModelCapability[] | undefined },
+      { ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}) },
       'native-web-search',
     ),
   );
@@ -66,12 +66,12 @@ export function resolveNativeSearchEnabledForModel(
     return searchRoute?.selected === 'native';
   }
   const tagged = modelSupportsCapability(
-    { capabilities: model.capabilities as ModelCapability[] | undefined },
+    { ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}) },
     'native-web-search',
   );
   const mode = resolveNativeWebSearchMode({
-    capabilities: model.capabilities as ModelCapability[] | undefined,
-    nativeWebSearchMode: model.nativeWebSearchMode,
+    ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
+    ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
   });
   if (mode === 'always-on') {
     return true;

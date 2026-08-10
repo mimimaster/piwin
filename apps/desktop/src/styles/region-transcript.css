@@ -28,12 +28,12 @@
   content: '';
   position: absolute;
   right: 8px;
-  bottom: 28px;
+  bottom: 20px;
   left: 0;
-  height: 32px;
-  background: var(--canvas, var(--bg, #f4f4f5));
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  height: 24px;
+  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 72%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   pointer-events: none;
@@ -47,14 +47,14 @@
   right: 0;
   bottom: 0;
   left: 0;
-  height: 28px;
+  height: 20px;
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 40%, transparent) 100%
+    color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 28%, transparent) 100%
   );
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
   pointer-events: none;
@@ -318,7 +318,10 @@
   overflow-anchor: none;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
-  padding: 0 var(--chat-inline-pad, 24px) 24px;
+  /* Keep the final response above the dock's fade and input card. The dock
+     is a sibling layout region, so this is visual breathing room, not an
+     overlap workaround. */
+  padding: 0 var(--chat-inline-pad, 24px) 48px;
   background: transparent;
 }
 
@@ -354,18 +357,21 @@
   /* The message column and Composer card use the same --chat-max measure. */
   margin: 0 auto;
   /* Historical messages should sit directly under the titlebar. */
-  padding: 0 0 12px;
+  padding: 0;
   box-sizing: border-box;
   gap: 20px;
 }
 
 .jump-to-latest-btn {
-  position: sticky;
+  /* Jump is viewport chrome, not transcript content. Anchoring it to the
+     viewport keeps it in the gap above the composer while scrolling. */
+  position: absolute;
+  right: 50%;
   bottom: 12px;
-  align-self: center;
-  margin: 0 auto;
+  transform: translateX(50%);
+  margin: 0;
   display: block;
-  z-index: 100;
+  z-index: 7;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text);
@@ -400,7 +406,7 @@
 
 @media (max-width: 820px) {
   .chat-stream {
-    padding: 0 max(12px, var(--chat-inline-pad, 24px)) 14px;
+    padding: 0 max(12px, var(--chat-inline-pad, 24px)) 40px;
   }
 }
 
@@ -3298,15 +3304,70 @@ html[data-theme-mode='light'] .permission-detail {
 .artifact-with-source {
   position: relative;
   margin: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
-/* Visual previews are intentionally wider than transcript prose. Only the
-   open Artifact expands across the chat-stage gutter; source code and normal
-   assistant copy retain the selected conversation measure. */
+/*
+ * Open preview: SVG/HTML surface + "Show code" as a true sibling side rail.
+ * Never use negative full-bleed margins (chat-stream is overflow-x:hidden and
+ * clips asymmetrically → left-shifted crop). Never overlay the rail on the iframe.
+ */
+.artifact-with-source--preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.artifact-preview-surface {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.artifact-side-rail {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 0;
+}
+
+.artifact-side-rail .artifact-frame-text-action {
+  min-height: 0;
+  height: auto;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.artifact-side-rail .artifact-frame-text-action:hover:not(:disabled),
+.artifact-side-rail .artifact-frame-text-action:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+}
+
+/* Legacy class kept as no-op alias so older markup cannot reintroduce bleed. */
 .artifact-with-source--full-bleed {
-  width: calc(100% + (var(--chat-side-pad) * 2));
-  margin-right: calc(-1 * var(--chat-side-pad));
-  margin-left: calc(-1 * var(--chat-side-pad));
+  width: 100%;
+  max-width: 100%;
+  margin-right: 0;
+  margin-left: 0;
 }
 
 .artifact-frame {
@@ -3315,12 +3376,19 @@ html[data-theme-mode='light'] .permission-detail {
   border-radius: 0;
   background: transparent;
   overflow: visible;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
+/*
+ * Fallback when a frame still hosts an action via extraHeaderAction (tests /
+ * flashcard edge). Prefer .artifact-with-source--preview side rail in product UI.
+ */
 .artifact-frame.has-artifact-action {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  column-gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
   align-items: start;
 }
 
@@ -3328,6 +3396,8 @@ html[data-theme-mode='light'] .permission-detail {
   grid-column: 1;
   grid-row: 1;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .artifact-frame.preparing,
@@ -3336,42 +3406,125 @@ html[data-theme-mode='light'] .permission-detail {
   min-height: 80px;
 }
 
+.artifact-frame.preparing {
+  display: grid;
+  min-height: 104px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 18% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 48%),
+    color-mix(in srgb, var(--card) 82%, transparent);
+}
+
+.artifact-preparing-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 20px;
+}
+
+.artifact-preparing-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  color: var(--accent);
+}
+
+.artifact-preparing-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.artifact-preparing-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.artifact-preparing-copy strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.artifact-preparing-copy > span {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.artifact-preparing-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    112deg,
+    transparent 26%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 44%,
+    color-mix(in srgb, var(--text) 8%, transparent) 50%,
+    transparent 68%
+  );
+  transform: translateX(-115%);
+  animation: artifact-preparing-sheen 1.9s ease-in-out infinite;
+}
+
+@keyframes artifact-preparing-sheen {
+  to {
+    transform: translateX(115%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artifact-preparing-sheen,
+  .artifact-preparing-icon {
+    animation: none !important;
+  }
+}
+
 .artifact-frame.blocked {
   border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
   border-radius: 8px;
 }
 
 .artifact-frame-actions {
+  /* Never absolute: absolute top-right overlays the SVG/HTML surface. */
   position: static;
   grid-column: 2;
   grid-row: 1;
   align-self: start;
-  margin-top: 12px;
+  justify-self: end;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
   gap: 6px;
-  align-items: center;
-  padding: 0;
+  align-items: flex-end;
+  margin-top: 4px;
+  padding: 0 2px 0 0;
   background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 3;
-  transition: opacity var(--motion-fast, 120ms) var(--motion-ease, ease);
-}
-
-.artifact-frame:hover > .artifact-frame-actions,
-.artifact-frame:focus-within > .artifact-frame-actions {
   opacity: 1;
   pointer-events: auto;
+  z-index: 3;
 }
 
 .artifact-frame-actions .artifact-frame-text-action {
   min-height: 0;
   height: auto;
-  padding: 0;
+  padding: 2px 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -3379,6 +3532,7 @@ html[data-theme-mode='light'] .permission-detail {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
+  white-space: nowrap;
 }
 
 .artifact-frame-actions .artifact-frame-text-action:hover:not(:disabled),
@@ -3390,6 +3544,20 @@ html[data-theme-mode='light'] .permission-detail {
 }
 
 @media (max-width: 640px) {
+  .artifact-with-source--preview {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .artifact-side-rail {
+    order: -1;
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 0;
+    margin-bottom: 6px;
+  }
+
   .artifact-frame.has-artifact-action {
     display: flex;
     flex-direction: column;
@@ -3402,6 +3570,7 @@ html[data-theme-mode='light'] .permission-detail {
 
   .artifact-frame.has-artifact-action > .artifact-frame-actions {
     order: 1;
+    flex-direction: row;
     justify-content: flex-end;
     margin-top: 0;
     margin-bottom: 6px;
@@ -3413,12 +3582,75 @@ html[data-theme-mode='light'] .permission-detail {
   margin: 0;
 }
 
-.artifact-iframe {
+/* Viewport-recycled Inline artifact: keep last measured height so the
+   transcript does not collapse while the sandboxed iframe is unmounted. */
+.artifact-iframe-placeholder {
+  position: relative;
+  display: block;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card, var(--panel)) 70%, transparent);
+  pointer-events: none;
+}
+
+.artifact-iframe-placeholder--recycled {
+  border: 1px dashed color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.artifact-iframe-stage {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Loading shell while init-queue / srcdoc paint — never leave a blank park. */
+.artifact-iframe-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--line));
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 18% 10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 48%),
+    color-mix(in srgb, var(--card) 88%, transparent);
+  pointer-events: none;
+}
+
+.artifact-iframe-loading-copy {
+  position: relative;
+  z-index: 1;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.artifact-iframe.is-pending-paint {
+  pointer-events: none;
+}
+
+.artifact-iframe.is-painted {
+  transition: opacity 160ms ease;
+}
+
+.artifact-iframe {
+  /* Block layout avoids inline baseline gap that can look like a shift. */
+  display: block;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   border: 0 !important;
   background: transparent !important;
   color-scheme: inherit;
-  display: block;
   border-radius: 0;
 }
 
@@ -4025,4 +4257,217 @@ html[data-theme-mode='light'] .permission-detail {
   flex-direction: column;
   gap: 0;
   padding-left: 2px;
+}
+
+/* ── Ink Wash Transcript & Message Turn Refinements ─────────────────── */
+
+@keyframes ink-drop-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.82;
+    box-shadow: 0 0 4px rgba(137, 163, 168, 0.4);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 12px rgba(137, 163, 168, 0.85);
+  }
+}
+
+html[data-theme-visual-style='ink-wash'] ::selection {
+  background: rgba(90, 123, 134, 0.38);
+  color: #f8f6f0;
+}
+
+html[data-theme-visual-style='ink-wash'] .bubble.role-user {
+  background: rgba(255, 255, 255, 0.032) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Ink Wash User Message Scroll Banner (古风金墨横幅；原图漆彩纸纹背景) ───────── */
+html[data-theme-visual-style='ink-wash'] .bubble.role-user {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+  background-color: rgba(22, 23, 26, 0.92) !important;
+  background-image:
+    linear-gradient(180deg, rgba(35, 36, 42, 0.75) 0%, rgba(18, 19, 22, 0.85) 100%),
+    url('/ui/ink-wash/card-paper-bg.jpg') !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+  backdrop-filter: blur(24px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
+  border-top: 1.5px solid rgba(214, 185, 140, 0.5) !important;
+  border-bottom: 1.5px solid rgba(214, 185, 140, 0.5) !important;
+  border-left: 1px solid rgba(214, 205, 190, 0.18) !important;
+  border-right: 1px solid rgba(214, 205, 190, 0.18) !important;
+  border-radius: 14px 16px 6px 16px !important;
+  padding: 14px 22px 14px 18px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 40px rgba(0, 0, 0, 0.65) !important;
+  color: #f8f6f0 !important;
+}
+
+/* Drop the cinnabar 印 chip; the inkstone ornament carries the motif alone. */
+html[data-theme-visual-style='ink-wash'] .bubble.role-user::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* 确保用户消息文本、时间与按钮（复制/Revert）置于墨砚雕饰之上 (Elevate text and action buttons above inkstone ornament) */
+html[data-theme-visual-style='ink-wash'] .user-message-wrapper,
+html[data-theme-visual-style='ink-wash'] .bubble.role-user .message-text,
+html[data-theme-visual-style='ink-wash'] .user-message-actions,
+html[data-theme-visual-style='ink-wash'] .user-message-time {
+  position: relative !important;
+  z-index: 2 !important;
+  pointer-events: auto !important;
+}
+
+/* 右上角实景墨砚毛笔雕饰 (matches target: quiet, not crowding the text) */
+html[data-theme-visual-style='ink-wash'] .bubble.role-user::after {
+  content: '' !important;
+  position: absolute !important;
+  top: -32px !important;
+  right: -28px !important;
+  width: 112px !important;
+  height: 76px !important;
+  background-image: url('/ui/ink-wash/inkstone-brush-v2.png') !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.7)) !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  opacity: 0.92 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .user-message-collapsible {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .user-message-actions {
+  background: transparent !important;
+  border: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .markdown[style*='--streamdown-caret'] > :last-child::after {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: #89a3a8;
+  content: '';
+  vertical-align: 0.05em;
+  white-space: nowrap;
+  animation: ink-drop-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .turn-work-details::before,
+html[data-theme-visual-style='ink-wash'] .role-assistant .bubble-header::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  border-radius: 3px;
+  background-image: var(--ink-wash-agent-seal, none);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 2px 8px rgba(194, 77, 67, 0.4);
+}
+
+html[data-theme-visual-style='ink-wash'] .chat-turn + .chat-turn {
+  position: relative;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+html[data-theme-visual-style='ink-wash'] .chat-turn + .chat-turn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 8px;
+  background-image: var(--ink-wash-dry-brush-divider, none);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+html[data-theme-visual-style='ink-wash'] .transcript-viewport::before,
+html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
+  display: none !important;
+}
+
+/* ── Ink Wash Notifications, Thinking Blocks, Code Headers & Diffs ───── */
+
+/* 完成状态 Banner 朱砂印鉴 */
+html[data-theme-visual-style='ink-wash'] .run-complete-notice,
+html[data-theme-visual-style='ink-wash'] .execution-complete-pill {
+  background: rgba(112, 145, 156, 0.12) !important;
+  border-left: 3px solid #c24d43 !important;
+  color: #f8f6f0 !important;
+  border-radius: 6px !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .session-error-notice {
+  background: rgba(194, 77, 67, 0.12) !important;
+  border: 1px solid rgba(194, 77, 67, 0.35) !important;
+  color: #e8867d !important;
+  border-radius: 6px !important;
+}
+
+/* 思考过程折叠块（Thinking process）水墨墨线与折叠页质感 */
+html[data-theme-visual-style='ink-wash'] .thinking-block-container,
+html[data-theme-visual-style='ink-wash'] .reasoning-header {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(214, 205, 190, 0.08) !important;
+  border-radius: 8px !important;
+  color: #d8d3cb !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .reasoning-content {
+  border-left: 2px solid rgba(112, 145, 156, 0.35) !important;
+  padding-left: 12px !important;
+  margin-left: 6px !important;
+  color: #9e988e !important;
+}
+
+/* 代码块 Header & Diff 行 */
+html[data-theme-visual-style='ink-wash'] .code-block-header {
+  background: #1a1b1e !important;
+  border-bottom: 1px solid rgba(214, 205, 190, 0.08) !important;
+  color: #d8d3cb !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .diff-line-add {
+  background: rgba(52, 211, 153, 0.14) !important;
+  color: #6ee7b7 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .diff-line-delete {
+  background: rgba(244, 63, 94, 0.14) !important;
+  color: #fda4af !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .artifact-preview-card {
+  background: rgba(26, 27, 30, 0.9) !important;
+  border: 1px solid rgba(194, 77, 67, 0.25) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
 }

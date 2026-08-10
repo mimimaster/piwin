@@ -2218,10 +2218,10 @@ function applyRunRecord(
       : run.status === 'interrupted' && run.terminalCode === 'paused'
         ? ('paused' as const)
         : run.status === 'cancelled' || run.status === 'interrupted'
-        ? ('cancelled' as const)
-        : run.status === 'failed'
-          ? ('failed' as const)
-          : undefined;
+          ? ('cancelled' as const)
+          : run.status === 'failed'
+            ? ('failed' as const)
+            : undefined;
   const nextRecord: RunRecordUi = {
     runId: run.runId,
     ...(run.revision !== undefined
@@ -2302,10 +2302,10 @@ function applyRunRecord(
             ...(run.resumeCheckpointId ? { checkpointId: run.resumeCheckpointId } : {}),
           }
         : outcome === 'cancelled'
-        ? { kind: 'stopped', at: Date.now() }
-        : outcome === 'failed'
-          ? { kind: 'failed', message: run.error ?? 'Run failed', at: Date.now() }
-          : { kind: 'complete', at: Date.now() },
+          ? { kind: 'stopped', at: Date.now() }
+          : outcome === 'failed'
+            ? { kind: 'failed', message: run.error ?? 'Run failed', at: Date.now() }
+            : { kind: 'complete', at: Date.now() },
     runRecordsById: records,
     workingSessionIds: removeWorkingSessionId(state.workingSessionIds, run.sessionId),
     // Host implementations may publish a terminal-shaped `run/updated`

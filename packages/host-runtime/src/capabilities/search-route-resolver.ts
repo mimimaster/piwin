@@ -48,7 +48,7 @@ export type ResolveSearchRouteInput = {
     'id' | 'enabled' | 'capabilities' | 'nativeWebSearchMode' | 'routes'
   > | null;
   /** External multi-source web config (Host `web_search`). */
-  web?: Pick<WebConfig, 'searchSources' | 'searchRoutePolicy'> | null;
+  web?: Pick<WebConfig, 'searchSources' | 'searchRoutePolicy'> | null | undefined;
   adapter: NativeSearchAdapterSupport;
 };
 
@@ -57,8 +57,7 @@ export type ResolveSearchRouteInput = {
  * Fallback is capability availability before the request starts only.
  */
 export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSearchRoute {
-  const policy =
-    input.policy ?? input.web?.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY;
+  const policy = input.policy ?? input.web?.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY;
   const readiness = evaluateSearchReadiness(input);
   const issues: string[] = [...readiness.native.reasons, ...readiness.external.reasons];
   let incompatible = false;
@@ -115,7 +114,9 @@ export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSear
         selected = externalReady ? 'external' : null;
         fallback = null;
         if (!externalReady) {
-          issues.push('external-only policy selected but no enabled external search source is ready');
+          issues.push(
+            'external-only policy selected but no enabled external search source is ready',
+          );
         }
       }
       break;
@@ -161,8 +162,7 @@ function evaluateNativeReadiness(input: ResolveSearchRouteInput): SearchBackendR
     reasons.push('selected chat model is not tagged native-web-search');
   }
 
-  const alwaysOn =
-    modelTagged && model ? resolveNativeWebSearchMode(model) === 'always-on' : false;
+  const alwaysOn = modelTagged && model ? resolveNativeWebSearchMode(model) === 'always-on' : false;
 
   const adapterRequestSupported = input.adapter.requestSupported;
   if (modelTagged && !adapterRequestSupported) {

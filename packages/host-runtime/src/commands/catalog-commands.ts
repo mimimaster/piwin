@@ -34,6 +34,7 @@ import { decodeBase64Media } from '../media-decode.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
 import { searchPiCatalog, searchPiImagesCatalog } from '@piwin/agent-host';
 import { testProviderModel } from '../provider-model-test.js';
+import { testImageGenerationModel } from '../image-generation-test.js';
 import { decodeBase64Audio, transcribeOpenAiCompatible } from '@piwin/speech';
 import {
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
@@ -93,6 +94,7 @@ const TYPES = new Set<HostCommand['type']>([
   'models/catalog/search',
   'models/image-catalog/search',
   'models/test',
+  'models/image-test',
   'web/search-route-preview',
   'vision/delegate',
   'vision/cache/clear',
@@ -522,6 +524,24 @@ export async function handleCatalogCommand(
       } catch (error) {
         const message = formatError(error);
         return fail(requestId, 'models/test', message);
+      }
+    }
+    case 'models/image-test': {
+      try {
+        const secretResolver = createSecretResolver();
+        const oneShotApiKey = command.apiKey?.trim();
+        const result = await testImageGenerationModel(
+          command.provider,
+          command.modelId,
+          command.prompt,
+          {
+            secretResolver,
+            ...(oneShotApiKey ? { apiKey: oneShotApiKey } : {}),
+          },
+        );
+        return ok(requestId, 'models/image-test', result);
+      } catch (error) {
+        return fail(requestId, 'models/image-test', formatError(error));
       }
     }
     case 'vision/cache/clear': {

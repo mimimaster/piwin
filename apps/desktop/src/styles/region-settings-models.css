@@ -3,6 +3,272 @@
    legacy classes (settings-resources.css) until R3 rewrites the settings region.
    Semantic runtime tokens only (appearance-tokens.ts); no !important, no hex. */
 
+/* ── Unified model workspace ─────────────────────────────────────── */
+
+.settings-models-page {
+  min-width: 0;
+  padding-bottom: var(--space-6);
+}
+
+.model-management {
+  min-width: 0;
+  margin: 0;
+}
+
+.model-workspace-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.model-workspace-intro p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--content-secondary);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.model-workspace-intro .ui-status-badge {
+  flex: 0 0 auto;
+}
+
+.model-workspace-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.model-workspace-metric {
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface);
+  background: var(--surface-raised);
+}
+
+.model-workspace-metric-label {
+  color: var(--content-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.model-workspace-metric strong {
+  margin-top: 5px;
+  color: var(--content-primary);
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.model-workspace-metric strong.is-compact {
+  overflow: hidden;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-workspace-metric small {
+  margin-top: 5px;
+  color: var(--content-muted);
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.model-workspace-tabs {
+  display: grid;
+  grid-template-columns: minmax(188px, 0.27fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.model-workspace-tabs .model-workspace-nav {
+  position: sticky;
+  top: var(--space-3);
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface);
+  background: var(--surface-inset);
+}
+
+.model-workspace-nav .model-workspace-nav-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border-color: transparent;
+  border-radius: var(--radius-control);
+  color: var(--content-secondary);
+  text-align: left;
+}
+
+.model-workspace-nav .model-workspace-nav-item:hover {
+  border-color: transparent;
+  background: var(--surface-hover);
+}
+
+.model-workspace-nav .model-workspace-nav-item[data-state='active'] {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line-soft));
+  background: var(--surface-raised);
+  color: var(--content-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.model-workspace-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--surface-hover);
+  color: var(--content-secondary);
+}
+
+.model-workspace-nav-item[data-state='active'] .model-workspace-nav-icon {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.model-workspace-nav-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.model-workspace-nav-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.model-workspace-nav-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.model-workspace-nav-title strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-workspace-nav-title > span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--content-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.model-workspace-nav-copy small,
+.model-workspace-nav-copy em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-workspace-nav-copy small {
+  margin-top: 2px;
+  color: var(--content-muted);
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.model-workspace-nav-copy em {
+  margin-top: 5px;
+  color: var(--content-secondary);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.3;
+}
+
+.model-workspace-tabs .model-management-tab-content {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  padding: 0;
+  outline: none;
+}
+
+.model-workspace-tabs .speech-defaults {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+@media (max-width: 920px) {
+  .model-workspace-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .model-workspace-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .model-workspace-tabs .model-workspace-nav {
+    position: static;
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .model-workspace-tabs .model-management-tab-content {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 560px) {
+  .model-workspace-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .model-workspace-overview,
+  .model-workspace-tabs .model-workspace-nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .model-workspace-metric {
+    min-height: 70px;
+  }
+}
+
 /* Directory header */
 
 .model-dir-header {

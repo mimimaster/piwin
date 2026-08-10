@@ -153,10 +153,7 @@ describe('discoverProviderModels', () => {
         }),
     });
 
-    expect(result.models.map((model) => model.id).sort()).toEqual([
-      'deepseek-chat',
-      'gpt-image-1',
-    ]);
+    expect(result.models.map((model) => model.id).sort()).toEqual(['deepseek-chat', 'gpt-image-1']);
     const imageModel = result.models.find((model) => model.id === 'gpt-image-1');
     expect(imageModel?.capabilities).toContain('image-generation');
     const chatModel = result.models.find((model) => model.id === 'deepseek-chat');
@@ -165,7 +162,10 @@ describe('discoverProviderModels', () => {
 
   it('auto-tags gemini image models by split-name match', async () => {
     const result = await discoverProviderModels(
-      createProvider({ protocol: 'google-gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' }),
+      createProvider({
+        protocol: 'google-gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      }),
       {
         resolveSecret: async () => 'gemini-secret',
         fetch: async () =>
@@ -287,5 +287,27 @@ describe('discoverProviderModels', () => {
       { id: 'video-understanding-model' },
       { id: 'vision-video-chat' },
     ]);
+  });
+
+  it('exposes Sora discovery metadata in the shape the video runtime consumes', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => createJsonResponse({ data: [{ id: 'sora-2' }] }),
+    });
+
+    const sora = result.models.find((model) => model.id === 'sora-2');
+    expect(sora).toMatchObject({
+      id: 'sora-2',
+      capabilities: ['video-generation'],
+      videoGenerationSuggestion: {
+        reason: 'registry',
+        apiStyle: 'openai-videos',
+        path: '/videos',
+        label: 'Sora 2',
+      },
+      label: 'Sora 2',
+    });
+    // The runtime bridge (resolveVideoProvider/buildVideoGenTool) is verified
+    // in video-gen-tool.test.ts to avoid a host-runtime self-import here.
   });
 });

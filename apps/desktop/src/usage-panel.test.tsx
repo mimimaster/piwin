@@ -46,6 +46,8 @@ const SAMPLE_ROLLUP: UsageRollup = {
       cacheWriteTokens: 30,
       totalTokens: 800,
       entryCount: 2,
+      durationMs: 2_500,
+      durationMsCompletionTokens: 250,
     },
     {
       providerId: 'personal-key',
@@ -226,6 +228,19 @@ describe('UsagePanel', () => {
       container?.querySelector('[data-testid="usage-model-key-cache-rate-personal-key::gpt-4o"]')
         ?.textContent,
     ).toContain('12%');
+  });
+
+  it('renders tokens per second for rows with a measured duration and a dash otherwise', async () => {
+    ({ root, container } = renderPanel());
+    await flushLoad();
+
+    expect(
+      container?.querySelector('[data-testid="usage-model-key-tps-work-key::gpt-4o"]')?.textContent,
+    ).toBe('100 tok/s');
+    expect(
+      container?.querySelector('[data-testid="usage-model-key-tps-personal-key::gpt-4o"]')
+        ?.textContent,
+    ).toBe('—');
   });
 
   it('filters the consolidated table by Key', async () => {

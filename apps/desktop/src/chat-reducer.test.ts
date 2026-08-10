@@ -256,6 +256,27 @@ describe('chatUiReducer', () => {
     expect(state.completedAttentionSessionIds).toEqual({});
   });
 
+  it('clears a completion marker when the user dismisses the attention checkmark', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'finish this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, { type: 'session/attention-dismiss', sessionId: 's1' });
+    expect(state.completedAttentionSessionIds).toEqual({});
+    expect(state.activeSessionId).toBe('s2');
+  });
+
   it('does not treat a live session handle as an active run while restoring history', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -683,8 +704,7 @@ describe('chatUiReducer', () => {
           kind: 'other',
           title: 'image_gen',
           actionVerb: 'Generated image',
-          summary:
-            '{ "paths": [ "/Users/me/.piwin/media/session-1/f8d3cd99-537f-42cc-bc5c-b…',
+          summary: '{ "paths": [ "/Users/me/.piwin/media/session-1/f8d3cd99-537f-42cc-bc5c-b…',
           output: {
             text: '{\n  "paths": ["/Users/me/.piwin/media/session-1/a.png"]\n}',
           },
@@ -703,9 +723,7 @@ describe('chatUiReducer', () => {
     });
 
     const tool = state.messages[0]?.tools[0];
-    expect(tool?.presentation?.summary).toBe(
-      'Makima tying hair in a bathroom, business attire',
-    );
+    expect(tool?.presentation?.summary).toBe('Makima tying hair in a bathroom, business attire');
     expect(tool?.presentation?.inputPreview).toContain('prompt');
     expect(tool?.presentation?.output?.text).toContain('paths');
     expect(state.messages[0]?.attachments).toHaveLength(1);

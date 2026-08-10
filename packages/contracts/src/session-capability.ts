@@ -7,6 +7,7 @@ import type { ResourceId, ResourcePolicy } from './resource.js';
 import type { ResourceManifest } from './resource-manifest.js';
 import type { ContextPolicy, ContextManifest } from './context-manifest.js';
 import type { HostToolDescriptor } from './host-tool.js';
+import type { ResolvedSearchRoute } from './web.js';
 
 /** High-level agent exposure of a tool family (spec §7.2). */
 export type CapabilityExposure = 'off' | 'manual-only' | 'agent';
@@ -84,4 +85,10 @@ export type SessionCapabilitySnapshot = {
   contextManifest: ContextManifest;
   tools: SessionToolPolicy;
   subagentCeiling?: SubagentCapabilityCeiling;
+  /**
+   * Resolved native-vs-external search outlet for this generation (ADR 0043).
+   * Authoritative for tool registration and adapter request shaping; prompt
+   * text must not re-decide the backend.
+   */
+  searchRoute?: ResolvedSearchRoute;
 };

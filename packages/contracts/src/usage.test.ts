@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { computePromptCacheHitRate, shouldAcceptContextUsage } from './usage.js';
+import {
+  computePromptCacheHitRate,
+  computeTokensPerSecond,
+  shouldAcceptContextUsage,
+} from './usage.js';
 
 describe('computePromptCacheHitRate', () => {
   it('uses only prompt-side tokens in the cache denominator', () => {
@@ -30,6 +34,29 @@ describe('computePromptCacheHitRate', () => {
         cacheWriteTokens: -5,
       }),
     ).toBe(1);
+  });
+});
+
+describe('computeTokensPerSecond', () => {
+  it('divides output tokens by the reported generation duration', () => {
+    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 2_000 })).toBeCloseTo(100);
+  });
+
+  it('prefers duration-scoped completion tokens over the full bucket', () => {
+    expect(
+      computeTokensPerSecond({
+        completionTokens: 400,
+        durationMs: 2_000,
+        durationMsCompletionTokens: 150,
+      }),
+    ).toBeCloseTo(75);
+  });
+
+  it('returns null when duration or output tokens are missing', () => {
+    expect(computeTokensPerSecond({ completionTokens: 0, durationMs: 2_000 })).toBeNull();
+    expect(computeTokensPerSecond({ completionTokens: 200 })).toBeNull();
+    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: 0 })).toBeNull();
+    expect(computeTokensPerSecond({ completionTokens: 200, durationMs: Number.NaN })).toBeNull();
   });
 });
 

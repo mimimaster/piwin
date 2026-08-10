@@ -161,6 +161,12 @@ Skill 是上下文能力，不应伪装成普通 Tool。Skill 安装、启用、
 | `image` | 正在生成图片… | Generating image… | `timeline-row` | `artifact-sheen` |
 | `video` | 正在生成视频… | Generating video… | `timeline-row` | `artifact-sheen` |
 
+Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时，由全局
+`RunActivitySlot` 表示等待首字；一旦识别到 SVG/HTML 围栏、但内容还不足以
+安全渲染，就在原位置显示 `ArtifactFrame` 的 sheen preparing shell。首个安全
+快照出现后，shell 原位切换为预览 iframe。Preparing 阶段不得提前挂载空 iframe，
+并且在 `prefers-reduced-motion` 下停用循环动效、保留状态文案。
+
 ### 4.7 人机交互阻塞
 
 | ID | 中文 | English | 容器 | 动效 |
@@ -201,6 +207,9 @@ Skill 是上下文能力，不应伪装成普通 Tool。Skill 安装、启用、
 - Subagent 的父级批次、子任务和 Inspector 使用独立行为 ID；父级只展示聚合，子会话内部继续复用普通工具行为。
 - Skill 当前是资源加载与注入，不是普通 `tool-call`。V1 只对用户明确选择的 `/skill` 提交显示 `skill.load` / `skill.use` 芯片；安装、启用、禁用仍停留在设置页。未来若 Host 提供归一化资源活动事件，再扩展到自动注入的 Skill。
 - 全局定位器的展示入口是 `RunActivitySlot` 与等待模型的 `TurnWorkDetails`。
+- `TurnWorkDetails` 以 transcript turn 内的 `runId` 为展示所有权边界：同一运行即使
+  因工具调用或 provider 重试产生多条 Assistant 生命周期消息，也只显示一份聚合的
+  思考、工具与耗时；纯生命周期空行不单独占据 transcript 空间。
 - 现有动效组件位于 `@piwin/ui-kit`，行为映射应与动效实现分离。
 
 ## 7. V1 已落地的代码入口
@@ -208,6 +217,8 @@ Skill 是上下文能力，不应伪装成普通 Tool。Skill 安装、启用、
 - `apps/desktop/src/behavior-activity.ts`：行为 ID 注册表、工具/运行状态归一化、文案与文字动效映射。
 - `apps/desktop/src/agent-locator.tsx`：唯一轻量全局 Locator、Skill 上下文芯片；默认使用 `RadialBellow`。
 - `apps/desktop/src/RunActivitySlot.tsx`、`turn-work-details.tsx`：接入运行定位器与 Skill 芯片，旧 `RunActivitySplash` 保持隐藏。
+- `apps/desktop/src/transcript-turns.ts`、`chat-thread.tsx`：按 `runId` 聚合并只渲染一次 Turn Work，隐藏已被聚合的生命周期空行。
+- `apps/desktop/src/ArtifactFrame.tsx`、`MarkdownView.tsx`：识别到未完整 SVG/HTML 围栏后显示 preparing sheen，首个安全快照到达后原位切换预览。
 - `apps/desktop/src/tool-call-card.tsx`、`turn-tool-group.tsx`：MCP、Web、Search、Explore、Read、Edit、Shell、Git 等 Timeline 行绑定行为 ID、双语文字与 CSS 动效。
 - `apps/desktop/src/settings/pages/animations-page.tsx`：定位器动效可选项，沿用桌面偏好持久化。
 - `apps/desktop/src/styles/behavior-activity.css`：文字 shimmer、工具图标微动效、Gate/Artifact/Subagent/Skill 绑定，并遵守 reduced motion；当前文字 shimmer 为 3s，定位图案按文字 `em` 在 18–24px 间缩放。

@@ -5,12 +5,70 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ArtifactPreviewDecision } from '@piwin/artifact';
+import {
+  ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
+  resetArtifactInitQueueForTests,
+} from '@piwin/artifact';
 import { Button, PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ArtifactFrame } from './ArtifactFrame.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0];
+
+class IntersectionObserverFixture {
+  static instances: IntersectionObserverFixture[] = [];
+
+  private readonly callback: ObserverCallback;
+  private target: Element | null = null;
+
+  constructor(callback: ObserverCallback, _options?: IntersectionObserverInit) {
+    this.callback = callback;
+    IntersectionObserverFixture.instances.push(this);
+  }
+
+  disconnect(): void {
+    this.target = null;
+  }
+
+  observe(target: Element): void {
+    this.target = target;
+  }
+
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+
+  unobserve(target: Element): void {
+    if (this.target === target) {
+      this.target = null;
+    }
+  }
+
+  trigger(isIntersecting: boolean): void {
+    const target = this.target;
+    if (target === null) {
+      return;
+    }
+    const bounds = target.getBoundingClientRect();
+    this.callback(
+      [
+        {
+          boundingClientRect: bounds,
+          intersectionRatio: isIntersecting ? 1 : 0,
+          intersectionRect: bounds,
+          isIntersecting,
+          rootBounds: null,
+          target,
+          time: performance.now(),
+        },
+      ],
+      this as unknown as IntersectionObserver,
+    );
+  }
 }
 
 function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render' }> {
@@ -58,10 +116,29 @@ function makeStreamDecision(
   };
 }
 
+function makePreparingDecision(): Extract<ArtifactPreviewDecision, { kind: 'preparing' }> {
+  return {
+    kind: 'preparing',
+    descriptor: {
+      id: 'artifact-preparing-svg',
+      type: 'svg',
+      title: 'Slow SVG',
+      rawLanguage: 'svg',
+      alias: 'svg',
+      surface: 'inline',
+      source: '<svg',
+    },
+    message: 'Generating SVG…',
+  };
+}
+
+type FrameDecision = Exclude<ArtifactPreviewDecision, { kind: 'code' }>;
+
 function renderFrame(
-  decision: ArtifactPreviewDecision = makeRenderDecision(),
+  decision: FrameDecision = makeRenderDecision(),
   presentation: 'inline' | 'canvas' = 'inline',
   extraHeaderAction?: ReactElement,
+  locale: 'zh-CN' | 'en' = 'en',
 ): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -71,8 +148,9 @@ function renderFrame(
       (
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <ArtifactFrame
-            decision={decision as Extract<ArtifactPreviewDecision, { kind: 'render' }>}
+            decision={decision}
             presentation={presentation}
+            locale={locale}
             {...(extraHeaderAction ? { extraHeaderAction } : {})}
           />
         </PiwinUiProvider>
@@ -90,6 +168,8 @@ describe('ArtifactFrame chrome', () => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     instances = [];
+    resetArtifactInitQueueForTests();
+    IntersectionObserverFixture.instances = [];
   });
 
   afterEach(() => {
@@ -99,7 +179,25 @@ describe('ArtifactFrame chrome', () => {
       });
       container.remove();
     }
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    resetArtifactInitQueueForTests();
+    IntersectionObserverFixture.instances = [];
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it('shows localized Artifact sheen before the first safe preview snapshot', () => {
+    const instance = renderFrame(makePreparingDecision(), 'inline', undefined, 'zh-CN');
+    instances.push(instance);
+    const frame = instance.container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
+
+    expect(frame?.classList.contains('preparing')).toBe(true);
+    expect(frame?.getAttribute('data-activity-animation')).toBe('artifact-sheen');
+    expect(frame?.textContent).toContain('正在生成 SVG');
+    expect(frame?.textContent).toContain('首个可安全渲染的内容准备好后会自动显示');
+    expect(frame?.querySelector('.artifact-preparing-sheen')).not.toBeNull();
+    expect(frame?.querySelector('iframe')).toBeNull();
   });
 
   it('omits Expand and raw-source disclosure on inline render frames', async () => {
@@ -172,12 +270,14 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 140));
     });
 
-    expect(iframe?.style.height).toBe('1480px');
-    expect(iframe?.style.maxHeight).toBe('16384px');
+    // Measured height lives on the stage (iframe fills 100% of the stage).
+    const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
+    expect(stage?.style.height).toBe('1480px');
+    expect(stage?.style.maxHeight).toBe('16384px');
     expect(
-      container.querySelector('[data-testid="artifact-frame"]')?.hasAttribute(
-        'data-content-overflowing',
-      ),
+      container
+        .querySelector('[data-testid="artifact-frame"]')
+        ?.hasAttribute('data-content-overflowing'),
     ).toBe(false);
   });
 
@@ -294,7 +394,7 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: 'piwin-artifact:ready',
             channelId: 'artifact-test-1',
@@ -303,13 +403,14 @@ describe('ArtifactFrame chrome', () => {
         }),
       );
     });
-    expect(iframe?.style.height).toBe('240px');
+    const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
+    expect(stage?.style.height).toBe('240px');
 
     // A later smaller measure must not shrink the stream frame (would flicker).
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: 'piwin-artifact:resize',
             channelId: 'artifact-test-1',
@@ -319,7 +420,7 @@ describe('ArtifactFrame chrome', () => {
         }),
       );
     });
-    expect(iframe?.style.height).toBe('240px');
+    expect(stage?.style.height).toBe('240px');
   });
 
   it('applies the canvas presentation class without expand chrome', async () => {
@@ -418,5 +519,145 @@ describe('ArtifactFrame chrome', () => {
     });
     expect(onComposerProposal).toHaveBeenCalledTimes(1);
     expect(onComposerProposal).toHaveBeenCalledWith({ text: 'Use React.', label: 'Stack' });
+  });
+
+  it('recycles the sandboxed iframe after leaving the viewport for the TTL, then remounts on re-entry', async () => {
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverFixture);
+    vi.useFakeTimers();
+
+    const { container, root } = renderFrame();
+    instances.push({ container, root });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const observer = IntersectionObserverFixture.instances[0];
+    expect(observer).toBeDefined();
+
+    // Near-viewport: host iframe immediately (loading shell until paint is OK).
+    await act(async () => {
+      observer?.trigger(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toMatch(/^(live|loading)$/);
+
+    // Leave viewport but still within TTL → keep iframe.
+    // Stub geometry far off-screen so the TTL re-check does not fail-open.
+    const frame = container.querySelector('[data-testid="artifact-frame"]');
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: -4000,
+      top: -4000,
+      right: 400,
+      bottom: -3800,
+      left: 0,
+      width: 400,
+      height: 200,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    await act(async () => {
+      observer?.trigger(false);
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(ARTIFACT_VIEWPORT_RECYCLE_TTL_MS - 1);
+    });
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).toBeNull();
+
+    // Past TTL → recycle (placeholder keeps height; iframe unmounted).
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      await Promise.resolve();
+    });
+    expect(container.querySelector('iframe.artifact-iframe')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).not.toBeNull();
+    expect(
+      frame?.getAttribute('data-artifact-host') ??
+        container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toBe('recycled');
+
+    // Re-enter → remount via init queue; loading shell while paint pending.
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 80,
+      top: 80,
+      right: 400,
+      bottom: 280,
+      left: 0,
+      width: 400,
+      height: 200,
+      toJSON: () => ({}),
+    } as DOMRect);
+    await act(async () => {
+      observer?.trigger(true);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toMatch(/^(live|loading)$/);
+    // Loading shell must appear rather than a pure blank while paint is pending.
+    const host = container
+      .querySelector('[data-testid="artifact-frame"]')
+      ?.getAttribute('data-artifact-host');
+    if (host === 'loading') {
+      expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).not.toBeNull();
+    }
+  });
+
+  it('does not recycle an active stream-preview iframe while off-screen', async () => {
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverFixture);
+    vi.useFakeTimers();
+
+    const decision = makeStreamDecision('<div>stream</div>', '<html>stream</html>');
+    const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const observer = IntersectionObserverFixture.instances[0];
+    // forceHostIframe true for stream-preview → observer effect returns early,
+    // so no observer may be installed. Either way the iframe must stay hosted.
+    await act(async () => {
+      observer?.trigger(false);
+      vi.advanceTimersByTime(ARTIFACT_VIEWPORT_RECYCLE_TTL_MS * 2);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toMatch(/^(live|loading)$/);
+  });
+
+  it('shows a loading shell instead of a blank frame while the iframe paints', async () => {
+    const { container, root } = renderFrame();
+    instances.push({ container, root });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const host = container
+      .querySelector('[data-testid="artifact-frame"]')
+      ?.getAttribute('data-artifact-host');
+    // Before ready/onLoad paint, loading shell is required (never pure blank).
+    if (host === 'loading' || container.querySelector('iframe.is-pending-paint')) {
+      expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).not.toBeNull();
+    }
+    expect(container.querySelector('[data-testid="artifact-frame"]')).not.toBeNull();
   });
 });

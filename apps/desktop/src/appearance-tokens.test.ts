@@ -190,17 +190,28 @@ describe('applyAppearanceToDocument', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_INK_WASH);
 
     const style = document.documentElement.style;
-    const optionalInkWashVariables = ['--ink-wash-hero', '--ink-wash-conversation-texture'];
+    const optionalInkWashVariables = [
+      '--ink-wash-hero',
+      '--ink-wash-conversation-texture',
+      '--ink-wash-sidebar-bg',
+      '--ink-wash-right-panel-bg',
+      '--ink-wash-agent-seal',
+      '--ink-wash-dry-brush-divider',
+      '--ink-wash-empty-session',
+      '--ink-wash-empty-files',
+      '--ink-wash-empty-failure',
+      '--ink-wash-empty-complete',
+    ];
     expect(
       emittedVariableNames(style).filter((name) => !optionalInkWashVariables.includes(name)),
     ).toEqual([...DOCUMENTED_APPEARANCE_VARIABLES]);
     for (const name of optionalInkWashVariables) {
       expect(style.getPropertyValue(name), `ink-wash ${name}`).not.toBe('');
     }
-    expect(style.getPropertyValue('--canvas')).toBe('#0b0b0c');
-    expect(style.getPropertyValue('--panel')).toBe('#121214');
-    expect(style.getPropertyValue('--text')).toBe('#e8e3da');
-    expect(style.getPropertyValue('--accent')).toBe('#5a7b86');
+    expect(style.getPropertyValue('--canvas')).toBe('#1c1d20');
+    expect(style.getPropertyValue('--panel')).toBe('#222327');
+    expect(style.getPropertyValue('--text')).toBe('#d8d3cb');
+    expect(style.getPropertyValue('--accent')).toBe('#70919c');
     expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
   });
 

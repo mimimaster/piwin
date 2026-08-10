@@ -51,6 +51,10 @@ export function formatUsagePercent(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
 }
 
+export function formatTokensPerSecond(rate: number | null): string {
+  return rate === null ? '—' : `${rate.toFixed(rate >= 100 ? 0 : 1)} tok/s`;
+}
+
 export function formatUsageDate(value: string | null, locale: string): string {
   if (!value) {
     return '—';

@@ -61,6 +61,13 @@ import type { SessionBlueprint } from './session-blueprint.js';
 import { resolveContextManifest } from './capabilities/context-policy-resolver.js';
 import { resolveResourceActivations } from './capabilities/resource-policy-resolver.js';
 import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
+import {
+  defaultNativeSearchAdapterSupport,
+  findConfiguredModel,
+  formatSearchRouteCapabilityBrief,
+  resolveSearchRoute,
+  shouldExposeExternalWebSearch,
+} from './capabilities/search-route-resolver.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 
@@ -205,7 +212,7 @@ export async function compileBlueprintForWorker(
 
   // Resolve tool policy from config + scope. Pass the resolved trust so
   // untrusted projects cannot compile write/process/bash/delegate tools.
-  const tools = compileToolPolicy(
+  const compiledTools = compileToolPolicy(
     config,
     input,
     options.hostToolDescriptors,
@@ -214,6 +221,8 @@ export async function compileBlueprintForWorker(
     mcpEnabledServerIds,
     options.hostToolFamilyIndex,
   );
+  const tools = compiledTools.tools;
+  const searchRoute = compiledTools.searchRoute;
 
   const resourceResolution = resolveResourceActivations({
     catalog: resources.catalog ?? buildFallbackResourceCatalog(resources),
@@ -265,6 +274,7 @@ export async function compileBlueprintForWorker(
     context: contextPolicy,
     contextManifest,
     tools,
+    searchRoute,
   };
 
   const snapshot = compileSessionCapabilitySnapshot(compileInput);
@@ -295,9 +305,13 @@ export async function compileBlueprintForWorker(
           }),
       )
     : undefined;
-  const appendSystemPromptParts = [artifactAppendPrompt, mcpAppendPrompt].filter(
-    (prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0,
-  );
+  const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
+
+  const appendSystemPromptParts = [
+    artifactAppendPrompt,
+    mcpAppendPrompt,
+    searchRouteAppendPrompt,
+  ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
 
@@ -502,24 +516,41 @@ function compileToolPolicy(
   trusted?: boolean,
   mcpEnabledServerIds: readonly string[] = [],
   hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>,
-): SessionToolPolicy {
+): { tools: SessionToolPolicy; searchRoute: import('@piwin/contracts').ResolvedSearchRoute } {
   // SIDE §6.1: Side Chat compiles a fixed read-only tool profile. It is a
   // product-level session kind, not a subagent capability ceiling, and can
   // never gain write/execute/planning/delegate tools even under a yolo
   // permission preset.
   if (input.sessionKind === 'side-chat') {
-    return buildSideChatToolPolicy(config, hostToolDescriptors, toolNamesFromComposed);
+    const tools = buildSideChatToolPolicy(config, hostToolDescriptors, toolNamesFromComposed);
+    const configured = findConfiguredModel(config, input.model);
+    const searchRoute = resolveSearchRoute({
+      model: configured?.model ?? null,
+      web: config.web,
+      adapter: defaultNativeSearchAdapterSupport(),
+      // Side chat keeps external search when web config is on; native is not applied.
+      policy: 'external-only',
+    });
+    return { tools, searchRoute };
   }
   const capabilityCeiling = input.subagent?.capabilities;
 
   const resolvedWebConfig = config.web ? resolveWebConfig(config.web) : undefined;
-  const webSearchReady = resolvedWebConfig?.searchSources.some((source) => source.enabled) ?? false;
+  const configuredModel = findConfiguredModel(config, input.model);
+  const searchRoute = resolveSearchRoute({
+    model: configuredModel?.model ?? null,
+    web: resolvedWebConfig ?? config.web,
+    adapter: defaultNativeSearchAdapterSupport(),
+  });
+  // External Host web_search is ready only when the resolved route selected it.
+  // Native-selected generations must not advertise the competing tool family.
+  const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
   const webFetchReady = resolvedWebConfig !== undefined;
   const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
   const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
 
   const resolvedToolPolicy = resolveToolPolicyDetails({
-    webSearch: resolvedWebConfig !== undefined,
+    webSearch: webSearchReady,
     webFetch: resolvedWebConfig !== undefined,
     mcp: true,
     imageGeneration: !imagegenDisabled,
@@ -578,10 +609,13 @@ function compileToolPolicy(
     : familyDerivedToolNames;
 
   return {
-    enabledFamilies: resolvedPolicy.enabledFamilies,
-    piBuiltinToolNames,
-    hostTools: buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors),
-    enabledMcpServerIds: [...mcpEnabledServerIds],
+    tools: {
+      enabledFamilies: resolvedPolicy.enabledFamilies,
+      piBuiltinToolNames,
+      hostTools: buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors),
+      enabledMcpServerIds: [...mcpEnabledServerIds],
+    },
+    searchRoute,
   };
 }
 
@@ -763,6 +797,8 @@ async function buildSingleProviderRuntime(
           ...(model.maxOutputTokens !== undefined
             ? { maxOutputTokens: model.maxOutputTokens }
             : {}),
+          ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
+          ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
         })),
       auth: { kind: 'env', envName: provider.apiKeyEnv.trim() },
     };

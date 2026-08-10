@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UsageRollup } from '@piwin/contracts';
 import {
+  formatTokensPerSecond,
   normalizeUsageRollup,
   resolveUsageWindow,
   tokenComponents,
@@ -61,5 +62,11 @@ describe('usage-panel-statistics', () => {
         entryCount: 1,
       }),
     ).toBe(100);
+  });
+
+  it('formats tokens per second with one decimal and an unknown dash', () => {
+    expect(formatTokensPerSecond(75.4)).toBe('75.4 tok/s');
+    expect(formatTokensPerSecond(123.456)).toBe('123 tok/s');
+    expect(formatTokensPerSecond(null)).toBe('—');
   });
 });

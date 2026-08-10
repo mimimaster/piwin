@@ -10,7 +10,12 @@ import type {
   ModelDiscoveryResult,
   ModelProviderConfig,
 } from '@piwin/contracts';
-import { formatError, matchImageCatalog } from '@piwin/contracts';
+import {
+  formatError,
+  isLikelyVideoGenerationModel,
+  lookupVideoGenerationRegistry,
+  matchImageCatalog,
+} from '@piwin/contracts';
 import {
   enrichFromCatalog,
   lookupCatalogByModelId,
@@ -234,4 +239,60 @@ function enrichImageGenerationCapability(model: DiscoveredModel): DiscoveredMode
   const capabilities = new Set<ModelCapability>(model.capabilities ?? []);
   capabilities.add('image-generation');
   return { ...model, capabilities: [...capabilities] };
+}
+
+/**
+ * Enrich discovered models with video-generation capability (ADR 0043).
+ *
+ * Provider metadata is the strongest declaration. Curated registry matches
+ * preserve known defaults, while heuristics remain suggestions only.
+ */
+function enrichVideoGenerationCapability(
+  model: DiscoveredModel,
+  protocol: ModelProviderConfig['protocol'],
+  videoMetadata: ExplicitVideoGenerationMetadata | undefined,
+): DiscoveredModel {
+  if (videoMetadata) {
+    const capabilities = new Set<ModelCapability>(model.capabilities ?? []);
+    capabilities.add('video-generation');
+    return {
+      ...model,
+      capabilities: [...capabilities],
+      videoGenerationSuggestion: {
+        reason: 'provider',
+        ...(videoMetadata.apiStyle ? { apiStyle: videoMetadata.apiStyle } : {}),
+        ...(videoMetadata.path ? { path: videoMetadata.path } : {}),
+      },
+    };
+  }
+
+  const registryHit = lookupVideoGenerationRegistry(model.id, protocol);
+  if (registryHit) {
+    const capabilities = new Set<ModelCapability>(model.capabilities ?? []);
+    capabilities.add('video-generation');
+    const suggestion = {
+      reason: 'registry' as const,
+      apiStyle: registryHit.entry.apiStyle,
+      ...(registryHit.entry.path ? { path: registryHit.entry.path } : {}),
+      ...(registryHit.entry.label ? { label: registryHit.entry.label } : {}),
+    };
+    return {
+      ...model,
+      capabilities: [...capabilities],
+      videoGenerationSuggestion: suggestion,
+      ...(model.label || !registryHit.entry.label ? {} : { label: registryHit.entry.label }),
+    };
+  }
+
+  if (isLikelyVideoGenerationModel(model.id, model.label, model.capabilities)) {
+    return {
+      ...model,
+      videoGenerationSuggestion: {
+        reason: 'heuristic',
+        ...(model.label ? { label: model.label } : {}),
+      },
+    };
+  }
+
+  return model;
 }

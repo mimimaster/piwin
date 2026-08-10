@@ -52,8 +52,8 @@ function thinkingSummaryLabel(input: {
   locale: 'zh-CN' | 'en';
 }): string {
   const isChinese = input.locale === 'zh-CN';
-  if (input.isActive && !input.answerStarted) {
-    return runtimeStatusText('thinking', input.locale);
+  if (input.isActive) {
+    return runtimeStatusText(input.answerStarted ? 'working' : 'thinking', input.locale);
   }
   if (input.thoughtSeconds !== undefined) {
     return isChinese ? `已思考 ${input.thoughtSeconds} 秒` : `Thought for ${input.thoughtSeconds}s`;
@@ -201,9 +201,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             ) : null}
             <AgentLocator
               input={turnPresentationToActivityInput(presentation, props.message, locale)}
-              {...(props.agentLocatorAnimation
-                ? { animation: props.agentLocatorAnimation }
-                : {})}
+              {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
             />
           </div>
         </div>

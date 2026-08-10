@@ -46,6 +46,7 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
       const userMessageId = randomUUID();
       const assistantMessageId = randomUUID();
       const userText = promptInput.text.trim() || '(empty)';
+      const startedAt = Date.now();
 
       const userMessage: AgentMessageView = {
         id: userMessageId,
@@ -113,7 +114,12 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
       }
 
       emit({ type: 'message/end', messageId: assistantMessageId });
-      const usage = estimateMockUsage(sessionId, userText, reply);
+      const usage = estimateMockUsage(
+        sessionId,
+        userText,
+        reply,
+        Math.max(1, Date.now() - startedAt),
+      );
       emit({ type: 'usage/update', sessionId, usage });
     },
     async steer(message: string): Promise<void> {
@@ -195,9 +201,7 @@ function seedMessageToView(
     role: message.role,
     text: message.text,
     createdAt:
-      'createdAt' in message
-        ? message.createdAt
-        : new Date(message.timestamp).toISOString(),
+      'createdAt' in message ? message.createdAt : new Date(message.timestamp).toISOString(),
   };
   if ('attachments' in message && message.attachments && message.attachments.length > 0) {
     view.attachments = message.attachments;

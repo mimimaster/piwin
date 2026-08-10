@@ -38,6 +38,8 @@ export type ContextUsageSnapshot = {
   /** Input tokens written to the provider prompt cache. */
   cacheWriteTokens?: number;
   totalTokens?: number;
+  /** Generation duration in milliseconds when reported. */
+  durationMs?: number;
   /** 0–1 fraction of context used when computable. */
   contextRatio?: number;
   updatedAt: string;
@@ -106,7 +108,13 @@ export type UsageBucket = {
   cacheWriteTokens: number;
   totalTokens: number;
   entryCount: number;
+  /** Total generation duration in ms across records that reported it. */
   durationMs?: number;
+  /**
+   * Completion tokens belonging to records that reported `durationMs`.
+   * Keeps tok/s honest when only part of a bucket carries duration data.
+   */
+  durationMsCompletionTokens?: number;
   firstTokenMs?: number;
   successCount?: number;
 };
@@ -145,6 +153,27 @@ export function computePromptCacheHitRate(
     return null;
   }
   return cacheReadTokens / cacheableInputTokens;
+}
+
+/**
+ * Output generation speed in tokens per second.
+ * Only counts completion tokens from records that reported `durationMs`, so
+ * partial duration coverage never inflates the rate. Returns null when the
+ * provider reported no usable duration or output, so clients can render an
+ * honest unknown state instead of fabricating a number.
+ */
+export function computeTokensPerSecond(
+  usage: Pick<UsageBucket, 'completionTokens' | 'durationMs' | 'durationMsCompletionTokens'>,
+): number | null {
+  const durationMs = usage.durationMs;
+  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  const completionTokens = Math.max(0, usage.durationMsCompletionTokens ?? usage.completionTokens);
+  if (completionTokens === 0) {
+    return null;
+  }
+  return completionTokens / (durationMs / 1000);
 }
 
 /** Aggregated token statistics returned by `usage/get-rollup`. */

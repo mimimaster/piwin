@@ -7,6 +7,7 @@ import type {
   ContextPolicy,
   ResourceManifest,
   ResourcePolicy,
+  ResolvedSearchRoute,
   SessionCapabilitySnapshot,
   SessionScope,
   SessionToolPolicy,
@@ -24,6 +25,7 @@ export type CompileSnapshotInput = {
   contextManifest: ContextManifest;
   tools: SessionToolPolicy;
   subagentCeiling?: SubagentCapabilityCeiling;
+  searchRoute?: ResolvedSearchRoute;
 };
 
 /** Stable snapshot id derived from every input so equal inputs hash equal. */
@@ -50,6 +52,7 @@ export function computeSnapshotId(input: CompileSnapshotInput): string {
     contextManifest,
     tools,
     subagentCeiling: input.subagentCeiling ?? null,
+    searchRoute: input.searchRoute ?? null,
   });
   return createHash('sha256').update(payload).digest('hex');
 }
@@ -74,6 +77,9 @@ export function compileSessionCapabilitySnapshot(
   };
   if (input.subagentCeiling) {
     snapshot.subagentCeiling = input.subagentCeiling;
+  }
+  if (input.searchRoute) {
+    snapshot.searchRoute = input.searchRoute;
   }
   return snapshot;
 }

@@ -52,6 +52,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('.piwin-artifact-root > svg');
     expect(srcdoc).toContain('width: auto;');
     expect(srcdoc).toContain('margin-inline: auto;');
+    expect(srcdoc).toContain('align-items: center;');
+    expect(srcdoc).toContain('.piwin-artifact-root > :not(svg)');
   });
 
   it('keeps the document canvas transparent and appends the theme guard after model content', () => {

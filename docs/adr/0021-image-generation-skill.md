@@ -20,7 +20,8 @@ and saving outputs through `@piwin/media`.
    The capability is delivered as a bundled skill + host tool.
 2. **Bundled skill** `skills/imagegen/SKILL.md` with frontmatter `hidden: true`.
    It guides when/how to use the `image_gen` host tool.
-3. **Host tool** `image_gen` in `@piwin/agent-host`:
+3. **Host tool** `image_gen` in `@piwin/host-runtime` (exposed to Pi through the
+   injected Host tool port; `@piwin/agent-host` remains the Pi-only boundary):
    - Routes by **model name**; `ModelConfigEntry` has `capabilities` (including
      `'image-generation'`) and `routes` for per-capability request paths and
      timeouts.
@@ -33,13 +34,18 @@ and saving outputs through `@piwin/media`.
      independent from the chat default.
    - The Desktop provides an `image-generation` settings section for configuring
      image-capable models, the image-generation default, and route settings.
-   - The chat default (`defaultProviderId`/`defaultModelId`) remains a last-resort
-     fallback for backward compatibility.
+   - The chat default (`defaultProviderId`/`defaultModelId`) is not an image
+     fallback. When no image default exists, Host may use the only enabled image
+     model; multiple candidates require an explicit image default.
    - Permission-gated as a network action (`network:image-gen`), default `ask`.
-   - Saves decoded bytes via `@piwin/media` to `~/.piwin/media/<session>/` and
-     returns absolute path(s) plus structured `MediaAttachmentRef` metadata for
-     the product transcript/UI. The model-facing output remains path-based;
-     base64 is never placed in context (AGENTS.md §3.6).
+   - Normalizes every provider output item, detects PNG/JPEG/WebP/GIF from magic
+     bytes, and saves every image via `@piwin/media` to
+     `~/.piwin/media/<session>/`. It returns absolute path(s), per-image metadata,
+     and structured `MediaAttachmentRef` values for the product transcript/UI.
+     The model-facing output remains path-based; base64 is never placed in
+     context (AGENTS.md §3.6).
+   - Settings exposes a real endpoint smoke test (`models/image-test`) that uses
+     the same adapter as `image_gen` and discards the returned bytes.
 4. **Switch = `config.skills.disabledIds`.** Adding `imagegen` disables both the
    skill and the `image_gen` tool.
 5. **Hidden from UI/CLI.** `SkillSummary.hidden` (frontmatter `hidden: true`) is
@@ -54,3 +60,9 @@ and saving outputs through `@piwin/media`.
 - Anthropic-compatible providers cannot generate images (clear error).
 - Image editing via `/images/edits` is a documented follow-up, not shipped here.
 - CLI and Desktop share the same host tool and switch; no CLI degradation.
+
+## 2026-08-10 amendment
+
+The detailed selection, response-normalization, multi-image, MIME-detection, and
+Settings smoke-test behavior is specified in
+`docs/specs/image-generation-call-flow-v3.md`.

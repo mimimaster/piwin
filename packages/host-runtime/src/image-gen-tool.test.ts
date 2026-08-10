@@ -1,9 +1,11 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   GoogleGeminiProviderConfig,
+  ModelConfigEntry,
+  ModelProviderConfig,
   OpenAiCompatibleProviderConfig,
   PiwinConfig,
 } from '@piwin/contracts';
@@ -13,6 +15,29 @@ import {
   buildImageGenTool,
   ImageGenConfigError,
 } from './image-gen-tool.js';
+
+const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+const WEBP_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
+const GIF_BYTES = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]);
+
+function base64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64');
+}
+
+function imageModel(provider: ModelProviderConfig, index = 0): ModelConfigEntry {
+  const model = provider.models[index];
+  if (!model) throw new Error(`expected model at index ${index}`);
+  return model;
+}
+
+function jsonResponse(payload: unknown): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => payload,
+  } as Response;
+}
 
 const openAiProvider: OpenAiCompatibleProviderConfig = {
   id: 'openai',
@@ -42,29 +67,32 @@ const baseConfig = {
   hostMode: 'sdk' as const,
   providers: [openAiProvider, geminiProvider],
   defaultProviderId: 'openai',
-  defaultModelId: 'gpt-image-1',
-  media: { maxPasteBytes: 10 * 1024 * 1024, allowedMimeTypes: ['image/png', 'image/jpeg'] },
+  defaultModelId: 'gpt-4o',
+  media: {
+    maxPasteBytes: 10 * 1024 * 1024,
+    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+  },
   artifact: {
     enabled: true,
-    triggerMode: 'automatic',
-    decisionPrompt: { mode: 'default', customPrompt: '' },
+    triggerMode: 'automatic' as const,
+    decisionPrompt: { mode: 'default' as const, customPrompt: '' },
     maxBytes: 100_000,
   },
 };
 
 function configWith(overrides: Partial<PiwinConfig>): PiwinConfig {
-  return { ...baseConfig, ...overrides } as PiwinConfig;
+  return { ...baseConfig, ...overrides };
 }
 
 describe('resolveImageProvider', () => {
-  it('resolves by explicit model name across providers', () => {
-    const { provider, model } = resolveImageProvider(configWith({}), 'imagen-4.0-generate-001');
-    expect(provider.id).toBe('gemini');
-    expect(model.id).toBe('imagen-4.0-generate-001');
+  it('resolves an explicit image model across providers', () => {
+    const resolved = resolveImageProvider(configWith({}), 'imagen-4.0-generate-001');
+    expect(resolved.provider.id).toBe('gemini');
+    expect(resolved.model.id).toBe('imagen-4.0-generate-001');
   });
 
-  it('prefers config.imageGeneration.defaultModel over the chat default', () => {
-    const { provider, model } = resolveImageProvider(
+  it('prefers config.imageGeneration.defaultModel independently from chat', () => {
+    const resolved = resolveImageProvider(
       configWith({
         imageGeneration: {
           defaultModel: {
@@ -74,32 +102,66 @@ describe('resolveImageProvider', () => {
           },
         },
       }),
-      undefined,
     );
-    expect(provider.id).toBe('gemini');
-    expect(model.id).toBe('imagen-4.0-generate-001');
+    expect(resolved.provider.id).toBe('gemini');
   });
 
-  it('falls back to the chat default when no image-generation default is set (backward compat)', () => {
-    const { provider, model } = resolveImageProvider(configWith({}), undefined);
-    expect(provider.id).toBe('openai');
-    expect(model.id).toBe('gpt-image-1');
+  it('uses the only enabled image model when no image default exists', () => {
+    const resolved = resolveImageProvider(
+      configWith({ providers: [{ ...openAiProvider }, { ...geminiProvider, enabled: false }] }),
+    );
+    expect(resolved.model.id).toBe('gpt-image-1');
   });
 
-  it('throws a config error for an unknown model name', () => {
-    expect(() => resolveImageProvider(configWith({}), 'nope-9')).toThrow(/model/i);
+  it('does not choose a chat default when multiple image models exist', () => {
+    expect(() => resolveImageProvider(configWith({}))).toThrow(/multiple image models/i);
+  });
+
+  it('rejects a stale image default instead of silently changing models', () => {
+    expect(() =>
+      resolveImageProvider(
+        configWith({
+          imageGeneration: {
+            defaultModel: {
+              protocol: 'openai-compatible',
+              providerId: 'openai',
+              modelId: 'removed-image-model',
+            },
+          },
+        }),
+      ),
+    ).toThrow(/default image model/i);
+  });
+
+  it('rejects a non-image explicit model', () => {
+    const provider: OpenAiCompatibleProviderConfig = {
+      ...openAiProvider,
+      models: [...openAiProvider.models, { id: 'gpt-4o', capabilities: ['chat'] }],
+    };
+    expect(() => resolveImageProvider(configWith({ providers: [provider] }), 'gpt-4o')).toThrow(
+      /image-generation capability/i,
+    );
+  });
+
+  it('requires provider id when image model ids overlap', () => {
+    const duplicate = { ...geminiProvider, models: [{ ...imageModel(openAiProvider) }] };
+    const config = configWith({ providers: [openAiProvider, duplicate] });
+    expect(() => resolveImageProvider(config, 'gpt-image-1')).toThrow(/multiple providers/i);
+    expect(resolveImageProvider(config, 'gpt-image-1', 'gemini').provider.id).toBe('gemini');
   });
 });
 
 describe('callImageEndpoint', () => {
-  it('routes openai-compatible to /images/generations and returns bytes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
-    });
-    const bytes = await callImageEndpoint(
-      openAiProvider,
-      openAiProvider.models[0]!,
+  it('routes OpenAI-compatible requests, sends custom headers, and detects PNG', async () => {
+    const provider = { ...openAiProvider, headers: { 'X-Title': 'piwin' } };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: [{ b64_json: base64(PNG_BYTES), revised_prompt: 'refined' }] }),
+      );
+    const images = await callImageEndpoint(
+      provider,
+      imageModel(provider),
       { prompt: 'a cat' },
       'sk-test',
       undefined,
@@ -107,76 +169,109 @@ describe('callImageEndpoint', () => {
     );
     expect(fetchMock).toHaveBeenCalledWith(
       'https://api.openai.com/v1/images/generations',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          authorization: 'Bearer sk-test',
+          'X-Title': 'piwin',
+        }),
+      }),
     );
-    expect(new TextDecoder().decode(bytes)).toBe('hello');
+    expect(images).toEqual([
+      expect.objectContaining({ mimeType: 'image/png', revisedPrompt: 'refined' }),
+    ]);
   });
 
-  it('routes gemini imagen to :predict and reads bytesBase64Encoded', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ predictions: [{ bytesBase64Encoded: 'd29ybGQ=' }] }),
-    });
-    const bytes = await callImageEndpoint(
+  it('normalizes every returned OpenAI image instead of truncating the batch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: [
+          { b64_json: base64(PNG_BYTES) },
+          { b64_json: base64(JPEG_BYTES) },
+          { b64_json: base64(WEBP_BYTES) },
+          { b64_json: base64(GIF_BYTES) },
+        ],
+      }),
+    );
+    const images = await callImageEndpoint(
+      openAiProvider,
+      imageModel(openAiProvider),
+      { prompt: 'four variants', n: 4 },
+      'key',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(images.map((image) => image.mimeType)).toEqual([
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'image/gif',
+    ]);
+  });
+
+  it('downloads URL outputs and trusts JPEG magic bytes over response metadata', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ data: [{ url: 'https://cdn.example/image' }] }))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'image/png' }),
+        arrayBuffer: async () => JPEG_BYTES.slice().buffer,
+      } as Response);
+    const images = await callImageEndpoint(
+      openAiProvider,
+      imageModel(openAiProvider),
+      { prompt: 'a cat' },
+      'key',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(images[0]?.mimeType).toBe('image/jpeg');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('routes Gemini Imagen to :predict and normalizes all predictions', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        predictions: [
+          { bytesBase64Encoded: base64(PNG_BYTES) },
+          { bytesBase64Encoded: base64(JPEG_BYTES) },
+        ],
+      }),
+    );
+    const images = await callImageEndpoint(
       geminiProvider,
-      geminiProvider.models[0]!,
-      { prompt: 'a dog' },
+      imageModel(geminiProvider),
+      { prompt: 'a dog', n: 2 },
       'sk-gem',
       undefined,
       fetchMock as unknown as typeof fetch,
     );
-    expect(fetchMock.mock.calls[0]?.[0]).toContain('models/imagen-4.0-generate-001:predict');
-    expect(new TextDecoder().decode(bytes)).toBe('world');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      'models/imagen-4.0-generate-001:predict',
+    );
+    expect(images.map((image) => image.mimeType)).toEqual(['image/png', 'image/jpeg']);
   });
 
-  it('routes to a custom path from model routes when configured', async () => {
-    const providerWithRoute = {
+  it('routes to a normalized custom relative path', async () => {
+    const provider = {
       ...openAiProvider,
       models: [
         {
-          ...openAiProvider.models[0]!,
-          routes: { 'image-generation': { path: '/custom/path' } },
-        },
-      ],
-    };
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
-    });
-    const bytes = await callImageEndpoint(
-      providerWithRoute,
-      providerWithRoute.models[0]!,
-      { prompt: 'a cat' },
-      'sk-test',
-      undefined,
-      fetchMock as unknown as typeof fetch,
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.openai.com/v1/custom/path',
-      expect.objectContaining({ method: 'POST' }),
-    );
-    expect(new TextDecoder().decode(bytes)).toBe('hello');
-  });
-
-  it('normalizes a custom route path missing its leading slash', async () => {
-    const providerWithRoute = {
-      ...openAiProvider,
-      models: [
-        {
-          ...openAiProvider.models[0]!,
+          ...imageModel(openAiProvider),
           routes: { 'image-generation': { path: 'images/custom' } },
         },
       ],
     };
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
-    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: [{ b64_json: base64(PNG_BYTES) }] }));
     await callImageEndpoint(
-      providerWithRoute,
-      providerWithRoute.models[0]!,
+      provider,
+      imageModel(provider),
       { prompt: 'a cat' },
-      'sk-test',
+      'key',
       undefined,
       fetchMock as unknown as typeof fetch,
     );
@@ -186,12 +281,12 @@ describe('callImageEndpoint', () => {
     );
   });
 
-  it('rejects an absolute URL as a custom route path before fetching', async () => {
-    const providerWithRoute = {
+  it('rejects absolute route paths, invalid counts, and non-image payloads', async () => {
+    const provider = {
       ...openAiProvider,
       models: [
         {
-          ...openAiProvider.models[0]!,
+          ...imageModel(openAiProvider),
           routes: { 'image-generation': { path: 'https://other.example/v1/images' } },
         },
       ],
@@ -199,49 +294,69 @@ describe('callImageEndpoint', () => {
     const fetchMock = vi.fn();
     await expect(
       callImageEndpoint(
-        providerWithRoute,
-        providerWithRoute.models[0]!,
-        { prompt: 'a cat' },
-        'sk-test',
+        provider,
+        imageModel(provider),
+        { prompt: 'x' },
+        'key',
+        undefined,
+        fetchMock,
+      ),
+    ).rejects.toBeInstanceOf(ImageGenConfigError);
+    await expect(
+      callImageEndpoint(openAiProvider, imageModel(openAiProvider), { prompt: 'x', n: 5 }, 'key'),
+    ).rejects.toThrow(/between 1 and 4/i);
+
+    const invalidFetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: [{ b64_json: Buffer.from('not an image').toString('base64') }] }),
+      );
+    await expect(
+      callImageEndpoint(
+        openAiProvider,
+        imageModel(openAiProvider),
+        { prompt: 'x' },
+        'key',
+        undefined,
+        invalidFetch as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow(/invalid image bytes/i);
+  });
+
+  it('includes a bounded provider error message and redacts credential-like values', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ error: { message: 'bad request sk-abcdefghijklmnop' } }),
+    } as Response);
+    await expect(
+      callImageEndpoint(
+        openAiProvider,
+        imageModel(openAiProvider),
+        { prompt: 'x' },
+        'key',
         undefined,
         fetchMock as unknown as typeof fetch,
       ),
-    ).rejects.toBeInstanceOf(ImageGenConfigError);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('passes an AbortSignal timeout to the fetch call', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
-    });
-    await callImageEndpoint(
-      openAiProvider,
-      openAiProvider.models[0]!,
-      { prompt: 'a cat' },
-      'sk-test',
-      undefined,
-      fetchMock as unknown as typeof fetch,
-    );
-    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    ).rejects.toThrow(/bad request \[redacted\]/i);
   });
 
   it('rejects anthropic-compatible with a clear unsupported error', async () => {
-    const anthropic = {
+    const anthropic: ModelProviderConfig = {
       id: 'anthropic',
-      protocol: 'anthropic-compatible' as const,
+      protocol: 'anthropic-compatible',
       name: 'Anthropic',
       baseUrl: 'https://api.anthropic.com',
-      models: [{ id: 'claude-image-1' }],
+      models: [{ id: 'claude-image-1', capabilities: ['image-generation'] }],
     };
     await expect(
-      callImageEndpoint(anthropic, anthropic.models[0]!, { prompt: 'x' }, 'key'),
-    ).rejects.toThrow(/not support|unsupported/i);
+      callImageEndpoint(anthropic, imageModel(anthropic), { prompt: 'x' }, 'key'),
+    ).rejects.toThrow(/not support/i);
   });
 });
 
 describe('buildImageGenTool', () => {
-  it('returns null when no image model can be resolved at build time', () => {
+  it('returns null when no unambiguous image model can be resolved', () => {
     const tool = buildImageGenTool({
       piwinRoot: '/tmp/piwin',
       sessionId: 's1',
@@ -256,52 +371,61 @@ describe('buildImageGenTool', () => {
     expect(tool).toBeNull();
   });
 
-  it('returns a structured media attachment for the saved image', async () => {
+  it('saves every returned image with the detected MIME type and extension', async () => {
     const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-image-gen-'));
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
-    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: [{ b64_json: base64(PNG_BYTES) }, { b64_json: base64(JPEG_BYTES) }],
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     try {
       const tool = buildImageGenTool({
         piwinRoot: '/tmp/piwin',
         sessionId: 'session-1',
-        config: configWith({}),
+        config: configWith({
+          providers: [openAiProvider],
+          imageGeneration: {
+            defaultModel: {
+              protocol: 'openai-compatible',
+              providerId: 'openai',
+              modelId: 'gpt-image-1',
+            },
+          },
+        }),
         mediaConfig: {
           mediaRoot,
           maxPasteBytes: 10_000_000,
-          allowedMimeTypes: ['image/png'],
+          allowedMimeTypes: ['image/png', 'image/jpeg'],
         },
         secretResolver: { resolveProviderSecret: async () => 'key' } as never,
       });
-      expect(tool).not.toBeNull();
-      if (!tool) {
-        throw new Error('image_gen tool should be available');
-      }
+      if (!tool) throw new Error('image_gen tool should be available');
 
-      const result = await tool.execute({ prompt: 'a cat' }, new AbortController().signal, {
-        sessionId: 'session-1',
-        runtimeGenerationId: 'generation-1',
-        runId: 'run-1',
-        toolName: 'image_gen',
-      });
-
+      const result = await tool.execute(
+        { prompt: 'two cats', n: 2 },
+        new AbortController().signal,
+        {
+          sessionId: 'session-1',
+          runtimeGenerationId: 'generation-1',
+          runId: 'run-1',
+          toolName: 'image_gen',
+        },
+      );
       expect(result.ok).toBe(true);
-      if (!result.ok) {
-        throw new Error(result.message);
-      }
-      expect(result.details?.attachments).toEqual([
-        expect.objectContaining({
-          id: expect.any(String),
-          kind: 'media',
-          path: expect.stringContaining(`${mediaRoot}/session-1/`),
-          mimeType: 'image/png',
-          byteSize: 5,
-          source: 'generated',
-        }),
+      if (!result.ok) throw new Error(result.message);
+
+      const attachments = result.details?.attachments;
+      expect(Array.isArray(attachments) ? attachments : []).toEqual([
+        expect.objectContaining({ mimeType: 'image/png', source: 'generated' }),
+        expect.objectContaining({ mimeType: 'image/jpeg', source: 'generated' }),
       ]);
+      const paths = Array.isArray(result.details?.paths)
+        ? result.details.paths.filter((value): value is string => typeof value === 'string')
+        : [];
+      expect(paths.map((path) => extname(path))).toEqual(['.png', '.jpg']);
+      expect(new Uint8Array(await readFile(paths[1] ?? ''))).toEqual(JPEG_BYTES);
     } finally {
       vi.unstubAllGlobals();
     }

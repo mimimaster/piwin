@@ -2,6 +2,9 @@
 
 import type {
   BackendSessionBlueprint,
+  ResolvedSearchRoute,
+  ModelCapability,
+  NativeWebSearchMode,
   ContextManifest,
   ResourceManifest,
   ResourceInstance,
@@ -54,6 +57,11 @@ export type SerializableBlueprint = {
    * Used for product-level contracts (artifact decision + runtime, ADR 0029).
    */
   appendSystemPrompt?: string;
+  /**
+   * Resolved search outlet for this generation (ADR 0043).
+   * Drives provider-native search request shaping in the worker.
+   */
+  searchRoute?: ResolvedSearchRoute;
 };
 
 /** Provider runtime envelope (Phase 7 plan §6): worker must not resolve secrets itself. */
@@ -70,6 +78,8 @@ export type SerializableProviderRuntime = {
     thinkingLevels?: ThinkingLevel[];
     contextWindow?: number;
     maxOutputTokens?: number;
+    capabilities?: ModelCapability[];
+    nativeWebSearchMode?: NativeWebSearchMode;
   }>;
   auth: { kind: 'env'; envName: string } | { kind: 'inline'; apiKey: string } | { kind: 'none' };
 };
@@ -122,6 +132,9 @@ export function projectBlueprintForWorker(
   }
   if (options?.appendSystemPrompt) {
     blueprint.appendSystemPrompt = options.appendSystemPrompt;
+  }
+  if (snapshot.searchRoute) {
+    blueprint.searchRoute = snapshot.searchRoute;
   }
   return blueprint;
 }

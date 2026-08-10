@@ -3,7 +3,13 @@
  * Never logs secret values.
  */
 import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
-import { createDefaultWalkthroughConfig, isThinkingLevel, validateWalkthroughConfig } from '@piwin/contracts';
+import {
+  createDefaultWalkthroughConfig,
+  isModelEnabled,
+  isProviderEnabled,
+  isThinkingLevel,
+  validateWalkthroughConfig,
+} from '@piwin/contracts';
 
 export type ProviderValidationIssue = {
   path: string;
@@ -64,11 +70,45 @@ export function validateProviders(
       issues.push({ path: `${base}.models`, message: 'models must be an array' });
     } else {
       // Empty models are allowed: user can add via discovery after saving connection.
+      const seenModelIds = new Set<string>();
       provider.models.forEach((model, modelIndex) => {
         if (!model.id?.trim()) {
           issues.push({
             path: `${base}.models[${modelIndex}].id`,
             message: 'model id is required',
+          });
+        } else if (seenModelIds.has(model.id)) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].id`,
+            message: `duplicate model id in provider: ${model.id}`,
+          });
+        } else {
+          seenModelIds.add(model.id);
+        }
+        const imageRoute = model.routes?.['image-generation'];
+        const imageCapable =
+          model.capabilities?.includes('image-generation') === true || imageRoute !== undefined;
+        if (imageCapable && provider.protocol === 'anthropic-compatible') {
+          issues.push({
+            path: `${base}.models[${modelIndex}].capabilities`,
+            message: 'anthropic-compatible providers do not support image generation',
+          });
+        }
+        if (imageRoute?.path !== undefined) {
+          if (typeof imageRoute.path !== 'string' || /^https?:\/\//i.test(imageRoute.path.trim())) {
+            issues.push({
+              path: `${base}.models[${modelIndex}].routes.image-generation.path`,
+              message: 'image generation route path must be relative',
+            });
+          }
+        }
+        if (
+          imageRoute?.timeoutMs !== undefined &&
+          (!Number.isSafeInteger(imageRoute.timeoutMs) || imageRoute.timeoutMs <= 0)
+        ) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].routes.image-generation.timeoutMs`,
+            message: 'image generation timeoutMs must be a positive integer',
           });
         }
         if (
@@ -90,10 +130,7 @@ export function validateProviders(
           });
         }
         if (model.thinkingLevels !== undefined) {
-          if (
-            !Array.isArray(model.thinkingLevels) ||
-            model.thinkingLevels.length === 0
-          ) {
+          if (!Array.isArray(model.thinkingLevels) || model.thinkingLevels.length === 0) {
             issues.push({
               path: `${base}.models[${modelIndex}].thinkingLevels`,
               message: 'thinkingLevels must be a non-empty array when provided',
@@ -215,6 +252,38 @@ export function validateProviders(
 
 export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssue[] {
   const issues: ProviderValidationIssue[] = validateProviders(config.providers);
+  const imageDefault = config.imageGeneration?.defaultModel;
+  if (imageDefault) {
+    const providerIndex = config.providers.findIndex(
+      (provider) => provider.id === imageDefault.providerId,
+    );
+    const provider = providerIndex >= 0 ? config.providers[providerIndex] : undefined;
+    if (!provider || !isProviderEnabled(provider)) {
+      issues.push({
+        path: 'imageGeneration.defaultModel.providerId',
+        message: 'default image provider is missing or disabled',
+      });
+    } else {
+      if (provider.protocol !== imageDefault.protocol) {
+        issues.push({
+          path: 'imageGeneration.defaultModel.protocol',
+          message: 'default image model protocol does not match its provider',
+        });
+      }
+      const model = provider.models.find((candidate) => candidate.id === imageDefault.modelId);
+      if (
+        !model ||
+        !isModelEnabled(model) ||
+        (model.capabilities?.includes('image-generation') !== true &&
+          model.routes?.['image-generation'] === undefined)
+      ) {
+        issues.push({
+          path: 'imageGeneration.defaultModel.modelId',
+          message: 'default image model is missing, disabled, or not image-capable',
+        });
+      }
+    }
+  }
   const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
   for (const issue of validateWalkthroughConfig(walkthrough)) {
     issues.push({ path: issue.path, message: issue.message });

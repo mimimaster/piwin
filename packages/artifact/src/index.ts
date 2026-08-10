@@ -13,6 +13,8 @@ export {
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   ARTIFACT_READY_TIMEOUT_MS,
   MAX_CONCURRENT_ARTIFACT_INITS,
+  ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
+  ARTIFACT_VIEWPORT_ROOT_MARGIN,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
@@ -120,6 +122,17 @@ export {
   getQueuedArtifactInitCount,
   resetArtifactInitQueueForTests,
 } from './init-queue.js';
+
+export {
+  resolveArtifactViewportHostIntent,
+  isRectNearRoot,
+  parseRootMarginYPx,
+} from './viewport-lifecycle.js';
+export type {
+  ArtifactViewportHostIntent,
+  ResolveArtifactViewportHostIntentInput,
+  RectLike,
+} from './viewport-lifecycle.js';
 
 export {
   findOpenArtifactFence,

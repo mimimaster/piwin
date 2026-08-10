@@ -62,3 +62,22 @@ No Task 5 source error remains in that output.
 ## Staging
 
 Only Task 5 contract/helper/discovery/test hunks and the Task 5 report are intended for the Task 5 commit. Unrelated Desktop, image-generation, native-search, and current ADR 0043 worktree changes remain unstaged. The existing ADR 0043 registry/heuristic source in `packages/contracts/src/model-catalog.ts` and its corresponding existing Host enrichment hunk remain in the worktree as the preserved dependency for this incremental Task 5 change. The staged Host discovery delta therefore depends on that existing unstaged ADR 0043 implementation; staging it independently would require also staging those pre-existing registry/heuristic hunks.
+
+## Follow-up dependency fix
+
+Committed `5975096` (`fix: include video discovery registry dependency`) as a follow-up to `b2b048d`. It contains only `packages/contracts/src/model-catalog.ts`, adding the ADR 0043 `VideoGenerationRegistryEntry`, `VIDEO_GENERATION_MODEL_REGISTRY`, `lookupVideoGenerationRegistry()`, and `isLikelyVideoGenerationModel()` implementation required by Task 5. The clean-checkout sequence `560c736 + b2b048d + 5975096` is self-contained for this dependency.
+
+## Follow-up validation
+
+Passed:
+
+```text
+pnpm --filter @piwin/contracts test -- src/model-catalog.test.ts
+  18 tests passed
+
+pnpm --filter @piwin/host-runtime test -- src/provider-model-capabilities.test.ts src/provider-model-discovery.test.ts
+  15 tests passed across 2 files
+
+pnpm --filter @piwin/contracts typecheck
+  passed
+```

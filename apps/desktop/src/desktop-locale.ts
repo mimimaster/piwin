@@ -51,6 +51,8 @@ export type DesktopCopy = {
     working: string;
     backendServiceActive: string;
     completed: string;
+    /** Click the green check to clear the completion attention marker. */
+    dismissCompleted: string;
     pinSession: string;
     unpinSession: string;
     restoreSession: string;
@@ -80,12 +82,16 @@ export type DesktopCopy = {
     generalChat: string;
     newConversationInProject: (projectName: string) => string;
     removeProjectFromSidebar: string;
+    collapseProjects: string;
+    expandProjects: string;
     collapseProject: string;
     expandProject: string;
     showLess: string;
     seeAll: (count: number) => string;
     loadMoreSessions: string;
     conversations: string;
+    collapseConversations: string;
+    expandConversations: string;
     noGeneralConversations: string;
     loadingSessions: string;
     resizeSidebar: string;
@@ -129,6 +135,8 @@ export type DesktopCopy = {
     hostStatus: (mode: string, isMock: boolean) => string;
     hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
     shortcutHint: string;
+    promptHistoryTitle: string;
+    promptHistoryEmpty: string;
     branchUnknown: string;
     branchNotRepo: string;
     branchMenuLabel: string;
@@ -514,6 +522,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       working: '会话正在工作',
       backendServiceActive: '后台服务运行中',
       completed: '会话已完成',
+      dismissCompleted: '会话已完成 · 点击确认',
       pinSession: '置顶会话',
       unpinSession: '取消置顶',
       restoreSession: '恢复会话',
@@ -543,12 +552,16 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       generalChat: '通用 Chat（快速开始）',
       newConversationInProject: (projectName) => `在 ${projectName} 中新建会话`,
       removeProjectFromSidebar: '从侧栏移除项目',
+      collapseProjects: '收起项目列表',
+      expandProjects: '展开项目列表',
       collapseProject: '收起项目',
       expandProject: '展开项目',
       showLess: '收起',
       seeAll: (count) => `查看全部 (${count})`,
       loadMoreSessions: '加载更多会话',
       conversations: '会话',
+      collapseConversations: '收起会话列表',
+      expandConversations: '展开会话列表',
       noGeneralConversations: '暂无通用会话',
       loadingSessions: '正在加载会话…',
       resizeSidebar: '调整侧边栏宽度',
@@ -593,6 +606,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       hostTooltip: (mode, isMock, ready, transport) =>
         `Host 模式：${mode}${isMock ? '（模拟）' : '（实时）'}｜状态：${ready ? '就绪' : '正在连接'}${transport ? `｜传输：${transport}` : ''}`,
       shortcutHint: '↵ 发送 · ⇧↵ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断',
+      promptHistoryTitle: '最近 10 条发送记录',
+      promptHistoryEmpty: '暂无历史发送记录',
       branchUnknown: '分支',
       branchNotRepo: '当前项目不是 git 仓库',
       branchMenuLabel: '切换分支',
@@ -726,6 +741,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       working: 'Session is working',
       backendServiceActive: 'Backend service is active',
       completed: 'Session completed',
+      dismissCompleted: 'Session completed · click to dismiss',
       pinSession: 'Pin session',
       unpinSession: 'Unpin session',
       restoreSession: 'Restore session',
@@ -755,12 +771,16 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       generalChat: 'General Chat (Quick Start)',
       newConversationInProject: (projectName) => `New conversation in ${projectName}`,
       removeProjectFromSidebar: 'Remove from sidebar',
+      collapseProjects: 'Collapse project list',
+      expandProjects: 'Expand project list',
       collapseProject: 'Collapse project',
       expandProject: 'Expand project',
       showLess: 'Show less',
       seeAll: (count) => `See all (${count})`,
       loadMoreSessions: 'Load more sessions',
       conversations: 'Conversations',
+      collapseConversations: 'Collapse conversation list',
+      expandConversations: 'Expand conversation list',
       noGeneralConversations: 'No general conversations',
       loadingSessions: 'Loading sessions…',
       resizeSidebar: 'Resize sidebar',
@@ -806,6 +826,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       hostTooltip: (mode, isMock, ready, transport) =>
         `Host Mode: ${mode}${isMock ? ' (Mock)' : ' (Live)'} | Status: ${ready ? 'Ready' : 'Connecting'}${transport ? ` | Transport: ${transport}` : ''}`,
       shortcutHint: '↵ Send · ⇧↵ New line · / Commands · @ Mention · ↑/↓ History · Esc Stop',
+      promptHistoryTitle: 'Last 10 prompts',
+      promptHistoryEmpty: 'No prompt history yet',
       branchUnknown: 'branch',
       branchNotRepo: 'Not a git repository',
       branchMenuLabel: 'Switch branch',

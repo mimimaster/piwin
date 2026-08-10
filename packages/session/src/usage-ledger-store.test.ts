@@ -137,6 +137,41 @@ describe('usage-ledger-store', () => {
     ]);
   });
 
+  it('aggregates duration only for records that report it', () => {
+    const rollup = computeUsageRollup([
+      record({
+        providerId: 'work-key',
+        modelId: 'm1',
+        completionTokens: 200,
+        durationMs: 2_000,
+        recordedAt: '2026-08-01T10:00:00.000Z',
+      }),
+      record({
+        providerId: 'work-key',
+        modelId: 'm1',
+        completionTokens: 150,
+        durationMs: 1_000,
+        recordedAt: '2026-08-01T11:00:00.000Z',
+      }),
+      record({
+        providerId: 'work-key',
+        modelId: 'm1',
+        completionTokens: 300,
+        recordedAt: '2026-08-01T12:00:00.000Z',
+      }),
+    ]);
+
+    const row = rollup.byModelKey[0];
+    expect(row?.durationMs).toBe(3_000);
+    // Only 350 of the 650 completion tokens have a duration; tok/s must
+    // divide 350 by 3s instead of inflating with the untimed turn.
+    expect(row?.durationMsCompletionTokens).toBe(350);
+    expect(row?.completionTokens).toBe(650);
+    expect(rollup.bySession[0]?.durationMs).toBe(3_000);
+    expect(rollup.bySession[0]?.durationMsCompletionTokens).toBe(350);
+    expect(rollup.byDay['2026-08-01']?.durationMs).toBe(3_000);
+  });
+
   it('filters by project scope, window and topSessions', async () => {
     const records = [
       record({

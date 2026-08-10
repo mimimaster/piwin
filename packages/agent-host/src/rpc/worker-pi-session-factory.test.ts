@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ModelProviderConfig, ResolvedSearchRoute } from '@piwin/contracts';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -9,7 +10,9 @@ import {
   createWorkerPiSessionFactory,
   registerWorkerProviders,
 } from './worker-pi-session-factory.js';
+import { buildPiProviderRegistration } from '../pi-model-runtime.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
+import type { NativeSearchStreamSimple } from '../native-web-search.js';
 
 const blueprint: SerializableBlueprint = {
   protocolVersion: 1,
@@ -367,5 +370,147 @@ describe('createWorkerPiSessionFactory', () => {
     const opts = createAgentSession.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(opts.tools).toEqual(['read', 'grep', 'ls', 'bash', 'web_search', 'mcp_gateway']);
     expect(opts.customTools).toHaveLength(1);
+  });
+});
+
+describe('buildWorkerProviderRegistration native search streamSimple', () => {
+  function route(selected: 'native' | 'external' | null): ResolvedSearchRoute {
+    return {
+      policy: selected === 'native' ? 'native-first' : 'external-only',
+      selected,
+      fallback: null,
+      readiness: {
+        native: { ready: true, reasons: [] },
+        external: { ready: true, reasons: [] },
+      },
+      issues: [],
+      incompatible: false,
+    };
+  }
+
+  function baseStreamSimple(): { stream: NativeSearchStreamSimple; payloads: unknown[] } {
+    const payloads: unknown[] = [];
+    const stream: NativeSearchStreamSimple = async (model, _context, options) => {
+      const payload: Record<string, unknown> = {
+        model: 'test-model',
+        messages: [],
+        tools: [{ type: 'function' }, { type: 'web_search_preview' }],
+        web_search_options: { search_context_size: 'medium' },
+      };
+      const transformed = await options?.onPayload?.(payload, model);
+      if (transformed !== undefined) {
+        payloads.push(transformed);
+        return transformed;
+      }
+      return payload;
+    };
+    return { stream, payloads };
+  }
+
+  function createWorkerProvider(
+    searchRoute: ResolvedSearchRoute,
+    base: { stream: NativeSearchStreamSimple },
+  ) {
+    const provider: SerializableProviderRuntime = {
+      providerId: 'xai-local',
+      protocol: 'openai-compatible',
+      baseUrl: 'https://api.example.test/v1',
+      models: [
+        {
+          id: 'grok-4.5',
+          capabilities: ['chat', 'native-web-search'],
+          nativeWebSearchMode: 'controllable',
+        },
+      ],
+      auth: { kind: 'none' },
+    };
+    return buildWorkerProviderRegistration(provider, undefined, searchRoute, base.stream);
+  }
+
+  function createSdkProvider(
+    searchRoute: ResolvedSearchRoute,
+    base: { stream: NativeSearchStreamSimple },
+  ) {
+    const provider: ModelProviderConfig = {
+      id: 'xai-local',
+      protocol: 'openai-compatible',
+      name: 'xAI local',
+      baseUrl: 'https://api.example.test/v1',
+      apiKeyEnv: 'XAI_API_KEY',
+      models: [
+        {
+          id: 'grok-4.5',
+          capabilities: ['chat', 'native-web-search'],
+          nativeWebSearchMode: 'controllable',
+        },
+      ],
+    };
+    return buildPiProviderRegistration(provider, 'secret', {
+      searchRoute,
+      streamSimple: base.stream,
+    });
+  }
+
+  it('injects native search fields when the route is native', async () => {
+    const base = baseStreamSimple();
+    const registration = createWorkerProvider(route('native'), base);
+
+    const result = await registration.streamSimple?.(
+      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
+      {},
+      {},
+    );
+    expect(result).toBeDefined();
+    const record = result as Record<string, unknown>;
+    expect(record).toHaveProperty('web_search_options');
+    const tools = Array.isArray(record.tools) ? record.tools : [];
+    expect(tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
+    );
+  });
+
+  it('strips native search fields when the route is external', async () => {
+    const base = baseStreamSimple();
+    const registration = createWorkerProvider(route('external'), base);
+
+    const result = await registration.streamSimple?.(
+      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
+      {},
+      {},
+    );
+    expect(result).toBeDefined();
+    const record = result as Record<string, unknown>;
+    expect(record).not.toHaveProperty('web_search_options');
+    const tools = Array.isArray(record.tools) ? record.tools : [];
+    expect(tools).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
+    );
+  });
+
+  it('produces the same payload as the SDK registration for the same base stream and route', async () => {
+    const base = baseStreamSimple();
+    const searchRoute = route('native');
+    const worker = createWorkerProvider(searchRoute, base);
+    const sdk = createSdkProvider(searchRoute, base);
+
+    const workerPayload = await worker.streamSimple?.(
+      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
+      {},
+      {},
+    );
+    const sdkPayload = await sdk.streamSimple?.(
+      { id: 'grok-4.5', api: 'openai-completions', provider: 'xai-local' },
+      {},
+      {},
+    );
+
+    expect(sdkPayload).toEqual(workerPayload);
+    expect(sdkPayload).toHaveProperty('web_search_options');
+    const tools = Array.isArray((sdkPayload as Record<string, unknown>).tools)
+      ? (sdkPayload as Record<string, unknown>).tools
+      : [];
+    expect(tools).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
+    );
   });
 });

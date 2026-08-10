@@ -724,9 +724,7 @@ export async function openSessionTranscriptStore(
     async getPauseCheckpoint(checkpointId) {
       ensureOpen();
       const row = db
-        .prepare(
-          'SELECT * FROM pause_checkpoint WHERE checkpoint_id = ? AND session_id = ?',
-        )
+        .prepare('SELECT * FROM pause_checkpoint WHERE checkpoint_id = ? AND session_id = ?')
         .get(checkpointId, options.sessionId) as unknown as PauseCheckpointRow | undefined;
       return row === undefined ? undefined : rowToPauseCheckpoint(row);
     },

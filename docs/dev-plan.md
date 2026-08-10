@@ -137,6 +137,16 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 
 **Deliverable**: paste image + web research usable in chat.
 
+**Completed slice (ADR 0043):** Native model search routing and video model discovery.
+- Web Settings exposes the search route policy and a live route preview.
+- Model editor supports the `native-web-search` capability and badge.
+- Host Runtime resolves exactly one search backend per generation; native selected omits `web_search`, external selected disables provider-native fields.
+- Native citations are normalized in `@piwin/agent-host`, emitted as `message/search_evidence`, persisted in the transcript, and rendered in Desktop.
+- Video Settings discovers provider video models, separates recognized and suggested models, and prefills the route.
+- Verification: `pnpm typecheck && pnpm test && pnpm test:architecture && pnpm --filter @piwin/desktop build`.
+  - Latest run: typecheck, `test:architecture`, Desktop build, and all touched package tests pass. Full `pnpm test` reports 5 unrelated pre-existing Desktop failures in `renderer-resource-boundaries.test.ts` and `resolve-document-content.test.ts`.
+- See `docs/adr/0043-native-model-search-routing.md` for the architecture decision.
+
 ---
 
 ### M4 — Skills + MCP panels (2 weeks)

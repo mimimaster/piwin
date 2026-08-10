@@ -179,6 +179,11 @@ export function computeUsageRollup(
     sessionTotal.cacheWriteTokens += record.cacheWriteTokens ?? 0;
     sessionTotal.totalTokens += record.totalTokens;
     sessionTotal.entryCount += 1;
+    if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {
+      sessionTotal.durationMs = (sessionTotal.durationMs ?? 0) + record.durationMs;
+      sessionTotal.durationMsCompletionTokens =
+        (sessionTotal.durationMsCompletionTokens ?? 0) + (record.completionTokens ?? 0);
+    }
     if (record.recordedAt < sessionTotal.firstAt) sessionTotal.firstAt = record.recordedAt;
     if (record.recordedAt > sessionTotal.lastAt) sessionTotal.lastAt = record.recordedAt;
     bySession.set(record.sessionId, sessionTotal);
@@ -250,6 +255,8 @@ function addToBucket(bucket: UsageBucket, record: UsageRecord): void {
   bucket.entryCount += 1;
   if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {
     bucket.durationMs = (bucket.durationMs ?? 0) + record.durationMs;
+    bucket.durationMsCompletionTokens =
+      (bucket.durationMsCompletionTokens ?? 0) + (record.completionTokens ?? 0);
   }
   if (typeof record.firstTokenMs === 'number' && Number.isFinite(record.firstTokenMs)) {
     const prevCount = bucket.firstTokenMs !== undefined ? bucket.entryCount - 1 : 0;

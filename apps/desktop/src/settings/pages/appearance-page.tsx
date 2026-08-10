@@ -1,6 +1,5 @@
 /** Settings → Appearance: chat preferences and editable light/dark themes. */
 import { useEffect, useState, type ReactElement } from 'react';
-import type { ThemeSummary } from '@piwin/contracts';
 import { Button, ColorInput, Select, SegmentedControl, Switch } from '@piwin/ui-kit';
 import { buildAppearanceTheme, resolveSystemThemeMode } from '../../appearance-tokens';
 import { getDesktopCopy, type DesktopCopy } from '../../desktop-locale';
@@ -168,32 +167,29 @@ function ThemeSettingsCard(props: {
 
 function ThemeLibraryCard(): ReactElement {
   const { locale } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale).appearance;
   const { request, activeTheme, onThemeApplied, setError, setInfo } = useSettings();
-  const [themes, setThemes] = useState<ThemeSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let disposed = false;
     setLoading(true);
-    void request({ type: 'theme/list' }).then((response) => {
+    void request({ type: 'theme/list' }).then(() => {
       if (disposed) return;
       setLoading(false);
-      if (!response.success) {
-        setError(response.error);
-        return;
-      }
-      const data = response.data as { themes?: ThemeSummary[] } | undefined;
-      setThemes(data?.themes ?? []);
     });
     return () => {
       disposed = true;
     };
-  }, [request, setError]);
+  }, [request]);
 
-  async function handleThemeChange(themeId: string): Promise<void> {
-    if (!themeId || themeId === activeTheme.id) return;
-    const response = await request({ type: 'theme/set-active', themeId });
+  async function handleThemeChange(targetValue: string): Promise<void> {
+    const targetThemeId = targetValue === 'system' ? 'piwin-dark' : targetValue;
+    if (!targetThemeId || (targetValue === 'system' && activeTheme.id === 'piwin-dark') || (targetValue === 'piwin-ink-wash' && activeTheme.id === 'piwin-ink-wash')) {
+      return;
+    }
+    const response = await request({ type: 'theme/set-active', themeId: targetThemeId });
     if (!response.success) {
       setError(response.error);
       return;
@@ -205,31 +201,31 @@ function ThemeLibraryCard(): ReactElement {
     }
     onThemeApplied(data.theme);
     setInfo(
-      locale === 'zh-CN' ? `已切换到 ${data.theme.name}。` : `Switched to ${data.theme.name}.`,
+      isChinese ? `已切换到 ${data.theme.name}。` : `Switched to ${data.theme.name}.`,
       'success',
     );
   }
+
+  const selectValue = activeTheme.id === 'piwin-ink-wash' ? 'piwin-ink-wash' : 'system';
+  const activeLabel = selectValue === 'piwin-ink-wash' ? (isChinese ? '砚夜泼墨' : 'Ink Wash') : (isChinese ? '系统' : 'System');
 
   return (
     <section className="settings-section settings-section-card appearance-theme-library">
       <PageTitle title={copy.themeLibrary} description={copy.themeLibraryDescription} />
       <div className="appearance-theme-setting-row">
-        <span>{activeTheme.name}</span>
+        <span>{activeLabel}</span>
         <Select
-          value={activeTheme.id}
+          value={selectValue}
           onChange={(event) => void handleThemeChange(event.currentTarget.value)}
-          data={themes.map((theme) => ({
-            value: theme.id,
-            label: `${theme.name} · ${theme.mode}`,
-          }))}
+          data={[
+            { value: 'system', label: isChinese ? '系统 · system' : 'System · system' },
+            { value: 'piwin-ink-wash', label: isChinese ? '砚夜泼墨 · dark' : 'Ink Wash · dark' },
+          ]}
           aria-label={copy.themeLibrary}
-          disabled={loading || themes.length === 0}
+          disabled={loading}
           testId="theme-library-select"
         />
       </div>
-      <p className="appearance-theme-library-note">
-        {loading ? copy.themeLibraryLoading : copy.themeLibraryFallback}
-      </p>
     </section>
   );
 }

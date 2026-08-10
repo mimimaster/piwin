@@ -24,6 +24,7 @@ export type HostRequestAdapters = {
       | 'models/catalog/search'
       | 'models/image-catalog/search'
       | 'models/test'
+      | 'models/image-test'
       | 'vision/delegate'
       | 'vision/cache/clear'
       | 'secrets/set'
@@ -42,6 +43,7 @@ export type HostRequestAdapters = {
     provider?: ModelProviderConfig;
     apiKey?: string;
     modelId?: string;
+    prompt?: string;
     providerId?: string;
     secret?: string;
     path?: string;
@@ -275,6 +277,23 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           type: 'models/test',
           provider: command.provider,
           modelId: command.modelId,
+          ...(command.apiKey ? { apiKey: command.apiKey } : {}),
+        });
+      }
+      if (command.type === 'models/image-test') {
+        if (!command.provider || !command.modelId?.trim()) {
+          return {
+            type: 'response',
+            command: 'models/image-test',
+            success: false,
+            error: 'provider and modelId are required',
+          };
+        }
+        return hostClient.request({
+          type: 'models/image-test',
+          provider: command.provider,
+          modelId: command.modelId,
+          ...(command.prompt?.trim() ? { prompt: command.prompt.trim() } : {}),
           ...(command.apiKey ? { apiKey: command.apiKey } : {}),
         });
       }

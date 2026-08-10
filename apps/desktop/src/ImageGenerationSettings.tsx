@@ -82,6 +82,33 @@ export function collectImageModels(providers: readonly ModelProviderConfig[]): I
   return rows;
 }
 
+function findFirstEnabledImageModel(
+  providers: readonly ModelProviderConfig[],
+): ImageModelRow | null {
+  for (const provider of providers) {
+    if (provider.enabled === false) continue;
+    const model = provider.models.find(
+      (candidate) => candidate.enabled !== false && isImageGenerationModel(candidate),
+    );
+    if (model) return { provider, model };
+  }
+  return null;
+}
+
+function hasUsableImageDefault(config: PiwinConfig): boolean {
+  const selected = config.imageGeneration?.defaultModel;
+  if (!selected) return false;
+  const provider = config.providers.find(
+    (candidate) => candidate.id === selected.providerId && candidate.enabled !== false,
+  );
+  return (
+    provider?.models.some(
+      (model) =>
+        model.id === selected.modelId && model.enabled !== false && isImageGenerationModel(model),
+    ) ?? false
+  );
+}
+
 function buildImageRoute(path: string, timeoutSeconds: string): ModelRouteConfig {
   const normalizedPath = normalizeRequestPath(path);
   const timeout = parseTimeoutSeconds(timeoutSeconds);
@@ -169,12 +196,24 @@ export function mergeDiscoveredImageModels(
 }
 
 export function ImageGenerationSettings(): ReactElement {
-  const { config, saveConfig, discoverProviderModels, searchImageModelCatalog, setError } = useSettings();
+  const {
+    config,
+    saveConfig,
+    discoverProviderModels,
+    searchImageModelCatalog,
+    testImageGenerationModel,
+    setError,
+    setInfo,
+  } = useSettings();
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.imageGeneration;
   const common = translator.common;
 
-  const allProviders = useMemo(() => config?.providers ?? [], [config]);
+  const allProviders = useMemo(
+    () =>
+      config?.providers.filter((provider) => provider.protocol !== 'anthropic-compatible') ?? [],
+    [config],
+  );
   const imageRows = useMemo(() => (config ? collectImageModels(config.providers) : []), [config]);
 
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
@@ -184,6 +223,7 @@ export function ImageGenerationSettings(): ReactElement {
   const [addModelTimeout, setAddModelTimeout] = useState('180');
   const [addModelLabel, setAddModelLabel] = useState('');
   const [addModelDescription, setAddModelDescription] = useState('');
+  const [testingKey, setTestingKey] = useState<string | null>(null);
 
   // Prefer default chat provider, else first configured provider.
   useEffect(() => {
@@ -313,8 +353,19 @@ export function ImageGenerationSettings(): ReactElement {
       }
     }
 
-    resetAddForm();
-    await saveConfig({ ...config, providers: nextProviders });
+    const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
+    if (!hasUsableImageDefault(nextConfig) && selectedProvider.enabled !== false) {
+      nextConfig.imageGeneration = {
+        defaultModel: {
+          protocol: selectedProvider.protocol,
+          providerId: selectedProvider.id,
+          modelId: id,
+        },
+      };
+    }
+    if (await saveConfig(nextConfig)) {
+      resetAddForm();
+    }
   }
 
   function handleSetDefault(provider: ModelProviderConfig, modelId: string): void {
@@ -345,7 +396,55 @@ export function ImageGenerationSettings(): ReactElement {
         ? { ...provider, models: provider.models.filter((model) => model.id !== modelId) }
         : provider,
     );
-    void saveConfig({ ...config, providers: nextProviders });
+    const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
+    if (!hasUsableImageDefault(nextConfig)) {
+      const fallback = findFirstEnabledImageModel(nextProviders);
+      if (fallback) {
+        nextConfig.imageGeneration = {
+          defaultModel: {
+            protocol: fallback.provider.protocol,
+            providerId: fallback.provider.id,
+            modelId: fallback.model.id,
+          },
+        };
+      } else {
+        delete nextConfig.imageGeneration;
+      }
+    }
+    void saveConfig(nextConfig);
+  }
+
+  async function handleTestModel(
+    provider: ModelProviderConfig,
+    model: ModelConfigEntry,
+  ): Promise<void> {
+    if (!testImageGenerationModel) {
+      setError(
+        locale === 'zh-CN'
+          ? '当前 Host 不支持图片模型测试，请重启并更新 Host。'
+          : 'The current Host does not support image model testing. Restart or update the Host.',
+      );
+      return;
+    }
+    const key = `${provider.id}:${model.id}`;
+    setTestingKey(key);
+    setError(null);
+    try {
+      const result = await testImageGenerationModel(provider, model.id);
+      const formats = result.outputs
+        .map((output) => output.mimeType.replace('image/', ''))
+        .join(', ');
+      setInfo(
+        locale === 'zh-CN'
+          ? `图片模型调用成功：${result.imageCount} 张，${formats}，耗时 ${result.durationMs}ms。`
+          : `Image call succeeded: ${result.imageCount} output, ${formats}, ${result.durationMs}ms.`,
+        'success',
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setTestingKey(null);
+    }
   }
 
   if (!config) {
@@ -379,8 +478,8 @@ export function ImageGenerationSettings(): ReactElement {
         {allProviders.length === 0 ? (
           <p className="muted" style={{ marginTop: 8 }}>
             {locale === 'zh-CN'
-              ? '请先在「文本模型」中添加接口通道。'
-              : 'Add a provider under Text models first.'}
+              ? '请先在「通道与文本」中添加接口通道。'
+              : 'Add a provider under Channels & chat first.'}
           </p>
         ) : (
           <div className="image-gen-form" style={{ marginTop: 16 }}>
@@ -519,7 +618,11 @@ export function ImageGenerationSettings(): ReactElement {
               </div>
 
               {addModelId.trim() && !editingKey ? (
-                <p className="muted" style={{ marginTop: 12, fontSize: 12 }} data-testid="image-add-model-hint">
+                <p
+                  className="muted"
+                  style={{ marginTop: 12, fontSize: 12 }}
+                  data-testid="image-add-model-hint"
+                >
                   {copy.saveHint}
                 </p>
               ) : null}
@@ -563,6 +666,7 @@ export function ImageGenerationSettings(): ReactElement {
                 config.imageGeneration?.defaultModel?.modelId === model.id &&
                 config.imageGeneration?.defaultModel?.providerId === provider.id;
               const isEditing = editingKey === `${provider.id}:${model.id}`;
+              const isTesting = testingKey === `${provider.id}:${model.id}`;
               return (
                 <li
                   key={`${provider.id}:${model.id}`}
@@ -597,6 +701,21 @@ export function ImageGenerationSettings(): ReactElement {
                     <Button
                       size="compact"
                       variant="ghost"
+                      data-testid="image-model-test"
+                      disabled={isTesting || provider.enabled === false || model.enabled === false}
+                      onClick={() => void handleTestModel(provider, model)}
+                    >
+                      {isTesting
+                        ? locale === 'zh-CN'
+                          ? '测试中…'
+                          : 'Testing…'
+                        : locale === 'zh-CN'
+                          ? '测试调用'
+                          : 'Test call'}
+                    </Button>
+                    <Button
+                      size="compact"
+                      variant="ghost"
                       onClick={() => handleStartEdit(provider, model)}
                     >
                       {locale === 'zh-CN' ? '编辑' : 'Edit'}
@@ -627,8 +746,6 @@ export function ImageGenerationSettings(): ReactElement {
           </ul>
         )}
       </div>
-
-
     </div>
   );
 }

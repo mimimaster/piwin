@@ -30,8 +30,8 @@ describe('bundled theme store', () => {
     expect(ink?.path).toBe(join(getThemesDir(root), 'piwin-ink-wash'));
 
     const manifest = await loadThemeManifest(root, 'piwin-ink-wash');
-    expect(manifest.tokens.bg).toBe('#0b0b0c');
-    expect(manifest.artifact?.accent).toBe('#89a3a8');
+    expect(manifest.tokens.bg).toBe('#1c1d20');
+    expect(manifest.artifact?.accent).toBe('#9bb2b8');
   });
 
   it('does not add executable payloads to the canonical bundled manifest', async () => {

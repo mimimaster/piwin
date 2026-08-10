@@ -120,6 +120,20 @@ describe('config-store', () => {
         modelId: 'image-gen',
       },
     };
+    config.providers = [
+      {
+        id: 'custom-openai',
+        protocol: 'openai-compatible',
+        name: 'Custom OpenAI',
+        baseUrl: 'https://example.test/v1',
+        models: [
+          { id: 'glm-4.7-flash', capabilities: ['chat'], input: ['image', 'text'] },
+          { id: 'image-gen', capabilities: ['image-generation'] },
+          { id: 'whisper-1', capabilities: ['speech-to-text'] },
+          { id: 'tts-1', capabilities: ['text-to-speech'] },
+        ],
+      },
+    ];
     config.videoGeneration = {
       defaultModel: {
         protocol: 'openai-compatible',

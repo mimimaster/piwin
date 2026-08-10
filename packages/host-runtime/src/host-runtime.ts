@@ -3040,14 +3040,14 @@ export class HostRuntime {
               ? 'completed'
               : outcome === 'paused'
                 ? 'paused'
-              : code === 'model-connect-timeout' ||
-                  code === 'model-first-token-timeout' ||
-                  code === 'model-turn-timeout' ||
-                  code === 'mcp-timeout'
-                ? 'timeout'
-                : code === 'runtime-memory-pressure'
-                  ? code
-                  : 'failed';
+                : code === 'model-connect-timeout' ||
+                    code === 'model-first-token-timeout' ||
+                    code === 'model-turn-timeout' ||
+                    code === 'mcp-timeout'
+                  ? 'timeout'
+                  : code === 'runtime-memory-pressure'
+                    ? code
+                    : 'failed';
         const effectiveMessage = cleanupFailed ? (message ?? 'job cleanup failed') : message;
         const terminalStatus = effectiveOutcome === 'paused' ? 'interrupted' : effectiveOutcome;
         const checkpointId = run.resumeCheckpointId;
@@ -4389,6 +4389,7 @@ export class HostRuntime {
       ...(usage.completionTokens !== undefined ? { completionTokens: usage.completionTokens } : {}),
       ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
       ...(usage.cacheWriteTokens !== undefined ? { cacheWriteTokens: usage.cacheWriteTokens } : {}),
+      ...(usage.durationMs !== undefined ? { durationMs: usage.durationMs } : {}),
       totalTokens,
       source: usage.source === 'host-estimate' ? 'host-estimate' : 'assistant-usage',
       recordedAt: new Date().toISOString(),
@@ -4438,7 +4439,18 @@ export class HostRuntime {
         return;
       }
       const promptText = this.sessionLastPromptText.get(sessionId) ?? '';
-      const usage = estimateMockUsage(sessionId, promptText, message.text);
+      // Fallback estimate: assistant message end minus transcript creation is a
+      // loose end-to-end turn duration; cap it so stale transcripts never
+      // poison tok/s with an unbounded span.
+      let estimatedDurationMs: number | undefined;
+      const createdAt = Date.parse(message.createdAt ?? '');
+      if (Number.isFinite(createdAt)) {
+        const ageMs = Date.now() - createdAt;
+        if (ageMs > 0 && ageMs <= 30 * 60 * 1000) {
+          estimatedDurationMs = ageMs;
+        }
+      }
+      const usage = estimateMockUsage(sessionId, promptText, message.text, estimatedDurationMs);
       const currentUsage = this.sessionUsage.get(sessionId);
       if (!shouldAcceptContextUsage(currentUsage, usage)) {
         return;

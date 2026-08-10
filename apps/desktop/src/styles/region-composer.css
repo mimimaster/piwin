@@ -18,7 +18,9 @@
   /* Full stage wrapper; .composer-card-v2 below owns the selected content measure. */
   max-width: none;
   margin: 0;
-  padding: 4px var(--chat-inline-pad, 24px) 12px;
+  /* The transcript owns the exact 48px clearance above this card. Keeping the
+     dock flush with the viewport also gives jump-to-latest a stable 12px gap. */
+  padding: 0 var(--chat-inline-pad, 24px) 12px;
   box-sizing: border-box;
   border: none !important;
   border-top: none !important;
@@ -105,7 +107,7 @@
   gap: 2px 8px;
   /* Sit flush directly above the card as a transparent layer — no card chrome. */
   margin-bottom: 4px;
-  padding: 0 2px;
+  padding: 0 4px;
   min-height: 0;
   background: transparent !important;
   border: none !important;
@@ -116,7 +118,7 @@
 
 .composer-dock.layout-centered .composer-context-rail {
   margin-bottom: 4px;
-  padding: 0 2px;
+  padding: 0 4px;
 }
 
 .composer-context-link {
@@ -1761,6 +1763,17 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   font-size: 13px;
 }
 
+/* Prompt history list (ArrowUp) — reuses slash menu chrome. */
+.prompt-history-menu .slash-menu-item {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.prompt-history-menu .slash-menu-name {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
 /* ─── Thinking effort / model pill ──────────────────────────────────── */
 
 .thinking-effort-control {
@@ -2817,15 +2830,441 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   cursor: pointer;
   padding: 4px 8px;
 }
+/* ── Ink Wash Zen Artwork Frame & Frosted Dock ─────────────────────────── */
+
+.ink-wash-vignette-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(320px, 40vw);
+  margin: 0 auto 12px;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transition: transform 0.24s ease;
+}
+
+.ink-wash-vignette-frame:hover {
+  transform: translateY(-2px);
+}
+
+.ink-wash-vignette-art-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
 .ink-wash-empty-vignette {
   display: block;
-  width: min(280px, 34vw);
-  max-height: 150px;
-  margin: 0 auto 8px;
+  width: 100%;
+  max-height: 100px;
   object-fit: cover;
   object-position: center;
   border-radius: 8px;
-  opacity: 0.84;
+  opacity: 0.88;
   pointer-events: none;
   user-select: none;
+}
+
+.ink-wash-agent-seal-stamp {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  box-shadow:
+    0 3px 10px rgba(194, 47, 37, 0.45),
+    0 0 0 1px rgba(194, 77, 67, 0.5);
+  transform: rotate(3deg);
+  pointer-events: auto;
+  transition: transform 0.2s ease;
+}
+
+.ink-wash-agent-seal-stamp:hover {
+  transform: rotate(0deg) scale(1.08);
+}
+
+.ink-wash-poetic-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: #9e988e;
+  opacity: 0.85;
+  user-select: none;
+  font-weight: 300;
+}
+
+/* Frameless Frosted Glass Composer Dock for Ink Wash visual style */
+html[data-theme-visual-style='ink-wash'] .composer-dock,
+html[data-theme-visual-style='ink-wash'] .composer-context-rail,
+html[data-theme-visual-style='ink-wash'] .composer-v2-toolbar,
+html[data-theme-visual-style='ink-wash'] .composer-footer-row,
+html[data-theme-visual-style='ink-wash'] .composer-v2-card-wrap,
+html[data-theme-visual-style='ink-wash'] .composer-v2-input-area,
+html[data-theme-visual-style='ink-wash'] .composer-v2-textarea,
+html[data-theme-visual-style='ink-wash'] .composer-v2-input,
+html[data-theme-visual-style='ink-wash'] .composer-textarea,
+html[data-theme-visual-style='ink-wash'] textarea {
+  background: transparent !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-card-v2 {
+  position: relative !important;
+  overflow: visible !important;
+  background-color: rgba(22, 23, 26, 0.92) !important;
+  background-image:
+    linear-gradient(180deg, rgba(35, 36, 42, 0.75) 0%, rgba(18, 19, 22, 0.85) 100%),
+    url('/ui/ink-wash/card-paper-bg.jpg') !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+  backdrop-filter: blur(24px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
+  border-top: 1.5px solid rgba(214, 185, 140, 0.5) !important;
+  border-bottom: 1.5px solid rgba(214, 185, 140, 0.5) !important;
+  border-left: 1px solid rgba(214, 205, 190, 0.18) !important;
+  border-right: 1px solid rgba(214, 205, 190, 0.18) !important;
+  border-radius: 14px 16px 6px 16px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 50px rgba(0, 0, 0, 0.75) !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  isolation: isolate;
+}
+
+/*
+ * Soft xuan-paper wash on top of the card fill (does not steal lion ::after).
+ * Clip to the card radius so texture stays inside the gold frame.
+ */
+html[data-theme-visual-style='ink-wash'] .composer-card-v2::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 0%,
+      rgba(214, 205, 190, 0.045) 38%,
+      transparent 68%
+    ),
+    radial-gradient(
+      80% 70% at 18% 100%,
+      rgba(194, 77, 67, 0.06) 0%,
+      transparent 55%
+    ) !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+}
+
+/* 发送钮与工具条在纹理层之上 */
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn,
+html[data-theme-visual-style='ink-wash'] .send-btn,
+html[data-theme-visual-style='ink-wash'] .composer-v2-action-slot {
+  position: relative !important;
+  z-index: 10 !important;
+  pointer-events: auto !important;
+}
+
+/* 右侧瑞兽石狮 (kept; target mock still has the pedestal ornament) */
+html[data-theme-visual-style='ink-wash'] .composer-card-v2::after {
+  content: '' !important;
+  position: absolute !important;
+  bottom: -14px !important;
+  right: -34px !important;
+  width: 64px !important;
+  height: 90px !important;
+  background-image: url('/ui/ink-wash/lion-seal-v2.png') !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center bottom !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.75)) !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+  opacity: 0.96 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-card-v2:focus-within {
+  border-top-color: rgba(214, 185, 140, 0.55) !important;
+  border-bottom-color: rgba(214, 185, 140, 0.55) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 18px 48px rgba(0, 0, 0, 0.62) !important;
+  outline: none !important;
+}
+
+/* Keep children above the paper wash layer; do not grow the textarea. */
+html[data-theme-visual-style='ink-wash'] .composer-v2-attachments,
+html[data-theme-visual-style='ink-wash'] .composer-v2-input-area,
+html[data-theme-visual-style='ink-wash'] .composer-v2-toolbar {
+  position: relative !important;
+  z-index: 1 !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-icon-btn {
+  color: #c8c2b8 !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-icon-btn:hover:not(:disabled) {
+  color: #f0ebe3 !important;
+  background: rgba(214, 205, 190, 0.08) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-textarea {
+  color: #e6e1d8 !important;
+  caret-color: #d6b98c !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-textarea:focus,
+html[data-theme-visual-style='ink-wash'] .composer-textarea:focus,
+html[data-theme-visual-style='ink-wash'] textarea:focus,
+html[data-theme-visual-style='ink-wash'] input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-textarea::placeholder {
+  color: #8f897f;
+  opacity: 0.88;
+}
+
+/* 朱砂印章 Send Button */
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn,
+html[data-theme-visual-style='ink-wash'] .composer-send-btn,
+html[data-theme-visual-style='ink-wash'] .send-btn {
+  background: #c24d43 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.45) !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:hover,
+html[data-theme-visual-style='ink-wash'] .composer-send-btn:hover,
+html[data-theme-visual-style='ink-wash'] .send-btn:hover {
+  background: #d6554a !important;
+  box-shadow: 0 4px 18px rgba(194, 77, 67, 0.65) !important;
+  transform: translateY(-1px) scale(1.03) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:active,
+html[data-theme-visual-style='ink-wash'] .composer-send-btn:active,
+html[data-theme-visual-style='ink-wash'] .send-btn:active {
+  transform: translateY(0) scale(0.95) !important;
+}
+
+/* 模型选择器 / 附件按钮 / 扩展选项 (Toolbar Pill Buttons & Model Selectors) */
+html[data-theme-visual-style='ink-wash'] .composer-model-picker-btn,
+html[data-theme-visual-style='ink-wash'] .composer-v2-pill-btn,
+html[data-theme-visual-style='ink-wash'] .composer-v2-tool-btn,
+html[data-theme-visual-style='ink-wash'] .composer-action-btn,
+html[data-theme-visual-style='ink-wash'] .orchestration-scheme-trigger {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(214, 205, 190, 0.08) !important;
+  color: #d8d3cb !important;
+  border-radius: 6px !important;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-model-picker-btn:hover,
+html[data-theme-visual-style='ink-wash'] .composer-v2-pill-btn:hover,
+html[data-theme-visual-style='ink-wash'] .composer-v2-tool-btn:hover,
+html[data-theme-visual-style='ink-wash'] .composer-action-btn:hover,
+html[data-theme-visual-style='ink-wash'] .orchestration-scheme-trigger:hover {
+  background: rgba(112, 145, 156, 0.16) !important;
+  border-color: rgba(112, 145, 156, 0.35) !important;
+  color: #f8f6f0 !important;
+}
+
+/* 附加 Context 导轨 Chips */
+html[data-theme-visual-style='ink-wash'] .composer-context-chip,
+html[data-theme-visual-style='ink-wash'] .composer-attachment-item {
+  background: rgba(214, 205, 190, 0.06) !important;
+  border: 1px solid rgba(214, 205, 190, 0.1) !important;
+  color: #d8d3cb !important;
+  border-radius: 6px !important;
+}
+
+/* Agent 中断卡片等浮浮层适配 */
+html[data-theme-visual-style='ink-wash'] .agent-interruption {
+  background: rgba(28, 29, 32, 0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(194, 77, 67, 0.25) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* 斜杠菜单 Slash Menu & 下拉 Menu 弹窗质感 */
+html[data-theme-visual-style='ink-wash'] .slash-command-menu,
+html[data-theme-visual-style='ink-wash'] .dropdown-menu-content {
+  background: rgba(26, 27, 30, 0.95) !important;
+  backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(214, 205, 190, 0.12) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .slash-command-item.selected,
+html[data-theme-visual-style='ink-wash'] .slash-command-item:hover,
+html[data-theme-visual-style='ink-wash'] .dropdown-menu-item:hover {
+  background: rgba(112, 145, 156, 0.18) !important;
+  color: #f8f6f0 !important;
+  border-radius: 6px !important;
+  position: relative !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .slash-command-item.selected::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: #c24d43;
+  border-radius: 2px;
+}
+
+/* ── Ink Wash Model Selector Popover (古风金墨模型选择器弹窗 1:1 还原) ───────── */
+
+/* 1. 外框弹窗与金墨描线 */
+html[data-theme-visual-style='ink-wash'] .ui-popover-content.thinking-effort-popover {
+  position: relative !important;
+  background-color: rgba(22, 23, 26, 0.95) !important;
+  background-image:
+    linear-gradient(180deg, rgba(34, 35, 39, 0.96) 0%, rgba(20, 21, 24, 0.95) 100%),
+    var(--ink-wash-conversation-texture, url('/ui/ink-wash/conversation-texture.jpg')) !important;
+  background-size: cover, cover !important;
+  background-position: center, center !important;
+  backdrop-filter: blur(28px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(140%) !important;
+  border-top: 1.5px solid rgba(214, 185, 140, 0.45) !important;
+  border-bottom: 1.5px solid rgba(214, 185, 140, 0.45) !important;
+  border-left: 1px solid rgba(214, 205, 190, 0.16) !important;
+  border-right: 1px solid rgba(214, 205, 190, 0.16) !important;
+  border-radius: 16px !important;
+  padding: 16px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 64px rgba(0, 0, 0, 0.85),
+    0 0 32px rgba(194, 77, 67, 0.08) !important;
+}
+
+/* 2. 标题规范 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-section-title {
+  color: rgba(214, 185, 140, 0.85) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-active-tag {
+  color: #d8b888 !important;
+  background: rgba(214, 185, 140, 0.18) !important;
+  border: 1px solid rgba(214, 185, 140, 0.3) !important;
+}
+
+/* 3. THINKING 预算选择底座 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-chip-row {
+  background: rgba(14, 15, 17, 0.7) !important;
+  border: 1px solid rgba(214, 185, 140, 0.15) !important;
+  border-radius: 10px !important;
+  padding: 4px !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-chip {
+  color: rgba(214, 205, 190, 0.7) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-chip:hover:not(:disabled) {
+  color: #f8f6f0 !important;
+  background: rgba(214, 185, 140, 0.12) !important;
+}
+
+/* THINKING 预算选中按钮：金水墨宣纸沉淀高亮效果 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-chip.is-active {
+  background: linear-gradient(180deg, #d8b888 0%, #b89868 100%) !important;
+  color: #1a1712 !important;
+  font-weight: 750 !important;
+  border: 1px solid rgba(255, 235, 200, 0.5) !important;
+  box-shadow: 0 4px 14px rgba(184, 152, 104, 0.4) !important;
+}
+
+/* 4. 搜索框风格 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search {
+  background: rgba(14, 15, 17, 0.7) !important;
+  border: 1px solid rgba(214, 185, 140, 0.22) !important;
+  border-radius: 10px !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search:focus-within {
+  border-color: rgba(214, 185, 140, 0.45) !important;
+  box-shadow: 0 0 12px rgba(214, 185, 140, 0.15) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search input {
+  color: #f8f6f0 !important;
+  font-family: inherit !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search input::placeholder {
+  color: rgba(214, 205, 190, 0.4) !important;
+}
+
+/* 5. 模型列表条目 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid transparent !important;
+  border-radius: 12px !important;
+  padding: 8px 12px !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option:hover:not(:disabled) {
+  background: rgba(214, 185, 140, 0.08) !important;
+  border-color: rgba(214, 185, 140, 0.22) !important;
+}
+
+/* 选中态条目：金框与微芒透光背景 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option.is-selected {
+  background: rgba(214, 185, 140, 0.14) !important;
+  border-color: rgba(214, 185, 140, 0.38) !important;
+}
+
+/* 图标样式 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-icon {
+  background: rgba(214, 185, 140, 0.12) !important;
+  color: #d8b888 !important;
+  border-radius: 8px !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option.is-selected .thinking-effort-model-icon {
+  background: #d8b888 !important;
+  color: #1a1712 !important;
+}
+
+/* 选中勾选圈 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-check {
+  color: #d8b888 !important;
+  background: rgba(214, 185, 140, 0.25) !important;
+  border-radius: 50% !important;
+}
+
+/* Provider 角标 */
+html[data-theme-visual-style='ink-wash'] .thinking-effort-model-provider-badge {
+  color: rgba(214, 185, 140, 0.55) !important;
+  font-weight: 600 !important;
 }

@@ -72,6 +72,19 @@ describe('buildBasePhrases', () => {
     expect(runtimeStatusText('asking', 'zh-CN')).toBe('等待你的回答');
     expect(runtimeStatusText('asking', 'en')).toBe('Waiting for your answer');
   });
+
+  it('rotates three preparing phrases in both locales', () => {
+    expect(buildBasePhrases({ kind: 'preparing', locale: 'zh-CN' })).toEqual([
+      '准备上下文…',
+      '整理对话记忆…',
+      '装载工作区…',
+    ]);
+    expect(buildBasePhrases({ kind: 'preparing', locale: 'en' })).toEqual([
+      'Preparing context…',
+      'Gathering conversation memory…',
+      'Loading workspace…',
+    ]);
+  });
 });
 
 describe('buildTakingTooLongPhrases', () => {
@@ -83,6 +96,14 @@ describe('buildTakingTooLongPhrases', () => {
   it('keeps the reference thinking copy for waiting-first-token', () => {
     const phrases = buildTakingTooLongPhrases(en());
     expect(phrases).toEqual(['Thinking…']);
+  });
+
+  it('keeps preparing carousel when the wait exceeds the timeout threshold', () => {
+    expect(buildTakingTooLongPhrases({ kind: 'preparing', locale: 'en' })).toEqual([
+      'Preparing context…',
+      'Gathering conversation memory…',
+      'Loading workspace…',
+    ]);
   });
 });
 

@@ -17,7 +17,7 @@ function responseJson(value: unknown): Response {
   } as unknown as Response;
 }
 
-function createConfig(): PiwinConfig {
+function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
     hostMode: 'sdk',
     providers: [
@@ -56,6 +56,7 @@ function createConfig(): PiwinConfig {
       decisionPrompt: { mode: 'default', customPrompt: '' },
       maxBytes: 100_000,
     },
+    ...overrides,
   };
 }
 
@@ -116,5 +117,61 @@ describe('buildVideoGenTool', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('selects a discovered Sora model and builds the correct video tool route', () => {
+    const config = createConfig();
+    const resolved = resolveVideoProvider(config, 'sora-2');
+    expect(resolved.provider.id).toBe('openai-video');
+    expect(resolved.model.id).toBe('sora-2');
+    expect(resolved.model.routes?.['video-generation']).toEqual({
+      apiStyle: 'openai-videos',
+      path: '/videos',
+      pollIntervalMs: 250,
+    });
+
+    const tool = buildVideoGenTool({
+      piwinRoot: '/tmp/piwin',
+      sessionId: 'session-1',
+      config,
+      mediaConfig: {
+        mediaRoot: '/tmp/media',
+        maxPasteBytes: 50_000_000,
+        allowedMimeTypes: ['video/mp4'],
+      },
+      secretResolver: createSecretResolver({ env: { VIDEO_KEY: 'key' } }),
+    });
+    expect(tool).not.toBeNull();
+    expect(tool?.descriptor.name).toBe('video_gen');
+  });
+
+  it('fails closed when the requested video model is missing or disabled', () => {
+    const config = createConfig({
+      providers: [
+        {
+          id: 'openai-video',
+          protocol: 'openai-compatible',
+          name: 'OpenAI Videos',
+          baseUrl: 'https://example.test/v1',
+          apiKeyEnv: 'VIDEO_KEY',
+          models: [{ id: 'gpt-4', capabilities: ['chat'] }],
+        },
+      ],
+      videoGeneration: {},
+    });
+
+    expect(() => resolveVideoProvider(config, 'missing')).toThrow(VideoGenConfigError);
+    const tool = buildVideoGenTool({
+      piwinRoot: '/tmp/piwin',
+      sessionId: 'session-1',
+      config,
+      mediaConfig: {
+        mediaRoot: '/tmp/media',
+        maxPasteBytes: 50_000_000,
+        allowedMimeTypes: ['video/mp4'],
+      },
+      secretResolver: createSecretResolver({ env: { VIDEO_KEY: 'key' } }),
+    });
+    expect(tool).toBeNull();
   });
 });

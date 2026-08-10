@@ -92,6 +92,7 @@ html.is-theme-switching *::after {
   /* Named state animations: drop name entirely (duration kill alone still flashes
      a first keyframe in some engines). Keep final semantic colors. */
   .turn-thinking pre.turn-shimmer-text,
+  .agent-locator-copy--shimmer,
   .bubble.is-streaming,
   .tool-call-card,
   .msg-row.is-new,
@@ -110,7 +111,8 @@ html.is-theme-switching *::after {
     animation: none;
   }
 
-  .turn-thinking pre.turn-shimmer-text {
+  .turn-thinking pre.turn-shimmer-text,
+  .agent-locator-copy--shimmer {
     -webkit-text-fill-color: var(--muted);
     color: var(--muted);
     background: none;

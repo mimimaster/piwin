@@ -22,6 +22,7 @@ function nativeModel(overrides: Partial<ModelConfigEntry> = {}): ModelConfigEntr
 function externalWeb(enabled = true): Pick<WebConfig, 'searchSources' | 'searchRoutePolicy'> {
   return {
     searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled }],
+    searchRoutePolicy: 'external-first',
   };
 }
 
@@ -130,9 +131,7 @@ describe('resolveSearchRoute', () => {
     expect(route.selected).toBe('native');
     expect(route.readiness.native.ready).toBe(true);
     expect(route.readiness.native.adapterCitationSupported).toBe(false);
-    expect(
-      route.issues.some((issue) => issue.includes('citation normalization')),
-    ).toBe(true);
+    expect(route.issues.some((issue) => issue.includes('citation normalization'))).toBe(true);
   });
 
   it('formats a capability brief for the selected route', () => {

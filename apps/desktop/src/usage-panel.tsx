@@ -7,11 +7,17 @@
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, SegmentedControl, Select, TextInput } from '@piwin/ui-kit';
-import { computePromptCacheHitRate, type HostResponse, type UsageRollup } from '@piwin/contracts';
+import {
+  computePromptCacheHitRate,
+  computeTokensPerSecond,
+  type HostResponse,
+  type UsageRollup,
+} from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   EMPTY_USAGE_ROLLUP,
   deriveLegacyModelKeyRows,
+  formatTokensPerSecond,
   formatUsageCompact,
   formatUsageDate,
   formatUsageExact,
@@ -358,6 +364,7 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                     <th>{isZh ? '缓存率' : 'Hit rate'}</th>
                     <th>{isZh ? '缓存读 / 写' : 'Cache read / write'}</th>
                     <th>{isZh ? '直接输入 / 输出' : 'Direct input / output'}</th>
+                    <th>{isZh ? '输出速率' : 'Output speed'}</th>
                     <th>{isZh ? '请求' : 'Turns'}</th>
                     <th>{isZh ? '总计' : 'Total'}</th>
                   </tr>
@@ -367,6 +374,11 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                     const rowKey = `${row.providerId ?? 'legacy'}::${row.modelId}`;
                     const rowHitRate = computePromptCacheHitRate(row);
                     const rowHitPercent = rowHitRate === null ? 0 : Math.round(rowHitRate * 100);
+                    const tokensPerSecond = computeTokensPerSecond(row);
+                    const tpsDetail =
+                      row.durationMs !== undefined
+                        ? `${formatUsageExact(row.durationMs)}ms`
+                        : undefined;
                     return (
                       <tr key={rowKey} data-testid={`usage-model-key-row-${rowKey}`}>
                         <td className="usage-table-model" title={row.modelId}>
@@ -403,6 +415,13 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                           <span>
                             {isZh ? '出' : 'Out'} {formatUsageCompact(row.completionTokens)}
                           </span>
+                        </td>
+                        <td
+                          className="usage-tps-cell"
+                          data-testid={`usage-model-key-tps-${rowKey}`}
+                          title={tpsDetail}
+                        >
+                          {formatTokensPerSecond(tokensPerSecond)}
                         </td>
                         <td>{formatUsageExact(row.entryCount)}</td>
                         <td>

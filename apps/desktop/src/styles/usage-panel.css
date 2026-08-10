@@ -314,7 +314,7 @@
 
 .usage-table {
   width: 100%;
-  min-width: 840px;
+  min-width: 920px;
   border-collapse: collapse;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -405,6 +405,11 @@
 .usage-token-pair span + span {
   margin-left: 8px;
   color: var(--muted, #94a3b8);
+}
+
+.usage-tps-cell {
+  color: var(--muted, #94a3b8);
+  white-space: nowrap;
 }
 
 .usage-compact-empty {
