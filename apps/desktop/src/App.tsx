@@ -2120,6 +2120,26 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [activeComments.length, activeDocument?.title],
   );
 
+  // Newest-first user prompts for Composer ↑ history list (max 10).
+  const sessionUserPrompts = useMemo(() => {
+    const prompts: string[] = [];
+    for (let index = state.messages.length - 1; index >= 0; index -= 1) {
+      const message = state.messages[index];
+      if (message?.role !== 'user') {
+        continue;
+      }
+      const text = message.text.trim();
+      if (!text || prompts.includes(text)) {
+        continue;
+      }
+      prompts.push(text);
+      if (prompts.length >= 10) {
+        break;
+      }
+    }
+    return prompts;
+  }, [state.messages]);
+
   // Shared composer card props for the bottom dock and in-place message editing.
   // Local state fields (composer text, attachments, plus menu, etc.) are overridden
   // by the bottom dock or the edit card; this bundle carries the global config.
@@ -2134,6 +2154,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       compacting: state.compacting,
       composer,
       onComposerChange: setComposer,
+      sessionUserPrompts,
       agentMode,
       onAgentModeChange: setAgentMode,
       pendingAttachments,
@@ -2258,6 +2279,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       recentProjects,
       retryPendingAttachment,
       revokePending,
+      sessionUserPrompts,
       selectedModelContextWindow,
       selectedModelKey,
       selectedModelLabel,
@@ -2521,6 +2543,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               workingSessionIds={state.workingSessionIds}
               backendServiceSessionIds={backendServiceSessionIds}
               completedAttentionSessionIds={state.completedAttentionSessionIds}
+              onDismissCompletedAttention={(sessionId) => {
+                dispatch({ type: 'session/attention-dismiss', sessionId });
+              }}
               sessionsExpanded={navDrawerOpen}
               onToggleSessions={() => {
                 shell.toggleSessions();

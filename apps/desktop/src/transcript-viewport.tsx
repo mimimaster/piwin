@@ -174,18 +174,18 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
             </div>
           ) : null}
           {props.children}
-          {scroll.showJumpToLatest ? (
-            <button
-              type="button"
-              className="jump-to-latest-btn"
-              data-testid="jump-to-latest-btn"
-              onClick={scroll.jumpToLatest}
-              aria-label="Jump to latest"
-            >
-              Jump to latest
-            </button>
-          ) : null}
         </div>
+        {scroll.showJumpToLatest ? (
+          <button
+            type="button"
+            className="jump-to-latest-btn"
+            data-testid="jump-to-latest-btn"
+            onClick={scroll.jumpToLatest}
+            aria-label="Jump to latest"
+          >
+            Jump to latest
+          </button>
+        ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
         <div
           className={

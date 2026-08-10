@@ -90,6 +90,8 @@ type MarkdownViewProps = {
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence when heavy path runs. */
   artifactMaxBytes?: number;
+  /** Locale for Artifact preparing feedback. */
+  locale?: 'zh-CN' | 'en';
   /** Callback when user clicks a markdown document link or plan document chip. */
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
 };
@@ -170,6 +172,7 @@ type StreamdownRendererOptions = {
   artifactPreviewEnabled: boolean;
   artifactCodeFirst: boolean;
   artifactMaxBytes: number | undefined;
+  locale: 'zh-CN' | 'en';
   onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined;
   /**
    * owi-style fence ordinal keyed by the AST start position. Streamdown may
@@ -378,6 +381,7 @@ function createStreamdownComponents(optionsRef: {
       artifactThemeKey: options.artifactThemeKey,
       artifactPreviewEnabled: options.artifactPreviewEnabled,
       artifactCodeFirst: options.artifactCodeFirst,
+      locale: options.locale,
     };
     if (options.artifactTheme) fenceProps.artifactTheme = options.artifactTheme;
     if (options.onArtifactAction) fenceProps.onArtifactAction = options.onArtifactAction;
@@ -690,6 +694,7 @@ export function MarkdownView({
   showStreamingCaret = true,
   artifactCodeFirst = false,
   artifactMaxBytes,
+  locale = 'en',
   onOpenDocument,
 }: MarkdownViewProps): ReactElement {
   const phase: MarkdownRenderingPhase =
@@ -760,6 +765,7 @@ export function MarkdownView({
     artifactPreviewEnabled,
     artifactCodeFirst,
     artifactMaxBytes,
+    locale,
     allocateFenceOrdinal,
     onOpenDocument,
   });
@@ -775,6 +781,7 @@ export function MarkdownView({
     artifactPreviewEnabled,
     artifactCodeFirst,
     artifactMaxBytes,
+    locale,
     allocateFenceOrdinal,
     onOpenDocument,
   };
@@ -826,6 +833,7 @@ function CodeFenceView(props: {
   artifactPreviewEnabled: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
+  locale: 'zh-CN' | 'en';
 }): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
@@ -916,30 +924,33 @@ function CodeFenceView(props: {
     ) {
       return (
         <div
-          className="artifact-with-source artifact-with-source--full-bleed"
+          className="artifact-with-source artifact-with-source--preview"
           data-artifact-id={stickyFenceId}
           data-testid="artifact-stream-live"
         >
-          <ArtifactFrame
-            // Same key in stream and completed branches; theme changes remain a
-            // deliberate document boundary, token growth and `done` do not.
-            key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
-            decision={frameDecision}
-            initPriority={props.initPriority}
-            extraHeaderAction={
-              <Button
-                variant="ghost"
-                size="compact"
-                className="artifact-frame-text-action"
-                data-testid="artifact-preview-toggle"
-                aria-expanded
-                onClick={showArtifactSource}
-              >
-                Show code
-              </Button>
-            }
-            {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-          />
+          <div className="artifact-preview-surface">
+            <ArtifactFrame
+              // Same key in stream and completed branches; theme changes remain a
+              // deliberate document boundary, token growth and `done` do not.
+              key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
+              decision={frameDecision}
+              initPriority={props.initPriority}
+              locale={props.locale}
+              {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+            />
+          </div>
+          <div className="artifact-side-rail">
+            <Button
+              variant="ghost"
+              size="compact"
+              className="artifact-frame-text-action"
+              data-testid="artifact-preview-toggle"
+              aria-expanded
+              onClick={showArtifactSource}
+            >
+              Show code
+            </Button>
+          </div>
         </div>
       );
     }
@@ -953,14 +964,11 @@ function CodeFenceView(props: {
       decision.kind === 'preparing'
     ) {
       return (
-        <div
-          className="artifact-frame preparing"
-          data-testid="artifact-frame"
-          data-tool-status="running"
-          data-artifact-id={stickyFenceId}
-        >
-          <p className="muted">{decision.message}</p>
-        </div>
+        <ArtifactFrame
+          decision={decision}
+          initPriority={props.initPriority}
+          locale={props.locale}
+        />
       );
     }
 
@@ -1117,22 +1125,28 @@ function CodeFenceView(props: {
 
     // render | preparing: in-place toggle. Closed → source code with Preview
     // affordance; open → rendered ArtifactFrame replaces the source in place
-    // (no stacked second code block). The "Show code" action floats over the
-    // ArtifactFrame on hover/focus via `extraHeaderAction`.
+    // (no stacked second code block). "Show code" is a sibling side rail —
+    // outside the iframe — so it never overlays the art surface.
     return (
       <div
         className={
           artifactPreviewOpen
-            ? 'artifact-with-source artifact-with-source--full-bleed'
+            ? 'artifact-with-source artifact-with-source--preview'
             : 'artifact-with-source'
         }
       >
         {artifactPreviewOpen ? (
-          <ArtifactFrame
-            key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
-            decision={decision}
-            initPriority={props.initPriority}
-            extraHeaderAction={
+          <>
+            <div className="artifact-preview-surface">
+              <ArtifactFrame
+                key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
+                decision={decision}
+                initPriority={props.initPriority}
+                locale={props.locale}
+                {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+              />
+            </div>
+            <div className="artifact-side-rail">
               <Button
                 variant="ghost"
                 size="compact"
@@ -1143,9 +1157,8 @@ function CodeFenceView(props: {
               >
                 Show code
               </Button>
-            }
-            {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-          />
+            </div>
+          </>
         ) : (
           <div
             className="md-code-block"
@@ -1269,13 +1282,18 @@ function FlashcardPreviewCard(props: {
   }
   const decision = evaluateCodeFence(evaluateOptions);
   return (
-    <div className="artifact-with-source">
+    <div className="artifact-with-source artifact-with-source--preview">
       {decision.kind === 'render' || decision.kind === 'preparing' ? (
-        <ArtifactFrame
-          key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
-          decision={decision}
-          initPriority={props.initPriority}
-          extraHeaderAction={
+        <>
+          <div className="artifact-preview-surface">
+            <ArtifactFrame
+              key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
+              decision={decision}
+              initPriority={props.initPriority}
+              {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+            />
+          </div>
+          <div className="artifact-side-rail">
             <Button
               variant="ghost"
               size="compact"
@@ -1289,9 +1307,8 @@ function FlashcardPreviewCard(props: {
             >
               Show code
             </Button>
-          }
-          {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-        />
+          </div>
+        </>
       ) : decision.kind === 'blocked' ? (
         <div className="artifact-blocked muted" data-testid="artifact-blocked" role="status">
           Artifact blocked{`: ${decision.reason}`}

@@ -46,6 +46,7 @@ import {
   createDefaultWalkthroughConfig,
   DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   createDefaultWebConfig,
+  DEFAULT_SEARCH_ROUTE_POLICY,
   modeToPreset,
   normalizeWalkthroughConfig,
   normalizeSessionRuntimeRetentionConfig,
@@ -656,6 +657,10 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     defaults.searchSources,
   );
   const searchStrategy = normalizeSearchStrategy(record.searchStrategy, defaults.searchStrategy);
+  const searchRoutePolicy = normalizeSearchRoutePolicy(
+    record.searchRoutePolicy,
+    defaults.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
+  );
   const mirroredProvider = mirrorSearchProviderFromSources(searchSources, searchProvider);
   const normalized: WebConfig = {
     searchProvider: mirroredProvider,
@@ -664,6 +669,7 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     searchTimeoutMs: asPositiveNumber(record.searchTimeoutMs) ?? defaults.searchTimeoutMs,
     searchSources,
     searchStrategy,
+    searchRoutePolicy,
     fetchProvider,
     fetchApiKeyEnv:
       typeof record.fetchApiKeyEnv === 'string' && record.fetchApiKeyEnv.length > 0
@@ -678,6 +684,22 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     normalized.fetchApiKeyRef = record.fetchApiKeyRef.trim();
   }
   return normalized;
+}
+
+
+function normalizeSearchRoutePolicy(
+  value: unknown,
+  defaults: NonNullable<WebConfig['searchRoutePolicy']>,
+): NonNullable<WebConfig['searchRoutePolicy']> {
+  if (
+    value === 'native-first' ||
+    value === 'external-first' ||
+    value === 'native-only' ||
+    value === 'external-only'
+  ) {
+    return value;
+  }
+  return defaults;
 }
 
 function normalizeSearchStrategy(

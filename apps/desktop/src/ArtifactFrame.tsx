@@ -1,20 +1,32 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type RefObject,
+} from 'react';
 import type { ArtifactActionMessage, ArtifactPreviewDecision } from '@piwin/artifact';
 import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_READY_TIMEOUT_MS,
+  ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
+  ARTIFACT_VIEWPORT_ROOT_MARGIN,
   INITIAL_ARTIFACT_IFRAME_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   cancelArtifactInit,
   clampArtifactHeight,
   isArtifactBridgeReadyMessage,
+  isRectNearRoot,
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
+  parseRootMarginYPx,
   releaseArtifactInit,
   requestArtifactInit,
+  resolveArtifactViewportHostIntent,
   resolveImmediateArtifactHeight,
   resolveInteractiveArtifactShrink,
   type ArtifactHeightPhase,
@@ -22,6 +34,7 @@ import {
 import { useArtifactHeightSignal } from './artifact-height-signal';
 import { useTranscriptScrollPort } from './transcript-scroll-port';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
+import { IconSpark } from './shell-icons';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
@@ -56,18 +69,35 @@ export type ArtifactFrameProps = {
    */
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   /**
-   * Optional control rendered in the Artifact's hover/focus action layer.
-   * Used by MarkdownView's in-place code/render toggle ("Show code") so the
-   * affordance lives over the rendered frame instead of stacking a second
-   * code block above it. Source inspection goes through that toggle — render
-   * mode no longer duplicates raw source under the iframe.
+   * Optional control in the frame's grid action rail (not over the iframe).
+   * Product UI prefers a sibling `.artifact-side-rail` outside the frame;
+   * keep this for tests and any remaining in-frame action hosts.
    */
   extraHeaderAction?: ReactElement;
+  /** Localized preparing copy for chat and settings surfaces. */
+  locale?: 'zh-CN' | 'en';
 };
 
 /** User-facing content label for an artifact descriptor type. */
 function getArtifactContentLabel(type: 'html' | 'svg'): string {
   return type === 'svg' ? 'SVG' : 'HTML UI';
+}
+
+function getArtifactPreparingCopy(
+  type: 'html' | 'svg',
+  locale: 'zh-CN' | 'en',
+): { title: string; detail: string } {
+  const isSvg = type === 'svg';
+  if (locale === 'zh-CN') {
+    return {
+      title: isSvg ? '正在生成 SVG' : '正在生成界面',
+      detail: '首个可安全渲染的内容准备好后会自动显示',
+    };
+  }
+  return {
+    title: isSvg ? 'Generating SVG' : 'Rendering interface',
+    detail: 'The first safe preview will appear automatically',
+  };
 }
 
 function postArtifactStreamUpdate(
@@ -102,12 +132,21 @@ export function ArtifactFrame({
   onArtifactAction,
   onComposerProposal,
   extraHeaderAction,
+  locale = 'en',
 }: ArtifactFrameProps): ReactElement {
   const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   if (decision.kind === 'blocked') {
     return (
-      <div data-testid="artifact-frame" data-activity-id="artifact" data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION} data-tool-status="error" className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
-        {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
+      <div
+        data-testid="artifact-frame"
+        data-activity-id="artifact"
+        data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
+        data-tool-status="error"
+        className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}
+      >
+        {extraHeaderAction ? (
+          <div className="artifact-frame-actions">{extraHeaderAction}</div>
+        ) : null}
         <p className="muted">
           Cannot preview this {contentLabel}: <code>{decision.reason}</code>
           {decision.security.externalResources.length > 0
@@ -119,10 +158,30 @@ export function ArtifactFrame({
   }
 
   if (decision.kind === 'preparing') {
+    const preparingCopy = getArtifactPreparingCopy(decision.descriptor.type, locale);
     return (
-      <div data-testid="artifact-frame" data-activity-id="artifact" data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION} data-tool-status="running" className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
-        {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
-        <p className="muted">{decision.message}</p>
+      <div
+        data-testid="artifact-frame"
+        data-activity-id="artifact"
+        data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
+        data-tool-status="running"
+        className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        {extraHeaderAction ? (
+          <div className="artifact-frame-actions">{extraHeaderAction}</div>
+        ) : null}
+        <div className="artifact-preparing-content">
+          <span className="artifact-preparing-icon" aria-hidden="true">
+            <IconSpark />
+          </span>
+          <span className="artifact-preparing-copy">
+            <strong>{preparingCopy.title}</strong>
+            <span>{preparingCopy.detail}</span>
+          </span>
+          <span className="artifact-preparing-sheen" aria-hidden="true" />
+        </div>
       </div>
     );
   }
@@ -134,6 +193,7 @@ export function ArtifactFrame({
       decision={decision}
       initPriority={initPriority}
       presentation={presentation}
+      locale={locale}
       {...(onArtifactAction ? { onArtifactAction } : {})}
       {...(onComposerProposal ? { onComposerProposal } : {})}
       {...(extraHeaderAction ? { extraHeaderAction } : {})}
@@ -148,8 +208,17 @@ function ArtifactRenderFrame(props: {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   extraHeaderAction?: ReactElement;
+  locale: 'zh-CN' | 'en';
 }): ReactElement {
-  const { decision, initPriority, presentation, onArtifactAction, onComposerProposal, extraHeaderAction } = props;
+  const {
+    decision,
+    initPriority,
+    presentation,
+    onArtifactAction,
+    onComposerProposal,
+    extraHeaderAction,
+    locale,
+  } = props;
   // Stable for the whole Artifact lifecycle. Stream completion must not
   // re-run the init queue or replace the iframe browsing context.
   const channelId = decision.descriptor.id;
@@ -165,6 +234,13 @@ function ArtifactRenderFrame(props: {
   latestDescriptorSourceRef.current = decision.descriptor.source;
   const lastFinalSourceRef = useRef<string | null>(null);
   const [granted, setGranted] = useState(false);
+  /**
+   * Inline only: host the sandboxed iframe while in (or near) the transcript
+   * viewport. After leaving for ARTIFACT_VIEWPORT_RECYCLE_TTL_MS, drop the
+   * iframe to free WebContent memory; a height placeholder keeps layout stable.
+   * Canvas and active stream-preview always host.
+   */
+  const [hostIframe, setHostIframe] = useState(true);
   const [height, setHeight] = useState(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [phase, setPhase] = useState<ArtifactHeightPhase>('protected');
@@ -172,6 +248,11 @@ function ArtifactRenderFrame(props: {
     decision.mode === 'stream-preview' ? 'streaming' : 'loading',
   );
   const [paintedDocumentKey, setPaintedDocumentKey] = useState<string | null>(null);
+  const frameRootRef = useRef<HTMLDivElement | null>(null);
+  const leftViewportAtRef = useRef<number | null>(null);
+  const isIntersectingRef = useRef<boolean | null>(null);
+  const recycleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hostIframeRef = useRef(true);
   const floorRef = useRef(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const heightRef = useRef(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const phaseRef = useRef<ArtifactHeightPhase>('protected');
@@ -293,15 +374,151 @@ function ArtifactRenderFrame(props: {
     }, ARTIFACT_STREAM_RENDER_THROTTLE_MS - elapsed);
   }, [channelId, decision.mode, decision.renderSource, granted, usesStreamLifecycle]);
 
-  // Init queue: grant before assigning srcdoc.
-  // Depend ONLY on channelId. Re-running this effect sets granted=false and
-  // unmounts the iframe (white flash). owi keeps one ArtifactBlock instance for
-  // the whole stream; we must do the same.
+  // Viewport lifecycle (inline only): host iframe while near the scrollport;
+  // after TTL off-screen, recycle to free WebContent memory. Canvas and live
+  // stream-preview never recycle (body postMessage needs a live window).
+  //
+  // Critical UX rules:
+  // - Entering the viewport must host immediately (no "blank while parked").
+  // - Recycle only after TTL + a geometry re-check (IO false-negatives happen).
+  // - Fail-open to host when observer/root is unavailable.
+  const forceHostIframe = presentation === 'canvas' || decision.mode === 'stream-preview';
+  const setHostIframeSafe = (next: boolean): void => {
+    hostIframeRef.current = next;
+    setHostIframe(next);
+  };
+
+  useEffect(() => {
+    if (forceHostIframe) {
+      leftViewportAtRef.current = null;
+      isIntersectingRef.current = true;
+      if (recycleTimerRef.current) {
+        clearTimeout(recycleTimerRef.current);
+        recycleTimerRef.current = null;
+      }
+      setHostIframeSafe(true);
+      return;
+    }
+
+    const element = frameRootRef.current;
+    if (!element || typeof IntersectionObserver === 'undefined') {
+      isIntersectingRef.current = null;
+      setHostIframeSafe(true);
+      return;
+    }
+
+    const marginY = parseRootMarginYPx(ARTIFACT_VIEWPORT_ROOT_MARGIN);
+    const rootEl = transcriptScrollPort?.scrollElementRef.current ?? null;
+
+    const isNearViewportNow = (): boolean => {
+      const target = element.getBoundingClientRect();
+      const rootRect = rootEl
+        ? rootEl.getBoundingClientRect()
+        : {
+            top: 0,
+            right: window.innerWidth,
+            bottom: window.innerHeight,
+            left: 0,
+          };
+      return isRectNearRoot(target, rootRect, marginY);
+    };
+
+    const applyVisibility = (visible: boolean): void => {
+      isIntersectingRef.current = visible;
+      if (visible) {
+        // Parked on this artifact → host immediately.
+        leftViewportAtRef.current = null;
+        if (recycleTimerRef.current) {
+          clearTimeout(recycleTimerRef.current);
+          recycleTimerRef.current = null;
+        }
+        setHostIframeSafe(true);
+        return;
+      }
+      if (leftViewportAtRef.current === null) {
+        leftViewportAtRef.current = Date.now();
+      }
+      if (recycleTimerRef.current) {
+        clearTimeout(recycleTimerRef.current);
+      }
+      const leftAt = leftViewportAtRef.current;
+      const elapsed = Date.now() - leftAt;
+      const remaining = Math.max(0, ARTIFACT_VIEWPORT_RECYCLE_TTL_MS - elapsed);
+      recycleTimerRef.current = setTimeout(() => {
+        recycleTimerRef.current = null;
+        // Never recycle a frame the user is still looking at.
+        if (isIntersectingRef.current === true || isNearViewportNow()) {
+          leftViewportAtRef.current = null;
+          isIntersectingRef.current = true;
+          setHostIframeSafe(true);
+          return;
+        }
+        const msSinceLeft = leftViewportAtRef.current
+          ? Date.now() - leftViewportAtRef.current
+          : ARTIFACT_VIEWPORT_RECYCLE_TTL_MS;
+        const intent = resolveArtifactViewportHostIntent({
+          presentation: 'inline',
+          renderMode: decision.mode,
+          isIntersecting: false,
+          msSinceLeftViewport: msSinceLeft,
+          recycleTtlMs: ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
+        });
+        if (intent === 'recycle') {
+          setHostIframeSafe(false);
+        }
+      }, remaining);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) {
+          return;
+        }
+        // Prefer geometry for nested scrollports — IO can lag one frame after
+        // a scroll stop and report stale isIntersecting=false.
+        const visible = entry.isIntersecting || isNearViewportNow();
+        applyVisibility(visible);
+      },
+      {
+        ...(rootEl ? { root: rootEl } : {}),
+        rootMargin: ARTIFACT_VIEWPORT_ROOT_MARGIN,
+        threshold: 0,
+      },
+    );
+    observer.observe(element);
+
+    // Immediate sync read: if the frame is already on screen when the effect
+    // attaches, host right away (do not wait for the first IO callback).
+    applyVisibility(isNearViewportNow());
+
+    return () => {
+      observer.disconnect();
+      if (recycleTimerRef.current) {
+        clearTimeout(recycleTimerRef.current);
+        recycleTimerRef.current = null;
+      }
+    };
+  }, [decision.mode, forceHostIframe, transcriptScrollPort]);
+
+  // Init queue: grant before assigning srcdoc. Also re-runs when viewport
+  // recycle remounts the iframe (hostIframe true again). Stream keeps a stable
+  // channelId so completion does not thrash the browsing context by itself.
   const initPriorityRef = useRef(initPriority);
   initPriorityRef.current = initPriority;
   useEffect(() => {
+    if (!hostIframe) {
+      setGranted(false);
+      setPaintedDocumentKey(null);
+      cancelArtifactInit(channelId);
+      releaseArtifactInit(channelId);
+      return;
+    }
+
     let cancelled = false;
     setGranted(false);
+    setPaintedDocumentKey(null);
+    slotReleasedRef.current = false;
     streamPostedOnceRef.current = false;
     lastStreamPostAtRef.current = 0;
     void requestArtifactInit(channelId, { priority: initPriorityRef.current }).then(() => {
@@ -336,7 +553,7 @@ function ArtifactRenderFrame(props: {
         bridgeResizeTimerRef.current = null;
       }
     };
-  }, [channelId]);
+  }, [channelId, hostIframe]);
 
   // Height bridge listener
   useEffect(() => {
@@ -575,61 +792,118 @@ function ArtifactRenderFrame(props: {
 
   const isCanvas = presentation === 'canvas';
   const hasExtraHeaderAction = extraHeaderAction !== undefined;
+  const isPainted = paintedDocumentKey === documentKey;
+  // Never leave a parked viewport on a pure blank: show sheen until the
+  // bridge marks ready (or timeout paints). Recycled off-screen uses a shell.
+  const showLoadingShell = hostIframe && !isPainted;
   return (
     <div
+      ref={frameRootRef}
       data-testid="artifact-frame"
       data-activity-id="artifact"
       data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
       data-tool-status={statusLabel === 'ready' ? 'done' : 'running'}
+      data-artifact-host={hostIframe ? (isPainted ? 'live' : 'loading') : 'recycled'}
       data-content-overflowing={contentOverflowing ? 'true' : undefined}
-      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${hasExtraHeaderAction ? ' has-artifact-action' : ''}`}
+      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${hasExtraHeaderAction ? ' has-artifact-action' : ''}${hostIframe ? '' : ' is-recycled'}${showLoadingShell ? ' is-loading' : ''}`}
     >
       {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
-      {granted ? (
-        <iframe
-          ref={iframeRef as RefObject<HTMLIFrameElement>}
-          className="artifact-iframe"
-          title={decision.descriptor.title}
-          srcDoc={iframeSrcdoc}
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
-          onLoad={() => {
-            if (usesStreamLifecycle) {
-              // Force first paint snapshot on load (bypass throttle window).
-              streamPostedOnceRef.current = false;
-              lastStreamPostAtRef.current = 0;
-              postArtifactStreamUpdate(
-                iframeRef.current,
-                channelId,
-                latestRenderSourceRef.current,
-                latestUpdateIsFinalRef.current,
-              );
-              streamPostedOnceRef.current = true;
-              lastStreamPostAtRef.current = Date.now();
-            }
+      {!hostIframe ? (
+        <div
+          className="artifact-iframe-placeholder artifact-iframe-placeholder--recycled"
+          data-testid="artifact-iframe-placeholder"
+          style={{
+            minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+            height,
+            maxHeight,
+            width: '100%',
           }}
+          aria-hidden
+        >
+          <span className="artifact-preparing-sheen" aria-hidden="true" />
+        </div>
+      ) : (
+        <div
+          className="artifact-iframe-stage"
           style={
             isCanvas
-              ? {
-                  minHeight: '100%',
-                  height: '100%',
-                  maxHeight: '100%',
-                  width: '100%',
-                  border: 0,
-                  visibility: paintedDocumentKey === documentKey ? 'visible' : 'hidden',
-                }
+              ? { minHeight: '100%', height: '100%', maxHeight: '100%', width: '100%' }
               : {
+                  position: 'relative',
                   minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
                   height,
                   maxHeight,
                   width: '100%',
-                  border: 0,
-                  visibility: paintedDocumentKey === documentKey ? 'visible' : 'hidden',
                 }
           }
-        />
-      ) : (
-        <p className="muted artifact-frame-waiting">Waiting for artifact init slot…</p>
+        >
+          {showLoadingShell ? (
+            <div
+              className="artifact-iframe-loading"
+              data-testid="artifact-iframe-loading"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="artifact-preparing-icon" aria-hidden="true">
+                <IconSpark />
+              </span>
+              <span className="artifact-iframe-loading-copy">
+                {locale === 'zh-CN' ? '正在加载预览…' : 'Loading preview…'}
+              </span>
+              <span className="artifact-preparing-sheen" aria-hidden="true" />
+            </div>
+          ) : null}
+          {granted ? (
+            <iframe
+              ref={iframeRef as RefObject<HTMLIFrameElement>}
+              className={`artifact-iframe${isPainted ? ' is-painted' : ' is-pending-paint'}`}
+              title={decision.descriptor.title}
+              srcDoc={iframeSrcdoc}
+              sandbox="allow-scripts"
+              referrerPolicy="no-referrer"
+              onLoad={() => {
+                if (usesStreamLifecycle) {
+                  // Force first paint snapshot on load (bypass throttle window).
+                  streamPostedOnceRef.current = false;
+                  lastStreamPostAtRef.current = 0;
+                  postArtifactStreamUpdate(
+                    iframeRef.current,
+                    channelId,
+                    latestRenderSourceRef.current,
+                    latestUpdateIsFinalRef.current,
+                  );
+                  streamPostedOnceRef.current = true;
+                  lastStreamPostAtRef.current = Date.now();
+                } else {
+                  // Interactive remounts: reveal as soon as the document loads so
+                  // a parked viewport never sits on a hidden iframe waiting for
+                  // the bridge postMessage (ready still refines height).
+                  setPaintedDocumentKey(documentKey);
+                  setStatusLabel((prev) => (prev === 'ready' ? prev : 'loading'));
+                }
+              }}
+              style={
+                isCanvas
+                  ? {
+                      minHeight: '100%',
+                      height: '100%',
+                      maxHeight: '100%',
+                      width: '100%',
+                      border: 0,
+                      opacity: isPainted ? 1 : 0,
+                    }
+                  : {
+                      minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+                      height: '100%',
+                      maxHeight: '100%',
+                      width: '100%',
+                      border: 0,
+                      opacity: isPainted ? 1 : 0,
+                    }
+              }
+            />
+          ) : null}
+        </div>
       )}
     </div>
   );

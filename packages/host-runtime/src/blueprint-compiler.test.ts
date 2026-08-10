@@ -782,4 +782,118 @@ describe('compileBlueprintForWorker', () => {
     expect(result.blueprint.model).toEqual({ providerId: 'openai-1', modelId: 'gpt-4' });
     expect(result.blueprint.thinkingLevel).toBe('high');
   });
+
+  describe('search route resolution', () => {
+    it('selects native search and hides the external web_search tool when the policy is native-first', async () => {
+      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'native-first' as const };
+      const webSearchDescriptor = {
+        name: 'web_search',
+        description: 'Search the web',
+        parameters: {},
+      };
+      const hostToolDescriptors = [webSearchDescriptor];
+      const hostToolFamilyIndex = createFamilyIndex(
+        hostToolDescriptors,
+        familyAssignments([['web-search', ['web_search']]]),
+      );
+      const config = createConfig({
+        web,
+        providers: [
+          {
+            id: 'xai-local',
+            protocol: 'openai-compatible' as const,
+            name: 'xAI local',
+            baseUrl: 'https://api.example.test/v1',
+            apiKeyEnv: 'XAI_API_KEY',
+            models: [{ id: 'grok-4.5', capabilities: ['chat', 'native-web-search'] }],
+          },
+        ],
+      });
+
+      const result = await compileBlueprintForWorker(
+        {
+          scope: generalScope,
+          model: {
+            protocol: 'openai-compatible' as const,
+            providerId: 'xai-local',
+            modelId: 'grok-4.5',
+          },
+        },
+        {
+          config,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+          hostToolDescriptors,
+          hostToolFamilyIndex,
+        },
+      );
+
+      expect(result.blueprint.searchRoute?.selected).toBe('native');
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.selected).toBe('native');
+      const blueprintHostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
+      const snapshotHostToolNames = result.sessionBlueprint.capabilitySnapshot.tools.hostTools.map(
+        (tool) => tool.name,
+      );
+      expect(blueprintHostToolNames).not.toContain('web_search');
+      expect(snapshotHostToolNames).not.toContain('web_search');
+    });
+
+    it('selects external search and keeps web_search when the native model is controllable and the policy is external-only', async () => {
+      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
+      const webSearchDescriptor = {
+        name: 'web_search',
+        description: 'Search the web',
+        parameters: {},
+      };
+      const hostToolDescriptors = [webSearchDescriptor];
+      const hostToolFamilyIndex = createFamilyIndex(
+        hostToolDescriptors,
+        familyAssignments([['web-search', ['web_search']]]),
+      );
+      const config = createConfig({
+        web,
+        providers: [
+          {
+            id: 'xai-local',
+            protocol: 'openai-compatible' as const,
+            name: 'xAI local',
+            baseUrl: 'https://api.example.test/v1',
+            apiKeyEnv: 'XAI_API_KEY',
+            models: [
+              {
+                id: 'grok-4.5',
+                capabilities: ['chat', 'native-web-search'],
+                nativeWebSearchMode: 'controllable' as const,
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await compileBlueprintForWorker(
+        {
+          scope: generalScope,
+          model: {
+            protocol: 'openai-compatible' as const,
+            providerId: 'xai-local',
+            modelId: 'grok-4.5',
+          },
+        },
+        {
+          config,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+          hostToolDescriptors,
+          hostToolFamilyIndex,
+        },
+      );
+
+      expect(result.blueprint.searchRoute?.selected).toBe('external');
+      expect(result.sessionBlueprint.capabilitySnapshot.searchRoute?.selected).toBe('external');
+      const blueprintHostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
+      const snapshotHostToolNames = result.sessionBlueprint.capabilitySnapshot.tools.hostTools.map(
+        (tool) => tool.name,
+      );
+      expect(blueprintHostToolNames).toContain('web_search');
+      expect(snapshotHostToolNames).toContain('web_search');
+    });
+  });
 });

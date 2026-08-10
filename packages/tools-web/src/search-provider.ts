@@ -28,6 +28,7 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
     searchTimeoutMs: partial.searchTimeoutMs ?? defaults.searchTimeoutMs,
     searchSources,
     searchStrategy,
+    searchRoutePolicy: partial.searchRoutePolicy ?? defaults.searchRoutePolicy,
     fetchProvider: partial.fetchProvider ?? defaults.fetchProvider,
     ...(partial.fetchApiKeyRef ? { fetchApiKeyRef: partial.fetchApiKeyRef } : {}),
     fetchApiKeyEnv: partial.fetchApiKeyEnv ?? defaults.fetchApiKeyEnv,

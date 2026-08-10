@@ -10,10 +10,34 @@ import {
 import type { ImageModelCatalogEntry } from './model-catalog.js';
 
 const catalog: ImageModelCatalogEntry[] = [
-  { catalogProviderId: 'openrouter', modelId: 'openai/gpt-image-1', name: 'OpenAI GPT Image 1', input: ['text', 'image'], output: ['image'] },
-  { catalogProviderId: 'openrouter', modelId: 'google/gemini-3-pro-image', name: 'Gemini 3 Pro Image', input: ['image', 'text'], output: ['image', 'text'] },
-  { catalogProviderId: 'openrouter', modelId: 'black-forest-labs/flux.2-pro', name: 'FLUX.2 Pro', input: ['text', 'image'], output: ['image'] },
-  { catalogProviderId: 'openrouter', modelId: 'recraft/recraft-v3', name: 'Recraft V3', input: ['text', 'image'], output: ['image'] },
+  {
+    catalogProviderId: 'openrouter',
+    modelId: 'openai/gpt-image-1',
+    name: 'OpenAI GPT Image 1',
+    input: ['text', 'image'],
+    output: ['image'],
+  },
+  {
+    catalogProviderId: 'openrouter',
+    modelId: 'google/gemini-3-pro-image',
+    name: 'Gemini 3 Pro Image',
+    input: ['image', 'text'],
+    output: ['image', 'text'],
+  },
+  {
+    catalogProviderId: 'openrouter',
+    modelId: 'black-forest-labs/flux.2-pro',
+    name: 'FLUX.2 Pro',
+    input: ['text', 'image'],
+    output: ['image'],
+  },
+  {
+    catalogProviderId: 'openrouter',
+    modelId: 'recraft/recraft-v3',
+    name: 'Recraft V3',
+    input: ['text', 'image'],
+    output: ['image'],
+  },
 ];
 
 describe('splitModelName', () => {
@@ -116,9 +140,7 @@ describe('isLikelyImageGenerationModel', () => {
     expect(isLikelyImageGenerationModel('Qwen/Qwen-Image')).toBe(true);
     expect(isLikelyImageGenerationModel('deepseek-chat')).toBe(false);
     expect(isLikelyImageGenerationModel('gpt-4o')).toBe(false);
-    expect(
-      isLikelyImageGenerationModel('custom-model', 'Custom', ['image-generation']),
-    ).toBe(true);
+    expect(isLikelyImageGenerationModel('custom-model', 'Custom', ['image-generation'])).toBe(true);
   });
 });
 

@@ -697,6 +697,75 @@ describe('ChatThread render isolation (E1)', () => {
     ).toHaveLength(1);
   });
 
+  it('renders one aggregated work timeline for a multi-message run', () => {
+    const userMessage = createUserMessage('u-run-work', 'Create the SVG');
+    const firstAssistant: ChatMessageUi = {
+      id: 'a-run-first',
+      role: 'assistant',
+      text: 'I will inspect the workspace.',
+      thinking: 'inspect the existing files',
+      tools: [{ toolCallId: 'tool-read', toolName: 'bash', status: 'done', output: 'files' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-work',
+    };
+    const thinkingOnlyAssistant: ChatMessageUi = {
+      id: 'a-run-thinking-only',
+      role: 'assistant',
+      text: '',
+      thinking: 'prepare a new drawing',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-work',
+    };
+    const finalAssistant: ChatMessageUi = {
+      id: 'a-run-final',
+      role: 'assistant',
+      text: 'The SVG is ready.',
+      thinking: '',
+      tools: [
+        { toolCallId: 'tool-write', toolName: 'write_file', status: 'done', output: 'saved' },
+      ],
+      attachments: [],
+      status: 'done',
+      runId: 'run-work',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage, firstAssistant, thinkingOnlyAssistant, finalAssistant]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            workDetailsExpanded="always"
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelectorAll('[data-testid="turn-work-details"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
+      'inspect the existing files',
+    );
+    expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
+      'prepare a new drawing',
+    );
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
+    expect(container.querySelector('#msg-a-run-thinking-only')).toBeNull();
+  });
+
   it('removes run-activity slot when permissionPrompt is present or streaming is false', () => {
     const userMessage = createUserMessage('u3', 'Hello');
     act(() => {

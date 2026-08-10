@@ -36,6 +36,7 @@ import {
   IconBook,
   IconChat,
   IconCheck,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconDocument,
@@ -226,9 +227,11 @@ export type ProjectSessionSidebarProps = {
   backendServiceSessionIds?: Record<string, true> | undefined;
   /**
    * Session IDs whose latest turn finished while the sidebar stayed mounted.
-   * The marker is cleared by the reducer when the session is opened or used.
+   * Cleared when the session is opened, or when the user clicks the checkmark.
    */
   completedAttentionSessionIds?: Record<string, true> | undefined;
+  /** Click the completed checkmark without opening the session. */
+  onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
 };
 
 function SessionActivityIndicator(props: {
@@ -274,6 +277,7 @@ function SessionRowItem({
   workingSessionIds,
   backendServiceSessionIds,
   completedAttentionSessionIds,
+  onDismissCompletedAttention,
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
@@ -296,6 +300,7 @@ function SessionRowItem({
   workingSessionIds?: Record<string, true> | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
   completedAttentionSessionIds?: Record<string, true> | undefined;
+  onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
 }): ReactElement {
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
@@ -365,23 +370,30 @@ function SessionRowItem({
           workingLabel={copy.working}
           backendServiceLabel={copy.backendServiceActive}
         />
-        {hasCompletedAttention && !hasActiveSessionWork ? (
-          <span
-            className="session-item-completed-mark"
-            data-testid="session-completed-indicator"
-            aria-label={copy.completed}
-            role="status"
-            title={copy.completed}
-          >
-            <IconCheck width={12} height={12} />
-          </span>
-        ) : null}
         {session.updatedAt && !isWorking && !hasActiveBackendService && !hasCompletedAttention ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatRelativeTime(session.updatedAt)}
           </span>
         ) : null}
       </button>
+      {hasCompletedAttention && !hasActiveSessionWork ? (
+        <button
+          type="button"
+          className="session-item-completed-mark session-item-completed-dismiss"
+          data-testid="session-completed-dismiss"
+          aria-label={copy.dismissCompleted}
+          title={copy.dismissCompleted}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onDismissCompletedAttention?.(session.id);
+          }}
+        >
+          <span data-testid="session-completed-indicator" aria-hidden>
+            <IconCheck width={12} height={12} />
+          </span>
+        </button>
+      ) : null}
       <div
         className={
           isDraft
@@ -496,6 +508,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [localSortBy, setLocalSortBy] = useState<SessionListOrder>('updated');
   const sortBy = props.sessionListOrder ?? localSortBy;
   const [groupBy, setGroupBy] = useState<'time' | 'none'>('time');
+  const [projectsSectionExpanded, setProjectsSectionExpanded] = useState(true);
+  const [conversationsSectionExpanded, setConversationsSectionExpanded] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
   const [expandedProjectSessionLists, setExpandedProjectSessionLists] = useState<
     Record<string, boolean>
@@ -825,9 +839,25 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       <div className="sidebar-folder-tree" data-testid="sessions-list">
         {/* Header Toolbar: Projects Title, Display Options, Add Project */}
         <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-          <span className="sidebar-section-title" data-testid="projects-section-title">
-            {sidebarCopy.projects}
-          </span>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            data-testid="projects-section-toggle"
+            aria-expanded={projectsSectionExpanded}
+            aria-controls="projects-section-content"
+            aria-label={
+              projectsSectionExpanded ? sidebarCopy.collapseProjects : sidebarCopy.expandProjects
+            }
+            title={
+              projectsSectionExpanded ? sidebarCopy.collapseProjects : sidebarCopy.expandProjects
+            }
+            onClick={() => setProjectsSectionExpanded((expanded) => !expanded)}
+          >
+            <span className="sidebar-section-title" data-testid="projects-section-title">
+              {sidebarCopy.projects}
+            </span>
+            <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
+          </button>
           <div className="sidebar-section-label-actions">
             <span className="sidebar-section-count muted">{props.recentProjects.length}</span>
 
@@ -982,7 +1012,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         </div>
 
         {/* Project Folders list */}
-        <div className="tree-node-list">
+        <div
+          className="tree-node-list sidebar-section-content"
+          id="projects-section-content"
+          data-testid="projects-section-content"
+          hidden={!projectsSectionExpanded}
+        >
           {props.recentProjects.map((project) => {
             const isActiveProject = project.path === props.projectPath;
             const displayName = project.displayName ?? projectDisplayName(project.path);
@@ -1151,6 +1186,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         workingSessionIds={props.workingSessionIds}
                         backendServiceSessionIds={props.backendServiceSessionIds}
                         completedAttentionSessionIds={props.completedAttentionSessionIds}
+                        onDismissCompletedAttention={props.onDismissCompletedAttention}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
@@ -1274,7 +1310,27 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           return (
             <div className="sidebar-conversations-section">
               <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-                <span>{sidebarCopy.conversations}</span>
+                <button
+                  type="button"
+                  className="sidebar-section-toggle"
+                  data-testid="conversations-section-toggle"
+                  aria-expanded={conversationsSectionExpanded}
+                  aria-controls="conversations-section-content"
+                  aria-label={
+                    conversationsSectionExpanded
+                      ? sidebarCopy.collapseConversations
+                      : sidebarCopy.expandConversations
+                  }
+                  title={
+                    conversationsSectionExpanded
+                      ? sidebarCopy.collapseConversations
+                      : sidebarCopy.expandConversations
+                  }
+                  onClick={() => setConversationsSectionExpanded((expanded) => !expanded)}
+                >
+                  <span className="sidebar-section-title">{sidebarCopy.conversations}</span>
+                  <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
+                </button>
                 <div className="sidebar-section-label-actions">
                   <IconButton
                     className="sidebar-icon-btn"
@@ -1288,7 +1344,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                 </div>
               </div>
 
-              <ul className="tree-session-list conversations-list">
+              <ul
+                className="tree-session-list conversations-list sidebar-section-content"
+                id="conversations-section-content"
+                data-testid="conversations-section-content"
+                hidden={!conversationsSectionExpanded}
+              >
                 {generalSessions.length > 0 ? (
                   <>
                     {isGeneralSessionListExpanded && generalPreviousCursor !== undefined ? (
@@ -1311,6 +1372,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onOpenSessionMenu={props.onOpenSessionMenu}
                         workingSessionIds={props.workingSessionIds}
                         completedAttentionSessionIds={props.completedAttentionSessionIds}
+                        onDismissCompletedAttention={props.onDismissCompletedAttention}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}

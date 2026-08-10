@@ -3,12 +3,11 @@ import type { ModelProviderConfig } from '@piwin/contracts';
 import {
   looksLikeRawApiKey,
   sanitizeProvidersForSave,
+  validatePiwinConfig,
   validateProviders,
 } from './provider-validation.js';
 
-function sampleProvider(
-  overrides: Partial<ModelProviderConfig> = {},
-): ModelProviderConfig {
+function sampleProvider(overrides: Partial<ModelProviderConfig> = {}): ModelProviderConfig {
   return {
     id: 'openai',
     protocol: 'openai-compatible',
@@ -86,8 +85,12 @@ describe('validateProviders', () => {
         models: [{ id: 'gemini-2.5-pro', contextWindow: 0, maxOutputTokens: -1 }],
       },
     ]);
-    expect(invalidIssues.map((issue) => issue.path)).toContain('providers[0].models[0].contextWindow');
-    expect(invalidIssues.map((issue) => issue.path)).toContain('providers[0].models[0].maxOutputTokens');
+    expect(invalidIssues.map((issue) => issue.path)).toContain(
+      'providers[0].models[0].contextWindow',
+    );
+    expect(invalidIssues.map((issue) => issue.path)).toContain(
+      'providers[0].models[0].maxOutputTokens',
+    );
   });
 
   it('accepts safe custom headers and rejects unsafe header values', () => {
@@ -111,6 +114,64 @@ describe('validateProviders', () => {
     ]);
 
     expect(issues.map((issue) => issue.path)).toContain('providers[0].headers.X-Request-ID');
+  });
+
+  it('validates image model route invariants and provider support', () => {
+    const issues = validateProviders([
+      sampleProvider({
+        models: [
+          {
+            id: 'image',
+            capabilities: ['image-generation'],
+            routes: {
+              'image-generation': { path: 'https://other.example/images', timeoutMs: 0 },
+            },
+          },
+          { id: 'image', capabilities: ['image-generation'] },
+        ],
+      }),
+      {
+        id: 'anthropic',
+        protocol: 'anthropic-compatible',
+        name: 'Anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        models: [{ id: 'not-supported', capabilities: ['image-generation'] }],
+      },
+    ]);
+
+    expect(issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        'providers[0].models[0].routes.image-generation.path',
+        'providers[0].models[0].routes.image-generation.timeoutMs',
+        'providers[0].models[1].id',
+        'providers[1].models[0].capabilities',
+      ]),
+    );
+  });
+});
+
+describe('validatePiwinConfig', () => {
+  it('requires the image default to reference an enabled image model', () => {
+    const provider = sampleProvider({ models: [{ id: 'chat', capabilities: ['chat'] }] });
+    const issues = validatePiwinConfig({
+      hostMode: 'sdk',
+      providers: [provider],
+      media: { maxPasteBytes: 1, allowedMimeTypes: ['image/png'] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 1,
+      },
+      imageGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: provider.id,
+          modelId: 'chat',
+        },
+      },
+    });
+    expect(issues.map((issue) => issue.path)).toContain('imageGeneration.defaultModel.modelId');
   });
 });
 

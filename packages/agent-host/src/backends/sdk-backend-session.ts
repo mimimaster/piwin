@@ -65,7 +65,13 @@ export async function createBackendSdkSession(
     piModule,
   );
   const modelRuntime =
-    options.modelRuntime ?? (await createBackendModelRuntime(piModule, agentDir, input.providers));
+    options.modelRuntime ??
+    (await createBackendModelRuntime(
+      piModule,
+      agentDir,
+      input.providers,
+      input.blueprint.capabilitySnapshot.searchRoute,
+    ));
   const capabilitySnapshot = input.blueprint.capabilitySnapshot;
   let activeRunId: string | undefined;
   const customTools = toPiBackendCustomTools(
@@ -149,6 +155,7 @@ async function createBackendModelRuntime(
   piModule: Record<string, unknown>,
   agentDir: string,
   providers: SerializableProviderRuntime[],
+  searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null,
 ): Promise<PiModelRuntime> {
   const runtimeConstructor = piModule.ModelRuntime as
     | {
@@ -165,7 +172,11 @@ async function createBackendModelRuntime(
   for (const provider of providers) {
     modelRuntime.registerProvider(
       provider.providerId,
-      buildWorkerProviderRegistration(provider, resolveBackendProviderApiKey(provider)),
+      buildWorkerProviderRegistration(
+        provider,
+        resolveBackendProviderApiKey(provider),
+        searchRoute,
+      ),
     );
   }
   await modelRuntime.refresh({ allowNetwork: false });

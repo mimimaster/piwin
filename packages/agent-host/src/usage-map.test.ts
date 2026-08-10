@@ -4,7 +4,12 @@ import { estimateMockUsage, estimateUsageBreakdown, mapUsageSnapshot } from './u
 describe('usage-map', () => {
   it('maps pi-like contextUsage without inventing fields', () => {
     const snapshot = mapUsageSnapshot('s1', {
-      contextUsage: { tokensUsed: 1200, tokensLimit: 8000, promptTokens: 900, completionTokens: 300 },
+      contextUsage: {
+        tokensUsed: 1200,
+        tokensLimit: 8000,
+        promptTokens: 900,
+        completionTokens: 300,
+      },
     });
     expect(snapshot).toMatchObject({
       sessionId: 's1',
@@ -61,6 +66,19 @@ describe('usage-map', () => {
     expect(mapUsageSnapshot('s1', { foo: 1 })).toBeNull();
   });
 
+  it('maps durationMs from the raw event for turn speed stats', () => {
+    const snapshot = mapUsageSnapshot(
+      's1',
+      {
+        model: 'gpt-4o',
+        usage: { input: 700, output: 200, durationMs: 2_500 },
+      },
+      'assistant-usage',
+    );
+    expect(snapshot?.durationMs).toBe(2_500);
+    expect(snapshot?.completionTokens).toBe(200);
+  });
+
   it('estimates mock usage', () => {
     const snapshot = estimateMockUsage('s1', 'hello world', 'reply text');
     expect(snapshot.source).toBe('host-estimate');
@@ -68,6 +86,12 @@ describe('usage-map', () => {
     expect(snapshot.tokensLimit).toBe(128_000);
     expect(snapshot.breakdown?.source).toBe('host-estimate');
     expect(snapshot.breakdown?.conversationTokens).toBeGreaterThan(0);
+    expect(snapshot.durationMs).toBeUndefined();
+  });
+
+  it('carries a measured duration into mock usage estimates', () => {
+    const snapshot = estimateMockUsage('s1', 'hello world', 'reply text', 1_234);
+    expect(snapshot.durationMs).toBe(1_234);
   });
 
   it('maps pi breakdown when present', () => {

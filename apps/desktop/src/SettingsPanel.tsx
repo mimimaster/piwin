@@ -9,6 +9,7 @@ import type {
   ModelProviderConfig,
   PiwinConfig,
   HostStatusData,
+  ImageGenerationTestResult,
   ThemeManifest,
 } from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
@@ -230,6 +231,27 @@ export const SettingsPanel = memo(function SettingsPanel({
     [request],
   );
 
+  const testImageGenerationModel = useCallback(
+    async (
+      provider: ModelProviderConfig,
+      modelId: string,
+      options?: { apiKey?: string; prompt?: string },
+    ): Promise<ImageGenerationTestResult> => {
+      const response = await request({
+        type: 'models/image-test',
+        provider,
+        modelId,
+        ...(options?.prompt?.trim() ? { prompt: options.prompt.trim() } : {}),
+        ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
+      });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      return response.data as ImageGenerationTestResult;
+    },
+    [request],
+  );
+
   const searchModelCatalog = useCallback(
     async (
       input?: import('@piwin/contracts').ModelCatalogSearchRequest,
@@ -357,6 +379,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       onPetActiveChanged,
       discoverProviderModels,
       testProviderModel,
+      testImageGenerationModel,
       searchModelCatalog,
       searchImageModelCatalog,
       storeProviderSecret,
@@ -396,6 +419,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       onPetActiveChanged,
       discoverProviderModels,
       testProviderModel,
+      testImageGenerationModel,
       searchModelCatalog,
       searchImageModelCatalog,
       storeProviderSecret,

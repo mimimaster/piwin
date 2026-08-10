@@ -141,3 +141,16 @@ export type {
   WorkerToolResultFrame,
   WorkerHelloFrame,
 } from './rpc-sdk-worker-protocol.js';
+
+export {
+  applyNativeSearchToPayload,
+  normalizeNativeSearchCitations,
+  providerNeedsNativeSearchWrapper,
+  resolveNativeSearchEnabledForModel,
+  wrapStreamSimpleForNativeSearch,
+} from './native-web-search.js';
+export type {
+  NativeSearchModelFlags,
+  NativeSearchStreamOptions,
+  NativeSearchStreamSimple,
+} from './native-web-search.js';

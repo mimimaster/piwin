@@ -122,6 +122,73 @@ describe('createStoreTranscriptRecorder', () => {
     store.close();
   });
 
+  it('persists Pi tool events that arrive after the owning message ends', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-pi-order-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-pi-order',
+      projectPath: '/project',
+    });
+    await store.markAuthoritative();
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-pi-order',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'product-assistant-pi-order',
+      backendMessageId: 'backend-assistant-pi-order',
+      role: 'assistant',
+      runId: 'run-pi-order',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'product-assistant-pi-order',
+      delta: 'I will inspect the workspace.',
+      runId: 'run-pi-order',
+    });
+    // Pi closes the Assistant message carrying the tool call before it emits
+    // tool_execution_start/tool_execution_end for that call.
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'product-assistant-pi-order',
+      runId: 'run-pi-order',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'tool-after-message-end',
+      toolName: 'bash',
+      runId: 'run-pi-order',
+    });
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'tool-after-message-end',
+      isError: false,
+      runId: 'run-pi-order',
+      presentation: {
+        kind: 'shell',
+        title: 'Run command',
+        output: { text: 'command output' },
+      },
+    });
+    await recorder.flush();
+
+    expect(await store.getMessage('product-assistant-pi-order')).toMatchObject({
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'tool-after-message-end',
+          toolName: 'bash',
+          status: 'done',
+          output: 'command output',
+        },
+      ],
+    });
+    recorder.dispose();
+    store.close();
+  });
+
   it('quarantines a normalized-id/provenance collision', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-collision-'));
     const store = await openSessionTranscriptStore({

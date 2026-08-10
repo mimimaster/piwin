@@ -263,7 +263,7 @@ export type WebConfig = {
    * Native vs external search outlet policy (ADR 0043).
    * Default / migration value: {@link DEFAULT_SEARCH_ROUTE_POLICY}.
    */
-  searchRoutePolicy?: SearchRoutePolicy;
+  searchRoutePolicy: SearchRoutePolicy;
   /** Reader backend for HTML pages. Default: local supermarkdown. */
   fetchProvider: WebFetchProvider;
   /** Keychain reference for the selected fetch provider. */

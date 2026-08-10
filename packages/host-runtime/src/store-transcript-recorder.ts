@@ -31,6 +31,7 @@ export function createStoreTranscriptRecorder(options: {
 }): TranscriptRecorder {
   const activeMessages = new Map<string, SessionTranscriptMessage>();
   const dirtyMessageIds = new Set<string>();
+  const pendingEmptyMessageIds = new Set<string>();
   const assistantIdsByRunId = new Map<string, string>();
   const quarantinedMessageIds = new Set<string>();
   const quarantinedRunIds = new Set<string>();
@@ -53,13 +54,16 @@ export function createStoreTranscriptRecorder(options: {
     return queued;
   }
 
-  async function loadActive(messageId: string): Promise<SessionTranscriptMessage | undefined> {
+  async function loadActive(
+    messageId: string,
+    includeCompleted = false,
+  ): Promise<SessionTranscriptMessage | undefined> {
     const active = activeMessages.get(messageId);
     if (active !== undefined) {
       return active;
     }
     const persisted = await options.store.getMessage(messageId);
-    if (persisted !== undefined && persisted.status === 'streaming') {
+    if (persisted !== undefined && (persisted.status === 'streaming' || includeCompleted)) {
       activeMessages.set(messageId, persisted);
       return persisted;
     }
@@ -70,8 +74,9 @@ export function createStoreTranscriptRecorder(options: {
     messageId: string,
     update: (message: SessionTranscriptMessage) => SessionTranscriptMessage,
     droppedContext: string,
+    includeCompleted = false,
   ): Promise<SessionTranscriptMessage | undefined> {
-    const message = await loadActive(messageId);
+    const message = await loadActive(messageId, includeCompleted);
     if (message === undefined) {
       options.onDiagnostic?.(
         `transcript delta dropped (${droppedContext}): messageId=${messageId} activeRows=${activeMessages.size}`,
@@ -122,6 +127,31 @@ export function createStoreTranscriptRecorder(options: {
     await flushDirty();
   }
 
+  async function prunePendingEmptyMessages(
+    messageIds = [...pendingEmptyMessageIds],
+  ): Promise<void> {
+    for (const messageId of messageIds) {
+      if (!pendingEmptyMessageIds.has(messageId)) continue;
+      const message = activeMessages.get(messageId) ?? (await options.store.getMessage(messageId));
+      if (
+        message !== undefined &&
+        message.text.trim().length === 0 &&
+        (message.thinking ?? '').trim().length === 0 &&
+        (message.tools?.length ?? 0) === 0 &&
+        (message.searchEvidence?.citations.length ?? 0) === 0
+      ) {
+        dirtyMessageIds.delete(messageId);
+        await options.store.deleteMessage(messageId);
+      }
+      pendingEmptyMessageIds.delete(messageId);
+      activeMessages.delete(messageId);
+      for (const [runId, assistantId] of assistantIdsByRunId) {
+        if (assistantId === messageId) assistantIdsByRunId.delete(runId);
+      }
+      if (lastAssistantId === messageId) lastAssistantId = null;
+    }
+  }
+
   function assistantTarget(
     event: Extract<AgentEvent, { type: 'tool/start' | 'tool/update' | 'tool/end' }>,
   ): string | undefined {
@@ -164,6 +194,12 @@ export function createStoreTranscriptRecorder(options: {
           case 'message/start': {
             if (event.role !== 'assistant') {
               break;
+            }
+            const previousAssistantId =
+              event.runId !== undefined ? assistantIdsByRunId.get(event.runId) : undefined;
+            if (previousAssistantId !== undefined) {
+              await prunePendingEmptyMessages([previousAssistantId]);
+              activeMessages.delete(previousAssistantId);
             }
             const model = options.resolveModel?.();
             const message: SessionTranscriptMessage = {
@@ -272,14 +308,13 @@ export function createStoreTranscriptRecorder(options: {
               (completed.tools?.length ?? 0) === 0 &&
               (completed.searchEvidence?.citations.length ?? 0) === 0
             ) {
-              dirtyMessageIds.delete(event.messageId);
-              await options.store.deleteMessage(event.messageId);
-            } else {
-              await flushNow();
+              // Pi ends the Assistant message carrying a tool call before it
+              // emits tool_execution_start. Defer empty-row pruning until a
+              // later message/flush proves that no tool belongs to this row.
+              pendingEmptyMessageIds.add(event.messageId);
             }
+            await flushNow();
             activeMessages.delete(event.messageId);
-            if (event.runId !== undefined) assistantIdsByRunId.delete(event.runId);
-            if (lastAssistantId === event.messageId) lastAssistantId = null;
             break;
           }
           case 'tool/start': {
@@ -288,6 +323,7 @@ export function createStoreTranscriptRecorder(options: {
               options.onDiagnostic?.(`tool/start dropped: toolCallId=${event.toolCallId}`);
               break;
             }
+            pendingEmptyMessageIds.delete(assistantId);
             await mutateActive(
               assistantId,
               (message) => ({
@@ -302,6 +338,7 @@ export function createStoreTranscriptRecorder(options: {
                 }),
               }),
               'tool/start',
+              true,
             );
             await flushNow();
             break;
@@ -328,6 +365,7 @@ export function createStoreTranscriptRecorder(options: {
                 ),
               }),
               'tool/update',
+              true,
             );
             scheduleFlush();
             break;
@@ -350,8 +388,17 @@ export function createStoreTranscriptRecorder(options: {
                 };
               },
               'tool/end',
+              true,
             );
             await flushNow();
+            activeMessages.delete(assistantId);
+            break;
+          }
+          case 'session/ended': {
+            await prunePendingEmptyMessages();
+            activeMessages.clear();
+            assistantIdsByRunId.clear();
+            lastAssistantId = null;
             break;
           }
           case 'error': {
@@ -378,7 +425,10 @@ export function createStoreTranscriptRecorder(options: {
         backgroundFlushError = null;
         throw error;
       }
-      await enqueue(flushNow);
+      await enqueue(async () => {
+        await flushNow();
+        await prunePendingEmptyMessages();
+      });
       await writeQueue;
     },
 
@@ -390,6 +440,7 @@ export function createStoreTranscriptRecorder(options: {
       }
       activeMessages.clear();
       dirtyMessageIds.clear();
+      pendingEmptyMessageIds.clear();
       assistantIdsByRunId.clear();
       quarantinedMessageIds.clear();
       quarantinedRunIds.clear();
@@ -417,6 +468,7 @@ function messagePatch(message: SessionTranscriptMessage): TranscriptStoreMessage
       ...(message.subagentActivity !== undefined
         ? { subagentActivity: message.subagentActivity }
         : {}),
+      ...(message.searchEvidence !== undefined ? { searchEvidence: message.searchEvidence } : {}),
     },
   };
 }

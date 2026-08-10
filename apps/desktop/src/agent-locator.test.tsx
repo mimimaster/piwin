@@ -54,6 +54,26 @@ describe('AgentLocator', () => {
     expect(container.querySelector('[data-testid="agent-locator-radial-bellow"]')).not.toBeNull();
   });
 
+  it('rotates preparing phrases with shimmer copy in English and Chinese', () => {
+    render(<AgentLocator input={{ kind: 'preparing', locale: 'en' }} />);
+    const locator = container.querySelector('[data-testid="agent-locator"]');
+    const copy = container.querySelector('[data-testid="agent-locator-copy"]');
+    expect(locator?.getAttribute('data-kind')).toBe('preparing');
+    expect(locator?.getAttribute('data-phrase-count')).toBe('3');
+    expect(copy?.classList.contains('agent-locator-copy--shimmer')).toBe(true);
+    expect(copy?.textContent).toBe('Preparing context…');
+
+    render(<AgentLocator input={{ kind: 'preparing', locale: 'zh-CN' }} />);
+    expect(container.querySelector('[data-testid="agent-locator-copy"]')?.textContent).toBe(
+      '准备上下文…',
+    );
+    expect(
+      container.querySelector('[data-testid="agent-locator-copy"]')?.classList.contains(
+        'agent-locator-copy--shimmer',
+      ),
+    ).toBe(true);
+  });
+
   it('renders a loading Skill context chip separately from the run locator', () => {
     render(
       <SkillActivityChip

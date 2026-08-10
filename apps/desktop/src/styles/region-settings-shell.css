@@ -587,3 +587,74 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   height: auto;
   min-height: 380px;
 }
+
+/* ── Ink Wash Settings Page & Modal Customizations ───────────────────── */
+
+/* Settings Page 全景水墨背景 (Settings page background) */
+html[data-theme-visual-style='ink-wash'] .settings-page,
+html[data-theme-visual-style='ink-wash'] .settings-modal-dialog {
+  background-color: #16171a !important;
+  background-image:
+    var(--ink-wash-hero, url('/ui/ink-wash/master-bg.jpg')),
+    var(--ink-wash-conversation-texture, url('/ui/ink-wash/conversation-texture.jpg')) !important;
+  background-position: center center, center !important;
+  background-size: cover, cover !important;
+  background-repeat: no-repeat, repeat !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .settings-titlebar,
+html[data-theme-visual-style='ink-wash'] .settings-titlebar-box,
+html[data-theme-visual-style='ink-wash'] .settings-nav,
+html[data-theme-visual-style='ink-wash'] .settings-detail,
+html[data-theme-visual-style='ink-wash'] .settings-main {
+  background: transparent !important;
+}
+
+/* 容器全透明、去线框设计 (No wireframe borders, 100% transparent outer containers) */
+html[data-theme-visual-style='ink-wash'] .settings-section,
+html[data-theme-visual-style='ink-wash'] .settings-section-card,
+html[data-theme-visual-style='ink-wash'] .settings-card,
+html[data-theme-visual-style='ink-wash'] .settings-main .settings-section-card,
+html[data-theme-visual-style='ink-wash'] .settings-group,
+html[data-theme-visual-style='ink-wash'] .settings-panel {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  margin-bottom: 16px !important;
+}
+
+/* Settings Field Rows (内层设置行：横向居中对齐、无单个外框线、细分割线) */
+html[data-theme-visual-style='ink-wash'] .ui-field-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 12px 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(214, 205, 190, 0.08) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .ui-field-row:last-child {
+  border-bottom: none !important;
+}
+
+/* 单 UI 的卡片式设计 (Single UI item cards) */
+html[data-theme-visual-style='ink-wash'] .capability-row,
+html[data-theme-visual-style='ink-wash'] .web-source-card,
+html[data-theme-visual-style='ink-wash'] .ext-list-item,
+html[data-theme-visual-style='ink-wash'] .mcp-server-card,
+html[data-theme-visual-style='ink-wash'] .model-card,
+html[data-theme-visual-style='ink-wash'] .model-dir,
+html[data-theme-visual-style='ink-wash'] .permission-mode-pills {
+  background: rgba(18, 19, 22, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(214, 205, 190, 0.08) !important;
+  border-radius: 8px !important;
+  color: #d8d3cb !important;
+}

@@ -3,7 +3,7 @@
  * Context usage ring sits on the toolbar (no project chip — workspace is left sidebar).
  * Slash menu (`/`) surfaces commands, modes, and skills.
  * At menu (`@`) surfaces workspace files, git diffs, and MCP servers.
- * History navigation (`ArrowUp`/`ArrowDown`) recalls past sent prompts.
+ * History navigation (`ArrowUp`/`ArrowDown`) lists the last 10 sent prompts.
  */
 import {
   useCallback,
@@ -77,6 +77,14 @@ import { RuntimeTargetChip } from './runtime-target-chip';
 import { ProjectChip } from './project-chip';
 import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 import { useSpeechInput } from './hooks/use-speech-input.js';
+import { PromptHistoryMenu } from './prompt-history-menu';
+import {
+  loadPromptHistoryFromStorage,
+  mergePromptHistory,
+  PROMPT_HISTORY_MAX,
+  pushPromptHistory,
+  savePromptHistoryToStorage,
+} from './prompt-history';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -194,6 +202,11 @@ export type ComposerDockProps = {
   onSteerQueueSendNow?: (messageId: string) => void | Promise<void>;
   onSteerQueueEdit?: (messageId: string, text: string) => void;
   onSteerQueueRemove?: (messageId: string) => void;
+  /**
+   * Newest-first user prompts from the active session transcript.
+   * Merged under the live stack when listing history (max 10).
+   */
+  sessionUserPrompts?: readonly string[];
 };
 
 function getAgentPlaceholder(
@@ -275,10 +288,24 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   // Modal Editor State
   const [modalEditorOpen, setModalEditorOpen] = useState(false);
 
-  // Prompt History Navigation State
-  const [historyStack, setHistoryStack] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  // Prompt History Navigation State (last PROMPT_HISTORY_MAX entries)
+  const [historyStack, setHistoryStack] = useState<string[]>(() => loadPromptHistoryFromStorage());
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false);
+  const [historySelectedIndex, setHistorySelectedIndex] = useState(0);
   const draftBeforeHistoryRef = useRef<string>('');
+
+  const historyItems = useMemo(
+    () => mergePromptHistory(historyStack, props.sessionUserPrompts, PROMPT_HISTORY_MAX),
+    [historyStack, props.sessionUserPrompts],
+  );
+
+  const pushHistoryEntry = useCallback((text: string): void => {
+    setHistoryStack((previous) => {
+      const next = pushPromptHistory(previous, text, PROMPT_HISTORY_MAX);
+      savePromptHistoryToStorage(next);
+      return next;
+    });
+  }, []);
 
   // IME Composition Guard Refs
   const isComposingRef = useRef(false);
@@ -494,9 +521,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     }
     const trimmed = props.composer.trim();
     if (trimmed) {
-      setHistoryStack((prev) => [trimmed, ...prev.filter((i) => i !== trimmed)]);
+      pushHistoryEntry(trimmed);
     }
-    setHistoryIndex(-1);
+    setHistoryMenuOpen(false);
     draftBeforeHistoryRef.current = '';
     props.onSend();
   }
@@ -504,9 +531,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   function triggerSteer(): void {
     const trimmed = props.composer.trim();
     if (trimmed) {
-      setHistoryStack((prev) => [trimmed, ...prev.filter((i) => i !== trimmed)]);
+      pushHistoryEntry(trimmed);
     }
-    setHistoryIndex(-1);
+    setHistoryMenuOpen(false);
     draftBeforeHistoryRef.current = '';
     props.onSteer?.();
   }
@@ -514,11 +541,25 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   function triggerFollowUp(): void {
     const trimmed = props.composer.trim();
     if (trimmed) {
-      setHistoryStack((prev) => [trimmed, ...prev.filter((item) => item !== trimmed)]);
+      pushHistoryEntry(trimmed);
     }
-    setHistoryIndex(-1);
+    setHistoryMenuOpen(false);
     draftBeforeHistoryRef.current = '';
     props.onFollowUp?.();
+  }
+
+  function applyHistoryItem(text: string): void {
+    props.onComposerChange(text);
+    focusCaret(text.length);
+    setHistoryMenuOpen(false);
+  }
+
+  function closeHistoryMenu(restoreDraft: boolean): void {
+    setHistoryMenuOpen(false);
+    if (restoreDraft) {
+      props.onComposerChange(draftBeforeHistoryRef.current);
+      focusCaret(draftBeforeHistoryRef.current.length);
+    }
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -629,35 +670,63 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
-    // 3. Prompt History Navigation (ArrowUp / ArrowDown when menus are closed)
+    // 3. Prompt History list (ArrowUp / ArrowDown when menus are closed)
     if (!slashMenuOpen && !atMenuOpen) {
-      if (event.key === 'ArrowUp' && (caretIndex === 0 || props.composer === '')) {
-        if (historyStack.length > 0 && historyIndex < historyStack.length - 1) {
+      if (historyMenuOpen) {
+        if (event.key === 'ArrowUp') {
           event.preventDefault();
-          if (historyIndex === -1) {
-            draftBeforeHistoryRef.current = props.composer;
+          if (historyItems.length === 0) {
+            return;
           }
-          const nextIndex = historyIndex + 1;
-          setHistoryIndex(nextIndex);
-          const historyText = historyStack[nextIndex] ?? '';
+          const nextIndex = Math.min(historySelectedIndex + 1, historyItems.length - 1);
+          setHistorySelectedIndex(nextIndex);
+          const historyText = historyItems[nextIndex] ?? '';
           props.onComposerChange(historyText);
           focusCaret(historyText.length);
           return;
         }
-      }
-
-      if (event.key === 'ArrowDown' && historyIndex >= 0) {
-        event.preventDefault();
-        const nextIndex = historyIndex - 1;
-        setHistoryIndex(nextIndex);
-        if (nextIndex === -1) {
-          props.onComposerChange(draftBeforeHistoryRef.current);
-          focusCaret(draftBeforeHistoryRef.current.length);
-        } else {
-          const historyText = historyStack[nextIndex] ?? '';
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          if (historySelectedIndex <= 0) {
+            closeHistoryMenu(true);
+            return;
+          }
+          const nextIndex = historySelectedIndex - 1;
+          setHistorySelectedIndex(nextIndex);
+          const historyText = historyItems[nextIndex] ?? '';
           props.onComposerChange(historyText);
           focusCaret(historyText.length);
+          return;
         }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeHistoryMenu(true);
+          return;
+        }
+        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          const selected = historyItems[historySelectedIndex];
+          if (selected !== undefined) {
+            applyHistoryItem(selected);
+          } else {
+            closeHistoryMenu(true);
+          }
+          return;
+        }
+      }
+
+      if (
+        event.key === 'ArrowUp' &&
+        (caretIndex === 0 || props.composer === '') &&
+        historyItems.length > 0
+      ) {
+        event.preventDefault();
+        draftBeforeHistoryRef.current = props.composer;
+        setHistorySelectedIndex(0);
+        setHistoryMenuOpen(true);
+        const historyText = historyItems[0] ?? '';
+        props.onComposerChange(historyText);
+        focusCaret(historyText.length);
         return;
       }
     }
@@ -900,6 +969,21 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onApply={applyAtItem}
           onClose={() => setAtMenuForcedClosed(true)}
         />
+        <PromptHistoryMenu
+          open={historyMenuOpen && !slashMenuOpen && !atMenuOpen}
+          items={historyItems}
+          selectedIndex={historySelectedIndex}
+          title={copy.promptHistoryTitle}
+          emptyLabel={copy.promptHistoryEmpty}
+          onSelectIndex={(index) => {
+            setHistorySelectedIndex(index);
+            const historyText = historyItems[index] ?? '';
+            props.onComposerChange(historyText);
+            focusCaret(historyText.length);
+          }}
+          onApply={applyHistoryItem}
+          onClose={() => closeHistoryMenu(true)}
+        />
         <textarea
           ref={textareaRef}
           className="composer-v2-textarea"
@@ -914,6 +998,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             setCaretIndex(event.target.selectionStart ?? event.target.value.length);
             setSlashMenuForcedClosed(false);
             setAtMenuForcedClosed(false);
+            setHistoryMenuOpen(false);
             autoResize();
           }}
           onCompositionStart={() => {

@@ -66,10 +66,7 @@ export class MockHostBackend {
   private mockBundledExtensionsInstalled = true;
   private mockDisabledPromptIds = new Set<string>();
   private mockActiveThemeId:
-    | 'piwin-dark'
-    | 'piwin-light'
-    | 'piwin-orange-white'
-    | 'piwin-ink-wash' = 'piwin-dark';
+    'piwin-dark' | 'piwin-light' | 'piwin-orange-white' | 'piwin-ink-wash' = 'piwin-dark';
   private mockJobs = new Map<string, import('@piwin/contracts').JobRecord>();
   private mockJobLogs = new Map<string, string>();
   private mockPtys = new Map<string, { projectPath: string }>();
@@ -915,8 +912,12 @@ export class MockHostBackend {
             error: `run-active: session ${command.sessionId} already has foreground run`,
           };
         }
-        const checkpointId = command.checkpointId ?? this.mockPauseCheckpointIds.get(command.sessionId);
-        if (checkpointId === undefined || checkpointId !== this.mockPauseCheckpointIds.get(command.sessionId)) {
+        const checkpointId =
+          command.checkpointId ?? this.mockPauseCheckpointIds.get(command.sessionId);
+        if (
+          checkpointId === undefined ||
+          checkpointId !== this.mockPauseCheckpointIds.get(command.sessionId)
+        ) {
           return {
             id,
             type: 'response',
@@ -955,7 +956,12 @@ export class MockHostBackend {
           type: 'response',
           command: 'session/resume-run',
           success: true,
-          data: { sessionId: command.sessionId, runId: data.runId, checkpointId, acceptedAt: data.acceptedAt },
+          data: {
+            sessionId: command.sessionId,
+            runId: data.runId,
+            checkpointId,
+            acceptedAt: data.acceptedAt,
+          },
         };
       }
       case 'session/abort': {
@@ -2515,6 +2521,21 @@ export class MockHostBackend {
             providerId: command.provider.id,
             modelId: command.modelId,
             durationMs: 42,
+          },
+        };
+      }
+      case 'models/image-test': {
+        return {
+          id,
+          type: 'response',
+          command: 'models/image-test',
+          success: true,
+          data: {
+            providerId: command.provider.id,
+            modelId: command.modelId,
+            durationMs: 42,
+            imageCount: 1,
+            outputs: [{ mimeType: 'image/png', byteSize: 1024 }],
           },
         };
       }

@@ -125,22 +125,25 @@ body > *, body > div {
   min-height: auto !important;
 }
 img, svg, canvas, video { max-width: 100%; height: auto; }
-/* Native SVG fences often declare a fixed width. Keep them responsive to the
-   selected conversation measure and center the intrinsic canvas instead of
-   leaving it pinned to the left edge of the Artifact iframe. */
+/* Native SVG fences often declare a fixed width. Constrain to the iframe
+   measure and center so fixed-width art is not left-pinned / clipped. */
 .piwin-artifact-root > svg {
   display: block;
   width: auto;
-  max-width: 100%;
+  max-width: 100% !important;
   height: auto;
   margin-inline: auto;
   background: transparent;
+  overflow: visible;
 }
 a { color: var(--piwin-artifact-accent); }
 button, input, select, textarea { font: inherit; }
 .piwin-artifact-root,
 .artifact-root,
 .owi-artifact-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -149,6 +152,16 @@ button, input, select, textarea { font: inherit; }
   padding: 4px 0;
   background: transparent;
   color: var(--piwin-artifact-text);
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+/* HTML UI roots should stretch full width; only bare SVG fences stay centered. */
+.piwin-artifact-root > :not(svg) {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .piwin-artifact-surface {
   background: var(--piwin-artifact-surface);

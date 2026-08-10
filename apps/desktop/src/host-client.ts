@@ -28,6 +28,7 @@ const HOST_REQUEST_ACK_TIMEOUT_MS = 5_000;
 const HOST_REQUEST_STATUS_TIMEOUT_MS = 3_000;
 const HOST_REQUEST_QUERY_TIMEOUT_MS = 15_000;
 const HOST_REQUEST_OPERATION_TIMEOUT_MS = 120_000;
+const HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS = 360_000;
 const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
 
 function getHostRequestTimeoutMs(command: HostCommand): number {
@@ -62,6 +63,8 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'pet/install-local':
     case 'pet/install-registry':
       return HOST_REQUEST_OPERATION_TIMEOUT_MS;
+    case 'models/image-test':
+      return HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS;
     case 'pet/store-query':
       return HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS;
     default:

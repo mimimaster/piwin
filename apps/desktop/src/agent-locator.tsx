@@ -47,9 +47,11 @@ function renderLocatorAnimation(
  */
 export function AgentLocator(props: AgentLocatorProps): ReactElement {
   const locale = props.input.locale;
-  const { currentPhrase } = useRunActivityPhrases(props.input);
+  const { phrases, currentPhrase } = useRunActivityPhrases(props.input);
   const animation = props.animation ?? 'radial-bellow';
   const activityId = resolveRunBehaviorId(props.input.kind);
+  // Shimmer only while the phrase set is cycling (multi-line wait states).
+  const shimmerCopy = phrases.length > 1;
 
   return (
     <div
@@ -62,13 +64,19 @@ export function AgentLocator(props: AgentLocatorProps): ReactElement {
       data-activity-id={activityId}
       data-activity-animation={getBehaviorActivitySpec(activityId).animation}
       data-animation={animation}
+      data-phrase-count={phrases.length}
     >
       {animation !== 'none' ? (
         <span className="agent-locator-visual" aria-hidden="true">
           {renderLocatorAnimation(animation, locale)}
         </span>
       ) : null}
-      <span className="agent-locator-copy">{currentPhrase}</span>
+      <span
+        className={shimmerCopy ? 'agent-locator-copy agent-locator-copy--shimmer' : 'agent-locator-copy'}
+        data-testid="agent-locator-copy"
+      >
+        {currentPhrase}
+      </span>
     </div>
   );
 }

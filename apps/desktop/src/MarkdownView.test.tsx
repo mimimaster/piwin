@@ -77,11 +77,12 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
     );
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
-    expect(
-      container
-        .querySelector('.artifact-with-source')
-        ?.classList.contains('artifact-with-source--full-bleed'),
-    ).toBe(true);
+    const wrapper = container.querySelector('.artifact-with-source');
+    expect(wrapper?.classList.contains('artifact-with-source--preview')).toBe(true);
+    // "Show code" is a sibling side rail outside the iframe surface.
+    expect(wrapper?.querySelector('.artifact-side-rail')).not.toBeNull();
+    expect(wrapper?.querySelector('.artifact-preview-surface .artifact-frame')).not.toBeNull();
+    expect(wrapper?.querySelector('.artifact-frame .artifact-frame-actions')).toBeNull();
   });
 
   it('routes an explicit Canvas fence to a launcher with stable message origin', () => {
@@ -276,6 +277,19 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
   });
 
+  it('shows animated preparing feedback before an incomplete SVG can render', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={'```svg\n<svg'} renderingPhase="streaming" locale="zh-CN" />,
+    );
+    const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
+
+    expect(frame?.classList.contains('preparing')).toBe(true);
+    expect(frame?.getAttribute('data-activity-animation')).toBe('artifact-sheen');
+    expect(frame?.textContent).toContain('正在生成 SVG');
+    expect(frame?.querySelector('.artifact-preparing-sheen')).not.toBeNull();
+    expect(frame?.querySelector('iframe')).toBeNull();
+  });
+
   it('streaming mode keeps the explicit code-first preference source-only', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" artifactCodeFirst />,
@@ -327,13 +341,13 @@ describe('MarkdownView artifact preview policy', () => {
     // Closed: source visible, no artifact frame.
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
-    expect(container.querySelector('.md-code-collapsible')?.classList.contains('is-collapsed')).toBe(
-      true,
-    );
+    expect(
+      container.querySelector('.md-code-collapsible')?.classList.contains('is-collapsed'),
+    ).toBe(true);
     expect(
       container
         .querySelector('.artifact-with-source')
-        ?.classList.contains('artifact-with-source--full-bleed'),
+        ?.classList.contains('artifact-with-source--preview'),
     ).toBe(false);
     // Open preview in-place.
     const toggle = container.querySelector<HTMLButtonElement>(
@@ -345,21 +359,20 @@ describe('MarkdownView artifact preview policy', () => {
     });
     // Source code block is gone; rendered frame replaces it in place.
     expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
+    const wrapper = container.querySelector('.artifact-with-source');
     const artifactFrame = container.querySelector<HTMLElement>('.artifact-frame');
     expect(artifactFrame).not.toBeNull();
-    expect(artifactFrame?.classList.contains('has-artifact-action')).toBe(true);
-    expect(
-      container
-        .querySelector('.artifact-with-source')
-        ?.classList.contains('artifact-with-source--full-bleed'),
-    ).toBe(true);
-    // The "Show code" affordance lives in the frame's floating action layer.
+    expect(wrapper?.classList.contains('artifact-with-source--preview')).toBe(true);
+    // "Show code" is outside the iframe (sibling side rail), not over the art.
     const showCode = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
     );
     expect(showCode?.textContent).toContain('Show code');
     expect(showCode?.classList.contains('artifact-frame-text-action')).toBe(true);
     expect(showCode?.classList.contains('piwin-button--ghost')).toBe(true);
+    expect(wrapper?.querySelector('.artifact-side-rail')?.contains(showCode)).toBe(true);
+    expect(artifactFrame?.querySelector('.artifact-frame-actions')).toBeNull();
+    expect(artifactFrame?.classList.contains('has-artifact-action')).toBe(false);
     // Switch back to source.
     act(() => {
       showCode?.click();
@@ -372,7 +385,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(
       container
         .querySelector('.artifact-with-source')
-        ?.classList.contains('artifact-with-source--full-bleed'),
+        ?.classList.contains('artifact-with-source--preview'),
     ).toBe(false);
     scrollHeight.mockRestore();
   });
@@ -583,26 +596,18 @@ describe('MarkdownView file references', () => {
 
   it('defers code-fence syntax highlighting until streaming completes', () => {
     const fence = '```ts\nconst answer = 42;\n```';
-    const streaming = renderMarkdown(
-      <MarkdownView text={fence} renderingPhase="streaming" />,
-    );
+    const streaming = renderMarkdown(<MarkdownView text={fence} renderingPhase="streaming" />);
     expect(
-      streaming.container
-        .querySelector('.md-code-content')
-        ?.getAttribute('data-syntax-highlight'),
+      streaming.container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
     ).toBe('deferred');
     act(() => {
       streaming.root.unmount();
     });
     streaming.container.remove();
 
-    const completed = renderMarkdown(
-      <MarkdownView text={fence} renderingPhase="completed" />,
-    );
+    const completed = renderMarkdown(<MarkdownView text={fence} renderingPhase="completed" />);
     expect(
-      completed.container
-        .querySelector('.md-code-content')
-        ?.getAttribute('data-syntax-highlight'),
+      completed.container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
     ).toBe('enabled');
   });
 

@@ -382,6 +382,16 @@ export type HostCommand =
     }
   | {
       id?: string;
+      type: 'models/image-test';
+      provider: ModelProviderConfig;
+      modelId: string;
+      /** Optional test prompt. Host uses a deterministic smoke prompt when omitted. */
+      prompt?: string;
+      /** One-shot secret for this request only — never persisted by host. */
+      apiKey?: string;
+    }
+  | {
+      id?: string;
       type: 'vision/delegate';
       input: import('./vision-delegation.js').VisionDelegateInput;
     }

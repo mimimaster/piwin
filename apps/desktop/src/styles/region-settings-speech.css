@@ -163,20 +163,6 @@
   line-height: 1.4;
 }
 
-.model-management {
-  margin: 0;
-}
-
-.model-management-tabs {
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.model-management-tab-content {
-  position: relative;
-  padding-top: 4px;
-}
-
 @media (max-width: 760px) {
   .speech-defaults-grid {
     grid-template-columns: 1fr;

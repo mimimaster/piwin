@@ -146,6 +146,34 @@ describe('ComposerDock host status', () => {
     expect(textarea.style.height).toBe('auto');
   });
 
+  it('opens a list of up to 10 session prompts on ArrowUp from an empty composer', () => {
+    const onComposerChange = vi.fn();
+    const sessionUserPrompts = Array.from({ length: 12 }, (_, index) => `prompt ${index + 1}`);
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer=""
+        onComposerChange={onComposerChange}
+        sessionUserPrompts={sessionUserPrompts}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    expect(input).not.toBeNull();
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }),
+      );
+    });
+
+    const menu = container.querySelector('[data-testid="composer-prompt-history-menu"]');
+    expect(menu).not.toBeNull();
+    expect(menu?.querySelectorAll('[role="option"]').length).toBe(10);
+    expect(onComposerChange).toHaveBeenCalledWith('prompt 1');
+  });
+
   it('renders stop button when streaming and input is empty, and hides steer button', () => {
     const handleSteer = vi.fn();
     const handleAbort = vi.fn();

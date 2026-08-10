@@ -9,6 +9,7 @@ export * from './extension-ui.js';
 export * from './browser.js';
 export * from './config.js';
 export * from './model-catalog.js';
+export * from './image-generation.js';
 export * from './vision-delegation.js';
 export * from './media.js';
 export * from './attachment.js';

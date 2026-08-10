@@ -3,11 +3,7 @@
  * Never invents token counts for totals — only maps when numbers are present.
  * Breakdown may be host-estimated and is labeled as such.
  */
-import type {
-  ContextUsageBreakdown,
-  ContextUsageSnapshot,
-  UsageSource,
-} from '@piwin/contracts';
+import type { ContextUsageBreakdown, ContextUsageSnapshot, UsageSource } from '@piwin/contracts';
 
 export function mapUsageSnapshot(
   sessionId: string,
@@ -62,22 +58,19 @@ export function mapUsageSnapshot(
     readNumber(nested.cache_write_tokens) ??
     readNumber(nested.cache_creation_input_tokens) ??
     readNumber(promptTokenDetails?.cache_write_tokens);
+  const durationMs =
+    readNumber(nested.durationMs) ?? readNumber(nested.duration) ?? readNumber(record.durationMs);
   const totalTokens =
     readNumber(nested.totalTokens) ??
     readNumber(nested.total) ??
     (promptTokens !== undefined && completionTokens !== undefined
-      ? promptTokens +
-        completionTokens +
-        (cacheReadTokens ?? 0) +
-        (cacheWriteTokens ?? 0)
+      ? promptTokens + completionTokens + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
       : undefined);
 
   // Context occupancy ≠ billable turn total. When providers only report turn
   // fields, input-side tokens (prompt + cache) best approximate window fill.
   const inputSideTokens =
-    promptTokens !== undefined ||
-    cacheReadTokens !== undefined ||
-    cacheWriteTokens !== undefined
+    promptTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined
       ? (promptTokens ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
       : undefined;
   const resolvedTokensUsed = tokensUsed ?? inputSideTokens;
@@ -107,13 +100,10 @@ export function mapUsageSnapshot(
   if (cacheReadTokens !== undefined) snapshot.cacheReadTokens = cacheReadTokens;
   if (cacheWriteTokens !== undefined) snapshot.cacheWriteTokens = cacheWriteTokens;
   if (totalTokens !== undefined) snapshot.totalTokens = totalTokens;
+  if (durationMs !== undefined) snapshot.durationMs = durationMs;
 
   const usedForRatio = resolvedTokensUsed ?? totalTokens;
-  if (
-    usedForRatio !== undefined &&
-    tokensLimit !== undefined &&
-    tokensLimit > 0
-  ) {
+  if (usedForRatio !== undefined && tokensLimit !== undefined && tokensLimit > 0) {
     snapshot.contextRatio = Math.min(1, Math.max(0, usedForRatio / tokensLimit));
   } else {
     const reportedPercent = readNumber(nested.percent);
@@ -124,9 +114,7 @@ export function mapUsageSnapshot(
   }
 
   const mappedBreakdown = mapBreakdown(
-    asRecord(nested.breakdown) ??
-      asRecord(nested.contextBreakdown) ??
-      asRecord(record.breakdown),
+    asRecord(nested.breakdown) ?? asRecord(nested.contextBreakdown) ?? asRecord(record.breakdown),
   );
   if (mappedBreakdown) {
     snapshot.breakdown = mappedBreakdown;
@@ -151,6 +139,7 @@ export function estimateMockUsage(
   sessionId: string,
   promptText: string,
   completionText: string,
+  durationMs?: number,
 ): ContextUsageSnapshot {
   const promptTokens = Math.max(1, Math.ceil(promptText.length / 4));
   const completionTokens = Math.max(1, Math.ceil(completionText.length / 4));
@@ -166,6 +155,7 @@ export function estimateMockUsage(
     contextRatio: Math.min(1, totalTokens / tokensLimit),
     updatedAt: new Date().toISOString(),
     source: 'host-estimate',
+    ...(durationMs !== undefined ? { durationMs } : {}),
     breakdown: estimateUsageBreakdown({
       tokensUsed: totalTokens,
       promptTokens,
@@ -202,11 +192,7 @@ export function estimateUsageBreakdown(input: {
   const skillsTokens = Math.floor(used * 0.03);
   const mcpTokens = Math.floor(used * 0.02);
   const overhead =
-    systemPromptTokens +
-    toolDefinitionsTokens +
-    rulesTokens +
-    skillsTokens +
-    mcpTokens;
+    systemPromptTokens + toolDefinitionsTokens + rulesTokens + skillsTokens + mcpTokens;
   const conversationTokens = Math.max(0, used - overhead);
 
   return {
@@ -224,9 +210,7 @@ function mapBreakdown(raw: Record<string, unknown> | null): ContextUsageBreakdow
   if (!raw) return null;
   const breakdown: ContextUsageBreakdown = { source: 'pi' };
   const systemPromptTokens =
-    readNumber(raw.systemPromptTokens) ??
-    readNumber(raw.system) ??
-    readNumber(raw.system_prompt);
+    readNumber(raw.systemPromptTokens) ?? readNumber(raw.system) ?? readNumber(raw.system_prompt);
   const toolDefinitionsTokens =
     readNumber(raw.toolDefinitionsTokens) ??
     readNumber(raw.tools) ??
@@ -235,9 +219,7 @@ function mapBreakdown(raw: Record<string, unknown> | null): ContextUsageBreakdow
   const skillsTokens = readNumber(raw.skillsTokens) ?? readNumber(raw.skills);
   const mcpTokens = readNumber(raw.mcpTokens) ?? readNumber(raw.mcp);
   const conversationTokens =
-    readNumber(raw.conversationTokens) ??
-    readNumber(raw.conversation) ??
-    readNumber(raw.messages);
+    readNumber(raw.conversationTokens) ?? readNumber(raw.conversation) ?? readNumber(raw.messages);
   let hasAny = false;
   if (systemPromptTokens !== undefined) {
     breakdown.systemPromptTokens = systemPromptTokens;

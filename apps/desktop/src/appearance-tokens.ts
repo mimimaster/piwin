@@ -257,15 +257,34 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.dataset.themeVisualStyle = theme.visualStyle ?? 'flat';
   const inkWashHero = getThemeAsset(theme, 'hero');
   const inkWashTexture = getThemeAsset(theme, 'conversationTexture');
-  if (inkWashHero) {
-    root.style.setProperty('--ink-wash-hero', `url("${inkWashHero}")`);
-  } else {
-    root.style.removeProperty('--ink-wash-hero');
-  }
-  if (inkWashTexture) {
-    root.style.setProperty('--ink-wash-conversation-texture', `url("${inkWashTexture}")`);
-  } else {
-    root.style.removeProperty('--ink-wash-conversation-texture');
+  const inkWashSidebarBg = getThemeAsset(theme, 'sidebarBg');
+  const inkWashRightPanelBg = getThemeAsset(theme, 'rightPanelBg');
+  const inkWashSeal = getThemeAsset(theme, 'agentSeal');
+  const inkWashDivider = getThemeAsset(theme, 'dryBrushDivider');
+  const inkWashEmptySession = getThemeAsset(theme, 'emptySession');
+  const inkWashEmptyFiles = getThemeAsset(theme, 'emptyFiles');
+  const inkWashEmptyFailure = getThemeAsset(theme, 'emptyFailure');
+  const inkWashEmptyComplete = getThemeAsset(theme, 'emptyComplete');
+
+  const inkWashMap: Record<string, string | undefined> = {
+    '--ink-wash-hero': inkWashHero ? `url("${inkWashHero}")` : undefined,
+    '--ink-wash-conversation-texture': inkWashTexture ? `url("${inkWashTexture}")` : undefined,
+    '--ink-wash-sidebar-bg': inkWashSidebarBg ? `url("${inkWashSidebarBg}")` : undefined,
+    '--ink-wash-right-panel-bg': inkWashRightPanelBg ? `url("${inkWashRightPanelBg}")` : undefined,
+    '--ink-wash-agent-seal': inkWashSeal ? `url("${inkWashSeal}")` : undefined,
+    '--ink-wash-dry-brush-divider': inkWashDivider ? `url("${inkWashDivider}")` : undefined,
+    '--ink-wash-empty-session': inkWashEmptySession ? `url("${inkWashEmptySession}")` : undefined,
+    '--ink-wash-empty-files': inkWashEmptyFiles ? `url("${inkWashEmptyFiles}")` : undefined,
+    '--ink-wash-empty-failure': inkWashEmptyFailure ? `url("${inkWashEmptyFailure}")` : undefined,
+    '--ink-wash-empty-complete': inkWashEmptyComplete ? `url("${inkWashEmptyComplete}")` : undefined,
+  };
+
+  for (const [varName, varVal] of Object.entries(inkWashMap)) {
+    if (varVal) {
+      root.style.setProperty(varName, varVal);
+    } else {
+      root.style.removeProperty(varName);
+    }
   }
   /** 橙白 uses warm-tinted derived values (shadows, hover, faint) that differ
    *  from Paper's neutral cool ramp even though both are mode: light. */

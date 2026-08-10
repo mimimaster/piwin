@@ -128,6 +128,7 @@ function renderSettings(
   config: PiwinConfig,
   saveConfig: (next: PiwinConfig) => Promise<boolean>,
   content: ReactElement = <ImageGenerationSettings />,
+  contextOverrides: Partial<SettingsContextValue> = {},
 ): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -137,7 +138,9 @@ function renderSettings(
       (
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-            <SettingsProvider value={createContextValue(config, saveConfig)}>
+            <SettingsProvider
+              value={{ ...createContextValue(config, saveConfig), ...contextOverrides }}
+            >
               {content}
             </SettingsProvider>
           </DesktopLocaleProvider>
@@ -238,8 +241,9 @@ describe('ImageGenerationSettings', () => {
         'CogView 3',
       );
     });
-    act(() => {
+    await act(async () => {
       submit?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(saved.length).toBeGreaterThan(0);
@@ -250,6 +254,11 @@ describe('ImageGenerationSettings', () => {
     expect(added?.label).toBe('CogView 3');
     expect(added?.routes?.['image-generation']?.path).toBe('/images/generations');
     expect(added?.routes?.['image-generation']?.timeoutMs).toBe(120000);
+    expect(last?.imageGeneration?.defaultModel).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'zhipu',
+      modelId: 'cogview-3',
+    });
   });
 
   it('sets the default image model when set-default is clicked', async () => {
@@ -283,6 +292,13 @@ describe('ImageGenerationSettings', () => {
 
   it('removes an image model from the provider', async () => {
     const config = makeConfig();
+    config.imageGeneration = {
+      defaultModel: {
+        protocol: 'openai-compatible',
+        providerId: 'zhipu',
+        modelId: 'glm-image',
+      },
+    };
     const saved: PiwinConfig[] = [];
     const saveConfig = vi.fn(async (next: PiwinConfig) => {
       saved.push(next);
@@ -304,6 +320,39 @@ describe('ImageGenerationSettings', () => {
     expect(saved.length).toBeGreaterThan(0);
     const last = saved[saved.length - 1];
     expect(last?.providers[0]?.models).toHaveLength(0);
+    expect(last?.imageGeneration).toBeUndefined();
+  });
+
+  it('tests the configured model through the real image-test callback', async () => {
+    const config = makeConfig();
+    const setInfo = vi.fn();
+    const testImageGenerationModel = vi.fn(async () => ({
+      providerId: 'zhipu',
+      modelId: 'glm-image',
+      durationMs: 321,
+      imageCount: 1,
+      outputs: [{ mimeType: 'image/jpeg', byteSize: 4096 }],
+    }));
+    ({ root, container } = renderSettings(
+      config,
+      vi.fn(async () => true),
+      <ImageGenerationSettings />,
+      { setInfo, testImageGenerationModel },
+    ));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    await act(async () => {
+      container!.querySelector<HTMLButtonElement>('[data-testid="image-model-test"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(testImageGenerationModel).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'zhipu' }),
+      'glm-image',
+    );
+    expect(setInfo).toHaveBeenCalledWith(expect.stringContaining('jpeg'), 'success');
   });
 
   it('switches between image and video configuration tabs', async () => {
@@ -319,11 +368,13 @@ describe('ImageGenerationSettings', () => {
 
     const modelsPage = container!.querySelector('[data-testid="settings-models"]');
     expect(modelsPage?.children[0]?.getAttribute('data-testid')).toBe('settings-model-management');
-    expect(modelsPage?.children[1]?.getAttribute('data-testid')).toBe('settings-speech-defaults');
 
-    // ModelsPage defaults to the text tab; switch to image first.
+    // ModelsPage defaults to the channels/chat destination; all capabilities share one nav.
+    expect(container!.querySelector('[data-testid="model-workspace-overview"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="model-config-tab-image"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="model-config-tab-video"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="model-config-tab-speech"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="settings-speech-defaults"]')).toBeNull();
 
     await act(async () => {
       const imageTab = container!.querySelector<HTMLButtonElement>(
@@ -347,6 +398,18 @@ describe('ImageGenerationSettings', () => {
     });
     expect(container!.querySelector('[data-testid="video-generation-settings"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="image-generation-settings"]')).toBeNull();
+
+    await act(async () => {
+      const speechTab = container!.querySelector<HTMLButtonElement>(
+        '[data-testid="model-config-tab-speech"]',
+      );
+      speechTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container!.querySelector('[data-testid="model-config-panel-speech"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="settings-speech-defaults"]')).not.toBeNull();
   });
 
   it('adds a video model with an async API style and polling route', async () => {

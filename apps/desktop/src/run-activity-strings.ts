@@ -17,6 +17,10 @@ export type RuntimeStatusCopy = {
   en: string;
 };
 
+/**
+ * Primary status line (also the first carousel line when multiple phrases exist).
+ * Keep bilingual pairs exact for tooltips / splash that want a single label.
+ */
 export const RUNTIME_STATUS_COPY: Readonly<Record<RuntimeStatusCopyKey, RuntimeStatusCopy>> = {
   preparing: { zh: '准备上下文…', en: 'Preparing context…' },
   'connecting-model': { zh: '连接模型…', en: 'Connecting to model…' },
@@ -26,6 +30,48 @@ export const RUNTIME_STATUS_COPY: Readonly<Record<RuntimeStatusCopyKey, RuntimeS
   thinking: { zh: '思考中', en: 'Thinking' },
   planning: { zh: '制定计划中', en: 'Planning' },
   asking: { zh: '等待你的回答', en: 'Waiting for your answer' },
+};
+
+/**
+ * Optional rotating lines for live locator chrome. First entry matches
+ * RUNTIME_STATUS_COPY. Early "sent, waiting for model" phases rotate so the
+ * wait feels active without inventing fake tool work.
+ */
+export const RUNTIME_STATUS_PHRASES: Readonly<
+  Record<RuntimeStatusCopyKey, { zh: readonly string[]; en: readonly string[] }>
+> = {
+  preparing: {
+    zh: ['准备上下文…', '整理对话记忆…', '装载工作区…'],
+    en: ['Preparing context…', 'Gathering conversation memory…', 'Loading workspace…'],
+  },
+  'connecting-model': {
+    zh: [RUNTIME_STATUS_COPY['connecting-model'].zh],
+    en: [RUNTIME_STATUS_COPY['connecting-model'].en],
+  },
+  'waiting-first-token': {
+    zh: [RUNTIME_STATUS_COPY['waiting-first-token'].zh],
+    en: [RUNTIME_STATUS_COPY['waiting-first-token'].en],
+  },
+  working: {
+    zh: [RUNTIME_STATUS_COPY.working.zh],
+    en: [RUNTIME_STATUS_COPY.working.en],
+  },
+  stopping: {
+    zh: [RUNTIME_STATUS_COPY.stopping.zh],
+    en: [RUNTIME_STATUS_COPY.stopping.en],
+  },
+  thinking: {
+    zh: [RUNTIME_STATUS_COPY.thinking.zh],
+    en: [RUNTIME_STATUS_COPY.thinking.en],
+  },
+  planning: {
+    zh: [RUNTIME_STATUS_COPY.planning.zh],
+    en: [RUNTIME_STATUS_COPY.planning.en],
+  },
+  asking: {
+    zh: [RUNTIME_STATUS_COPY.asking.zh],
+    en: [RUNTIME_STATUS_COPY.asking.en],
+  },
 };
 
 const RUN_KIND_TO_RUNTIME_STATUS: Partial<Record<RunStatusKind, RuntimeStatusCopyKey>> = {
@@ -49,6 +95,15 @@ export function runtimeStatusText(
   locale: 'zh-CN' | 'en',
 ): string {
   return RUNTIME_STATUS_COPY[key][locale === 'zh-CN' ? 'zh' : 'en'];
+}
+
+/** Localized carousel lines for a runtime status (length ≥ 1). */
+export function runtimeStatusPhrases(
+  key: RuntimeStatusCopyKey,
+  locale: 'zh-CN' | 'en',
+): string[] {
+  const bank = RUNTIME_STATUS_PHRASES[key];
+  return [...(locale === 'zh-CN' ? bank.zh : bank.en)];
 }
 
 const TAKING_TOO_LONG_MS = 15_000;
@@ -93,7 +148,7 @@ export function buildPrimaryWorkPhrase(input: RunActivityInput): string | null {
 export function buildBasePhrases(input: RunActivityInput): string[] {
   const runtimeStatusKey = resolveRuntimeStatusCopyKey(input.kind);
   if (runtimeStatusKey) {
-    return [runtimeStatusText(runtimeStatusKey, input.locale)];
+    return runtimeStatusPhrases(runtimeStatusKey, input.locale);
   }
 
   const isZh = input.locale === 'zh-CN';
@@ -118,7 +173,9 @@ export function buildBasePhrases(input: RunActivityInput): string[] {
 export function buildTakingTooLongPhrases(input: RunActivityInput): string[] {
   const runtimeStatusKey = resolveRuntimeStatusCopyKey(input.kind);
   if (runtimeStatusKey) {
-    return [runtimeStatusText(runtimeStatusKey, input.locale)];
+    // Keep rotating the same phase bank while waiting longer — do not invent
+    // "taking longer" copy that contradicts the reference status table.
+    return runtimeStatusPhrases(runtimeStatusKey, input.locale);
   }
 
   const isZh = input.locale === 'zh-CN';

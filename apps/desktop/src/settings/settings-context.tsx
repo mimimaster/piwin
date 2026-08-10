@@ -37,6 +37,7 @@ export type SettingsConfigRequest = (command: {
     | 'models/catalog/search'
     | 'models/image-catalog/search'
     | 'models/test'
+    | 'models/image-test'
     | 'vision/delegate'
     | 'vision/cache/clear'
     | 'secrets/set'
@@ -55,6 +56,7 @@ export type SettingsConfigRequest = (command: {
   provider?: ModelProviderConfig;
   apiKey?: string;
   modelId?: string;
+  prompt?: string;
   providerId?: string;
   secret?: string;
   path?: string;
@@ -125,6 +127,11 @@ export type SettingsContextValue = {
     modelId: string,
     options?: { apiKey?: string },
   ) => Promise<{ durationMs: number }>;
+  testImageGenerationModel?: (
+    provider: ModelProviderConfig,
+    modelId: string,
+    options?: { apiKey?: string; prompt?: string },
+  ) => Promise<import('@piwin/contracts').ImageGenerationTestResult>;
   searchModelCatalog: (
     input?: import('@piwin/contracts').ModelCatalogSearchRequest,
   ) => Promise<import('@piwin/contracts').ModelCatalogSearchResult>;

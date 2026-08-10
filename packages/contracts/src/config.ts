@@ -19,7 +19,15 @@ import type { RemoteConfig } from './remote.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability =
-  'chat' | 'image-generation' | 'video-generation' | 'speech-to-text' | 'text-to-speech';
+  | 'chat'
+  | 'image-generation'
+  | 'video-generation'
+  | 'speech-to-text'
+  | 'text-to-speech'
+  | 'native-web-search';
+
+/** How a model exposes provider-native web search (ADR 0043). */
+export type NativeWebSearchMode = 'controllable' | 'always-on';
 
 /**
  * Provider wire formats used by the asynchronous video-generation adapters.
@@ -46,6 +54,11 @@ export type ModelRouteConfig = {
   apiStyle?: VideoGenerationApiStyle;
   /** Polling cadence for async video jobs, in milliseconds. */
   pollIntervalMs?: number;
+  /**
+   * Native web-search controllability when the capability is present.
+   * Defaults to `controllable` when omitted.
+   */
+  nativeSearchMode?: NativeWebSearchMode;
 };
 
 /** Per-model identity and optional runtime limits. */
@@ -73,6 +86,12 @@ export type ModelConfigEntry = {
   thinkingLevels?: readonly ThinkingLevel[];
   /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
   capabilities?: ModelCapability[];
+  /**
+   * How provider-native web search is exposed for this model.
+   * Only meaningful when `capabilities` includes `native-web-search`.
+   * Defaults to `controllable` when omitted.
+   */
+  nativeWebSearchMode?: NativeWebSearchMode;
   /** Per-capability route overrides (path, timeout). */
   routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
   /**
@@ -174,6 +193,20 @@ export function modelSupportsCapability(
     return capabilities === undefined || capabilities.length === 0 || capabilities.includes('chat');
   }
   return capabilities?.includes(capability) ?? false;
+}
+
+/**
+ * Resolve whether native web search can be toggled off for a model.
+ * Always-on models cannot honor an `external-only` search route policy.
+ */
+export function resolveNativeWebSearchMode(
+  model: Pick<ModelConfigEntry, 'nativeWebSearchMode' | 'routes' | 'capabilities'>,
+): NativeWebSearchMode {
+  if (!modelSupportsCapability(model, 'native-web-search')) {
+    return 'controllable';
+  }
+  const routeMode = model.routes?.['native-web-search']?.nativeSearchMode;
+  return model.nativeWebSearchMode ?? routeMode ?? 'controllable';
 }
 
 /** Normalized model identity returned from a provider's discovery endpoint. */
@@ -370,14 +403,8 @@ export const RESIDENCY_SWEEP_INTERVAL_MS = 30_000;
 export function normalizeSessionRuntimeRetentionConfig(
   input: Partial<SessionRuntimeRetentionConfig> | undefined,
 ): SessionRuntimeRetentionConfig {
-  const idleTtlSeconds = clampNonNegativeInt(
-    input?.idleTtlSeconds,
-    DEFAULT_IDLE_TTL_SECONDS,
-  );
-  const maxIdleRuntimes = clampNonNegativeInt(
-    input?.maxIdleRuntimes,
-    DEFAULT_MAX_IDLE_RUNTIMES,
-  );
+  const idleTtlSeconds = clampNonNegativeInt(input?.idleTtlSeconds, DEFAULT_IDLE_TTL_SECONDS);
+  const maxIdleRuntimes = clampNonNegativeInt(input?.maxIdleRuntimes, DEFAULT_MAX_IDLE_RUNTIMES);
   const result: SessionRuntimeRetentionConfig = {
     idleTtlSeconds,
     maxIdleRuntimes,
@@ -407,10 +434,7 @@ export function deriveMemoryLowWaterMiB(highWaterMiB: number): number {
   return Math.round(highWaterMiB * MEMORY_LOW_WATER_RATIO);
 }
 
-function clampNonNegativeInt(
-  value: number | undefined,
-  fallback: number,
-): number {
+function clampNonNegativeInt(value: number | undefined, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) {
     return fallback;
   }
@@ -541,6 +565,7 @@ export function createDefaultWebConfig(): WebConfig {
     searchTimeoutMs: 15000,
     searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
     searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 8000 },
+    searchRoutePolicy: 'external-first',
     fetchProvider: 'supermarkdown',
     fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
     fetchMaxBytes: 65536,

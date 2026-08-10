@@ -39,10 +39,10 @@ describe('web draft conversion', () => {
   });
 
   it('uses external-first when loading a legacy Web config without a route policy', () => {
-    const legacy = { ...SAMPLE_WEB };
+    const legacy: Partial<typeof SAMPLE_WEB> = { ...SAMPLE_WEB };
     delete legacy.searchRoutePolicy;
-    expect(webToDraft(legacy).searchRoutePolicy).toBe('external-first');
-    expect(draftToWeb(webToDraft(legacy)).searchRoutePolicy).toBe('external-first');
+    expect(webToDraft(legacy as typeof SAMPLE_WEB).searchRoutePolicy).toBe('external-first');
+    expect(draftToWeb(webToDraft(legacy as typeof SAMPLE_WEB)).searchRoutePolicy).toBe('external-first');
   });
 
   it('renders numbers and prefixes as editable strings', () => {

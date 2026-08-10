@@ -197,6 +197,22 @@
   white-space: nowrap;
 }
 
+/* Flowing light on rotating wait phrases (preparing context carousel, etc.). */
+.agent-locator-copy--shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text) 42%, transparent) 0%,
+    color-mix(in srgb, var(--text) 88%, transparent) 42%,
+    color-mix(in srgb, var(--text) 42%, transparent) 72%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wb-shimmer var(--motion-shimmer, 1.6s) linear infinite;
+}
+
 .agent-locator-stack {
   display: inline-flex;
   align-items: center;
@@ -251,7 +267,8 @@
   animation: behavior-icon-pulse var(--behavior-icon-breathe-duration) ease-in-out infinite;
 }
 
-[data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon {
+[data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon,
+[data-activity-animation='artifact-sheen'][data-tool-status='running'] .artifact-preparing-icon {
   animation: behavior-icon-sheen var(--behavior-icon-wave-duration) linear infinite;
 }
 
@@ -494,6 +511,7 @@
   [data-activity-animation='pulse-block'][data-tool-status='running'] .tool-call-kind-icon,
   [data-activity-animation='diff-in'][data-tool-status='running'] .tool-call-kind-icon,
   [data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='artifact-sheen'][data-tool-status='running'] .artifact-preparing-icon,
   [data-activity-animation='gate-pulse'][data-tool-status='running'],
   [data-activity-animation='pulse-block'][data-tool-status='running'] .tool-status-dot,
   [data-activity-animation='gate-pulse'][data-tool-status='running'] .tool-status-dot,

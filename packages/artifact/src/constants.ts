@@ -34,6 +34,20 @@ export const ARTIFACT_READY_TIMEOUT_MS = 5000;
 /** Max concurrent historical artifact iframe inits (srcdoc assignment). */
 export const MAX_CONCURRENT_ARTIFACT_INITS = 1;
 
+/**
+ * Inline Artifact iframe viewport recycle: after leaving the transcript
+ * viewport for this long, drop srcdoc/iframe to free WebContent memory.
+ * Re-enter remounts via the init queue. Canvas presentation never recycles.
+ */
+export const ARTIFACT_VIEWPORT_RECYCLE_TTL_MS = 5_000;
+
+/**
+ * IntersectionObserver rootMargin for Inline artifacts. Generous vertical
+ * overscan starts init before the frame is fully on screen so scroll-stop
+ * never lands on a recycled blank.
+ */
+export const ARTIFACT_VIEWPORT_ROOT_MARGIN = '480px 0px';
+
 /** Confirm shrink after interaction before applying a smaller height. */
 export const ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS = 70;
 
