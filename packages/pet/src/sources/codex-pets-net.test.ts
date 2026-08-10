@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
   fetchCodexPetsNetDetail,
   installPetFromCodexPetsNet,
+  resolveCodexPetsNetDownloadUrl,
   CODEX_PETS_NET_ORIGIN,
 } from './codex-pets-net.js';
 
@@ -32,21 +33,80 @@ function buildZipBody(): Buffer {
   return Buffer.concat([magic, padding]);
 }
 
+describe('resolveCodexPetsNetDownloadUrl', () => {
+  it('prefers pet.downloadUrl (live share-data shape)', () => {
+    expect(
+      resolveCodexPetsNetDownloadUrl(
+        {
+          pet: { id: 'clawd', downloadUrl: '/api/pets/clawd/download?v=1' },
+        },
+        'clawd',
+      ),
+    ).toBe('/api/pets/clawd/download?v=1');
+  });
+
+  it('accepts top-level downloadUrl for legacy mocks', () => {
+    expect(
+      resolveCodexPetsNetDownloadUrl(
+        {
+          pet: { id: 'x' },
+          downloadUrl: '/api/pets/x/download',
+        },
+        'x',
+      ),
+    ).toBe('/api/pets/x/download');
+  });
+
+  it('falls back to /api/pets/{slug}/download', () => {
+    expect(
+      resolveCodexPetsNetDownloadUrl({ pet: { id: 'clawd' } }, 'clawd'),
+    ).toBe('/api/pets/clawd/download');
+  });
+});
+
 describe('fetchCodexPetsNetDetail', () => {
-  it('fetches pet detail json', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        pet: { id: 'yijian', displayName: '奕剑' },
-        downloadUrl: '/api/pets/yijian/download?v=1',
-      }),
-    }));
+  it('fetches share-data and reads nested pet fields', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes('/share-data')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            pet: {
+              id: 'clawd',
+              displayName: 'Clawd',
+              downloadUrl: '/api/pets/clawd/download?v=1777707802295',
+            },
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+    const detail = await fetchCodexPetsNetDetail('clawd', {
+      fetch: fetchMock as never,
+    });
+    expect(detail.pet.id).toBe('clawd');
+    expect(detail.pet.downloadUrl).toContain('clawd');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/share-data');
+  });
+
+  it('falls back to /api/pets/{slug} when share-data 404s', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes('/share-data')) {
+        return { ok: false, status: 404, json: async () => ({}) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          pet: { id: 'yijian', downloadUrl: '/api/pets/yijian/download?v=1' },
+        }),
+      };
+    });
     const detail = await fetchCodexPetsNetDetail('yijian', {
       fetch: fetchMock as never,
     });
     expect(detail.pet.id).toBe('yijian');
-    expect(detail.downloadUrl).toContain('yijian');
   });
 
   it('rejects invalid slug', async () => {
@@ -71,13 +131,17 @@ describe('installPetFromCodexPetsNet', () => {
     const zipBody = buildZipBody();
 
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.includes('/api/pets/yijian') && !url.includes('download')) {
+      // Live API: share-data with downloadUrl nested under pet.
+      if (url.includes('/share-data') || (url.includes('/api/pets/yijian') && !url.includes('download'))) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            pet: { id: 'yijian', displayName: '奕剑' },
-            downloadUrl: '/api/pets/yijian/download?v=1',
+            pet: {
+              id: 'yijian',
+              displayName: '奕剑',
+              downloadUrl: '/api/pets/yijian/download?v=1',
+            },
           }),
         };
       }
