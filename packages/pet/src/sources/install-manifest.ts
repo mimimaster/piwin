@@ -245,34 +245,58 @@ export async function installPetFromSlug(
       await downloadVerifiedFile(file, join(staging, rel), options, allowedHosts);
     }
 
-    // Validate pet.json after download.
+    // Validate pet.json after download. CodexPetHub packages use codexpet.v1
+    // (name/atlas/states, no id/spritesheetPath) — fill from slug + package layout.
     const raw = await readFile(join(staging, 'pet.json'), 'utf8');
-    const validated = validatePetManifest(JSON.parse(raw));
+    const validated = validatePetManifest(JSON.parse(raw), {
+      defaultId: petSlug,
+      defaultSpritesheetPath: 'spritesheet.webp',
+    });
     if (!validated.ok) {
       throw new Error(
         validated.issues.map((i) => `${i.path}: ${i.message}`).join('; '),
       );
     }
 
-    // Prefer manifest id when safe; fall back to slug.
-    const petId = isPetSlug(validated.manifest.id)
-      ? validated.manifest.id
-      : petSlug;
+    // Prefer slug for install dir when the package id is a hub ULID-style token;
+    // otherwise keep a safe manifest id.
+    const packageId = validated.manifest.id;
+    const petId =
+      isPetSlug(petSlug) && (packageId.startsWith('pet_') || packageId.length > 40)
+        ? petSlug
+        : isPetSlug(packageId)
+          ? packageId
+          : petSlug;
 
-    // Ensure spritesheet path exists.
-    const sheet = join(staging, validated.manifest.spritesheetPath);
-    try {
-      await readFile(sheet);
-    } catch {
+    // Ensure spritesheet path exists (try declared path, then common Codex names).
+    const sheetCandidates = [
+      validated.manifest.spritesheetPath,
+      'spritesheet.webp',
+      'spritesheet.png',
+    ];
+    let resolvedSheet = validated.manifest.spritesheetPath;
+    let sheetFound = false;
+    for (const candidate of sheetCandidates) {
+      try {
+        await readFile(join(staging, candidate));
+        resolvedSheet = candidate;
+        sheetFound = true;
+        break;
+      } catch {
+        // try next
+      }
+    }
+    if (!sheetFound) {
       throw new Error(`missing spritesheet: ${validated.manifest.spritesheetPath}`);
     }
 
-    // If manifest id differs from slug, rewrite id only when needed for dir name.
-    // Keep package as-is; install under petId.
-    if (validated.manifest.id !== petId) {
-      const rewritten = { ...validated.manifest, id: petId };
-      await writeFile(join(staging, 'pet.json'), `${JSON.stringify(rewritten, null, 2)}\n`);
-    }
+    // Always rewrite pet.json to the normalized piwin shape so local resolve works.
+    const rewritten = {
+      ...validated.manifest,
+      id: petId,
+      spritesheetPath: resolvedSheet,
+    };
+    await writeFile(join(staging, 'pet.json'), `${JSON.stringify(rewritten, null, 2)}\n`);
 
     const target = join(ctx.petsDir, petId);
     await mkdir(ctx.petsDir, { recursive: true });

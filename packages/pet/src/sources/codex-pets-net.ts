@@ -245,27 +245,52 @@ export async function installPetFromCodexPetsNet(
       }
     }
 
-    // Validate pet.json.
+    // Validate pet.json (codexpet.v1 + piwin shapes).
     const raw = await readFile(join(petDir, 'pet.json'), 'utf8');
-    const validated = validatePetManifest(JSON.parse(raw));
+    const validated = validatePetManifest(JSON.parse(raw), {
+      defaultId: petId,
+      defaultSpritesheetPath: 'spritesheet.webp',
+    });
     if (!validated.ok) {
       throw new Error(validated.issues.map((i) => `${i.path}: ${i.message}`).join('; '));
     }
 
-    const finalPetId = SLUG_RE.test(validated.manifest.id) ? validated.manifest.id : petId;
+    const packageId = validated.manifest.id;
+    const finalPetId =
+      SLUG_RE.test(petId) && (packageId.startsWith('pet_') || packageId.length > 40)
+        ? petId
+        : SLUG_RE.test(packageId)
+          ? packageId
+          : petId;
 
-    // Ensure spritesheet exists.
-    const sheet = join(petDir, validated.manifest.spritesheetPath);
-    try {
-      await readFile(sheet);
-    } catch {
+    // Ensure spritesheet exists (declared path, then common Codex names).
+    const sheetCandidates = [
+      validated.manifest.spritesheetPath,
+      'spritesheet.webp',
+      'spritesheet.png',
+    ];
+    let resolvedSheet = validated.manifest.spritesheetPath;
+    let sheetFound = false;
+    for (const candidate of sheetCandidates) {
+      try {
+        await readFile(join(petDir, candidate));
+        resolvedSheet = candidate;
+        sheetFound = true;
+        break;
+      } catch {
+        // try next
+      }
+    }
+    if (!sheetFound) {
       throw new Error(`missing spritesheet: ${validated.manifest.spritesheetPath}`);
     }
 
-    if (validated.manifest.id !== finalPetId) {
-      const rewritten = { ...validated.manifest, id: finalPetId };
-      await writeFile(join(petDir, 'pet.json'), `${JSON.stringify(rewritten, null, 2)}\n`);
-    }
+    const rewritten = {
+      ...validated.manifest,
+      id: finalPetId,
+      spritesheetPath: resolvedSheet,
+    };
+    await writeFile(join(petDir, 'pet.json'), `${JSON.stringify(rewritten, null, 2)}\n`);
 
     const target = join(ctx.petsDir, finalPetId);
     await mkdir(ctx.petsDir, { recursive: true });
