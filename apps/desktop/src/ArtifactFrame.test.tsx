@@ -33,6 +33,7 @@ function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render'
       externalResources: [],
     },
     srcdoc: '<!DOCTYPE html><html><body><div class="diagram">wide content</div></body></html>',
+    renderSource: '<div class="diagram">wide content</div>',
     csp: "default-src 'none'",
     themeRepairs: [],
     layoutRepairs: [],
@@ -53,6 +54,7 @@ function makeStreamDecision(
     },
     srcdoc,
     streamSource: source,
+    renderSource: source,
   };
 }
 
@@ -164,6 +166,12 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
+    // Non-ready resizes are rAF + 120ms coalesced (owi bridge throttle).
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      await new Promise((resolve) => setTimeout(resolve, 140));
+    });
+
     expect(iframe?.style.height).toBe('1480px');
     expect(iframe?.style.maxHeight).toBe('16384px');
     expect(
@@ -201,17 +209,117 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
+    // First stream snapshot is immediate; subsequent ones throttle at 300ms.
+    // A near-immediate follow-up still posts once the throttle window opens.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 320));
+    });
+
     const updatedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(updatedIframe).toBe(iframe);
     expect(updatedIframe?.getAttribute('srcdoc')).toBe('<html>initial stream</html>');
     expect(postMessage).toHaveBeenCalledWith(
       {
         type: 'piwin-artifact:stream-update',
-        channelId: 'artifact-test-1-stream',
+        channelId: 'artifact-test-1',
         source: next.streamSource,
       },
       '*',
     );
+  });
+
+  it('commits the final source inside the existing stream iframe without replacing srcdoc', async () => {
+    const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>stable stream shell</html>');
+    const { container, root } = renderFrame(initial);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    const finalSource =
+      '<div><p>Hello</p><button>Done</button></div><script>window.done=true</script>';
+    const finalDecision: Extract<ArtifactPreviewDecision, { kind: 'render' }> = {
+      ...makeRenderDecision(),
+      descriptor: {
+        ...makeRenderDecision().descriptor,
+        source: finalSource,
+      },
+      srcdoc: '<html>replacement final document must not mount</html>',
+      renderSource: finalSource,
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame decision={finalDecision} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(completedIframe).toBe(iframe);
+    expect(completedIframe?.getAttribute('srcdoc')).toBe('<html>stable stream shell</html>');
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'piwin-artifact:stream-update',
+        channelId: 'artifact-test-1',
+        source: finalSource,
+        final: true,
+      },
+      '*',
+    );
+  });
+
+  it('keeps stream-preview height grow-only after the first ready (no final-trim shrink)', async () => {
+    const decision = makeStreamDecision('<svg viewBox="0 0 10 10"></svg>', '<html>stream</html>');
+    const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: (iframe?.contentWindow ?? null),
+          data: {
+            type: 'piwin-artifact:ready',
+            channelId: 'artifact-test-1',
+            height: 240,
+          },
+        }),
+      );
+    });
+    expect(iframe?.style.height).toBe('240px');
+
+    // A later smaller measure must not shrink the stream frame (would flicker).
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: (iframe?.contentWindow ?? null),
+          data: {
+            type: 'piwin-artifact:resize',
+            channelId: 'artifact-test-1',
+            height: 120,
+            mode: 'normal',
+          },
+        }),
+      );
+    });
+    expect(iframe?.style.height).toBe('240px');
   });
 
   it('applies the canvas presentation class without expand chrome', async () => {
@@ -259,7 +367,7 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: 'piwin-artifact:action',
             channelId: 'artifact-test-1',
@@ -298,7 +406,7 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: 'piwin-artifact:action',
             channelId: 'artifact-test-1',

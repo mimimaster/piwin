@@ -101,12 +101,28 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
   use a channel-scoped parent-to-iframe message and reconcile existing nodes in
   place; text nodes may grow token-by-token and complete UI nodes append without
   reloading the document.
-- Completion replaces the stream iframe once with the normal interactive
-  Artifact document. This restores final permitted scripts/actions under the
-  existing sandbox, CSP, and security classifier.
+- Completion keeps the same iframe and channel. The repaired final source is
+  committed through the bridge with a final marker; final permitted scripts
+  are activated inside the existing sandbox under the same CSP and security
+  classifier. Completed/history Artifacts that did not begin as a live stream
+  still load their final `srcdoc` directly.
 - Inline Artifact title/status/byte chrome is not permanently visible. Source
   inspection remains available from an action overlay shown on hover or
   keyboard focus; activating `Show code` opens the source fully expanded.
 - Model-authored Artifact motion is disabled by a host-owned style placed after
   model styles: CSS animations/transitions and SVG declarative motion do not
   run in either streaming or completed inline previews.
+- Desktop stream stability (2026-08-10, aligned with openwebui_m): live
+  stream-preview stays on during generation. Fence identity is sticky
+  (`<messageId>-artifact-<ordinal>`, never a hash of the body). One iframe
+  mounts for the stream and final commit; body updates use postMessage (not
+  srcdoc rewrite). A message that rendered live tokens remains on Streamdown's
+  keyed block renderer through completion so that transition cannot unmount
+  the code-fence subtree; completed history may use the static renderer
+  directly. Height is grow-only + coalesced; shell height signals are
+  throttled. Init grant depends only on channelId so parent re-renders do not
+  unmount the iframe.
+- Artifact document canvas remains transparent. A host-owned theme guard is
+  appended after model content to keep `html`/`body`/root transparent and map
+  known fixed-light surfaces to the Artifact theme without creating a white
+  page behind the component.

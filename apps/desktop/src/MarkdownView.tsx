@@ -1,6 +1,7 @@
 import {
   cloneElement,
   isValidElement,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -170,6 +171,12 @@ type StreamdownRendererOptions = {
   artifactCodeFirst: boolean;
   artifactMaxBytes: number | undefined;
   onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined;
+  /**
+   * owi-style fence ordinal keyed by the AST start position. Streamdown may
+   * invoke a renderer more than once without re-rendering MarkdownView, so a
+   * call counter alone eventually changes iframe identity.
+   */
+  allocateFenceOrdinal: (identity: string) => number;
 };
 
 type StreamdownElementProps<Tag extends keyof JSX.IntrinsicElements> = ComponentProps<Tag> &
@@ -262,15 +269,9 @@ function stripLeadingCalloutMarker(value: ReactNode): ReactNode {
   return strip(value);
 }
 
-function stableFenceIndex(language: string, source: string): number {
-  let hash = 17;
-  for (const character of `${language}\u0000${source}`) {
-    hash = (hash * 31 + character.charCodeAt(0)) | 0;
-  }
-  return Math.abs(hash);
-}
-
-function createStreamdownComponents(options: StreamdownRendererOptions): Components {
+function createStreamdownComponents(optionsRef: {
+  current: StreamdownRendererOptions;
+}): Components {
   const renderParagraph = ({
     children,
     node: _node,
@@ -278,7 +279,7 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     ...props
   }: StreamdownElementProps<'p'>): ReactElement => (
     <p {...props} className={mergeMarkdownClassNames('md-p', className)}>
-      {renderMarkdownChildren(children, options.onOpenDocument)}
+      {renderMarkdownChildren(children, optionsRef.current.onOpenDocument)}
     </p>
   );
 
@@ -292,7 +293,7 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
       const HeadingTag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
       return (
         <HeadingTag {...props} className={mergeMarkdownClassNames(`md-h md-h${level}`, className)}>
-          {renderMarkdownChildren(children, options.onOpenDocument)}
+          {renderMarkdownChildren(children, optionsRef.current.onOpenDocument)}
         </HeadingTag>
       );
     };
@@ -325,6 +326,7 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     'data-block': dataBlock,
     ...props
   }: StreamdownCodeProps): ReactElement => {
+    const options = optionsRef.current;
     if (dataBlock === undefined) {
       const inlineValue = plainTextFromReactNode(children);
       const isMarkdownPath =
@@ -356,15 +358,23 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     const rawMetadata = node?.properties?.['metastring'];
     const metadata = typeof rawMetadata === 'string' ? rawMetadata.trim() : '';
     const fenceInfo = metadata ? `${language} ${metadata}` : language;
-    const fenceIndex = node?.position?.start.line ?? stableFenceIndex(fenceInfo, source);
+    const startPosition = node?.position?.start;
+    const fenceIdentity =
+      typeof startPosition?.offset === 'number'
+        ? `offset:${startPosition.offset}`
+        : `line:${startPosition?.line ?? 0}:column:${startPosition?.column ?? 0}`;
+    // owi: `${rootId}-artifact-${ordinal}`. Cache by AST position because
+    // Streamdown can invoke this renderer multiple times for one parse.
+    const ordinal = options.allocateFenceOrdinal(fenceIdentity);
+    const originKey = options.artifactOrigin?.messageId ?? 'local';
     const fenceProps: Parameters<typeof CodeFenceView>[0] = {
       language,
       fenceInfo,
       source,
       htmlUiModeEnabled: options.htmlUiModeEnabled,
-      fenceIndex,
+      fenceIndex: ordinal,
       renderingPhase: options.phase,
-      initPriority: options.initPriorityBase + fenceIndex,
+      initPriority: options.initPriorityBase + ordinal,
       artifactThemeKey: options.artifactThemeKey,
       artifactPreviewEnabled: options.artifactPreviewEnabled,
       artifactCodeFirst: options.artifactCodeFirst,
@@ -378,7 +388,8 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     if (options.artifactMaxBytes !== undefined) {
       fenceProps.artifactMaxBytes = options.artifactMaxBytes;
     }
-    return <CodeFenceView {...fenceProps} />;
+    // Stable React key (owi __displayKey): never include source body.
+    return <CodeFenceView key={`${originKey}:artifact-${ordinal}`} {...fenceProps} />;
   };
 
   const renderAnchor = ({
@@ -388,6 +399,7 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     className,
     ...props
   }: StreamdownElementProps<'a'>): ReactElement => {
+    const options = optionsRef.current;
     const url = href ?? '';
     const label = plainTextFromReactNode(children).trim() || 'Document';
     const normalizedUrl = url.split('#', 1)[0]?.split('?', 1)[0]?.toLowerCase() ?? '';
@@ -443,7 +455,7 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
     return (
       <th {...props} style={textAlign ? { ...style, textAlign } : style}>
-        {renderMarkdownChildren(children, options.onOpenDocument)}
+        {renderMarkdownChildren(children, optionsRef.current.onOpenDocument)}
       </th>
     );
   };
@@ -458,7 +470,7 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
     return (
       <td {...props} style={textAlign ? { ...style, textAlign } : style}>
-        {renderMarkdownChildren(children, options.onOpenDocument)}
+        {renderMarkdownChildren(children, optionsRef.current.onOpenDocument)}
       </td>
     );
   };
@@ -709,42 +721,77 @@ export function MarkdownView({
   const streamdownTextForRender = shouldShowStreamingCaret
     ? streamdownText.replace(/(?:\r?\n)+$/u, '')
     : streamdownText;
+  // History can use Streamdown's cheaper static path. Once this mounted
+  // message has rendered live tokens, however, it must retain the keyed block
+  // tree through completion or custom code fences (and their iframes) unmount.
+  const usedStreamingRendererRef = useRef(streamMode);
+  if (streamMode) {
+    usedStreamingRendererRef.current = true;
+  }
+  const streamdownMode = usedStreamingRendererRef.current ? 'streaming' : 'static';
+  const fenceOrdinalMapRef = useRef(new Map<string, number>());
+  const nextFenceOrdinalRef = useRef(0);
+  const fenceOwnerKey = stableArtifactOrigin?.messageId ?? 'local';
+  const fenceOwnerKeyRef = useRef(fenceOwnerKey);
+  if (fenceOwnerKeyRef.current !== fenceOwnerKey) {
+    fenceOwnerKeyRef.current = fenceOwnerKey;
+    fenceOrdinalMapRef.current.clear();
+    nextFenceOrdinalRef.current = 0;
+  }
+  const allocateFenceOrdinal = useCallback((identity: string): number => {
+    const existing = fenceOrdinalMapRef.current.get(identity);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const ordinal = nextFenceOrdinalRef.current;
+    nextFenceOrdinalRef.current += 1;
+    fenceOrdinalMapRef.current.set(identity, ordinal);
+    return ordinal;
+  }, []);
+  const streamdownRendererOptionsRef = useRef<StreamdownRendererOptions>({
+    phase,
+    htmlUiModeEnabled: streamdownHtmlUiMode,
+    artifactTheme: stableArtifactTheme,
+    initPriorityBase,
+    artifactThemeKey,
+    onArtifactAction,
+    artifactOrigin: stableArtifactOrigin,
+    onOpenArtifactCanvas,
+    artifactPreviewEnabled,
+    artifactCodeFirst,
+    artifactMaxBytes,
+    allocateFenceOrdinal,
+    onOpenDocument,
+  });
+  streamdownRendererOptionsRef.current = {
+    phase,
+    htmlUiModeEnabled: streamdownHtmlUiMode,
+    artifactTheme: stableArtifactTheme,
+    initPriorityBase,
+    artifactThemeKey,
+    onArtifactAction,
+    artifactOrigin: stableArtifactOrigin,
+    onOpenArtifactCanvas,
+    artifactPreviewEnabled,
+    artifactCodeFirst,
+    artifactMaxBytes,
+    allocateFenceOrdinal,
+    onOpenDocument,
+  };
+  // Renderer component function identity must survive token and phase changes.
+  // Current options are read from the ref when Streamdown invokes a renderer.
   const streamdownComponents = useMemo<Components>(
-    () =>
-      createStreamdownComponents({
-        phase,
-        htmlUiModeEnabled: streamdownHtmlUiMode,
-        artifactTheme: stableArtifactTheme,
-        initPriorityBase,
-        artifactThemeKey,
-        onArtifactAction,
-        artifactOrigin: stableArtifactOrigin,
-        onOpenArtifactCanvas,
-        artifactPreviewEnabled,
-        artifactCodeFirst,
-        artifactMaxBytes,
-        onOpenDocument,
-      }),
-    [
-      phase,
-      streamdownHtmlUiMode,
-      stableArtifactTheme,
-      initPriorityBase,
-      artifactThemeKey,
-      onArtifactAction,
-      stableArtifactOrigin,
-      onOpenArtifactCanvas,
-      artifactPreviewEnabled,
-      artifactCodeFirst,
-      artifactMaxBytes,
-      onOpenDocument,
-    ],
+    () => createStreamdownComponents(streamdownRendererOptionsRef),
+    [],
   );
 
   return (
     <Streamdown
       className="markdown"
-      mode={streamMode ? 'streaming' : 'static'}
+      // Streamdown renders `static` and `streaming` through different React
+      // trees. A live message keeps its keyed block tree through completion;
+      // completion only turns off repair, animation state and the caret.
+      mode={streamdownMode}
       parseIncompleteMarkdown={streamMode}
       isAnimating={streamMode}
       animated={false}
@@ -782,6 +829,19 @@ function CodeFenceView(props: {
 }): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
+  // Freeze fence identity on first mount — owi: `${rootId}-artifact-${ordinal}`.
+  // Never encode source body into the id (token growth would remount the iframe).
+  const stickyFenceIdRef = useRef<string | null>(null);
+  if (stickyFenceIdRef.current === null) {
+    const origin = props.artifactOrigin?.messageId ?? 'local';
+    stickyFenceIdRef.current = `${origin}-artifact-${props.fenceIndex}`;
+  }
+  const stickyFenceId = stickyFenceIdRef.current;
+  // Keep the last successful stream-preview decision so a brief preparing glitch
+  // does not unmount ArtifactFrame (that unmount is a guaranteed white flash).
+  const lastStreamRenderRef = useRef<Extract<ArtifactPreviewDecision, { kind: 'render' }> | null>(
+    null,
+  );
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
     props.renderingPhase === 'explicit-artifact-review' || !artifactCodeFirst,
   );
@@ -807,10 +867,14 @@ function CodeFenceView(props: {
     return <MathView tex={props.source} display />;
   }
 
+  // Live stream-preview (required product path): owi keeps one ArtifactBlock +
+  // stable id and throttles body updates. piwin freezes srcdoc and pushes body
+  // via postMessage — quieter than owi's srcdoc rewrite — as long as the frame
+  // never remounts.
   const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
     language: props.fenceInfo,
     source: props.source,
-    id: `fence-${props.fenceIndex}`,
+    id: stickyFenceId,
     htmlUiModeEnabled: props.htmlUiModeEnabled,
     mode: streamMode ? 'stream-preview' : 'interactive',
   };
@@ -823,28 +887,50 @@ function CodeFenceView(props: {
 
   const decision: ArtifactPreviewDecision = evaluateCodeFence(evaluateOptions);
   const isFlashcard = isFlashcardArtifactSource(props.source);
-  const isCanvasArtifact =
-    decision.kind !== 'code' && decision.descriptor.surface === 'canvas';
+  const isCanvasArtifact = decision.kind !== 'code' && decision.descriptor.surface === 'canvas';
   const decisionLanguage = decision.kind === 'code' ? decision.language : undefined;
   const isShell = isShellLanguage(props.language || decisionLanguage);
 
+  if (streamMode && decision.kind === 'render') {
+    lastStreamRenderRef.current = decision;
+  }
+  if (!streamMode) {
+    lastStreamRenderRef.current = null;
+  }
+
   if (streamMode) {
+    // Hold last successful render so preparing glitches never unmount the iframe.
+    const frameDecision =
+      decision.kind === 'render'
+        ? decision
+        : lastStreamRenderRef.current && decision.kind !== 'blocked'
+          ? lastStreamRenderRef.current
+          : null;
+
     if (
       props.artifactPreviewEnabled &&
       artifactPreviewOpen &&
       !artifactCodeFirst &&
       !isCanvasArtifact &&
-      (decision.kind === 'render' || decision.kind === 'preparing' || decision.kind === 'blocked')
+      frameDecision
     ) {
       return (
-        <div className="artifact-with-source artifact-with-source--full-bleed">
+        <div
+          className="artifact-with-source artifact-with-source--full-bleed"
+          data-artifact-id={stickyFenceId}
+          data-testid="artifact-stream-live"
+        >
           <ArtifactFrame
-            key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}:${decision.kind === 'render' ? decision.mode : decision.kind}`}
-            decision={decision}
+            // Same key in stream and completed branches; theme changes remain a
+            // deliberate document boundary, token growth and `done` do not.
+            key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
+            decision={frameDecision}
             initPriority={props.initPriority}
             extraHeaderAction={
               <Button
+                variant="ghost"
                 size="compact"
+                className="artifact-frame-text-action"
                 data-testid="artifact-preview-toggle"
                 aria-expanded
                 onClick={showArtifactSource}
@@ -854,6 +940,26 @@ function CodeFenceView(props: {
             }
             {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
           />
+        </div>
+      );
+    }
+
+    // Before first streamable snapshot: fixed preparing shell (no iframe yet).
+    if (
+      props.artifactPreviewEnabled &&
+      artifactPreviewOpen &&
+      !artifactCodeFirst &&
+      !isCanvasArtifact &&
+      decision.kind === 'preparing'
+    ) {
+      return (
+        <div
+          className="artifact-frame preparing"
+          data-testid="artifact-frame"
+          data-tool-status="running"
+          data-artifact-id={stickyFenceId}
+        >
+          <p className="muted">{decision.message}</p>
         </div>
       );
     }
@@ -1023,12 +1129,14 @@ function CodeFenceView(props: {
       >
         {artifactPreviewOpen ? (
           <ArtifactFrame
-            key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
+            key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
             decision={decision}
             initPriority={props.initPriority}
             extraHeaderAction={
               <Button
+                variant="ghost"
                 size="compact"
+                className="artifact-frame-text-action"
                 data-testid="artifact-preview-toggle"
                 aria-expanded
                 onClick={showArtifactSource}
@@ -1169,7 +1277,9 @@ function FlashcardPreviewCard(props: {
           initPriority={props.initPriority}
           extraHeaderAction={
             <Button
+              variant="ghost"
               size="compact"
+              className="artifact-frame-text-action"
               data-testid="flashcard-preview-card"
               aria-expanded
               onClick={() => {

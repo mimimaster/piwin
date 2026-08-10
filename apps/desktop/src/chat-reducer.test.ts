@@ -585,6 +585,77 @@ describe('chatUiReducer', () => {
     expect(state.messages[0]?.attachments).toHaveLength(1);
   });
 
+  it('preserves image_gen prompt summary when tool/end brings paths JSON', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/start',
+        messageId: 'assistant-1',
+        role: 'assistant',
+        runId: 'run-1',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/start',
+        toolCallId: 'tool-image',
+        toolName: 'image_gen',
+        runId: 'run-1',
+        presentation: {
+          kind: 'other',
+          title: 'image_gen',
+          actionVerb: 'Generated image',
+          summary: 'Makima tying hair in a bathroom, business attire',
+          inputPreview: '{"prompt":"Makima tying hair in a bathroom, business attire"}',
+        },
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/end',
+        toolCallId: 'tool-image',
+        isError: false,
+        runId: 'run-1',
+        presentation: {
+          kind: 'other',
+          title: 'image_gen',
+          actionVerb: 'Generated image',
+          summary:
+            '{ "paths": [ "/Users/me/.piwin/media/session-1/f8d3cd99-537f-42cc-bc5c-b…',
+          output: {
+            text: '{\n  "paths": ["/Users/me/.piwin/media/session-1/a.png"]\n}',
+          },
+        },
+        attachments: [
+          {
+            id: 'asset-1',
+            kind: 'media',
+            path: '/Users/me/.piwin/media/session-1/a.png',
+            mimeType: 'image/png',
+            byteSize: 128,
+            source: 'generated',
+          },
+        ],
+      },
+    });
+
+    const tool = state.messages[0]?.tools[0];
+    expect(tool?.presentation?.summary).toBe(
+      'Makima tying hair in a bathroom, business attire',
+    );
+    expect(tool?.presentation?.inputPreview).toContain('prompt');
+    expect(tool?.presentation?.output?.text).toContain('paths');
+    expect(state.messages[0]?.attachments).toHaveLength(1);
+  });
+
   it('does not attach a tool event to another run when ownership is unknown', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

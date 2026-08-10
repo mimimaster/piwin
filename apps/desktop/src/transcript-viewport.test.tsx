@@ -115,6 +115,46 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
   });
 
+  it('keeps follow-tail when a programmatic stick fires mid-growth', async () => {
+    await renderSession('artifact-session', { activitySignal: 'ah0', scrollHeight: 1_000 });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) {
+      throw new Error('Expected the artifact transcript scroll element');
+    }
+    expect(scrollElement.scrollTop).toBe(1_000);
+
+    // Artifact iframe grew; stick wrote scrollTop against the old height, then
+    // content grew again before the next frame. The intermediate scroll event
+    // must not abandon follow-tail.
+    await act(async () => {
+      Object.defineProperty(scrollElement, 'scrollHeight', {
+        configurable: true,
+        value: 1_600,
+      });
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    expect(scrollElement.scrollTop).toBe(1_600);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+
+    await act(async () => {
+      Object.defineProperty(scrollElement, 'scrollHeight', {
+        configurable: true,
+        value: 2_200,
+      });
+      // Spurious scroll while still following — e.g. browser reflow.
+      scrollElement.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    // Activity signal still drives a stick; follow-tail must remain on so the
+    // next growth recovers rather than showing historical turns.
+    await renderSession('artifact-session', { activitySignal: 'ah1', scrollHeight: 2_200 });
+    expect(scrollElement.scrollTop).toBe(2_200);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
+  });
+
   it('loads an older page and preserves the visible scroll anchor', async () => {
     const onLoadOlder = vi.fn(async () => {
       const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');

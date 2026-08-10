@@ -198,6 +198,8 @@ export type ArtifactPreviewDecision =
       security: ArtifactSecurityResult;
       srcdoc: string;
       csp: string;
+      /** Repaired body used for direct render or the final in-place stream commit. */
+      renderSource: string;
       /** Sanitized/repaired body snapshot used only for in-place stream updates. */
       streamSource?: string;
       themeRepairs: ArtifactThemeContractRepair[];

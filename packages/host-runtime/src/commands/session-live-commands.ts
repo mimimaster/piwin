@@ -25,6 +25,10 @@ import type {
   SessionIndexRecord,
   SessionResumeData,
   SessionRunAcceptedData,
+  SessionPauseAcceptedData,
+  SessionPauseCheckpoint,
+  SessionPauseCheckpointInput,
+  SessionResumeRunAcceptedData,
   SessionTranscriptPageData,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
@@ -42,6 +46,7 @@ import {
 } from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
 import {
+  createPauseRequestedAbortReason,
   createSupersededByNewPromptAbortReason,
   createUserStopAbortReason,
   formatRunAbortReason,
@@ -194,9 +199,14 @@ export type SessionLiveContext = {
   /** Sync media-root validation before accepting a run. */
   validatePromptAttachments: (input: PromptInput) => void;
   runWithContext: (runId: string, operation: () => Promise<void>) => void;
+  /** Flush queued transcript rows before a checkpoint is made durable. */
+  flushTranscriptRecorder?: (sessionId: string) => Promise<void>;
   /** RunRegistry-backed foreground lifecycle. */
   getForegroundRun: (sessionId: string) => ExecutionRunRecord | undefined;
-  registerForegroundRun: (sessionId: string) => ExecutionRunRecord;
+  registerForegroundRun: (
+    sessionId: string,
+    resumeCheckpointId?: string,
+  ) => ExecutionRunRecord;
   getRunSignal: (runId: string) => AbortSignal | undefined;
   hasRunReceivedFirstToken: (runId: string) => boolean;
   requestCancelRun: (
@@ -204,6 +214,25 @@ export type SessionLiveContext = {
     runId?: string,
     reason?: RunAbortReason,
   ) => ExecutionRunRecord | undefined;
+  requestPauseRun: (
+    sessionId: string,
+    runId?: string,
+    reason?: RunAbortReason,
+  ) => ExecutionRunRecord | undefined;
+  isPauseRequested: (runId: string) => boolean;
+  hasActiveDescendants: (runId: string) => boolean;
+  attachResumeCheckpoint: (runId: string, checkpointId: string) => void;
+  getActivePauseCheckpoint: (sessionId: string) => Promise<SessionPauseCheckpoint | undefined>;
+  getPauseCheckpoint: (
+    sessionId: string,
+    checkpointId: string,
+  ) => Promise<SessionPauseCheckpoint | undefined>;
+  createPauseCheckpoint: (
+    sessionId: string,
+    input: SessionPauseCheckpointInput,
+  ) => Promise<SessionPauseCheckpoint>;
+  consumePauseCheckpoint: (sessionId: string, checkpointId: string) => Promise<boolean>;
+  clearPauseCheckpoint: (sessionId: string, checkpointId?: string) => Promise<boolean>;
   updateRunPhase: (
     runId: string,
     phase: import('@piwin/contracts').SessionRunPhase,
@@ -212,7 +241,7 @@ export type SessionLiveContext = {
   terminateRun: (
     sessionId: string,
     runId: string,
-    outcome: 'completed' | 'cancelled' | 'failed',
+    outcome: 'completed' | 'cancelled' | 'failed' | 'paused',
     code?: RunTerminalCode,
     message?: string,
   ) => boolean | Promise<boolean>;
@@ -252,6 +281,8 @@ const TYPES = new Set<HostCommand['type']>([
   'session/transcript-page',
   'session/messages',
   'session/prompt',
+  'session/pause',
+  'session/resume-run',
   'session/abort',
   'session/steer',
   'session/follow_up',
@@ -441,6 +472,9 @@ function resolveSessionOutputPath(
 
 type PromptCommand = Extract<HostCommand, { type: 'session/prompt' }>;
 
+const RESUME_CONTINUATION_PROMPT =
+  'Continue the interrupted task from the current transcript and tool state. First inspect what has already been completed and any partial output; do not repeat successful side effects. Then continue only the unfinished work and report what remains.';
+
 class PromptPreparationCancelledError extends Error {
   constructor() {
     super('prompt preparation cancelled');
@@ -461,16 +495,19 @@ async function preparePromptInput(
 ): Promise<PromptInput> {
   throwIfPromptPreparationAborted(context, run.runId);
 
-  // Persist original user text + attachments before path-injection rewrite.
-  try {
-    await context.recordUserPrompt(command.sessionId, command.input);
-  } catch (error) {
-    const message = formatError(error);
-    context.push({
-      type: 'host/log',
-      level: 'warn',
-      message: `transcript user write failed: ${message}`,
-    });
+  // Persist ordinary user text + attachments before path-injection rewrite.
+  // A resume continuation is Host-authored and must not create a fake user row.
+  if (command.input.source !== 'resume') {
+    try {
+      await context.recordUserPrompt(command.sessionId, command.input);
+    } catch (error) {
+      const message = formatError(error);
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `transcript user write failed: ${message}`,
+      });
+    }
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
@@ -1029,6 +1066,10 @@ export async function handleSessionLiveCommand(
         // ADR 0040 §9: bounded recent window, never the complete outline.
         outline: (await store.outlinePage({ sessionId: command.sessionId, limit: 40 })).nodes,
       };
+      const pauseCheckpoint = await store.getActivePauseCheckpoint();
+      if (pauseCheckpoint !== undefined) {
+        data.pauseCheckpoint = pauseCheckpoint;
+      }
       const resumeScope = scopeFromIndexRecord(existing);
       data.scope = resumeScope;
       const resumeWorkingDirectory = workingDirectoryFromIndexRecord(existing);
@@ -1109,6 +1150,10 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/runtime-status', `Unknown session: ${command.sessionId}`);
       }
       const status = context.runtimeController.getStatus(command.sessionId);
+      const pauseCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
+      if (pauseCheckpoint !== undefined) {
+        status.pauseCheckpoint = pauseCheckpoint;
+      }
       return ok(requestId, 'session/runtime-status', { status });
     }
     case 'session/reload-runtime': {
@@ -1146,7 +1191,139 @@ export async function handleSessionLiveCommand(
         messages: page.messages,
       });
     }
+    case 'session/pause': {
+      const activeCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
+      const active = context.getForegroundRun(command.sessionId);
+      if (!active) {
+        if (activeCheckpoint !== undefined) {
+          const data: SessionPauseAcceptedData = {
+            sessionId: command.sessionId,
+            state: 'paused',
+            checkpointId: activeCheckpoint.checkpointId,
+          };
+          return ok(requestId, 'session/pause', data);
+        }
+        context.settlePendingExtensionUiForSession(command.sessionId);
+        const data: SessionPauseAcceptedData = {
+          sessionId: command.sessionId,
+          state: 'paused',
+          reason: 'no-active-run',
+        };
+        return ok(requestId, 'session/pause', data);
+      }
+      if (command.runId !== undefined && command.runId !== active.runId) {
+        const data: SessionPauseAcceptedData = {
+          sessionId: command.sessionId,
+          runId: active.runId,
+          state: 'pausing',
+          reason: 'run-mismatch',
+        };
+        return ok(requestId, 'session/pause', data);
+      }
+      if (context.isPauseRequested(active.runId)) {
+        const data: SessionPauseAcceptedData = {
+          sessionId: command.sessionId,
+          runId: active.runId,
+          state: 'pausing',
+        };
+        return ok(requestId, 'session/pause', data);
+      }
+      if (context.hasActiveDescendants(active.runId)) {
+        return fail(
+          requestId,
+          'session/pause',
+          'pause-unsupported-active-descendants: foreground run owns active child runs',
+        );
+      }
+      const pauseReason = createPauseRequestedAbortReason();
+      context.updateRunPhase(active.runId, 'pausing', 'Saving a resumable checkpoint');
+      const requested = context.requestPauseRun(command.sessionId, active.runId, pauseReason);
+      if (!requested) {
+        return ok(requestId, 'session/pause', {
+          sessionId: command.sessionId,
+          state: 'paused',
+          reason: 'no-active-run',
+        } satisfies SessionPauseAcceptedData);
+      }
+      context.settlePendingPermissionsForSession(command.sessionId);
+      context.settlePendingExtensionUiForSession(command.sessionId);
+      schedulePauseCleanup(context, command.sessionId, active.runId);
+      return ok(requestId, 'session/pause', {
+        sessionId: command.sessionId,
+        runId: active.runId,
+        state: 'pausing',
+      } satisfies SessionPauseAcceptedData);
+    }
+    case 'session/resume-run': {
+      const active = context.getForegroundRun(command.sessionId);
+      if (active) {
+        return fail(
+          requestId,
+          'session/resume-run',
+          `run-active: session ${command.sessionId} already has foreground run ${active.runId}`,
+        );
+      }
+      const checkpoint =
+        command.checkpointId === undefined
+          ? await context.getActivePauseCheckpoint(command.sessionId)
+          : await context.getPauseCheckpoint(command.sessionId, command.checkpointId);
+      if (checkpoint === undefined || checkpoint.status !== 'active') {
+        return fail(
+          requestId,
+          'session/resume-run',
+          `no-active-checkpoint: session ${command.sessionId} has no resumable checkpoint`,
+        );
+      }
+      const resumePrompt: HostCommand = {
+        ...(command.id !== undefined ? { id: command.id } : {}),
+        type: 'session/prompt',
+        sessionId: command.sessionId,
+        input: {
+          text: RESUME_CONTINUATION_PROMPT,
+          source: 'resume',
+          resumeCheckpointId: checkpoint.checkpointId,
+        },
+      };
+      const response = await handleSessionLiveCommand(resumePrompt, requestId, context);
+      if (response === null) {
+        return fail(requestId, 'session/resume-run', 'resume prompt was not accepted');
+      }
+      if (!response.success) {
+        return fail(requestId, 'session/resume-run', response.error);
+      }
+      const accepted = response.data as SessionRunAcceptedData | undefined;
+      if (accepted === undefined || typeof accepted.runId !== 'string') {
+        return fail(requestId, 'session/resume-run', 'resume prompt acknowledgement was invalid');
+      }
+      const data: SessionResumeRunAcceptedData = {
+        sessionId: command.sessionId,
+        runId: accepted.runId,
+        checkpointId: checkpoint.checkpointId,
+        acceptedAt: accepted.acceptedAt,
+      };
+      return ok(requestId, 'session/resume-run', data);
+    }
     case 'session/prompt': {
+      const activeCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
+      if (command.input.source !== 'resume' && activeCheckpoint !== undefined) {
+        return fail(
+          requestId,
+          'session/prompt',
+          `paused-run: session ${command.sessionId} has resumable checkpoint ${activeCheckpoint.checkpointId}`,
+        );
+      }
+      if (command.input.source === 'resume') {
+        if (
+          command.input.resumeCheckpointId === undefined ||
+          activeCheckpoint?.checkpointId !== command.input.resumeCheckpointId
+        ) {
+          return fail(
+            requestId,
+            'session/prompt',
+            'resume-checkpoint-mismatch: continuation does not own the active checkpoint',
+          );
+        }
+      }
       // Product: a newer user message supersedes an in-flight run (Stop is
       // optional). Still one *registered* foreground run after this block.
       const existingRun = context.getForegroundRun(command.sessionId);
@@ -1224,7 +1401,10 @@ export async function handleSessionLiveCommand(
       }
       let run: ExecutionRunRecord;
       try {
-        run = context.registerForegroundRun(command.sessionId);
+        run = context.registerForegroundRun(
+          command.sessionId,
+          command.input.source === 'resume' ? command.input.resumeCheckpointId : undefined,
+        );
       } catch (error) {
         const message = formatError(error);
         return fail(requestId, 'session/prompt', message);
@@ -1241,7 +1421,7 @@ export async function handleSessionLiveCommand(
         try {
           const promptInput = await preparePromptInput(context, command, run);
           if (context.getRunSignal(run.runId)?.aborted) {
-            await finalizeCancelledRun(context, command.sessionId, run.runId);
+            await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
           }
 
@@ -1254,7 +1434,7 @@ export async function handleSessionLiveCommand(
             context.getRunSignal(run.runId),
           );
           if (context.getRunSignal(run.runId)?.aborted) {
-            await finalizeCancelledRun(context, command.sessionId, run.runId);
+            await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
           }
 
@@ -1263,13 +1443,13 @@ export async function handleSessionLiveCommand(
           // turns reuse the backend's own conversation state.
           await injectProductHistoryOnce(context, command.sessionId, promptInput);
           if (context.getRunSignal(run.runId)?.aborted) {
-            await finalizeCancelledRun(context, command.sessionId, run.runId);
+            await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
           }
 
           await liveSession.prompt(promptInput);
           if (context.getRunSignal(run.runId)?.aborted) {
-            await finalizeCancelledRun(context, command.sessionId, run.runId);
+            await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
           }
 
@@ -1304,20 +1484,22 @@ export async function handleSessionLiveCommand(
           // Touch the index BEFORE the terminal event so the auto-name trigger
           // (fired from terminateRun) sees messageCount for the run that just
           // completed. Otherwise naming is delayed until the next exchange.
-          try {
-            await context.touchSession(command.sessionId, command.input.text);
-          } catch (error) {
-            const message = formatError(error);
-            context.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `session index touch failed: ${message}`,
-            });
+          if (command.input.source !== 'resume') {
+            try {
+              await context.touchSession(command.sessionId, command.input.text);
+            } catch (error) {
+              const message = formatError(error);
+              context.push({
+                type: 'host/log',
+                level: 'warn',
+                message: `session index touch failed: ${message}`,
+              });
+            }
           }
           await context.terminateRun(command.sessionId, run.runId, 'completed');
         } catch (error) {
           if (context.getRunSignal(run.runId)?.aborted) {
-            await finalizeCancelledRun(context, command.sessionId, run.runId);
+            await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
           }
           const message = formatError(error);
@@ -1353,8 +1535,17 @@ export async function handleSessionLiveCommand(
         // already disappeared, even though there is no active run left to
         // cancel.
         context.settlePendingExtensionUiForSession(command.sessionId);
-        // Idempotent: no active run to cancel. Cleanup is best-effort and
-        // deliberately detached so a stale control request stays quick.
+        // Idempotent: no active run to cancel. Clear the durable checkpoint
+        // before acknowledging so a subsequent prompt cannot race the Stop.
+        try {
+          await context.clearPauseCheckpoint(command.sessionId);
+        } catch (error) {
+          context.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `pause checkpoint clear failed: ${formatError(error)}`,
+          });
+        }
         scheduleAbortCleanup(context, command.sessionId);
         return ok(requestId, 'session/abort', {
           sessionId: command.sessionId,
@@ -1409,6 +1600,9 @@ export async function handleSessionLiveCommand(
           `no-active-run: session ${command.sessionId} has no foreground run`,
         );
       }
+      if (context.isPauseRequested(active.runId) || active.phase === 'pausing') {
+        return fail(requestId, 'session/steer', 'run-pausing: steer is unavailable while pausing');
+      }
       if (command.runId !== undefined && command.runId !== active.runId) {
         return fail(
           requestId,
@@ -1433,6 +1627,13 @@ export async function handleSessionLiveCommand(
           requestId,
           'session/follow_up',
           `no-active-run: session ${command.sessionId} has no foreground run`,
+        );
+      }
+      if (context.isPauseRequested(active.runId) || active.phase === 'pausing') {
+        return fail(
+          requestId,
+          'session/follow_up',
+          'run-pausing: follow-up is unavailable while pausing',
         );
       }
       // Follow-up starts work through the live session, so it must carry
@@ -1635,6 +1836,29 @@ function scheduleAbortCleanup(
   });
 }
 
+function schedulePauseCleanup(context: SessionLiveContext, sessionId: string, runId: string): void {
+  void finalizePausedRun(context, sessionId, runId).catch((error: unknown) => {
+    const message = formatError(error);
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `session pause cleanup failed: ${message}`,
+    });
+  });
+}
+
+async function finalizeAbortedRun(
+  context: SessionLiveContext,
+  sessionId: string,
+  runId: string,
+): Promise<void> {
+  if (context.isPauseRequested(runId)) {
+    await finalizePausedRun(context, sessionId, runId);
+    return;
+  }
+  await finalizeCancelledRun(context, sessionId, runId);
+}
+
 /**
  * Join the actual session operation and host-owned cleanup before publishing
  * the cancellation terminal. The run ID guard prevents a stale abort from
@@ -1667,6 +1891,91 @@ async function finalizeCancelledRun(
     return;
   }
   await context.terminateRun(sessionId, runId, 'cancelled', 'cancelled', message);
+}
+
+/** Persist the partial transcript before publishing the paused terminal. */
+async function finalizePausedRun(
+  context: SessionLiveContext,
+  sessionId: string,
+  runId: string,
+): Promise<void> {
+  if (context.getForegroundRun(sessionId)?.runId !== runId) {
+    return;
+  }
+  if (!context.isPauseRequested(runId)) {
+    await finalizeCancelledRun(context, sessionId, runId);
+    return;
+  }
+  const cleanupResults = await Promise.allSettled([
+    abortLiveSession(context, sessionId),
+    context.stopProcessesForSession(sessionId),
+  ]);
+  for (const cleanupResult of cleanupResults) {
+    if (cleanupResult.status === 'rejected') {
+      const detail = formatError(cleanupResult.reason);
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session pause cleanup failed: ${detail}`,
+      });
+    }
+  }
+  if (context.getForegroundRun(sessionId)?.runId !== runId) {
+    return;
+  }
+  try {
+    if (context.flushTranscriptRecorder) {
+      await context.flushTranscriptRecorder(sessionId);
+    }
+    const run = context.getForegroundRun(sessionId);
+    if (run === undefined || run.runId !== runId || !context.isPauseRequested(runId)) {
+      return;
+    }
+    const checkpoint = await context.withTranscriptStore(sessionId, async (store) => {
+      const sourceUserMessage = await store.lastMessageByRole('user');
+      const lastAssistantMessage = await store.lastMessageByRole('assistant');
+      return store.createPauseCheckpoint({
+        sessionId,
+        sourceRunId: runId,
+        ...(run.resumeCheckpointId !== undefined
+          ? { checkpointId: run.resumeCheckpointId }
+          : {}),
+        ...(run.runtimeGenerationId !== undefined
+          ? { runtimeGenerationId: run.runtimeGenerationId }
+          : {}),
+        createdAt: new Date().toISOString(),
+        ...(sourceUserMessage?.id !== undefined
+          ? { sourceUserMessageId: sourceUserMessage.id }
+          : {}),
+        ...(lastAssistantMessage?.id !== undefined
+          ? { lastAssistantMessageId: lastAssistantMessage.id }
+          : {}),
+        transcriptRevision: await store.getRevision(),
+      });
+    });
+    context.attachResumeCheckpoint(runId, checkpoint.checkpointId);
+    await context.terminateRun(
+      sessionId,
+      runId,
+      'paused',
+      'paused',
+      'Run paused; a resumable checkpoint was saved.',
+    );
+  } catch (error) {
+    const message = formatError(error);
+    context.push({
+      type: 'host/log',
+      level: 'error',
+      message: `pause checkpoint creation failed: ${message}`,
+    });
+    await context.terminateRun(
+      sessionId,
+      runId,
+      'failed',
+      'failed',
+      `Pause could not be saved: ${message}`,
+    );
+  }
 }
 
 async function abortLiveSession(context: SessionLiveContext, sessionId: string): Promise<void> {

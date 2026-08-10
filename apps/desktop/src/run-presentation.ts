@@ -1,11 +1,6 @@
 /** Pure projection of one assistant turn into a coding-agent work record. */
 import type { SessionRunOutcome, SessionRunPhase } from '@piwin/contracts';
-import type {
-  ChatMessageUi,
-  PermissionPromptUi,
-  RunRecordUi,
-  ToolCardUi,
-} from './chat-reducer';
+import type { ChatMessageUi, PermissionPromptUi, RunRecordUi, ToolCardUi } from './chat-reducer';
 
 export type RunPhaseView = {
   phase: SessionRunPhase;
@@ -28,7 +23,7 @@ export type TurnPresentation = {
   workItems: WorkItemView[];
   hasFailure: boolean;
   isActive: boolean;
-  /** True when assistant answer text has started (process should collapse in auto). */
+  /** True when assistant answer text has started (the default keeps work collapsed). */
   answerStarted: boolean;
   /** Waiting for first model output (no thinking/tools yet). */
   isWaitingForModel: boolean;
@@ -160,11 +155,10 @@ export function resolveWorkDetailsDefaultOpen(
 ): boolean {
   if (preference === 'always') return true;
   if (preference === 'collapsed') return false;
-  // Quiet workbench auto: expand while thinking streams; collapse once thinking finishes (answer starts, tools run, or turn completes).
+  // Keep the default transcript compact while preserving an explicit "always"
+  // preference and useful failure details. The summary row supplies the live
+  // thinking signal while the full reasoning remains user-expandable.
   if (presentation.hasFailure) return true;
-  if (presentation.isActive && !presentation.answerStarted && presentation.toolCallCount === 0) {
-    return true;
-  }
   return false;
 }
 

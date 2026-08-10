@@ -103,11 +103,9 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  /* Conversation stage: deepest (dark) / white (light) surface. */
-  /* Glass stage so wallpaper / shell field can read through the conversation. */
-  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* Conversation stage: solid canvas. Glass/transparent mix flashed white
+     during high-frequency stream reflow (SVG artifact height growth). */
+  background: var(--canvas, var(--bg));
 }
 
 .chat-column {
@@ -118,7 +116,7 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  background: var(--canvas, var(--bg));
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
   transition: none;
 }

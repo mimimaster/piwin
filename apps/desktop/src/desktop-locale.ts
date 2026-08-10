@@ -121,6 +121,9 @@ export type DesktopCopy = {
     removeQueuedMessage: string;
     stop: string;
     stopping: string;
+    pause: string;
+    pausing: string;
+    continueRun: string;
     hostConnecting: string;
     hostStatus: (mode: string, isMock: boolean) => string;
     hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
@@ -556,6 +559,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       removeQueuedMessage: '移除后续消息',
       stop: '停止',
       stopping: '正在停止…',
+      pause: '暂停',
+      pausing: '正在暂停…',
+      continueRun: '继续运行',
       hostConnecting: 'Host：正在连接…',
       hostStatus: (mode, isMock) => `Host：${mode}${isMock ? '（模拟）' : ''}`,
       hostTooltip: (mode, isMock, ready, transport) =>
@@ -761,6 +767,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       removeQueuedMessage: 'Remove queued message',
       stop: 'Stop',
       stopping: 'Stopping…',
+      pause: 'Pause',
+      pausing: 'Pausing…',
+      continueRun: 'Continue run',
       hostConnecting: 'Host: Connecting…',
       hostStatus: (mode, isMock) => `Host: ${mode}${isMock ? ' (mock)' : ''}`,
       hostTooltip: (mode, isMock, ready, transport) =>

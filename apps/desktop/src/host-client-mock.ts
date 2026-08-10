@@ -77,6 +77,9 @@ export class MockHostBackend {
   private mockMcpDocument: import('@piwin/contracts').McpConfigDocument = { mcpServers: {} };
   /** In-flight mock prompt cancellation per session. */
   private mockPromptAborts = new Map<string, AbortController>();
+  /** In-memory equivalent of the Host's durable active pause checkpoint. */
+  private mockPauseCheckpointIds = new Map<string, string>();
+  private mockPauseRequested = new Set<string>();
   /** Mock browser session current URL (null = stopped). */
   private mockBrowserUrl: string | null = null;
   /** ADR 0015: the run currently owning each session's foreground turn. */
@@ -115,6 +118,8 @@ export class MockHostBackend {
     this.mockPtys.clear();
     this.mockRememberedPermissions.clear();
     this.mockPromptAborts.clear();
+    this.mockPauseCheckpointIds.clear();
+    this.mockPauseRequested.clear();
     this.mockActiveRunIds.clear();
     this.mockTerminalRunIds.clear();
   }
@@ -230,6 +235,7 @@ export class MockHostBackend {
               sessionSearch: true,
               sessionPin: true,
               sessionLifecycle: true,
+              sessionPause: true,
               sessionExport: true,
               usage: true,
               pty: false,
@@ -778,10 +784,29 @@ export class MockHostBackend {
             error: `run-active: session ${command.sessionId} already has foreground run`,
           };
         }
+        if (
+          command.input.source === 'resume' &&
+          command.input.resumeCheckpointId !== this.mockPauseCheckpointIds.get(command.sessionId)
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/prompt',
+            success: false,
+            error: 'resume-checkpoint-mismatch',
+          };
+        }
         const now = new Date().toISOString();
         const runId = crypto.randomUUID();
         this.mockActiveRunIds.set(command.sessionId, runId);
-        this.pushMockRunUpdated(command.sessionId, runId, 'running', 'accepted', now);
+        this.pushMockRunUpdated(
+          command.sessionId,
+          runId,
+          'running',
+          'accepted',
+          now,
+          command.input.resumeCheckpointId,
+        );
         this.pushMockRunUpdated(command.sessionId, runId, 'running', 'preparing');
         const clientMessageId = command.input.clientMessageId?.trim();
         const userMessage: SessionTranscriptMessage = {
@@ -799,7 +824,9 @@ export class MockHostBackend {
             userMessage.attachments = mediaAttachments;
           }
         }
-        session.transcript.push(userMessage);
+        if (command.input.source !== 'resume') {
+          session.transcript.push(userMessage);
+        }
         // Immediate text name (matches host recordUserPrompt naming pipeline).
         this.maybeMockAutoName(command.sessionId);
         const attachmentNote =
@@ -827,9 +854,109 @@ export class MockHostBackend {
           },
         };
       }
+      case 'session/pause': {
+        const activeRunId = this.mockActiveRunIds.get(command.sessionId);
+        const existingCheckpoint = this.mockPauseCheckpointIds.get(command.sessionId);
+        if (!activeRunId) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/pause',
+            success: true,
+            data: {
+              sessionId: command.sessionId,
+              state: existingCheckpoint ? 'paused' : 'paused',
+              ...(existingCheckpoint ? { checkpointId: existingCheckpoint } : {}),
+              ...(!existingCheckpoint ? { reason: 'no-active-run' } : {}),
+            },
+          };
+        }
+        if (command.runId !== undefined && command.runId !== activeRunId) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/pause',
+            success: true,
+            data: {
+              sessionId: command.sessionId,
+              runId: activeRunId,
+              state: 'pausing',
+              reason: 'run-mismatch',
+            },
+          };
+        }
+        const checkpointId = existingCheckpoint ?? crypto.randomUUID();
+        this.mockPauseCheckpointIds.set(command.sessionId, checkpointId);
+        this.mockPauseRequested.add(command.sessionId);
+        this.pushMockRunUpdated(command.sessionId, activeRunId, 'cancelling', 'pausing');
+        this.mockPromptAborts.get(command.sessionId)?.abort({ code: 'pause-requested' });
+        return {
+          id,
+          type: 'response',
+          command: 'session/pause',
+          success: true,
+          data: { sessionId: command.sessionId, runId: activeRunId, state: 'pausing' },
+        };
+      }
+      case 'session/resume-run': {
+        const activeRunId = this.mockActiveRunIds.get(command.sessionId);
+        if (activeRunId) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/resume-run',
+            success: false,
+            error: `run-active: session ${command.sessionId} already has foreground run`,
+          };
+        }
+        const checkpointId = command.checkpointId ?? this.mockPauseCheckpointIds.get(command.sessionId);
+        if (checkpointId === undefined || checkpointId !== this.mockPauseCheckpointIds.get(command.sessionId)) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/resume-run',
+            success: false,
+            error: 'no-active-checkpoint',
+          };
+        }
+        const response = await this.handle(
+          {
+            type: 'session/prompt',
+            sessionId: command.sessionId,
+            input: {
+              text: 'Continue the interrupted task from the current transcript and tool state. Inspect completed work before continuing.',
+              source: 'resume',
+              resumeCheckpointId: checkpointId,
+            },
+          },
+          id,
+        );
+        if (!response.success) {
+          return { ...response, command: 'session/resume-run' };
+        }
+        const data = response.data as { runId?: string; acceptedAt?: string } | undefined;
+        if (typeof data?.runId !== 'string' || typeof data.acceptedAt !== 'string') {
+          return {
+            id,
+            type: 'response',
+            command: 'session/resume-run',
+            success: false,
+            error: 'resume prompt acknowledgement was invalid',
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'session/resume-run',
+          success: true,
+          data: { sessionId: command.sessionId, runId: data.runId, checkpointId, acceptedAt: data.acceptedAt },
+        };
+      }
       case 'session/abort': {
         const activeRunId = this.mockActiveRunIds.get(command.sessionId);
         if (!activeRunId) {
+          this.mockPauseCheckpointIds.delete(command.sessionId);
+          this.mockPauseRequested.delete(command.sessionId);
           return {
             id,
             type: 'response',
@@ -856,6 +983,8 @@ export class MockHostBackend {
             },
           };
         }
+        this.mockPauseRequested.delete(command.sessionId);
+        this.mockPauseCheckpointIds.delete(command.sessionId);
         this.pushMockRunUpdated(command.sessionId, activeRunId, 'cancelling', 'cancelling');
         this.mockPromptAborts.get(command.sessionId)?.abort();
         return {
@@ -3325,7 +3454,14 @@ export class MockHostBackend {
             messageId: assistantId,
             runId,
           });
-          this.emitMockTerminal(sessionId, runId, 'cancelled', 'cancelled');
+          const paused = this.mockPauseRequested.delete(sessionId);
+          this.emitMockTerminal(
+            sessionId,
+            runId,
+            paused ? 'interrupted' : 'cancelled',
+            paused ? 'paused' : 'cancelled',
+            paused ? this.mockPauseCheckpointIds.get(sessionId) : undefined,
+          );
           return;
         }
         assembled += chunk;
@@ -3360,7 +3496,14 @@ export class MockHostBackend {
           messageId: assistantId,
           runId,
         });
-        this.emitMockTerminal(sessionId, runId, 'cancelled', 'cancelled');
+        const paused = this.mockPauseRequested.delete(sessionId);
+        this.emitMockTerminal(
+          sessionId,
+          runId,
+          paused ? 'interrupted' : 'cancelled',
+          paused ? 'paused' : 'cancelled',
+          paused ? this.mockPauseCheckpointIds.get(sessionId) : undefined,
+        );
         return;
       }
 
@@ -3388,8 +3531,9 @@ export class MockHostBackend {
   private emitMockTerminal(
     sessionId: string,
     runId: string,
-    outcome: 'completed' | 'cancelled' | 'failed',
-    code?: 'cancelled',
+    outcome: 'completed' | 'cancelled' | 'failed' | 'interrupted',
+    code?: 'cancelled' | 'paused',
+    resumeCheckpointId?: string,
   ): void {
     if (this.mockTerminalRunIds.has(runId)) {
       return;
@@ -3409,8 +3553,15 @@ export class MockHostBackend {
       status: outcome,
       endedAt: new Date().toISOString(),
       ...(code ? { terminalCode: code } : {}),
+      ...(resumeCheckpointId ? { resumeCheckpointId } : {}),
     };
     this.mockRuns.set(runId, terminalRun);
+    if (
+      outcome === 'completed' ||
+      (outcome === 'cancelled' && (resumeCheckpointId ?? existing?.resumeCheckpointId))
+    ) {
+      this.mockPauseCheckpointIds.delete(sessionId);
+    }
     this.emitPush({ type: 'run/updated', run: terminalRun });
     this.emitPush({ type: 'run/terminal', run: terminalRun });
   }
@@ -3421,6 +3572,7 @@ export class MockHostBackend {
     status: ExecutionRunRecord['status'],
     phase: import('@piwin/contracts').SessionRunPhase,
     at = new Date().toISOString(),
+    resumeCheckpointId?: string,
   ): void {
     const existing = this.mockRuns.get(runId);
     const run: ExecutionRunRecord = {
@@ -3434,6 +3586,7 @@ export class MockHostBackend {
       status,
       phase,
       phaseUpdatedAt: at,
+      ...(resumeCheckpointId ? { resumeCheckpointId } : {}),
       ...(existing?.startedAt ? {} : { startedAt: at }),
     };
     this.mockRuns.set(runId, run);

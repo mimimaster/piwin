@@ -218,11 +218,24 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.summary = clipSummary(presentation.command);
   } else if (presentation.targetPaths && presentation.targetPaths.length > 0) {
     presentation.summary = formatPathsSummary(presentation.targetPaths);
-  } else if (presentation.inputPreview && family !== 'mcp') {
+  } else if (
+    presentation.inputPreview &&
     // MCP args stay in inputPreview for the expanded body; dumping raw JSON into
     // the header summary makes the title look broken (same class of bug as shell).
+    // image/video keep prompt via extractActionDetails; never promote raw args JSON.
+    family !== 'mcp' &&
+    family !== 'image' &&
+    family !== 'video'
+  ) {
     presentation.summary = clipSummary(presentation.inputPreview);
-  } else if (presentation.output?.text) {
+  } else if (
+    presentation.output?.text &&
+    // image_gen / video_gen return JSON path metadata — never use as the head label.
+    // tool/end often rebuilds presentation without args; falling through here was
+    // overwriting the start-time prompt summary after merge.
+    family !== 'image' &&
+    family !== 'video'
+  ) {
     presentation.summary = clipSummary(presentation.output.text.replace(/\s+/g, ' ').trim());
   }
 

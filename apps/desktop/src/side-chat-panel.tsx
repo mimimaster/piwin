@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, RadialBellow } from '@piwin/ui-kit';
 import { formatError } from '@piwin/contracts';
 import type {
   AgentEvent,
@@ -360,7 +360,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
 
       {/* Messages */}
       <div className="side-chat-messages" role="log" aria-live="polite">
-        {messages.length === 0 && !assistantBuffer ? (
+        {messages.length === 0 && !assistantBuffer && !streaming ? (
           <div className="muted side-chat-empty">
             {activeSideChatId
               ? 'Ask a question about the current context. The side chat is read-only — it can search and read files but cannot modify them.'
@@ -382,6 +382,16 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
                 <div className="side-chat-bubble">{assistantBuffer}</div>
               </div>
             )}
+            {streaming && !assistantBuffer ? (
+              <div className="side-chat-activity" data-testid="side-chat-activity" role="status">
+                <RadialBellow
+                  size="sm"
+                  label="Agent is working"
+                  testId="side-chat-activity-animation"
+                />
+                <span>正在连接模型…</span>
+              </div>
+            ) : null}
           </>
         )}
         <div ref={endRef} />

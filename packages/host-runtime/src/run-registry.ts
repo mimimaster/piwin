@@ -28,6 +28,8 @@ import { isRunTerminal } from '@piwin/contracts';
 interface RunNode {
   record: ExecutionRunRecord;
   abortController: AbortController;
+  /** Distinguishes a checkpoint pause from an irreversible cancellation. */
+  pauseRequested: boolean;
   /** Child run IDs (direct children only). */
   children: Set<string>;
   /** Whether admission is closed (no new children allowed). */
@@ -44,6 +46,7 @@ export type CreateRunInput = {
   planId?: string;
   taskId?: string;
   runtimeGenerationId?: string;
+  resumeCheckpointId?: string;
 };
 
 /** Options for RunRegistry construction. */
@@ -126,10 +129,12 @@ export class RunRegistry {
     if (input.planId) record.planId = input.planId;
     if (input.taskId) record.taskId = input.taskId;
     if (input.runtimeGenerationId) record.runtimeGenerationId = input.runtimeGenerationId;
+    if (input.resumeCheckpointId) record.resumeCheckpointId = input.resumeCheckpointId;
 
     const node: RunNode = {
       record,
       abortController: new AbortController(),
+      pauseRequested: false,
       children: new Set(),
       admissionClosed: false,
       joinResolvers: [],
@@ -191,7 +196,11 @@ export class RunRegistry {
   }
 
   /** Create and start one foreground session-turn atomically. */
-  createForegroundRun(sessionId: string, runtimeGenerationId?: string): ExecutionRunRecord {
+  createForegroundRun(
+    sessionId: string,
+    runtimeGenerationId?: string,
+    resumeCheckpointId?: string,
+  ): ExecutionRunRecord {
     if (this.getForegroundRun(sessionId)) {
       throw new Error(`run-active: session ${sessionId} already has a foreground run`);
     }
@@ -199,6 +208,7 @@ export class RunRegistry {
       kind: 'session-turn',
       sessionId,
       ...(runtimeGenerationId !== undefined ? { runtimeGenerationId } : {}),
+      ...(resumeCheckpointId !== undefined ? { resumeCheckpointId } : {}),
     });
     const started = this.start(created.runId);
     if (!started) {
@@ -278,6 +288,40 @@ export class RunRegistry {
     return this.nodes.get(runId)?.record.firstTokenReceived === true;
   }
 
+  /** Whether a run owns any non-terminal descendant. */
+  hasActiveDescendants(runId: string): boolean {
+    const node = this.nodes.get(runId);
+    if (!node) return false;
+    for (const childId of node.children) {
+      const child = this.nodes.get(childId);
+      if (!child) continue;
+      if (!isRunTerminal(child.record.status) || this.hasActiveDescendants(childId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Whether this run was asked to pause rather than irreversibly cancel. */
+  isPauseRequested(runId: string): boolean {
+    return this.nodes.get(runId)?.pauseRequested === true;
+  }
+
+  /** Attach a durable checkpoint reference to a non-terminal run. */
+  attachResumeCheckpoint(
+    runId: string,
+    checkpointId: string,
+  ): ExecutionRunRecord | undefined {
+    const node = this.nodes.get(runId);
+    if (!node || isRunTerminal(node.record.status)) return undefined;
+    if (node.record.resumeCheckpointId === checkpointId) return { ...node.record };
+    if (node.record.resumeCheckpointId !== undefined) {
+      throw new Error(`run ${runId} already has a different resume checkpoint`);
+    }
+    node.record.resumeCheckpointId = checkpointId;
+    return this.publishUpdated(node);
+  }
+
   /**
    * Transition a run to a terminal state.
    *
@@ -354,6 +398,7 @@ export class RunRegistry {
       if (!node || isRunTerminal(node.record.status)) continue;
 
       // Move to cancelling if not already.
+      node.pauseRequested = false;
       if (node.record.status !== 'cancelling') {
         node.record.status = 'cancelling';
         if (node.record.kind === 'session-turn') {
@@ -405,12 +450,44 @@ export class RunRegistry {
   requestCancel(runId: string, reason?: unknown): ExecutionRunRecord | undefined {
     const node = this.nodes.get(runId);
     if (!node || isRunTerminal(node.record.status)) return undefined;
+    node.pauseRequested = false;
     node.admissionClosed = true;
+    let changed = false;
     if (node.record.status !== 'cancelling') {
       node.record.status = 'cancelling';
-      if (node.record.kind === 'session-turn') {
-        node.record.phase = 'cancelling';
-      }
+      changed = true;
+    }
+    if (node.record.kind === 'session-turn' && node.record.phase !== 'cancelling') {
+      node.record.phase = 'cancelling';
+      node.record.phaseUpdatedAt = new Date().toISOString();
+      changed = true;
+    }
+    if (changed) {
+      this.publishUpdated(node);
+    }
+    if (!node.abortController.signal.aborted) {
+      node.abortController.abort(reason);
+    }
+    return { ...node.record };
+  }
+
+  /** Close admission and request a checkpoint pause without terminalizing. */
+  requestPause(runId: string, reason?: unknown): ExecutionRunRecord | undefined {
+    const node = this.nodes.get(runId);
+    if (!node || isRunTerminal(node.record.status)) return undefined;
+    node.admissionClosed = true;
+    node.pauseRequested = true;
+    let changed = false;
+    if (node.record.status !== 'cancelling') {
+      node.record.status = 'cancelling';
+      changed = true;
+    }
+    if (node.record.kind === 'session-turn' && node.record.phase !== 'pausing') {
+      node.record.phase = 'pausing';
+      node.record.phaseUpdatedAt = new Date().toISOString();
+      changed = true;
+    }
+    if (changed) {
       this.publishUpdated(node);
     }
     if (!node.abortController.signal.aborted) {

@@ -71,8 +71,48 @@ export type ContextUsageRingProps = {
   onOpenModelSettings?: () => void;
 };
 
-function resolveLimit(
-  usage: ContextUsageSnapshot | null,
+/**
+ * Context-window occupancy (tokens in the model window now).
+ *
+ * Prefer explicit `tokensUsed` from Pi context_usage. For assistant-usage that
+ * only reports turn fields, use input-side tokens (prompt + cache) — that is
+ * what occupied the window for the request. Do not prefer `totalTokens` when it
+ * includes completion, and never invent zeros before the first usage sample.
+ */
+export function resolveContextTokensUsed(
+  usage: ContextUsageSnapshot | null | undefined,
+): number | undefined {
+  if (!usage) {
+    return undefined;
+  }
+  if (typeof usage.tokensUsed === 'number' && Number.isFinite(usage.tokensUsed)) {
+    return Math.max(0, usage.tokensUsed);
+  }
+  const hasInputSide =
+    typeof usage.promptTokens === 'number' ||
+    typeof usage.cacheReadTokens === 'number' ||
+    typeof usage.cacheWriteTokens === 'number';
+  if (hasInputSide) {
+    return (
+      Math.max(0, usage.promptTokens ?? 0) +
+      Math.max(0, usage.cacheReadTokens ?? 0) +
+      Math.max(0, usage.cacheWriteTokens ?? 0)
+    );
+  }
+  if (typeof usage.totalTokens === 'number' && Number.isFinite(usage.totalTokens)) {
+    return Math.max(0, usage.totalTokens);
+  }
+  if (
+    typeof usage.completionTokens === 'number' &&
+    Number.isFinite(usage.completionTokens)
+  ) {
+    return Math.max(0, usage.completionTokens);
+  }
+  return undefined;
+}
+
+export function resolveContextTokensLimit(
+  usage: ContextUsageSnapshot | null | undefined,
   modelContextWindow: number | undefined,
 ): number {
   if (typeof modelContextWindow === 'number' && modelContextWindow > 0) {
@@ -84,18 +124,42 @@ function resolveLimit(
   return DEFAULT_MODEL_CONTEXT_WINDOW;
 }
 
-function resolveUsed(
-  usage: ContextUsageSnapshot | null,
+/** True when Host/Pi has reported a real usage sample we can render. */
+export function hasRenderableContextUsage(
+  usage: ContextUsageSnapshot | null | undefined,
+): boolean {
+  return resolveContextTokensUsed(usage) !== undefined;
+}
+
+/**
+ * Percent of the selected model window that is occupied (0–100).
+ * Recomputes from used/limit so host `contextRatio` (possibly against another
+ * window) never disagrees with the displayed fraction.
+ */
+export function computeContextUsagePercent(
+  usage: ContextUsageSnapshot | null | undefined,
+  modelContextWindow?: number,
 ): number | undefined {
-  if (typeof usage?.tokensUsed === 'number') return usage.tokensUsed;
-  if (typeof usage?.totalTokens === 'number') return usage.totalTokens;
-  if (
-    typeof usage?.promptTokens === 'number' ||
-    typeof usage?.completionTokens === 'number'
-  ) {
-    return (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
+  const used = resolveContextTokensUsed(usage);
+  if (used === undefined) {
+    return undefined;
   }
-  return undefined;
+  const limit = resolveContextTokensLimit(usage, modelContextWindow);
+  if (limit <= 0) {
+    return undefined;
+  }
+  return Math.round(Math.min(1, Math.max(0, used / limit)) * 100);
+}
+
+function resolveLimit(
+  usage: ContextUsageSnapshot | null,
+  modelContextWindow: number | undefined,
+): number {
+  return resolveContextTokensLimit(usage, modelContextWindow);
+}
+
+function resolveUsed(usage: ContextUsageSnapshot | null): number | undefined {
+  return resolveContextTokensUsed(usage);
 }
 
 function formatTokens(value: number): string {
@@ -111,7 +175,7 @@ function formatTokens(value: number): string {
   return value.toLocaleString();
 }
 
-export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
+export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | null {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -126,18 +190,18 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
     return () => clearInterval(id);
   }, [open, hovered, props.usage?.updatedAt]);
 
-  const limit = resolveLimit(props.usage, props.modelContextWindow);
   const used = resolveUsed(props.usage);
-  const ratio =
-    typeof used === 'number' && limit > 0
-      ? // Always recompute against the *displayed* limit. Host `contextRatio`
-        // may have been computed against a different window (e.g. Pi default
-        // 128K while the selected model is 1M) and would disagree with the
-        // "~used / limit Tokens" line if trusted blindly.
-        Math.min(1, Math.max(0, used / limit))
-      : typeof props.usage?.contextRatio === 'number'
-        ? Math.min(1, Math.max(0, props.usage.contextRatio))
-        : 0;
+  // Hide until the first real usage sample (after a user turn + agent response).
+  // Empty sessions must not show a fake 0% ring against the model window.
+  if (used === undefined) {
+    return null;
+  }
+
+  const limit = resolveLimit(props.usage, props.modelContextWindow);
+  // Always recompute against the *displayed* limit. Host `contextRatio` may
+  // have been computed against a different window (e.g. Pi default 128K while
+  // the selected model is 1M) and would disagree with "~used / limit Tokens".
+  const ratio = limit > 0 ? Math.min(1, Math.max(0, used / limit)) : 0;
   const percent = Math.round(ratio * 100);
   const circumference = 2 * Math.PI * 9;
   const dashOffset = circumference * (1 - ratio);

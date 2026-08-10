@@ -6,6 +6,7 @@
  */
 export type RunAbortCode =
   | 'user-stop'
+  | 'pause-requested'
   | 'superseded-by-new-prompt'
   | 'host-shutdown'
   | 'unknown';
@@ -22,6 +23,15 @@ export function createUserStopAbortReason(): RunAbortReason {
     message:
       'The user stopped this run (Stop). In-flight tools were cancelled before they finished. ' +
       'Do not treat cancelled tool results as successful completion; re-run tools if you still need their output.',
+  };
+}
+
+export function createPauseRequestedAbortReason(): RunAbortReason {
+  return {
+    code: 'pause-requested',
+    message:
+      'The user paused this run. In-flight operations were stopped at the current cancellation boundary. ' +
+      'A resumable checkpoint was saved; continue from the checkpoint instead of treating this as completed work.',
   };
 }
 
@@ -53,10 +63,15 @@ export function isRunAbortReason(value: unknown): value is RunAbortReason {
   }
   return (
     code === 'user-stop' ||
+    code === 'pause-requested' ||
     code === 'superseded-by-new-prompt' ||
     code === 'host-shutdown' ||
     code === 'unknown'
   );
+}
+
+export function isPauseRequestedAbortReason(value: unknown): value is RunAbortReason {
+  return isRunAbortReason(value) && value.code === 'pause-requested';
 }
 
 /**

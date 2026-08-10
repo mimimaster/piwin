@@ -2545,6 +2545,20 @@
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+.side-chat-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.side-chat-activity > .ui-anim-radial-bellow {
+  transform: scale(0.62);
+  transform-origin: center;
+}
+
 .side-chat-composer {
   display: flex;
   align-items: center;
