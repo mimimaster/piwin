@@ -1,6 +1,11 @@
 import { Button, Field } from '@piwin/ui-kit';
-import type { ModelProviderConfig, VideoGenerationApiStyle } from '@piwin/contracts';
+import type {
+  DiscoveredModel,
+  ModelProviderConfig,
+  VideoGenerationApiStyle,
+} from '@piwin/contracts';
 import type { DesktopLocale, DesktopTranslator } from './desktop-locale';
+import { VideoModelSuggest } from './video-model-suggest.js';
 import { VIDEO_API_STYLE_OPTIONS, videoApiStyleLabel } from './video-generation-model-config';
 
 type VideoGenerationCopy = DesktopTranslator['settings']['videoGeneration'];
@@ -21,7 +26,9 @@ export type VideoGenerationModelFormProps = {
   modelDescription: string;
   onProviderChange: (providerId: string) => void;
   onApiStyleChange: (apiStyle: VideoGenerationApiStyle) => void;
-  onModelIdChange: (value: string) => void;
+  discoverProviderModels: (provider: ModelProviderConfig) => Promise<{ models: DiscoveredModel[] }>;
+  onDiscoveredModel: (model: DiscoveredModel) => void;
+  onDiscoverError?: (message: string) => void;
   onModelPathChange: (value: string) => void;
   onTimeoutChange: (value: string) => void;
   onPollIntervalChange: (value: string) => void;
@@ -48,7 +55,9 @@ export function VideoGenerationModelForm(props: VideoGenerationModelFormProps) {
     modelDescription,
     onProviderChange,
     onApiStyleChange,
-    onModelIdChange,
+    discoverProviderModels,
+    onDiscoveredModel,
+    onDiscoverError,
     onModelPathChange,
     onTimeoutChange,
     onPollIntervalChange,
@@ -126,17 +135,22 @@ export function VideoGenerationModelForm(props: VideoGenerationModelFormProps) {
               ))}
             </select>
           </Field>
-          <Field label={`* ${copy.modelId}`}>
-            <input
-              className="mcp-raw-editor"
-              style={{ height: 'auto', padding: '8px 12px' }}
-              data-testid="video-model-id"
-              value={modelId}
-              onChange={(event) => onModelIdChange(event.target.value)}
-              placeholder="sora-2 / veo-3.1 / gen4.5"
-              spellCheck={false}
-            />
-          </Field>
+          <div className="ui-field" data-testid="video-model-id-field">
+            <label className="ui-field-label">
+              <span style={{ color: 'var(--danger, #ef4444)', marginRight: 4 }}>*</span>
+              {copy.modelId}
+            </label>
+            <div className="ui-field-control">
+              <VideoModelSuggest
+                value={modelId}
+                provider={selectedProvider}
+                inputTestId="video-model-id"
+                discoverProviderModels={discoverProviderModels}
+                onChange={onDiscoveredModel}
+                {...(onDiscoverError ? { onDiscoverError } : {})}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="image-gen-form-row" style={{ marginTop: 12 }}>

@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type {
+  DiscoveredModel,
   ModelConfigEntry,
   ModelProviderConfig,
   PiwinConfig,
@@ -19,6 +20,7 @@ import { PageTitle } from './settings/page-title';
 import { useSettings } from './settings/settings-context';
 import { VideoGenerationModelForm } from './VideoGenerationModelForm';
 import { VideoGenerationModelList } from './VideoGenerationModelList';
+import { applyVideoDiscoverySuggestion } from './video-model-discovery.js';
 import {
   buildVideoModelEntry,
   collectVideoModels,
@@ -28,7 +30,7 @@ import {
 } from './video-generation-model-config';
 
 export function VideoGenerationSettings(): ReactElement {
-  const { config, saveConfig } = useSettings();
+  const { config, saveConfig, discoverProviderModels, setError } = useSettings();
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.videoGeneration;
   const common = translator.common;
@@ -101,6 +103,22 @@ export function VideoGenerationSettings(): ReactElement {
   function handleApiStyleChange(apiStyle: VideoGenerationApiStyle): void {
     setAddApiStyle(apiStyle);
     setAddModelPath(defaultVideoGenerationPath(apiStyle));
+  }
+
+  function handleDiscoveredVideoModel(model: DiscoveredModel): void {
+    const next = applyVideoDiscoverySuggestion(
+      model,
+      {
+        apiStyle: addApiStyle,
+        path: addModelPath,
+        label: addModelLabel,
+      },
+      selectedProvider ?? undefined,
+    );
+    setAddModelId(next.id);
+    setAddApiStyle(next.apiStyle);
+    setAddModelPath(next.path);
+    setAddModelLabel(next.label);
   }
 
   function handleStartEdit(provider: ModelProviderConfig, model: ModelConfigEntry): void {
@@ -299,7 +317,9 @@ export function VideoGenerationSettings(): ReactElement {
             modelDescription={addModelDescription}
             onProviderChange={handleProviderChange}
             onApiStyleChange={handleApiStyleChange}
-            onModelIdChange={setAddModelId}
+            discoverProviderModels={discoverProviderModels}
+            onDiscoveredModel={handleDiscoveredVideoModel}
+            onDiscoverError={setError}
             onModelPathChange={setAddModelPath}
             onTimeoutChange={setAddModelTimeout}
             onPollIntervalChange={setAddPollInterval}

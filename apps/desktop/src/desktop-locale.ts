@@ -461,6 +461,12 @@ export type DesktopTranslator = {
       removeModel: string;
       noModels: string;
       modelsHeading: string;
+      recognizedModels: string;
+      suggestedModels: string;
+      suggestionAddsVideoModel: string;
+      modelSuggestPlaceholder: string;
+      modelSuggestLoading: string;
+      modelSuggestEmpty: string;
     };
   };
 };
@@ -1219,6 +1225,18 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese ? '尚未配置视频生成模型。' : 'No video generation models configured.',
         modelsHeading: isChinese ? '视频生成模型' : 'Video generation models',
+        recognizedModels: isChinese ? '自动识别' : 'Recognized',
+        suggestedModels: isChinese ? '建议' : 'Suggested',
+        suggestionAddsVideoModel: isChinese
+          ? '选择后会加入视频模型'
+          : 'Selecting adds it to video models',
+        modelSuggestPlaceholder: isChinese
+          ? '输入模型 ID，或从发现结果中选择'
+          : 'Enter a model ID, or choose from discovered models',
+        modelSuggestLoading: isChinese ? '正在发现视频模型…' : 'Discovering video models…',
+        modelSuggestEmpty: isChinese
+          ? '未发现可识别或建议的视频模型，可直接输入任意模型 ID。'
+          : 'No recognized or suggested video models. You can enter any model ID.',
       },
     },
   };
