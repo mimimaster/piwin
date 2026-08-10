@@ -12,12 +12,18 @@ import {
   ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_READY_TIMEOUT_MS,
+  ARTIFACT_LIVE_PRIORITY_CANVAS,
+  ARTIFACT_LIVE_PRIORITY_NEAR,
+  ARTIFACT_LIVE_PRIORITY_OFFSCREEN,
+  ARTIFACT_LIVE_PRIORITY_STREAM,
+  ARTIFACT_LIVE_PRIORITY_VISIBLE,
   ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
   ARTIFACT_VIEWPORT_ROOT_MARGIN,
   INITIAL_ARTIFACT_IFRAME_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   cancelArtifactInit,
+  claimArtifactLiveHost,
   clampArtifactHeight,
   isArtifactBridgeReadyMessage,
   isRectNearRoot,
@@ -25,10 +31,12 @@ import {
   parseArtifactBridgeMessage,
   parseRootMarginYPx,
   releaseArtifactInit,
+  releaseArtifactLiveHost,
   requestArtifactInit,
   resolveArtifactViewportHostIntent,
   resolveImmediateArtifactHeight,
   resolveInteractiveArtifactShrink,
+  touchArtifactLiveHost,
   type ArtifactHeightPhase,
 } from '@piwin/artifact';
 import { useArtifactHeightSignal } from './artifact-height-signal';
@@ -374,18 +382,39 @@ function ArtifactRenderFrame(props: {
     }, ARTIFACT_STREAM_RENDER_THROTTLE_MS - elapsed);
   }, [channelId, decision.mode, decision.renderSource, granted, usesStreamLifecycle]);
 
-  // Viewport lifecycle (inline only): host iframe while near the scrollport;
-  // after TTL off-screen, recycle to free WebContent memory. Canvas and live
-  // stream-preview never recycle (body postMessage needs a live window).
-  //
-  // Critical UX rules:
-  // - Entering the viewport must host immediately (no "blank while parked").
-  // - Recycle only after TTL + a geometry re-check (IO false-negatives happen).
-  // - Fail-open to host when observer/root is unavailable.
+  // Viewport lifecycle (inline only) + hard live-host budget:
+  // - Near viewport → try to host immediately (loading shell, not blank).
+  // - Off-screen for TTL → recycle (geometry re-check first).
+  // - At most MAX_LIVE_ARTIFACT_IFRAMES concurrent sandboxed documents;
+  //   claiming a slot may evict a lower-priority host (registry).
+  // - Canvas / stream-preview are forceKeep and never budget-evicted.
   const forceHostIframe = presentation === 'canvas' || decision.mode === 'stream-preview';
-  const setHostIframeSafe = (next: boolean): void => {
-    hostIframeRef.current = next;
-    setHostIframe(next);
+
+  const tryHostIframe = (priority: number, forceKeep: boolean): void => {
+    const claim = claimArtifactLiveHost({
+      id: channelId,
+      forceKeep,
+      priority,
+      evict: () => {
+        hostIframeRef.current = false;
+        setHostIframe(false);
+      },
+    });
+    if (claim.admitted) {
+      hostIframeRef.current = true;
+      setHostIframe(true);
+      return;
+    }
+    // Budget full of forceKeep hosts — stay recycled with loading intent only
+    // when the user scrolls forceKeep frames away.
+    hostIframeRef.current = false;
+    setHostIframe(false);
+  };
+
+  const dropHostIframe = (): void => {
+    releaseArtifactLiveHost(channelId);
+    hostIframeRef.current = false;
+    setHostIframe(false);
   };
 
   useEffect(() => {
@@ -396,15 +425,23 @@ function ArtifactRenderFrame(props: {
         clearTimeout(recycleTimerRef.current);
         recycleTimerRef.current = null;
       }
-      setHostIframeSafe(true);
-      return;
+      tryHostIframe(
+        presentation === 'canvas' ? ARTIFACT_LIVE_PRIORITY_CANVAS : ARTIFACT_LIVE_PRIORITY_STREAM,
+        true,
+      );
+      return () => {
+        releaseArtifactLiveHost(channelId);
+      };
     }
 
     const element = frameRootRef.current;
     if (!element || typeof IntersectionObserver === 'undefined') {
       isIntersectingRef.current = null;
-      setHostIframeSafe(true);
-      return;
+      // Fail-open under budget: still claim so we never unbounded-mount.
+      tryHostIframe(ARTIFACT_LIVE_PRIORITY_NEAR, false);
+      return () => {
+        releaseArtifactLiveHost(channelId);
+      };
     }
 
     const marginY = parseRootMarginYPx(ARTIFACT_VIEWPORT_ROOT_MARGIN);
@@ -426,15 +463,16 @@ function ArtifactRenderFrame(props: {
     const applyVisibility = (visible: boolean): void => {
       isIntersectingRef.current = visible;
       if (visible) {
-        // Parked on this artifact → host immediately.
         leftViewportAtRef.current = null;
         if (recycleTimerRef.current) {
           clearTimeout(recycleTimerRef.current);
           recycleTimerRef.current = null;
         }
-        setHostIframeSafe(true);
+        tryHostIframe(ARTIFACT_LIVE_PRIORITY_VISIBLE, false);
+        touchArtifactLiveHost(channelId, { priority: ARTIFACT_LIVE_PRIORITY_VISIBLE });
         return;
       }
+      touchArtifactLiveHost(channelId, { priority: ARTIFACT_LIVE_PRIORITY_OFFSCREEN });
       if (leftViewportAtRef.current === null) {
         leftViewportAtRef.current = Date.now();
       }
@@ -446,11 +484,10 @@ function ArtifactRenderFrame(props: {
       const remaining = Math.max(0, ARTIFACT_VIEWPORT_RECYCLE_TTL_MS - elapsed);
       recycleTimerRef.current = setTimeout(() => {
         recycleTimerRef.current = null;
-        // Never recycle a frame the user is still looking at.
         if (isIntersectingRef.current === true || isNearViewportNow()) {
           leftViewportAtRef.current = null;
           isIntersectingRef.current = true;
-          setHostIframeSafe(true);
+          tryHostIframe(ARTIFACT_LIVE_PRIORITY_VISIBLE, false);
           return;
         }
         const msSinceLeft = leftViewportAtRef.current
@@ -464,7 +501,9 @@ function ArtifactRenderFrame(props: {
           recycleTtlMs: ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
         });
         if (intent === 'recycle') {
-          setHostIframeSafe(false);
+          dropHostIframe();
+        } else {
+          touchArtifactLiveHost(channelId, { priority: ARTIFACT_LIVE_PRIORITY_OFFSCREEN });
         }
       }, remaining);
     };
@@ -475,8 +514,6 @@ function ArtifactRenderFrame(props: {
         if (!entry) {
           return;
         }
-        // Prefer geometry for nested scrollports — IO can lag one frame after
-        // a scroll stop and report stale isIntersecting=false.
         const visible = entry.isIntersecting || isNearViewportNow();
         applyVisibility(visible);
       },
@@ -487,9 +524,6 @@ function ArtifactRenderFrame(props: {
       },
     );
     observer.observe(element);
-
-    // Immediate sync read: if the frame is already on screen when the effect
-    // attaches, host right away (do not wait for the first IO callback).
     applyVisibility(isNearViewportNow());
 
     return () => {
@@ -498,8 +532,9 @@ function ArtifactRenderFrame(props: {
         clearTimeout(recycleTimerRef.current);
         recycleTimerRef.current = null;
       }
+      releaseArtifactLiveHost(channelId);
     };
-  }, [decision.mode, forceHostIframe, transcriptScrollPort]);
+  }, [channelId, decision.mode, forceHostIframe, presentation, transcriptScrollPort]);
 
   // Init queue: grant before assigning srcdoc. Also re-runs when viewport
   // recycle remounts the iframe (hostIframe true again). Stream keeps a stable
