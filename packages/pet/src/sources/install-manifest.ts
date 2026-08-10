@@ -318,7 +318,12 @@ export async function installPetFromSlug(
       throw err;
     }
     await rm(backup, { recursive: true, force: true });
-    return { petId, source: 'registry', path: target };
+    return {
+      petId,
+      source: 'registry',
+      path: target,
+      registryLabel: 'codexpethub.com',
+    };
   } catch (err) {
     await rm(staging, { recursive: true, force: true });
     throw err;

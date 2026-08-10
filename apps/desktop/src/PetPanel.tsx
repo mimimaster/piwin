@@ -193,9 +193,13 @@ export function PetPanel(props: PetPanelProps) {
   }
 
   async function handleInstallBySlug(): Promise<void> {
-    const slug = slugInput.trim();
-    if (!slug) {
-      setError(isChinese ? '请输入宠物 id（例如 blankie）。' : 'Enter a pet id (e.g. blankie).');
+    const raw = slugInput.trim();
+    if (!raw) {
+      setError(
+        isChinese
+          ? '请输入宠物 id（例如 guga），或粘贴 npx codex-pets add guga'
+          : 'Enter a pet id (e.g. guga), or paste: npx codex-pets add guga',
+      );
       return;
     }
     setRegistryBusy(true);
@@ -203,10 +207,10 @@ export function PetPanel(props: PetPanelProps) {
     setInfo(null);
     const requestId = `pet-install-${++installIdCounter.current}`;
     setInstallRequestId(requestId);
-    // Bare slug → host uses CodexPetHub install-manifest API.
+    // Bare slug or pasted CLI (`npx codex-pets add guga`) — host normalizes.
     const response = await props.request({
       type: 'pet/install-registry',
-      url: slug,
+      url: raw,
       id: requestId,
     });
     setInstallRequestId(null);
@@ -215,11 +219,12 @@ export function PetPanel(props: PetPanelProps) {
       setError(response.error);
       return;
     }
-    const data = response.data as { petId: string; path: string };
+    const data = response.data as { petId: string; path: string; registryLabel?: string };
+    const from = data.registryLabel ? ` · ${data.registryLabel}` : '';
     setInfo(
       isChinese
-        ? `已安装 ${data.petId}（可在上方列表中激活）`
-        : `Installed ${data.petId} — activate it from the list above`,
+        ? `已安装 ${data.petId}${from}（可在上方列表中激活）`
+        : `Installed ${data.petId}${from} — activate it from the list above`,
     );
     setSlugInput('');
     await reload();
@@ -351,8 +356,8 @@ export function PetPanel(props: PetPanelProps) {
             title={isChinese ? '按 ID 安装' : 'Install by ID'}
             description={
               isChinese
-                ? '对齐 npx codex-pets add / npx codexpethub install：输入宠物 id，自动从 CodexPetHub 或 codex-pets.net 下载校验安装。'
-                : 'Same as npx codex-pets add / npx codexpethub install: enter a pet id to download + verify from CodexPetHub or codex-pets.net.'
+                ? '可填宠物 id（如 guga），或直接粘贴 CLI：npx codex-pets add guga / npx codexpethub install guga。优先从 codexpethub.com 下载，失败再试 codex-pets.net。'
+                : 'Enter a pet id (e.g. guga), or paste CLI: npx codex-pets add guga / npx codexpethub install guga. Tries codexpethub.com first, then codex-pets.net.'
             }
           />
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -364,7 +369,9 @@ export function PetPanel(props: PetPanelProps) {
                   if (e.key === 'Enter') void handleInstallBySlug();
                 }}
                 placeholder={
-                  isChinese ? '例如 blankie、round-puff-pink' : 'e.g. blankie, round-puff-pink'
+                  isChinese
+                    ? 'guga  或  npx codex-pets add guga'
+                    : 'guga  or  npx codex-pets add guga'
                 }
                 data-testid="pet-slug-input"
                 style={{
@@ -397,8 +404,8 @@ export function PetPanel(props: PetPanelProps) {
             title={isChinese ? '远程仓库' : 'Registry'}
             description={
               isChinese
-                ? '从 CodexPetHub 浏览并安装伙伴（catalog 可用时）。'
-                : 'Browse and install companions from CodexPetHub when catalog is available.'
+                ? '浏览 catalog.json（CodexPetHub 可能已下线该接口 → 404）。推荐上方「按 ID 安装」。'
+                : 'Browse catalog.json (often 404 on CodexPetHub). Prefer “Install by ID” above.'
             }
           />
           <div style={{ display: 'flex', gap: '12px' }}>

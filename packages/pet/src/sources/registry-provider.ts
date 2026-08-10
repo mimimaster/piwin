@@ -14,6 +14,7 @@ import type {
   PetRegistryEntry,
   PetStoreQueryResult,
 } from '@piwin/contracts';
+import { parsePetInstallInput } from '../pet-install-input.js';
 import { validatePetManifest } from '../validate-manifest.js';
 import { installPetFromSlug, isPetSlug, type InstallManifestOptions } from './install-manifest.js';
 import { installPetFromCodexPetsNet, type CodexPetsNetOptions } from './codex-pets-net.js';
@@ -103,9 +104,17 @@ export const registryProvider: PetSourceProvider = {
     const fetchFn = reg.fetch ?? fetch;
     const init: RequestInit = { redirect: 'follow' };
     if (signal) init.signal = signal;
-    const response = await fetchFn(reg.registryUrl ?? DEFAULT_REGISTRY_URL, init);
+    const catalogUrl = reg.registryUrl ?? DEFAULT_REGISTRY_URL;
+    const response = await fetchFn(catalogUrl, init);
     if (!response.ok) {
-      throw new Error(`registry query failed: HTTP ${response.status}`);
+      // CodexPetHub no longer ships a public catalog.json (often 404). Browse
+      // is best-effort — surface a clear hint instead of a raw HTTP code.
+      if (response.status === 404) {
+        throw new Error(
+          `registry catalog unavailable (${catalogUrl} → HTTP 404). Use “Install by ID” with a pet slug (e.g. guga) instead of browsing.`,
+        );
+      }
+      throw new Error(`registry query failed: HTTP ${response.status} (${catalogUrl})`);
     }
     const entries = (await response.json()) as PetRegistryEntry[];
     const q = query.trim().toLowerCase();
@@ -141,7 +150,18 @@ export const registryProvider: PetSourceProvider = {
     signal?: AbortSignal,
   ): Promise<PetInstallResult> {
     const reg = resolveCtx(ctx);
-    const trimmed = location.trim();
+    let trimmed = location.trim();
+
+    // Accept bare slug or pasted CLI: `npx codex-pets add guga`, etc.
+    if (!trimmed.startsWith('{') && !trimmed.includes('://')) {
+      const parsed = parsePetInstallInput(trimmed);
+      if (parsed.kind === 'error' && !isPetSlug(trimmed)) {
+        throw new Error(parsed.message);
+      }
+      if (parsed.kind === 'slug') {
+        trimmed = parsed.slug;
+      }
+    }
 
     // 1) Bare slug → try preferred registry, fall back to the other.
     if (isPetSlug(trimmed) && !trimmed.includes('://') && !trimmed.startsWith('{')) {
@@ -178,7 +198,9 @@ export const registryProvider: PetSourceProvider = {
           lastErr = err;
         }
       }
-      throw lastErr ?? new Error(`pet not found on any registry: ${trimmed}`);
+      throw lastErr ?? new Error(
+        `pet not found on codexpethub.com or codex-pets.net: ${trimmed}`,
+      );
     }
 
     // 2) JSON-encoded catalog entry or bare package URL (legacy zip path).

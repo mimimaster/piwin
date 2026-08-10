@@ -148,6 +148,11 @@ export type PetInstallResult = {
   petId: string;
   source: PetSourceKind;
   path: string;
+  /**
+   * Remote origin when source is `registry` (e.g. `codexpethub.com`,
+   * `codex-pets.net`) so the UI can show where the package came from.
+   */
+  registryLabel?: string;
 };
 
 /** Query payload for the remote registry browse command. */
