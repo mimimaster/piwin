@@ -5,7 +5,11 @@ export {
   normalizePetManifestRecord,
   resolvePetLayout,
 } from './validate-manifest.js';
-export type { PetValidationIssue, PetValidationResult } from './validate-manifest.js';
+export type {
+  PetValidationIssue,
+  PetValidationResult,
+  ValidatePetManifestOptions,
+} from './validate-manifest.js';
 
 export {
   getPetsDir,

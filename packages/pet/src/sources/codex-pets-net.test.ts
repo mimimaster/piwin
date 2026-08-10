@@ -171,7 +171,7 @@ describe('installPetFromCodexPetsNet', () => {
       };
     });
     const unzipMock = vi.fn(async (_zip: string, dest: string) => {
-      // Missing spritesheetPath → validation fails.
+      // Incomplete manifest (no displayName) → validation fails.
       await writeFile(join(dest, 'pet.json'), JSON.stringify({ id: 'bad' }));
     });
     try {
@@ -185,7 +185,7 @@ describe('installPetFromCodexPetsNet', () => {
           'bad',
           { fetch: fetchMock as never, unzip: unzipMock },
         ),
-      ).rejects.toThrow(/spritesheet|validation|path/i);
+      ).rejects.toThrow(/displayName|spritesheet|validation|path/i);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
