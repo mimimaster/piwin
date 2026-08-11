@@ -183,4 +183,37 @@ describe('validateSessionPlan', () => {
     });
     expect(result.ok).toBe(true);
   });
+
+  it('preserves execution Run identity and bounded completion summary', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      execution: {
+        sessionId: 's1',
+        planId: 'p1',
+        mode: 'subagent-driven',
+        status: 'completed',
+        runId: 'plan-run-1',
+        childSessionIds: ['child-1'],
+        summary: {
+          planId: 'p1',
+          mode: 'subagent-driven',
+          completedStepIds: ['1'],
+          failedStepIds: [],
+          skippedStepIds: [],
+          mergedChildSessionIds: ['child-1'],
+          verificationResult: 'tests passed',
+        },
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.execution?.runId).toBe('plan-run-1');
+      expect(result.plan.execution?.summary).toMatchObject({
+        planId: 'p1',
+        completedStepIds: ['1'],
+        mergedChildSessionIds: ['child-1'],
+        verificationResult: 'tests passed',
+      });
+    }
+  });
 });

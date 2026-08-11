@@ -6,6 +6,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
+import type { DocumentTargetRef } from '@piwin/contracts';
 import { formatFilePillPath } from './activity-timeline';
 import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
@@ -48,8 +49,25 @@ export type ToolCallCardProps = {
   request?: DiffCardRequest | undefined;
   /** Callback when user clicks a matched file in tool results. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  /**
+   * Callback when user clicks a logical document target (skill / project file).
+   * Carries the owning message/tool identity so Doc Preview can recover the
+   * persisted tool snapshot for historical reads.
+   */
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Locale for the stable behavior label. */
   locale?: 'zh-CN' | 'en';
+};
+
+export type DocumentOpenInput = {
+  title: string;
+  path?: string;
+  /** Explicit inline content; empty string is a legal empty document. */
+  content?: string;
+  target?: DocumentTargetRef;
+  /** Owning assistant message id (tool snapshot recovery). */
+  messageId?: string;
+  toolCallId?: string;
 };
 
 /**
@@ -116,6 +134,61 @@ function ToolPathLinkList(props: {
               }}
             >
               {filePath}
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Logical document targets (skill:xxx / project-relative) for the expanded
+ * tool body. Prefer these over raw absolute targetPaths — Host already
+ * resolved identity and scope for us.
+ */
+function ToolDocumentTargetList(props: {
+  targets: DocumentTargetRef[];
+  toolCallId: string;
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
+  testId: string;
+}): ReactElement {
+  const canOpen = Boolean(props.onOpenDocument);
+  return (
+    <div className="tool-call-doc-targets" data-testid={props.testId}>
+      {props.targets.map((target, index) => {
+        const label = target.displayRef;
+        const separator = index > 0 ? <span key={`sep-${target.displayRef}`}> · </span> : null;
+        if (!canOpen) {
+          return (
+            <span key={target.displayRef}>
+              {separator}
+              {label}
+            </span>
+          );
+        }
+        return (
+          <span key={target.displayRef}>
+            {separator}
+            <button
+              type="button"
+              className="tool-call-doc-target-link"
+              data-testid="tool-call-doc-target"
+              data-target-ref={label}
+              title={label}
+              onClick={() => {
+                const title =
+                  target.kind === 'skill'
+                    ? target.skillId
+                    : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
+                props.onOpenDocument?.({
+                  title,
+                  target,
+                  toolCallId: props.toolCallId,
+                });
+              }}
+            >
+              {label}
             </button>
           </span>
         );
@@ -533,11 +606,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     baseBehaviorId === 'mcp.discovery';
   const isPathLike = behaviorId === 'read' || behaviorId === 'edit' || behaviorId === 'git';
   const rawSummary =
-    tool.presentation?.summary ??
-    tool.presentation?.command ??
-    (targetPaths.length > 0
-      ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
-      : summarizeToolOutput(tool.toolName, tool.output, previewMax));
+    tool.status === 'error'
+      ? tool.presentation?.command ??
+        (targetPaths.length > 0
+          ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
+          : displayName)
+      : tool.presentation?.summary ??
+        tool.presentation?.command ??
+        (targetPaths.length > 0
+          ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
+          : summarizeToolOutput(tool.toolName, tool.output, previewMax));
   // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
   const inputPreview =
     tool.presentation?.inputPreview ||
@@ -580,8 +658,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     isMcpBehavior && displayName !== 'MCP gateway' && displayName !== tool.toolName
       ? displayName
       : fetchHeaderSummary;
-  const displayActionVerb =
+  const baseDisplayActionVerb =
     isFetchStyle && baseBehaviorId === 'shell' && locale === 'en' ? 'Ran' : actionVerb;
+  const displayActionVerb =
+    tool.status === 'error' && behaviorId !== 'mcp.call.error'
+      ? locale === 'zh-CN'
+        ? `${baseDisplayActionVerb}失败`
+        : `${baseDisplayActionVerb} failed`
+      : baseDisplayActionVerb;
   const previewText = resolveToolCallHeaderPreview({
     summary: headerSummary,
     displayName,
@@ -732,6 +816,15 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                 />
               ))
             : null}
+          {tool.presentation?.documentTargets &&
+          tool.presentation.documentTargets.length > 0 ? (
+            <ToolDocumentTargetList
+              targets={tool.presentation.documentTargets}
+              toolCallId={tool.toolCallId}
+              onOpenDocument={props.onOpenDocument}
+              testId="tool-call-doc-targets"
+            />
+          ) : null}
           {tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0 ? (
             <ToolPathLinkList
               paths={tool.presentation.targetPaths}

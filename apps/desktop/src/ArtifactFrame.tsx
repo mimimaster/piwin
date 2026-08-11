@@ -21,6 +21,7 @@ import {
   cancelArtifactInit,
   claimArtifactLiveHost,
   clampArtifactHeight,
+  estimateSvgFenceHeight,
   isArtifactBridgeReadyMessage,
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
@@ -117,6 +118,51 @@ function postArtifactStreamUpdate(
     ...(final ? { final: true as const } : {}),
   };
   iframe.contentWindow.postMessage(message, '*');
+}
+
+/**
+ * Whether a postMessage is plausibly from this frame's contentWindow.
+ * Packaged Tauri (custom protocol + sandboxed srcdoc) can report a WindowProxy
+ * that is not strictly `=== contentWindow`; channelId remains the real binding
+ * for height/ready. Prefer identity when it matches; never hard-drop height.
+ */
+function isSameArtifactIframeSource(
+  eventSource: MessageEventSource | null,
+  iframeWindow: Window | null | undefined,
+): boolean {
+  if (!eventSource || !iframeWindow) {
+    // Missing source is common on some WKWebView paths — allow channelId auth.
+    return true;
+  }
+  if (eventSource === iframeWindow) {
+    return true;
+  }
+  return false;
+}
+
+/** Best-effort height from SVG geometry when the bridge never reports. */
+function estimateFallbackHeightFromDecision(
+  decision: Extract<ArtifactPreviewDecision, { kind: 'render' }>,
+  containerWidth: number,
+): number | null {
+  if (decision.descriptor.type !== 'svg') {
+    return null;
+  }
+  const source =
+    decision.mode === 'stream-preview'
+      ? decision.renderSource
+      : decision.descriptor.source;
+  if (!source || source.trim().length === 0) {
+    return null;
+  }
+  const width = Math.max(containerWidth, 280);
+  return estimateSvgFenceHeight({
+    source,
+    containerWidth: width,
+    minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+    maxHeight: MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
+    fallbackHeight: INITIAL_ARTIFACT_IFRAME_HEIGHT,
+  });
 }
 
 /**
@@ -519,16 +565,20 @@ function ArtifactRenderFrame(props: {
 
     const onMessage = (event: MessageEvent): void => {
       const iframeWindow = iframeRef.current?.contentWindow;
-      if (iframeWindow && event.source && event.source !== iframeWindow) {
-        return;
-      }
+      const sourceMatches = isSameArtifactIframeSource(event.source, iframeWindow);
 
       // Whitelisted user-intent actions (flashcard rating etc). Checks:
-      // event.source, channelId, AND the cardId must be declared in the
-      // artifact's own source (data-card-id) — a malicious artifact cannot
-      // rate arbitrary cards, only the card it visibly renders.
+      // prefer matching source when available, channelId, AND the cardId must
+      // be declared in the artifact's own source (data-card-id) — a malicious
+      // artifact cannot rate arbitrary cards, only the card it visibly renders.
       const actionMessage = parseArtifactActionMessage(event.data);
       if (actionMessage) {
+        // Actions keep a soft source preference but still require channelId +
+        // in-source cardId. Drop only when source is present and clearly not us
+        // AND we have a contentWindow to compare (strict for intentional UX).
+        if (!sourceMatches && event.source && iframeWindow) {
+          return;
+        }
         if (
           actionMessage.channelId === channelId &&
           onArtifactAction &&
@@ -552,10 +602,9 @@ function ArtifactRenderFrame(props: {
         return;
       }
 
-      // Canvas-only fallback: composer/propose-text may arrive as a raw
-      // message that parseArtifactActionMessage already handles above.
-      // This block catches any future action types that are not yet parsed.
-
+      // Height / ready: channelId is the security binding. Do not require
+      // event.source === contentWindow — packaged Tauri WebView often fails that
+      // identity check and would leave the frame stuck at ~80px (cropped SVG).
       const message = parseArtifactBridgeMessage(event.data);
       if (!message || message.channelId !== channelId) {
         return;
@@ -626,6 +675,18 @@ function ArtifactRenderFrame(props: {
       if (phaseRef.current === 'protected') {
         setStatusLabel('timeout');
         setPaintedDocumentKey(documentKey);
+        // Bridge silent (common in packaged Tauri when WindowProxy identity
+        // diverges): still expand SVG frames from viewBox so art is not a strip.
+        if (heightRef.current <= INITIAL_ARTIFACT_IFRAME_HEIGHT + 8) {
+          const stageWidth =
+            frameRootRef.current?.getBoundingClientRect().width ??
+            iframeRef.current?.clientWidth ??
+            0;
+          const estimated = estimateFallbackHeightFromDecision(decision, stageWidth);
+          if (estimated !== null && estimated > heightRef.current) {
+            applyHeight(estimated);
+          }
+        }
         // Never open final-trim while still in stream-preview.
         if (decision.mode !== 'stream-preview') {
           startFinalTrim();
@@ -654,7 +715,7 @@ function ArtifactRenderFrame(props: {
   }, [
     granted,
     channelId,
-    decision.mode,
+    decision,
     maxHeight,
     onArtifactAction,
     onComposerProposal,
@@ -665,9 +726,24 @@ function ArtifactRenderFrame(props: {
 
   // Reset height only when the iframe *document identity* changes (not every
   // parent re-render with a freshly-built but equivalent srcdoc string).
-  useEffect(() => {
+  // SVG seeds from viewBox so packaged Tauri without a working bridge is not
+  // stuck at the 80px initial strip.
+  useLayoutEffect(() => {
+    const stageWidth =
+      frameRootRef.current?.getBoundingClientRect().width ??
+      (typeof window !== 'undefined' ? Math.min(window.innerWidth - 120, 780) : 640);
+    const svgSeed =
+      presentation !== 'canvas' ? estimateFallbackHeightFromDecision(decision, stageWidth) : null;
+    const seedHeight = Math.max(INITIAL_ARTIFACT_IFRAME_HEIGHT, svgSeed ?? INITIAL_ARTIFACT_IFRAME_HEIGHT);
+
     if (usesStreamLifecycle && decision.mode === 'stream-preview') {
-      floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
+      floorRef.current = Math.max(floorRef.current, seedHeight);
+      if (svgSeed !== null && svgSeed > heightRef.current) {
+        heightRef.current = svgSeed;
+        setHeight(svgSeed);
+      } else {
+        floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
+      }
       setContentOverflowing(false);
       phaseRef.current = 'protected';
       setPhase('protected');
@@ -694,9 +770,10 @@ function ArtifactRenderFrame(props: {
       }
       return;
     }
-    setHeight(INITIAL_ARTIFACT_IFRAME_HEIGHT);
+    heightRef.current = seedHeight;
+    floorRef.current = seedHeight;
+    setHeight(seedHeight);
     setContentOverflowing(false);
-    floorRef.current = INITIAL_ARTIFACT_IFRAME_HEIGHT;
     phaseRef.current = 'protected';
     setPhase('protected');
     setStatusLabel('loading');
@@ -706,7 +783,7 @@ function ArtifactRenderFrame(props: {
       settleTimerRef.current = null;
     }
     setPaintedDocumentKey(null);
-  }, [decision.mode, documentKey, usesStreamLifecycle]);
+  }, [decision, documentKey, presentation, usesStreamLifecycle]);
 
   const isCanvas = presentation === 'canvas';
   const hasExtraHeaderAction = extraHeaderAction !== undefined;

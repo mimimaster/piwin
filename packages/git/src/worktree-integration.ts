@@ -7,10 +7,13 @@
  * touch the same file.
  */
 
-import { writeFile, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { isAbsolute, join, resolve } from 'node:path';
 import { runGitCommand } from './git-command-runner.js';
 import { assertSafeRef } from './path-safety.js';
+
+const INTEGRATION_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 export type WorktreeIntegrationInput = {
   /** Parent project path (main worktree). */
@@ -50,16 +53,39 @@ export async function integrateWorktreeChanges(
   const baseCommit = assertSafeRef(input.baseCommit);
   const rejectedFiles: string[] = [];
 
-  // Compare the child working tree directly with the exact commit captured
-  // before worktree creation. This includes both committed and tracked
-  // uncommitted child changes without relying on branch names or HEAD~1.
+  // Build a complete child snapshot in an alternate index. This captures
+  // committed, unstaged, and untracked files without changing the child's real
+  // index (which must remain inspectable if integration is rejected/conflicted).
   let changedFiles: string[];
+  let childPatch: string;
+  const childIndexDirectory = await mkdtemp(join(tmpdir(), 'piwin-child-index-'));
+  const childIndexPath = join(childIndexDirectory, 'index');
+  const childIndexEnvironment = { GIT_INDEX_FILE: childIndexPath };
   try {
+    await runGitCommand({
+      cwd: worktreePath,
+      args: ['read-tree', baseCommit],
+      env: childIndexEnvironment,
+    });
+    await runGitCommand({
+      cwd: worktreePath,
+      args: ['add', '--all', '--', '.'],
+      env: childIndexEnvironment,
+    });
     const changedFilesResult = await runGitCommand({
       cwd: worktreePath,
-      args: ['diff', '--name-status', baseCommit, '--'],
+      args: ['diff', '--cached', '--name-status', '-z', '--find-renames', baseCommit, '--'],
+      env: childIndexEnvironment,
+      maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
     });
     changedFiles = parseChangedFiles(changedFilesResult.stdout);
+    const diffOutput = await runGitCommand({
+      cwd: worktreePath,
+      args: ['diff', '--cached', baseCommit, '--binary', '--full-index', '--'],
+      env: childIndexEnvironment,
+      maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+    });
+    childPatch = diffOutput.stdout;
   } catch (error) {
     return {
       status: 'conflict',
@@ -68,6 +94,8 @@ export async function integrateWorktreeChanges(
       rejectedFiles: [],
       error: error instanceof Error ? error.message : String(error),
     };
+  } finally {
+    await rm(childIndexDirectory, { recursive: true, force: true });
   }
 
   // Check allowedOutputPaths.
@@ -89,26 +117,81 @@ export async function integrateWorktreeChanges(
     }
   }
 
-  // Apply the diff to the parent branch.
-  // We write the diff to a temp file and use `git apply --3way` rather than
-  // `git checkout <branch> -- <paths>` to preserve parent branch history.
+  if (!childPatch.trim()) {
+    return {
+      status: 'applied',
+      integratedFiles: changedFiles,
+      conflictedFiles: [],
+      rejectedFiles: [],
+    };
+  }
+
+  // Compute the three-way result in an alternate copy of the parent's index.
+  // Only after that succeeds do we apply the resulting delta to the working
+  // tree without `--index`. The user's real staging area is never modified.
+  const integrationDirectory = await mkdtemp(join(tmpdir(), 'piwin-parent-index-'));
+  const temporaryIndexPath = join(integrationDirectory, 'index');
+  const childPatchPath = join(integrationDirectory, 'child.patch');
+  const parentPatchPath = join(integrationDirectory, 'parent.patch');
+  const parentIndexEnvironment = { GIT_INDEX_FILE: temporaryIndexPath };
   try {
-    const diffOutput = await runGitCommand({
-      cwd: worktreePath,
-      args: ['diff', baseCommit, '--binary', '--'],
+    const indexPathResult = await runGitCommand({
+      cwd: projectPath,
+      args: ['rev-parse', '--git-path', 'index'],
+    });
+    const reportedIndexPath = indexPathResult.stdout.trim();
+    const parentIndexPath = isAbsolute(reportedIndexPath)
+      ? reportedIndexPath
+      : resolve(projectPath, reportedIndexPath);
+    await copyFile(parentIndexPath, temporaryIndexPath);
+    await writeFile(childPatchPath, childPatch, 'utf8');
+
+    const beforeTreeResult = await runGitCommand({
+      cwd: projectPath,
+      args: ['write-tree'],
+      env: parentIndexEnvironment,
+    });
+    const beforeTree = assertSafeRef(beforeTreeResult.stdout.trim());
+
+    const mergeResult = await runGitCommand({
+      cwd: projectPath,
+      args: ['apply', '--3way', '--cached', childPatchPath],
+      env: parentIndexEnvironment,
+      allowFailure: true,
+      maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+    });
+    if (mergeResult.exitCode !== 0) {
+      return conflictResult(changedFiles, mergeResult.stderr || mergeResult.stdout);
+    }
+
+    const afterTreeResult = await runGitCommand({
+      cwd: projectPath,
+      args: ['write-tree'],
+      env: parentIndexEnvironment,
+    });
+    const afterTree = assertSafeRef(afterTreeResult.stdout.trim());
+    const parentDiff = await runGitCommand({
+      cwd: projectPath,
+      args: ['diff', beforeTree, afterTree, '--binary', '--full-index', '--'],
+      maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
     });
 
-    if (diffOutput.stdout.trim()) {
-      const patchPath = join(projectPath, `.piwin-patch-${Date.now().toString(36)}.diff`);
-      await writeFile(patchPath, diffOutput.stdout, 'utf8');
-      try {
-        await runGitCommand({
-          cwd: projectPath,
-          args: ['apply', '--3way', patchPath],
-        });
-      } finally {
-        await unlink(patchPath).catch(() => {});
+    if (parentDiff.stdout.trim()) {
+      await writeFile(parentPatchPath, parentDiff.stdout, 'utf8');
+      const checkResult = await runGitCommand({
+        cwd: projectPath,
+        args: ['apply', '--check', parentPatchPath],
+        allowFailure: true,
+        maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+      });
+      if (checkResult.exitCode !== 0) {
+        return conflictResult(changedFiles, checkResult.stderr || checkResult.stdout);
       }
+      await runGitCommand({
+        cwd: projectPath,
+        args: ['apply', parentPatchPath],
+        maxBufferBytes: INTEGRATION_MAX_BUFFER_BYTES,
+      });
     }
 
     return {
@@ -126,25 +209,44 @@ export async function integrateWorktreeChanges(
       rejectedFiles: [],
       error: message,
     };
+  } finally {
+    await rm(integrationDirectory, { recursive: true, force: true });
   }
 }
 
 function parseChangedFiles(nameStatusOutput: string): string[] {
-  const changedFiles: string[] = [];
+  const fields = nameStatusOutput.split('\0');
+  const changedFiles = new Set<string>();
+  let fieldIndex = 0;
 
-  for (const line of nameStatusOutput.split('\n')) {
-    const fields = line.split('\t');
-    if (fields.length < 2) {
-      continue;
-    }
+  while (fieldIndex < fields.length) {
+    const status = fields[fieldIndex];
+    fieldIndex += 1;
+    if (!status) continue;
 
-    const filePath = fields.at(-1)?.trim();
-    if (filePath) {
-      changedFiles.push(filePath);
+    const sourcePath = fields[fieldIndex];
+    fieldIndex += 1;
+    if (!sourcePath) continue;
+    changedFiles.add(sourcePath);
+
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const destinationPath = fields[fieldIndex];
+      fieldIndex += 1;
+      if (destinationPath) changedFiles.add(destinationPath);
     }
   }
 
-  return changedFiles;
+  return [...changedFiles];
+}
+
+function conflictResult(changedFiles: string[], error: string): WorktreeIntegrationResult {
+  return {
+    status: 'conflict',
+    integratedFiles: [],
+    conflictedFiles: changedFiles,
+    rejectedFiles: [],
+    error: error.trim() || 'git could not apply the child changes',
+  };
 }
 
 /**
@@ -155,7 +257,15 @@ export async function isWorktreeBaseClean(projectPath: string): Promise<boolean>
   try {
     const result = await runGitCommand({
       cwd: projectPath,
-      args: ['status', '--porcelain'],
+      args: [
+        'status',
+        '--porcelain',
+        '--untracked-files=all',
+        '--',
+        '.',
+        ':(exclude).piwin-worktrees',
+        ':(exclude).piwin-worktrees/**',
+      ],
     });
     return result.stdout.trim().length === 0;
   } catch {

@@ -20,12 +20,12 @@ describe('buildBasePhrases', () => {
     expect(phrases).toEqual(['Thinking…']);
   });
 
-  it('keeps the runtime working status stable when a tool is active', () => {
+  it('falls back to the active tool name when structured detail is unavailable', () => {
     const phrases = buildBasePhrases(en({ kind: 'working', activeToolName: 'bash' }));
-    expect(phrases).toEqual(['Working…']);
+    expect(phrases).toEqual(['Running bash']);
   });
 
-  it('keeps runtime status separate from the detailed tool timeline', () => {
+  it('shows structured live tool intent instead of a generic runtime label', () => {
     const phrases = buildBasePhrases(
       en({
         kind: 'working',
@@ -34,7 +34,7 @@ describe('buildBasePhrases', () => {
         detail: 'apps/desktop/src/App.tsx',
       }),
     );
-    expect(phrases).toEqual(['Working…']);
+    expect(phrases).toEqual(['Read apps/desktop/src/App.tsx']);
   });
 
   it('localizes actionVerb for zh-CN work lines', () => {
@@ -45,7 +45,7 @@ describe('buildBasePhrases', () => {
       actionVerb: 'Read',
       detail: 'packages/pet/src/index.ts',
     });
-    expect(phrases[0]).toBe('正在处理…');
+    expect(phrases[0]).toBe('读取 packages/pet/src/index.ts');
   });
 
   it('uses the reference planning status instead of the internal plan step', () => {
@@ -88,9 +88,9 @@ describe('buildBasePhrases', () => {
 });
 
 describe('buildTakingTooLongPhrases', () => {
-  it('keeps the exact runtime status when a run takes longer', () => {
+  it('keeps concrete tool identity when a run takes longer', () => {
     const phrases = buildTakingTooLongPhrases(en({ kind: 'working', activeToolName: 'bash' }));
-    expect(phrases).toEqual(['Working…']);
+    expect(phrases).toEqual(['Running bash — taking longer…', 'Still working…']);
   });
 
   it('keeps the reference thinking copy for waiting-first-token', () => {

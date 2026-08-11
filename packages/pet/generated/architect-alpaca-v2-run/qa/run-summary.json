@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "spriteVersionNumber": 2,
+  "run_dir": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run",
+  "spritesheet": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/final/spritesheet-extended.webp",
+  "validation": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/final/validation-extended.json",
+  "chroma_despill": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/chroma-despill-extended.json",
+  "contact_sheet": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/contact-sheet-extended.png",
+  "direction_sheet": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/look-directions.png",
+  "direction_semantics": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/direction-semantics.json",
+  "blind_direction_validation": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/direction-blind-validation.json",
+  "continuity": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/look-continuity.json",
+  "review": "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/review.json",
+  "package": "/Users/yorickjue/.codex/pets/architect-alpaca"
+}

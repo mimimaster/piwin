@@ -1131,7 +1131,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           ? '暂无模型，获取列表或手动添加。'
           : 'No models yet. Fetch the list or add one.',
         fetchModelList: isChinese ? '获取模型列表' : 'Fetch models',
-        discover: isChinese ? '发现' : 'Discover',
+        discover: isChinese ? '拉取模型' : 'Fetch models',
         addModel: isChinese ? '手动添加模型' : 'Add model manually',
         addModelTitle: isChinese ? '添加模型' : 'Add model',
         addModelAction: isChinese ? '添加模型' : 'Add model',
@@ -1161,7 +1161,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         outputLimit: isChinese ? '最大输出' : 'Max output tokens',
         tooltipMarkdown: isChinese ? 'Tooltip Markdown' : 'Tooltip markdown',
         discoveryLabel: isChinese ? '获取模型列表' : 'Fetch model list',
-        discoveryTitle: isChinese ? '发现模型' : 'Discover models',
+        discoveryTitle: isChinese ? '拉取可用模型' : 'Fetch available models',
         discoveryTitleFor: (name) => (isChinese ? `${name} 模型` : `${name} models`),
         discoveryDescription: isChinese
           ? '从该提供商获取模型 ID，然后为每个模型配置运行时限制。'

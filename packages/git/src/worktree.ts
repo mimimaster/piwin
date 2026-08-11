@@ -1,7 +1,9 @@
 /**
  * CE-SUB: git worktree helpers for isolated sub-agent sandboxes.
- * Uses git-native worktrees under <repo>/.piwin-worktrees/<name>.
+ * Uses git-native worktrees under product-owned storage when supplied, with a
+ * repository-local fallback for standalone callers.
  */
+import { createHash } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve, basename } from 'node:path';
 import { runGitCommand } from './git-command-runner.js';
@@ -12,6 +14,8 @@ export type CreateWorktreeInput = {
   /** Sanitized id used in path/branch (e.g. child session id). */
   name: string;
   baseRef?: string;
+  /** Product-owned root for worktree checkouts (for example ~/.piwin/worktrees). */
+  storageRoot?: string;
 };
 
 export type CreateWorktreeResult = {
@@ -23,6 +27,8 @@ export type RemoveWorktreeInput = {
   projectPath: string;
   worktreePath: string;
   force?: boolean;
+  /** Generated branch to remove after the worktree is removed. */
+  worktreeBranch?: string;
 };
 
 export type DiffWorktreeInput = {
@@ -53,18 +59,22 @@ export async function createWorktree(input: CreateWorktreeInput): Promise<Create
   const safeName = sanitizeWorktreeName(input.name);
   const branch = `piwin/subagent/${safeName}`;
   assertSafeBranchName(branch);
-  const worktreeRoot = join(projectPath, '.piwin-worktrees');
+  const repositoryKey = createHash('sha256').update(projectPath).digest('hex').slice(0, 16);
+  const worktreeRoot = input.storageRoot
+    ? join(resolve(input.storageRoot), repositoryKey)
+    : join(projectPath, '.piwin-worktrees');
   await mkdir(worktreeRoot, { recursive: true });
   const worktreePath = join(worktreeRoot, safeName);
   const baseRef = input.baseRef?.trim() || 'HEAD';
 
-  // Create branch from base, then add worktree. If branch exists, reuse with force flag carefully.
+  // Create the generated branch from the captured base, then attach its worktree.
   const branchCheck = await runGitCommand({
     cwd: projectPath,
     args: ['rev-parse', '--verify', branch],
     allowFailure: true,
   });
-  if (branchCheck.exitCode !== 0) {
+  const createdBranch = branchCheck.exitCode !== 0;
+  if (createdBranch) {
     await runGitCommand({
       cwd: projectPath,
       args: ['branch', branch, baseRef],
@@ -77,9 +87,17 @@ export async function createWorktree(input: CreateWorktreeInput): Promise<Create
     allowFailure: true,
   });
   if (add.exitCode !== 0) {
-    // Already exists / path taken — try force re-add after remove listing
+    if (createdBranch) {
+      await runGitCommand({
+        cwd: projectPath,
+        args: ['branch', '--delete', '--force', branch],
+        allowFailure: true,
+      });
+    }
+    // Never adopt an existing path blindly: it may belong to a retained task
+    // from an earlier Host process and can have a different base or owner.
     if (add.stderr.includes('already exists') || add.stdout.includes('already exists')) {
-      return { worktreePath, branch };
+      throw new Error(`git worktree path already exists and was not reused: ${worktreePath}`);
     }
     throw new Error(`git worktree add failed: ${add.stderr || add.stdout}`);
   }
@@ -106,8 +124,32 @@ export async function removeWorktree(input: RemoveWorktreeInput): Promise<void> 
       args: ['worktree', 'prune'],
       allowFailure: true,
     });
-    if (!result.stderr.includes('is not a working tree') && !result.stderr.includes('not a valid path')) {
+    if (
+      !result.stderr.includes('is not a working tree') &&
+      !result.stderr.includes('not a valid path')
+    ) {
       throw new Error(`git worktree remove failed: ${result.stderr || result.stdout}`);
+    }
+  }
+
+  if (input.worktreeBranch) {
+    const branch = assertSafeBranchName(input.worktreeBranch);
+    if (!branch.startsWith('piwin/subagent/')) {
+      throw new Error(`refusing to delete non-subagent worktree branch: ${branch}`);
+    }
+    const branchRemoval = await runGitCommand({
+      cwd: projectPath,
+      args: ['branch', '--delete', '--force', branch],
+      allowFailure: true,
+    });
+    if (
+      branchRemoval.exitCode !== 0 &&
+      !branchRemoval.stderr.includes('branch not found') &&
+      !branchRemoval.stderr.includes('not found')
+    ) {
+      throw new Error(
+        `git worktree branch cleanup failed: ${branchRemoval.stderr || branchRemoval.stdout}`,
+      );
     }
   }
 }

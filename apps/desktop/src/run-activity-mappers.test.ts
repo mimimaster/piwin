@@ -66,7 +66,20 @@ describe('turnPresentationToActivityInput', () => {
       role: 'assistant' as const,
       text: '',
       thinking: '',
-      tools: [{ toolCallId: 't1', toolName: 'read_file', status: 'running' as const, output: '' }],
+      tools: [
+        {
+          toolCallId: 't1',
+          toolName: 'read_file',
+          status: 'running' as const,
+          output: '',
+          presentation: {
+            kind: 'filesystem' as const,
+            title: 'Read file',
+            targetPaths: ['apps/desktop/src/App.tsx'],
+            actionVerb: 'Read',
+          },
+        },
+      ],
       attachments: [],
       status: 'streaming' as const,
       runId: 'r1',
@@ -75,5 +88,7 @@ describe('turnPresentationToActivityInput', () => {
     const input = turnPresentationToActivityInput(presentation, message, 'en');
     expect(input.kind).toBe('waiting-first-token');
     expect(input.activeToolName).toBe('read_file');
+    expect(input.detail).toBe('apps/desktop/src/App.tsx');
+    expect(input.actionVerb).toBe('Read');
   });
 });

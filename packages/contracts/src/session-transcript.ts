@@ -125,6 +125,20 @@ export type SessionOutlineNode = {
   createdAt: string;
 };
 
+/** Bounded on-demand tool output snapshot (Doc Preview historical recovery). */
+export type SessionToolOutputData =
+  | {
+      status: 'ready';
+      output: string;
+      truncated: boolean;
+      redacted: boolean;
+      provenance: 'tool-snapshot';
+    }
+  | {
+      status: 'unavailable';
+      reason: 'not-found' | 'not-readable-tool' | 'snapshot-unavailable';
+    };
+
 /**
  * Bounded outline page query (ADR 0040 §9).
  *

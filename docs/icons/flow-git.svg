@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg class="piwin-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="6" cy="6" r="2.5" stroke="#f59e0b" stroke-width="2"/>
+                <circle cx="6" cy="18" r="2.5" stroke="#f59e0b" stroke-width="2"/>
+                <circle cx="18" cy="12" r="2.5" stroke="#10b981" stroke-width="2"/>
+                <path d="M6 8.5V15.5" stroke="#9ca3af" stroke-width="2"/>
+                <path d="M6 18C12 18 12 12 15.5 12" stroke="#9ca3af" stroke-width="2"/>
+              </svg>

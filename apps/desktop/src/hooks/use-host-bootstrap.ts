@@ -41,6 +41,7 @@ export type ExtensionUiRequestState = {
 
 export type UseHostBootstrapArgs = {
   hostClient: HostClient;
+  activeSessionId: string | null;
   dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
   refreshJobs: () => Promise<void>;
@@ -53,6 +54,23 @@ export type UseHostBootstrapArgs = {
 };
 
 type PermissionRequestPush = Extract<HostPush, { type: 'permission/request' }>;
+
+export type SessionPlanCache = Readonly<Record<string, SessionPlan | null>>;
+
+export function cacheSessionPlan(
+  current: SessionPlanCache,
+  sessionId: string,
+  plan: SessionPlan | null,
+): SessionPlanCache {
+  return { ...current, [sessionId]: plan };
+}
+
+export function selectSessionPlan(
+  current: SessionPlanCache,
+  activeSessionId: string | null,
+): SessionPlan | null {
+  return activeSessionId ? (current[activeSessionId] ?? null) : null;
+}
 
 export function toPermissionPromptUi(message: PermissionRequestPush): PermissionPromptUi {
   return {
@@ -86,9 +104,14 @@ export function resolveThemeBootstrapResponse(response: HostResponse): ThemeMani
 
 export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const [hostStatus, setHostStatus] = useState<HostStatusData | null>(null);
+  const [hostReadyEpoch, setHostReadyEpoch] = useState(0);
+  const lastPushedHostReadyRef = useRef<boolean | null>(null);
   const [config, setConfig] = useState<PiwinConfig | null>(null);
   const [activePet, setActivePet] = useState<PetRuntimeSnapshot | null>(null);
-  const [sessionPlan, setSessionPlan] = useState<SessionPlan | null>(null);
+  const [plansBySessionId, setPlansBySessionId] = useState<
+    Record<string, SessionPlan | null>
+  >({});
+  const sessionPlan = selectSessionPlan(plansBySessionId, args.activeSessionId);
   const [extensionUiRequest, setExtensionUiRequest] = useState<ExtensionUiRequestState | null>(
     null,
   );
@@ -117,6 +140,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
       if (message.type === 'host/status') {
         dispatch({ type: 'host/status', ready: message.ready, mock: message.mock });
+        if (message.ready && lastPushedHostReadyRef.current !== true) {
+          setHostReadyEpoch((current) => current + 1);
+        }
+        lastPushedHostReadyRef.current = message.ready;
         return;
       }
       if (message.type === 'event') {
@@ -264,7 +291,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'plan/updated') {
-        setSessionPlan(message.plan);
+        setPlansBySessionId((current) => cacheSessionPlan(current, message.sessionId, message.plan));
         return;
       }
       if (message.type === 'plan/execution-updated') {
@@ -379,6 +406,30 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.hostClient]);
 
+  useEffect(() => {
+    const sessionId = args.activeSessionId;
+    if (!sessionId || hostStatus?.ready !== true) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await args.hostClient.request({ type: 'plan/get', sessionId });
+        if (cancelled || !response.success) return;
+        const data = response.data as { sessionId: string; plan: SessionPlan | null };
+        setPlansBySessionId((current) => cacheSessionPlan(current, data.sessionId, data.plan));
+      } catch (error) {
+        if (!cancelled) {
+          args.dispatch({
+            type: 'error',
+            message: `Failed to restore session plan: ${formatError(error)}`,
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [args.activeSessionId, args.hostClient, hostReadyEpoch, hostStatus?.ready]);
+
   return {
     hostStatus,
     setHostStatus,
@@ -387,7 +438,6 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     activePet,
     setActivePet,
     sessionPlan,
-    setSessionPlan,
     extensionUiRequest,
     setExtensionUiRequest,
     extensionUiInput,

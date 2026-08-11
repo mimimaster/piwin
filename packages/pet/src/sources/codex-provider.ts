@@ -87,6 +87,7 @@ export const codexProvider: PetSourceProvider = {
       const summary: PetDiscoveredEntry = {
         petId: manifest.id,
         displayName: manifest.displayName,
+        manifest,
         source: 'codex-live',
         location: dir,
         installed: true,

@@ -2699,6 +2699,55 @@
   text-decoration: none;
 }
 
+.provider-discover-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent-subtle, rgba(56, 189, 248, 0.14));
+  border: 1px solid var(--accent-border, rgba(56, 189, 248, 0.35));
+  color: var(--accent-text, #38bdf8);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.provider-discover-btn:hover:not(:disabled) {
+  background: var(--accent-hover, rgba(56, 189, 248, 0.25));
+  border-color: var(--accent-border-hover, rgba(56, 189, 248, 0.6));
+  color: var(--accent-text-hover, #7dd3fc);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.18);
+}
+
+.provider-discover-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.provider-discover-btn-icon {
+  flex-shrink: 0;
+}
+
+.provider-discover-btn-icon--spin {
+  animation: provider-discover-spin 1s linear infinite;
+}
+
+@keyframes provider-discover-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .provider-input-wrap {
   position: relative;
 }

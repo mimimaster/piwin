@@ -37,7 +37,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost https://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:",
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost https://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src 'self' blob: data:; child-src 'self' blob: data:",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -48,7 +48,11 @@
             "$APPDIR/**",
             "$RESOURCE/**"
           ],
-          "deny": ["$HOME/.piwin/credentials/**", "$HOME/.ssh/**", "$HOME/.aws/**"]
+          "deny": [
+            "$HOME/.piwin/credentials/**",
+            "$HOME/.ssh/**",
+            "$HOME/.aws/**"
+          ]
         }
       }
     }
@@ -64,9 +68,12 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/piwin-host"],
+    "externalBin": [
+      "binaries/piwin-host"
+    ],
     "resources": {
       "../../../dist-host/host-serve.mjs": "host/host-serve.mjs",
+      "../../../dist-host/agent-worker.mjs": "host/agent-worker.mjs",
       "../../../dist-host/node_modules": "host/node_modules",
       "../../../dist-host/bundled-assets": "host/bundled-assets",
       "../../../dist-host/package.json": "host/package.json"

@@ -181,7 +181,7 @@ export function ModelWorkbench({
               disabled={disabled || fetching}
               onClick={handleFetchModels}
             >
-              {fetching ? <Spinner /> : isChinese ? '自动发现' : 'Discover'}
+              {fetching ? <Spinner /> : isChinese ? '拉取可用模型' : 'Fetch models'}
             </Button>
             <Button size="compact" disabled={disabled} onClick={() => setAddOpen(true)}>
               + {isChinese ? '添加' : 'Add'}
@@ -522,7 +522,6 @@ function ModelInlineEditor({
             <option value="high">{isChinese ? '高 (High)' : 'High'}</option>
             <option value="xhigh">{isChinese ? '超高 (xHigh)' : 'xHigh'}</option>
             <option value="max">{isChinese ? '极高 (Max)' : 'Max'}</option>
-            <option value="ultra">{isChinese ? '极致 (Ultra)' : 'Ultra'}</option>
           </select>
         </Field>
       </div>

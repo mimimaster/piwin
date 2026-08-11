@@ -23,6 +23,39 @@ class FakeRuntime implements HostRuntimePort {
         data: { pong: true },
       };
     }
+    if (command.type === 'skills/read') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          status: 'ready',
+          skillId: command.skillId ?? 'unknown',
+          name: 'Executing Plans',
+          effectiveSource: 'user',
+          origin: 'unknown',
+          displayRef: `skill:${command.skillId ?? 'unknown'}`,
+          content: '# Executing Plans\n\nRemote-safe body',
+          byteSize: 40,
+          truncated: false,
+          provenance: 'current-resource',
+        },
+      };
+    }
+    if (command.type === 'session/tool-output') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          status: 'ready',
+          output: '# Snapshot body\n\nRead by the agent.',
+          truncated: false,
+          redacted: false,
+          provenance: 'tool-snapshot',
+        },
+      };
+    }
     if (command.type === 'host/status') {
       return {
         type: 'response',
@@ -617,6 +650,106 @@ describe('HostServer', () => {
     );
     const error = await inbox.waitFor((message) => message.type === 'error');
     expect(error).toMatchObject({ type: 'error', code: 'authentication-required' });
+    socket.close();
+    await server.stop();
+  });
+
+  it('serves remote-safe skills/read and tool-output snapshots', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-skill-read-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-skill-read-test',
+        lastSeq: 0,
+      }),
+    );
+    const hello = await inbox.waitFor((message) => message.type === 'host/hello');
+    expect(hello).toMatchObject({
+      type: 'host/hello',
+      capabilities: { skillPreview: true, toolOutputRead: true },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'skill-read-request',
+        command: { type: 'skills/read', id: 'skill-read-request', skillId: 'executing-plans' },
+      }),
+    );
+    const skillResponse = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'skill-read-request',
+    );
+    expect(JSON.stringify(skillResponse)).not.toContain('/Users/private');
+    expect(skillResponse).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: {
+          status: 'ready',
+          skillId: 'executing-plans',
+          displayRef: 'skill:executing-plans',
+          provenance: 'current-resource',
+        },
+      },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'tool-output-request',
+        command: {
+          type: 'session/tool-output',
+          id: 'tool-output-request',
+          sessionId: 'session-1',
+          messageId: 'message-1',
+          toolCallId: 'tc-1',
+        },
+      }),
+    );
+    const toolOutputResponse = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'tool-output-request',
+    );
+    expect(JSON.stringify(toolOutputResponse)).not.toContain('/Users/private');
+    expect(toolOutputResponse).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: {
+          status: 'ready',
+          provenance: 'tool-snapshot',
+          output: expect.stringContaining('Read by the agent'),
+        },
+      },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'skill-legacy-rejected',
+        command: {
+          type: 'skills/read',
+          id: 'skill-legacy-rejected',
+          legacyPath: '/Users/private/.piwin/skills/executing-plans/SKILL.md',
+        },
+      }),
+    );
+    const rejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'skill-legacy-rejected',
+    );
+    expect(rejected).toMatchObject({
+      type: 'error',
+      code: 'command-not-allowed',
+    });
+
     socket.close();
     await server.stop();
   });

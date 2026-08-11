@@ -13,7 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { AgentEvent, ExecutionRunRecord } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { ChatThread } from './chat-thread';
+import { ChatThread, shouldCollapseTurnToolHistory } from './chat-thread';
 import { RightPanel } from './right-panel';
 import {
   chatUiReducer,
@@ -83,6 +83,39 @@ function createUserMessage(id: string, text: string): ChatMessageUi {
     status: 'done',
   };
 }
+
+it('keeps an active multi-tool call chain expanded and compacts it after completion', () => {
+  const workDetailsMessage: ChatMessageUi = {
+    id: 'active-chain',
+    role: 'assistant',
+    text: 'Working through the files',
+    thinking: '',
+    tools: Array.from({ length: 5 }, (_, index) => ({
+      toolCallId: `tool-${index}`,
+      toolName: 'bash',
+      status: 'done' as const,
+      output: '',
+    })),
+    attachments: [],
+    status: 'streaming',
+    runId: 'run-active-chain',
+  };
+
+  expect(
+    shouldCollapseTurnToolHistory({
+      workDetailsMessage,
+      activeRunId: 'run-active-chain',
+      answerText: workDetailsMessage.text,
+    }),
+  ).toBe(false);
+  expect(
+    shouldCollapseTurnToolHistory({
+      workDetailsMessage: { ...workDetailsMessage, status: 'done' },
+      activeRunId: null,
+      answerText: workDetailsMessage.text,
+    }),
+  ).toBe(true);
+});
 
 function createStreamingAssistant(id: string): ChatMessageUi {
   return {
@@ -762,8 +795,96 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
       'prepare a new drawing',
     );
-    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
     expect(container.querySelector('#msg-a-run-thinking-only')).toBeNull();
+    expect(container.querySelector('#msg-a-run-first')).toBeNull();
+    // Work details own the final body row so the call chain sits above the answer.
+    expect(
+      container.querySelector('#msg-a-run-final [data-testid="turn-work-details"]'),
+    ).not.toBeNull();
+    // Two tools still expand as cards; 3+ collapse into history summary.
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]').length).toBeGreaterThan(0);
+    expect(container.textContent).not.toContain('I will inspect the workspace.');
+    expect(container.textContent).toContain('The SVG is ready.');
+  });
+
+  it('does not mount tool-only intermediate lifecycle rows that inflate the turn', () => {
+    // Reproduces the 400px chat-turn-group blank: many Pi tool steps each leave
+    // an assistant message with tools but no body; only the owner should render.
+    const userMessage = createUserMessage('u-tools-inflate', 'Inspect packaging');
+    const owner: ChatMessageUi = {
+      id: 'a-owner',
+      role: 'assistant',
+      text: '',
+      thinking: 'plan the inspection',
+      tools: [{ toolCallId: 'tool-1', toolName: 'bash', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-inflate',
+    };
+    const toolOnlySteps: ChatMessageUi[] = Array.from({ length: 15 }, (_, index) => ({
+      id: `a-tool-step-${index}`,
+      role: 'assistant' as const,
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: `tool-step-${index}`,
+          toolName: 'bash',
+          status: 'done' as const,
+          output: `step ${index}`,
+        },
+      ],
+      attachments: [],
+      status: 'done' as const,
+      runId: 'run-inflate',
+    }));
+    const finalReply: ChatMessageUi = {
+      id: 'a-final-body',
+      role: 'assistant',
+      text: 'I need to ground the plan in the actual packaging setup.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-inflate',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage, owner, ...toolOnlySteps, finalReply]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            workDetailsExpanded="collapsed"
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    for (let index = 0; index < 15; index += 1) {
+      expect(container.querySelector(`#msg-a-tool-step-${index}`)).toBeNull();
+    }
+    // Empty first lifecycle row is dropped; tools hang on the final body row.
+    expect(container.querySelector('#msg-a-owner')).toBeNull();
+    expect(container.querySelector('#msg-a-final-body')).not.toBeNull();
+    expect(
+      container.querySelector('#msg-a-final-body [data-testid="turn-work-details"]'),
+    ).not.toBeNull();
+    // User + final body only (16 tool shells must not remain).
+    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(2);
+    expect(container.querySelector('[data-testid="activity-history-tools"]')).not.toBeNull();
+    expect(container.textContent).toContain('I need to ground the plan');
   });
 
   it('removes run-activity slot when permissionPrompt is present or streaming is false', () => {

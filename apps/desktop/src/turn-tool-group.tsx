@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
-import { ToolCallCard } from './tool-call-card';
+import { ToolCallCard, type DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
 import {
@@ -29,6 +29,8 @@ export type TurnToolGroupProps = {
   request?: DiffCardRequest;
   /** Callback when user clicks a matched file in search results. */
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  /** Callback when user clicks a logical document target (skill / project file). */
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /**
    * When true (historical hydrate), collapse completed tools into a single
    * summary row so opening a long session does not mount every ToolCallCard.
@@ -41,6 +43,14 @@ function exploreBatchIsActive(tools: ToolCardUi[]): boolean {
   return tools.some((tool) => tool.status === 'running');
 }
 
+/** Survive virtualizer remounts — expand must not collapse on remeasure. */
+const expandedSearchToolIds = new Set<string>();
+const expandedExploreGroupIds = new Set<string>();
+
+function exploreGroupStableId(tools: readonly ToolCardUi[]): string {
+  return tools.map((tool) => tool.toolCallId).join('|');
+}
+
 function SearchToolItemRow(props: {
   tool: ToolCardUi;
   projectPath?: string | null | undefined;
@@ -49,7 +59,8 @@ function SearchToolItemRow(props: {
 }): ReactElement {
   const isZh = props.locale === 'zh-CN';
   const info = extractSearchInfo(props.tool, props.projectPath);
-  const [expanded, setExpanded] = useState(false);
+  const toolKey = props.tool.toolCallId;
+  const [expanded, setExpanded] = useState(() => expandedSearchToolIds.has(toolKey));
   const isActive = props.tool.status === 'running';
   const actionLabel = info.isError
     ? isZh
@@ -63,6 +74,18 @@ function SearchToolItemRow(props: {
         ? '已搜索'
         : 'Searched';
 
+  const toggleExpanded = (): void => {
+    setExpanded((previous) => {
+      const next = !previous;
+      if (next) {
+        expandedSearchToolIds.add(toolKey);
+      } else {
+        expandedSearchToolIds.delete(toolKey);
+      }
+      return next;
+    });
+  };
+
   return (
     <div
       className={`search-tool-item${info.isError ? ' has-error' : ''}${isActive ? ' is-active' : ''}`}
@@ -73,7 +96,7 @@ function SearchToolItemRow(props: {
       <button
         type="button"
         className="search-tool-item-summary"
-        onClick={() => setExpanded((prev) => !prev)}
+        onClick={toggleExpanded}
         aria-expanded={expanded}
       >
         <IconChevronDown
@@ -135,21 +158,37 @@ function ExploreGroupBlock(props: {
   projectPath?: string | null | undefined;
   request?: DiffCardRequest | undefined;
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
 }): ReactElement {
   const isActive = exploreBatchIsActive(props.tools);
   const searchTools = props.tools.filter(isSearchTool);
   const hasSearchTools = searchTools.length > 0;
   const isZh = props.locale === 'zh-CN';
 
-  // Search groups collapse by default unless user toggles.
-  const [expanded, setExpanded] = useState(false);
-  const [userToggled, setUserToggled] = useState(false);
+  const groupId = exploreGroupStableId(props.tools);
+  // Search groups collapse by default unless user toggles (state survives remount).
+  const [expanded, setExpanded] = useState(() => expandedExploreGroupIds.has(groupId));
+  const [userToggled, setUserToggled] = useState(() => expandedExploreGroupIds.has(groupId));
 
   useEffect(() => {
     if (!userToggled && !hasSearchTools) {
-      setExpanded(props.tools.some((t) => t.status === 'running' || t.status === 'error'));
+      const shouldOpen = props.tools.some((t) => t.status === 'running' || t.status === 'error');
+      setExpanded(shouldOpen);
     }
   }, [props.tools, userToggled, hasSearchTools]);
+
+  const toggleExpanded = (): void => {
+    setUserToggled(true);
+    setExpanded((previous) => {
+      const next = !previous;
+      if (next) {
+        expandedExploreGroupIds.add(groupId);
+      } else {
+        expandedExploreGroupIds.delete(groupId);
+      }
+      return next;
+    });
+  };
 
   const cardProps = {
     density: props.density,
@@ -157,6 +196,7 @@ function ExploreGroupBlock(props: {
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
+    ...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {}),
   };
 
   const firstSearchInfo =
@@ -188,10 +228,7 @@ function ExploreGroupBlock(props: {
         className="activity-explore-summary"
         aria-expanded={expanded}
         data-testid="activity-explore-summary"
-        onClick={() => {
-          setUserToggled(true);
-          setExpanded((previous) => !previous);
-        }}
+        onClick={toggleExpanded}
       >
         <IconChevronDown
           className={`activity-explore-chevron${expanded ? ' is-open' : ''}`}
@@ -277,6 +314,7 @@ function renderSegment(
     projectPath?: string | null | undefined;
     request?: DiffCardRequest | undefined;
     onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+    onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   },
   locale: 'zh-CN' | 'en',
 ): ReactElement {
@@ -305,6 +343,9 @@ function renderSegment(
       {...(cardProps.projectPath !== undefined ? { projectPath: cardProps.projectPath } : {})}
       {...(cardProps.request !== undefined ? { request: cardProps.request } : {})}
       {...(cardProps.onOpenFile !== undefined ? { onOpenFile: cardProps.onOpenFile } : {})}
+      {...(cardProps.onOpenDocument !== undefined
+        ? { onOpenDocument: cardProps.onOpenDocument }
+        : {})}
     />
   );
 }
@@ -316,6 +357,7 @@ function HistoryToolsCollapsed(props: {
   projectPath?: string | null;
   request?: DiffCardRequest;
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
 }): ReactElement {
   const isZh = props.locale === 'zh-CN';
   const attentionTools = props.tools.filter(
@@ -338,6 +380,7 @@ function HistoryToolsCollapsed(props: {
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
+    ...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {}),
   };
 
   const summaryLabel =
@@ -416,6 +459,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
+    ...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {}),
   };
 
   if (historyCollapsed && tools.length >= 3) {
@@ -428,6 +472,9 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
           {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
           {...(props.request !== undefined ? { request: props.request } : {})}
           {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+          {...(props.onOpenDocument !== undefined
+            ? { onOpenDocument: props.onOpenDocument }
+            : {})}
         />
       </div>
     );

@@ -87,11 +87,19 @@ export function collectMessageChangedFiles(tools: ToolCardUi[]): MessageChangedF
   return files;
 }
 
+export type MessageChangedFileStat = {
+  additions: number;
+  deletions: number;
+  status?: string;
+};
+
 export type MessageChangedFileStats = {
   additions: number;
   deletions: number;
   /** Paths that had a matching git diff-summary entry. */
   matchedPaths: string[];
+  /** Per-file diff stats keyed by file.path. */
+  byPath: Record<string, MessageChangedFileStat>;
 };
 
 /** Exact path or one path is a suffix of the other at a path boundary. */
@@ -107,13 +115,20 @@ function pathsReferToSameFile(a: string, b: string): boolean {
  * Filter a git diff-summary file list to the turn's changed paths and sum stats.
  * Paths are matched by exact string or by suffix (repo-relative vs absolute).
  */
+import { extractContentFieldFromInputPreview } from './resolve-document-content';
+
+/**
+ * Filter a git diff-summary file list to the turn's changed paths and sum stats.
+ * Paths are matched by exact string or by suffix (repo-relative vs absolute).
+ */
 export function matchChangedFileStats(
   changedFiles: MessageChangedFile[],
-  gitFiles: Array<{ path: string; additions: number; deletions: number }>,
+  gitFiles: Array<{ path: string; additions: number; deletions: number; status?: string }>,
 ): MessageChangedFileStats {
   let additions = 0;
   let deletions = 0;
   const matchedPaths: string[] = [];
+  const byPath: Record<string, MessageChangedFileStat> = {};
 
   for (const file of changedFiles) {
     const match = gitFiles.find((entry) => pathsReferToSameFile(file.path, entry.path));
@@ -121,7 +136,54 @@ export function matchChangedFileStats(
     additions += match.additions;
     deletions += match.deletions;
     matchedPaths.push(file.path);
+    byPath[file.path] = {
+      additions: match.additions,
+      deletions: match.deletions,
+      ...(match.status ? { status: match.status } : {}),
+    };
   }
 
-  return { additions, deletions, matchedPaths };
+  return { additions, deletions, matchedPaths, byPath };
+}
+
+export function deriveFallbackStatsForTools(
+  tools: ToolCardUi[],
+  files: MessageChangedFile[],
+  existingStats?: MessageChangedFileStats | null,
+): MessageChangedFileStats {
+  let additions = existingStats?.additions ?? 0;
+  let deletions = existingStats?.deletions ?? 0;
+  const matchedPaths = [...(existingStats?.matchedPaths ?? [])];
+  const byPath: Record<string, MessageChangedFileStat> = {
+    ...(existingStats?.byPath ?? {}),
+  };
+
+  for (const file of files) {
+    if (byPath[file.path]) continue;
+
+    let fileAdd = 1;
+    let fileDel = 0;
+
+    for (const tool of tools) {
+      const presentation = tool.presentation;
+      const targets = [
+        ...(presentation?.targetPaths ?? []),
+        ...(presentation?.changedPaths ?? []),
+      ];
+      if (targets.some((t) => pathsReferToSameFile(file.path, t))) {
+        const content = extractContentFieldFromInputPreview(presentation?.inputPreview);
+        if (content) {
+          fileAdd = Math.max(1, content.split('\n').length);
+        }
+        break;
+      }
+    }
+
+    additions += fileAdd;
+    deletions += fileDel;
+    matchedPaths.push(file.path);
+    byPath[file.path] = { additions: fileAdd, deletions: fileDel, status: 'modified' };
+  }
+
+  return { additions, deletions, matchedPaths, byPath };
 }

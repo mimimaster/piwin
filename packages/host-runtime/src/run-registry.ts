@@ -200,6 +200,7 @@ export class RunRegistry {
     sessionId: string,
     runtimeGenerationId?: string,
     resumeCheckpointId?: string,
+    parentRunId?: string,
   ): ExecutionRunRecord {
     if (this.getForegroundRun(sessionId)) {
       throw new Error(`run-active: session ${sessionId} already has a foreground run`);
@@ -207,6 +208,7 @@ export class RunRegistry {
     const created = this.create({
       kind: 'session-turn',
       sessionId,
+      ...(parentRunId !== undefined ? { parentRunId } : {}),
       ...(runtimeGenerationId !== undefined ? { runtimeGenerationId } : {}),
       ...(resumeCheckpointId !== undefined ? { resumeCheckpointId } : {}),
     });

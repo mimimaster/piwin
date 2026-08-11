@@ -637,7 +637,10 @@ export async function openSessionTranscriptStore(
         cursor !== null &&
         (cursor.limit !== query.limit || cursor.maximumBytes !== query.maximumBytes)
       ) {
-        throw new RangeError('Session transcript cursor limits do not match the query');
+        return {
+          status: 'stale-cursor',
+          currentRevision: revisionToken(options.sessionId, revision),
+        };
       }
       const endSequence = cursor?.endSequence ?? Number.MAX_SAFE_INTEGER;
       const rows = db

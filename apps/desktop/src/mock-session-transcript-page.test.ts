@@ -34,6 +34,16 @@ describe('browser mock transcript pages', () => {
     if (older.status !== 'page') return;
     expect(older.messages[0]?.id).toBe('m-8');
 
+    const changedLimits = createMockSessionTranscriptPage(messages, {
+      ...query,
+      limit: 8,
+      beforeCursor: olderCursor,
+    });
+    expect(changedLimits).toEqual({
+      status: 'stale-cursor',
+      currentRevision: tail.page.revision,
+    });
+
     const stale = createMockSessionTranscriptPage([...messages, ...transcript(1)], {
       ...query,
       beforeCursor: olderCursor,

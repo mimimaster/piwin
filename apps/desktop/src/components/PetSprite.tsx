@@ -15,6 +15,7 @@ import {
   PET_OVERLAY_PAD_Y_PX,
   resolvePetDisplaySize,
 } from './pet-display-size.js';
+import { convertPetAssetPath } from './pet-asset-url.js';
 import './pet-sprite.css';
 
 export type PetSpriteProps = {
@@ -90,7 +91,7 @@ export function PetSprite(props: PetSpriteProps) {
   // Load spritesheet with immediate cache lookup.
   useEffect(() => {
     if (!props.pet.spritesheetAbsolutePath) return;
-    const src = convertFileSrc(props.pet.spritesheetAbsolutePath);
+    const src = convertPetAssetPath(props.pet.spritesheetAbsolutePath);
     const cached = imageCacheMap.get(src);
     if (cached && (cached.naturalWidth > 0 || cached.complete)) {
       imageRef.current = cached;
@@ -333,18 +334,4 @@ export function PetSprite(props: PetSpriteProps) {
       ) : null}
     </div>
   );
-}
-
-/**
- * Convert an absolute filesystem path to a Tauri asset URL.
- * In non-Tauri (mock) mode, fall back to a file:// URL.
- */
-function convertFileSrc(path: string): string {
-  const w = window as unknown as {
-    __TAURI_INTERNALS__?: { convertFileSrc?: (p: string) => string };
-  };
-  if (w.__TAURI_INTERNALS__?.convertFileSrc) {
-    return w.__TAURI_INTERNALS__.convertFileSrc(path);
-  }
-  return `file://${path}`;
 }

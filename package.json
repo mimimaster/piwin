@@ -27,6 +27,7 @@
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",
     "soak:session-runtime": "tsx scripts/session-runtime-rss-soak.mjs",
     "e2e:host-jsonl": "NODE_ENV=test node scripts/e2e-host-jsonl.mjs",
+    "e2e:subagent-real": "node scripts/e2e-subagent-worktree-real.mjs",
     "test:architecture": "node scripts/check-package-boundaries.mjs",
     "audit:prod": "pnpm audit --prod || true",
     "e2e:desktop": "pnpm --dir apps/desktop e2e",

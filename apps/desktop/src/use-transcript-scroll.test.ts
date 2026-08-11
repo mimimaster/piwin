@@ -3,6 +3,8 @@ import {
   computeScrollProgress,
   isNearBottom,
   isScrollOverflowing,
+  shouldDetachFollowTailFromScrollDelta,
+  shouldDetachFollowTailFromWheelDelta,
 } from './use-transcript-scroll';
 
 describe('isNearBottom', () => {
@@ -79,5 +81,52 @@ describe('isScrollOverflowing', () => {
 
   it('marks a clearly overflowing viewport', () => {
     expect(isScrollOverflowing(0.5)).toBe(true);
+  });
+});
+
+describe('shouldDetachFollowTailFromScrollDelta', () => {
+  it('detaches when the user scrolls up enough even during a programmatic stick race', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -24,
+        programmatic: true,
+        nearBottom: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not detach for tiny thrash or content growth at the tail', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -2,
+        programmatic: true,
+        nearBottom: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -40,
+        programmatic: false,
+        nearBottom: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('detaches non-programmatic upward motion away from the tail', () => {
+    expect(
+      shouldDetachFollowTailFromScrollDelta({
+        scrollTopDelta: -1,
+        programmatic: false,
+        nearBottom: false,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('shouldDetachFollowTailFromWheelDelta', () => {
+  it('treats negative deltaY as history navigation', () => {
+    expect(shouldDetachFollowTailFromWheelDelta(-12)).toBe(true);
+    expect(shouldDetachFollowTailFromWheelDelta(12)).toBe(false);
+    expect(shouldDetachFollowTailFromWheelDelta(0)).toBe(false);
   });
 });

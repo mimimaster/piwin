@@ -8,10 +8,14 @@
  *   dist-host/bundled-assets/ (S0 layout)
  */
 import { build } from 'esbuild';
-import { cp, mkdir, rm, writeFile, stat } from 'node:fs/promises';
+import { cp, lstat, mkdir, readdir, rm, writeFile, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import {
+  formatPruneReport,
+  pruneHostNodeModules,
+} from './lib/prune-host-node-modules.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const distHost = join(root, 'dist-host');
@@ -50,6 +54,35 @@ async function pathExists(path) {
 async function copyDir(from, to) {
   await mkdir(dirname(to), { recursive: true });
   await cp(from, to, { recursive: true, force: true });
+}
+
+
+function formatMb(bytes) {
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+async function dirSize(dir) {
+  if (!(await pathExists(dir))) return 0;
+  let total = 0;
+  async function walk(current) {
+    let entries;
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(current, entry.name);
+      try {
+        if (entry.isDirectory()) await walk(full);
+        else total += (await lstat(full)).size;
+      } catch {
+        // ignore racing paths
+      }
+    }
+  }
+  await walk(dir);
+  return total;
 }
 
 async function main() {
@@ -160,6 +193,23 @@ async function main() {
     console.warn(
       '[bundle-host] photon_rs_bg.wasm not found at expected paths — image paste may fail until externals adjusted',
     );
+  }
+
+  const nodeModulesDir = join(distHost, 'node_modules');
+  const beforePrune = await dirSize(nodeModulesDir);
+  console.log(
+    `[bundle-host] pruning dist-host/node_modules (before ${formatMb(beforePrune)})…`,
+  );
+  const pruneReport = await pruneHostNodeModules(nodeModulesDir);
+  console.log(formatPruneReport(pruneReport));
+  const afterPrune = await dirSize(nodeModulesDir);
+  console.log(
+    `[bundle-host] node_modules after prune ${formatMb(afterPrune)} (saved ${formatMb(Math.max(0, beforePrune - afterPrune))})`,
+  );
+
+  // RPC worker must sit beside host-serve.mjs (import.meta.url resolution).
+  if (!(await pathExists(workerOutfile))) {
+    throw new Error('missing dist-host/agent-worker.mjs after esbuild — bundle incomplete');
   }
 
   console.log(`[bundle-host] done → ${relative(root, distHost)}`);

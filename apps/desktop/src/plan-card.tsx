@@ -16,6 +16,20 @@ import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.
 
 export type PlanStepVisual = 'done' | 'run' | 'pending' | 'skipped';
 
+export function formatPlanMarkdown(plan: SessionPlan): string {
+  return [
+    `# Implementation Plan: ${plan.title}`,
+    `**Goal**: ${plan.goal || 'Session Plan Execution'}`,
+    `**Status**: ${plan.status}`,
+    '',
+    '## Plan Steps',
+    ...plan.steps.map((step, index) => {
+      const tag = step.status === 'done' ? '[DONE]' : step.status === 'active' ? '[MODIFY]' : '[PENDING]';
+      return `### ${tag} Step ${index + 1}: ${step.title}\n- Status: \`${step.status}\`${step.detail ? `\n- Detail: ${step.detail}` : ''}`;
+    }),
+  ].join('\n');
+}
+
 /** Maps contract step status to the V7 visual state machine (.step.done/.run/.skipped). */
 export function planStepVisual(status: PlanStepStatus): PlanStepVisual {
   switch (status) {
@@ -107,22 +121,9 @@ export function PlanCard({
   function handleOpenDoc(event: React.MouseEvent): void {
     event.stopPropagation();
     if (!onOpenDocument) return;
-    const markdownContent = [
-      `# Implementation Plan: ${plan.title}`,
-      `**Goal**: ${plan.goal || 'Session Plan Execution'}`,
-      `**Status**: ${plan.status}`,
-      '',
-      '## Plan Steps',
-      ...plan.steps.map((step, idx) => {
-        const isDone = step.status === 'done';
-        const tag = isDone ? '[DONE]' : step.status === 'active' ? '[MODIFY]' : '[PENDING]';
-        return `### ${tag} Step ${idx + 1}: ${step.title}\n- Status: \`${step.status}\`${step.detail ? `\n- Detail: ${step.detail}` : ''}`;
-      }),
-    ].join('\n');
-
     onOpenDocument({
       title: plan.title || 'Implementation Plan',
-      content: markdownContent,
+      content: formatPlanMarkdown(plan),
     });
   }
 

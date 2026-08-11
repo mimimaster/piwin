@@ -16,7 +16,12 @@ import {
   resolveDesktopAppearance,
   resolveSystemThemeMode,
 } from './appearance-tokens';
-import { loadDesktopPreferences, type AppearanceMode } from './ui-preferences';
+import {
+  isDocumentThemeId,
+  rememberAppliedTheme,
+  resolveStartupAppearance,
+} from './theme-startup';
+import { loadDesktopPreferences } from './ui-preferences';
 
 /**
  * Test-harness route, compiled in only when Playwright's Vite server sets
@@ -34,20 +39,26 @@ function isPrimitiveGalleryRoute(): boolean {
 }
 
 export function DesktopThemeRoot() {
-  const [activeTheme, setActiveTheme] = useState<ThemeManifest>(() => {
-    const preferences = loadDesktopPreferences();
-    const activeMode = resolvePreferredThemeMode(preferences.appearanceMode);
-    const themeSettings = activeMode === 'light' ? preferences.lightTheme : preferences.darkTheme;
-    return buildAppearanceTheme(activeMode, themeSettings);
-  });
+  // Same resolver as main.tsx pre-paint so React's first commit matches the
+  // document tokens already on <html> (no Noir → ink-wash jump).
+  const [activeTheme, setActiveTheme] = useState<ThemeManifest>(() => resolveStartupAppearance());
 
   const applyResolvedTheme = useCallback((candidateTheme: ThemeManifest) => {
     const resolvedTheme = resolveDesktopAppearance(candidateTheme);
+    // Host bootstrap re-sends the active theme after connect. If we already
+    // pre-painted the same id, skip the switch freeze — otherwise the user
+    // still sees a one-frame "flash" even when colors match.
+    if (isDocumentThemeId(resolvedTheme.id)) {
+      rememberAppliedTheme(resolvedTheme);
+      setActiveTheme((previous) => (previous.id === resolvedTheme.id ? previous : resolvedTheme));
+      return;
+    }
     // Apply document tokens before the state update so CSS and Mantine never
     // present mismatched themes within one commit. Freeze transitions so the
     // whole shell does not smear color/geometry for 120–200ms.
     beginThemeSwitch();
     applyAppearanceToDocument(resolvedTheme);
+    rememberAppliedTheme(resolvedTheme);
     setActiveTheme(resolvedTheme);
   }, []);
 
@@ -55,6 +66,7 @@ export function DesktopThemeRoot() {
   // gets its manifest projected to document tokens synchronously post-render.
   useLayoutEffect(() => {
     applyAppearanceToDocument(activeTheme);
+    rememberAppliedTheme(activeTheme);
   }, [activeTheme]);
 
   useEffect(() => {
@@ -85,8 +97,4 @@ export function DesktopThemeRoot() {
       </AppErrorBoundary>
     </PiwinUiProvider>
   );
-}
-
-function resolvePreferredThemeMode(appearanceMode: AppearanceMode): 'light' | 'dark' {
-  return appearanceMode === 'system' ? resolveSystemThemeMode() : appearanceMode;
 }

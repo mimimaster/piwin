@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HostPush, HostRuntimeResourcesData, MediaSaveData } from '@piwin/contracts';
 import { buildSettingsDomainMutations } from '@piwin/contracts';
 import {
@@ -1496,14 +1496,120 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
-  it('starts inline execution after approval and pushes execution-updated', async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-inline-'));
-    const pushes: string[] = [];
+  it('atomically approves and starts a draft plan with revision protection', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-atomic-exec-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-atomic-exec' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    await runtime.handleCommand({
+      type: 'plan/set',
+      sessionId,
+      plan: {
+        id: 'p-atomic',
+        sessionId,
+        projectPath: '/tmp/plan-atomic-exec',
+        status: 'draft',
+        title: 'Atomic plan',
+        goal: 'Start without an approval race',
+        steps: [{ id: '1', title: 'Execute', status: 'pending' }],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'skill',
+        skillId: 'writing-plans',
+      },
+    });
+
+    const stale = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: {
+        sessionId,
+        planId: 'p-atomic',
+        mode: 'inline',
+        expectedRevision: 99,
+        approveDraft: true,
+      },
+    });
+    expect(stale.success).toBe(false);
+    if (!stale.success) expect(stale.error).toContain('revision mismatch');
+
+    const started = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: {
+        sessionId,
+        planId: 'p-atomic',
+        mode: 'inline',
+        expectedRevision: 0,
+        approveDraft: true,
+      },
+    });
+    expect(started.success).toBe(true);
+    await runtime.dispose();
+  });
+
+  it('fails a writing-plans Run that does not persist a new skill plan revision', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-writing-plan-invariant-'));
+    const pushes: HostPush[] = [];
     const runtime = new HostRuntime({
       mode: 'sdk',
       mock: true,
       piwinRoot: rootDir,
-      onPush: (message) => pushes.push(message.type),
+      onPush: (message) => pushes.push(message),
+    });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/writing-plan-invariant' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const response = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text: '[piwin-skill:writing-plans]\nCreate the plan.',
+        skillId: 'writing-plans',
+      },
+    });
+    expect(response.success).toBe(true);
+    if (!response.success) throw new Error(response.error);
+    const runId = (response.data as { runId: string }).runId;
+    await vi.waitFor(() => {
+      expect(
+        pushes.some(
+          (push) =>
+            push.type === 'run/terminal' &&
+            push.run.runId === runId &&
+            push.run.status === 'failed',
+        ),
+      ).toBe(true);
+    });
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'event' &&
+          push.event.type === 'error' &&
+          push.event.message.includes('plan-not-persisted'),
+      ),
+    ).toBe(true);
+    await runtime.dispose();
+  });
+
+  it('starts inline execution after approval and pushes execution-updated', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-inline-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
     });
     await runtime.handleCommand({ type: 'project/open', path: '/tmp/plan-inline' });
     const created = await runtime.handleCommand({
@@ -1537,7 +1643,152 @@ describe('HostRuntime', () => {
       request: { sessionId, planId: 'p1', mode: 'inline' },
     });
     expect(result.success).toBe(true);
-    expect(pushes).toContain('plan/execution-updated');
+    if (!result.success) throw new Error(result.error);
+    const planRunId = (result.data as { runId: string }).runId;
+    const deadline = Date.now() + 1_000;
+    while (
+      Date.now() < deadline &&
+      !pushes.some((push) => push.type === 'run/terminal' && push.run.runId === planRunId)
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(pushes.some((push) => push.type === 'plan/execution-updated')).toBe(true);
+    const foreground = pushes.find(
+      (push) =>
+        push.type === 'run/updated' &&
+        push.run.kind === 'session-turn' &&
+        push.run.parentRunId === planRunId,
+    );
+    expect(foreground).toBeDefined();
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'run/terminal' &&
+          push.run.runId === planRunId &&
+          push.run.status === 'failed',
+      ),
+    ).toBe(true);
+    await runtime.dispose();
+  });
+
+  it('inherits the active composer model for an unpinned subagent task', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-subagent-model-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const composerModel = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'composer-provider',
+      modelId: 'composer-model',
+    };
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/subagent-model', model: composerModel },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prepared = await (
+      runtime as unknown as {
+        prepareSubagentBatch: (request: {
+          parentSessionId: string;
+          tasks: Array<{
+            id: string;
+            parentSessionId: string;
+            task: string;
+            profileId: string;
+          }>;
+        }) => Promise<{
+          tasks: Array<{ model?: typeof composerModel }>;
+        }>;
+      }
+    ).prepareSubagentBatch({
+      parentSessionId: sessionId,
+      tasks: [
+        {
+          id: 'scout-1',
+          parentSessionId: sessionId,
+          task: 'Inspect the relevant files.',
+          profileId: 'explorer',
+        },
+      ],
+    });
+
+    expect(prepared.tasks[0]?.model).toEqual(composerModel);
+    await runtime.dispose();
+  });
+
+  it('persists plan abort before cancelling and terminalizes the Plan Run', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-abort-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-abort' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    await runtime.handleCommand({
+      type: 'plan/set',
+      sessionId,
+      plan: {
+        id: 'p-abort',
+        sessionId,
+        projectPath: '/tmp/plan-abort',
+        status: 'draft',
+        title: 'Abort me',
+        goal: 'Exercise cancellation',
+        steps: [{ id: '1', title: 'Wait', status: 'pending' }],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'user',
+      },
+    });
+    await runtime.handleCommand({ type: 'plan/approve', sessionId });
+    const execution = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: { sessionId, planId: 'p-abort', mode: 'inline' },
+    });
+    expect(execution.success).toBe(true);
+    if (!execution.success) throw new Error(execution.error);
+    const planRunId = (execution.data as { runId: string }).runId;
+
+    const aborted = await runtime.handleCommand({
+      type: 'plan/abort',
+      sessionId,
+      planId: 'p-abort',
+    });
+    expect(aborted.success).toBe(true);
+    const deadline = Date.now() + 1_000;
+    while (
+      Date.now() < deadline &&
+      !pushes.some((push) => push.type === 'run/terminal' && push.run.runId === planRunId)
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'plan/updated' &&
+          push.plan?.status === 'abandoned' &&
+          push.plan.execution?.status === 'aborted',
+      ),
+    ).toBe(true);
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'run/terminal' &&
+          push.run.runId === planRunId &&
+          push.run.status === 'cancelled',
+      ),
+    ).toBe(true);
     await runtime.dispose();
   });
 

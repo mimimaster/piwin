@@ -152,7 +152,10 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(streaming.srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
     expect(streaming.srcdoc).toContain('syncChildren(root, template.content)');
-    expect(streaming.srcdoc).toContain('event.source !== parent');
+    // channelId-bound stream auth — do not require event.source === parent
+    // (packaged Tauri WindowProxy identity breaks that check).
+    expect(streaming.srcdoc).not.toContain('event.source !== parent');
+    expect(streaming.srcdoc).toContain('data.channelId !== channelId');
     expect(streaming.srcdoc).toContain('data.final === true');
     expect(streaming.srcdoc).toContain('activateFinalScripts');
     expect(streaming.srcdoc).toContain("new Event('DOMContentLoaded')");

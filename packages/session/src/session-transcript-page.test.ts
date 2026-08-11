@@ -87,7 +87,7 @@ describe('createSessionTranscriptPage', () => {
     expect(stale.status).toBe('stale-cursor');
   });
 
-  it('rejects invalid and query-mismatched cursors', () => {
+  it('rejects invalid cursors and restarts query-limit drift as stale', () => {
     const messages = Array.from({ length: 40 }, (_, index) => message(index));
     expect(() =>
       createSessionTranscriptPage(messages, query({ beforeCursor: 'not/a/cursor' })),
@@ -97,8 +97,11 @@ describe('createSessionTranscriptPage', () => {
     expect(tail.status).toBe('page');
     if (tail.status !== 'page' || tail.page.olderCursor === undefined) return;
     const olderCursor = tail.page.olderCursor;
-    expect(() =>
+    expect(
       createSessionTranscriptPage(messages, query({ limit: 8, beforeCursor: olderCursor })),
-    ).toThrow('cursor limits do not match');
+    ).toEqual({
+      status: 'stale-cursor',
+      currentRevision: tail.page.revision,
+    });
   });
 });

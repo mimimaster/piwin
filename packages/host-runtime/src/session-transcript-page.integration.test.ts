@@ -8,7 +8,10 @@ import type {
   SessionTranscriptDocument,
   SessionTranscriptPageData,
 } from '@piwin/contracts';
-import { SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES } from '@piwin/contracts';
+import {
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+} from '@piwin/contracts';
 import { HostRuntime } from './host-runtime.js';
 import { getPiwinSessionIndexPath, getPiwinSessionTranscriptPath } from './paths.js';
 
@@ -60,9 +63,9 @@ describe('HostRuntime transcript paging', () => {
       expect(resumeResponse.success).toBe(true);
       if (!resumeResponse.success) throw new Error(resumeResponse.error);
       const resume = resumeResponse.data as SessionResumeData;
-      expect(resume.messages).toHaveLength(16);
-      expect(resume.messages[0]?.id).toBe('message-64');
-      expect(resume.messages[15]?.id).toBe('message-79');
+      expect(resume.messages).toHaveLength(SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS);
+      expect(resume.messages[0]?.id).toBe('message-30');
+      expect(resume.messages.at(-1)?.id).toBe('message-79');
       expect(resume.transcriptPage?.totalCount).toBe(80);
       const olderCursor = resume.transcriptPage?.olderCursor;
       if (olderCursor === undefined) throw new Error('expected older transcript cursor');
@@ -71,7 +74,7 @@ describe('HostRuntime transcript paging', () => {
         type: 'session/transcript-page',
         query: {
           sessionId,
-          limit: 16,
+          limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
           maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
           beforeCursor: olderCursor,
         },
@@ -81,9 +84,9 @@ describe('HostRuntime transcript paging', () => {
       const older = olderResponse.data as SessionTranscriptPageData;
       expect(older.status).toBe('page');
       if (older.status !== 'page') return;
-      expect(older.messages).toHaveLength(16);
-      expect(older.messages[0]?.id).toBe('message-48');
-      expect(older.messages[15]?.id).toBe('message-63');
+      expect(older.messages).toHaveLength(30);
+      expect(older.messages[0]?.id).toBe('message-0');
+      expect(older.messages.at(-1)?.id).toBe('message-29');
       expect(older.page.messageBytes).toBeLessThanOrEqual(SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES);
     } finally {
       await runtime.dispose();
@@ -133,7 +136,7 @@ describe('HostRuntime transcript paging', () => {
       const resumeResponse = await runtime.handleCommand({ type: 'session/resume', sessionId });
       expect(resumeResponse.success).toBe(true);
       if (!resumeResponse.success) throw new Error(resumeResponse.error);
-      expect((resumeResponse.data as SessionResumeData).messages).toHaveLength(16);
+      expect((resumeResponse.data as SessionResumeData).messages).toHaveLength(40);
 
       const exportPath = join(rootDir, 'exports', 'complete.md');
       const exportResponse = await runtime.handleCommand({
@@ -181,9 +184,9 @@ describe('HostRuntime transcript paging', () => {
         transcriptPage?: { totalCount: number };
       };
       expect(truncateData.remainingCount).toBe(20);
-      expect(truncateData.messages).toHaveLength(16);
+      expect(truncateData.messages).toHaveLength(20);
       expect(truncateData.transcriptPage?.totalCount).toBe(20);
-      expect(truncateData.messages?.[0]?.id).toBe('message-4');
+      expect(truncateData.messages?.[0]?.id).toBe('message-0');
     } finally {
       await runtime.dispose();
     }

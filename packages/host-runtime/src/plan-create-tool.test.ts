@@ -91,8 +91,8 @@ describe('createPlanCreateTool', () => {
       title: 'Add auth',
       goal: 'Add login flow',
       steps: [
-        { id: '1', title: 'Design', detail: 'types + tests' },
-        { id: '2', title: 'Implement' },
+        { id: '1', title: 'Design', detail: 'types + tests', profileId: 'reviewer' },
+        { id: '2', title: 'Implement', dependsOn: ['1'], parallelGroup: 'auth' },
         { id: '3', title: 'Verify' },
         { id: '4', title: 'Docs' },
       ],
@@ -107,6 +107,12 @@ describe('createPlanCreateTool', () => {
     expect(persisted['skillId']).toBe('writing-plans');
     expect(persisted['complexity']).toBe('long');
     expect(persisted['independentSteps']).toEqual(['1', '2']);
+    expect(persisted['steps']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: '1', profileId: 'reviewer' }),
+        expect.objectContaining({ id: '2', dependsOn: ['1'], parallelGroup: 'auth' }),
+      ]),
+    );
     expect(updated?.['status']).toBe('draft');
   });
 
@@ -120,6 +126,23 @@ describe('createPlanCreateTool', () => {
       steps: [{ id: '1', title: 'Fix' }],
     });
     expect(messageOf(result)).toContain('complexity=short');
+  });
+
+  it('increments the durable revision when revising a draft plan', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-create-revision-'));
+    const planPath = join(rootDir, 'plan.json');
+    const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
+    const input = {
+      title: 'Draft',
+      goal: 'Keep a revision invariant',
+      steps: [{ id: '1', title: 'Verify' }],
+      source: 'skill',
+      skillId: 'writing-plans',
+    };
+    await executeTool(tool, input);
+    expect((await readPlan(planPath))['revision']).toBe(0);
+    await executeTool(tool, { ...input, title: 'Revised draft' });
+    expect((await readPlan(planPath))['revision']).toBe(1);
   });
 
   it('refuses to clobber an approved plan', async () => {

@@ -336,7 +336,24 @@ describe('collectWalkthroughEvidence', () => {
 
   it('includes plan evidence when plan is provided', () => {
     const messages = makeTranscript();
-    const plan = makePlan();
+    const plan = makePlan({
+      execution: {
+        sessionId: 'session-1',
+        planId: 'plan-1',
+        mode: 'subagent-driven',
+        status: 'completed',
+        childSessionIds: ['child-1'],
+        summary: {
+          planId: 'plan-1',
+          mode: 'subagent-driven',
+          completedStepIds: ['s1', 's2'],
+          failedStepIds: [],
+          skippedStepIds: [],
+          mergedChildSessionIds: ['child-1'],
+          verificationResult: 'tests passed',
+        },
+      },
+    });
     const evidence = collectWalkthroughEvidence(messages, 'assistant-1', {
       sessionId: 'session-1',
       plan,
@@ -348,6 +365,11 @@ describe('collectWalkthroughEvidence', () => {
     expect(evidence.plan!.status).toBe('done');
     expect(evidence.plan!.steps).toHaveLength(2);
     expect(evidence.plan!.steps[0]!.detail).toBe('Did thing 1');
+    expect(evidence.plan!.executionSummary).toMatchObject({
+      mode: 'subagent-driven',
+      mergedChildSessionIds: ['child-1'],
+      verificationResult: 'tests passed',
+    });
   });
 
   it('omits plan when not provided', () => {

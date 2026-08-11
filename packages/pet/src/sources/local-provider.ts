@@ -10,6 +10,7 @@ import type {
   PetManifest,
   PetResolvedPackage,
 } from '@piwin/contracts';
+import { normalizeLocalPetPath } from '../local-import.js';
 import { validatePetManifest } from '../validate-manifest.js';
 import type { PetSourceProvider, PetSourceProviderContext } from './pet-source-provider.js';
 
@@ -27,6 +28,7 @@ function toEntry(manifest: PetManifest, dir: string, issues: string[]): PetDisco
   const entry: PetDiscoveredEntry = {
     petId: manifest.id,
     displayName: manifest.displayName,
+    manifest,
     source: 'local',
     location: dir,
     installed: true,
@@ -100,7 +102,7 @@ export const localProvider: PetSourceProvider = {
     ctx: PetSourceProviderContext,
     location: string,
   ): Promise<PetInstallResult> {
-    const absolute = location.trim();
+    const absolute = normalizeLocalPetPath(location);
     if (!absolute) throw new Error('sourcePath required');
     const manifestPath = join(absolute, 'pet.json');
     const raw = await readFile(manifestPath, 'utf8');
@@ -110,7 +112,9 @@ export const localProvider: PetSourceProvider = {
     }
     const sheet = join(absolute, validated.manifest.spritesheetPath);
     try {
-      await stat(sheet);
+      if (!(await stat(sheet)).isFile()) {
+        throw new Error('not a file');
+      }
     } catch {
       throw new Error(`missing spritesheet: ${validated.manifest.spritesheetPath}`);
     }

@@ -17,8 +17,8 @@
 import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 
-import type { SubagentTaskResult, SubagentWorkspaceLease } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import type { SubagentTaskResult, SubagentWorkspaceLease } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
@@ -39,6 +39,7 @@ export type WorktreeIntegrationResult =
       success: false;
       conflict: true;
       conflictFiles: string[];
+      error?: string;
       allowedOutputPaths: string[];
     }
   | {
@@ -87,6 +88,7 @@ export function createGitWorktreeIntegrationAdapter(
         success: false,
         conflict: true,
         conflictFiles: gitResult.conflictedFiles,
+        ...(gitResult.error ? { error: gitResult.error } : {}),
         allowedOutputPaths: input.allowedOutputPaths,
       };
     }
@@ -94,9 +96,7 @@ export function createGitWorktreeIntegrationAdapter(
     return {
       success: false,
       conflict: false,
-      error:
-        gitResult.error ??
-        `integration rejected files: ${gitResult.rejectedFiles.join(', ')}`,
+      error: gitResult.error ?? `integration rejected files: ${gitResult.rejectedFiles.join(', ')}`,
       allowedOutputPaths: input.allowedOutputPaths,
     };
   };
@@ -108,7 +108,11 @@ export type SubagentIntegrationCoordinatorOptions = {
   /** Function to check if worktree base is clean. */
   isBaseClean: (repoPath: string) => Promise<boolean>;
   /** Function to remove a worktree. */
-  removeWorktree: (worktreePath: string, parentRepoPath: string) => Promise<void>;
+  removeWorktree: (
+    worktreePath: string,
+    parentRepoPath: string,
+    worktreeBranch?: string,
+  ) => Promise<void>;
 };
 
 export type SubagentIntegrationCoordinator = {
@@ -117,10 +121,7 @@ export type SubagentIntegrationCoordinator = {
    * Integration is serialized by normalized repository identity.
    * Returns the updated task result with integration status.
    */
-  integrate(
-    result: SubagentTaskResult,
-    lease: SubagentWorkspaceLease,
-  ): Promise<SubagentTaskResult>;
+  integrate(result: SubagentTaskResult, lease: SubagentWorkspaceLease): Promise<SubagentTaskResult>;
 
   /** Retain a failed/conflicted worktree for inspection. */
   retain(worktreePath: string, reason: string): Promise<void>;
@@ -153,14 +154,13 @@ function normalizeOutputPath(outputPath: string): string {
   return outputPath.replaceAll('\\', '/').replace(/^\.\/+/, '');
 }
 
-function findDisallowedOutputPaths(
-  changedFiles: string[],
-  allowedOutputPaths: string[],
-): string[] {
+function findDisallowedOutputPaths(changedFiles: string[], allowedOutputPaths: string[]): string[] {
   if (allowedOutputPaths.length === 0) return [];
 
   const allowedPathSet = new Set(allowedOutputPaths.map(normalizeOutputPath));
-  return changedFiles.filter((changedFile) => !allowedPathSet.has(normalizeOutputPath(changedFile)));
+  return changedFiles.filter(
+    (changedFile) => !allowedPathSet.has(normalizeOutputPath(changedFile)),
+  );
 }
 
 type CompletionLatch = {
@@ -267,9 +267,7 @@ export function createSubagentIntegrationCoordinator(
     const worktreeBranch = lease.worktreeBranch;
     const baseCommit = lease.baseCommit;
     const parentRepoPath = lease.parentRepoPath;
-    const allowedOutputPaths = result.allowedOutputPaths
-      ? [...result.allowedOutputPaths]
-      : [];
+    const allowedOutputPaths = result.allowedOutputPaths ? [...result.allowedOutputPaths] : [];
 
     const slot = acquireIntegrationSlot(parentRepoPath, worktreePath);
 
@@ -303,15 +301,16 @@ export function createSubagentIntegrationCoordinator(
         }
 
         try {
-          await removeWorktree(worktreePath, parentRepoPath);
+          await removeWorktree(worktreePath, parentRepoPath, worktreeBranch);
           managedWorktrees.delete(worktreePath);
         } catch (error) {
           const message = formatError(error);
           await retain(worktreePath, `integration applied but worktree cleanup failed: ${message}`);
           return {
             ...result,
-            integrationStatus: 'failed',
-            error: `integration applied but worktree cleanup failed: ${message}`,
+            integrationStatus: 'applied',
+            changedFiles: integrationResult.changedFiles,
+            error: `integration applied; retained worktree cleanup failed: ${message}`,
             worktreePath,
           };
         }
@@ -326,11 +325,14 @@ export function createSubagentIntegrationCoordinator(
 
       if (integrationResult.conflict) {
         // SC-12 / rule 6: retain conflicted worktrees.
-        await retain(worktreePath, `conflict: ${integrationResult.conflictFiles.join(', ')}`);
+        const conflictDetail = integrationResult.error
+          ? `${integrationResult.conflictFiles.join(', ')} (${integrationResult.error})`
+          : integrationResult.conflictFiles.join(', ');
+        await retain(worktreePath, `conflict: ${conflictDetail}`);
         return {
           ...result,
           integrationStatus: 'conflict',
-          error: `integration conflict in: ${integrationResult.conflictFiles.join(', ')}`,
+          error: `integration conflict in: ${conflictDetail}`,
           worktreePath,
         };
       }

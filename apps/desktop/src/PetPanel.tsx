@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   HostResponse,
+  PetLocalImportBatchResult,
+  PetLocalImportPreview,
   PetRuntimeSnapshot,
   PetStoreQueryResult,
   PetSummary,
@@ -14,6 +16,8 @@ import {
 } from './pet-overlay-visibility.js';
 import { FieldRow } from './settings/field-row';
 import { PageTitle } from './settings/page-title';
+import { PetLocalImportSection } from './PetLocalImportSection';
+import { PetThumbnail } from './components/PetThumbnail';
 
 export type PetPanelProps = {
   request: (command: {
@@ -21,12 +25,15 @@ export type PetPanelProps = {
       | 'pet/list'
       | 'pet/get-active'
       | 'pet/set-active'
+      | 'pet/scan-local'
       | 'pet/install-local'
+      | 'pet/install-local-batch'
       | 'pet/store-query'
       | 'pet/install-registry'
       | 'pet/cancel';
     petId?: string;
     sourcePath?: string;
+    sourcePaths?: string[];
     /** PetStoreQuery payload for pet/store-query. */
     query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
     /** JSON-encoded registry entry (or bare URL) for pet/install-registry. */
@@ -49,6 +56,8 @@ export function PetPanel(props: PetPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [installPath, setInstallPath] = useState('');
+  const [localImportPreview, setLocalImportPreview] = useState<PetLocalImportPreview | null>(null);
+  const [selectedLocalPaths, setSelectedLocalPaths] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [overlayBusy, setOverlayBusy] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(() => loadPetOverlayVisibility());
@@ -126,7 +135,106 @@ export function PetPanel(props: PetPanelProps) {
     const data = response.data as { petId: string; path: string };
     setInfo(isChinese ? `已安装 ${data.petId}` : `Installed ${data.petId}`);
     setInstallPath('');
+    setLocalImportPreview(null);
+    setSelectedLocalPaths([]);
     await reload();
+  }
+
+  async function handleScanLocal(): Promise<void> {
+    const sourcePath = installPath.trim();
+    if (!sourcePath) {
+      setError(isChinese ? '请提供要扫描的本地目录。' : 'Provide a local directory to scan.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const response = await props.request({ type: 'pet/scan-local', sourcePath });
+    setBusy(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const preview = response.data as PetLocalImportPreview;
+    setLocalImportPreview(preview);
+    setSelectedLocalPaths([]);
+    if (preview.candidates.length === 0) {
+      setInfo(
+        isChinese
+          ? '没有发现包含 pet.json 的伙伴资源包。'
+          : 'No companion packages containing pet.json were found.',
+      );
+      return;
+    }
+    const validCount = preview.candidates.filter((candidate) => candidate.valid).length;
+    setInfo(
+      isChinese
+        ? `发现 ${preview.candidates.length} 个资源包，其中 ${validCount} 个可以导入。`
+        : `Found ${preview.candidates.length} packages; ${validCount} can be imported.`,
+    );
+  }
+
+  function handleLocalPathChange(sourcePath: string): void {
+    setInstallPath(sourcePath);
+    setLocalImportPreview(null);
+    setSelectedLocalPaths([]);
+  }
+
+  function handleToggleLocalPath(sourcePath: string, checked: boolean): void {
+    setSelectedLocalPaths((current) => {
+      if (checked) return current.includes(sourcePath) ? current : [...current, sourcePath];
+      return current.filter((selectedPath) => selectedPath !== sourcePath);
+    });
+  }
+
+  function handleToggleAllLocalPaths(): void {
+    const importablePaths =
+      localImportPreview?.candidates
+        .filter((candidate) => candidate.valid)
+        .map((candidate) => candidate.sourcePath) ?? [];
+    const allSelected =
+      importablePaths.length > 0 &&
+      importablePaths.every((sourcePath) => selectedLocalPaths.includes(sourcePath));
+    setSelectedLocalPaths(allSelected ? [] : importablePaths);
+  }
+
+  async function handleInstallLocalBatch(): Promise<void> {
+    if (selectedLocalPaths.length === 0) {
+      setError(isChinese ? '请至少选择一个可以导入的伙伴。' : 'Select at least one importable companion.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    const response = await props.request({
+      type: 'pet/install-local-batch',
+      sourcePaths: selectedLocalPaths,
+    });
+    setBusy(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const result = response.data as PetLocalImportBatchResult;
+    setSelectedLocalPaths(result.failed.map((failure) => failure.sourcePath));
+    await reload();
+    if (result.installed.length > 0) {
+      setInfo(
+        isChinese
+          ? `已导入 ${result.installed.length} 个伙伴。`
+          : `Imported ${result.installed.length} companion(s).`,
+      );
+    }
+    if (result.failed.length > 0) {
+      const failureDetails = result.failed
+        .map((failure) => `${failure.sourcePath}: ${failure.error}`)
+        .join('；');
+      setError(
+        isChinese
+          ? `有 ${result.failed.length} 个伙伴导入失败：${failureDetails}`
+          : `${result.failed.length} companion(s) failed to import: ${failureDetails}`,
+      );
+    }
   }
 
   const [registryResults, setRegistryResults] = useState<PetStoreQueryResult[]>([]);
@@ -289,20 +397,7 @@ export function PetPanel(props: PetPanelProps) {
                 className="ext-list-main"
                 style={{ display: 'flex', alignItems: 'center', gap: '16px' }}
               >
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    background: 'var(--surface-inset)',
-                    border: '1px solid var(--line-soft)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontSize: '20px',
-                  }}
-                >
-                  {pet.id === 'piwin-default' ? 'π' : '🐶'}
-                </div>
+                <PetThumbnail pet={pet} size={48} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <strong>{pet.displayName}</strong>
                   <div className="muted ext-desc" style={{ fontSize: '12px' }}>
@@ -328,36 +423,19 @@ export function PetPanel(props: PetPanelProps) {
           ))}
         </ul>
 
-        <div className="settings-section">
-          <PageTitle
-            title={isChinese ? '安装新伙伴' : 'Install New Companion'}
-            description={
-              isChinese
-                ? '从本地目录安装伙伴资源包。'
-                : 'Install a companion package from a local directory.'
-            }
-          />
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <div style={{ flex: 1 }}>
-              <input
-                value={installPath}
-                onChange={(e) => setInstallPath(e.target.value)}
-                placeholder={isChinese ? '本地目录路径...' : 'Local directory path...'}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--line-soft)',
-                  background: 'var(--surface-raised)',
-                  color: 'var(--text)',
-                }}
-              />
-            </div>
-            <Button disabled={busy || !installPath.trim()} onClick={() => void handleInstall()}>
-              {isChinese ? '安装' : 'Install'}
-            </Button>
-          </div>
-        </div>
+        <PetLocalImportSection
+          isChinese={isChinese}
+          installPath={installPath}
+          preview={localImportPreview}
+          selectedPaths={selectedLocalPaths}
+          busy={busy}
+          onPathChange={handleLocalPathChange}
+          onScan={() => void handleScanLocal()}
+          onInstallDirect={() => void handleInstall()}
+          onTogglePath={handleToggleLocalPath}
+          onToggleAll={handleToggleAllLocalPaths}
+          onInstallBatch={() => void handleInstallLocalBatch()}
+        />
 
         <div className="settings-section">
           <PageTitle

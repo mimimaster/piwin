@@ -13,7 +13,7 @@ describe('session transcript page contracts', () => {
   it('round-trips a bounded older-page request without exposing cursor internals', () => {
     const query: SessionTranscriptPageQuery = {
       sessionId: 'session-1',
-      limit: 16,
+      limit: 50,
       maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
       beforeCursor: 'opaque-before',
     };
@@ -31,7 +31,7 @@ describe('session transcript page contracts', () => {
     };
 
     expect(JSON.parse(JSON.stringify({ query, data }))).toEqual({ query, data });
-    expect(SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS).toBe(16);
+    expect(SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS).toBe(50);
     expect(SESSION_TRANSCRIPT_PAGE_MAX_ITEMS).toBe(50);
     expect(SESSION_TRANSCRIPT_PAGE_MIN_BYTES).toBe(16 * 1024);
     expect(SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES).toBe(256 * 1024);

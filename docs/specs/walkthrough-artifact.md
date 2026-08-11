@@ -1,5 +1,10 @@
 # Walkthrough Artifact Spec
 
+> Historical specification. Desktop manual/ordinary-turn generation and
+> separate-model behavior are superseded by ADR 0026. Current product behavior
+> is plan-completion always-on generation, bound to the completed Plan's exact
+> assistant message and `planId`.
+
 > 版本：v1.0  
 > 状态：Ready for implementation  
 > 日期：2026-08-01  

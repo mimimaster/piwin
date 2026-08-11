@@ -1,6 +1,7 @@
 import type { SessionTranscriptMessage } from './session-transcript.js';
 
-export const SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS = 16;
+/** Initial / page size for session transcript windows (was 16 — too small for coding sessions). */
+export const SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS = 50;
 export const SESSION_TRANSCRIPT_PAGE_MAX_ITEMS = 50;
 export const SESSION_TRANSCRIPT_PAGE_MIN_BYTES = 16 * 1024;
 export const SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES = 256 * 1024;

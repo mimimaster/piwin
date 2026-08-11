@@ -17,6 +17,9 @@ import type {
   HostToolExecutionContext,
   HostToolRegistration,
   ModelRef,
+  SubagentBatchResult,
+  SubagentExecutionStatus,
+  SubagentIntegrationStatus,
   SubagentApplyPolicy,
   SubagentIsolationMode,
   ThinkingLevel,
@@ -41,7 +44,14 @@ export type SubagentRunSeam = {
     /** CE-SUB-PROF: per-call thinking level override. */
     thinkingLevel?: ThinkingLevel;
     signal?: AbortSignal;
-  }) => Promise<{ childSessionId: string }>;
+  }) => Promise<{
+    childSessionId: string;
+    batchStatus: SubagentBatchResult['status'];
+    executionStatus: SubagentExecutionStatus;
+    integrationStatus: SubagentIntegrationStatus;
+    error?: string;
+    worktreePath?: string;
+  }>;
   /** Merge a completed child session's summary into its parent. */
   merge: (childSessionId: string) => Promise<{
     summaryPreview?: string;
@@ -125,7 +135,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           },
           thinkingLevel: {
             type: 'string',
-            enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+            enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
             description: 'Optional per-call thinking level override.',
           },
         },
@@ -186,7 +196,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const thinkingLevelRaw = String(args.thinkingLevel ?? '').trim();
       const thinkingLevel: ThinkingLevel | undefined =
         thinkingLevelRaw &&
-        ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].includes(
+        ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(
           thinkingLevelRaw,
         )
           ? (thinkingLevelRaw as ThinkingLevel)
@@ -202,7 +212,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         };
       }
 
-      let spawnResult: { childSessionId: string };
+      let spawnResult: Awaited<ReturnType<SubagentRunSeam['spawn']>>;
       try {
         spawnResult = await options.seam.spawn({
           parentSessionId: options.sessionId,
@@ -252,16 +262,50 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       try {
         const mergeResult = await options.seam.merge(spawnResult.childSessionId);
         const preview = mergeResult.summaryPreview ?? '(no summary)';
+        if (spawnResult.batchStatus !== 'completed') {
+          const statusDetail =
+            `batch=${spawnResult.batchStatus}, execution=${spawnResult.executionStatus}, ` +
+            `integration=${spawnResult.integrationStatus}`;
+          const failureDetail = spawnResult.error ? `\nError: ${spawnResult.error}` : '';
+          const code =
+            spawnResult.batchStatus === 'needs-integration'
+              ? 'subagent-needs-integration'
+              : spawnResult.batchStatus === 'cancelled'
+                ? 'subagent-cancelled'
+                : 'subagent-failed';
+          return {
+            ok: false,
+            code,
+            message:
+              `subagent did not complete successfully (${statusDetail}, ` +
+              `childSessionId=${spawnResult.childSessionId}):\n${preview}${failureDetail}`,
+            details: {
+              childSessionId: spawnResult.childSessionId,
+              runId: context.runId,
+              batchStatus: spawnResult.batchStatus,
+              executionStatus: spawnResult.executionStatus,
+              integrationStatus: spawnResult.integrationStatus,
+              ...(spawnResult.worktreePath ? { worktreePath: spawnResult.worktreePath } : {}),
+            },
+            retryable: false,
+            ...(spawnResult.batchStatus === 'cancelled' ? { cancelled: true } : {}),
+          };
+        }
         const prefix = mergeResult.alreadyMerged
           ? 'subagent completed (summary from prior merge)'
           : 'subagent completed';
+        const warning = spawnResult.error ? `\nWarning: ${spawnResult.error}` : '';
         return {
           ok: true,
-          output: `${prefix} (childSessionId=${spawnResult.childSessionId}):\n${preview}`,
+          output: `${prefix} (childSessionId=${spawnResult.childSessionId}):\n${preview}${warning}`,
           details: {
             childSessionId: spawnResult.childSessionId,
             runId: context.runId,
             alreadyMerged: mergeResult.alreadyMerged ?? false,
+            batchStatus: spawnResult.batchStatus,
+            executionStatus: spawnResult.executionStatus,
+            integrationStatus: spawnResult.integrationStatus,
+            ...(spawnResult.error ? { warning: spawnResult.error } : {}),
           },
         };
       } catch (error) {

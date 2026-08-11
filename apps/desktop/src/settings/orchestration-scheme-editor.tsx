@@ -30,7 +30,6 @@ const THINKING_LEVELS: ThinkingLevel[] = [
   'high',
   'xhigh',
   'max',
-  'ultra',
 ];
 
 export type SchemeModelOption = {

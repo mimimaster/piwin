@@ -8,6 +8,10 @@ import type {
   SessionHandle,
 } from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { loadSessionPlan, saveSessionPlan } from '@piwin/session';
 import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contracts';
 import { RunRegistry } from '../run-registry.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
@@ -334,6 +338,59 @@ describe('session live control commands', () => {
     });
   });
 
+  it('completes Plan mode only after a new durable SessionPlan revision exists', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-mode-invariant-'));
+    const baseSession = createDelayedSessionHandle();
+    const planPath = join(rootDir, 'sessions', baseSession.id, 'plan.json');
+    const persistingSession: SessionHandle = {
+      ...baseSession,
+      async prompt(): Promise<void> {
+        const now = new Date().toISOString();
+        await saveSessionPlan(planPath, {
+          id: 'plan-mode-plan',
+          sessionId: baseSession.id,
+          projectPath: '/tmp/project',
+          status: 'draft',
+          title: 'Durable plan',
+          goal: 'Prove Plan mode persistence',
+          steps: [{ id: '1', title: 'Verify', status: 'pending' }],
+          revision: 0,
+          createdAt: now,
+          updatedAt: now,
+          source: 'assistant',
+        });
+      },
+    };
+    const { context, events } = createPromptContext(persistingSession);
+    context.piwinRoot = rootDir;
+    context.hasRunReceivedFirstToken = () => true;
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: persistingSession.id,
+        input: { text: 'Plan the change', agentMode: 'plan' },
+      },
+      undefined,
+      context,
+    );
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => {
+      expect(context.getForegroundRun(persistingSession.id)).toBeUndefined();
+    });
+
+    expect(await loadSessionPlan(planPath)).toMatchObject({
+      id: 'plan-mode-plan',
+      status: 'draft',
+      revision: 0,
+    });
+    expect(
+      events.some(
+        (message) => message.type === 'run/terminal' && message.run.status === 'completed',
+      ),
+    ).toBe(true);
+  });
+
   it('publishes the replacement generation after reload', async () => {
     const session = createDelayedSessionHandle();
     const { context, registry, activeRun } = createControlContext(session);
@@ -468,6 +525,77 @@ describe('session live control commands', () => {
       expect(modelFacingText).toContain('find the bug');
       expect(modelFacingText.startsWith('[piwin-scheme:ultra-code]')).toBe(true);
       expect(boundSchemes.some((scheme) => scheme?.schemeId === 'ultra-code')).toBe(true);
+    });
+
+    it('marks a pinned role unavailable when its configured model is missing', async () => {
+      const session = createDelayedSessionHandle();
+      const { context } = createPromptContext(session);
+      let boundScheme: ResolvedOrchestrationScheme | undefined;
+      context.listKnownSubagentProfileIds = async () => ['explorer'];
+      context.loadConfig = async () =>
+        ({
+          providers: [
+            {
+              id: 'configured',
+              protocol: 'openai-compatible',
+              name: 'Configured',
+              baseUrl: 'https://example.invalid',
+              models: [{ id: 'available', name: 'Available' }],
+            },
+          ],
+          subagents: {
+            profiles: [],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+            schemes: [
+              {
+                id: 'pinned-scout',
+                name: 'Pinned scout',
+                description: 'Pinned model fallback coverage',
+                defaultRole: 'searcher',
+                exposeSpawnMetadata: false,
+                waitPolicy: 'await-all',
+                systemPreamble: 'Delegate searches to the configured scout role.',
+                members: [
+                  {
+                    role: 'searcher',
+                    description: 'Search with a pinned model',
+                    profileId: 'explorer',
+                    model: {
+                      protocol: 'openai-compatible',
+                      providerId: 'missing',
+                      modelId: 'missing',
+                    },
+                    fallback: 'main',
+                  },
+                ],
+              },
+            ],
+          },
+        }) as any;
+      context.setRunOrchestrationScheme = (_runId, scheme): void => {
+        boundScheme = scheme;
+      };
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'find it', orchestrationSchemeId: 'pinned-scout' },
+        },
+        undefined,
+        context,
+      );
+      expect(response?.success).toBe(true);
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(boundScheme?.members[0]?.available).toBe(false);
+      });
+      expect(boundScheme?.members[0]?.unavailableReason).toContain('unconfigured model');
+      expect(boundScheme?.members[0]?.fallback).toBe('main');
     });
 
     it('injects agent-mode contract model-facing only; transcript keeps user text', async () => {
@@ -719,12 +847,8 @@ function createControlContext(
       registry.updatePhase(runId, phase, detail);
     },
     terminateRun: (_sessionId, runId, outcome, code, message): boolean =>
-      registry.terminate(
-        runId,
-        outcome === 'paused' ? 'interrupted' : outcome,
-        code,
-        message,
-      ) !== undefined,
+      registry.terminate(runId, outcome === 'paused' ? 'interrupted' : outcome, code, message) !==
+      undefined,
     settlePendingPermissionsForSession: (): void => undefined,
     settlePendingExtensionUiForSession: (): void => undefined,
     setSessionPermissionOverride: (): void => undefined,
@@ -742,3 +866,237 @@ function createControlContext(
   };
   return { context, registry, activeRun };
 }
+
+describe('session/tool-output snapshot recovery', () => {
+  function snapshotContext(message: import('@piwin/contracts').SessionTranscriptMessage): {
+    context: SessionLiveContext;
+  } {
+    const session = createDelayedSessionHandle();
+    const { context } = createControlContext(session);
+    context.getTranscriptStore = async () =>
+      ({
+        getMessage: async (messageId: string) =>
+          messageId === message.id ? message : undefined,
+      }) as unknown as import('@piwin/session').SessionTranscriptStore;
+    return { context };
+  }
+
+  it('returns a bounded tool-snapshot for a filesystem read tool', async () => {
+    const message: import('@piwin/contracts').SessionTranscriptMessage = {
+      id: 'msg-1',
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'tc-read-1',
+          toolName: 'read_file',
+          status: 'done',
+          output: '# Skill body\n\nRead by the agent.',
+          presentation: {
+            kind: 'filesystem',
+            title: 'Read file',
+            actionVerb: 'Read',
+            targetPaths: ['/Users/me/.piwin/skills/executing-plans/SKILL.md'],
+          },
+        },
+      ],
+    };
+    const { context } = snapshotContext(message);
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-1',
+        toolCallId: 'tc-read-1',
+      },
+      undefined,
+      context,
+    );
+
+    if (!response?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(response.data).toMatchObject({
+      status: 'ready',
+      provenance: 'tool-snapshot',
+      output: expect.stringContaining('Read by the agent'),
+      truncated: false,
+      redacted: false,
+    });
+  });
+
+  it('returns not-found for a missing message or tool call', async () => {
+    const message: import('@piwin/contracts').SessionTranscriptMessage = {
+      id: 'msg-missing',
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'done',
+    };
+    const { context } = snapshotContext(message);
+
+    const missingMessage = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-absent',
+        toolCallId: 'tc-1',
+      },
+      undefined,
+      context,
+    );
+    if (!missingMessage?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(missingMessage.data).toMatchObject({
+      status: 'unavailable',
+      reason: 'not-found',
+    });
+
+    const missingTool = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-missing',
+        toolCallId: 'tc-absent',
+      },
+      undefined,
+      context,
+    );
+    if (!missingTool?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(missingTool.data).toMatchObject({
+      status: 'unavailable',
+      reason: 'not-found',
+    });
+  });
+
+  it('refuses non-read tools even when they touched files', async () => {
+    const message: import('@piwin/contracts').SessionTranscriptMessage = {
+      id: 'msg-2',
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'tc-bash-1',
+          toolName: 'bash',
+          status: 'done',
+          output: 'ls /etc/passwd',
+          presentation: {
+            kind: 'shell',
+            title: 'Run command',
+            actionVerb: 'Ran command',
+            targetPaths: ['/etc/passwd'],
+          },
+        },
+      ],
+    };
+    const { context } = snapshotContext(message);
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-2',
+        toolCallId: 'tc-bash-1',
+      },
+      undefined,
+      context,
+    );
+
+    if (!response?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(response.data).toMatchObject({
+      status: 'unavailable',
+      reason: 'not-readable-tool',
+    });
+  });
+
+  it('redacts secrets at read time', async () => {
+    const message: import('@piwin/contracts').SessionTranscriptMessage = {
+      id: 'msg-3',
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'tc-read-3',
+          toolName: 'read',
+          status: 'done',
+          output: 'token=sk-abcdef1234567890 and more text',
+        },
+      ],
+    };
+    const { context } = snapshotContext(message);
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-3',
+        toolCallId: 'tc-read-3',
+      },
+      undefined,
+      context,
+    );
+
+    if (!response?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(response.data).toMatchObject({
+      status: 'ready',
+      redacted: true,
+    });
+    const output = (response.data as { output?: string }).output ?? '';
+    expect(output).not.toContain('sk-abcdef1234567890');
+  });
+
+  it('bounds output to the requested maxBytes', async () => {
+    const message: import('@piwin/contracts').SessionTranscriptMessage = {
+      id: 'msg-4',
+      role: 'assistant',
+      text: '',
+      createdAt: new Date().toISOString(),
+      status: 'done',
+      tools: [
+        {
+          toolCallId: 'tc-read-4',
+          toolName: 'read',
+          status: 'done',
+          output: 'x'.repeat(4096),
+        },
+      ],
+    };
+    const { context } = snapshotContext(message);
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/tool-output',
+        sessionId: 'session-1',
+        messageId: 'msg-4',
+        toolCallId: 'tc-read-4',
+        maxBytes: 2048,
+      },
+      undefined,
+      context,
+    );
+
+    if (!response?.success) {
+      throw new Error('session/tool-output failed');
+    }
+    expect(response.data).toMatchObject({
+      status: 'ready',
+      truncated: true,
+    });
+    const output = (response.data as { output?: string }).output ?? '';
+    expect(Buffer.byteLength(output, 'utf8')).toBeLessThanOrEqual(4096);
+  });
+});

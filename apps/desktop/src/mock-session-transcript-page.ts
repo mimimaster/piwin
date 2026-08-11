@@ -23,7 +23,7 @@ export function createMockSessionTranscriptPage(
     return { status: 'stale-cursor', currentRevision: revision };
   }
   if (cursor && (cursor.limit !== query.limit || cursor.maximumBytes !== query.maximumBytes)) {
-    throw new Error('Mock transcript cursor limits do not match the query');
+    return { status: 'stale-cursor', currentRevision: revision };
   }
   const endIndex = cursor?.endIndex ?? projected.length;
   if (cursor && (endIndex <= 0 || endIndex > projected.length)) {

@@ -190,6 +190,33 @@ describe('ToolCallCard openable file paths', () => {
     expect(card?.getAttribute('data-activity-animation')).toBe('none');
   });
 
+  it('keeps raw execution errors out of the summary row', () => {
+    const failedTool: ToolCardUi = {
+      toolCallId: 'shell-error-1',
+      toolName: 'bash',
+      status: 'error',
+      output: 'Tool error (execution-failed): Command failed',
+      presentation: {
+        title: 'Bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+        summary: 'Tool error (execution-failed): Command failed',
+        command: 'ls ~/.piwin',
+        error: { category: 'execution', message: 'Command failed' },
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={failedTool} density="compact" locale="zh-CN" />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('执行失败');
+    expect(card?.querySelector('.tool-call-summary')?.textContent).not.toContain('Tool error');
+    expect(card?.querySelector('.tool-call-body')?.textContent).toContain('Command failed');
+    expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+  });
+
   it('renders fetch-like shell commands with the reference request surface', () => {
     const fetchTool: ToolCardUi = {
       toolCallId: 'fetch-shell-1',

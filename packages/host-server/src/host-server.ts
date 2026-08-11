@@ -115,8 +115,10 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/rename',
   'session/archive',
   'session/unarchive',
+  'session/tool-output',
   'permission/resolve',
   'media/save',
+  'skills/read',
 ]);
 
 export class HostServer {
@@ -743,6 +745,36 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         isSupportedAttachmentMimeType(command.input.mimeType) &&
         command.input.base64Data.length > 0 &&
         command.input.base64Data.length <= MAX_REMOTE_MEDIA_BASE64_CHARS
+      );
+    case 'skills/read':
+      // Remote clients may only use the logical skillId; legacyPath and
+      // projectPath are Host-local compatibility hints and stay disabled.
+      return (
+        typeof command.skillId === 'string' &&
+        command.skillId.trim().length > 0 &&
+        command.skillId.length <= 256 &&
+        command.legacyPath === undefined &&
+        command.projectPath === undefined &&
+        (command.maxBytes === undefined ||
+          (Number.isSafeInteger(command.maxBytes) &&
+            command.maxBytes >= 1024 &&
+            command.maxBytes <= 512 * 1024))
+      );
+    case 'session/tool-output':
+      return (
+        typeof command.sessionId === 'string' &&
+        command.sessionId.length > 0 &&
+        command.sessionId.length <= 256 &&
+        typeof command.messageId === 'string' &&
+        command.messageId.length > 0 &&
+        command.messageId.length <= 256 &&
+        typeof command.toolCallId === 'string' &&
+        command.toolCallId.length > 0 &&
+        command.toolCallId.length <= 256 &&
+        (command.maxBytes === undefined ||
+          (Number.isSafeInteger(command.maxBytes) &&
+            command.maxBytes >= 1024 &&
+            command.maxBytes <= 512 * 1024))
       );
     default:
       return true;

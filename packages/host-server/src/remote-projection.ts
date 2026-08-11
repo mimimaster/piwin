@@ -95,6 +95,20 @@ export function projectRemoteResponse(
     };
   }
 
+  if (command.type === 'skills/read') {
+    return {
+      ...response,
+      data: projectRemoteSkillsReadData(response.data),
+    };
+  }
+
+  if (command.type === 'session/tool-output') {
+    return {
+      ...response,
+      data: projectRemoteToolOutputData(response.data),
+    };
+  }
+
   if (command.type.startsWith('session/') || command.type === 'permission/resolve') {
     return {
       ...response,
@@ -119,6 +133,8 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     cursorBatches: true,
     boundedReplay: true,
     hydration: true,
+    skillPreview: true,
+    toolOutputRead: true,
   };
 }
 
@@ -607,4 +623,78 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+/**
+ * Remote-safe projection for skills/read. Keeps the logical identity
+ * (skillId / displayRef / typed status) and strips anything path-like;
+ * legacy absolute paths never cross the wire for remote clients.
+ */
+function projectRemoteSkillsReadData(data: unknown): unknown {
+  const record = asRecord(data);
+  if (record === undefined) {
+    return data;
+  }
+  if (record.status === 'ready') {
+    const projected: Record<string, unknown> = {
+      status: 'ready',
+      skillId: boundedString(record.skillId, 256),
+      name: boundedString(record.name, 512),
+      displayRef: boundedString(record.displayRef, 512),
+      content: boundedString(record.content, 512_000),
+      byteSize:
+        typeof record.byteSize === 'number' && Number.isSafeInteger(record.byteSize)
+          ? record.byteSize
+          : 0,
+      truncated: record.truncated === true,
+      provenance: record.provenance === 'current-resource' ? 'current-resource' : 'current-resource',
+    };
+    if (record.effectiveSource === 'bundled' || record.effectiveSource === 'user') {
+      projected.effectiveSource = record.effectiveSource;
+    }
+    if (
+      record.origin === 'bundled-installed' ||
+      record.origin === 'user-installed' ||
+      record.origin === 'project' ||
+      record.origin === 'mapped' ||
+      record.origin === 'unknown'
+    ) {
+      projected.origin = record.origin;
+    }
+    return projected;
+  }
+  if (record.status === 'unavailable') {
+    const projected: Record<string, unknown> = {
+      status: 'unavailable',
+      reason: boundedString(record.reason, 128),
+      displayRef: boundedString(record.displayRef, 512),
+    };
+    if (typeof record.skillId === 'string') {
+      projected.skillId = boundedString(record.skillId, 256);
+    }
+    if (typeof record.suggestion === 'string') {
+      projected.suggestion = boundedString(record.suggestion, 1024);
+    }
+    return projected;
+  }
+  return sanitizeRemoteValue(data, undefined);
+}
+
+/**
+ * Remote-safe projection for session/tool-output: bounded snapshot text only.
+ * The response shape already carries no Host paths; this keeps it explicit
+ * and bounds every string that could embed one.
+ */
+function projectRemoteToolOutputData(data: unknown): unknown {
+  const record = asRecord(data);
+  if (record === undefined || record.status !== 'ready') {
+    return sanitizeRemoteValue(data, undefined);
+  }
+  return {
+    status: 'ready',
+    output: boundedString(record.output, 512_000),
+    truncated: record.truncated === true,
+    redacted: record.redacted === true,
+    provenance: 'tool-snapshot',
+  };
 }

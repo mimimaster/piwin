@@ -848,6 +848,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       contextRefs?: PromptContextRef[];
       agentMode: AgentModeId;
       clientMessageId?: string;
+      skillId?: string;
     }): {
       text: string;
       attachments?: PromptAttachment[];
@@ -857,6 +858,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       agentMode?: import('@piwin/contracts').AgentModeId;
       orchestrationSchemeId?: string;
       clientMessageId?: string;
+      skillId?: string;
     } => {
       const input: {
         text: string;
@@ -867,12 +869,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         agentMode?: import('@piwin/contracts').AgentModeId;
         orchestrationSchemeId?: string;
         clientMessageId?: string;
+        skillId?: string;
       } = {
         text: params.text,
         agentMode: params.agentMode,
       };
       if (params.clientMessageId && params.clientMessageId.trim().length > 0) {
         input.clientMessageId = params.clientMessageId.trim();
+      }
+      if (params.skillId && params.skillId.trim().length > 0) {
+        input.skillId = params.skillId.trim();
       }
       const schemeId = args.orchestrationSchemeId?.trim();
       if (schemeId && schemeId !== 'off') {
@@ -1169,6 +1175,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           contextRefs: promptContextRefs,
           agentMode: promptAgentMode,
           clientMessageId,
+          ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
         });
         const response = await args.hostClient.request({
           type: 'session/prompt',

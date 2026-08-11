@@ -69,6 +69,7 @@ import {
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
 } from './vision-delegation.js';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
+import { enrichAgentEventDocumentTargets } from './document-targets.js';
 import { installSkill, installExtension } from '@piwin/marketplace';
 import { scanExtensions } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
@@ -1796,6 +1797,7 @@ export class HostRuntime {
     const defaultProjectPath = getPiwinGeneralWorkspacePath(rootDir);
     this.subagentWorkspaceService = createSubagentWorkspaceService({
       projectPath: defaultProjectPath,
+      worktreeStorageRoot: join(rootDir, 'worktrees'),
       resolveProjectPath: (task) =>
         this.sessionProjects.get(task.parentSessionId) ?? defaultProjectPath,
       dirtyBasePolicy: async () => {
@@ -1823,8 +1825,17 @@ export class HostRuntime {
     this.subagentIntegrationCoordinator = createSubagentIntegrationCoordinator({
       integrateWorktree: integrationAdapter,
       isBaseClean: isWorktreeBaseClean,
-      removeWorktree: async (worktreePath: string, parentRepoPath: string) => {
-        await removeWorktree({ projectPath: parentRepoPath, worktreePath });
+      removeWorktree: async (
+        worktreePath: string,
+        parentRepoPath: string,
+        worktreeBranch?: string,
+      ) => {
+        await removeWorktree({
+          projectPath: parentRepoPath,
+          worktreePath,
+          force: true,
+          ...(worktreeBranch ? { worktreeBranch } : {}),
+        });
       },
     });
 
@@ -1868,22 +1879,54 @@ export class HostRuntime {
         }
         return genId;
       },
-      registerTaskSession: (input) => {
+      registerTaskSession: async (input) => {
         this.subagentSessionContexts.set(input.childSessionId, {
           parentSessionId: input.parentSessionId,
           runtimeGenerationId: input.runtimeGenerationId,
           workingDirectory: input.workingDirectory,
           parentRepoPath: input.workspaceLease.parentRepoPath,
         });
-        return this.persistSubagentSessionStart(input).catch((error: unknown) => {
+        await this.persistSubagentSessionStart(input).catch((error: unknown) => {
           this.push({
             type: 'host/log',
             level: 'warn',
             message: `subagent session registration failed: ${formatError(error)}`,
           });
         });
+        if (input.task.model) {
+          this.sessionModels.set(input.childSessionId, input.task.model);
+        }
+        await this.ensureTranscriptRecorder(
+          input.childSessionId,
+          input.workspaceLease.parentRepoPath,
+          input.runtimeGenerationId,
+        );
+        const recorder = this.transcriptRecorders.get(input.childSessionId);
+        if (recorder) {
+          await recorder.recordUserPrompt({
+            text: input.task.task,
+            ...(input.task.model ? { model: input.task.model } : {}),
+            ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
+          });
+        }
       },
       unregisterTaskSession: async (childSessionId) => {
+        const recorder = this.transcriptRecorders.get(childSessionId);
+        if (recorder) {
+          try {
+            await recorder.flush();
+          } catch (error) {
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `subagent transcript flush failed: ${formatError(error)}`,
+            });
+          } finally {
+            recorder.dispose();
+            this.transcriptRecorders.delete(childSessionId);
+          }
+        }
+        this.sessionModels.delete(childSessionId);
         this.subagentSessionContexts.delete(childSessionId);
         this.sessionHostToolPort?.clearSession(childSessionId);
         await this.releaseGenerationToolSurfaces(childSessionId);
@@ -1905,6 +1948,16 @@ export class HostRuntime {
           childSessionId: sessionId,
           event,
         });
+        const recorder = this.transcriptRecorders.get(sessionId);
+        if (recorder) {
+          void recorder.recordEvent(event).catch((error: unknown) => {
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `subagent transcript event failed: ${formatError(error)}`,
+            });
+          });
+        }
       },
       onWorkerExit: ({ sessionId, runtimeGenerationId, code }) => {
         const affectedRuns = this.runRegistry
@@ -2413,7 +2466,17 @@ export class HostRuntime {
           if (!childSessionId) {
             throw new Error(`subagent batch ${result.status} without a child session result`);
           }
-          return { childSessionId };
+          if (!taskResult) {
+            throw new Error(`subagent batch ${result.status} did not return its task result`);
+          }
+          return {
+            childSessionId,
+            batchStatus: result.status,
+            executionStatus: taskResult.executionStatus,
+            integrationStatus: taskResult.integrationStatus,
+            ...(taskResult.error ? { error: taskResult.error } : {}),
+            ...(taskResult.worktreePath ? { worktreePath: taskResult.worktreePath } : {}),
+          };
         } finally {
           releaseAdmission();
         }
@@ -2575,6 +2638,9 @@ export class HostRuntime {
       getBrowserSession: () => this.browserSession ?? undefined,
       getNotesServices: () => this.getNotesServices(),
       getCardStore: () => this.getCardStore(),
+      onPlanUpdated: (plan) => {
+        this.push({ type: 'plan/updated', sessionId, plan });
+      },
       onDiagnostic: ({ message }) => this.push({ type: 'host/log', level: 'warn', message }),
       onMcpCapabilityBrief: (brief) => {
         mcpCapabilityBrief = brief;
@@ -2746,6 +2812,7 @@ export class HostRuntime {
       parentRecord?.workingDirectory ??
       parentRecord?.projectPath ??
       getPiwinGeneralWorkspacePath(rootDir);
+    const parentModel = this.sessionModels.get(request.parentSessionId) ?? parentRecord?.model;
     const enabledSkillIds = (
       await scanSkills({
         piwinRoot: rootDir,
@@ -2781,10 +2848,11 @@ export class HostRuntime {
       if ('error' in planned) {
         throw new Error(`subagent task ${task.id}: ${planned.error}`);
       }
+      const model = planned.snapshot.model ?? parentModel;
       return {
         ...task,
         ...(planned.snapshot.profileId ? { profileId: planned.snapshot.profileId } : {}),
-        ...(planned.snapshot.model ? { model: planned.snapshot.model } : {}),
+        ...(model ? { model } : {}),
         ...(planned.snapshot.thinkingLevel
           ? { thinkingLevel: planned.snapshot.thinkingLevel }
           : {}),
@@ -2944,10 +3012,12 @@ export class HostRuntime {
       getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
       registerForegroundRun: (sessionId, resumeCheckpointId) => {
         const generationId = this.runtimeController.getStatus(sessionId).generationId;
+        const parentRunId = this.runExecutionContext.getStore();
         const run = this.runRegistry.createForegroundRun(
           sessionId,
           generationId,
           resumeCheckpointId,
+          parentRunId,
         );
         // ADR 0040 §5: a runtime with an active Run is busy and never evicted.
         if (generationId !== undefined) {
@@ -3205,7 +3275,8 @@ export class HostRuntime {
         this.setSessionPermissionOverride(sessionId, mode),
       clearSessionPermissionOverride: (sessionId) => this.clearSessionPermissionOverride(sessionId),
       planExecution: {
-        promptSession: (sessionId, text) => this.promptPlanSession(sessionId, text),
+        promptSession: (sessionId, text, parentRunId) =>
+          this.promptPlanSession(sessionId, text, parentRunId),
         abortSession: (sessionId) => this.abortPlanSession(sessionId),
         startPlanRun: (sessionId, planId) => {
           const generationId =
@@ -3224,17 +3295,34 @@ export class HostRuntime {
           return { runId: started.runId };
         },
         finishPlanRun: (runId, status, error) => {
-          this.runRegistry.terminate(
-            runId,
-            status,
-            status === 'completed' ? 'completed' : 'failed',
-            error,
-          );
+          this.runRegistry.terminate(runId, status, status, error);
         },
         cancelPlanRun: (runId) => {
           if (runId) {
             this.subagentOrchestrator?.cancelBatchesForParentRun(runId);
             this.runRegistry.cancelRun(runId);
+          }
+        },
+        mergeBatchSummaries: async (parentSessionId, results) => {
+          for (const result of results) {
+            const childSessionId = result.childSessionId;
+            if (!childSessionId || !result.summaryPreview) continue;
+            this.subagentTaskResults.set(childSessionId, result);
+            const messageId = randomUUID();
+            const alreadyMerged = await this.persistSubagentMerge(
+              parentSessionId,
+              childSessionId,
+              result,
+              messageId,
+            );
+            if (!alreadyMerged) {
+              this.push({
+                type: 'subagent/merged',
+                parentSessionId,
+                childSessionId,
+                messageId,
+              });
+            }
           }
         },
         runBatch: async (request, parentRunId) => {
@@ -3564,30 +3652,37 @@ export class HostRuntime {
         // from reaching push, hooks, usage, or transcript recording.
         return;
       }
-      this.push({ type: 'event', sessionId: session.id, event: correlatedEvent });
+      // Attach logical documentTargets for Doc Preview without rewriting
+      // targetPaths (actual tool evidence stays intact).
+      const projectPathForTargets =
+        this.sessionProjects.get(session.id) ?? projectPath ?? null;
+      const eventForClients = enrichAgentEventDocumentTargets(correlatedEvent, {
+        ...(projectPathForTargets ? { projectPath: projectPathForTargets } : {}),
+      });
+      this.push({ type: 'event', sessionId: session.id, event: eventForClients });
       // Forward child session events to parent for inline subagent stream UX.
       if (parentSessionId) {
         this.push({
           type: 'subagent/stream',
           parentSessionId,
           childSessionId: session.id,
-          event: correlatedEvent,
+          event: eventForClients,
         });
       }
-      void this.ensurePetStateStore().then((store) => store.reduce(correlatedEvent));
+      void this.ensurePetStateStore().then((store) => store.reduce(eventForClients));
       const eventRunId = correlatedRunId ?? activeRunId;
       if (eventRunId !== undefined) {
-        this.runRegistry.noteAgentEvent(eventRunId, correlatedEvent);
+        this.runRegistry.noteAgentEvent(eventRunId, eventForClients);
       }
-      if (correlatedEvent.type === 'permission/request') {
+      if (eventForClients.type === 'permission/request') {
         this.push({
           type: 'permission/request',
           sessionId: session.id,
-          requestId: correlatedEvent.requestId,
-          action: correlatedEvent.action,
-          detail: correlatedEvent.detail,
-          defaultDecision: correlatedEvent.defaultDecision,
-          ...(correlatedEvent.runId ? { runId: correlatedEvent.runId } : {}),
+          requestId: eventForClients.requestId,
+          action: eventForClients.action,
+          detail: eventForClients.detail,
+          defaultDecision: eventForClients.defaultDecision,
+          ...(eventForClients.runId ? { runId: eventForClients.runId } : {}),
         });
       }
       if (event.type === 'usage/update') {
@@ -3628,7 +3723,7 @@ export class HostRuntime {
         }
       }
       // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
-      void this.dispatchHooksForAgentEvent(session.id, correlatedEvent).catch((error: unknown) => {
+      void this.dispatchHooksForAgentEvent(session.id, eventForClients).catch((error: unknown) => {
         const message = formatError(error);
         this.push({
           type: 'host/log',
@@ -3638,7 +3733,7 @@ export class HostRuntime {
       });
       const recorder = this.transcriptRecorders.get(session.id);
       if (recorder) {
-        void recorder.recordEvent(correlatedEvent).catch((error: unknown) => {
+        void recorder.recordEvent(eventForClients).catch((error: unknown) => {
           const message = formatError(error);
           this.push({
             type: 'host/log',
@@ -3699,15 +3794,51 @@ export class HostRuntime {
    * Plan execution seam: send a prompt to a session for inline execution
    * or final verification. Uses the existing session/prompt path.
    */
-  private async promptPlanSession(sessionId: string, text: string): Promise<void> {
-    const result = await this.handleCommand({
-      type: 'session/prompt',
-      sessionId,
-      input: { text },
-    });
+  private async promptPlanSession(
+    sessionId: string,
+    text: string,
+    parentRunId?: string,
+  ): Promise<{ runId: string; finalAssistantMessageId: string }> {
+    const operation = () =>
+      this.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text },
+      });
+    const result = parentRunId
+      ? await this.runExecutionContext.run(parentRunId, operation)
+      : await operation();
     if (!result.success) {
       throw new Error(result.error);
     }
+    const data = result.data as { runId?: unknown };
+    if (typeof data.runId !== 'string') {
+      throw new Error('session/prompt accepted without a Run id');
+    }
+    const terminal = await this.runRegistry.join(data.runId);
+    if (!terminal) {
+      throw new Error(`foreground Run disappeared: ${data.runId}`);
+    }
+    if (terminal.status !== 'completed') {
+      throw new Error(
+        terminal.error ?? `foreground Run ${data.runId} ended with ${terminal.status}`,
+      );
+    }
+    const recorder = this.transcriptRecorders.get(sessionId);
+    if (recorder) {
+      await recorder.flush();
+    }
+    const messages = await this.loadTranscriptMessages(sessionId);
+    const finalAssistant = [...messages]
+      .reverse()
+      .find(
+        (message) =>
+          message.role === 'assistant' && message.runId === data.runId && message.status === 'done',
+      );
+    if (!finalAssistant) {
+      throw new Error(`foreground Run ${data.runId} completed without a durable assistant message`);
+    }
+    return { runId: data.runId, finalAssistantMessageId: finalAssistant.id };
   }
 
   /**

@@ -11,7 +11,11 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-function TranscriptGeometry(props: { scrollHeight: number }): ReactElement {
+function TranscriptGeometry(props: {
+  scrollHeight: number;
+  anchorMessageId?: string;
+  anchorDocumentTop?: number;
+}): ReactElement {
   const markerRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const scrollElement = markerRef.current?.closest('.chat-stream');
@@ -22,8 +26,26 @@ function TranscriptGeometry(props: { scrollHeight: number }): ReactElement {
       clientHeight: { configurable: true, value: 200 },
       scrollHeight: { configurable: true, value: props.scrollHeight },
     });
-  }, [props.scrollHeight]);
-  return <div ref={markerRef}>Transcript content</div>;
+    scrollElement.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 200, left: 0, right: 800, width: 800, height: 200 }) as DOMRect;
+    if (markerRef.current && props.anchorDocumentTop !== undefined) {
+      const anchorDocumentTop = props.anchorDocumentTop;
+      markerRef.current.getBoundingClientRect = () =>
+        ({
+          top: anchorDocumentTop - scrollElement.scrollTop,
+          bottom: anchorDocumentTop - scrollElement.scrollTop + 48,
+          left: 0,
+          right: 800,
+          width: 800,
+          height: 48,
+        }) as DOMRect;
+    }
+  }, [props.anchorDocumentTop, props.scrollHeight]);
+  return (
+    <div ref={markerRef} id={props.anchorMessageId ? `msg-${props.anchorMessageId}` : undefined}>
+      Transcript content
+    </div>
+  );
 }
 
 describe('TranscriptViewport session scroll recovery', () => {
@@ -50,6 +72,8 @@ describe('TranscriptViewport session scroll recovery', () => {
       scrollHeight?: number;
       canLoadOlder?: boolean;
       onLoadOlder?: () => Promise<void>;
+      turnAnchorMessageId?: string;
+      anchorDocumentTop?: number;
     } = {},
   ): Promise<void> {
     await act(async () => {
@@ -61,10 +85,20 @@ describe('TranscriptViewport session scroll recovery', () => {
             messageCount={1}
             activitySignal={options.activitySignal ?? 'idle'}
             messages={[]}
+            locale="en"
             canLoadOlder={options.canLoadOlder === true}
+            turnAnchorMessageId={options.turnAnchorMessageId ?? null}
             {...(options.onLoadOlder ? { onLoadOlder: options.onLoadOlder } : {})}
           >
-            <TranscriptGeometry scrollHeight={options.scrollHeight ?? 1_000} />
+            <TranscriptGeometry
+              scrollHeight={options.scrollHeight ?? 1_000}
+              {...(options.turnAnchorMessageId
+                ? { anchorMessageId: options.turnAnchorMessageId }
+                : {})}
+              {...(options.anchorDocumentTop !== undefined
+                ? { anchorDocumentTop: options.anchorDocumentTop }
+                : {})}
+            />
           </TranscriptViewport>
         </PiwinUiProvider>,
       );
@@ -155,7 +189,32 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
 
-  it('loads an older page and preserves the visible scroll anchor', async () => {
+  it('keeps a newly submitted prompt at a stable reading offset while activity grows', async () => {
+    await renderSession('anchored-session', {
+      activitySignal: 'streaming-0',
+      scrollHeight: 1_400,
+      turnAnchorMessageId: 'prompt-1',
+      anchorDocumentTop: 920,
+    });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+
+    expect(scrollElement.scrollTop).toBe(892);
+    expect(container.querySelector('[data-testid="transcript-turn-anchor-spacer"]')).not.toBeNull();
+
+    await renderSession('anchored-session', {
+      activitySignal: 'streaming-1',
+      scrollHeight: 2_000,
+      turnAnchorMessageId: 'prompt-1',
+      anchorDocumentTop: 920,
+    });
+    expect(scrollElement.scrollTop).toBe(892);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')?.textContent).toContain(
+      'Follow latest',
+    );
+  });
+
+  it('loads an older page invisibly and preserves the visible scroll anchor', async () => {
     const onLoadOlder = vi.fn(async () => {
       const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
       if (!scrollElement) throw new Error('Expected transcript scroll element');
@@ -170,18 +229,74 @@ describe('TranscriptViewport session scroll recovery', () => {
       onLoadOlder,
     });
     const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
-    const loadButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="transcript-load-older"]',
-    );
-    if (!scrollElement || !loadButton) throw new Error('Expected history controls');
-    scrollElement.scrollTop = 120;
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+    expect(container.querySelector('[data-testid="transcript-history-page-control"]')).toBeNull();
+    scrollElement.scrollTop = 60;
+    Object.defineProperty(scrollElement, 'clientHeight', {
+      configurable: true,
+      value: 400,
+    });
 
     await act(async () => {
-      loadButton.click();
+      scrollElement.dispatchEvent(new Event('scroll'));
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     });
 
-    expect(onLoadOlder).toHaveBeenCalledTimes(1);
-    expect(scrollElement.scrollTop).toBe(520);
+    expect(onLoadOlder).toHaveBeenCalled();
+    expect(scrollElement.scrollTop).toBe(460);
+  });
+
+  it('auto-loads older history only when scrollable and near the top', async () => {
+    const onLoadOlder = vi.fn(async () => undefined);
+    await renderSession('auto-history-session', {
+      scrollHeight: 2_000,
+      canLoadOlder: true,
+      onLoadOlder,
+    });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+    Object.defineProperty(scrollElement, 'clientHeight', {
+      configurable: true,
+      value: 640,
+    });
+    Object.defineProperty(scrollElement, 'scrollHeight', {
+      configurable: true,
+      value: 2_000,
+    });
+    scrollElement.scrollTop = 0;
+
+    await act(async () => {
+      scrollElement.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onLoadOlder).toHaveBeenCalled();
+  });
+
+  it('auto-loads when content is too short to expose a manual scroll gesture', async () => {
+    const onLoadOlder = vi.fn(async () => undefined);
+    await renderSession('short-session', {
+      scrollHeight: 300,
+      canLoadOlder: true,
+      onLoadOlder,
+    });
+    const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
+    if (!scrollElement) throw new Error('Expected transcript scroll element');
+    Object.defineProperty(scrollElement, 'clientHeight', {
+      configurable: true,
+      value: 640,
+    });
+    Object.defineProperty(scrollElement, 'scrollHeight', {
+      configurable: true,
+      value: 300,
+    });
+    scrollElement.scrollTop = 0;
+
+    await act(async () => {
+      scrollElement.dispatchEvent(new Event('scroll'));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onLoadOlder).toHaveBeenCalled();
   });
 });

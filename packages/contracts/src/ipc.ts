@@ -269,6 +269,20 @@ export type HostCommand =
    */
   | { id?: string; type: 'speech/transcribe'; input: SpeechTranscribeInput }
   | { id?: string; type: 'skills/list'; projectPath?: string }
+  | {
+      id?: string;
+      type: 'skills/read';
+      /** Prefer logical id when known. */
+      skillId?: string;
+      /**
+       * Local legacy transcript absolute path only.
+       * Host maps it to a catalog skill; never used as a free read root.
+       */
+      legacyPath?: string;
+      /** Optional project context for scanning project-local skills (local only). */
+      projectPath?: string;
+      maxBytes?: number;
+    }
   | { id?: string; type: 'skills/set_enabled'; skillId: string; enabled: boolean }
   | {
       id?: string;
@@ -334,7 +348,9 @@ export type HostCommand =
   | { id?: string; type: 'pet/list' }
   | { id?: string; type: 'pet/get-active' }
   | { id?: string; type: 'pet/set-active'; petId: string }
+  | { id?: string; type: 'pet/scan-local'; sourcePath: string }
   | { id?: string; type: 'pet/install-local'; sourcePath: string }
+  | { id?: string; type: 'pet/install-local-batch'; sourcePaths: string[] }
   | { id?: string; type: 'pet/store-query'; query: PetStoreQuery }
   | { id?: string; type: 'pet/install-registry'; url: string; sha256?: string }
   | { id?: string; type: 'pet/cancel'; requestId: string }
@@ -541,6 +557,18 @@ export type HostCommand =
       redactTools?: boolean;
       /** Absolute path; when omitted host writes under session exports dir. */
       outputPath?: string;
+    }
+  /**
+   * Bounded on-demand read of a persisted tool output snapshot (Doc Preview
+   * recovery for historical reads). Host re-checks redaction and byte caps.
+   */
+  | {
+      id?: string;
+      type: 'session/tool-output';
+      sessionId: string;
+      messageId: string;
+      toolCallId: string;
+      maxBytes?: number;
     }
   | { id?: string; type: 'pty/open'; input: PtyOpenInput }
   | { id?: string; type: 'pty/write'; ptyId: string; data: string }

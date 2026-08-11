@@ -19,6 +19,7 @@ import {
   handleWalkthroughCancel,
   handleWalkthroughGenerate,
   handleWalkthroughList,
+  startWalkthroughGeneration,
   WalkthroughGenerationRegistry,
   type WalkthroughCommandContext,
 } from './walkthrough-commands.js';
@@ -304,6 +305,40 @@ async function flush(): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 describe('walkthrough-commands — §15.5', () => {
+  it('preserves the completed plan binding through generating and ready artifacts', async () => {
+    const testContext = await createTestContext();
+    const targetMessage = testContext.transcriptMessages.find(
+      (message) => message.id === 'msg-1',
+    );
+    if (!targetMessage) throw new Error('missing target message fixture');
+    const registry = new WalkthroughGenerationRegistry();
+
+    await startWalkthroughGeneration(
+      'sess-1',
+      targetMessage.id,
+      MODEL,
+      createProvider(),
+      'default',
+      createDefaultWalkthroughConfig(),
+      targetMessage,
+      testContext.transcriptMessages,
+      testContext.context,
+      registry,
+      { fetch: createSuccessFetch('# Bound walkthrough') },
+      'plan-1',
+    );
+
+    const generating = testContext.pushCap.pushes.find(
+      (message) =>
+        message.type === 'walkthrough/updated' && message.artifact?.status === 'generating',
+    )?.artifact;
+    expect(generating?.planId).toBe('plan-1');
+    const ready = await waitForPushStatus(testContext.pushCap.pushes, 'ready');
+    expect(ready.planId).toBe('plan-1');
+    expect(ready.messageId).toBe(targetMessage.id);
+    expect(ready.runId).toBe(targetMessage.runId);
+  });
+
   it('accepts walkthrough/generate regardless of enabled flag (always-on)', async () => {
     const { context, pushCap } = await createTestContext({
       config: createConfig({

@@ -175,7 +175,7 @@ describe('ContextBar', () => {
     const statusRegions = container.querySelectorAll('[data-testid="run-status-strip"]');
     expect(statusRegions).toHaveLength(1);
     expect(statusRegions[0]?.getAttribute('data-kind')).toBe('working');
-    expect(container.textContent).toContain('Working…');
+    expect(container.textContent).toContain('Running read_file');
     expect(container.textContent).toContain('12s');
 
     const stopButton = container.querySelector<HTMLButtonElement>(

@@ -11,10 +11,12 @@
  *
  * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
  * not mount/unmount of the floating track.
+ *
+ * Older history loads invisibly when the user is near the top, including when
+ * the current page is too short to create a scrollbar.
  */
 import type { ReactElement, ReactNode } from 'react';
-import { useCallback, useLayoutEffect, useRef } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import { isNearBottom, useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
@@ -24,6 +26,9 @@ import {
   rememberTranscriptScrollPosition,
 } from './transcript-scroll-memory';
 
+/** Load the next older page when within this many px of the transcript top. */
+const TRANSCRIPT_TOP_AUTO_LOAD_PX = 120;
+
 export type TranscriptViewportProps = {
   messageCount: number;
   activitySignal: string;
@@ -31,19 +36,40 @@ export type TranscriptViewportProps = {
   sessionId?: string;
   canLoadOlder?: boolean;
   historyLoading?: boolean;
-  historyCacheLimitReached?: boolean;
   onLoadOlder?: () => Promise<void>;
+  locale?: 'zh-CN' | 'en';
+  /** Active optimistic prompt that should own the stable reading viewport. */
+  turnAnchorMessageId?: string | null;
   children: ReactNode;
 };
 
 export function TranscriptViewport(props: TranscriptViewportProps): ReactElement {
+  const locale = props.locale ?? 'zh-CN';
+  // Keep the most recent submitted turn anchored after the terminal event so
+  // a short answer does not immediately sink back toward the composer.
+  const [retainedTurnAnchorMessageId, setRetainedTurnAnchorMessageId] = useState<
+    string | null
+  >(props.turnAnchorMessageId ?? null);
+  const releaseTurnAnchor = useCallback((): void => {
+    setRetainedTurnAnchorMessageId(null);
+  }, []);
   const scroll = useTranscriptScroll({
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
+    turnAnchorMessageId: retainedTurnAnchorMessageId,
+    onTurnAnchorReleased: releaseTurnAnchor,
   });
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
+  const loadInFlightRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const nextAnchorMessageId = props.turnAnchorMessageId?.trim();
+    if (nextAnchorMessageId) {
+      setRetainedTurnAnchorMessageId(nextAnchorMessageId);
+    }
+  }, [props.turnAnchorMessageId]);
 
   useLayoutEffect(() => {
     const sessionId = props.sessionId;
@@ -120,17 +146,71 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
 
   const handleLoadOlder = useCallback(async (): Promise<void> => {
     const container = scroll.containerRef.current;
-    if (!container || !props.onLoadOlder || props.historyLoading) return;
+    if (!container || !props.onLoadOlder || props.historyLoading || loadInFlightRef.current) {
+      return;
+    }
+    loadInFlightRef.current = true;
     const previousScrollHeight = container.scrollHeight;
     const previousScrollTop = container.scrollTop;
-    await props.onLoadOlder();
-    window.requestAnimationFrame(() => {
-      const current = scroll.containerRef.current;
-      if (!current) return;
-      current.scrollTop =
-        previousScrollTop + Math.max(0, current.scrollHeight - previousScrollHeight);
-    });
+    try {
+      await props.onLoadOlder();
+      window.requestAnimationFrame(() => {
+        const current = scroll.containerRef.current;
+        if (!current) return;
+        current.scrollTop =
+          previousScrollTop + Math.max(0, current.scrollHeight - previousScrollHeight);
+      });
+    } finally {
+      loadInFlightRef.current = false;
+    }
   }, [props.historyLoading, props.onLoadOlder, scroll.containerRef]);
+
+  const maybeAutoLoadOlder = useCallback((): void => {
+    if (!props.canLoadOlder || props.historyLoading || !props.onLoadOlder) {
+      return;
+    }
+    const container = scroll.containerRef.current;
+    if (!container) {
+      return;
+    }
+    const maximumScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    const normalizedScrollTop = Math.min(container.scrollTop, maximumScrollTop);
+    // Short pages have no useful manual scroll gesture. Treat them as already
+    // at the top so older history remains reachable without visible controls.
+    if (normalizedScrollTop <= TRANSCRIPT_TOP_AUTO_LOAD_PX) {
+      void handleLoadOlder();
+    }
+  }, [
+    handleLoadOlder,
+    props.canLoadOlder,
+    props.historyLoading,
+    props.onLoadOlder,
+    scroll.containerRef,
+  ]);
+
+  // After each successful older page (messageCount grows), continue if the
+  // viewport still has not moved away from the top.
+  useEffect(() => {
+    maybeAutoLoadOlder();
+  }, [
+    maybeAutoLoadOlder,
+    props.canLoadOlder,
+    props.historyLoading,
+    props.messageCount,
+    props.sessionId,
+  ]);
+
+  const handleStreamScroll = useCallback((): void => {
+    scroll.handleScroll();
+    maybeAutoLoadOlder();
+  }, [maybeAutoLoadOlder, scroll]);
+
+  const handleJumpToLatest = useCallback((): void => {
+    releaseTurnAnchor();
+    // Remove the temporary tail spacer before resolving the real transcript
+    // bottom; otherwise the first write would land inside blank reserve space.
+    window.requestAnimationFrame(() => scroll.jumpToLatest());
+  }, [releaseTurnAnchor, scroll]);
 
   return (
     <TranscriptScrollProvider
@@ -144,46 +224,46 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           className="chat-stream"
           data-testid="chat-stream"
           ref={scroll.containerRef}
-          onScroll={scroll.handleScroll}
+          onScroll={handleStreamScroll}
           role="log"
           aria-label="Conversation"
           aria-relevant="additions"
           aria-live="off"
           aria-busy={props.activitySignal.includes('streaming')}
         >
-          {props.canLoadOlder || props.historyCacheLimitReached ? (
-            <div
-              className="transcript-history-page-control"
-              data-testid="transcript-history-page-control"
-            >
-              {props.canLoadOlder ? (
-                <Button
-                  size="compact"
-                  variant="ghost"
-                  disabled={props.historyLoading === true}
-                  data-testid="transcript-load-older"
-                  onClick={() => void handleLoadOlder()}
-                >
-                  {props.historyLoading ? 'Loading earlier messages…' : 'Load earlier messages'}
-                </Button>
-              ) : (
-                <span className="muted" data-testid="transcript-cache-limit">
-                  History window limit reached — export the session for the complete transcript.
-                </span>
-              )}
-            </div>
-          ) : null}
           {props.children}
+          {retainedTurnAnchorMessageId ? (
+            <div
+              key={retainedTurnAnchorMessageId}
+              className="transcript-turn-anchor-spacer"
+              data-testid="transcript-turn-anchor-spacer"
+              aria-hidden="true"
+            />
+          ) : null}
         </div>
         {scroll.showJumpToLatest ? (
           <button
             type="button"
             className="jump-to-latest-btn"
             data-testid="jump-to-latest-btn"
-            onClick={scroll.jumpToLatest}
-            aria-label="Jump to latest"
+            onClick={handleJumpToLatest}
+            aria-label={
+              retainedTurnAnchorMessageId
+                ? locale === 'zh-CN'
+                  ? '跟随最新回复'
+                  : 'Follow latest response'
+                : locale === 'zh-CN'
+                  ? '跳到最新'
+                  : 'Jump to latest'
+            }
           >
-            Jump to latest
+            {retainedTurnAnchorMessageId
+              ? locale === 'zh-CN'
+                ? '跟随最新'
+                : 'Follow latest'
+              : locale === 'zh-CN'
+                ? '跳到最新'
+                : 'Jump to latest'}
           </button>
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}

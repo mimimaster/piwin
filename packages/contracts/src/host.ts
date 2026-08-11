@@ -36,7 +36,6 @@ export const THINKING_LEVEL_OPTIONS: readonly ThinkingLevel[] = [
   'high',
   'xhigh',
   'max',
-  'ultra',
 ];
 
 export function isThinkingLevel(value: unknown): value is ThinkingLevel {
@@ -125,6 +124,11 @@ export type MediaAttachmentRef = {
 
 export type PromptInput = {
   text: string;
+  /**
+   * Explicit installed Skill selected for this turn. This is structured Host
+   * intent, not a value inferred from model-facing prompt text.
+   */
+  skillId?: string;
   attachments?: PromptAttachment[];
   /**
    * Optional client-generated id for the user turn. When present, the product
@@ -372,6 +376,8 @@ export type ToolPresentation = {
   inputPreview?: string;
   command?: string;
   targetPaths?: string[];
+  /** Product-openable logical refs; does not rewrite targetPaths. */
+  documentTargets?: import('./skills.js').DocumentTargetRef[];
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;

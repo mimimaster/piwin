@@ -17,6 +17,7 @@ import { ProviderStatusPill, type ProviderTestStatus } from './provider-status.j
 import {
   IconChevronDown,
   IconClose,
+  IconDownload,
   IconEdit,
   IconPlus,
   IconRefresh,
@@ -174,8 +175,8 @@ export function ProviderRow({
         expand: '展开',
         collapse: '收起',
         editProvider: '编辑提供商',
-        discover: '发现',
-        discovering: '发现中…',
+        discover: '拉取模型',
+        discovering: '正在拉取…',
         addModel: '手动添加模型',
         modelsHeading: '模型服务',
       }
@@ -189,8 +190,8 @@ export function ProviderRow({
         expand: 'Expand',
         collapse: 'Collapse',
         editProvider: 'Edit provider',
-        discover: 'Discover',
-        discovering: 'Discovering…',
+        discover: 'Fetch models',
+        discovering: 'Fetching…',
         addModel: 'Add model manually',
         modelsHeading: 'Models',
       };
@@ -277,12 +278,21 @@ export function ProviderRow({
               </span>
               <button
                 type="button"
-                className="provider-linkbtn"
+                className="provider-discover-btn"
                 onClick={() => void handleDiscover()}
                 disabled={disabled || discovering}
                 data-testid={`provider-discover-models-${provider.id}`}
               >
-                {discovering ? t.discovering : t.discover}
+                {discovering ? (
+                  <IconRefresh
+                    width={13}
+                    height={13}
+                    className="provider-discover-btn-icon provider-discover-btn-icon--spin"
+                  />
+                ) : (
+                  <IconDownload width={13} height={13} className="provider-discover-btn-icon" />
+                )}
+                <span>{discovering ? t.discovering : t.discover}</span>
               </button>
             </div>
 

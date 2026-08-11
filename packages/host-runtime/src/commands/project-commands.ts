@@ -12,7 +12,9 @@ import {
   loadProjectStore,
   openOrCreateProject,
   removeProject,
-  resolveInsideRoot,
+  isRegisteredProjectRoot,
+  normalizeProjectRootPath,
+  resolveInsideRootWithRealpath,
   revokeRememberedPermission,
   setProjectTrust,
 } from '@piwin/project';
@@ -103,10 +105,16 @@ export async function handleProjectCommand(
       });
     }
     case 'project/list-dir': {
-      return listProjectDirectory(command.projectPath, command.relativePath, requestId);
+      return listProjectDirectory(
+        projectsPath,
+        command.projectPath,
+        command.relativePath,
+        requestId,
+      );
     }
     case 'project/read-file': {
       return readProjectFile(
+        projectsPath,
         command.projectPath,
         command.relativePath,
         command.maxBytes,
@@ -132,20 +140,25 @@ const IGNORED_DIR_NAMES = new Set([
  * List one directory under project root. Rejects path traversal outside root.
  */
 async function listProjectDirectory(
+  projectsPath: string,
   projectPath: string,
   relativePath: string | undefined,
   requestId: string | undefined,
 ): Promise<HostResponse> {
-  const rootAbsolute = path.resolve(projectPath);
+  const rootCheck = await requireRegisteredProjectRoot(projectsPath, projectPath, requestId, 'project/list-dir');
+  if (!rootCheck.ok) {
+    return rootCheck.response;
+  }
+  const rootAbsolute = rootCheck.rootAbsolute;
   const relativeNormalized = (relativePath ?? '')
     .replace(/\\/g, '/')
     .replace(/^\/+/, '')
     .replace(/\/+$/, '');
-  const resolved = resolveInsideRoot(rootAbsolute, relativePath ?? '');
+  const resolved = await resolveInsideRootWithRealpath(rootAbsolute, relativePath ?? '');
   if (!resolved.ok) {
     return fail(requestId, 'project/list-dir', resolved.reason);
   }
-  const targetAbsolute = resolved.absolute;
+  const targetAbsolute = resolved.realAbsolute ?? resolved.absolute;
 
   let directoryEntries;
   try {
@@ -208,15 +221,26 @@ const HARD_MAX_READ_BYTES = 512 * 1024;
 
 /**
  * Read a text file under project root for File tree preview.
- * Rejects path traversal; flags binary / oversized content honestly.
+ * Requires a remembered project root; rejects path traversal and out-of-root
+ * symlinks; flags binary / oversized content honestly.
  */
 async function readProjectFile(
+  projectsPath: string,
   projectPath: string,
   relativePath: string,
   maxBytesInput: number | undefined,
   requestId: string | undefined,
 ): Promise<HostResponse> {
-  const rootAbsolute = path.resolve(projectPath);
+  const rootCheck = await requireRegisteredProjectRoot(
+    projectsPath,
+    projectPath,
+    requestId,
+    'project/read-file',
+  );
+  if (!rootCheck.ok) {
+    return rootCheck.response;
+  }
+  const rootAbsolute = rootCheck.rootAbsolute;
   const relativeNormalized = (relativePath ?? '')
     .replace(/\\/g, '/')
     .replace(/^\/+/, '')
@@ -224,11 +248,11 @@ async function readProjectFile(
   if (!relativeNormalized) {
     return fail(requestId, 'project/read-file', 'relativePath is required');
   }
-  const resolved = resolveInsideRoot(rootAbsolute, relativePath);
+  const resolved = await resolveInsideRootWithRealpath(rootAbsolute, relativePath);
   if (!resolved.ok) {
     return fail(requestId, 'project/read-file', resolved.reason);
   }
-  const targetAbsolute = resolved.absolute;
+  const targetAbsolute = resolved.realAbsolute ?? resolved.absolute;
 
   const maxBytes = Math.min(
     HARD_MAX_READ_BYTES,
@@ -259,7 +283,7 @@ async function readProjectFile(
   const isBinary = sample.includes(0);
   if (isBinary) {
     return ok(requestId, 'project/read-file', {
-      projectPath: rootAbsolute,
+      projectPath: resolved.rootReal,
       relativePath: relativeNormalized,
       absolutePath: targetAbsolute,
       content: '',
@@ -279,7 +303,7 @@ async function readProjectFile(
   const content = contentBuffer.toString('utf8');
 
   return ok(requestId, 'project/read-file', {
-    projectPath: rootAbsolute,
+    projectPath: resolved.rootReal,
     relativePath: relativeNormalized,
     absolutePath: targetAbsolute,
     content,
@@ -288,6 +312,37 @@ async function readProjectFile(
     isBinary: false,
     mimeHint: 'text/plain',
   });
+}
+
+/**
+ * projectPath mode must match a remembered project store entry.
+ * Callers cannot invent arbitrary roots (e.g. dirname of a skill path).
+ */
+async function requireRegisteredProjectRoot(
+  projectsPath: string,
+  projectPath: string,
+  requestId: string | undefined,
+  commandType: 'project/read-file' | 'project/list-dir',
+): Promise<
+  | { ok: true; rootAbsolute: string }
+  | { ok: false; response: HostResponse }
+> {
+  const trimmed = (projectPath ?? '').trim();
+  if (!trimmed) {
+    return {
+      ok: false,
+      response: fail(requestId, commandType, 'project-root-required'),
+    };
+  }
+  const document = await loadProjectStore(projectsPath);
+  const registeredRoots = document.projects.map((project) => project.path);
+  if (!isRegisteredProjectRoot(registeredRoots, trimmed)) {
+    return {
+      ok: false,
+      response: fail(requestId, commandType, 'project-root-not-registered'),
+    };
+  }
+  return { ok: true, rootAbsolute: normalizeProjectRootPath(trimmed) };
 }
 
 async function authorizeTerminalCwd(

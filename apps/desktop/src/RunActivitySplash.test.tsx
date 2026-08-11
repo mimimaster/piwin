@@ -52,13 +52,13 @@ describe('RunActivitySplash', () => {
     expect(container.textContent).toContain('Thinking…');
   });
 
-  it('keeps the runtime working copy independent from the active tool', () => {
+  it('surfaces the active tool instead of a generic working label', () => {
     act(() =>
       root.render(
         <TestHarness input={{ kind: 'working', activeToolName: 'bash', locale: 'en' }} />,
       ),
     );
-    expect(container.textContent).toContain('Working…');
+    expect(container.textContent).toContain('Running bash');
   });
 
   it('keeps the reference status when elapsed > 15s', () => {

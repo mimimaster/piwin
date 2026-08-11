@@ -7,6 +7,9 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import type {
   PetAnimationState,
+  PetInstallResult,
+  PetLocalImportBatchResult,
+  PetLocalImportPreview,
   PetManifest,
   PetPreference,
   PetRuntimeSnapshot,
@@ -14,6 +17,7 @@ import type {
   PetSummary,
 } from '@piwin/contracts';
 import { resolvePetLayout } from './validate-manifest.js';
+import { scanLocalPetPackages } from './local-import.js';
 import {
   createPetSourceRegistry,
   discoverAllPets,
@@ -106,13 +110,16 @@ export async function listPets(piwinRoot: string): Promise<{
       id: entry.petId,
       displayName: entry.displayName,
       path: entry.location,
-      spritesheetAbsolutePath: entry.location, // resolved lazily via loadPetManifest
+      spritesheetAbsolutePath: entry.manifest
+        ? join(entry.location, entry.manifest.spritesheetPath)
+        : entry.location,
       source: entry.source,
       active: entry.petId === preference.activePetId,
       valid: entry.issues.length === 0,
       issues: entry.issues,
     };
     if (entry.description) summary.description = entry.description;
+    if (entry.manifest) summary.manifest = entry.manifest;
     return summary;
   });
   pets.sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -176,10 +183,39 @@ export async function setActivePet(piwinRoot: string, petId: string): Promise<Pe
 export async function installPetFromLocalPath(
   piwinRoot: string,
   sourcePath: string,
-): Promise<{ petId: string; path: string }> {
+): Promise<PetInstallResult> {
   const ctx = buildContext(piwinRoot);
-  const result = await installPet(getRegistry(), ctx, 'local', sourcePath);
-  return { petId: result.petId, path: result.path };
+  return installPet(getRegistry(), ctx, 'local', sourcePath);
+}
+
+export async function scanLocalPets(sourcePath: string): Promise<PetLocalImportPreview> {
+  return scanLocalPetPackages(sourcePath);
+}
+
+/**
+ * Import several already-validated local package paths while retaining
+ * per-package failures so one broken package does not hide successful imports.
+ */
+export async function installPetFromLocalPaths(
+  piwinRoot: string,
+  sourcePaths: readonly string[],
+): Promise<PetLocalImportBatchResult> {
+  const uniqueSourcePaths = [...new Set(sourcePaths.map((path) => path.trim()).filter(Boolean))];
+  if (uniqueSourcePaths.length === 0) throw new Error('at least one source path is required');
+
+  const installed: PetInstallResult[] = [];
+  const failed: PetLocalImportBatchResult['failed'] = [];
+  for (const sourcePath of uniqueSourcePaths) {
+    try {
+      installed.push(await installPetFromLocalPath(piwinRoot, sourcePath));
+    } catch (error) {
+      failed.push({
+        sourcePath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return { installed, failed };
 }
 
 /**

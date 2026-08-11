@@ -3,6 +3,7 @@
  */
 import type {
   PlanComplexity,
+  PlanExecutionSummary,
   PlanExecutionState,
   PlanExecutionStatus,
   PlanSource,
@@ -325,9 +326,17 @@ function validateExecutionState(value: unknown): ExecutionValidationResult {
     );
   }
   const currentStepId = asNonEmptyString(record.currentStepId);
+  const runId = asNonEmptyString(record.runId);
   const error = asNonEmptyString(record.error);
   const startedAt = asNonEmptyString(record.startedAt);
   const endedAt = asNonEmptyString(record.endedAt);
+  const summaryResult =
+    record.summary === undefined ? undefined : validateExecutionSummary(record.summary);
+  if (summaryResult && !summaryResult.ok) {
+    for (const issue of summaryResult.issues) {
+      issues.push({ path: `summary.${issue.path}`, message: issue.message });
+    }
+  }
   if (issues.length > 0) return { ok: false, issues };
   const state: PlanExecutionState = {
     sessionId: sessionId!,
@@ -336,11 +345,97 @@ function validateExecutionState(value: unknown): ExecutionValidationResult {
     status: status as PlanExecutionStatus,
     childSessionIds,
   };
+  if (runId) state.runId = runId;
   if (currentStepId) state.currentStepId = currentStepId;
   if (error) state.error = error;
   if (startedAt) state.startedAt = startedAt;
   if (endedAt) state.endedAt = endedAt;
+  if (summaryResult?.ok) state.summary = summaryResult.summary;
   return { ok: true, state };
+}
+
+type ExecutionSummaryValidationResult =
+  | { ok: true; summary: PlanExecutionSummary }
+  | { ok: false; issues: PlanValidationIssue[] };
+
+function validateExecutionSummary(value: unknown): ExecutionSummaryValidationResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, issues: [{ path: '', message: 'summary must be an object' }] };
+  }
+  const record = value as Record<string, unknown>;
+  const issues: PlanValidationIssue[] = [];
+  const planId = asNonEmptyString(record.planId);
+  if (!planId) issues.push({ path: 'planId', message: 'planId is required' });
+  const mode = record.mode;
+  if (typeof mode !== 'string' || !EXECUTION_MODES.has(mode as PlanExecutionState['mode'])) {
+    issues.push({ path: 'mode', message: 'invalid execution mode' });
+  }
+  const completedStepIds = validateSummaryStringArray(
+    record.completedStepIds,
+    'completedStepIds',
+    issues,
+  );
+  const failedStepIds = validateSummaryStringArray(
+    record.failedStepIds,
+    'failedStepIds',
+    issues,
+  );
+  const skippedStepIds = validateSummaryStringArray(
+    record.skippedStepIds,
+    'skippedStepIds',
+    issues,
+  );
+  const mergedChildSessionIds = validateSummaryStringArray(
+    record.mergedChildSessionIds,
+    'mergedChildSessionIds',
+    issues,
+  );
+  const unresolvedItems =
+    record.unresolvedItems === undefined
+      ? undefined
+      : validateSummaryStringArray(record.unresolvedItems, 'unresolvedItems', issues);
+  const verificationResult = asNonEmptyString(record.verificationResult);
+  const startedAt = asNonEmptyString(record.startedAt);
+  const endedAt = asNonEmptyString(record.endedAt);
+  if (issues.length > 0 || !planId || typeof mode !== 'string') {
+    return { ok: false, issues };
+  }
+  return {
+    ok: true,
+    summary: {
+      planId,
+      mode: mode as PlanExecutionState['mode'],
+      completedStepIds,
+      failedStepIds,
+      skippedStepIds,
+      mergedChildSessionIds,
+      ...(verificationResult ? { verificationResult } : {}),
+      ...(unresolvedItems ? { unresolvedItems } : {}),
+      ...(startedAt ? { startedAt } : {}),
+      ...(endedAt ? { endedAt } : {}),
+    },
+  };
+}
+
+function validateSummaryStringArray(
+  value: unknown,
+  path: string,
+  issues: PlanValidationIssue[],
+): string[] {
+  if (!Array.isArray(value)) {
+    issues.push({ path, message: `${path} must be an array` });
+    return [];
+  }
+  const values: string[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const entry = asNonEmptyString(value[index]);
+    if (!entry) {
+      issues.push({ path: `${path}[${index}]`, message: 'must be a non-empty string' });
+    } else {
+      values.push(entry);
+    }
+  }
+  return values;
 }
 
 /**

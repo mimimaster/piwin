@@ -1,6 +1,14 @@
+import { mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { escapesRoot, resolveInsideRoot } from './path-traversal.js';
+import {
+  escapesRoot,
+  isRegisteredProjectRoot,
+  normalizeProjectRootPath,
+  resolveInsideRoot,
+  resolveInsideRootWithRealpath,
+} from './path-traversal.js';
 
 describe('escapesRoot', () => {
   it('returns false for the root itself', () => {
@@ -103,5 +111,80 @@ describe('resolveInsideRoot', () => {
       ok: true,
       absolute: path.join(root, 'a/b/c/d/file.ts'),
     });
+  });
+});
+
+describe('isRegisteredProjectRoot', () => {
+  it('matches a resolved registered path', () => {
+    const registered = ['/Users/me/work/app'];
+    expect(isRegisteredProjectRoot(registered, '/Users/me/work/app')).toBe(true);
+    expect(isRegisteredProjectRoot(registered, '/Users/me/work/app/')).toBe(true);
+  });
+
+  it('rejects unregistered roots including system paths', () => {
+    const registered = ['/Users/me/work/app'];
+    expect(isRegisteredProjectRoot(registered, '/etc')).toBe(false);
+    expect(isRegisteredProjectRoot(registered, '/tmp')).toBe(false);
+    expect(isRegisteredProjectRoot(registered, '/Users/me/work/app-evil')).toBe(false);
+  });
+
+  it('normalizes trailing separators consistently', () => {
+    expect(normalizeProjectRootPath('/tmp/proj/')).toBe(path.resolve('/tmp/proj/'));
+  });
+});
+
+describe('resolveInsideRootWithRealpath', () => {
+  it('resolves an existing file under the project root', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'piwin-proj-real-'));
+    const filePath = path.join(root, 'docs', 'readme.md');
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, '# hi\n', 'utf8');
+
+    const result = await resolveInsideRootWithRealpath(root, 'docs/readme.md');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const rootReal = await realpath(root);
+      expect(result.rootReal).toBe(rootReal);
+      expect(result.realAbsolute).toBe(await realpath(filePath));
+      expect(result.absolute).toBe(path.join(rootReal, 'docs/readme.md'));
+    }
+  });
+
+  it('allows an in-root symlink that stays inside the root', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'piwin-proj-link-in-'));
+    const targetFile = path.join(root, 'real.md');
+    await writeFile(targetFile, 'inside\n', 'utf8');
+    const linkPath = path.join(root, 'alias.md');
+    await symlink(targetFile, linkPath);
+
+    const result = await resolveInsideRootWithRealpath(root, 'alias.md');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.realAbsolute).toBe(await realpath(targetFile));
+    }
+  });
+
+  it('rejects a symlink that realpaths outside the project root', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'piwin-proj-link-out-'));
+    const outsideDir = await mkdtemp(path.join(tmpdir(), 'piwin-proj-outside-'));
+    const outsideFile = path.join(outsideDir, 'secret.txt');
+    await writeFile(outsideFile, 'nope\n', 'utf8');
+    const linkPath = path.join(root, 'escape.txt');
+    await symlink(outsideFile, linkPath);
+
+    const result = await resolveInsideRootWithRealpath(root, 'escape.txt');
+    expect(result).toEqual({
+      ok: false,
+      reason: 'path escapes project root via symlink',
+    });
+  });
+
+  it('rejects parent traversal before touching the filesystem', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'piwin-proj-trav-'));
+    const result = await resolveInsideRootWithRealpath(root, '../outside.txt');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('relativePath must not contain ..');
+    }
   });
 });

@@ -5,6 +5,18 @@
 > 日期：2026-08-01
 > 目标：删除 Debug mode；将 Plan/Ask mode 与权限管理真正绑定；Plan 执行完成后自动生成 Walkthrough Artifact；安装 subagent-driven-development skill。
 
+## 2026-08-11 reliability revision
+
+本节覆盖下文较早的“模型遵守即可”假设，定义当前必须满足的产品不变量：
+
+1. `agentMode: 'plan'` 和显式 `skillId: 'writing-plans'` 都是结构化的 persisted-plan intent。对应 Run 只有在 `~/.piwin/sessions/<sessionId>/plan.json` 创建或增加 revision 后才能成功结束；聊天中的 prose/Markdown 不能替代制品。
+2. Plan/Ask 的 read-only 是“项目工作区只读”。`piwin_plan_create` / `piwin_plan_set_step` 写入 Host-owned product state，是不弹权限框的窄写入例外。
+3. Draft PlanCard 的 Process 使用一次 Host-authoritative `plan/execute`：携带 `expectedRevision` 和 `approveDraft: true`，原子完成审批与启动，禁止 Desktop 拼接两个有竞态的命令。
+4. Desktop 按 `sessionId` 缓存 Plan，并在 Session 激活或重连时执行 `plan/get`；后台 Session push 不得覆盖当前卡片。
+5. Plan execution 等待其 foreground Run 完成，并取得确切的 `finalAssistantMessageId`。Walkthrough 必须绑定该 message、foreground `runId` 和 `planId`，禁止扫描“最后一条 assistant message”。
+6. `PlanExecutionSummary` 随完成态 Plan 持久化并进入 Walkthrough evidence。Live chat 只给简洁完成说明，不再另外生成重复 walkthrough。
+7. Subagent-driven 对 `independentSteps` 运行隔离任务；父 Run 随后必须实际执行所有非 independent 的顺序步骤，再进行整体验证并更新状态。
+
 ## 0. 摘要
 
 本 spec 修复三个问题并补齐一个缺失：
@@ -112,7 +124,7 @@ switch to Plan Mode by calling piwin_plan_create. Do not implement until the pla
 is approved.
 ```
 
-这不需要 host 逻辑变更——模型通过 `writing-plans` skill 或直接调用 `piwin_plan_create` 工具触发 plan 创建，UI 检测到 plan draft 后自动显示 PlanCard。
+Host 必须核验 persisted-plan intent 对应的 revision 变化；仅依赖模型选择调用工具不足以满足可靠性要求。模型通过 `writing-plans` skill 或 Plan mode 调用 `piwin_plan_create`，Host 核验成功后 UI 才能把本轮视为有效 Plan 产出。
 
 **决策点 B**：是否需要 host 自动切换 `agentMode` 字段（从 `'agent'` → `'plan'`），还是只靠模型行为（调用 plan-create 工具）就够了？
 

@@ -20,6 +20,10 @@ export type RunGitCommandOptions = {
   timeoutMs?: number;
   /** When true, non-zero exit still returns stdout/stderr instead of throwing. */
   allowFailure?: boolean;
+  /** Additional environment for Git plumbing (for example, an alternate index). */
+  env?: Readonly<Record<string, string | undefined>>;
+  /** Maximum captured stdout/stderr. Default 4 MiB. */
+  maxBufferBytes?: number;
 };
 
 export class GitCommandError extends Error {
@@ -42,9 +46,10 @@ export async function runGitCommand(options: RunGitCommandOptions): Promise<GitC
     const { stdout, stderr } = await execFileAsync('git', options.args, {
       cwd: options.cwd,
       timeout: timeoutMs,
-      maxBuffer: 4 * 1024 * 1024,
+      maxBuffer: options.maxBufferBytes ?? 4 * 1024 * 1024,
       env: {
         ...process.env,
+        ...options.env,
         // Stable machine-readable output
         GIT_TERMINAL_PROMPT: '0',
         LANG: 'C',

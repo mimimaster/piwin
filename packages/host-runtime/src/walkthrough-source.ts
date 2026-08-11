@@ -12,6 +12,7 @@
 
 import { createHash } from 'node:crypto';
 import type {
+  PlanExecutionSummary,
   SessionPlan,
   SessionToolCardView,
   SessionTranscriptMessage,
@@ -58,6 +59,7 @@ export type WalkthroughEvidence = {
       status: string;
       detail?: string;
     }>;
+    executionSummary?: PlanExecutionSummary;
   };
   media: Array<{
     kind: 'screenshot' | 'recording';
@@ -272,7 +274,7 @@ function collectToolEvidence(
 type WalkthroughPlanEvidence = NonNullable<WalkthroughEvidence['plan']>;
 
 function collectPlanEvidence(plan: SessionPlan): WalkthroughPlanEvidence {
-  return {
+  const evidence: WalkthroughPlanEvidence = {
     id: plan.id,
     title: plan.title,
     goal: plan.goal,
@@ -289,6 +291,19 @@ function collectPlanEvidence(plan: SessionPlan): WalkthroughPlanEvidence {
       return evidence;
     }),
   };
+  if (plan.execution?.summary) {
+    evidence.executionSummary = {
+      ...plan.execution.summary,
+      completedStepIds: [...plan.execution.summary.completedStepIds],
+      failedStepIds: [...plan.execution.summary.failedStepIds],
+      skippedStepIds: [...plan.execution.summary.skippedStepIds],
+      mergedChildSessionIds: [...plan.execution.summary.mergedChildSessionIds],
+      ...(plan.execution.summary.unresolvedItems
+        ? { unresolvedItems: [...plan.execution.summary.unresolvedItems] }
+        : {}),
+    };
+  }
+  return evidence;
 }
 
 /**
@@ -615,12 +630,38 @@ function boundPlan(plan: WalkthroughPlanEvidence): BoundedPlan {
     boundedSteps.push(boundedStep);
   }
 
+  let executionSummary: PlanExecutionSummary | undefined;
+  if (plan.executionSummary) {
+    const verificationResult = plan.executionSummary.verificationResult
+      ? truncateToBytes(
+          redactToolText(plan.executionSummary.verificationResult).text,
+          LIMITS.perPlanField,
+        )
+      : undefined;
+    if (verificationResult?.truncated) truncated = true;
+    const unresolvedItems = plan.executionSummary.unresolvedItems?.map((item) => {
+      const bounded = truncateToBytes(redactToolText(item).text, LIMITS.perPlanField);
+      if (bounded.truncated) truncated = true;
+      return bounded.text;
+    });
+    executionSummary = {
+      ...plan.executionSummary,
+      completedStepIds: [...plan.executionSummary.completedStepIds],
+      failedStepIds: [...plan.executionSummary.failedStepIds],
+      skippedStepIds: [...plan.executionSummary.skippedStepIds],
+      mergedChildSessionIds: [...plan.executionSummary.mergedChildSessionIds],
+      ...(verificationResult ? { verificationResult: verificationResult.text } : {}),
+      ...(unresolvedItems ? { unresolvedItems } : {}),
+    };
+  }
+
   return {
     id: plan.id,
     title: titleBounded.text,
     goal: goalBounded.text,
     status: statusBounded.text,
     steps: boundedSteps,
+    ...(executionSummary ? { executionSummary } : {}),
     _truncated: truncated,
   };
 }

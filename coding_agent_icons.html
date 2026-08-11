@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coding Agent Icon Suite | Pure SVG Developer AI Icons</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: #111827;
+      --bg-card-hover: #1e293b;
+      --border-color: rgba(255, 255, 255, 0.1);
+      --border-accent: #38bdf8;
+      --primary: #38bdf8;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --icon-current-color: #38bdf8;
+      --icon-size: 28px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 48px 0 32px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 36px;
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: var(--primary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 650px;
+      line-height: 1.6;
+    }
+
+    /* SVG Hero Badges */
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .hero-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-accent);
+      background: var(--bg-card-hover);
+    }
+
+    .hero-icon-box {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .hero-card-info h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    .hero-card-info p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+
+    .hero-tag {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      color: var(--primary);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(56, 189, 248, 0.15);
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 16px;
+      z-index: 50;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: #090d16;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 14px 10px 40px;
+      color: var(--text-main);
+      font-size: 0.9rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .color-presets {
+      display: flex;
+      gap: 6px;
+    }
+
+    .color-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .color-btn:hover, .color-btn.active {
+      transform: scale(1.2);
+      border-color: #ffffff;
+    }
+
+    .size-btn {
+      background: #090d16;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .size-btn.active, .size-btn:hover {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+    }
+
+    /* Category Nav */
+    .category-nav {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+      scrollbar-width: none;
+    }
+
+    .category-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .cat-tab {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .cat-tab:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+    }
+
+    .cat-tab.active {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Icon Grid */
+    .icon-section {
+      margin-bottom: 40px;
+    }
+
+    .section-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title span.count {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 16px;
+    }
+
+    .icon-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 20px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .icon-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-accent);
+      transform: translateY(-3px);
+    }
+
+    .icon-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 48px;
+      width: 48px;
+      color: var(--icon-current-color);
+      transition: transform 0.2s ease;
+    }
+
+    .icon-card:hover .icon-wrapper {
+      transform: scale(1.15);
+    }
+
+    .icon-wrapper svg {
+      width: var(--icon-size);
+      height: var(--icon-size);
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .icon-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      word-break: break-word;
+    }
+
+    .icon-cn {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .copy-hint {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      margin-top: -4px;
+    }
+
+    .icon-card:hover .copy-hint {
+      opacity: 1;
+      color: var(--primary);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      border: 1px solid var(--primary);
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 12px;
+      box-size: border-box;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 100;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Code Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 580px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #fff;
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .code-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .code-tab {
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .code-tab.active {
+      background: var(--primary);
+      color: #000;
+      font-weight: 600;
+    }
+
+    pre.code-view {
+      background: #060911;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 14px;
+      border-radius: 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      overflow-x: auto;
+      max-height: 280px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: #7dd3fc;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-content">
+        <div>
+          <div class="badge">⚡ 100% Pure SVG Vector Icon Suite</div>
+          <h1>AI 编程 Agent 图标全集</h1>
+          <p class="subtitle">专为 AI Coding Agent（如 Piwin, Cursor, Windsurf, Claude Code）打造的纯 SVG 矢量图标库。原生支持轻量矢量、矢量插图、多主题与一键代码复制。</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Pure SVG Hero Concept Badges -->
+    <div class="hero-grid">
+      <div class="hero-card">
+        <div class="hero-icon-box">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+        </div>
+        <div class="hero-card-info">
+          <h3>Kernel & Host Architecture</h3>
+          <p>核心内核与 Host 构架层。包含 Agent 引擎、模型分发与 RPC 双重模式适配。</p>
+          <span class="hero-tag">Pure SVG Vector</span>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="hero-icon-box">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c084fc" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 3v6M12 15v6M3 12h6M15 12h6"></path>
+            <circle cx="12" cy="3" r="1.5" fill="#c084fc"></circle>
+            <circle cx="12" cy="21" r="1.5" fill="#c084fc"></circle>
+            <circle cx="3" cy="12" r="1.5" fill="#c084fc"></circle>
+            <circle cx="21" cy="12" r="1.5" fill="#c084fc"></circle>
+          </svg>
+        </div>
+        <div class="hero-card-info">
+          <h3>Multi-Agent Swarm Topology</h3>
+          <p>多 Agent 并行调度与任务分发图谱（Subagent, Fork, Task Broadcast）。</p>
+          <span class="hero-tag">Swarm / Topology</span>
+        </div>
+      </div>
+
+      <div class="hero-card">
+        <div class="hero-icon-box">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            <polyline points="9 16 11 18 15 14"></polyline>
+          </svg>
+        </div>
+        <div class="hero-card-info">
+          <h3>Sandboxed Command Policy</h3>
+          <p>终端沙箱与命令执行权限管控，防护高危操作与文件安全注入。</p>
+          <span class="hero-tag">Security Guard</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sticky Toolbar Controls -->
+    <div class="controls-bar">
+      <div class="search-box">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="searchInput" placeholder="搜索图标名称或功能 (如 brain, file, terminal, diff, tool)...">
+      </div>
+
+      <div class="control-group">
+        <div class="control-item">
+          <span>主题色:</span>
+          <div class="color-presets">
+            <button class="color-btn active" style="background:#38bdf8;" onclick="setThemeColor('#38bdf8', this)"></button>
+            <button class="color-btn" style="background:#c084fc;" onclick="setThemeColor('#c084fc', this)"></button>
+            <button class="color-btn" style="background:#34d399;" onclick="setThemeColor('#34d399', this)"></button>
+            <button class="color-btn" style="background:#fbbf24;" onclick="setThemeColor('#fbbf24', this)"></button>
+            <button class="color-btn" style="background:#f43f5e;" onclick="setThemeColor('#f43f5e', this)"></button>
+            <button class="color-btn" style="background:#ffffff;" onclick="setThemeColor('#ffffff', this)"></button>
+          </div>
+        </div>
+
+        <div class="control-item">
+          <span>尺寸:</span>
+          <button class="size-btn" onclick="setIconSize('20px', this)">20</button>
+          <button class="size-btn active" onclick="setIconSize('28px', this)">28</button>
+          <button class="size-btn" onclick="setIconSize('36px', this)">36</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <div class="category-nav">
+      <button class="cat-tab active" onclick="filterCategory('all', this)">全部图标</button>
+      <button class="cat-tab" onclick="filterCategory('agent-core', this)">智能体与内核</button>
+      <button class="cat-tab" onclick="filterCategory('code-file', this)">代码与文件系统</button>
+      <button class="cat-tab" onclick="filterCategory('tools-exec', this)">工具与 Shell 执行</button>
+      <button class="cat-tab" onclick="filterCategory('security', this)">权限与安全风控</button>
+      <button class="cat-tab" onclick="filterCategory('session-status', this)">会话与运行状态</button>
+      <button class="cat-tab" onclick="filterCategory('artifacts', this)">产物与可视化</button>
+    </div>
+
+    <!-- Icons Container -->
+    <div id="iconsContainer">
+      <!-- Section 1: Agent & Core -->
+      <section class="icon-section" data-category="agent-core">
+        <div class="section-title">
+          智能体与内核 Core AI
+          <span class="count">7 Icons</span>
+        </div>
+        <div class="icon-grid">
+
+          <div class="icon-card" onclick="openIconModal('agent-bot')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="11" width="18" height="10" rx="3" />
+                <circle cx="9" cy="16" r="1.2" fill="currentColor" />
+                <circle cx="15" cy="16" r="1.2" fill="currentColor" />
+                <path d="M12 3v8" />
+                <path d="M12 3a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+                <path d="M8 7h8" />
+              </svg>
+            </div>
+            <div class="icon-name">agent-bot</div>
+            <div class="icon-cn">Agent 主身份</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('sparkle-ai')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 3c0 4.5-3.5 8-8 8 4.5 0 8 3.5 8 8 0-4.5 3.5-8 8-8-4.5 0-8-3.5-8-8z" />
+                <path d="M19 3c0 1.5-1 2.5-2.5 2.5 1.5 0 2.5 1 2.5 2.5 0-1.5 1-2.5 2.5-2.5-1.5 0-2.5-1-2.5-2.5z" />
+              </svg>
+            </div>
+            <div class="icon-name">sparkle-ai</div>
+            <div class="icon-cn">AI 生成 / 算力星火</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('subagent-fork')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="6" cy="6" r="3" />
+                <circle cx="18" cy="6" r="3" />
+                <circle cx="18" cy="18" r="3" />
+                <path d="M6 9v12" />
+                <path d="M6 12h8a4 4 0 0 0 4-4" />
+              </svg>
+            </div>
+            <div class="icon-name">subagent-fork</div>
+            <div class="icon-cn">Subagent 派生节点</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('agent-brain')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 2a6 6 0 0 0-6 6c0 2.2 1.2 4.1 3 5.2V16a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-2.8c1.8-1.1 3-3 3-5.2a6 6 0 0 0-6-6z" />
+                <path d="M10 21h4" />
+                <path d="M9 13l2-2 2 2" />
+              </svg>
+            </div>
+            <div class="icon-name">agent-brain</div>
+            <div class="icon-cn">思考与推理核心</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('plan-goal')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </div>
+            <div class="icon-name">plan-goal</div>
+            <div class="icon-cn">Plan 任务规划</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('memory-chip')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="5" y="5" width="14" height="14" rx="2" />
+                <path d="M9 9h6v6H9z" />
+                <path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4" />
+              </svg>
+            </div>
+            <div class="icon-name">memory-chip</div>
+            <div class="icon-cn">记忆与向量上下文</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('system-prompt')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </div>
+            <div class="icon-name">system-prompt</div>
+            <div class="icon-cn">系统 Prompt / 提示词</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section 2: Code & Files -->
+      <section class="icon-section" data-category="code-file">
+        <div class="section-title">
+          代码与文件系统 Code & FS
+          <span class="count">7 Icons</span>
+        </div>
+        <div class="icon-grid">
+
+          <div class="icon-card" onclick="openIconModal('file-read')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <circle cx="12" cy="14" r="3" />
+                <path d="M7 14c1.5-2 3.5-3 5-3s3.5 1 5 3" />
+              </svg>
+            </div>
+            <div class="icon-name">file-read</div>
+            <div class="icon-cn">读取文件 view_file</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('file-edit')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            </div>
+            <div class="icon-name">file-edit</div>
+            <div class="icon-cn">文件修改 replace</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('file-write')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="12" y1="11" x2="12" y2="17" />
+                <line x1="9" y1="14" x2="15" y2="14" />
+              </svg>
+            </div>
+            <div class="icon-name">file-write</div>
+            <div class="icon-cn">新建文件 write_to_file</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('multi-replace')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <path d="M10 6.5h4M6.5 10v4M17.5 10v4M10 17.5h4" />
+              </svg>
+            </div>
+            <div class="icon-name">multi-replace</div>
+            <div class="icon-cn">多代码块替换</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('code-diff')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M9 18l-6-6 6-6" />
+                <path d="M15 6l6 6-6 6" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+              </svg>
+            </div>
+            <div class="icon-name">code-diff</div>
+            <div class="icon-cn">代码 Diff 变更对比</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('grep-search')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4.35-4.35" />
+                <path d="M8 11h6" />
+                <path d="M11 8v6" />
+              </svg>
+            </div>
+            <div class="icon-name">grep-search</div>
+            <div class="icon-cn">正则检索 grep_search</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('ast-tree')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="5" r="2.5" />
+                <circle cx="6" cy="19" r="2.5" />
+                <circle cx="18" cy="19" r="2.5" />
+                <path d="M12 7.5V13" />
+                <path d="M12 13L6 16.5" />
+                <path d="M12 13l6 3.5" />
+              </svg>
+            </div>
+            <div class="icon-name">ast-tree</div>
+            <div class="icon-cn">语法树 AST 符号索引</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section 3: Tools & Execution -->
+      <section class="icon-section" data-category="tools-exec">
+        <div class="section-title">
+          工具与 Shell 执行 Tools & Shell
+          <span class="count">7 Icons</span>
+        </div>
+        <div class="icon-grid">
+
+          <div class="icon-card" onclick="openIconModal('terminal-run')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="4 17 10 11 4 5" />
+                <line x1="12" y1="19" x2="20" y2="19" />
+              </svg>
+            </div>
+            <div class="icon-name">terminal-run</div>
+            <div class="icon-cn">终端运行 run_command</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('sandbox-guard')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="3" />
+                <path d="M12 8v8" />
+                <path d="M8 12h8" />
+                <path d="M7 7l10 10" stroke-opacity="0.3" />
+              </svg>
+            </div>
+            <div class="icon-name">sandbox-guard</div>
+            <div class="icon-cn">沙箱隔离环境</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('web-search')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3.6 9h16.8" />
+                <path d="M3.6 15h16.8" />
+                <path d="M11.5 3a17 17 0 0 0 0 18" />
+                <path d="M12.5 3a17 17 0 0 1 0 18" />
+              </svg>
+            </div>
+            <div class="icon-name">web-search</div>
+            <div class="icon-cn">联网搜索 search_web</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('browser-tool')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="M2 8h20" />
+                <circle cx="5" cy="6" r="0.75" fill="currentColor" />
+                <circle cx="8" cy="6" r="0.75" fill="currentColor" />
+                <circle cx="11" cy="6" r="0.75" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="icon-name">browser-tool</div>
+            <div class="icon-cn">浏览器自动化</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('mcp-server')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 22v-6" />
+                <path d="M9 8V2" />
+                <path d="M15 8V2" />
+                <path d="M18 8H6a2 2 0 0 0-2 2v3a5 5 0 0 0 5 5h6a5 5 0 0 0 5-5v-3a2 2 0 0 0-2-2z" />
+              </svg>
+            </div>
+            <div class="icon-name">mcp-server</div>
+            <div class="icon-cn">MCP 扩展服务插件</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('background-task')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M21.5 2v6h-6" />
+                <path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+            </div>
+            <div class="icon-name">background-task</div>
+            <div class="icon-cn">后台 Daemon 进程</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('command-palette')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
+                <path d="M6 3a3 3 0 0 0-3 3v12a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z" />
+                <path d="M3 12h18" />
+              </svg>
+            </div>
+            <div class="icon-name">command-palette</div>
+            <div class="icon-cn">快捷指令 ⌘K</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section 4: Security & Permissions -->
+      <section class="icon-section" data-category="security">
+        <div class="section-title">
+          权限与安全风控 Security & Gate
+          <span class="count">6 Icons</span>
+        </div>
+        <div class="icon-grid">
+
+          <div class="icon-card" onclick="openIconModal('shield-pass')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <div class="icon-name">shield-pass</div>
+            <div class="icon-cn">自动放行 auto</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('approval-gate')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                <circle cx="12" cy="16" r="1.5" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="icon-name">approval-gate</div>
+            <div class="icon-cn">用户确认 Gate</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('secret-key')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M21 2l-2 2m-3 3l-2.5 2.5M13 8.5L15.5 11M9.5 12a5 5 0 1 0 7.07 7.07A5 5 0 0 0 9.5 12z" />
+              </svg>
+            </div>
+            <div class="icon-name">secret-key</div>
+            <div class="icon-cn">密钥与 Env 托管</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('destructive-warn')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div class="icon-name">destructive-warn</div>
+            <div class="icon-cn">高危操作警告</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('bypass-sandbox')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <path d="M12 15v3" />
+              </svg>
+            </div>
+            <div class="icon-name">bypass-sandbox</div>
+            <div class="icon-cn">提权 Bypass Sandbox</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('policy-rules')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+                <line x1="8" y1="9" x2="16" y2="9" />
+                <line x1="8" y1="15" x2="13" y2="15" />
+              </svg>
+            </div>
+            <div class="icon-name">policy-rules</div>
+            <div class="icon-cn">安全策略 Policy</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section 5: Session & Status -->
+      <section class="icon-section" data-category="session-status">
+        <div class="section-title">
+          会话与运行状态 Session Status
+          <span class="count">6 Icons</span>
+        </div>
+        <div class="icon-grid">
+
+          <div class="icon-card" onclick="openIconModal('status-running')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg>
+            </div>
+            <div class="icon-name">status-running</div>
+            <div class="icon-cn">运行中 Running</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('status-waiting')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div class="icon-name">status-waiting</div>
+            <div class="icon-cn">等待输入 Waiting</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('status-done')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <div class="icon-name">status-done</div>
+            <div class="icon-cn">执行完成 Success</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('status-error')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+            </div>
+            <div class="icon-name">status-error</div>
+            <div class="icon-cn">报错失败 Error</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('token-usage')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M12 20v-6" />
+                <path d="M6 20V10" />
+                <path d="M18 20V4" />
+              </svg>
+            </div>
+            <div class="icon-name">token-usage</div>
+            <div class="icon-cn">Token 消耗指示器</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('session-history')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M12 7v5l4 2" />
+              </svg>
+            </div>
+            <div class="icon-name">session-history</div>
+            <div class="icon-cn">历史回溯 checkpoint</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Section 6: Artifacts -->
+      <section class="icon-section" data-category="artifacts">
+        <div class="section-title">
+          产物与可视化 Artifacts
+          <span class="count">4 Icons</span>
+        </div>
+        <div class="icon-grid">
+
+          <div class="icon-card" onclick="openIconModal('walkthrough-report')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M16 13H8" />
+                <path d="M16 17H8" />
+                <path d="M10 9H8" />
+              </svg>
+            </div>
+            <div class="icon-name">walkthrough-report</div>
+            <div class="icon-cn">交付报告 Walkthrough</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('ui-preview')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+                <path d="M7 8h4" />
+                <path d="M7 11h8" />
+              </svg>
+            </div>
+            <div class="icon-name">ui-preview</div>
+            <div class="icon-cn">UI / Web App 预览</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('mermaid-chart')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="3" width="6" height="6" rx="1" />
+                <rect x="15" y="3" width="6" height="6" rx="1" />
+                <rect x="9" y="15" width="6" height="6" rx="1" />
+                <path d="M6 9v3a2 2 0 0 0 2 2h4" />
+                <path d="M18 9v3a2 2 0 0 1-2 2h-4" />
+              </svg>
+            </div>
+            <div class="icon-name">mermaid-chart</div>
+            <div class="icon-cn">Mermaid 流程图</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+          <div class="icon-card" onclick="openIconModal('image-media')">
+            <div class="icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            </div>
+            <div class="icon-name">image-media</div>
+            <div class="icon-cn">多模态 ImageContent</div>
+            <div class="copy-hint">点击复制代码</div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <span id="toastMsg">SVG 代码已复制到剪贴板！</span>
+  </div>
+
+  <!-- Code Modal -->
+  <div class="modal-overlay" id="modalOverlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Icon Code</div>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="code-tabs">
+          <button class="code-tab active" onclick="switchCodeTab('svg', this)">Raw SVG</button>
+          <button class="code-tab" onclick="switchCodeTab('react', this)">React Component</button>
+          <button class="code-tab" onclick="switchCodeTab('html', this)">HTML Icon</button>
+        </div>
+        <pre class="code-view" id="codeView"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+        <button class="btn btn-primary" onclick="copyCurrentCode()">复制代码</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentIconSvg = '';
+    let currentIconName = '';
+    let currentTabMode = 'svg';
+
+    function setThemeColor(color, btn) {
+      document.documentElement.style.setProperty('--icon-current-color', color);
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+
+    function setIconSize(size, btn) {
+      document.documentElement.style.setProperty('--icon-size', size);
+      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+
+    function filterCategory(cat, btn) {
+      document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      const sections = document.querySelectorAll('.icon-section');
+      sections.forEach(sec => {
+        if (cat === 'all' || sec.dataset.category === cat) {
+          sec.style.display = 'block';
+        } else {
+          sec.style.display = 'none';
+        }
+      });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+      const q = e.target.value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.icon-card');
+
+      cards.forEach(card => {
+        const name = card.querySelector('.icon-name').textContent.toLowerCase();
+        const cn = card.querySelector('.icon-cn').textContent.toLowerCase();
+
+        if (name.includes(q) || cn.includes(q)) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+
+    function openIconModal(iconId) {
+      const cards = document.querySelectorAll('.icon-card');
+      let targetCard = null;
+      cards.forEach(c => {
+        if (c.querySelector('.icon-name').textContent === iconId) {
+          targetCard = c;
+        }
+      });
+
+      if (!targetCard) return;
+
+      currentIconName = iconId;
+      const svgEl = targetCard.querySelector('svg').cloneNode(true);
+      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgEl.setAttribute('width', '24');
+      svgEl.setAttribute('height', '24');
+      svgEl.setAttribute('stroke-width', '2');
+      svgEl.setAttribute('stroke', 'currentColor');
+
+      currentIconSvg = svgEl.outerHTML;
+
+      document.getElementById('modalTitle').textContent = `Icon: ${iconId}`;
+      document.getElementById('modalOverlay').classList.add('active');
+      renderCodeView();
+    }
+
+    function switchCodeTab(mode, btn) {
+      currentTabMode = mode;
+      document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      renderCodeView();
+    }
+
+    function renderCodeView() {
+      const codeView = document.getElementById('codeView');
+      if (currentTabMode === 'svg') {
+        codeView.textContent = currentIconSvg;
+      } else if (currentTabMode === 'react') {
+        const componentName = currentIconName.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('') + 'Icon';
+        codeView.textContent = `export const ${componentName} = ({ size = 24, color = "currentColor", ...props }) => (\n  ` +
+          currentIconSvg.replace('width="24"', 'width={size}').replace('height="24"', 'height={size}').replace('stroke="currentColor"', 'stroke={color}') +
+          '\n);';
+      } else if (currentTabMode === 'html') {
+        codeView.textContent = `<span class="icon icon-${currentIconName}">\n  ${currentIconSvg}\n</span>`;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('active');
+    }
+
+    function closeModalOnOverlay(e) {
+      if (e.target.id === 'modalOverlay') {
+        closeModal();
+      }
+    }
+
+    function copyCurrentCode() {
+      const code = document.getElementById('codeView').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast(`已复制 ${currentIconName} 的代码到剪贴板！`);
+        closeModal();
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

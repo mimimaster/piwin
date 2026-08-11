@@ -27,7 +27,7 @@ Spritesheet: prefer 1536×1872 (8×9 cells of 192×208); rows = idle, running, w
 
 ## Constraints
 - `id`: alphanumeric plus `-`/`_`.
-- Optional: import existing Codex pets via Desktop → Pet → Import `~/.codex/pets` (copy-only).
+- Optional: import existing Codex pets via Desktop → Pet → Import. Scan `~/.codex/pets` to review and select one or more packages, or enter a concrete package directory for direct installation (copy-only).
 
 ## Verify
 - Install/import succeeds; no executables; spritesheet path resolves inside the package.

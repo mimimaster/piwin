@@ -347,8 +347,12 @@ function resolveDomainPolicy(
       }
       if (action.startsWith('planning:')) {
         return {
-          decision: mode === 'ask-all' ? 'ask' : 'allow',
-          reason: mode === 'ask-all' ? 'ask-all-planning-tool' : 'planning-tool',
+          // Planning tools only mutate Host-owned product state under
+          // ~/.piwin/sessions. They are the narrow write exception that lets
+          // Plan/Ask keep the project workspace read-only while still
+          // producing a durable, reviewable artifact.
+          decision: 'allow',
+          reason: 'host-owned-planning-artifact',
         };
       }
       if (action.startsWith('browser:')) {

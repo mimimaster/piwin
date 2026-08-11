@@ -171,7 +171,7 @@ describe('ThinkingEffortControl', () => {
     ).toBe('true');
   });
 
-  it('adds the ultra level when ultra mode is enabled and configured', () => {
+  it('never adds the ultra level even when ultra mode is enabled', () => {
     render(
       createBaseProps({
         ultraEnabled: true,
@@ -194,7 +194,7 @@ describe('ThinkingEffortControl', () => {
     );
     activateTrigger();
 
-    expect(document.querySelector('[data-testid="thinking-level-ultra"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="thinking-level-ultra"]')).toBeNull();
   });
 
   it('lists exactly the configured effort levels, including max when configured', () => {

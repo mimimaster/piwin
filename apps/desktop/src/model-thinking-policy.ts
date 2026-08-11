@@ -27,18 +27,18 @@ export function getDefaultThinkingLevelsForProtocol(
 
 export function getSupportedThinkingLevels(
   model: ThinkingModelFields | undefined,
-  ultraEnabled: boolean,
+  _ultraEnabled: boolean,
 ): ThinkingLevel[] {
   if (!model || model.reasoning !== true) return [];
   const baseLevels =
     model.thinkingLevels && model.thinkingLevels.length > 0
       ? model.thinkingLevels
       : getDefaultThinkingLevelsForProtocol(model.protocol);
+  // ultra is not offered anymore; THINKING_LEVEL_OPTIONS no longer contains
+  // it, so this filter is defense-in-depth only.
   return baseLevels.filter(
     (level, index, levels) =>
-      THINKING_LEVEL_OPTIONS.includes(level) &&
-      levels.indexOf(level) === index &&
-      (level !== 'ultra' || ultraEnabled),
+      THINKING_LEVEL_OPTIONS.includes(level) && levels.indexOf(level) === index && level !== 'ultra',
   );
 }
 

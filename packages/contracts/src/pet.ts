@@ -58,6 +58,8 @@ export type PetSummary = {
   description?: string;
   path: string;
   spritesheetAbsolutePath: string;
+  /** Manifest metadata needed for small previews in desktop lists. */
+  manifest?: PetManifest;
   source: PetSourceKind;
   active: boolean;
   valid: boolean;
@@ -120,6 +122,8 @@ export type PetDiscoveredEntry = {
   displayName: string;
   description?: string;
   version?: string;
+  /** Manifest metadata retained so clients can render the package preview. */
+  manifest?: PetManifest;
   source: PetSourceKind;
   /** Absolute path for local sources; URL for registry; empty for bundled. */
   location: string;
@@ -153,6 +157,38 @@ export type PetInstallResult = {
    * `codex-pets.net`) so the UI can show where the package came from.
    */
   registryLabel?: string;
+};
+
+/** One package candidate found while scanning a user-selected local directory. */
+export type PetLocalImportCandidate = {
+  /** Absolute package directory that can be passed to pet/install-local. */
+  sourcePath: string;
+  /** Missing when pet.json could not be parsed or validated. */
+  petId?: string;
+  /** Manifest display name, or the directory name for invalid packages. */
+  displayName: string;
+  description?: string;
+  version?: string;
+  valid: boolean;
+  issues: string[];
+};
+
+/** Result of scanning one local package directory or a directory of packages. */
+export type PetLocalImportPreview = {
+  sourcePath: string;
+  candidates: PetLocalImportCandidate[];
+};
+
+/** One local package that failed during a batch import. */
+export type PetLocalImportFailure = {
+  sourcePath: string;
+  error: string;
+};
+
+/** Partial-success result for a multi-package local import. */
+export type PetLocalImportBatchResult = {
+  installed: PetInstallResult[];
+  failed: PetLocalImportFailure[];
 };
 
 /** Query payload for the remote registry browse command. */

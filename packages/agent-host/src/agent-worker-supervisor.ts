@@ -215,9 +215,16 @@ export class AgentWorkerSupervisor {
       );
     }
 
+    const configuredEnvironment = this.workerOptions?.env ?? {};
+    const requestedEnvironment = workerOptions?.env ?? {};
+    const workerEnvironment = {
+      ...configuredEnvironment,
+      ...requestedEnvironment,
+    };
     const clientOptions: ConstructorParameters<typeof RpcSdkWorkerClient>[0] = {
       ...this.workerOptions,
       ...workerOptions,
+      ...(Object.keys(workerEnvironment).length > 0 ? { env: workerEnvironment } : {}),
       context: { sessionId, runtimeGenerationId },
       helloTimeoutMs: this.settings.startupTimeoutMs,
     };
