@@ -1,6 +1,7 @@
 /**
  * Host custom tool: piwin_plan_create — model-facing structured draft plan
- * creation (SDK only). RPC mode cannot register custom tools (ADR 0008).
+ * creation. SDK registers it directly; the piwin RPC worker receives the
+ * same descriptor and proxies execution back to Host.
  *
  * The model calls this when a skill (e.g. /writing-plans) asks it to produce
  * a reviewable plan artifact. The tool validates all model-provided fields,
@@ -20,6 +21,7 @@ import {
   isWithinPlanSizeLimits,
   loadSessionPlan,
   saveSessionPlan,
+  validateSessionPlan,
 } from '@piwin/session';
 
 export type PlanCreateToolOptions = {
@@ -61,6 +63,19 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
                 detail: {
                   type: 'string',
                   description: 'Affected area, acceptance criteria, and verification command',
+                },
+                profileId: {
+                  type: 'string',
+                  description: 'Optional subagent profile id for this step',
+                },
+                dependsOn: {
+                  type: 'array',
+                  description: 'Step ids that must complete before this step',
+                  items: { type: 'string' },
+                },
+                parallelGroup: {
+                  type: 'string',
+                  description: 'Optional scheduler grouping key',
                 },
               },
               required: ['id', 'title'],
@@ -124,6 +139,41 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
         const step: PlanStep = { id: stepId, title: stepTitle, status: 'pending' };
         const detail = String(stepRecord.detail ?? '').trim();
         if (detail) step.detail = detail;
+        if (stepRecord.profileId !== undefined) {
+          if (typeof stepRecord.profileId !== 'string' || !stepRecord.profileId.trim()) {
+            return invalidPlanInput(`steps[${index}].profileId must be a non-empty string`);
+          }
+          step.profileId = stepRecord.profileId.trim();
+        }
+        if (stepRecord.parallelGroup !== undefined) {
+          if (typeof stepRecord.parallelGroup !== 'string' || !stepRecord.parallelGroup.trim()) {
+            return invalidPlanInput(`steps[${index}].parallelGroup must be a non-empty string`);
+          }
+          step.parallelGroup = stepRecord.parallelGroup.trim();
+        }
+        if (stepRecord.dependsOn !== undefined) {
+          if (!Array.isArray(stepRecord.dependsOn)) {
+            return invalidPlanInput(`steps[${index}].dependsOn must be an array`);
+          }
+          const dependencies: string[] = [];
+          const seenDependencies = new Set<string>();
+          for (const dependency of stepRecord.dependsOn) {
+            if (typeof dependency !== 'string' || !dependency.trim()) {
+              return invalidPlanInput(
+                `steps[${index}].dependsOn entries must be non-empty strings`,
+              );
+            }
+            const dependencyId = dependency.trim();
+            if (seenDependencies.has(dependencyId)) {
+              return invalidPlanInput(
+                `steps[${index}].dependsOn contains duplicate ${dependencyId}`,
+              );
+            }
+            seenDependencies.add(dependencyId);
+            dependencies.push(dependencyId);
+          }
+          if (dependencies.length > 0) step.dependsOn = dependencies;
+        }
         steps.push(step);
       }
 
@@ -186,7 +236,7 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
         title,
         goal,
         steps,
-        revision: existing?.revision ?? 0,
+        revision: existing ? existing.revision + 1 : 0,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         source,
@@ -195,12 +245,23 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
         ...(source === 'skill' && skillId ? { skillId } : {}),
       };
 
-      await saveSessionPlan(options.planPath, plan);
-      options.onUpdated?.(plan);
+      const validated = validateSessionPlan(plan);
+      if (!validated.ok) {
+        return invalidPlanInput(
+          validated.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
+        );
+      }
+
+      await saveSessionPlan(options.planPath, validated.plan);
+      options.onUpdated?.(validated.plan);
       return {
         ok: true,
         output: `draft plan created with ${steps.length} steps (complexity=${complexity}); awaiting user approval`,
-        details: { planId: plan.id, revision: plan.revision, status: plan.status },
+        details: {
+          planId: validated.plan.id,
+          revision: validated.plan.revision,
+          status: validated.plan.status,
+        },
       };
     },
   };

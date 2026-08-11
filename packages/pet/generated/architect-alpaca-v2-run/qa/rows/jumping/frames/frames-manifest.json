@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "chroma_key": {
+    "hex": "#00FFFF",
+    "rgb": [
+      0,
+      255,
+      255
+    ],
+    "threshold": 96.0
+  },
+  "rows": [
+    {
+      "state": "jumping",
+      "frames": [
+        "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/rows/jumping/frames/jumping/00.png",
+        "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/rows/jumping/frames/jumping/01.png",
+        "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/rows/jumping/frames/jumping/02.png",
+        "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/rows/jumping/frames/jumping/03.png",
+        "/Users/yorickjue/Developer/piwin/packages/pet/generated/architect-alpaca-v2-run/qa/rows/jumping/frames/jumping/04.png"
+      ],
+      "method": "components"
+    }
+  ]
+}

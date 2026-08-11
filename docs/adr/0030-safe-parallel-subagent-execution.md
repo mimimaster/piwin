@@ -82,6 +82,12 @@ Parallel write tasks use one worktree per child. Integration uses three-way
 diff+apply (not `git checkout <branch> -- <paths>`) to preserve parent branch
 history.
 
+Subagent worktree checkouts live under the product config root
+`<piwinRoot>/worktrees/<repository-key>/`, rather than inside the parent
+checkout. Change capture and three-way calculation use temporary Git indexes;
+integration must preserve both the child index and the user's parent index.
+Applied changes appear as ordinary unstaged parent working-tree changes.
+
 The original hard-reject rule for dirty parent working trees is superseded by
 [ADR 0031](./0031-dirty-base-parallel-write-consent.md). The current rule is
 to ask the user before acquiring a worktree lease for a write-capable parallel

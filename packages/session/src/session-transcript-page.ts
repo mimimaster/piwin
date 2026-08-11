@@ -44,9 +44,12 @@ export function createSessionTranscriptPage(
     cursor !== null &&
     (cursor.limit !== query.limit || cursor.maximumBytes !== query.maximumBytes)
   ) {
-    throw new SessionTranscriptCursorError(
-      'Session transcript cursor limits do not match the query',
-    );
+    // Page defaults can change across Desktop/Host versions or during a local
+    // HMR cycle. The cursor is still well-formed, but it cannot continue under
+    // different bounds. Route it through the same one-restart recovery as a
+    // revision change instead of turning normal compatibility drift into an
+    // action failure.
+    return { status: 'stale-cursor', currentRevision: revision };
   }
 
   const endIndex = cursor?.endIndex ?? projectedMessages.length;

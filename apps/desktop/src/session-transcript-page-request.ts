@@ -22,8 +22,22 @@ export async function requestSessionTranscriptPage(
   query: SessionTranscriptPageQuery,
 ): Promise<SessionTranscriptPageRequestResult> {
   let response = await request({ type: 'session/transcript-page', query });
-  if (!response.success) return { success: false, error: response.error };
-  let data = response.data as SessionTranscriptPageData;
+  // Older Hosts threw on a cursor/page-limit mismatch. New Hosts normalize it
+  // to stale-cursor, but Desktop keeps this narrow bridge so mixed-version and
+  // HMR sessions can recover without showing a global action failure.
+  const recoverLegacyLimitMismatch =
+    !response.success &&
+    query.beforeCursor !== undefined &&
+    response.error.includes('transcript cursor limits do not match');
+  let data: SessionTranscriptPageData;
+  if (!response.success) {
+    if (!recoverLegacyLimitMismatch) {
+      return { success: false, error: response.error };
+    }
+    data = { status: 'stale-cursor', currentRevision: 'legacy-limit-mismatch' };
+  } else {
+    data = response.data as SessionTranscriptPageData;
+  }
   let restartedAtTail = false;
   if (data.status === 'stale-cursor') {
     const restartQuery: SessionTranscriptPageQuery = { ...query };

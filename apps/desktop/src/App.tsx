@@ -38,6 +38,7 @@ import { MainErrorBanner } from './main-error-banner';
 import { ProjectSessionSidebar } from './project-session-sidebar';
 import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
+import { formatPlanMarkdown } from './plan-card';
 import { ArtifactCanvasPanel } from './artifact-canvas-panel';
 import {
   appendComposerProposal,
@@ -53,6 +54,10 @@ import { createEmptyNotificationState, notificationReducer } from './notificatio
 import type { HostLogEntry } from './HostLogPanel';
 import type { SessionDocItem } from './DocPreviewPanel';
 import { resolveDocumentContentFromMessages } from './resolve-document-content';
+import { planDocumentOpenPath } from './document-open-path';
+import type { ActiveDocument } from './active-document';
+import { activeDocumentContent, activeDocumentFilePath, createDocumentRequestId } from './active-document';
+import type { DocumentOpenInput } from './tool-call-card';
 import type { LineCommentItem } from './EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from './doc-comments';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
@@ -241,104 +246,510 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
   const [terminalAttention, setTerminalAttention] = useState(false);
   const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
-  const [activeDocument, setActiveDocument] = useState<{
-    title?: string | undefined;
-    content?: string | undefined;
-    filePath?: string | null | undefined;
-  } | null>(null);
+  const [activeDocument, setActiveDocument] = useState<ActiveDocument | null>(null);
+  /** Guards stale async responses from overwriting a newer document request. */
+  const activeDocumentRequestRef = useRef<string | null>(null);
+
+  /** Recover the persisted tool output snapshot for a historical tool card. */
+  const requestToolSnapshot = useCallback(
+    async (input: { messageId?: string; toolCallId?: string }): Promise<{
+      content: string;
+      truncated: boolean;
+    } | null> => {
+      if (!state.activeSessionId || !input.messageId || !input.toolCallId) {
+        return null;
+      }
+      const response = await hostClient.request({
+        type: 'session/tool-output',
+        sessionId: state.activeSessionId,
+        messageId: input.messageId,
+        toolCallId: input.toolCallId,
+      });
+      if (!response.success || !response.data) {
+        return null;
+      }
+      const data = response.data as {
+        status?: string;
+        output?: string;
+        truncated?: boolean;
+        reason?: string;
+      };
+      if (data.status !== 'ready' || typeof data.output !== 'string') {
+        return null;
+      }
+      return { content: data.output, truncated: data.truncated === true };
+    },
+    [hostClient, state.activeSessionId],
+  );
+
   const handleOpenDocument = useCallback(
-    (
-      doc: { title: string; path?: string; content?: string },
-      target: 'stage' | 'inspector' = 'inspector',
-    ) => {
+    (doc: DocumentOpenInput, target: 'stage' | 'inspector' = 'inspector') => {
       const filePath = doc.path ?? doc.title;
       const cleanPath = (filePath || '').replace(/^file:\/\//, '');
       const rawName = cleanPath ? cleanPath.split(/[\\/]/).pop() || doc.title : doc.title;
       const cleanTitle = (rawName || 'Implementation Plan').replace(/\.md$/i, '');
 
       void target;
-      // Workspace documents stay in the right inspector — never replace chat stage.
-      setActiveDocument({
-        title: cleanTitle,
-        content: doc.content || (filePath ? '加载文档内容中...' : undefined),
-        filePath: cleanPath,
-      });
+      // Every open gets a fresh token; stale responses must not clobber a
+      // newer document the user opened while this one was in flight.
+      const requestId = createDocumentRequestId();
+      activeDocumentRequestRef.current = requestId;
+      const applyDocument = (next: ActiveDocument): void => {
+        if (activeDocumentRequestRef.current === requestId) {
+          setActiveDocument(next);
+        }
+      };
+
       const inspectorTab = 'docPreview';
       shell.setInspectorTab(inspectorTab);
       if (!rightPanelOpen) {
         shell.openInspector(inspectorTab);
       }
 
-      if (!doc.content && cleanPath) {
-        // Recover body from transcript when the path was never written (e.g.
-        // write_file permission deny) or host read failed. Must NOT grab the
-        // first bare/ts fence — that produced half-cut plan panels.
-        const searchInMessages = (): string | null =>
-          resolveDocumentContentFromMessages({
-            title: cleanTitle,
-            path: cleanPath,
-            messages: state.messages,
-          });
+      // Inline content is authoritative — including an explicit empty string.
+      if (doc.content !== undefined) {
+        applyDocument({
+          status: 'ready',
+          requestId,
+          title: cleanTitle,
+          content: doc.content,
+          displayRef: cleanPath || cleanTitle,
+          provenance: 'inline',
+        });
+        return;
+      }
 
-        // Determine projectPath & relativePath for host command
-        let projPath = state.projectPath;
-        let relPath = cleanPath;
+      if (!cleanPath && !doc.target) {
+        applyDocument({
+          status: 'unavailable',
+          requestId,
+          title: cleanTitle,
+          displayRef: '',
+          reason: 'no-path',
+        });
+        return;
+      }
 
-        if (
-          state.projectPath &&
-          (cleanPath === state.projectPath ||
-            cleanPath.startsWith(`${state.projectPath}/`) ||
-            cleanPath.startsWith(`${state.projectPath}\\`))
-        ) {
-          projPath = state.projectPath;
-          relPath = cleanPath.slice(state.projectPath.length).replace(/^[/\\]+/, '');
-        } else if (cleanPath.startsWith('/')) {
-          const lastSlash = cleanPath.lastIndexOf('/');
-          if (lastSlash > 0) {
-            projPath = cleanPath.slice(0, lastSlash);
-            relPath = cleanPath.slice(lastSlash + 1);
-          }
-        } else if (state.projectPath && cleanPath.startsWith(state.projectPath)) {
-          relPath = cleanPath.slice(state.projectPath.length).replace(/^[/\\]+/, '');
-        }
+      // Recover body from transcript when the path was never written (e.g.
+      // write_file permission deny) or host read failed. Must NOT grab the
+      // first bare/ts fence — that produced half-cut plan panels.
+      const searchInMessages = (): string | null =>
+        resolveDocumentContentFromMessages({
+          title: cleanTitle,
+          path: cleanPath,
+          messages: state.messages,
+        });
 
-        if (projPath) {
-          void hostClient
-            .request({
-              type: 'project/read-file',
-              projectPath: projPath,
-              relativePath: relPath,
-            })
-            .then((response) => {
-              if (response.success && response.data) {
-                const fileData = response.data as { content?: string };
-                if (typeof fileData.content === 'string') {
-                  setActiveDocument({
-                    title: cleanTitle,
-                    content: fileData.content,
-                    filePath: cleanPath,
-                  });
-                  return;
-                }
-              }
-              const msgFallback = searchInMessages();
-              setActiveDocument({
-                title: cleanTitle,
-                content: msgFallback || `# ${cleanTitle}\n\n*暂未在路径 ${cleanPath} 找到文件内容*`,
-                filePath: cleanPath,
-              });
+      const displayRef = doc.target?.displayRef ?? cleanPath;
+
+      // Structured logical target (Host-issued identity).
+      if (doc.target?.kind === 'skill') {
+        const skillId = doc.target.skillId;
+        applyDocument({
+          status: 'loading',
+          requestId,
+          title: cleanTitle,
+          displayRef: displayRef || `skill:${skillId}`,
+          target: doc.target,
+        });
+        void (async () => {
+          // Prefer the snapshot the agent actually read for historical cards.
+          const snapshot = await requestToolSnapshot(doc);
+          if (snapshot) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: cleanTitle,
+              content: snapshot.content,
+              displayRef: displayRef || `skill:${skillId}`,
+              provenance: 'tool-snapshot',
+              ...(snapshot.truncated
+                ? { warning: '该次工具输出被截断，只展示部分内容。' }
+                : {}),
             });
-        } else {
-          const msgFallback = searchInMessages();
-          setActiveDocument({
-            title: cleanTitle,
-            content: msgFallback || `# ${cleanTitle}\n\n*暂未在路径 ${cleanPath} 找到文件内容*`,
-            filePath: cleanPath,
+            return;
+          }
+          const response = await hostClient.request({
+            type: 'skills/read',
+            skillId,
+            ...(state.projectPath ? { projectPath: state.projectPath } : {}),
           });
-        }
+          if (response.success && response.data) {
+            const skillData = response.data as {
+              status?: string;
+              content?: string;
+              name?: string;
+              skillId?: string;
+              displayRef?: string;
+              effectiveSource?: string;
+              reason?: string;
+              suggestion?: string;
+            };
+            if (skillData.status === 'ready' && typeof skillData.content === 'string') {
+              applyDocument({
+                status: 'ready',
+                requestId,
+                title: skillData.name?.trim() || skillData.skillId?.trim() || cleanTitle,
+                content: skillData.content,
+                displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
+                provenance: 'current-resource',
+                skillId: skillData.skillId || skillId,
+                ...(skillData.effectiveSource
+                  ? { skillSource: skillData.effectiveSource }
+                  : {}),
+                warning: '当前安装版本，可能不同于历史读取内容。',
+              });
+              return;
+            }
+            if (skillData.status === 'unavailable') {
+              const msgFallback = searchInMessages();
+              if (msgFallback) {
+                applyDocument({
+                  status: 'ready',
+                  requestId,
+                  title: skillData.skillId || cleanTitle,
+                  content: msgFallback,
+                  displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
+                  provenance: 'transcript',
+                  warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
+                });
+              } else {
+                applyDocument({
+                  status: 'unavailable',
+                  requestId,
+                  title: skillData.skillId || cleanTitle,
+                  displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
+                  reason: skillData.reason || 'unavailable',
+                  ...(skillData.suggestion ? { suggestion: skillData.suggestion } : {}),
+                });
+              }
+              return;
+            }
+          }
+          const msgFallback = searchInMessages();
+          if (msgFallback) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: cleanTitle,
+              content: msgFallback,
+              displayRef: displayRef || `skill:${skillId}`,
+              provenance: 'transcript',
+              warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
+            });
+            return;
+          }
+          applyDocument({
+            status: 'unavailable',
+            requestId,
+            title: cleanTitle,
+            displayRef: displayRef || `skill:${skillId}`,
+            reason: 'skill-unresolved',
+            suggestion: '打开 Skills 面板或重新同步内置 Skill。',
+          });
+        })();
+        return;
+      }
+
+      if (doc.target?.kind === 'project-file') {
+        const relativePath = doc.target.relativePath;
+        applyDocument({
+          status: 'loading',
+          requestId,
+          title: cleanTitle,
+          displayRef: displayRef || relativePath,
+          target: doc.target,
+        });
+        void (async () => {
+          const snapshot = await requestToolSnapshot(doc);
+          if (snapshot) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: cleanTitle,
+              content: snapshot.content,
+              displayRef: displayRef || relativePath,
+              provenance: 'tool-snapshot',
+              ...(snapshot.truncated
+                ? { warning: '该次工具输出被截断，只展示部分内容。' }
+                : {}),
+            });
+            return;
+          }
+          if (state.projectPath) {
+            const response = await hostClient.request({
+              type: 'project/read-file',
+              projectPath: state.projectPath,
+              relativePath,
+            });
+            if (response.success && response.data) {
+              const fileData = response.data as { content?: string; isBinary?: boolean };
+              if (typeof fileData.content === 'string' && fileData.isBinary !== true) {
+                applyDocument({
+                  status: 'ready',
+                  requestId,
+                  title: cleanTitle,
+                  content: fileData.content,
+                  displayRef: displayRef || relativePath,
+                  provenance: 'project-current',
+                });
+                return;
+              }
+            }
+          }
+          const msgFallback = searchInMessages();
+          if (msgFallback) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: cleanTitle,
+              content: msgFallback,
+              displayRef: displayRef || relativePath,
+              provenance: 'transcript',
+              warning: '展示来自对话记录的恢复内容，非当前磁盘版本。',
+            });
+          } else {
+            applyDocument({
+              status: 'unavailable',
+              requestId,
+              title: cleanTitle,
+              displayRef: displayRef || relativePath,
+              reason: 'not-found',
+              suggestion: '确认文件仍存在于项目中。',
+            });
+          }
+        })();
+        return;
+      }
+
+      // Legacy local path routing (no structured target).
+      if (!cleanPath) {
+        applyDocument({
+          status: 'unavailable',
+          requestId,
+          title: cleanTitle,
+          displayRef: '',
+          reason: 'no-path',
+        });
+        return;
+      }
+
+      // Only in-project paths may use project/read-file. Never invent a
+      // project root from dirname(absolutePath) (skill / bundle paths).
+      const openPlan = planDocumentOpenPath({
+        path: cleanPath,
+        projectPath: state.projectPath,
+      });
+
+      if (openPlan.kind === 'project' && openPlan.relativePath) {
+        applyDocument({
+          status: 'loading',
+          requestId,
+          title: cleanTitle,
+          displayRef: cleanPath,
+        });
+        void (async () => {
+          const snapshot = await requestToolSnapshot(doc);
+          if (snapshot) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: cleanTitle,
+              content: snapshot.content,
+              displayRef: cleanPath,
+              provenance: 'tool-snapshot',
+              ...(snapshot.truncated
+                ? { warning: '该次工具输出被截断，只展示部分内容。' }
+                : {}),
+            });
+            return;
+          }
+          const response = await hostClient.request({
+            type: 'project/read-file',
+            projectPath: openPlan.projectPath,
+            relativePath: openPlan.relativePath,
+          });
+          if (response.success && response.data) {
+            const fileData = response.data as { content?: string; isBinary?: boolean };
+            if (typeof fileData.content === 'string' && fileData.isBinary !== true) {
+              applyDocument({
+                status: 'ready',
+                requestId,
+                title: cleanTitle,
+                content: fileData.content,
+                displayRef: cleanPath,
+                provenance: 'project-current',
+              });
+              return;
+            }
+          }
+          const msgFallback = searchInMessages();
+          if (msgFallback) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: cleanTitle,
+              content: msgFallback,
+              displayRef: cleanPath,
+              provenance: 'transcript',
+              warning: '展示来自对话记录的恢复内容，非当前磁盘版本。',
+            });
+          } else {
+            applyDocument({
+              status: 'unavailable',
+              requestId,
+              title: cleanTitle,
+              displayRef: cleanPath,
+              reason: 'not-found',
+              suggestion: '确认文件仍存在于项目中。',
+            });
+          }
+        })();
+        return;
+      }
+
+      if (openPlan.kind === 'skill-legacy') {
+        applyDocument({
+          status: 'loading',
+          requestId,
+          title: openPlan.skillIdHint || cleanTitle,
+          displayRef: cleanPath,
+        });
+        void (async () => {
+          const snapshot = await requestToolSnapshot(doc);
+          if (snapshot) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: openPlan.skillIdHint || cleanTitle,
+              content: snapshot.content,
+              displayRef: cleanPath,
+              provenance: 'tool-snapshot',
+              ...(snapshot.truncated
+                ? { warning: '该次工具输出被截断，只展示部分内容。' }
+                : {}),
+            });
+            return;
+          }
+          const response = await hostClient.request({
+            type: 'skills/read',
+            ...(openPlan.skillIdHint ? { skillId: openPlan.skillIdHint } : {}),
+            legacyPath: openPlan.absolutePath,
+            ...(state.projectPath ? { projectPath: state.projectPath } : {}),
+          });
+          if (response.success && response.data) {
+            const skillData = response.data as {
+              status?: string;
+              content?: string;
+              name?: string;
+              skillId?: string;
+              displayRef?: string;
+              effectiveSource?: string;
+              reason?: string;
+              suggestion?: string;
+            };
+            if (skillData.status === 'ready' && typeof skillData.content === 'string') {
+              applyDocument({
+                status: 'ready',
+                requestId,
+                title: skillData.name?.trim() || skillData.skillId?.trim() || cleanTitle,
+                content: skillData.content,
+                displayRef: skillData.displayRef || cleanPath,
+                provenance: 'current-resource',
+                ...(skillData.skillId ? { skillId: skillData.skillId } : {}),
+                ...(skillData.effectiveSource
+                  ? { skillSource: skillData.effectiveSource }
+                  : {}),
+                warning: '当前安装版本，可能不同于历史读取内容。',
+              });
+              return;
+            }
+            if (skillData.status === 'unavailable') {
+              const msgFallback = searchInMessages();
+              if (msgFallback) {
+                applyDocument({
+                  status: 'ready',
+                  requestId,
+                  title: skillData.skillId || openPlan.skillIdHint || cleanTitle,
+                  content: msgFallback,
+                  displayRef: skillData.displayRef || cleanPath,
+                  provenance: 'transcript',
+                  warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
+                });
+              } else {
+                applyDocument({
+                  status: 'unavailable',
+                  requestId,
+                  title: skillData.skillId || openPlan.skillIdHint || cleanTitle,
+                  displayRef: skillData.displayRef || cleanPath,
+                  reason: skillData.reason || 'unavailable',
+                  ...(skillData.suggestion ? { suggestion: skillData.suggestion } : {}),
+                });
+              }
+              return;
+            }
+          }
+          const msgFallback = searchInMessages();
+          if (msgFallback) {
+            applyDocument({
+              status: 'ready',
+              requestId,
+              title: openPlan.skillIdHint || cleanTitle,
+              content: msgFallback,
+              displayRef: cleanPath,
+              provenance: 'transcript',
+              warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
+            });
+            return;
+          }
+          applyDocument({
+            status: 'unavailable',
+            requestId,
+            title: openPlan.skillIdHint || cleanTitle,
+            displayRef: cleanPath,
+            reason: 'skill-unresolved',
+            suggestion: '打开 Skills 面板或重新同步内置 Skill。',
+          });
+        })();
+        return;
+      }
+
+      const msgFallback = searchInMessages();
+      const reason =
+        openPlan.kind === 'legacy-absolute' || openPlan.kind === 'relative-outside'
+          ? 'outside-project'
+          : 'not-found';
+      if (msgFallback) {
+        applyDocument({
+          status: 'ready',
+          requestId,
+          title: cleanTitle,
+          content: msgFallback,
+          displayRef: cleanPath,
+          provenance: 'transcript',
+          warning: '展示来自对话记录的恢复内容。',
+        });
+      } else {
+        applyDocument({
+          status: 'unavailable',
+          requestId,
+          title: cleanTitle,
+          displayRef: cleanPath,
+          reason,
+          ...(reason === 'outside-project'
+            ? { suggestion: '该位置不在当前工作区内；Skill 预览请通过工具卡中的文档目标打开。' }
+            : {}),
+        });
       }
     },
-    [hostClient, rightPanelOpen, shell, state.messages, state.projectPath],
+    [
+      hostClient,
+      requestToolSnapshot,
+      rightPanelOpen,
+      shell,
+      state.messages,
+      state.projectPath,
+    ],
   );
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
@@ -628,6 +1039,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     clearExtensionUiRequest,
   } = useHostBootstrap({
     hostClient,
+    activeSessionId: state.activeSessionId,
     dispatch,
     dispatchNotification,
     refreshJobs,
@@ -697,7 +1109,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     };
 
     if (sessionPlan) {
-      addDoc(sessionPlan.title || 'Implementation Plan', 'implementation_plan.md', 'plan');
+      addDoc(
+        sessionPlan.title || 'Implementation Plan',
+        `plans/${sessionPlan.sessionId}.md`,
+        'plan',
+      );
     }
 
     const pathRegex = /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_./-]+\.md\b/g;
@@ -2391,6 +2807,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           sessionId: state.activeSessionId,
           planId: sessionPlan.id,
           mode,
+          expectedRevision: sessionPlan.revision,
+          ...(sessionPlan.status === 'draft' ? { approveDraft: true } : {}),
         },
       });
       if (!response.success) {
@@ -2732,8 +3150,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   state.transcriptWindow.cacheLimitReached !== true
                 }
                 historyLoading={transcriptHistoryLoading}
-                historyCacheLimitReached={state.transcriptWindow?.cacheLimitReached === true}
                 onLoadOlder={handleLoadOlderTranscript}
+                locale={desktopLocale}
+                turnAnchorMessageId={state.streaming ? lastUserMessageId : null}
                 {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
               >
                 <ArtifactHeightSignalProvider value={artifactHeightSignal}>
@@ -3001,8 +3420,24 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 docPreviewContent={
                   <DeferredDocPreviewPanel
                     title={activeDocument?.title}
-                    content={activeDocument?.content}
-                    filePath={activeDocument?.filePath}
+                    content={activeDocumentContent(activeDocument)}
+                    filePath={activeDocumentFilePath(activeDocument)}
+                    status={activeDocument?.status}
+                    displayRef={activeDocument?.displayRef}
+                    provenance={activeDocument?.status === 'ready' ? activeDocument.provenance : undefined}
+                    warning={activeDocument?.status === 'ready' ? activeDocument.warning : undefined}
+                    skillId={activeDocument?.status === 'ready' ? activeDocument.skillId : undefined}
+                    skillSource={
+                      activeDocument?.status === 'ready' ? activeDocument.skillSource : undefined
+                    }
+                    unavailableReason={
+                      activeDocument?.status === 'unavailable' ? activeDocument.reason : undefined
+                    }
+                    suggestion={
+                      activeDocument?.status === 'unavailable'
+                        ? activeDocument.suggestion
+                        : undefined
+                    }
                     sessionDocuments={sessionDocuments}
                     onOpenFile={(filePath) => {
                       handleOpenDocument({
@@ -3016,6 +3451,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     onEditComment={handleEditDocComment}
                     onDeleteComment={handleDeleteDocComment}
                     onSelectDocument={(doc) => {
+                      const planDocument =
+                        doc.path === `plans/${state.activeSessionId ?? ''}.md` ? sessionPlan : null;
                       // Walkthrough virtual docs: resolve markdown content from the
                       // in-memory artifact map (path: walkthroughs/<message-id>.md).
                       const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
@@ -3025,6 +3462,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       handleOpenDocument({
                         title: doc.title,
                         ...(doc.path ? { path: doc.path } : {}),
+                        ...(planDocument ? { content: formatPlanMarkdown(planDocument) } : {}),
                         ...(walkthroughArtifact?.status === 'ready'
                           ? { content: walkthroughArtifact.markdown }
                           : {}),

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ThemeManifest } from '@piwin/contracts';
-import { resolveThemeBootstrapResponse, toPermissionPromptUi } from './use-host-bootstrap';
+import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
+import {
+  cacheSessionPlan,
+  resolveThemeBootstrapResponse,
+  selectSessionPlan,
+  toPermissionPromptUi,
+} from './use-host-bootstrap';
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
@@ -81,5 +86,44 @@ describe('resolveThemeBootstrapResponse', () => {
     });
 
     expect(resolved).toBe(PIWIN_APPEARANCE_DARK);
+  });
+});
+
+describe('session plan cache', () => {
+  const now = '2026-08-11T00:00:00.000Z';
+  const plan = (sessionId: string, id: string): SessionPlan => ({
+    id,
+    sessionId,
+    projectPath: `/tmp/${sessionId}`,
+    status: 'draft',
+    title: id,
+    goal: 'Keep plan state session-scoped',
+    steps: [{ id: '1', title: 'Verify', status: 'pending' }],
+    revision: 0,
+    createdAt: now,
+    updatedAt: now,
+    source: 'skill',
+    skillId: 'writing-plans',
+  });
+
+  it('does not project a background session push into the active session', () => {
+    const first = plan('session-1', 'plan-1');
+    const second = plan('session-2', 'plan-2');
+    let cache = cacheSessionPlan({}, first.sessionId, first);
+    cache = cacheSessionPlan(cache, second.sessionId, second);
+
+    expect(selectSessionPlan(cache, 'session-1')).toBe(first);
+    expect(selectSessionPlan(cache, 'session-2')).toBe(second);
+    expect(selectSessionPlan(cache, 'session-3')).toBeNull();
+  });
+
+  it('keeps a restored null plan scoped to its own session', () => {
+    const first = plan('session-1', 'plan-1');
+    let cache = cacheSessionPlan({}, first.sessionId, first);
+    cache = cacheSessionPlan(cache, 'session-2', null);
+
+    expect(selectSessionPlan(cache, 'session-1')).toBe(first);
+    expect(selectSessionPlan(cache, 'session-2')).toBeNull();
+    expect(selectSessionPlan(cache, null)).toBeNull();
   });
 });

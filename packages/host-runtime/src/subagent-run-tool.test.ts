@@ -15,7 +15,14 @@ const fakeSeam = (overrides?: {
   spawn?: ReturnType<typeof vi.fn>;
   merge?: ReturnType<typeof vi.fn>;
 }) => {
-  const spawn = overrides?.spawn ?? vi.fn(async () => ({ childSessionId: 'child-1' }));
+  const spawn =
+    overrides?.spawn ??
+    vi.fn(async () => ({
+      childSessionId: 'child-1',
+      batchStatus: 'completed' as const,
+      executionStatus: 'completed' as const,
+      integrationStatus: 'not-requested' as const,
+    }));
   const merge = overrides?.merge ?? vi.fn(async () => ({ summaryPreview: 'did the thing' }));
   return { spawn, merge };
 };
@@ -171,6 +178,73 @@ describe('createSubagentRunTool', () => {
     expect(result).toMatchObject({ ok: false, code: 'subagent-failed' });
     expect(messageOf(result)).toContain('depth max exceeded');
     expect(seam.merge).not.toHaveBeenCalled();
+  });
+
+  it('returns needs-integration instead of success when worktree integration conflicts', async () => {
+    const seam = fakeSeam({
+      spawn: vi.fn(async () => ({
+        childSessionId: 'child-conflict',
+        batchStatus: 'needs-integration' as const,
+        executionStatus: 'completed' as const,
+        integrationStatus: 'conflict' as const,
+        error: 'integration conflict in: game.js',
+        worktreePath: '/tmp/worktree',
+      })),
+    });
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+
+    const result = await executeTool(tool, { task: 'implement game', mode: 'worktree' });
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'subagent-needs-integration',
+      details: {
+        integrationStatus: 'conflict',
+        worktreePath: '/tmp/worktree',
+      },
+    });
+    expect(messageOf(result)).toContain('integration conflict in: game.js');
+    expect(messageOf(result)).toContain('did the thing');
+    expect(seam.merge).toHaveBeenCalledWith('child-conflict');
+  });
+
+  it('returns failure when a child session exists but its batch failed', async () => {
+    const seam = fakeSeam({
+      spawn: vi.fn(async () => ({
+        childSessionId: 'child-failed',
+        batchStatus: 'failed' as const,
+        executionStatus: 'failed' as const,
+        integrationStatus: 'not-requested' as const,
+        error: 'provider failed',
+      })),
+    });
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+
+    const result = await executeTool(tool, { task: 'implement game' });
+
+    expect(result).toMatchObject({ ok: false, code: 'subagent-failed' });
+    expect(messageOf(result)).toContain('provider failed');
+  });
+
+  it('reports cleanup warnings without reversing an applied integration', async () => {
+    const seam = fakeSeam({
+      spawn: vi.fn(async () => ({
+        childSessionId: 'child-applied',
+        batchStatus: 'completed' as const,
+        executionStatus: 'completed' as const,
+        integrationStatus: 'applied' as const,
+        error: 'integration applied; retained worktree cleanup failed: busy',
+      })),
+    });
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+
+    const result = await executeTool(tool, { task: 'implement game' });
+
+    expect(result).toMatchObject({
+      ok: true,
+      details: { integrationStatus: 'applied', warning: expect.stringContaining('cleanup failed') },
+    });
+    expect(messageOf(result)).toContain('Warning: integration applied');
   });
 
   it('returns error when merge throws', async () => {

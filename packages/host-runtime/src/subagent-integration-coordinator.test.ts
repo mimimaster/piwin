@@ -25,10 +25,7 @@ function createWorktreeLease(
   };
 }
 
-function createTaskResult(
-  taskId: string,
-  allowedOutputPaths: string[] = [],
-): SubagentTaskResult {
+function createTaskResult(taskId: string, allowedOutputPaths: string[] = []): SubagentTaskResult {
   return {
     runId: 'run-1',
     taskId,
@@ -59,9 +56,7 @@ function createDeferred(): {
   };
 }
 
-function createSuccessIntegration(
-  changedFiles: string[],
-): WorktreeIntegrationFunction {
+function createSuccessIntegration(changedFiles: string[]): WorktreeIntegrationFunction {
   return async (input) => ({
     success: true,
     changedFiles,
@@ -81,10 +76,7 @@ describe('SubagentIntegrationCoordinator', () => {
     const integrateWorktree: WorktreeIntegrationFunction = vi.fn(async (input) => {
       integrationOrder.push(input.worktreePath);
       activeIntegrations += 1;
-      maximumActiveIntegrations = Math.max(
-        maximumActiveIntegrations,
-        activeIntegrations,
-      );
+      maximumActiveIntegrations = Math.max(maximumActiveIntegrations, activeIntegrations);
 
       if (isFirstIntegration) {
         isFirstIntegration = false;
@@ -114,10 +106,7 @@ describe('SubagentIntegrationCoordinator', () => {
 
     const secondResult = coordinator.integrate(
       createTaskResult('task-2'),
-      createWorktreeLease(
-        '/tmp/project/.piwin-worktrees/two',
-        '/tmp/project/../project',
-      ),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/two', '/tmp/project/../project'),
     );
     await new Promise<void>((resolveValue) => setImmediate(resolveValue));
 
@@ -203,23 +192,44 @@ describe('SubagentIntegrationCoordinator', () => {
     expect(conflictedResult.integrationStatus).toBe('conflict');
 
     expect(removeWorktree).toHaveBeenCalledTimes(1);
-    expect(removeWorktree).toHaveBeenCalledWith(appliedWorktree, '/tmp/project');
+    expect(removeWorktree).toHaveBeenCalledWith(
+      appliedWorktree,
+      '/tmp/project',
+      expect.stringContaining('piwin/subagent/'),
+    );
 
     await coordinator.dispose();
     expect(removeWorktree).not.toHaveBeenCalledWith(conflictedWorktree, '/tmp/project');
   });
 
-  it('adapts the Git integration result without dropping allowed paths', async () => {
-    const gitIntegrateWorktree = vi.fn(async (
-      input: GitWorktreeIntegrationInput,
-    ): Promise<GitWorktreeIntegrationResult> => {
-      return {
-        status: 'applied' as const,
-        integratedFiles: [input.worktreePath],
-        conflictedFiles: [],
-        rejectedFiles: [],
-      };
+  it('keeps integration applied when only post-apply cleanup fails', async () => {
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree: createSuccessIntegration(['game.js']),
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree: vi.fn().mockRejectedValue(new Error('cleanup refused')),
     });
+
+    const result = await coordinator.integrate(
+      createTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/applied'),
+    );
+
+    expect(result.integrationStatus).toBe('applied');
+    expect(result.changedFiles).toEqual(['game.js']);
+    expect(result.error).toContain('retained worktree cleanup failed');
+  });
+
+  it('adapts the Git integration result without dropping allowed paths', async () => {
+    const gitIntegrateWorktree = vi.fn(
+      async (input: GitWorktreeIntegrationInput): Promise<GitWorktreeIntegrationResult> => {
+        return {
+          status: 'applied' as const,
+          integratedFiles: [input.worktreePath],
+          conflictedFiles: [],
+          rejectedFiles: [],
+        };
+      },
+    );
     const adapter = createGitWorktreeIntegrationAdapter(gitIntegrateWorktree);
     const input: WorktreeIntegrationInput = {
       parentRepoPath: '/tmp/project',
@@ -242,6 +252,33 @@ describe('SubagentIntegrationCoordinator', () => {
       success: true,
       changedFiles: ['/tmp/project/.piwin-worktrees/one'],
       allowedOutputPaths: ['src/allowed.ts'],
+    });
+  });
+
+  it('preserves Git conflict diagnostics through the adapter', async () => {
+    const adapter = createGitWorktreeIntegrationAdapter(
+      vi.fn(async (): Promise<GitWorktreeIntegrationResult> => ({
+        status: 'conflict',
+        integratedFiles: [],
+        conflictedFiles: ['game.js'],
+        rejectedFiles: [],
+        error: 'patch does not apply: game.js',
+      })),
+    );
+
+    const result = await adapter({
+      parentRepoPath: '/tmp/project',
+      worktreePath: '/tmp/worktree',
+      worktreeBranch: 'piwin/subagent/one',
+      baseCommit: '0123456789abcdef',
+      allowedOutputPaths: [],
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      conflict: true,
+      conflictFiles: ['game.js'],
+      error: 'patch does not apply: game.js',
     });
   });
 });

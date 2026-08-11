@@ -678,6 +678,18 @@ export function IconFile(props: IconProps): ReactElement {
   );
 }
 
+/** File with diff plus lines, used for Review actions. */
+export function IconFileDiff(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z" />
+      <path d="M14 3.5V8h4.5" />
+      <path d="M9 12.5h6" />
+      <path d="M12 9.5v6" />
+    </IconBase>
+  );
+}
+
 /** Default / favorite mark (stroke star). */
 export function IconStar(props: IconProps): ReactElement {
   return (

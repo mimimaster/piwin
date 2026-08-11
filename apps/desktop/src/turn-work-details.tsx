@@ -12,13 +12,14 @@ import {
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
 import type { SkillActivityView } from './chat-reducer';
 import { TurnToolGroup } from './turn-tool-group';
+import type { DocumentOpenInput } from './tool-call-card';
 import { IconChevronRight, IconBrain } from './shell-icons';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
 import { RadialBellow } from '@piwin/ui-kit';
 import type { DiffCardRequest } from './diff-card';
 import type { AgentLocatorAnimation } from './ui-preferences.js';
-import { runtimeStatusText } from './run-activity-strings.js';
+import { buildActivityPhrases, runtimeStatusText } from './run-activity-strings.js';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type TurnWorkDetailsProps = {
@@ -37,6 +38,8 @@ export type TurnWorkDetailsProps = {
   request?: DiffCardRequest;
   /** Callback when user clicks a matched file in tool results. */
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  /** Callback when user clicks a logical document target (skill / project file). */
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Collapse historical tool cards into a summary on session hydrate. */
   historyCollapsed?: boolean;
   /** Explicit slash Skill currently being applied to this run. */
@@ -97,6 +100,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const hasThinking = props.showThinking !== false && Boolean(thinkingItem);
   const thinkingIsStreaming = presentation.isActive && !presentation.answerStarted && hasThinking;
   const thinkingLabelClass = behaviorTextClass('thinking', thinkingIsStreaming);
+  const liveActivityInput = turnPresentationToActivityInput(presentation, props.message, locale);
+  const liveActivityLabel = buildActivityPhrases(liveActivityInput)[0];
 
   const hasVisibleWork =
     hasThinking ||
@@ -117,6 +122,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
+    ...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {}),
     ...(props.historyCollapsed ? { historyCollapsed: true } : {}),
   };
 
@@ -161,14 +167,16 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
               <IconBrain className="turn-summary-brain-icon" />
             )}
             <span className={`turn-work-details-label ${thinkingLabelClass}`}>
-              {thinkingSummaryLabel({
-                isActive: presentation.isActive,
-                answerStarted: presentation.answerStarted,
-                locale,
-                ...(presentation.thoughtSeconds !== undefined
-                  ? { thoughtSeconds: presentation.thoughtSeconds }
-                  : {}),
-              })}
+              {presentation.isActive && liveActivityLabel
+                ? liveActivityLabel
+                : thinkingSummaryLabel({
+                    isActive: presentation.isActive,
+                    answerStarted: presentation.answerStarted,
+                    locale,
+                    ...(presentation.thoughtSeconds !== undefined
+                      ? { thoughtSeconds: presentation.thoughtSeconds }
+                      : {}),
+                  })}
             </span>
             <span
               className={`turn-work-details-chevron${thinkingOpen ? ' is-open' : ''}`}

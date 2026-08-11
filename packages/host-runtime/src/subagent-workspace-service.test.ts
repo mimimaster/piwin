@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import type { SubagentTaskSpec } from '@piwin/contracts';
-import {
-  createWorktree,
-  isWorktreeBaseClean,
-  runGitCommand,
-} from '@piwin/git';
+import { createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
 
 vi.mock('@piwin/git', () => ({
   createWorktree: vi.fn(),
@@ -55,9 +51,9 @@ describe('SubagentWorkspaceService', () => {
       dirtyBasePolicy: 'ask',
       parallelWritePolicy: 'disabled',
     });
-    await expect(
-      service.acquire(makeTask({ isolationOverride: 'worktree' })),
-    ).rejects.toThrow('parallel writes are disabled');
+    await expect(service.acquire(makeTask({ isolationOverride: 'worktree' }))).rejects.toThrow(
+      'parallel writes are disabled',
+    );
   });
 
   it('rejects a dirty parent before creating a worktree', async () => {
@@ -70,9 +66,9 @@ describe('SubagentWorkspaceService', () => {
       parallelWritePolicy: 'worktree-only',
     });
 
-    await expect(
-      service.acquire(makeTask({ isolationOverride: 'worktree' })),
-    ).rejects.toThrow('dirty-base-denied');
+    await expect(service.acquire(makeTask({ isolationOverride: 'worktree' }))).rejects.toThrow(
+      'dirty-base-denied',
+    );
     expect(isWorktreeBaseClean).toHaveBeenCalledWith('/tmp/project');
     expect(runGitCommand).not.toHaveBeenCalled();
     expect(createWorktree).not.toHaveBeenCalled();
@@ -92,6 +88,7 @@ describe('SubagentWorkspaceService', () => {
 
     const service = createSubagentWorkspaceService({
       projectPath: '/tmp/project',
+      worktreeStorageRoot: '/tmp/piwin/worktrees',
       dirtyBasePolicy: 'ask',
       parallelWritePolicy: 'worktree-only',
     });
@@ -106,6 +103,7 @@ describe('SubagentWorkspaceService', () => {
       expect.objectContaining({
         projectPath: '/tmp/project',
         baseRef: '0123456789abcdef',
+        storageRoot: '/tmp/piwin/worktrees',
       }),
     );
     expect(lease).toEqual({

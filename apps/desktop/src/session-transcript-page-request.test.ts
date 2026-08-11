@@ -67,4 +67,43 @@ describe('requestSessionTranscriptPage', () => {
     });
     expect(request).toHaveBeenCalledTimes(2);
   });
+
+  it('bridges an older Host limit-mismatch failure into one tail restart', async () => {
+    type PageCommand = Extract<HostCommand, { type: 'session/transcript-page' }>;
+    const commands: PageCommand[] = [];
+    const request = vi.fn(async (command: PageCommand): Promise<HostResponse> => {
+      commands.push(command);
+      if (commands.length === 1) {
+        return {
+          type: 'response',
+          command: 'session/transcript-page',
+          success: false,
+          error: 'Session transcript cursor limits do not match the query',
+        };
+      }
+      return {
+        type: 'response',
+        command: 'session/transcript-page',
+        success: true,
+        data: {
+          status: 'page',
+          messages: [],
+          page: {
+            revision: 'next',
+            totalCount: 0,
+            startIndex: 0,
+            endIndex: 0,
+            messageBytes: 2,
+          },
+        },
+      };
+    });
+
+    const result = await requestSessionTranscriptPage(request, query);
+
+    expect(result.success).toBe(true);
+    expect(result.success ? result.restartedAtTail : false).toBe(true);
+    expect(commands).toHaveLength(2);
+    expect(commands[1]?.query.beforeCursor).toBeUndefined();
+  });
 });

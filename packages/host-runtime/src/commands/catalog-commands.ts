@@ -10,7 +10,7 @@ import type {
 import { SPEECH_MAX_DURATION_MS, formatError, modelSupportsCapability } from '@piwin/contracts';
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
-import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
+import { ensureBundledSkillsInstalled, readSkillPreview, scanSkills } from '@piwin/skills';
 import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
 import {
   getActiveTheme,
@@ -20,9 +20,11 @@ import {
 } from '@piwin/theme';
 import {
   installPetFromLocalPath,
+  installPetFromLocalPaths,
   installPetFromRegistry,
   listPets,
   queryRemotePetStore,
+  scanLocalPets,
   setActivePet,
 } from '@piwin/pet';
 import { loadPiwinConfig, savePiwinConfig } from '../config-store.js';
@@ -67,6 +69,7 @@ const TYPES = new Set<HostCommand['type']>([
   'media/save',
   'speech/transcribe',
   'skills/list',
+  'skills/read',
   'skills/set_enabled',
   'skills/install',
   'skills/store-list',
@@ -83,7 +86,9 @@ const TYPES = new Set<HostCommand['type']>([
   'pet/list',
   'pet/get-active',
   'pet/set-active',
+  'pet/scan-local',
   'pet/install-local',
+  'pet/install-local-batch',
   'pet/store-query',
   'pet/install-registry',
   'pet/cancel',
@@ -206,6 +211,32 @@ export async function handleCatalogCommand(
       }
       const skills = await scanSkills(scanOptions);
       return ok(requestId, 'skills/list', { skills });
+    }
+    case 'skills/read': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      await ensureBundledSkillsInstalled(rootDir);
+      const config = await loadPiwinConfig(rootDir);
+      const skillId =
+        typeof command.skillId === 'string' && command.skillId.trim()
+          ? command.skillId.trim()
+          : undefined;
+      const legacyPath =
+        typeof command.legacyPath === 'string' && command.legacyPath.trim()
+          ? command.legacyPath.trim()
+          : undefined;
+      const projectPath =
+        typeof command.projectPath === 'string' && command.projectPath.trim()
+          ? command.projectPath.trim()
+          : undefined;
+      const data = await readSkillPreview({
+        piwinRoot: rootDir,
+        ...(config.skills ? { skillsConfig: config.skills } : {}),
+        ...(skillId ? { skillId } : {}),
+        ...(legacyPath ? { legacyPath } : {}),
+        ...(projectPath ? { projectPath } : {}),
+        ...(typeof command.maxBytes === 'number' ? { maxBytes: command.maxBytes } : {}),
+      });
+      return ok(requestId, 'skills/read', data);
     }
     case 'skills/set_enabled': {
       const rootDir = getPiwinRoot(context.piwinRoot);
@@ -384,10 +415,19 @@ export async function handleCatalogCommand(
       context.petStateStore.setBase(pet);
       return ok(requestId, 'pet/set-active', { pet });
     }
+    case 'pet/scan-local': {
+      const preview = await scanLocalPets(command.sourcePath);
+      return ok(requestId, 'pet/scan-local', preview);
+    }
     case 'pet/install-local': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const installed = await installPetFromLocalPath(rootDir, command.sourcePath);
       return ok(requestId, 'pet/install-local', installed);
+    }
+    case 'pet/install-local-batch': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const result = await installPetFromLocalPaths(rootDir, command.sourcePaths);
+      return ok(requestId, 'pet/install-local-batch', result);
     }
     case 'pet/store-query': {
       const rootDir = getPiwinRoot(context.piwinRoot);

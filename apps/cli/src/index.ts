@@ -52,6 +52,7 @@ import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
 import { createJsonlStdioTransport } from './host-serve-transport.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
+import { resolveCliChatPrompt } from './chat-prompt.js';
 import {
   runWalkthroughList,
   runWalkthroughGenerate,
@@ -784,6 +785,7 @@ async function commandChat(argv: string[]): Promise<void> {
     messageTokens.push(token);
   }
   let message = messageTokens.join(' ').trim();
+  const resolvedChatPrompt = resolveCliChatPrompt(message);
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
@@ -888,7 +890,8 @@ async function commandChat(argv: string[]): Promise<void> {
       type: 'session/prompt',
       sessionId,
       input: {
-        text: message,
+        text: resolvedChatPrompt.text,
+        ...(resolvedChatPrompt.skillId ? { skillId: resolvedChatPrompt.skillId } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(schemeId && schemeId !== 'off' ? { orchestrationSchemeId: schemeId } : {}),
       },
@@ -2040,6 +2043,13 @@ async function commandHostServe(argv: string[]): Promise<void> {
     mode,
     mock,
   };
+  // Source-tree multi-process E2E may pair the live Host source with an
+  // explicitly built worker artifact. Packaged Desktop passes this option at
+  // its own composition boundary and does not depend on this environment hook.
+  const agentWorkerScript = process.env.PIWIN_AGENT_WORKER_SCRIPT?.trim();
+  if (agentWorkerScript) {
+    runtimeOptions.agentWorkerScript = resolve(agentWorkerScript);
+  }
   if (testFixture !== undefined) {
     runtimeOptions.testFixture = testFixture;
   }

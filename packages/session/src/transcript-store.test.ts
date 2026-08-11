@@ -387,6 +387,17 @@ describe('SessionTranscriptStore', () => {
     expect(newest.page.truncatedMessageIds).toEqual(['piw-m-29']);
     expect(newest.page.olderCursor).toBeDefined();
 
+    const changedLimits = await store.transcriptPage({
+      sessionId: 'session-transcript-page',
+      limit: 8,
+      maximumBytes: 16 * 1024,
+      ...(newest.page.olderCursor !== undefined ? { beforeCursor: newest.page.olderCursor } : {}),
+    });
+    expect(changedLimits).toEqual({
+      status: 'stale-cursor',
+      currentRevision: newest.page.revision,
+    });
+
     await store.appendMessage(
       messageInput({
         id: 'piw-m-new',

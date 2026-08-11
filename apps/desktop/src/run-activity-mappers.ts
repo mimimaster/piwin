@@ -27,7 +27,12 @@ export function turnPresentationToActivityInput(
 ): RunActivityInput {
   const latestPhase = presentation.phaseHistory[presentation.phaseHistory.length - 1]?.phase;
   const kind = latestPhase ? sessionRunPhaseToActivityKind(latestPhase) : 'connecting-model';
-  const activeToolName = message.tools.find((tool) => tool.status === 'running')?.toolName;
+  const activeTool = message.tools.find((tool) => tool.status === 'running');
+  const activeToolName = activeTool?.toolName;
+  const activeToolDetail = activeTool
+    ? resolveActiveToolDetail(activeTool)
+    : undefined;
+  const actionVerb = activeTool?.presentation?.actionVerb;
   // Round to nearest second so `input.elapsedMs` is stable across sub-second `TurnWorkDetails` re-renders.
   const elapsedMs =
     typeof presentation.startedAt === 'number'
@@ -38,8 +43,20 @@ export function turnPresentationToActivityInput(
     kind,
     locale,
     ...(activeToolName !== undefined ? { activeToolName } : {}),
+    ...(activeToolDetail !== undefined ? { detail: activeToolDetail } : {}),
+    ...(actionVerb !== undefined ? { actionVerb } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
+}
+
+/** Prefer structured intent over stdout/stderr when describing live work. */
+function resolveActiveToolDetail(tool: ChatMessageUi['tools'][number]): string | undefined {
+  const presentation = tool.presentation;
+  const detail =
+    presentation?.command?.trim() ||
+    presentation?.targetPaths?.[0]?.trim() ||
+    presentation?.summary?.trim();
+  return detail || undefined;
 }
 
 export function sessionRunPhaseToActivityKind(phase: SessionRunPhase): RunStatusKind {

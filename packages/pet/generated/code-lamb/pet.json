@@ -1,0 +1,12 @@
+{
+  "id": "code-lamb",
+  "displayName": "Code Lamb",
+  "description": "A gentle cream alpaca coding companion with round glasses and a navy hoodie.",
+  "spritesheetPath": "spritesheet.png",
+  "version": "1.0.0",
+  "fps": 6,
+  "cellWidth": 140,
+  "cellHeight": 236,
+  "cols": 6,
+  "rows": 8
+}

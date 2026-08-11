@@ -12,31 +12,47 @@ import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/rea
 import { messageAnchorId } from './transcript-outline';
 import { useTranscriptScrollPort, type TranscriptScrollPort } from './transcript-scroll-port';
 import { readTranscriptTurnHeight, rememberTranscriptTurnHeight } from './transcript-scroll-memory';
+import {
+  normalizeTranscriptTurnHeight,
+  resolveTranscriptTurnEstimate,
+  TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX,
+} from './transcript-turn-height';
 import { indexTranscriptTurnsByMessageId, type TranscriptTurn } from './transcript-turns';
 
+/** Completed long histories are bounded; the active call chain stays in flow. */
 export const TRANSCRIPT_VIRTUALIZATION_THRESHOLD = 40;
-const TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX = 360;
+export { TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX };
 const TRANSCRIPT_TURN_GAP_PX = 20;
-const TRANSCRIPT_TURN_OVERSCAN = 4;
+const TRANSCRIPT_TURN_OVERSCAN = 10;
+/** Always keep the newest N turns mounted so the live call chain never unmounts. */
+const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
-export function shouldVirtualizeTranscript(turnCount: number): boolean {
-  return turnCount > TRANSCRIPT_VIRTUALIZATION_THRESHOLD;
+export function shouldVirtualizeTranscript(
+  turnCount: number,
+  options?: { streaming?: boolean },
+): boolean {
+  return options?.streaming !== true && turnCount > TRANSCRIPT_VIRTUALIZATION_THRESHOLD;
 }
 
 export function createTranscriptRangeExtractor(
   pinnedTurnIndex: number | null,
+  liveTailStartIndex: number | null = null,
 ): (range: Range) => number[] {
   return (range) => {
-    const indexes = defaultRangeExtractor(range);
+    const indexes = new Set(defaultRangeExtractor(range));
     if (
-      pinnedTurnIndex === null ||
-      pinnedTurnIndex < 0 ||
-      pinnedTurnIndex >= range.count ||
-      indexes.includes(pinnedTurnIndex)
+      pinnedTurnIndex !== null &&
+      pinnedTurnIndex >= 0 &&
+      pinnedTurnIndex < range.count
     ) {
-      return indexes;
+      indexes.add(pinnedTurnIndex);
     }
-    return [...indexes, pinnedTurnIndex].sort((left, right) => left - right);
+    if (liveTailStartIndex !== null && liveTailStartIndex >= 0) {
+      for (let index = liveTailStartIndex; index < range.count; index += 1) {
+        indexes.add(index);
+      }
+    }
+    return [...indexes].sort((left, right) => left - right);
   };
 }
 
@@ -44,11 +60,19 @@ export type TranscriptTurnListProps = {
   turns: readonly TranscriptTurn[];
   pinnedMessageId: string | null;
   renderTurn: (turn: TranscriptTurn) => ReactElement;
+  /**
+   * When true (active run / streaming), skip virtualization so tool chain and
+   * body layout stay document-flow stable — matches pre-memory-cut UX.
+   */
+  streaming?: boolean;
 };
 
 export function TranscriptTurnList(props: TranscriptTurnListProps): ReactElement {
   const scrollPort = useTranscriptScrollPort();
-  if (!scrollPort || !shouldVirtualizeTranscript(props.turns.length)) {
+  const virtualize = shouldVirtualizeTranscript(props.turns.length, {
+    streaming: props.streaming === true,
+  });
+  if (!scrollPort || !virtualize) {
     return (
       <>
         {props.turns.map((turn) => (
@@ -76,9 +100,13 @@ function VirtualizedTranscriptTurns(
   const pinnedTurnIndex = props.pinnedMessageId
     ? (turnIndexByMessageId.get(props.pinnedMessageId) ?? null)
     : null;
+  const liveTailStartIndex =
+    props.turns.length > 0
+      ? Math.max(0, props.turns.length - TRANSCRIPT_LIVE_TAIL_PIN_COUNT)
+      : null;
   const rangeExtractor = useMemo(
-    () => createTranscriptRangeExtractor(pinnedTurnIndex),
-    [pinnedTurnIndex],
+    () => createTranscriptRangeExtractor(pinnedTurnIndex, liveTailStartIndex),
+    [pinnedTurnIndex, liveTailStartIndex],
   );
   const getItemKey = useCallback(
     (turnIndex: number) => props.turns[turnIndex]?.id ?? turnIndex,
@@ -86,25 +114,29 @@ function VirtualizedTranscriptTurns(
   );
   const estimateSize = useCallback(
     (turnIndex: number) => {
-      const turnId = props.turns[turnIndex]?.id;
-      if (!props.scrollPort.sessionId || !turnId) {
-        return TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
-      }
-      return (
-        readTranscriptTurnHeight(props.scrollPort.sessionId, turnId) ??
-        TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX
-      );
+      const turn = props.turns[turnIndex];
+      const turnId = turn?.id;
+      const cachedHeight =
+        props.scrollPort.sessionId && turnId
+          ? readTranscriptTurnHeight(props.scrollPort.sessionId, turnId)
+          : null;
+      return resolveTranscriptTurnEstimate({
+        turn,
+        cachedHeight,
+      });
     },
     [props.scrollPort.sessionId, props.turns],
   );
   const measureElement = useCallback(
     (element: HTMLDivElement) => {
-      const height = element.getBoundingClientRect().height;
+      const rawHeight = Math.max(element.offsetHeight, element.getBoundingClientRect().height);
+      const normalized = normalizeTranscriptTurnHeight(rawHeight);
       const turnId = element.dataset.turnId;
-      if (props.scrollPort.sessionId && turnId) {
-        rememberTranscriptTurnHeight(props.scrollPort.sessionId, turnId, height);
+      if (normalized !== null && props.scrollPort.sessionId && turnId) {
+        rememberTranscriptTurnHeight(props.scrollPort.sessionId, turnId, normalized);
+        return normalized;
       }
-      return height;
+      return normalized ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
     },
     [props.scrollPort.sessionId],
   );
@@ -122,6 +154,30 @@ function VirtualizedTranscriptTurns(
     useAnimationFrameWithResizeObserver: true,
     useFlushSync: false,
   });
+
+  // Structural remeasure only — NEVER key on streaming text length (that caused
+  // per-token measure thrash: blank holes, tools floating, "screen vomiting").
+  const turnsStructureKey = useMemo(
+    () =>
+      props.turns
+        .map((turn) => {
+          const last = turn.items[turn.items.length - 1]?.message;
+          const toolSig = turn.items
+            .map((item) =>
+              item.message.tools
+                ?.map((tool) => `${tool.toolCallId}:${tool.status}`)
+                .join(',') ?? '',
+            )
+            .join(';');
+          return `${turn.id}:${turn.items.length}:${last?.id ?? ''}:${last?.status ?? ''}:${toolSig}`;
+        })
+        .join('|'),
+    [props.turns],
+  );
+  useLayoutEffect(() => {
+    virtualizer.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- structural key only
+  }, [turnsStructureKey]);
 
   useLayoutEffect(() => {
     const listElement = listRef.current;

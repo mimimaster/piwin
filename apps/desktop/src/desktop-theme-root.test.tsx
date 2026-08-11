@@ -8,7 +8,11 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { AppProps } from './App';
-import { PIWIN_APPEARANCE_LIGHT } from './appearance-tokens';
+import {
+  PIWIN_APPEARANCE_INK_WASH,
+  PIWIN_APPEARANCE_LIGHT,
+  applyAppearanceToDocument,
+} from './appearance-tokens';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -34,6 +38,7 @@ describe('DesktopThemeRoot', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     localStorage.clear();
     localStorage.setItem('piwin.desktop.appearanceMode', 'dark');
+    document.documentElement.removeAttribute('data-theme-id');
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -65,6 +70,19 @@ describe('DesktopThemeRoot', () => {
     expect(documentRoot.style.getPropertyValue('--canvas')).toBe('#101010');
   });
 
+  it('starts with the cached library theme so cold start matches last session', () => {
+    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-ink-wash');
+
+    act(() => {
+      root.render(<DesktopThemeRoot />);
+    });
+
+    const props = capturedProps as unknown as AppProps;
+    expect(props.activeTheme).toBe(PIWIN_APPEARANCE_INK_WASH);
+    expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
+    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-ink-wash');
+  });
+
   it('applies light identity, tokens, and provider manifest through its callback', () => {
     act(() => {
       root.render(<DesktopThemeRoot />);
@@ -79,10 +97,32 @@ describe('DesktopThemeRoot', () => {
     expect(documentRoot.dataset.themeId).toBe('piwin-light');
     expect(documentRoot.dataset.themeMode).toBe('light');
     expect(documentRoot.style.getPropertyValue('--canvas')).toBe(PIWIN_APPEARANCE_LIGHT.tokens.bg);
+    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-light');
 
     // App receives the exact same resolved manifest projected to the document.
     const rerendered = capturedProps as unknown as AppProps;
     expect(rerendered.activeTheme).toBe(PIWIN_APPEARANCE_LIGHT);
+  });
+
+  it('skips a host re-apply when document already has the same theme id', () => {
+    localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-ink-wash');
+    applyAppearanceToDocument(PIWIN_APPEARANCE_INK_WASH);
+
+    act(() => {
+      root.render(<DesktopThemeRoot />);
+    });
+    const props = capturedProps as unknown as AppProps;
+    const firstTheme = props.activeTheme;
+
+    act(() => {
+      // Host bootstrap re-sends the active library theme after connect.
+      props.onThemeApplied({ ...PIWIN_APPEARANCE_INK_WASH, version: '9.9.9' });
+    });
+
+    const rerendered = capturedProps as unknown as AppProps;
+    // Same id → keep prior React state reference (no second switch cycle).
+    expect(rerendered.activeTheme).toBe(firstTheme);
+    expect(document.documentElement.dataset.themeId).toBe('piwin-ink-wash');
   });
 
   it('resolves stale built-in manifests to the desktop-owned appearance', () => {

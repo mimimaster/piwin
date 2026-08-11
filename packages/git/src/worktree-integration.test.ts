@@ -30,9 +30,9 @@ async function commitAll(repositoryPath: string, message: string): Promise<strin
 describe('integrateWorktreeChanges', () => {
   afterEach(async () => {
     await Promise.all(
-      temporaryRepositories.splice(0).map((repositoryPath) =>
-        rm(repositoryPath, { recursive: true, force: true }),
-      ),
+      temporaryRepositories
+        .splice(0)
+        .map((repositoryPath) => rm(repositoryPath, { recursive: true, force: true })),
     );
   });
 
@@ -65,14 +65,37 @@ describe('integrateWorktreeChanges', () => {
       conflictedFiles: [],
       rejectedFiles: [],
     });
-    await expect(readFile(join(projectPath, 'first.txt'), 'utf8')).resolves.toBe(
-      'child first\n',
-    );
-    await expect(readFile(join(projectPath, 'second.txt'), 'utf8')).resolves.toBe(
-      'child second\n',
-    );
+    await expect(readFile(join(projectPath, 'first.txt'), 'utf8')).resolves.toBe('child first\n');
+    await expect(readFile(join(projectPath, 'second.txt'), 'utf8')).resolves.toBe('child second\n');
     await expect(readFile(join(projectPath, 'third.txt'), 'utf8')).resolves.toBe(
       'child uncommitted\n',
+    );
+  });
+
+  it('integrates newly created child files', async () => {
+    const projectPath = await createRepository();
+    await writeFile(join(projectPath, 'README.md'), 'base\n');
+    const baseCommit = await commitAll(projectPath, 'base');
+
+    const worktreePath = join(projectPath, '.child-worktree');
+    await runGit(projectPath, ['worktree', 'add', '-b', 'child', worktreePath, baseCommit]);
+    await writeFile(join(worktreePath, 'game.js'), 'console.log("snake");\n');
+
+    const result = await integrateWorktreeChanges({
+      projectPath,
+      worktreePath,
+      worktreeBranch: 'child',
+      baseCommit,
+    });
+
+    expect(result).toEqual({
+      status: 'applied',
+      integratedFiles: ['game.js'],
+      conflictedFiles: [],
+      rejectedFiles: [],
+    });
+    await expect(readFile(join(projectPath, 'game.js'), 'utf8')).resolves.toBe(
+      'console.log("snake");\n',
     );
   });
 
@@ -108,6 +131,104 @@ describe('integrateWorktreeChanges', () => {
     await expect(readFile(join(projectPath, 'forbidden.txt'), 'utf8')).resolves.toBe(
       'base forbidden\n',
     );
+  });
+
+  it('preserves both the child index and the parent staging boundary', async () => {
+    const projectPath = await createRepository();
+    await writeFile(join(projectPath, 'user.txt'), 'base user\n');
+    await writeFile(join(projectPath, 'tracked.txt'), 'base tracked\n');
+    const baseCommit = await commitAll(projectPath, 'base');
+
+    const worktreePath = join(projectPath, '.child-worktree');
+    await runGit(projectPath, ['worktree', 'add', '-b', 'child', worktreePath, baseCommit]);
+    await writeFile(join(projectPath, 'user.txt'), 'user staged\n');
+    await runGit(projectPath, ['add', 'user.txt']);
+    await writeFile(join(worktreePath, 'game.js'), 'console.log("snake");\n');
+    await writeFile(join(worktreePath, 'tracked.txt'), 'child tracked\n');
+    const childStatusBefore = await runGit(worktreePath, ['status', '--porcelain']);
+
+    const result = await integrateWorktreeChanges({
+      projectPath,
+      worktreePath,
+      worktreeBranch: 'child',
+      baseCommit,
+    });
+
+    expect(result.status).toBe('applied');
+    expect(await runGit(worktreePath, ['status', '--porcelain'])).toBe(childStatusBefore);
+    const parentStatus = await runGit(projectPath, ['status', '--porcelain']);
+    expect(parentStatus).toContain('?? game.js');
+    expect(await runGit(projectPath, ['diff', '--cached', '--name-only'])).toBe('user.txt');
+    expect(await runGit(projectPath, ['diff', '--name-only'])).toBe('tracked.txt');
+  });
+
+  it('validates both source and destination paths for renames', async () => {
+    const projectPath = await createRepository();
+    await writeFile(join(projectPath, 'source.txt'), 'base\n');
+    const baseCommit = await commitAll(projectPath, 'base');
+
+    const worktreePath = join(projectPath, '.child-worktree');
+    await runGit(projectPath, ['worktree', 'add', '-b', 'child', worktreePath, baseCommit]);
+    await runGit(worktreePath, ['mv', 'source.txt', 'allowed.txt']);
+
+    const result = await integrateWorktreeChanges({
+      projectPath,
+      worktreePath,
+      worktreeBranch: 'child',
+      baseCommit,
+      allowedOutputPaths: ['allowed.txt'],
+    });
+
+    expect(result.status).toBe('rejected');
+    expect(result.rejectedFiles).toEqual(['source.txt']);
+    await expect(readFile(join(projectPath, 'source.txt'), 'utf8')).resolves.toBe('base\n');
+    await expect(readFile(join(projectPath, 'allowed.txt'), 'utf8')).rejects.toThrow();
+  });
+
+  it('keeps the parent untouched when three-way integration conflicts', async () => {
+    const projectPath = await createRepository();
+    await writeFile(join(projectPath, 'shared.txt'), 'base\n');
+    const baseCommit = await commitAll(projectPath, 'base');
+
+    const worktreePath = join(projectPath, '.child-worktree');
+    await runGit(projectPath, ['worktree', 'add', '-b', 'child', worktreePath, baseCommit]);
+    await writeFile(join(worktreePath, 'shared.txt'), 'child\n');
+    await writeFile(join(projectPath, 'shared.txt'), 'parent\n');
+    await commitAll(projectPath, 'parent divergence');
+
+    const result = await integrateWorktreeChanges({
+      projectPath,
+      worktreePath,
+      worktreeBranch: 'child',
+      baseCommit,
+    });
+
+    expect(result.status).toBe('conflict');
+    expect(result.error).toContain('shared.txt');
+    await expect(readFile(join(projectPath, 'shared.txt'), 'utf8')).resolves.toBe('parent\n');
+    expect(await runGit(projectPath, ['diff', '--name-only', '--diff-filter=U'])).toBe('');
+  });
+
+  it('round-trips paths containing tabs through the nul-delimited parser', async () => {
+    const projectPath = await createRepository();
+    await writeFile(join(projectPath, 'base.txt'), 'base\n');
+    const baseCommit = await commitAll(projectPath, 'base');
+    const unusualPath = 'tab\tname.txt';
+
+    const worktreePath = join(projectPath, '.child-worktree');
+    await runGit(projectPath, ['worktree', 'add', '-b', 'child', worktreePath, baseCommit]);
+    await writeFile(join(worktreePath, unusualPath), 'content\n');
+
+    const result = await integrateWorktreeChanges({
+      projectPath,
+      worktreePath,
+      worktreeBranch: 'child',
+      baseCommit,
+      allowedOutputPaths: [unusualPath],
+    });
+
+    expect(result).toMatchObject({ status: 'applied', integratedFiles: [unusualPath] });
+    await expect(readFile(join(projectPath, unusualPath), 'utf8')).resolves.toBe('content\n');
   });
 
   it('rejects an unsafe base ref before invoking git', async () => {

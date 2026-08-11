@@ -21,6 +21,12 @@ Users wanted:
 4. **No** manual generate button on Desktop
 5. No "extra agent thread + stitch into chat bubble" design
 6. Walkthrough **always generated** when a plan completes (not optional)
+7. Plan completion binds generation to the exact final assistant message
+   returned by the execution foreground Run and stamps `planId`; it never
+   discovers the target by scanning for the latest assistant message.
+8. The completed Plan persists a bounded `PlanExecutionSummary`, which is
+   included in Walkthrough evidence. The live assistant response stays concise
+   and does not duplicate the Walkthrough document.
 
 ## Decision
 

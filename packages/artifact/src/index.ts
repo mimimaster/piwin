@@ -120,6 +120,12 @@ export type {
 } from './height-policy.js';
 
 export {
+  parseSvgFenceIntrinsicSize,
+  estimateSvgFenceHeight,
+} from './svg-intrinsic-size.js';
+export type { EstimateSvgFenceHeightInput } from './svg-intrinsic-size.js';
+
+export {
   requestArtifactInit,
   cancelArtifactInit,
   releaseArtifactInit,

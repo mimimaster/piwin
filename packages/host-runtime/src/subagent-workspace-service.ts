@@ -8,10 +8,7 @@
  * for inspection.
  */
 
-import type {
-  SubagentTaskSpec,
-  SubagentWorkspaceLease,
-} from '@piwin/contracts';
+import type { SubagentTaskSpec, SubagentWorkspaceLease } from '@piwin/contracts';
 import { createWorktree, isWorktreeBaseClean, runGitCommand } from '@piwin/git';
 
 export type SubagentWorkspaceServiceOptions = {
@@ -22,22 +19,24 @@ export type SubagentWorkspaceServiceOptions = {
   /** Explicit policy for a dirty git base. */
   dirtyBasePolicy: 'ask' | 'bypass' | (() => Promise<'ask' | 'bypass'>);
   /** One-run permission flow for the `ask` policy. */
-  requestDirtyBasePermission?: (task: SubagentTaskSpec, projectPath: string) => Promise<'allow' | 'deny'>;
+  requestDirtyBasePermission?: (
+    task: SubagentTaskSpec,
+    projectPath: string,
+  ) => Promise<'allow' | 'deny'>;
   /** Whether parallel writes are enabled. */
   parallelWritePolicy: 'worktree-only' | 'disabled';
+  /** Product-owned root for isolated worktree checkouts. */
+  worktreeStorageRoot?: string;
 };
 
-export function createSubagentWorkspaceService(
-  options: SubagentWorkspaceServiceOptions,
-): {
+export function createSubagentWorkspaceService(options: SubagentWorkspaceServiceOptions): {
   acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease>;
   release(lease: SubagentWorkspaceLease): Promise<void>;
 } {
   const { projectPath, parallelWritePolicy } = options;
 
   async function acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease> {
-    const taskProjectPath =
-      (await options.resolveProjectPath?.(task)) ?? projectPath;
+    const taskProjectPath = (await options.resolveProjectPath?.(task)) ?? projectPath;
     const mode = task.isolationOverride ?? 'readonly';
 
     if (mode === 'readonly') {
@@ -82,6 +81,7 @@ export function createSubagentWorkspaceService(
       projectPath: taskProjectPath,
       name: `subagent-${task.id}-${Date.now().toString(36)}`,
       baseRef: baseCommit,
+      ...(options.worktreeStorageRoot ? { storageRoot: options.worktreeStorageRoot } : {}),
     });
 
     return {

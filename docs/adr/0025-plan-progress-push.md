@@ -46,7 +46,7 @@ HostRuntime
   → PiSdkAdapter / RPC-SDK-fallback options
   → createPlanCreateTool / createPlanStepTool({ onUpdated })
   → this.push({ type: 'plan/updated', sessionId, plan })
-  → Desktop setSessionPlan → PlanCard
+  → Desktop plansBySessionId[sessionId] → active-session PlanCard
 ```
 
 Scope of this ADR:
@@ -55,16 +55,20 @@ Scope of this ADR:
 |----------|----------------|
 | `onPlanUpdated` push after plan tools | SessionTodo tool + panel |
 | Keep existing PlanCard UI | Subagent plan step orchestration |
-| SDK + rpc-with-SDK-fallback tool path | Session switch `plan/get` backfill (optional follow-up) |
+| SDK + rpc-with-SDK-fallback tool path | Walkthrough content generation |
 
 ### 3. Weight rule
 
-Prefer one thin seam over a new subsystem. If a follow-up is needed, prefer
-`plan/get` on session open over inventing parallel todo state.
+Prefer one thin seam over a new subsystem. Restore the same SessionPlan with
+`plan/get` on session open rather than inventing parallel todo state.
 
 ## Consequences
 
 - Model `piwin_plan_set_step` updates become live on PlanCard without reload.
+- Session activation/reconnect hydrates `plan/get`; background pushes remain
+  cached under their own session and never replace the active PlanCard.
+- Draft Process carries `expectedRevision + approveDraft` so Host atomically
+  approves and starts execution without a client-side approval race.
 - Stock pure RPC (no custom tools) still cannot run plan tools (ADR 0008);
   progress there remains IPC `plan/*` only.
 - Subagent-driven execution is intentionally not part of this decision; when

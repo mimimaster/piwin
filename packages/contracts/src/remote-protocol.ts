@@ -50,6 +50,10 @@ export type RemoteCapabilitySummary = {
   cursorBatches?: boolean;
   boundedReplay?: boolean;
   hydration?: boolean;
+  /** Remote-safe logical Skill preview (sessionId + skillId only). */
+  skillPreview?: boolean;
+  /** Bounded persisted tool output snapshot recovery. */
+  toolOutputRead?: boolean;
 };
 
 export type HostHello = {

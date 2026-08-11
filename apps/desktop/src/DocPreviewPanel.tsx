@@ -15,6 +15,8 @@ import { FileTypeIcon } from './file-type-icon';
 import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownView';
 import { CodePreviewView } from './code-preview-view';
 import type { DesktopLocale } from './desktop-locale';
+import type { DocumentProvenance } from './active-document';
+import { provenanceLabel } from './active-document';
 
 /** Markdown / plaintext files render through the enhanced Markdown viewer.
  *  Everything else (HTML, TS, JSON, CSS, …) renders as code with line numbers. */
@@ -37,6 +39,15 @@ export type DocPreviewPanelProps = {
   title?: string | undefined;
   content?: string | undefined;
   filePath?: string | null | undefined;
+  /** loading | ready | unavailable — when omitted, treat as ready with content. */
+  status?: 'loading' | 'ready' | 'unavailable' | undefined;
+  displayRef?: string | undefined;
+  provenance?: DocumentProvenance | undefined;
+  warning?: string | undefined;
+  skillId?: string | undefined;
+  skillSource?: string | undefined;
+  unavailableReason?: string | undefined;
+  suggestion?: string | undefined;
   sessionDocuments?: SessionDocItem[] | undefined;
   onSelectDocument?: ((doc: { title: string; path?: string }) => void) | undefined;
   onClose?: (() => void) | undefined;
@@ -54,6 +65,14 @@ export function DocPreviewPanel({
   title = 'Implementation Plan',
   content = '',
   filePath = null,
+  status = 'ready',
+  displayRef,
+  provenance,
+  warning,
+  skillId,
+  skillSource,
+  unavailableReason,
+  suggestion,
   sessionDocuments,
   onSelectDocument,
   onClose,
@@ -77,8 +96,10 @@ export function DocPreviewPanel({
   const targetPath = filePath || (title && title.includes('.') ? title : `${displayTitle}.md`);
   const commentCount = comments.length;
 
+  const canCopyExport = status === 'ready' && Boolean(content);
+
   function handleCopy(): void {
-    if (!content) return;
+    if (!canCopyExport || !content) return;
     void (async () => {
       try {
         await navigator.clipboard.writeText(content);
@@ -100,7 +121,7 @@ export function DocPreviewPanel({
   }
 
   function handleExportArtifact(): void {
-    if (!content) return;
+    if (!canCopyExport || !content) return;
     try {
       const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -121,13 +142,38 @@ export function DocPreviewPanel({
       <header className="doc-preview-header">
         <div className="doc-preview-title-group">
           <FileTypeIcon filePathOrExt={targetPath} />
-          <h2 className="doc-preview-title">{displayTitle}</h2>
-          {commentCount > 0 ? (
-            <span className="doc-comment-badge">
-              · {commentCount}
-              <IconChat width={12} height={12} />
-            </span>
-          ) : null}
+          <div className="doc-preview-title-stack">
+            <h2 className="doc-preview-title">{displayTitle}</h2>
+            <div className="doc-preview-meta" data-testid="doc-preview-meta">
+              {skillId ? (
+                <span className="doc-preview-chip" data-testid="doc-preview-skill-id">
+                  Skill · {skillId}
+                  {skillSource ? ` · ${skillSource}` : ''}
+                </span>
+              ) : null}
+              {displayRef && displayRef !== displayTitle ? (
+                <span className="doc-preview-chip" title={displayRef}>
+                  {displayRef}
+                </span>
+              ) : null}
+              {provenance ? (
+                <span className="doc-preview-chip" data-testid="doc-preview-provenance">
+                  {provenanceLabel(provenance, locale === 'en' ? 'en' : 'zh-CN')}
+                </span>
+              ) : null}
+              {status === 'loading' ? (
+                <span className="doc-preview-chip" data-testid="doc-preview-loading">
+                  {locale === 'zh-CN' ? '加载中…' : 'Loading…'}
+                </span>
+              ) : null}
+              {commentCount > 0 ? (
+                <span className="doc-comment-badge">
+                  · {commentCount}
+                  <IconChat width={12} height={12} />
+                </span>
+              ) : null}
+            </div>
+          </div>
         </div>
         <div className="doc-preview-actions">
           {onClose ? (
@@ -218,20 +264,55 @@ export function DocPreviewPanel({
         ) : null}
 
         <div className="doc-preview-body">
-          {isMarkdownPath(targetPath) ? (
-            <EnhancedMarkdownView
-              text={defaultContent}
-              docTitle={displayTitle}
-              filePath={targetPath}
-              onOpenFile={onOpenFile}
-              comments={comments}
-              onAddComment={onAddComment}
-              onEditComment={onEditComment}
-              onDeleteComment={onDeleteComment}
-              onCommentLine={onCommentLine}
-            />
+          {status === 'loading' ? (
+            <div className="doc-preview-state" data-testid="doc-preview-state-loading">
+              {locale === 'zh-CN' ? '正在加载文档…' : 'Loading document…'}
+            </div>
+          ) : status === 'unavailable' ? (
+            <div className="doc-preview-state" data-testid="doc-preview-state-unavailable">
+              <p className="doc-preview-state-title">
+                {locale === 'zh-CN' ? '无法预览' : 'Unavailable'}
+              </p>
+              {unavailableReason ? (
+                <p>
+                  {locale === 'zh-CN' ? '原因' : 'Reason'}: <code>{unavailableReason}</code>
+                </p>
+              ) : null}
+              {displayRef ? (
+                <p>
+                  {locale === 'zh-CN' ? '引用' : 'Ref'}: <code>{displayRef}</code>
+                </p>
+              ) : null}
+              {suggestion ? <p>{suggestion}</p> : null}
+              {filePath ? (
+                <p>
+                  {locale === 'zh-CN' ? '路径' : 'Path'}: <code>{filePath}</code>
+                </p>
+              ) : null}
+            </div>
           ) : (
-            <CodePreviewView code={defaultContent} filePath={targetPath} />
+            <>
+              {warning ? (
+                <div className="doc-preview-warning" data-testid="doc-preview-warning">
+                  {warning}
+                </div>
+              ) : null}
+              {isMarkdownPath(targetPath) ? (
+                <EnhancedMarkdownView
+                  text={defaultContent}
+                  docTitle={displayTitle}
+                  filePath={targetPath}
+                  onOpenFile={onOpenFile}
+                  comments={comments}
+                  onAddComment={onAddComment}
+                  onEditComment={onEditComment}
+                  onDeleteComment={onDeleteComment}
+                  onCommentLine={onCommentLine}
+                />
+              ) : (
+                <CodePreviewView code={defaultContent} filePath={targetPath} />
+              )}
+            </>
           )}
         </div>
       </div>

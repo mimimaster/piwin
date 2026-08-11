@@ -766,6 +766,43 @@ export class MockHostBackend {
           },
         };
       }
+      case 'session/tool-output': {
+        const session = this.sessions.get(command.sessionId);
+        const message = session?.transcript.find((item) => item.id === command.messageId);
+        const tool = message?.tools?.find((item) => item.toolCallId === command.toolCallId);
+        if (!message || !tool) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/tool-output',
+            success: true,
+            data: { status: 'unavailable', reason: 'not-found' },
+          };
+        }
+        const output = tool.output || '';
+        if (!output.trim()) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/tool-output',
+            success: true,
+            data: { status: 'unavailable', reason: 'snapshot-unavailable' },
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'session/tool-output',
+          success: true,
+          data: {
+            status: 'ready',
+            output,
+            truncated: false,
+            redacted: false,
+            provenance: 'tool-snapshot',
+          },
+        };
+      }
       case 'session/prompt': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
@@ -1225,13 +1262,27 @@ export class MockHostBackend {
             error: `plan id mismatch: ${command.request.planId} vs ${plan.id}`,
           };
         }
-        if (plan.status !== 'approved' && plan.status !== 'executing') {
+        if (
+          command.request.expectedRevision !== undefined &&
+          plan.revision !== command.request.expectedRevision
+        ) {
           return {
             id,
             type: 'response',
             command: 'plan/execute',
             success: false,
-            error: `plan must be approved (current: ${plan.status})`,
+            error: `plan revision mismatch: ${command.request.expectedRevision} vs ${plan.revision}`,
+          };
+        }
+        const canAtomicallyApproveDraft =
+          plan.status === 'draft' && command.request.approveDraft === true;
+        if (plan.status !== 'approved' && plan.status !== 'executing' && !canAtomicallyApproveDraft) {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/execute',
+            success: false,
+            error: `plan must be approved or atomically approved (current: ${plan.status})`,
           };
         }
         const executionState = {
@@ -1567,6 +1618,25 @@ export class MockHostBackend {
             },
           },
         };
+      case 'pet/scan-local':
+        return {
+          id,
+          type: 'response',
+          command: 'pet/scan-local',
+          success: true,
+          data: {
+            sourcePath: command.sourcePath,
+            candidates: [
+              {
+                sourcePath: `${command.sourcePath}/mock-pet`,
+                petId: 'mock-local-pet',
+                displayName: 'Mock Local Pet',
+                valid: true,
+                issues: [],
+              },
+            ],
+          },
+        };
       case 'pet/install-local':
         return {
           id,
@@ -1574,6 +1644,21 @@ export class MockHostBackend {
           command: 'pet/install-local',
           success: true,
           data: { petId: 'installed-pet', path: command.sourcePath },
+        };
+      case 'pet/install-local-batch':
+        return {
+          id,
+          type: 'response',
+          command: 'pet/install-local-batch',
+          success: true,
+          data: {
+            installed: command.sourcePaths.map((sourcePath, index) => ({
+              petId: `installed-pet-${index + 1}`,
+              source: 'local' as const,
+              path: sourcePath,
+            })),
+            failed: [],
+          },
         };
       case 'pet/store-query':
         return {
@@ -1774,6 +1859,33 @@ export class MockHostBackend {
             ],
           },
         };
+      case 'skills/read': {
+        const skillIdRaw =
+          (typeof command.skillId === 'string' && command.skillId.trim()) ||
+          (typeof command.legacyPath === 'string'
+            ? command.legacyPath.replace(/\\/g, '/').match(/\/skills\/([^/]+)/i)?.[1]
+            : null) ||
+          'executing-plans';
+        const skillId = String(skillIdRaw).toLowerCase();
+        return {
+          id,
+          type: 'response',
+          command: 'skills/read',
+          success: true,
+          data: {
+            status: 'ready',
+            skillId,
+            name: skillId,
+            effectiveSource: 'user',
+            origin: 'unknown',
+            displayRef: `skill:${skillId}`,
+            content: `---\nname: ${skillId}\ndescription: Mock skill\n---\n\n# ${skillId}\n\nMock skill body for Doc Preview.\n`,
+            byteSize: 64,
+            truncated: false,
+            provenance: 'current-resource',
+          },
+        };
+      }
       case 'skills/install':
         return {
           id,

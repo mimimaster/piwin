@@ -14,6 +14,10 @@ export type PlanExecutionRequest = {
   sessionId: string;
   planId: string;
   mode: PlanExecutionMode;
+  /** Reject a stale card instead of executing a newer plan revision. */
+  expectedRevision?: number;
+  /** Atomically approve a draft plan as part of starting execution. */
+  approveDraft?: boolean;
 };
 
 export type PlanExecutionState = {
@@ -31,6 +35,8 @@ export type PlanExecutionState = {
   error?: string;
   startedAt?: string;
   endedAt?: string;
+  /** Durable bounded completion evidence consumed by Walkthrough generation. */
+  summary?: PlanExecutionSummary;
 };
 
 /** Bounded summary produced at the end of a plan execution. */

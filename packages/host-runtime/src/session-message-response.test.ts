@@ -20,8 +20,8 @@ describe('session mutation response projection', () => {
     );
     expect(createSessionMessageResponse('session-1', transcript, 'none')).toEqual({});
     const tail = createSessionMessageResponse('session-1', transcript, 'tail');
-    expect(tail.messages).toHaveLength(16);
-    expect(tail.messages?.[0]?.id).toBe('m-84');
+    expect(tail.messages).toHaveLength(50);
+    expect(tail.messages?.[0]?.id).toBe('m-50');
     expect(tail.transcriptPage?.totalCount).toBe(100);
     expect(tail.transcriptPage?.olderCursor).toBeDefined();
   });

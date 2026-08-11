@@ -3,6 +3,7 @@ import type { SessionPlan } from '@piwin/contracts';
 import {
   abortExecutionState,
   buildInlineDirective,
+  buildPlanSubagentTask,
   buildPlanSummary,
   buildSubagentTaskDirective,
   buildSubagentVerificationDirective,
@@ -60,11 +61,59 @@ describe('buildSubagentTaskDirective', () => {
   });
 });
 
+describe('buildPlanSubagentTask', () => {
+  it('defaults plan work to the isolated implementer profile', () => {
+    const task = buildPlanSubagentTask(plan(), '1');
+    expect(task).toMatchObject({
+      id: '1',
+      parentSessionId: 's1',
+      profileId: 'implementer',
+      applyPolicy: 'auto',
+    });
+  });
+
+  it('preserves an explicit step profile', () => {
+    const task = buildPlanSubagentTask(
+      plan({ steps: [{ id: '1', title: 'Review', status: 'pending', profileId: 'reviewer' }] }),
+      '1',
+    );
+    expect(task?.profileId).toBe('reviewer');
+  });
+});
+
 describe('buildSubagentVerificationDirective', () => {
-  it('instructs the parent to verify and post walkthrough', () => {
+  it('instructs the parent to verify while leaving Walkthrough generation to Host', () => {
     const directive = buildSubagentVerificationDirective(plan());
     expect(directive.promptText).toContain('verify');
-    expect(directive.promptText).toContain('walkthrough');
+    expect(directive.promptText).toContain('Host generates the separate Walkthrough Artifact');
+  });
+
+  it('requires parent execution of non-independent sequential steps', () => {
+    const mixedPlan = plan();
+    mixedPlan.independentSteps = ['1'];
+    const directive = buildSubagentVerificationDirective(mixedPlan);
+    expect(directive.promptText).toContain('Parent-owned sequential steps');
+    expect(directive.promptText).toContain('[2] Implement');
+    expect(directive.promptText).toContain('never mark an unexecuted step done');
+  });
+
+  it('includes bounded child summaries and verification evidence', () => {
+    const directive = buildSubagentVerificationDirective(plan(), [
+      {
+        runId: 'r1',
+        taskId: '1',
+        childSessionId: 'c1',
+        executionStatus: 'completed',
+        summaryStatus: 'pending',
+        integrationStatus: 'applied',
+        summaryPreview: 'Implemented the contract change.',
+        changedFiles: ['packages/contracts/src/example.ts'],
+        verification: 'unit tests passed',
+      },
+    ]);
+    expect(directive.promptText).toContain('Child execution evidence');
+    expect(directive.promptText).toContain('Implemented the contract change.');
+    expect(directive.promptText).toContain('unit tests passed');
   });
 });
 

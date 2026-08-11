@@ -31,6 +31,7 @@ import { WebElementChip } from './WebElementChip';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
+import type { DocumentOpenInput } from './tool-call-card';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
 import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
@@ -49,6 +50,20 @@ import { groupTranscriptTurns, projectTranscriptTurnWorkDetails } from './transc
 import { SystemMessageContent } from './system-message-content';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId, resolveAssistantRenderingPhase } from './streaming-caret';
+
+/** Completed history is compact; the active call chain remains inspectable. */
+export function shouldCollapseTurnToolHistory(input: {
+  workDetailsMessage: ChatMessageUi;
+  activeRunId: string | null;
+  answerText: string;
+}): boolean {
+  void input.answerText;
+  const runId = input.workDetailsMessage.runId;
+  const runActive =
+    input.workDetailsMessage.status === 'streaming' ||
+    (runId !== undefined && input.activeRunId !== null && runId === input.activeRunId);
+  return !runActive;
+}
 
 /**
  * In-place composer for editing a user message. Renders the same ComposerCard
@@ -226,7 +241,7 @@ export type ChatThreadProps = {
   /** Callback when clicking a search result file or file link. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
-  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Called when the user selects an execution mode for the session plan. */
   onPlanExecute?: ((mode: PlanExecutionMode) => void | Promise<void>) | undefined;
   /** Called when the user aborts a running plan. */
@@ -333,15 +348,35 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
       ),
     [props.messages, props.runRecordsById, props.activeRunId],
   );
-  const workDetailsByOwnerMessageId = useMemo(() => {
-    const detailsByOwner = new Map<string, ChatMessageUi>();
+  const turnPresentation = useMemo(() => {
+    const messagesByOwner = new Map<string, ChatMessageUi>();
+    const hiddenMessageIds = new Set<string>();
+    const lastOwnerByTurnId = new Map<string, string>();
+    const ownerByMemberId = new Map<string, string>();
     for (const turn of turnGroups) {
       for (const projection of projectTranscriptTurnWorkDetails(turn)) {
-        detailsByOwner.set(projection.ownerMessageId, projection.message);
+        messagesByOwner.set(projection.ownerMessageId, projection.message);
+        lastOwnerByTurnId.set(turn.id, projection.ownerMessageId);
+        for (const memberMessageId of projection.memberMessageIds) {
+          ownerByMemberId.set(memberMessageId, projection.ownerMessageId);
+          if (memberMessageId !== projection.ownerMessageId) {
+            hiddenMessageIds.add(memberMessageId);
+          }
+        }
       }
     }
-    return detailsByOwner;
+    return { messagesByOwner, hiddenMessageIds, lastOwnerByTurnId, ownerByMemberId };
   }, [turnGroups]);
+  const presentedLatestAssistantMessageId =
+    latestAssistantMessageId === null
+      ? null
+      : (turnPresentation.ownerByMemberId.get(latestAssistantMessageId) ??
+        latestAssistantMessageId);
+  const presentedStreamingCaretMessageId =
+    streamingCaretMessageId === null
+      ? null
+      : (turnPresentation.ownerByMemberId.get(streamingCaretMessageId) ??
+        streamingCaretMessageId);
 
   return (
     <div className="chat-thread">
@@ -356,20 +391,27 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
       <TranscriptTurnList
         turns={turnGroups}
         pinnedMessageId={props.editingMessageId}
+        streaming={props.streaming === true}
         renderTurn={(turn) => (
           <section key={turn.id} className="chat-turn-group">
             {turn.items.map(({ message, messageIndex }) => {
-              const workDetailsMessage = workDetailsByOwnerMessageId.get(message.id);
+              if (turnPresentation.hiddenMessageIds.has(message.id)) {
+                return null;
+              }
+              const workDetailsMessage = turnPresentation.messagesByOwner.get(message.id);
+              const presentedMessage = workDetailsMessage ?? message;
               return (
                 <ChatMessageRow
                   key={message.id}
-                  message={message}
+                  message={presentedMessage}
                   {...(workDetailsMessage ? { workDetailsMessage } : {})}
                   {...(props.sessionId ? { sessionId: props.sessionId } : {})}
                   messageIndex={messageIndex}
-                  showStreamingCaret={streamingCaretMessageId === message.id}
-                  isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
-                  isLatestAssistantResponse={latestAssistantMessageId === message.id}
+                  showStreamingCaret={presentedStreamingCaretMessageId === message.id}
+                  isLastAssistantInTurn={
+                    turnPresentation.lastOwnerByTurnId.get(turn.id) === message.id
+                  }
+                  isLatestAssistantResponse={presentedLatestAssistantMessageId === message.id}
                   isNew={enteringIds.has(message.id)}
                   knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
                   streaming={props.streaming}
@@ -378,9 +420,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   activeTheme={props.activeTheme}
                   artifactThemeKey={props.artifactThemeKey}
                   runRecordsById={props.runRecordsById ?? {}}
-                  {...(message.runId !== undefined &&
-                  props.runRecordsById?.[message.runId] !== undefined
-                    ? { runRecord: props.runRecordsById[message.runId] }
+                  {...(presentedMessage.runId !== undefined &&
+                  props.runRecordsById?.[presentedMessage.runId] !== undefined
+                    ? { runRecord: props.runRecordsById[presentedMessage.runId] }
                     : {})}
                   activeRunId={props.activeRunId ?? null}
                   activeSkill={props.activeSkill ?? null}
@@ -433,9 +475,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     : {})}
                   {...(props.onGenerateWalkthrough
                     ? {
-                        onGenerateWalkthrough: props.onGenerateWalkthrough,
-                        walkthroughEligible: isWalkthroughEligible({
-                          message,
+                      onGenerateWalkthrough: props.onGenerateWalkthrough,
+                      walkthroughEligible: isWalkthroughEligible({
+                          message: presentedMessage,
                           messages: props.messages,
                           runRecordsById: props.runRecordsById ?? {},
                           activeRunId: props.activeRunId ?? null,
@@ -534,7 +576,7 @@ type ChatMessageRowProps = {
   /** Callback when clicking a search result file or file link. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
-  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
+  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
   /** Global composer card props so the edit mode matches the bottom composer. */
@@ -769,16 +811,20 @@ const ChatMessageRow = memo(
     }
 
     const isEditingThis = props.editingMessageId === message.id;
+    // Pi emits one assistant lifecycle message per tool/thinking step. Tools and
+    // thinking are projected onto the run owner via TurnWorkDetails. Non-owner
+    // rows with no user-visible body must not mount — even when they still carry
+    // tool cards on the raw message — or chat-turn-group grows hundreds of px of
+    // empty flex gap (ink-wash "blank" between the tool summary and the reply).
     if (
       message.role === 'assistant' &&
       props.workDetailsMessage === undefined &&
       message.text.trim().length === 0 &&
-      message.tools.length === 0 &&
       message.attachments.length === 0 &&
-      (message.searchEvidence?.citations.length ?? 0) === 0
+      (message.searchEvidence?.citations.length ?? 0) === 0 &&
+      imageGenerationStatus === null &&
+      videoGenerationStatus === null
     ) {
-      // Thinking-only Pi lifecycle segments are represented by the owning
-      // run-level TurnWorkDetails. Do not leave an empty transcript row.
       return null;
     }
 
@@ -826,13 +872,21 @@ const ChatMessageRow = memo(
             {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
             {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
             {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+            {...(props.onOpenDocument
+              ? {
+                  onOpenDocument: (input) =>
+                    props.onOpenDocument?.({
+                      ...input,
+                      messageId: input.messageId ?? message.id,
+                    }),
+                }
+              : {})}
             {...(props.locale ? { locale: props.locale } : {})}
-            {...(props.workDetailsMessage.status !== 'streaming' &&
-            !(
-              props.workDetailsMessage.runId &&
-              props.activeRunId &&
-              props.workDetailsMessage.runId === props.activeRunId
-            )
+            {...(shouldCollapseTurnToolHistory({
+              workDetailsMessage: props.workDetailsMessage,
+              activeRunId: props.activeRunId,
+              answerText: message.text,
+            })
               ? { historyCollapsed: true }
               : {})}
           />

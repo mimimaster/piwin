@@ -150,6 +150,8 @@ describe('mergeAgentModeIntoPrompt', () => {
     const out = mergeAgentModeIntoPrompt('plan', 'build auth');
     expect(out).toContain('[piwin-mode:plan]');
     expect(out).toContain('Plan Mode');
+    expect(out).toContain('piwin_plan_create');
+    expect(out).toContain('durable artifact');
     expect(out).toContain('build auth');
   });
 });

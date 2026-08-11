@@ -146,6 +146,12 @@ export function buildPrimaryWorkPhrase(input: RunActivityInput): string | null {
 }
 
 export function buildBasePhrases(input: RunActivityInput): string[] {
+  if (input.kind === 'working') {
+    const workLine = buildPrimaryWorkPhrase(input);
+    if (workLine) {
+      return [workLine];
+    }
+  }
   const runtimeStatusKey = resolveRuntimeStatusCopyKey(input.kind);
   if (runtimeStatusKey) {
     return runtimeStatusPhrases(runtimeStatusKey, input.locale);
@@ -171,6 +177,14 @@ export function buildBasePhrases(input: RunActivityInput): string[] {
 }
 
 export function buildTakingTooLongPhrases(input: RunActivityInput): string[] {
+  const isZh = input.locale === 'zh-CN';
+  const workLine = buildPrimaryWorkPhrase(input);
+  if (input.kind === 'working' && workLine) {
+    return isZh
+      ? [`${workLine} — 比预期久一点…`, '仍在处理…']
+      : [`${workLine} — taking longer…`, 'Still working…'];
+  }
+
   const runtimeStatusKey = resolveRuntimeStatusCopyKey(input.kind);
   if (runtimeStatusKey) {
     // Keep rotating the same phase bank while waiting longer — do not invent
@@ -178,15 +192,7 @@ export function buildTakingTooLongPhrases(input: RunActivityInput): string[] {
     return runtimeStatusPhrases(runtimeStatusKey, input.locale);
   }
 
-  const isZh = input.locale === 'zh-CN';
-  const workLine = buildPrimaryWorkPhrase(input);
   const toolName = input.activeToolName;
-
-  if (input.kind === 'working' && workLine) {
-    return isZh
-      ? [`${workLine} — 比预期久一点…`, '仍在处理…']
-      : [`${workLine} — taking longer…`, 'Still working…'];
-  }
 
   if (input.kind === 'working' && toolName) {
     return isZh

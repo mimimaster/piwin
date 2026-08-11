@@ -1,0 +1,18 @@
+{
+  "pairs": [
+    {"pair":"horizontal-1","A":"screen-left","B":"ambiguous","reason":"A has a leftward head tilt/profile; B is nearly frontal with centered nose/pupils"},
+    {"pair":"horizontal-2","A":"screen-right","B":"screen-left","reason":"A’s snout and glasses angle right; B’s face turns left"},
+    {"pair":"horizontal-3","A":"screen-right","B":"screen-left","reason":"A is a right profile; B is a left profile"},
+    {"pair":"horizontal-4","A":"screen-right","B":"screen-left","reason":"A looks right in profile; B looks left in profile"},
+    {"pair":"horizontal-5","A":"screen-right","B":"screen-left","reason":"A’s face points right; B’s face points left"},
+    {"pair":"horizontal-6","A":"ambiguous","B":"screen-left","reason":"A is front/down with no clear side turn; B has a left-facing profile"},
+    {"pair":"horizontal-7","A":"ambiguous","B":"screen-left","reason":"A is downward and frontal; B’s snout and glasses point left"},
+    {"pair":"vertical-1","A":"up","B":"down","reason":"A’s muzzle and pupils are lifted; B’s head is tucked down"},
+    {"pair":"vertical-2","A":"up","B":"down","reason":"A is raised and open-faced; B is bowed downward"},
+    {"pair":"vertical-3","A":"down","B":"up","reason":"A looks down toward the tablet; B’s head is tipped up"},
+    {"pair":"vertical-4","A":"ambiguous","B":"ambiguous","reason":"Both are side profiles with no clear up/down tilt at this size"},
+    {"pair":"vertical-5","A":"up","B":"down","reason":"A has the chin lifted; B’s face sits lower and flatter"},
+    {"pair":"vertical-6","A":"down","B":"up","reason":"A is dipped toward the tablet; B’s muzzle is raised"},
+    {"pair":"vertical-7","A":"up","B":"down","reason":"A’s head is tilted back; B is slightly lowered"}
+  ]
+}

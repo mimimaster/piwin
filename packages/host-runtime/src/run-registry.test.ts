@@ -1060,6 +1060,27 @@ describe('RunRegistry.attachRuntimeGeneration()', () => {
 });
 
 describe('RunRegistry checkpoint pause', () => {
+  it('creates a foreground turn beneath an explicit plan Run', () => {
+    const reg = makeRegistry();
+    const planRun = reg.create({
+      kind: 'plan-execution',
+      sessionId: 'sess-plan',
+      planId: 'plan-1',
+    });
+    reg.start(planRun.runId);
+
+    const foreground = reg.createForegroundRun(
+      'sess-plan',
+      'generation-1',
+      undefined,
+      planRun.runId,
+    );
+
+    expect(foreground.parentRunId).toBe(planRun.runId);
+    expect(foreground.rootRunId).toBe(planRun.runId);
+    expect(reg.hasActiveDescendants(planRun.runId)).toBe(true);
+  });
+
   it('closes admission, aborts the signal, and keeps pause distinct from cancel', () => {
     const reg = makeRegistry();
     const run = reg.createForegroundRun('sess-pause');

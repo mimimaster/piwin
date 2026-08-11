@@ -1,3 +1,8 @@
+import {
+  TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX,
+  TRANSCRIPT_TURN_MIN_HEIGHT_PX,
+} from './transcript-turn-height';
+
 export type TranscriptScrollPosition = {
   scrollTop: number;
   followTail: boolean;
@@ -60,12 +65,18 @@ export function rememberTranscriptTurnHeight(
   turnId: string,
   height: number,
 ): void {
-  if (!Number.isFinite(height) || height <= 0) {
+  // Clamp so inflated Artifact shells cannot permanently reserve multi-screen
+  // blank between short replies.
+  if (!Number.isFinite(height) || height < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2) {
+    return;
+  }
+  const clamped = Math.min(TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX, Math.ceil(height));
+  if (clamped < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2) {
     return;
   }
   const heightsByTurnId = ensureSessionMemory(sessionId).turnHeightsById;
   heightsByTurnId.delete(turnId);
-  heightsByTurnId.set(turnId, height);
+  heightsByTurnId.set(turnId, clamped);
   const oldestTurnId = heightsByTurnId.keys().next().value;
   if (heightsByTurnId.size > MAX_REMEMBERED_TURNS_PER_SESSION && oldestTurnId !== undefined) {
     heightsByTurnId.delete(oldestTurnId);
@@ -79,6 +90,15 @@ export function readTranscriptTurnHeight(sessionId: string, turnId: string): num
   }
   const height = heightsByTurnId.get(turnId);
   if (height === undefined) {
+    return null;
+  }
+  // Drop absurd legacy entries so the virtualizer remeasures from content.
+  if (
+    !Number.isFinite(height) ||
+    height < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2 ||
+    height > TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX
+  ) {
+    heightsByTurnId.delete(turnId);
     return null;
   }
   heightsByTurnId.delete(turnId);

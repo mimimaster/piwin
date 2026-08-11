@@ -95,6 +95,8 @@ const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
 const DONT_ASK_REVERT_CONFIRM_KEY = 'piwin.desktop.dontAskRevertConfirm';
 const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
+/** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
+const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
 
 function readString(key: string): string | null {
   try {
@@ -276,4 +278,26 @@ export function loadToolCallDensity(): ToolCallDensity {
 
 export function saveToolCallDensity(density: ToolCallDensity): void {
   writeString(TOOL_DENSITY_KEY, density);
+}
+
+/**
+ * Last theme id the shell successfully projected. Built-in library themes
+ * (Noir / Paper / 橙白 / 月夜泼墨) can be re-applied on the next cold start
+ * before Host is connected, so the first paint matches the user's theme.
+ */
+export function loadLastThemeId(): string | null {
+  const raw = readString(LAST_THEME_ID_KEY);
+  if (raw === null) {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function saveLastThemeId(themeId: string): void {
+  const trimmed = themeId.trim();
+  if (trimmed.length === 0) {
+    return;
+  }
+  writeString(LAST_THEME_ID_KEY, trimmed);
 }

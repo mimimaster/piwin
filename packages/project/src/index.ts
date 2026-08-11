@@ -14,5 +14,15 @@ export {
   getFileWriteAllowlist,
 } from './project-store.js';
 export { listRememberedPermissions, revokeRememberedPermission } from './project-store.js';
-export { escapesRoot, resolveInsideRoot } from './path-traversal.js';
+export {
+  escapesRoot,
+  isRegisteredProjectRoot,
+  normalizeProjectRootPath,
+  resolveInsideRoot,
+  resolveInsideRootWithRealpath,
+} from './path-traversal.js';
+export type {
+  ProjectPathAuthorityReason,
+  ResolveProjectPathResult,
+} from './path-traversal.js';
 export { commandInBashAllowlist, pathInFileWriteAllowlist } from './allowlist-match.js';

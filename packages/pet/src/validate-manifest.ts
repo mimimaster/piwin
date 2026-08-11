@@ -111,7 +111,8 @@ function stateRowsFromCodexStates(
 
   if (stateRows.running === undefined && deferredRunning.length > 0) {
     // Prefer running-right when both exist (first deferred is running-right if ordered).
-    stateRows.running = deferredRunning[0];
+    const firstDeferredRunning = deferredRunning[0];
+    if (firstDeferredRunning !== undefined) stateRows.running = firstDeferredRunning;
   }
 
   return Object.keys(stateRows).length > 0 ? stateRows : undefined;

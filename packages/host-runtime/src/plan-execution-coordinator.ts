@@ -11,6 +11,8 @@ import type {
   PlanExecutionState,
   PlanExecutionSummary,
   SessionPlan,
+  SubagentTaskSpec,
+  SubagentTaskResult,
 } from '@piwin/contracts';
 import { MAX_PLAN_EXECUTION_ERROR_CHARS, MAX_PLAN_WALKTHROUGH_UNRESOLVED } from '@piwin/contracts';
 
@@ -22,8 +24,8 @@ export type InlineDirective = {
  * Build the prompt sent to the parent session for inline execution.
  * The model is instructed to execute the approved plan step by step,
  * update step status via piwin_plan_set_step, run verification, and
- * finish with a walkthrough summary. The host does not execute steps
- * itself — it only frames the work.
+ * finish with a concise completion. The Host generates the separate
+ * Walkthrough Artifact after the plan reaches done.
  */
 export function buildInlineDirective(plan: SessionPlan): InlineDirective {
   const stepList = plan.steps
@@ -37,7 +39,7 @@ export function buildInlineDirective(plan: SessionPlan): InlineDirective {
       'Success: complete each step against its acceptance criteria with verification evidence.',
       'Use piwin_plan_set_step (active → done/skipped); mark done only with a short verification note.',
       'Stop at blockers or failed checks; do not invent scope beyond this plan.',
-      'When finished, post a bounded walkthrough: what changed, verification, unresolved items.',
+      'When finished, keep the chat completion concise; the Host generates the separate Walkthrough Artifact.',
       '',
       'Steps:',
       stepList,
@@ -74,20 +76,73 @@ export function buildSubagentTaskDirective(plan: SessionPlan, stepId: string): S
   };
 }
 
+/** Build the executable batch task for one independent plan step. */
+export function buildPlanSubagentTask(
+  plan: SessionPlan,
+  stepId: string,
+): SubagentTaskSpec | null {
+  const step = plan.steps.find((entry) => entry.id === stepId);
+  const directive = buildSubagentTaskDirective(plan, stepId);
+  if (!step || !directive) return null;
+  return {
+    id: stepId,
+    parentSessionId: plan.sessionId,
+    task: directive.promptText,
+    profileId: step.profileId ?? 'implementer',
+    applyPolicy: 'auto',
+    ...(step.dependsOn ? { dependsOn: step.dependsOn } : {}),
+    ...(step.parallelGroup ? { parallelGroup: step.parallelGroup } : {}),
+  };
+}
+
 /**
  * Build the parent verification prompt sent after all subagent steps have
  * been merged. The parent runs final verification and posts the walkthrough.
  */
-export function buildSubagentVerificationDirective(plan: SessionPlan): InlineDirective {
+export function buildSubagentVerificationDirective(
+  plan: SessionPlan,
+  results: readonly SubagentTaskResult[] = [],
+): InlineDirective {
+  const independentStepIds = new Set(plan.independentSteps ?? []);
+  const parentSteps = plan.steps.filter((step) => !independentStepIds.has(step.id));
+  const parentStepBlock = parentSteps.length
+    ? [
+        '',
+        'Parent-owned sequential steps (execute these now before final verification):',
+        ...parentSteps.map(
+          (step) =>
+            `- [${step.id}] ${step.title}${step.detail ? ` — ${step.detail}` : ''}`,
+        ),
+      ]
+    : [];
+  const childEvidence = results
+    .map((result) => {
+      const details = [
+        `- [${result.taskId}] execution=${result.executionStatus}, summary=${result.summaryStatus}, integration=${result.integrationStatus}`,
+        result.childSessionId ? `  child: ${result.childSessionId}` : '',
+        result.summaryPreview ? `  summary: ${result.summaryPreview}` : '',
+        result.changedFiles?.length ? `  changed: ${result.changedFiles.join(', ')}` : '',
+        result.verification ? `  verification: ${result.verification}` : '',
+        result.error ? `  error: ${result.error}` : '',
+      ].filter((line) => line.length > 0);
+      return details.join('\n');
+    })
+    .join('\n')
+    .slice(0, 12_000);
+  const evidenceBlock = childEvidence ? ['', 'Child execution evidence:', childEvidence] : [];
   return {
     promptText: [
       `[piwin-plan-execute:verify v2] Plan: ${plan.title}`,
       `Goal: ${plan.goal}`,
       '',
       'Success: independent steps are merged; whole-plan acceptance criteria pass with evidence.',
-      'Run final verification, update remaining steps via piwin_plan_set_step, then post a bounded walkthrough:',
-      'what changed, verification results, merged children, unresolved items.',
+      'First validate the merged child results and update their plan steps from evidence.',
+      'Then implement every parent-owned pending/active step in the parent workspace; never mark an unexecuted step done.',
+      'Finally run whole-plan verification and update all remaining steps via piwin_plan_set_step.',
       'Stop if verification fails — report blockers; do not claim green without evidence.',
+      'Keep the chat completion concise; the Host generates the separate Walkthrough Artifact.',
+      ...parentStepBlock,
+      ...evidenceBlock,
     ].join('\n'),
   };
 }
@@ -160,6 +215,8 @@ export function buildPlanSummary(input: WalkthroughInput): PlanExecutionSummary 
     mergedChildSessionIds: input.mergedChildSessionIds,
     ...(input.verificationResult ? { verificationResult: input.verificationResult } : {}),
     ...(unresolved.length > 0 ? { unresolvedItems: unresolved } : {}),
+    ...(input.plan.execution?.startedAt ? { startedAt: input.plan.execution.startedAt } : {}),
+    ...(input.plan.execution?.endedAt ? { endedAt: input.plan.execution.endedAt } : {}),
   };
 }
 

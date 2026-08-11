@@ -24,43 +24,9 @@
 /* Keep the content fade above the composer dock, but outside the scroll
    container. A small static overlay preserves the fade without applying a
    large CSS mask to the dynamic transcript scrollport. */
-.transcript-viewport::before {
-  content: '';
-  position: absolute;
-  right: 8px;
-  bottom: 20px;
-  left: 0;
-  height: 24px;
-  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 72%, transparent);
-  /* No backdrop-filter: blur is a large WebContent/GPU retention cost. */
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-  pointer-events: none;
-  z-index: 5;
-}
-
-/* Short blur transition immediately above the composer dock. */
+.transcript-viewport::before,
 .transcript-viewport::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 20px;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 28%, transparent) 100%
-  );
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-  pointer-events: none;
-  z-index: 5;
-  transition: opacity 0.2s ease;
+  display: none;
 }
 
 .chat-column-empty .transcript-viewport::before,
@@ -319,10 +285,9 @@
   overflow-anchor: none;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
-  /* Keep the final response above the dock's fade and input card. The dock
-     is a sibling layout region, so this is visual breathing room, not an
-     overlap workaround. */
-  padding: 0 var(--chat-inline-pad, 24px) 48px;
+  /* A modest titleband offset keeps the first turn readable without pushing a
+     short transcript into the lower half of the window. */
+  padding: var(--transcript-top-pad, 24px) var(--chat-inline-pad, 24px) 48px;
   background: transparent;
 }
 
@@ -330,22 +295,6 @@
   width: 0;
   height: 0;
   background: transparent;
-}
-
-.transcript-history-page-control {
-  display: flex;
-  justify-content: center;
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 10px auto 14px;
-  min-height: 28px;
-  text-align: center;
-}
-
-.transcript-history-page-control .muted {
-  max-width: 560px;
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .chat-thread {
@@ -356,11 +305,23 @@
   width: var(--chat-max);
   max-width: 100%;
   /* The message column and Composer card use the same --chat-max measure. */
-  margin: 0 auto;
-  /* Historical messages should sit directly under the titlebar. */
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: 0;
   padding: 0;
   box-sizing: border-box;
   gap: 20px;
+  min-height: 0;
+}
+
+/* A submitted prompt can only reach the viewport's reading position when the
+   document has enough tail space. This reserve is temporary: user scrolling
+   or “Follow latest” removes it immediately. */
+.transcript-turn-anchor-spacer {
+  width: 100%;
+  height: 240px;
+  flex: 0 0 auto;
+  pointer-events: none;
 }
 
 .jump-to-latest-btn {
@@ -407,7 +368,7 @@
 
 @media (max-width: 820px) {
   .chat-stream {
-    padding: 0 max(12px, var(--chat-inline-pad, 24px)) 40px;
+    padding: var(--transcript-top-pad, 20px) max(12px, var(--chat-inline-pad, 24px)) 40px;
   }
 }
 
@@ -726,7 +687,7 @@
 .files-changed-bar {
   margin: 10px 0 4px;
   border: 1px solid var(--line-soft, var(--line));
-  border-radius: 10px;
+  border-radius: 8px;
   background: color-mix(
     in srgb,
     var(--card, var(--panel)) 94%,
@@ -739,14 +700,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px 6px 10px;
+  padding: 6px 10px;
   min-height: 36px;
 }
 
 .files-changed-bar-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex: 1;
   min-width: 0;
   border: 0;
@@ -758,17 +719,18 @@
   cursor: pointer;
   text-align: left;
   padding: 2px 0;
+  border-radius: 4px;
 }
 
 .files-changed-bar-toggle:hover {
   color: var(--text);
 }
 
-.files-changed-bar-icon {
+.files-changed-bar-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
 }
 
 .files-changed-bar-count {
@@ -780,45 +742,49 @@
 .files-changed-bar-file-inline {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
   max-width: 55%;
   padding: 0 4px;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11.5px;
   font-weight: 500;
-  color: var(--accent, #3b82f6);
-  background: transparent;
-  border: none;
-}
-
-.files-changed-bar-file-inline-icon {
-  flex-shrink: 0;
-  width: 13px;
-  height: 13px;
-  color: var(--accent, #3b82f6);
 }
 
 .files-changed-bar-file-name {
+  flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--accent, #3b82f6);
+  color: var(--text);
+  font-weight: 550;
+}
+
+.files-changed-bar-file-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint, var(--muted));
+  font-size: 11px;
 }
 
 .files-changed-bar-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex-shrink: 0;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .files-changed-bar-stat .add {
-  color: var(--ok, #179b62);
+  color: var(--ok, #16a34a);
 }
 
 .files-changed-bar-stat .del {
-  color: var(--danger, #d64541);
+  color: var(--danger, #dc2626);
 }
 
 .files-changed-bar-chevron {
@@ -834,40 +800,49 @@
 }
 
 .files-changed-bar-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex-shrink: 0;
   height: auto;
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--accent, #3b82f6);
-  font-size: 12px;
-  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft, var(--line));
+  background: color-mix(in srgb, var(--panel) 80%, var(--surface-hover, transparent));
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 550;
   cursor: pointer;
-  transition:
-    color 120ms ease,
-    filter 120ms ease,
-    text-shadow 120ms ease;
+  transition: all 120ms ease;
 }
 
 .files-changed-bar-review:hover {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent, #3b82f6) 40%, transparent);
   color: var(--accent, #3b82f6);
-  background: transparent;
-  border: none;
-  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.45));
-  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.files-changed-bar-review-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+  transition: color 120ms ease;
+}
+
+.files-changed-bar-review:hover .files-changed-bar-review-icon {
+  color: var(--accent, #3b82f6);
 }
 
 .files-changed-bar-list {
   list-style: none;
   margin: 0;
-  padding: 0 8px 8px;
+  padding: 4px 6px 6px;
   border-top: 1px solid var(--line-soft, var(--line));
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 200px;
-  overflow: auto;
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .files-changed-bar-row {
@@ -875,20 +850,16 @@
   align-items: center;
   gap: 8px;
   min-height: 28px;
-  padding: 4px 6px;
+  padding: 4px 8px;
   border-radius: 6px;
   font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 100ms ease;
 }
 
 .files-changed-bar-row:hover {
-  background: var(--surface-hover, color-mix(in srgb, var(--text) 4%, transparent));
-}
-
-.files-changed-bar-row-icon {
-  flex-shrink: 0;
-  width: 13px;
-  height: 13px;
-  color: var(--muted);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .files-changed-bar-row-name {
@@ -898,14 +869,116 @@
   color: var(--text);
 }
 
-.files-changed-bar-row-path {
+.files-changed-bar-row-dir {
   min-width: 0;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px;
   color: var(--faint, var(--muted));
+  opacity: 0.85;
+}
+
+.files-changed-bar-row-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.files-changed-bar-row-stat .add {
+  color: var(--ok, #16a34a);
+}
+
+.files-changed-bar-row-stat .del {
+  color: var(--danger, #dc2626);
+}
+
+.files-changed-bar-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  user-select: none;
+  transition: color 100ms ease, background 100ms ease;
+}
+
+.files-changed-bar-more:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.files-changed-bar-more-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+/* File extension badges */
+.file-ext-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 16px;
+  border-radius: 3px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1;
+}
+
+.file-ext-badge.ext-ts {
+  color: #3178c6;
+  background: color-mix(in srgb, #3178c6 16%, transparent);
+}
+
+.file-ext-badge.ext-react {
+  color: #00d8ff;
+  background: color-mix(in srgb, #00d8ff 16%, transparent);
+}
+
+.file-ext-badge.ext-js {
+  color: #eab308;
+  background: color-mix(in srgb, #eab308 16%, transparent);
+}
+
+.file-ext-badge.ext-css {
+  color: #ec4899;
+  background: color-mix(in srgb, #ec4899 16%, transparent);
+}
+
+.file-ext-badge.ext-json {
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+}
+
+.file-ext-badge.ext-md {
+  color: #64748b;
+  background: color-mix(in srgb, #64748b 16%, transparent);
+}
+
+.file-ext-badge.ext-py {
+  color: #3b82f6;
+  background: color-mix(in srgb, #3b82f6 16%, transparent);
+}
+
+.file-ext-badge.ext-rs {
+  color: #f97316;
+  background: color-mix(in srgb, #f97316 16%, transparent);
 }
 
 /* ─── Walkthrough action hover/focus reveal (spec §15.6 case 5) ─────── */
@@ -4335,30 +4408,31 @@ html[data-theme-visual-style='ink-wash'] .bubble.role-user {
   box-shadow: none !important;
 }
 
-/* ── Ink Wash User Message Scroll Banner (古风金墨横幅；原图漆彩纸纹背景) ───────── */
+/* ── Ink Wash User Message Scroll Banner (古风金墨横幅；高透玻璃与透光纸纹) ───────── */
 html[data-theme-visual-style='ink-wash'] .bubble.role-user {
   position: relative !important;
   width: 100% !important;
   max-width: 100% !important;
   overflow: visible !important;
-  background-color: rgba(22, 23, 26, 0.92) !important;
+  background-color: rgba(18, 20, 25, 0.45) !important;
   background-image:
-    linear-gradient(180deg, rgba(35, 36, 42, 0.75) 0%, rgba(18, 19, 22, 0.85) 100%),
+    linear-gradient(180deg, rgba(30, 32, 40, 0.48) 0%, rgba(14, 16, 22, 0.55) 100%),
     url('/ui/ink-wash/card-paper-bg.jpg') !important;
   background-size: cover, cover !important;
   background-position: center, center !important;
+  background-blend-mode: soft-light, normal !important;
   backdrop-filter: blur(24px) saturate(135%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
   border-top: 1.5px solid rgba(214, 185, 140, 0.5) !important;
   border-bottom: 1.5px solid rgba(214, 185, 140, 0.5) !important;
-  border-left: 1px solid rgba(214, 205, 190, 0.18) !important;
-  border-right: 1px solid rgba(214, 205, 190, 0.18) !important;
+  border-left: 1px solid rgba(214, 205, 190, 0.22) !important;
+  border-right: 1px solid rgba(214, 205, 190, 0.22) !important;
   border-radius: 14px 16px 6px 16px !important;
   padding: 14px 22px 14px 18px !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 14px 40px rgba(0, 0, 0, 0.65) !important;
-  color: #f8f6f0 !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 36px rgba(0, 0, 0, 0.45) !important;
+  color: #ffffff !important;
 }
 
 /* Drop the cinnabar 印 chip; the inkstone ornament carries the motif alone. */
@@ -4477,7 +4551,7 @@ html[data-theme-visual-style='ink-wash'] .execution-complete-pill {
 
 html[data-theme-visual-style='ink-wash'] .session-error-notice {
   background: rgba(194, 77, 67, 0.12) !important;
-  border: 1px solid rgba(194, 77, 67, 0.35) !important;
+  border: none !important;
   color: #e8867d !important;
   border-radius: 6px !important;
 }
@@ -4486,7 +4560,7 @@ html[data-theme-visual-style='ink-wash'] .session-error-notice {
 html[data-theme-visual-style='ink-wash'] .thinking-block-container,
 html[data-theme-visual-style='ink-wash'] .reasoning-header {
   background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(214, 205, 190, 0.08) !important;
+  border: none !important;
   border-radius: 8px !important;
   color: #d8d3cb !important;
 }
@@ -4501,7 +4575,7 @@ html[data-theme-visual-style='ink-wash'] .reasoning-content {
 /* 代码块 Header & Diff 行 */
 html[data-theme-visual-style='ink-wash'] .code-block-header {
   background: #1a1b1e !important;
-  border-bottom: 1px solid rgba(214, 205, 190, 0.08) !important;
+  border-bottom: none !important;
   color: #d8d3cb !important;
 }
 
@@ -4517,7 +4591,7 @@ html[data-theme-visual-style='ink-wash'] .diff-line-delete {
 
 html[data-theme-visual-style='ink-wash'] .artifact-preview-card {
   background: rgba(26, 27, 30, 0.9) !important;
-  border: 1px solid rgba(194, 77, 67, 0.25) !important;
+  border: none !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
 }
 
@@ -4549,7 +4623,7 @@ html[data-theme-visual-style='ink-wash'] .video-generation-progress.status-done 
 
 html[data-theme-visual-style='ink-wash'] .image-generation-progress.status-done .image-generation-progress-status-icon::after,
 html[data-theme-visual-style='ink-wash'] .video-generation-progress.status-done .video-generation-progress-status-icon::after {
-  content: '成' !important;
+  content: '訖' !important;
   font-family: STKaiti, KaiTi, serif !important;
   font-size: 15px !important;
   font-weight: 700 !important;
@@ -4581,4 +4655,161 @@ html[data-theme-visual-style='ink-wash'] .execution-complete-pill .status-icon {
   color: #f8f6f0 !important;
   border-radius: 4px !important;
   box-shadow: 0 2px 8px rgba(194, 77, 67, 0.5) !important;
+}
+
+/* ── Ink Wash Chat Transcript Font Color Overrides (对话区域字体颜色高对比水墨调优) ── */
+html[data-theme-visual-style='ink-wash'] .role-assistant,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown p,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown li,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown span {
+  color: #f3efe6 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown strong,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown b {
+  color: #ffffff !important;
+  font-weight: 650 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h1,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h2,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h3,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h4 {
+  color: #d8b888 !important;
+  border-bottom-color: rgba(216, 184, 136, 0.25) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a {
+  color: #70a6b4 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown code {
+  color: #e6dfd5 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .bubble.role-user .message-text,
+html[data-theme-visual-style='ink-wash'] .user-message-wrapper .message-text {
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .turn-thinking pre,
+html[data-theme-visual-style='ink-wash'] .turn-work-details-label,
+html[data-theme-visual-style='ink-wash'] .reasoning-content {
+  color: #e4ded5 !important;
+  opacity: 0.95 !important;
+}
+
+/* ── Ink Wash Tool Call Chain & Thinking Process Readability (水墨竹简连绵长卷方案) ── */
+
+/* 1. 将整条工具链容器 (.activity-timeline) 包装为一个整体水墨竹简大卡片 */
+html[data-theme-visual-style='ink-wash'] .activity-timeline {
+  background: rgba(18, 19, 23, 0.58) !important;
+  backdrop-filter: blur(20px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(130%) !important;
+  border: 1px solid rgba(214, 185, 140, 0.16) !important;
+  border-radius: 10px !important;
+  padding: 4px 6px !important;
+  margin: 8px 0 !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 2. 内部所有的工具行 (ToolCallCard / SearchToolItem / ExploreGroup) 独立卡片背景全清，变为一体行 */
+html[data-theme-visual-style='ink-wash'] .tool-call-card,
+html[data-theme-visual-style='ink-wash'] .search-tool-item,
+html[data-theme-visual-style='ink-wash'] .activity-explore-group {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  border-radius: 6px !important;
+}
+
+/* 3. 工具行之间增加优雅的水墨虚线分割线 (Subtle ink-dash divider between rows) */
+html[data-theme-visual-style='ink-wash'] .activity-timeline > * + * {
+  border-top: 1px dashed rgba(214, 205, 190, 0.12) !important;
+}
+
+/* 4. 统一每行高度与 Hover 效果 (Uniform row padding & hover) */
+html[data-theme-visual-style='ink-wash'] .tool-call-summary,
+html[data-theme-visual-style='ink-wash'] .search-tool-item-summary,
+html[data-theme-visual-style='ink-wash'] .activity-explore-summary {
+  padding: 7px 10px !important;
+  border-radius: 6px !important;
+  transition: background 0.15s ease !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .tool-call-summary:hover,
+html[data-theme-visual-style='ink-wash'] .search-tool-item-summary:hover,
+html[data-theme-visual-style='ink-wash'] .activity-explore-summary:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 5. 工具动作动词 (“执行”/“已搜索”/“已读取”/“已修改”) — 古风洒金高亮 */
+html[data-theme-visual-style='ink-wash'] .tool-call-action-verb,
+html[data-theme-visual-style='ink-wash'] .search-tool-action,
+html[data-theme-visual-style='ink-wash'] .turn-work-details-summary {
+  color: #d8b888 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+
+/* 6. 命令路径、参数、搜索关键词与代码预览文案 (Command, path, query, & output text) */
+html[data-theme-visual-style='ink-wash'] .tool-call-preview,
+html[data-theme-visual-style='ink-wash'] .search-query-chip,
+html[data-theme-visual-style='ink-wash'] .search-tool-item-summary,
+html[data-theme-visual-style='ink-wash'] .activity-history-tools-summary,
+html[data-theme-visual-style='ink-wash'] .tool-call-card pre,
+html[data-theme-visual-style='ink-wash'] .tool-call-card code {
+  color: #e8e2d8 !important;
+  opacity: 0.96 !important;
+}
+
+/* 7. 文件胶囊 (File Pill) 与行号标签 */
+html[data-theme-visual-style='ink-wash'] .tool-call-file-pill {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f3efe6 !important;
+  border: none !important;
+}
+
+/* 8. 历史工具折叠状态：纯文字 Icon + 文字下拉按钮 (Pure Text Inline Dropdown Button) */
+html[data-theme-visual-style='ink-wash'] .activity-timeline:has(.activity-history-tools.is-collapsed) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  width: fit-content !important;
+  padding: 0 !important;
+  margin: 4px 0 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .activity-history-tools.is-collapsed .activity-history-tools-summary {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 3px 6px !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #d8b888 !important;
+  font-weight: 500 !important;
+  transition: color 0.15s ease, opacity 0.15s ease !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .activity-history-tools.is-collapsed .activity-history-tools-summary:hover {
+  background: transparent !important;
+  color: #f8f6f0 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
 }

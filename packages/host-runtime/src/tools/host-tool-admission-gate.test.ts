@@ -36,6 +36,44 @@ const context: HostToolExecutionContext = {
 };
 
 describe('createHostToolPermissionGate', () => {
+  it('allows Host-owned plan artifact writes in ask-all mode without prompting', async () => {
+    let promptCount = 0;
+    const gate = createHostToolPermissionGate({
+      rules: createEmptyRuleSet(),
+      getPermissionMode: () => 'ask-all',
+      requestPermission: async () => {
+        promptCount += 1;
+        return 'deny';
+      },
+      projectRoot: '/tmp',
+      mcpEnabledServerIds: [],
+    });
+    const registration: HostToolRegistration = {
+      descriptor: {
+        name: 'piwin_plan_create',
+        description: 'persist plan',
+        parameters: { type: 'object', properties: {} },
+      },
+      family: 'planning',
+      permissionSpec: {
+        action: 'planning:create',
+        risk: 'unknown',
+        rememberable: false,
+      },
+      execute: async () => ({ ok: true, output: 'persisted' }),
+    };
+
+    const decision = await gate({
+      registration,
+      args: {},
+      context: { ...context, toolName: registration.descriptor.name },
+      signal: new AbortController().signal,
+    });
+
+    expect(decision.allowed).toBe(true);
+    expect(promptCount).toBe(0);
+  });
+
   it('treats MCP as local trusted execution without permission prompts', async () => {
     const gate = createHostToolPermissionGate({
       rules: createEmptyRuleSet(),

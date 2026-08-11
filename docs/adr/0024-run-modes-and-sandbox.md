@@ -49,6 +49,12 @@ floor (sandbox `read-only`, mutators always ask) even under `auto`. User can
 still pick `yolo` while in Plan/Ask — UI shows a one-line warning, host does
 not hard-block (locked).
 
+The read-only floor applies to the project workspace, not Host-owned product
+state. Planning tools may write the validated SessionPlan under
+`~/.piwin/sessions/<sessionId>/plan.json` without an interactive permission
+prompt. Plan mode is a persisted-plan intent: its Run fails with
+`plan-not-persisted` if no new durable Plan revision is produced.
+
 ### 3. Circuit breakers always ask
 
 Even under `yolo`, these still prompt (or deny non-interactive):

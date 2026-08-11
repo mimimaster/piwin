@@ -111,13 +111,13 @@ describe('model thinking policy', () => {
     ]);
   });
 
-  it('filters ultra unless ultraEnabled is true', () => {
+  it('always filters ultra from supported levels', () => {
     const model = {
       reasoning: true as const,
       thinkingLevels: ['off' as const, 'medium' as const, 'ultra' as const],
     };
     expect(getSupportedThinkingLevels(model, false)).toEqual(['off', 'medium']);
-    expect(getSupportedThinkingLevels(model, true)).toEqual(['off', 'medium', 'ultra']);
+    expect(getSupportedThinkingLevels(model, true)).toEqual(['off', 'medium']);
   });
 
   it('resolves the requested level when supported', () => {

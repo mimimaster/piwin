@@ -42,6 +42,9 @@ import {
   resolveOrchestrationScheme,
   mergeOrchestrationSchemeIntoPrompt,
   OrchestrationSchemeError,
+  isModelEnabled,
+  isProviderEnabled,
+  modelSupportsCapability,
   type ResolvedOrchestrationScheme,
 } from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
@@ -65,9 +68,11 @@ import {
   suggestSessionExportBasename,
   suggestCompactionExportBasename,
   upsertSessionRecord,
+  readToolOutputSnapshot,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
+import { redactToolText } from '@piwin/agent-host';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { fail, ok } from '../response-helpers.js';
@@ -88,6 +93,16 @@ import {
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
+
+function listKnownChatModelKeys(config: PiwinConfig): string[] {
+  return (config.providers ?? [])
+    .filter((provider) => isProviderEnabled(provider))
+    .flatMap((provider) =>
+      provider.models
+        .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
+        .map((model) => `${provider.id}::${model.id}`),
+    );
+}
 
 export type SessionLiveContext = {
   piwinRoot?: string;
@@ -292,6 +307,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/compaction-settings',
   'session/set-auto-compaction',
   'session/export',
+  'session/tool-output',
   'session/message-child',
   'session/runtime-status',
   'session/reload-runtime',
@@ -622,6 +638,7 @@ async function preparePromptInput(
       schemeIdRaw,
       {
         knownProfileIds,
+        knownModelKeys: listKnownChatModelKeys(config),
         globalMaxConcurrency: subagents?.maxConcurrency,
         globalMaxTasksPerRun: subagents?.maxTasksPerRun,
       },
@@ -1304,6 +1321,17 @@ export async function handleSessionLiveCommand(
       return ok(requestId, 'session/resume-run', data);
     }
     case 'session/prompt': {
+      const persistedPlanIntent =
+        command.input.skillId === 'writing-plans'
+          ? ('writing-plans-skill' as const)
+          : command.input.agentMode === 'plan'
+            ? ('plan-mode' as const)
+            : null;
+      const planPath = persistedPlanIntent
+        ? getPiwinSessionPlanPath(getPiwinRoot(context.piwinRoot), command.sessionId)
+        : undefined;
+      const startingPlan = planPath ? await loadSessionPlan(planPath) : null;
+      const startingPlanRevision = startingPlan?.revision ?? -1;
       const activeCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
       if (command.input.source !== 'resume' && activeCheckpoint !== undefined) {
         return fail(
@@ -1389,6 +1417,7 @@ export async function handleSessionLiveCommand(
             orchId,
             {
               knownProfileIds,
+              knownModelKeys: listKnownChatModelKeys(config),
               globalMaxConcurrency: subagents?.maxConcurrency,
               globalMaxTasksPerRun: subagents?.maxTasksPerRun,
             },
@@ -1479,6 +1508,21 @@ export async function handleSessionLiveCommand(
               event: { type: 'error', message: emptyMessage, retriable: true, runId: run.runId },
             });
             return;
+          }
+
+          if (planPath) {
+            const completedPlan = await loadSessionPlan(planPath);
+            if (
+              !completedPlan ||
+              completedPlan.revision <= startingPlanRevision ||
+              (persistedPlanIntent === 'writing-plans-skill' &&
+                (completedPlan.source !== 'skill' ||
+                  completedPlan.skillId !== 'writing-plans'))
+            ) {
+              throw new Error(
+                'plan-not-persisted: Plan mode and writing-plans must finish by creating or revising the durable SessionPlan with piwin_plan_create',
+              );
+            }
           }
 
           // Touch the index BEFORE the terminal event so the auto-name trigger
@@ -1776,6 +1820,34 @@ export async function handleSessionLiveCommand(
         redactTools,
         path: outputPath,
         byteLength,
+      });
+    }
+
+    case 'session/tool-output': {
+      const store = await context.getTranscriptStore(command.sessionId);
+      const message = await store.getMessage(command.messageId);
+      if (!message) {
+        return ok(requestId, 'session/tool-output', {
+          status: 'unavailable' as const,
+          reason: 'not-found' as const,
+        });
+      }
+      const snapshot = readToolOutputSnapshot({
+        message,
+        toolCallId: command.toolCallId,
+        ...(typeof command.maxBytes === 'number' ? { maxBytes: command.maxBytes } : {}),
+      });
+      if (snapshot.status === 'unavailable') {
+        return ok(requestId, 'session/tool-output', snapshot);
+      }
+      // Redact secrets again at read time (transcript may predate stricter
+      // patterns); re-bound so the response is always bounded.
+      const redacted = redactToolText(snapshot.output);
+      const redactionMarked = redacted.redacted || snapshot.redacted;
+      return ok(requestId, 'session/tool-output', {
+        ...snapshot,
+        output: redacted.text,
+        redacted: redactionMarked,
       });
     }
 

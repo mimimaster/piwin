@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="112" height="112" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="bg-matrix-3" x1="0" y1="0" x2="128" y2="128">
+                    <stop offset="0%" stop-color="#13111c"/>
+                    <stop offset="100%" stop-color="#08070d"/>
+                  </linearGradient>
+                  <linearGradient id="purple-glow" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#a855f7"/>
+                    <stop offset="100%" stop-color="#6366f1"/>
+                  </linearGradient>
+                </defs>
+                <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg-matrix-3)"/>
+                <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" stroke="#a855f7" stroke-opacity="0.25" stroke-width="1"/>
+                <!-- Swarm Network Nodes forming Pi -->
+                <path d="M36 44H92" stroke="url(#purple-glow)" stroke-width="6" stroke-linecap="round"/>
+                <path d="M50 44V84" stroke="url(#purple-glow)" stroke-width="6" stroke-linecap="round"/>
+                <path d="M76 44V84" stroke="url(#purple-glow)" stroke-width="6" stroke-linecap="round"/>
+                <!-- Subagent Connection Nodes -->
+                <circle cx="36" cy="44" r="6" fill="#a855f7"/>
+                <circle cx="92" cy="44" r="6" fill="#6366f1"/>
+                <circle cx="50" cy="84" r="6" fill="#6366f1"/>
+                <circle cx="76" cy="84" r="6" fill="#f59e0b"/>
+                <!-- Connecting Rays -->
+                <line x1="36" y1="44" x2="64" y2="64" stroke="#a855f7" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="3 3"/>
+                <line x1="92" y1="44" x2="64" y2="64" stroke="#6366f1" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="3 3"/>
+                <circle cx="64" cy="64" r="8" fill="#13111c" stroke="#f59e0b" stroke-width="3"/>
+              </svg>

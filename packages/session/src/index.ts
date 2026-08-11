@@ -189,3 +189,12 @@ export {
   slimToolCardForUi,
   slimToolPresentation,
 } from './transcript-ui-projection.js';
+
+export {
+  readToolOutputSnapshot,
+  findToolCard,
+  isReadFamilyTool,
+  TOOL_SNAPSHOT_DEFAULT_MAX_BYTES,
+  TOOL_SNAPSHOT_HARD_MAX_BYTES,
+} from './tool-output-snapshot.js';
+export type { ToolOutputSnapshotInput } from './tool-output-snapshot.js';

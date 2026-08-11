@@ -11,6 +11,7 @@ import type {
   SessionTranscriptMessage,
   SubagentBatchRequest,
   SubagentBatchResult,
+  SubagentTaskResult,
 } from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { SessionTodoStore } from '@piwin/automation';
@@ -29,7 +30,11 @@ import type { SubagentCommandContext } from './subagent-commands.js';
  */
 export type PlanExecutionSeam = {
   /** Send a prompt to a session (parent inline/verify or child task). */
-  promptSession: (sessionId: string, text: string) => Promise<void>;
+  promptSession: (
+    sessionId: string,
+    text: string,
+    parentRunId?: string,
+  ) => Promise<{ runId: string; finalAssistantMessageId: string }>;
   /** Abort a running session (used by plan/abort). */
   abortSession: (sessionId: string) => Promise<void>;
   /**
@@ -37,9 +42,15 @@ export type PlanExecutionSeam = {
    * execution routes through this (ADR 0030 Phase D).
    */
   runBatch: (request: SubagentBatchRequest, parentRunId?: string) => Promise<SubagentBatchResult>;
+  /** Persist successful child summaries before parent verification. */
+  mergeBatchSummaries?: (parentSessionId: string, results: SubagentTaskResult[]) => Promise<void>;
   /** RunRegistry parent for the plan execution. */
   startPlanRun?: (sessionId: string, planId: string) => { runId: string };
-  finishPlanRun?: (runId: string, status: 'completed' | 'failed', error?: string) => void;
+  finishPlanRun?: (
+    runId: string,
+    status: 'completed' | 'failed' | 'cancelled',
+    error?: string,
+  ) => void;
   cancelPlanRun?: (runId: string) => void;
 };
 

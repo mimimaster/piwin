@@ -22,6 +22,8 @@ export {
   getActivePet,
   setActivePet,
   installPetFromLocalPath,
+  installPetFromLocalPaths,
+  scanLocalPets,
   installPetFromRegistry,
   queryRemotePetStore,
 } from './pet-store.js';

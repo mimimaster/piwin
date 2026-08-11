@@ -9,7 +9,12 @@
  * Authority: @piwin/host-runtime (product composition root).
  */
 
-import type { HostToolRegistration, McpConfigDocument, McpToolMetadata } from '@piwin/contracts';
+import type {
+  HostToolRegistration,
+  McpConfigDocument,
+  McpToolMetadata,
+  SessionPlan,
+} from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
@@ -106,6 +111,9 @@ export type BuildSessionHostToolsOptions = {
 
   /** Subagent run seam for the delegate tool. */
   subagentSeam?: SubagentRunSeam;
+
+  /** Publish mutations made by model-facing plan tools. */
+  onPlanUpdated?: (plan: SessionPlan) => void;
 
   /** Observe optional capability failures while composing a generation. */
   onDiagnostic?: (diagnostic: HostToolCompositionDiagnostic) => void;
@@ -281,19 +289,14 @@ export async function buildSessionHostTools(
         sessionId: options.sessionId,
         projectPath: options.projectPath,
         planPath,
-        onUpdated: (plan) => {
-          // Plan updates are pushed via the host push channel; the caller
-          // (HostRuntime) wires this through the session live context.
-        },
+        ...(options.onPlanUpdated ? { onUpdated: options.onPlanUpdated } : {}),
       }),
     );
     tools.push(
       createPlanStepTool({
         sessionId: options.sessionId,
         planPath,
-        onUpdated: (plan) => {
-          // Same as above — HostRuntime handles push wiring.
-        },
+        ...(options.onPlanUpdated ? { onUpdated: options.onPlanUpdated } : {}),
       }),
     );
   }

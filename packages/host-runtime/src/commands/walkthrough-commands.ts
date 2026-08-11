@@ -481,6 +481,7 @@ export async function startWalkthroughGeneration(
   context: WalkthroughCommandContext,
   registry: WalkthroughGenerationRegistry,
   completionDependencies?: WalkthroughCompletionDependencies,
+  planId?: string,
 ): Promise<string> {
   const rootDir = getPiwinRoot(context.piwinRoot);
 
@@ -501,6 +502,7 @@ export async function startWalkthroughGeneration(
     updatedAt: now,
     status: 'generating',
     generationId,
+    ...(planId ? { planId } : {}),
   };
   if (targetMessage.runId) {
     generatingArtifact.runId = targetMessage.runId;
@@ -525,6 +527,7 @@ export async function startWalkthroughGeneration(
     context,
     registry,
     completionDependencies,
+    planId,
   }).catch((error: unknown) => {
     // Safety net: runWalkthroughCompletion handles its own errors and never
     // rethrows, but a bug in the wiring must not produce a floating promise.
@@ -556,6 +559,7 @@ type CompletionInput = {
   context: WalkthroughCommandContext;
   registry: WalkthroughGenerationRegistry;
   completionDependencies: WalkthroughCompletionDependencies | undefined;
+  planId: string | undefined;
 };
 
 /**
@@ -625,6 +629,7 @@ async function runWalkthroughCompletion(input: CompletionInput): Promise<void> {
       markdown: result.text,
       ...(bounded.truncated ? { truncated: true } : {}),
       generatedAt: now,
+      ...(input.planId ? { planId: input.planId } : {}),
     };
     if (input.targetMessage.runId) {
       readyArtifact.runId = input.targetMessage.runId;
@@ -655,6 +660,7 @@ async function runWalkthroughCompletion(input: CompletionInput): Promise<void> {
       status: 'error',
       error: walkthroughError,
       generatedAt: now,
+      ...(input.planId ? { planId: input.planId } : {}),
     };
     if (input.targetMessage.runId) {
       errorArtifact.runId = input.targetMessage.runId;

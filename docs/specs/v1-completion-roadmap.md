@@ -166,9 +166,10 @@ Before changing behavior, record the current Pi custom-tool API in **ADR 0008**.
 
 **Done:**
 - Codex-compatible `pet.json` + spritesheet validator
-- `~/.piwin/pets` list/install/set-active; import copy from `~/.codex/pets`
+- `~/.piwin/pets` list/install/set-active; scan `~/.codex/pets`, select one or more packages, and import by copy; concrete package paths remain supported
 - AgentEvent → pet animation state (`idle|running|waiting|failed|…`)
 - Desktop `PetCompanion` spritesheet animator + `PetPanel`
+- Pet list cards preview each package's actual first atlas frame instead of a generic dog placeholder
 - Bundled `piwin-default` pet + `skills/hatch-pet`
 
 **Acceptance:** valid pet animates from agent state; invalid packages surface validation errors.

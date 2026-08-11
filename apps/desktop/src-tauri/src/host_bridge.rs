@@ -275,9 +275,17 @@ fn resolve_host_command(
     ),
     String,
 > {
-    let packaged = resource_dir
-        .as_ref()
-        .and_then(|dir| packaged_host_paths_from_resource_dir(dir));
+    // Development must execute the workspace Host source. Tauri copies resource
+    // files into its debug target and those copies can outlive a source change;
+    // preferring them here made real-provider E2E exercise a stale Host bundle.
+    // Release builds continue to require and prefer the packaged sidecar.
+    let packaged = if cfg!(debug_assertions) {
+        None
+    } else {
+        resource_dir
+            .as_ref()
+            .and_then(|dir| packaged_host_paths_from_resource_dir(dir))
+    };
     let (program, args, tier, assets) = resolve_host_command_tiered(mock, packaged.as_ref())?;
 
     let cwd = match (&tier, packaged) {
@@ -1034,5 +1042,33 @@ mod tests {
             resolve_host_command_tiered(false, Some(&packaged)).expect("fallback");
         assert_eq!(tier, HostCommandTier::Dev);
         assert!(assets.is_none());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn debug_resolution_ignores_a_stale_real_sized_resource_host() {
+        let dir = std::env::temp_dir().join(format!(
+            "piwin-host-debug-resolve-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(dir.join("host")).expect("mkdir host");
+        let node_name = if cfg!(windows) {
+            format!("piwin-host-{}.exe", detect_host_triple())
+        } else {
+            format!("piwin-host-{}", detect_host_triple())
+        };
+        std::fs::write(dir.join(node_name), b"node").expect("write node");
+        std::fs::write(dir.join("host").join("host-serve.mjs"), vec![b'x'; 512])
+            .expect("write stale host");
+
+        let (_program, _args, tier, _assets, _cwd) =
+            resolve_host_command(false, Some(dir.clone())).expect("debug resolve");
+
+        assert_eq!(tier, HostCommandTier::Dev);
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

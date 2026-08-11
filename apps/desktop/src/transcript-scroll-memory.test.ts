@@ -56,6 +56,11 @@ describe('transcript scroll memory', () => {
     expect(readTranscriptTurnHeight('session-a', 'turn-invalid')).toBeNull();
   });
 
+  it('clamps inflated turn heights so virtualizer blanks cannot stick forever', () => {
+    rememberTranscriptTurnHeight('session-a', 'turn-tall', 50_000);
+    expect(readTranscriptTurnHeight('session-a', 'turn-tall')).toBe(4_000);
+  });
+
   it('shares one 20-session LRU across offsets and measured heights', () => {
     for (let index = 0; index < 20; index += 1) {
       rememberTranscriptTurnHeight(`session-${index}`, 'turn-a', 200 + index);

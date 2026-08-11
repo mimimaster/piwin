@@ -60,7 +60,9 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'plugins/uninstall':
     case 'plugins/registry/list':
     case 'theme/install-local':
+    case 'pet/scan-local':
     case 'pet/install-local':
+    case 'pet/install-local-batch':
     case 'pet/install-registry':
       return HOST_REQUEST_OPERATION_TIMEOUT_MS;
     case 'models/image-test':

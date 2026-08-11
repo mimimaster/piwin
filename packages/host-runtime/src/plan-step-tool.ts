@@ -1,6 +1,6 @@
 /**
  * Host custom tool: piwin_plan_set_step — model-facing plan progress (SDK only).
- * RPC mode cannot register custom tools (ADR 0008).
+ * SDK registers it directly; the piwin RPC worker proxies the same Host tool.
  */
 import type {
   HostToolRegistration,

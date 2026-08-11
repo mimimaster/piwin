@@ -68,6 +68,7 @@ export const bundledProvider: PetSourceProvider = {
       const summary: PetDiscoveredEntry = {
         petId: manifest.id,
         displayName: manifest.displayName,
+        manifest,
         source: 'bundled',
         location: dir,
         installed: false,

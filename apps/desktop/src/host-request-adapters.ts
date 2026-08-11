@@ -129,12 +129,15 @@ export type HostRequestAdapters = {
       | 'pet/list'
       | 'pet/get-active'
       | 'pet/set-active'
+      | 'pet/scan-local'
       | 'pet/install-local'
+      | 'pet/install-local-batch'
       | 'pet/store-query'
       | 'pet/install-registry'
       | 'pet/cancel';
     petId?: string;
     sourcePath?: string;
+    sourcePaths?: string[];
     /** PetStoreQuery payload for pet/store-query. */
     query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
     /** JSON-encoded registry entry (or bare URL) for pet/install-registry. */
@@ -599,6 +602,15 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'pet/set-active') {
         return hostClient.request({ type: 'pet/set-active', petId: command.petId ?? '' });
+      }
+      if (command.type === 'pet/scan-local') {
+        return hostClient.request({ type: 'pet/scan-local', sourcePath: command.sourcePath ?? '' });
+      }
+      if (command.type === 'pet/install-local-batch') {
+        return hostClient.request({
+          type: 'pet/install-local-batch',
+          sourcePaths: command.sourcePaths ?? [],
+        });
       }
       if (command.type === 'pet/store-query') {
         return hostClient.request({

@@ -18,7 +18,8 @@ import type { HostCommandContext } from './host-command-context.js';
 import {
   abortExecutionState,
   buildInlineDirective,
-  buildSubagentTaskDirective,
+  buildPlanSubagentTask,
+  buildPlanSummary,
   buildSubagentVerificationDirective,
   completeExecutionState,
   createExecutionState,
@@ -39,6 +40,13 @@ const TYPES = new Set<HostCommand['type']>([
   'plan/execute',
   'plan/abort',
 ]);
+
+/** In-process cancellation intent closes execution mutation races before disk I/O resumes. */
+const activePlanAbortIntents = new Set<string>();
+
+function planAbortIntentKey(planPath: string, planId: string): string {
+  return `${planPath}:${planId}`;
+}
 
 export function isPlanCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
@@ -190,11 +198,22 @@ async function handlePlanExecute(
       `plan id mismatch: requested ${command.request.planId} but session has ${plan.id}`,
     );
   }
-  if (plan.status !== 'approved' && plan.status !== 'executing') {
+  if (
+    command.request.expectedRevision !== undefined &&
+    plan.revision !== command.request.expectedRevision
+  ) {
     return fail(
       requestId,
       'plan/execute',
-      `plan must be approved before execution (current status: ${plan.status})`,
+      `plan revision mismatch: requested ${command.request.expectedRevision} but session has ${plan.revision}`,
+    );
+  }
+  const canAtomicallyApproveDraft = plan.status === 'draft' && command.request.approveDraft === true;
+  if (plan.status !== 'approved' && plan.status !== 'executing' && !canAtomicallyApproveDraft) {
+    return fail(
+      requestId,
+      'plan/execute',
+      `plan must be approved before execution or explicitly approved atomically (current status: ${plan.status})`,
     );
   }
   if (
@@ -273,6 +292,12 @@ async function runPlanExecution(
   const markRunning = async (currentStepId?: string): Promise<PlanExecutionState> => {
     const current = await loadSessionPlan(planPath);
     if (!current || !current.execution) return state;
+    if (
+      current.execution.status === 'aborted' ||
+      activePlanAbortIntents.has(planAbortIntentKey(planPath, current.id))
+    ) {
+      throw new Error('plan execution aborted');
+    }
     state = { ...state, status: 'running', ...(currentStepId ? { currentStepId } : {}) };
     const updated: SessionPlan = {
       ...current,
@@ -288,6 +313,13 @@ async function runPlanExecution(
   const markFailed = async (error: string): Promise<void> => {
     const current = await loadSessionPlan(planPath);
     if (!current) return;
+    if (
+      current.execution?.status === 'aborted' ||
+      activePlanAbortIntents.has(planAbortIntentKey(planPath, current.id))
+    ) {
+      context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
+      return;
+    }
     state = failExecutionState(state, error);
     const updated: SessionPlan = {
       ...current,
@@ -300,10 +332,24 @@ async function runPlanExecution(
     context.planExecution?.finishPlanRun?.(planRunId, 'failed', error);
   };
 
-  const markCompleted = async (): Promise<void> => {
+  const markCompleted = async (finalAssistantMessageId: string): Promise<void> => {
     const current = await loadSessionPlan(planPath);
     if (!current) return;
-    state = completeExecutionState(state);
+    if (
+      current.execution?.status === 'aborted' ||
+      activePlanAbortIntents.has(planAbortIntentKey(planPath, current.id))
+    ) {
+      context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
+      return;
+    }
+    const completedState = completeExecutionState(state);
+    const summary = buildPlanSummary({
+      plan: { ...current, execution: completedState },
+      mode,
+      mergedChildSessionIds: completedState.childSessionIds,
+      verificationResult: `Final assistant verification completed in message ${finalAssistantMessageId}`,
+    });
+    state = { ...completedState, summary };
     const finalPlan: SessionPlan = {
       ...current,
       status: 'done',
@@ -318,25 +364,27 @@ async function runPlanExecution(
 
     // Walkthrough is always generated when a plan completes.
     // Find the final assistant message and trigger generation.
-    await triggerPlanCompletionWalkthrough(sessionId, context);
+    await triggerPlanCompletionWalkthrough(
+      sessionId,
+      finalPlan,
+      finalAssistantMessageId,
+      context,
+    );
   };
 
   try {
     if (mode === 'inline') {
       await markRunning();
       const directive = buildInlineDirective(plan);
-      await seam.promptSession(sessionId, directive.promptText);
-      // Inline execution completes when the model finishes its turn and
-      // updates steps via piwin_plan_set_step. The host does not block on
-      // the turn here; the plan status transitions to done via step updates
-      // or a subsequent plan/set-status. We mark completed optimistically
-      // only if all steps are already done.
+      const completion = await seam.promptSession(sessionId, directive.promptText, planRunId);
       const latest = await loadSessionPlan(planPath);
       if (
         latest &&
         latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
       ) {
-        await markCompleted();
+        await markCompleted(completion.finalAssistantMessageId);
+      } else {
+        await markFailed('inline execution ended before all plan steps reached a terminal status');
       }
       return;
     }
@@ -348,7 +396,16 @@ async function runPlanExecution(
       // parent so the plan still progresses.
       await markRunning();
       const directive = buildInlineDirective(plan);
-      await seam.promptSession(sessionId, directive.promptText);
+      const completion = await seam.promptSession(sessionId, directive.promptText, planRunId);
+      const latest = await loadSessionPlan(planPath);
+      if (
+        latest &&
+        latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
+      ) {
+        await markCompleted(completion.finalAssistantMessageId);
+      } else {
+        await markFailed('inline execution ended before all plan steps reached a terminal status');
+      }
       return;
     }
 
@@ -358,26 +415,15 @@ async function runPlanExecution(
     const childIds: string[] = [];
     await markRunning();
     const tasks = stepIds
-      .map((stepId) => {
-        const step = plan.steps.find((s) => s.id === stepId);
-        const directive = buildSubagentTaskDirective(plan, stepId);
-        if (!directive || !step) return undefined;
-        return {
-          id: stepId,
-          parentSessionId: sessionId,
-          task: directive.promptText,
-          applyPolicy: 'auto' as const,
-          ...(step.profileId ? { profileId: step.profileId } : {}),
-          ...(step.dependsOn ? { dependsOn: step.dependsOn } : {}),
-          ...(step.parallelGroup ? { parallelGroup: step.parallelGroup } : {}),
-        };
-      })
-      .filter((t): t is NonNullable<typeof t> => t !== undefined);
+      .map((stepId) => buildPlanSubagentTask(plan, stepId))
+      .filter((task): task is NonNullable<typeof task> => task !== null);
 
     const batchResult = await seam.runBatch({
       parentSessionId: sessionId,
       tasks,
     }, planRunId);
+
+    await seam.mergeBatchSummaries?.(sessionId, batchResult.results);
 
     // Record child session ids from successful results.
     for (const result of batchResult.results) {
@@ -401,6 +447,7 @@ async function runPlanExecution(
     if (batchResult.status === 'cancelled') {
       // plan/abort owns the terminal plan transition. Do not let the async
       // execution owner overwrite an abandoned plan with a synthetic error.
+      context.planExecution?.finishPlanRun?.(planRunId, 'cancelled');
       return;
     }
     if (batchResult.status !== 'completed') {
@@ -410,15 +457,17 @@ async function runPlanExecution(
 
     // Parent runs final verification and posts the walkthrough.
     await markRunning();
-    const verifyDirective = buildSubagentVerificationDirective(plan);
-    await seam.promptSession(sessionId, verifyDirective.promptText);
+    const verifyDirective = buildSubagentVerificationDirective(plan, batchResult.results);
+    const completion = await seam.promptSession(sessionId, verifyDirective.promptText, planRunId);
 
     const latest = await loadSessionPlan(planPath);
     if (
       latest &&
       latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
     ) {
-      await markCompleted();
+      await markCompleted(completion.finalAssistantMessageId);
+    } else {
+      await markFailed('verification ended before all plan steps reached a terminal status');
     }
   } catch (error) {
     const message = formatError(error);
@@ -433,6 +482,8 @@ async function runPlanExecution(
  */
 async function triggerPlanCompletionWalkthrough(
   sessionId: string,
+  plan: SessionPlan,
+  finalAssistantMessageId: string,
   context: HostCommandContext,
 ): Promise<void> {
   const walkthroughBag = context.walkthrough;
@@ -440,21 +491,14 @@ async function triggerPlanCompletionWalkthrough(
 
   try {
     const messages = await walkthroughBag.context.loadTranscriptMessages(sessionId);
-    // Find the last assistant message with completed outcome.
-    let lastAssistantId: string | undefined;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]!;
-      if (msg.role === 'assistant' && msg.status === 'done') {
-        lastAssistantId = msg.id;
-        break;
-      }
-    }
-    if (!lastAssistantId) return;
-
     const config = await walkthroughBag.context.loadConfig();
     const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
-    const targetMessage = messages.find((m) => m.id === lastAssistantId);
-    if (!targetMessage) return;
+    const targetMessage = messages.find((message) => message.id === finalAssistantMessageId);
+    if (!targetMessage || targetMessage.role !== 'assistant' || targetMessage.status !== 'done') {
+      throw new Error(
+        `completed plan ${plan.id} has no durable final assistant message ${finalAssistantMessageId}`,
+      );
+    }
 
     // Resolve model: message snapshot → session model → config default.
     let model = targetMessage.model;
@@ -487,7 +531,7 @@ async function triggerPlanCompletionWalkthrough(
     // walkthrough/updated events as it progresses.
     void startWalkthroughGeneration(
       sessionId,
-      lastAssistantId,
+      finalAssistantMessageId,
       model,
       provider,
       'default',
@@ -496,6 +540,8 @@ async function triggerPlanCompletionWalkthrough(
       messages,
       walkthroughBag.context,
       walkthroughBag.registry,
+      undefined,
+      plan.id,
     ).catch((error: unknown) => {
       const detail = formatError(error);
       context.push({
@@ -521,44 +567,61 @@ async function handlePlanAbort(
 ): Promise<HostResponse> {
   const rootDir = getPiwinRoot(context.piwinRoot);
   const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-  const plan = await loadSessionPlan(planPath);
-  if (!plan) {
-    return fail(requestId, 'plan/abort', 'No plan for session');
-  }
-  if (
-    !plan.execution ||
-    (plan.execution.status !== 'running' && plan.execution.status !== 'queued')
-  ) {
-    return fail(
-      requestId,
-      'plan/abort',
-      `plan is not running (status: ${plan.execution?.status ?? 'none'})`,
-    );
-  }
-  const seam = context.planExecution;
-  if (seam) {
-    seam.cancelPlanRun?.(plan.execution.runId ?? '');
-    // Abort the parent turn if inline/verify is running.
-    try {
-      await seam.abortSession(command.sessionId);
-    } catch {
-      // best-effort
+  const abortIntentKey = planAbortIntentKey(planPath, command.planId);
+  activePlanAbortIntents.add(abortIntentKey);
+  try {
+    const plan = await loadSessionPlan(planPath);
+    if (!plan) {
+      return fail(requestId, 'plan/abort', 'No plan for session');
     }
+    if (plan.id !== command.planId) {
+      return fail(
+        requestId,
+        'plan/abort',
+        `plan id mismatch: requested ${command.planId} but session has ${plan.id}`,
+      );
+    }
+    if (
+      !plan.execution ||
+      (plan.execution.status !== 'running' && plan.execution.status !== 'queued')
+    ) {
+      return fail(
+        requestId,
+        'plan/abort',
+        `plan is not running (status: ${plan.execution?.status ?? 'none'})`,
+      );
+    }
+    const abortedState = abortExecutionState(plan.execution);
+    const abortedPlan: SessionPlan = {
+      ...plan,
+      status: 'abandoned',
+      execution: abortedState,
+      revision: plan.revision + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    await saveSessionPlan(planPath, abortedPlan);
+    context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: abortedPlan });
+    context.push({ type: 'plan/execution-updated', state: abortedState });
+    const seam = context.planExecution;
+    if (seam) {
+      seam.cancelPlanRun?.(plan.execution.runId ?? '');
+      // Abort the parent turn if inline/verify is running.
+      try {
+        await seam.abortSession(command.sessionId);
+      } catch (error) {
+        context.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `plan abort could not stop parent session: ${formatError(error)}`,
+        });
+      }
+    }
+    return ok(requestId, 'plan/abort', {
+      sessionId: command.sessionId,
+      planId: plan.id,
+      status: 'aborted',
+    });
+  } finally {
+    activePlanAbortIntents.delete(abortIntentKey);
   }
-  const abortedState = abortExecutionState(plan.execution);
-  const abortedPlan: SessionPlan = {
-    ...plan,
-    status: 'abandoned',
-    execution: abortedState,
-    revision: plan.revision + 1,
-    updatedAt: new Date().toISOString(),
-  };
-  await saveSessionPlan(planPath, abortedPlan);
-  context.push({ type: 'plan/updated', sessionId: command.sessionId, plan: abortedPlan });
-  context.push({ type: 'plan/execution-updated', state: abortedState });
-  return ok(requestId, 'plan/abort', {
-    sessionId: command.sessionId,
-    planId: plan.id,
-    status: 'aborted',
-  });
 }

@@ -63,12 +63,12 @@ export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> 
     'Prefer outcomes and evidence over process narration.',
   ].join('\n'),
   plan: [
-    '[piwin-prompt-meta kind="mode:plan" version="2" applies="plan-mode"]',
+    '[piwin-prompt-meta kind="mode:plan" version="3" applies="plan-mode"]',
     'You are in Plan Mode until the user explicitly ends it.',
-    'Success: a decision-complete implementation plan — goal, non-goals, steps, affected files, risks, acceptance criteria, and verification — grounded in the repo.',
-    'Do not implement or mutate files; explore (read/search) only.',
+    'Success: call piwin_plan_create and persist a decision-complete SessionPlan — goal, non-goals, steps, affected files, risks, acceptance criteria, and verification — grounded in the repo.',
+    'Do not implement or mutate project files; explore (read/search) only. The Host-owned SessionPlan artifact is the required narrow write exception.',
     'Discover repo facts yourself first; ask only questions that would change the plan (especially technical choices).',
-    'Stop when the plan is reviewable or a blocking decision needs the user; do not pad with process theater.',
+    'Stop only after piwin_plan_create succeeds, or report the blocking decision; never substitute a prose-only plan for the durable artifact.',
   ].join('\n'),
   ask: [
     '[piwin-prompt-meta kind="mode:ask" version="2" applies="ask-mode"]',

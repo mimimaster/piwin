@@ -161,14 +161,24 @@ describe('WorkerTaskRunner', () => {
       providers: TEST_PROVIDERS,
     } as unknown as SubagentTaskRunInput;
 
-    const result = await runner.runTask(input, new AbortController().signal);
+    const previousKey = process.env.TEST_API_KEY;
+    process.env.TEST_API_KEY = 'test-secret';
+    try {
+      const result = await runner.runTask(input, new AbortController().signal);
 
-    expect(result.executionStatus).toBe('completed');
-    expect(createSession).toHaveBeenCalledTimes(1);
-    const callArg = createSession.mock.calls[0]?.[0] as {
-      providers?: unknown[];
-    };
-    expect(callArg.providers).toEqual(TEST_PROVIDERS);
-    expect(callArg.providers).not.toEqual([]);
+      expect(result.executionStatus).toBe('completed');
+      expect(acquireWorker).toHaveBeenCalledWith('child-1', 'gen-1', {
+        env: { TEST_API_KEY: 'test-secret' },
+      });
+      expect(createSession).toHaveBeenCalledTimes(1);
+      const callArg = createSession.mock.calls[0]?.[0] as {
+        providers?: unknown[];
+      };
+      expect(callArg.providers).toEqual(TEST_PROVIDERS);
+      expect(callArg.providers).not.toEqual([]);
+    } finally {
+      if (previousKey === undefined) delete process.env.TEST_API_KEY;
+      else process.env.TEST_API_KEY = previousKey;
+    }
   });
 });

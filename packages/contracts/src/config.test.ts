@@ -101,7 +101,6 @@ describe('THINKING_LEVEL_OPTIONS', () => {
       'high',
       'xhigh',
       'max',
-      'ultra',
     ]);
   });
 });

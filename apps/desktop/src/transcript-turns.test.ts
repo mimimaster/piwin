@@ -57,6 +57,16 @@ describe('transcript turn grouping', () => {
       ...message('assistant-1a', 'assistant'),
       runId: 'run-1',
       thinking: 'inspect',
+      attachments: [
+        {
+          id: 'generated-1',
+          kind: 'media' as const,
+          path: '/tmp/generated.png',
+          mimeType: 'image/png',
+          byteSize: 128,
+          source: 'generated' as const,
+        },
+      ],
       tools: [{ toolCallId: 'tool-1', toolName: 'bash', status: 'done' as const, output: 'ok' }],
     };
     const secondAssistant = {
@@ -64,6 +74,17 @@ describe('transcript turn grouping', () => {
       runId: 'run-1',
       thinking: 'edit',
       status: 'streaming' as const,
+      searchEvidence: {
+        query: 'piwin',
+        provenance: 'native' as const,
+        citations: [
+          {
+            title: 'Piwin',
+            url: 'https://example.com/piwin',
+            provenance: 'native' as const,
+          },
+        ],
+      },
       tools: [
         { toolCallId: 'tool-2', toolName: 'write_file', status: 'running' as const, output: '' },
       ],
@@ -78,7 +99,9 @@ describe('transcript turn grouping', () => {
     const workDetails = projectTranscriptTurnWorkDetails(turn);
 
     expect(workDetails).toHaveLength(1);
-    expect(workDetails[0]?.ownerMessageId).toBe('assistant-1a');
+    // Owner is the last body segment so tools render immediately above the answer.
+    expect(workDetails[0]?.ownerMessageId).toBe('assistant-1b');
+    expect(workDetails[0]?.memberMessageIds).toEqual(['assistant-1a', 'assistant-1b']);
     expect(workDetails[0]?.message).toMatchObject({
       runId: 'run-1',
       thinking: 'inspect\n\nedit',
@@ -88,6 +111,11 @@ describe('transcript turn grouping', () => {
       'tool-1',
       'tool-2',
     ]);
+    expect(workDetails[0]?.message.text).toBe('assistant-1b');
+    expect(workDetails[0]?.message.attachments.map((attachment) => attachment.id)).toEqual([
+      'generated-1',
+    ]);
+    expect(workDetails[0]?.message.searchEvidence?.citations).toHaveLength(1);
   });
 
   it('keeps legacy Assistant messages without run identity independent', () => {

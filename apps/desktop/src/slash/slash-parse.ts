@@ -3,6 +3,7 @@
  */
 import type { AgentModeId } from '../agent-mode';
 import type { ActiveSlashToken, ParsedSlashSubmit } from './slash-types';
+import { formatSkillPrompt } from '@piwin/contracts';
 
 /** Max length for compact customInstructions (plan: 2KB). */
 export const COMPACT_CUSTOM_INSTRUCTIONS_MAX_CHARS = 2048;
@@ -174,12 +175,5 @@ export function normalizeCompactCustomInstructions(args: string): string | undef
  * Host-facing skill prompt rewrite (transcript keeps user-visible `/name`).
  */
 export function applySkillToPrompt(skillName: string, skillId: string, args: string): string {
-  const userPart = args.trim();
-  const body = userPart.length > 0 ? userPart : '(no additional user request)';
-  return [
-    `[piwin-skill:${skillName}]`,
-    `Follow the installed skill "${skillName}" (id: ${skillId}). Apply its workflow to the user request below.`,
-    '---',
-    body,
-  ].join('\n');
+  return formatSkillPrompt(skillName, skillId, args);
 }

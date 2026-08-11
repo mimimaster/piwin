@@ -84,10 +84,14 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       const blueprint: SerializableBlueprint = projectBackendBlueprintForWorker(
         input.sessionBlueprint,
       );
+      const providerEnvironment = collectProviderEnvironment(input.providers);
       // Acquire a worker for this child session.
       client = await this.supervisor.acquireWorker(
         childSessionId,
         runtimeGenerationId,
+        Object.keys(providerEnvironment).length > 0
+          ? { env: providerEnvironment }
+          : undefined,
       );
       let summaryText = '';
       onWorkerEvent = (sessionId: string, event: AgentEvent): void => {
@@ -219,4 +223,24 @@ function truncateSummary(text: string): string {
   return normalized.length > maximumLength
     ? `${normalized.slice(0, maximumLength)}\n[summary truncated]`
     : normalized;
+}
+
+/** Copy only explicitly declared provider env refs into the isolated worker. */
+function collectProviderEnvironment(
+  providers: ReadonlyArray<{
+    auth:
+      | { kind: 'env'; envName: string }
+      | { kind: 'inline'; apiKey: string }
+      | { kind: 'none' };
+  }>,
+): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const provider of providers) {
+    if (provider.auth.kind !== 'env') continue;
+    const value = process.env[provider.auth.envName];
+    if (value !== undefined) {
+      environment[provider.auth.envName] = value;
+    }
+  }
+  return environment;
 }

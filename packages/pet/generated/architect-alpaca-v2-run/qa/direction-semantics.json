@@ -1,0 +1,21 @@
+{
+  "pet": "architect-alpaca",
+  "directions": [
+    {"direction":"000","verdict":"pass","expected":"up","observed":"up","horizontal":"none","vertical":"up","reason":"Eyes and chin clearly aim toward the top while the body stays frontal and anchored."},
+    {"direction":"022.5","verdict":"pass","expected":"up-right","observed":"up-right","horizontal":"screen-right","vertical":"up","reason":"The head begins turning right while the eyes remain visibly elevated."},
+    {"direction":"045","verdict":"pass","expected":"up-right","observed":"up-right","horizontal":"screen-right","vertical":"up","reason":"Nose, glasses, and pupils advance right with a clear upward gaze."},
+    {"direction":"067.5","verdict":"pass","expected":"up-right","observed":"up-right","horizontal":"screen-right","vertical":"up","reason":"The side turn is nearly complete and the pupils still sit above the neutral axis."},
+    {"direction":"090","verdict":"pass","expected":"right","observed":"right","horizontal":"screen-right","vertical":"none","reason":"Nose tip and eye globes clearly point to the viewer's right edge."},
+    {"direction":"112.5","verdict":"pass","expected":"down-right","observed":"down-right","horizontal":"screen-right","vertical":"down","reason":"The right-facing head is paired with a visibly lowered gaze."},
+    {"direction":"135","verdict":"pass","expected":"down-right","observed":"down-right","horizontal":"screen-right","vertical":"down","reason":"Nose and pupils occupy the right/down quadrant with continuous head follow-through."},
+    {"direction":"157.5","verdict":"warning","expected":"down-right","observed":"down with subtle right cue","horizontal":"subtle screen-right","vertical":"down","reason":"The near-down pose reads strongly downward; the residual right cue is subtle but the ordered arc into 180 remains coherent."},
+    {"direction":"180","verdict":"pass","expected":"down","observed":"down","horizontal":"none","vertical":"down","reason":"Chin, eyelids, and pupils clearly aim toward the bottom edge."},
+    {"direction":"202.5","verdict":"pass","expected":"down-left","observed":"down-left","horizontal":"screen-left","vertical":"down","reason":"The head turns left from down and the gaze remains below the neutral axis."},
+    {"direction":"225","verdict":"pass","expected":"down-left","observed":"down-left","horizontal":"screen-left","vertical":"down","reason":"Nose and pupils clearly occupy the left/down quadrant."},
+    {"direction":"247.5","verdict":"pass","expected":"down-left","observed":"down-left","horizontal":"screen-left","vertical":"down","reason":"The left profile is clear and the muzzle remains lowered."},
+    {"direction":"270","verdict":"pass","expected":"left","observed":"left","horizontal":"screen-left","vertical":"none","reason":"Nose tip and eye globes clearly point to the viewer's left edge."},
+    {"direction":"292.5","verdict":"pass","expected":"up-left","observed":"up-left","horizontal":"screen-left","vertical":"up","reason":"The head stays left-facing while the eyes and chin begin rising."},
+    {"direction":"315","verdict":"pass","expected":"up-left","observed":"up-left","horizontal":"screen-left","vertical":"up","reason":"The left-facing turn and upward gaze are both readable at pet size."},
+    {"direction":"337.5","verdict":"warning","expected":"up-left","observed":"up with subtle left cue","horizontal":"subtle screen-left","vertical":"up","reason":"The near-up pose reads strongly upward; the residual left cue is subtle but flows continuously into 000."}
+  ]
+}

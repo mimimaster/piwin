@@ -226,6 +226,71 @@ describe('ArtifactFrame chrome', () => {
     ).toBe(false);
   });
 
+  it('applies height bridge messages when event.source is not contentWindow (Tauri package)', async () => {
+    // Packaged Tauri custom-protocol sandboxed srcdoc often fails
+    // event.source === iframe.contentWindow. Height must still apply via channelId.
+    const decision = makeRenderDecision();
+    const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          // Deliberately wrong / foreign source — mimics WindowProxy mismatch.
+          source: window,
+          data: {
+            type: 'piwin-artifact:resize',
+            channelId: decision.descriptor.id,
+            height: 920,
+            mode: 'normal',
+          },
+        }),
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      await new Promise((resolve) => setTimeout(resolve, 140));
+    });
+
+    const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
+    expect(stage?.style.height).toBe('920px');
+  });
+
+  it('seeds SVG stage height from viewBox so the first paint is not an 80px strip', async () => {
+    const base = makeRenderDecision();
+    const decision: Extract<ArtifactPreviewDecision, { kind: 'render' }> = {
+      ...base,
+      descriptor: {
+        ...base.descriptor,
+        id: 'svg-seed-1',
+        type: 'svg',
+        rawLanguage: 'svg',
+        alias: 'svg',
+        source: '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
+      },
+      renderSource:
+        '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
+      srcdoc: '<!DOCTYPE html><html><body><svg viewBox="0 0 800 400"></svg></body></html>',
+    };
+    const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
+    const heightPx = Number.parseInt(stage?.style.height ?? '0', 10);
+    // viewBox 800×400 at fallback width ~780 → ~398+pad; never the 80px initial strip.
+    expect(heightPx).toBeGreaterThan(120);
+  });
+
   it('reuses one stream iframe and posts body snapshots instead of replacing srcdoc', async () => {
     const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>initial stream</html>');
     const { container, root } = renderFrame(initial);

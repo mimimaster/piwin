@@ -268,9 +268,12 @@ ${
   surface === 'inline'
     ? `.piwin-artifact-root {
   overflow: visible !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
-.piwin-artifact-root,
-.piwin-artifact-root * {
+/* Never apply max-width to SVG *descendants* (path/circle/g) — that collapses
+   intrinsic SVG layout in WKWebView. Only constrain the root svg / HTML kids. */
+.piwin-artifact-root > :not(svg) {
   min-width: 0 !important;
   max-width: 100% !important;
 }`
@@ -380,8 +383,11 @@ export function buildArtifactBridgeBootstrapScript(
   };
   window.addEventListener('message', function (event) {
     var data = event.data;
+    // channelId + type bind the stream. Do NOT require event.source === parent:
+    // packaged Tauri (custom protocol + sandbox without allow-same-origin) can
+    // report a non-identical WindowProxy for the same parent, which would drop
+    // every snapshot and leave a blank preview while dev (http://127.0.0.1) works.
     if (
-      event.source !== parent ||
       !data ||
       data.type !== streamUpdateType ||
       data.channelId !== channelId ||

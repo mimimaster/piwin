@@ -1,0 +1,18 @@
+{
+  "pairs": [
+    {"pair":"horizontal-1","A":"screen-left","B":"ambiguous","reason":"A’s muzzle and gaze angle left; B is nearly frontal with no clear side cue"},
+    {"pair":"horizontal-2","A":"screen-right","B":"screen-left","reason":"A faces right in profile; B faces left in profile"},
+    {"pair":"horizontal-3","A":"screen-right","B":"screen-left","reason":"A’s nose points right; B’s nose points left"},
+    {"pair":"horizontal-4","A":"screen-right","B":"screen-left","reason":"Both are clear side profiles, A to the right and B to the left"},
+    {"pair":"horizontal-5","A":"screen-right","B":"screen-left","reason":"A is right-facing profile; B is left-facing profile"},
+    {"pair":"horizontal-6","A":"ambiguous","B":"screen-right","reason":"A is tipped down/front with no readable left-right cue; B is a right-facing profile"},
+    {"pair":"horizontal-7","A":"ambiguous","B":"screen-right","reason":"A looks straight down with no lateral cue; B’s face points right"},
+    {"pair":"vertical-1","A":"up","B":"down","reason":"A’s chin is lifted and eyes look up; B’s head is tucked down"},
+    {"pair":"vertical-2","A":"up","B":"down","reason":"A looks slightly upward; B’s muzzle and eyes angle downward"},
+    {"pair":"vertical-3","A":"down","B":"up","reason":"A’s head bows down; B’s chin lifts up"},
+    {"pair":"vertical-4","A":"ambiguous","B":"ambiguous","reason":"Both are level side profiles with no clear up/down tilt"},
+    {"pair":"vertical-5","A":"up","B":"down","reason":"A’s face tilts upward; B’s face tilts downward"},
+    {"pair":"vertical-6","A":"ambiguous","B":"up","reason":"A is level in profile; B lifts its muzzle and eyes upward"},
+    {"pair":"vertical-7","A":"up","B":"ambiguous","reason":"A’s head tilts up; B is level in profile with no clear pitch cue"}
+  ]
+}
