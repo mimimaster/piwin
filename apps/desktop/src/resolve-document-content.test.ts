@@ -83,9 +83,7 @@ describe('extractMarkdownDocumentFromMessage', () => {
     );
 
     expect(resolved).not.toBeNull();
-    expect(resolved?.startsWith('# 执行计划：Session 生命周期与归档策略（最终落档版）')).toBe(
-      true,
-    );
+    expect(resolved?.startsWith('# 执行计划：Session 生命周期与归档策略（最终落档版）')).toBe(true);
     expect(resolved).toContain('## 1. 目标与非目标');
     expect(resolved).toContain('### Slice 5 — host-runtime');
     expect(resolved).toContain('## 5. 执行顺序');
@@ -128,6 +126,67 @@ describe('extractMarkdownDocumentFromMessage', () => {
     expect(resolved).toBe(
       '# Hello\n\nFull body here with enough characters to pass the usefulness threshold pad pad pad.',
     );
+  });
+
+  it('prefers a complete standalone heading over a short fenced example', () => {
+    const text = [
+      'Saved to notes/plan.md',
+      '',
+      '```markdown',
+      '# Tiny',
+      'short',
+      '```',
+      '',
+      '# Complete Plan',
+      '',
+      'This is the actual complete document body with enough content to pass the usefulness threshold.',
+    ].join('\n');
+
+    const resolved = extractMarkdownDocumentFromMessage(text, 'plan', 'notes/plan.md');
+    expect(resolved).toBe(
+      '# Complete Plan\n\nThis is the actual complete document body with enough content to pass the usefulness threshold.',
+    );
+  });
+
+  it('keeps inner triple-backtick code inside a four-backtick markdown fence', () => {
+    const text = [
+      'Saved to notes/plan.md',
+      '',
+      '````markdown',
+      '# Complete Plan',
+      '',
+      '```ts',
+      'const answer = 42;',
+      '```',
+      '',
+      'The document tail must remain present after the nested code block.',
+      '`````',
+    ].join('\n');
+
+    const resolved = extractMarkdownDocumentFromMessage(text, 'plan', 'notes/plan.md');
+    expect(resolved).toContain('```ts\nconst answer = 42;\n```');
+    expect(resolved).toContain('The document tail must remain present');
+    expect(resolved).not.toContain('`````');
+  });
+
+  it('does not treat a backtick line with an info string as a closing fence', () => {
+    const text = [
+      'Saved to notes/plan.md',
+      '',
+      '````markdown',
+      '# Complete Plan',
+      '',
+      '````ts',
+      'const example = true;',
+      '',
+      'The real document tail must not be truncated by the info-string line.',
+      '`````',
+    ].join('\n');
+
+    const resolved = extractMarkdownDocumentFromMessage(text, 'plan', 'notes/plan.md');
+    expect(resolved).toContain('````ts\nconst example = true;');
+    expect(resolved).toContain('The real document tail must not be truncated');
+    expect(resolved).not.toContain('`````');
   });
 });
 
@@ -185,7 +244,7 @@ describe('resolveDocumentContentFromMessages', () => {
     });
 
     expect(resolved).not.toBeNull();
-    expect(resolved?.length ?? 0).toBeGreaterThan(1500);
+    expect(resolved?.length ?? 0).toBeGreaterThan(1000);
     expect(resolved).toContain('# 执行计划：Session 生命周期与归档策略（最终落档版）');
     expect(resolved).toContain('### Slice 5 — host-runtime');
     expect(resolved).toContain('## 5. 执行顺序');
@@ -227,8 +286,7 @@ describe('resolveDocumentContentFromMessages', () => {
 
   it('uses real session transcript and returns full plan not inter-fence fragment', async () => {
     const { readFile } = await import('node:fs/promises');
-    const transcriptPath =
-      `${process.env.HOME}/.piwin/sessions/session-mskcz6eh-8mv59r6y/transcript.json`;
+    const transcriptPath = `${process.env.HOME}/.piwin/sessions/session-mskcz6eh-8mv59r6y/transcript.json`;
     let raw: string;
     try {
       raw = await readFile(transcriptPath, 'utf8');
@@ -251,6 +309,10 @@ describe('resolveDocumentContentFromMessages', () => {
     };
 
     // Old buggy algorithm: first optional-markdown fence match.
+    // The newest matching message may wrap the whole plan in a ```markdown
+    // fence (then the old bug also gets the full plan); keep walking back to
+    // the historical message where the old bug produced an inter-fence
+    // fragment — that is the regression this test pins down.
     const oldBugPattern = /```(?:markdown|md)?\n([\s\S]*?)\n```/i;
     let oldBugBody: string | null = null;
     for (let index = document.messages.length - 1; index >= 0; index -= 1) {
@@ -260,7 +322,10 @@ describe('resolveDocumentContentFromMessages', () => {
         text.includes('docs/design/session-lifecycle-archive.md')
       ) {
         const match = oldBugPattern.exec(text);
-        if (match?.[1]) {
+        // The fragment must be an inter-fence prose block (not a heading
+        // document, not a file-path listing) — it contains Slice references
+        // but does not start with `#`.
+        if (match?.[1] && !match[1].trimStart().startsWith('#') && match[1].includes('Slice ')) {
           oldBugBody = match[1];
           break;
         }

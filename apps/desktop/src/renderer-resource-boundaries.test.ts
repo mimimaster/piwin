@@ -22,11 +22,15 @@ function ruleDeclarations(source: string, selector: string): string {
 }
 
 describe('Desktop renderer resource boundaries', () => {
-  it('assigns the full-stage backdrop filter to workspace only', () => {
+  it('keeps the stage a solid canvas without per-panel backdrop filters', () => {
     const shell = readSource('./styles/region-shell.css');
     const contextBar = readSource('./styles/region-context-bar.css');
 
-    expect(ruleDeclarations(shell, '.workspace')).toContain('backdrop-filter: blur(16px)');
+    // The stage is a solid canvas since the glass mix flashed white during
+    // high-frequency stream reflow (SVG artifact height growth). Blur must
+    // not be re-applied per panel (chat-column / document stage / context
+    // bar) — that would re-composite expensive backdrop filters.
+    expect(ruleDeclarations(shell, '.workspace')).not.toContain('backdrop-filter');
     expect(ruleDeclarations(shell, '.chat-column')).not.toContain('backdrop-filter');
     expect(ruleDeclarations(shell, '.workspace-document-stage')).not.toContain('backdrop-filter');
     expect(ruleDeclarations(contextBar, '.context-bar')).not.toContain('backdrop-filter');
