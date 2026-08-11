@@ -155,7 +155,9 @@ function extractWriteToolDocumentContent(
     return output;
   }
 
-  return fromPreview;
+  // A short truncated preview must not get the +1000 write-tool bonus and
+  // crowd out a longer, complete message-body candidate.
+  return null;
 }
 
 function pathMatches(candidate: string, title: string, path: string): boolean {
@@ -167,8 +169,7 @@ function pathMatches(candidate: string, title: string, path: string): boolean {
   const candidateBase = candidate.split(/[\\/]/).pop() || candidate;
   return basenames.some(
     (name) =>
-      candidateBase === name ||
-      candidateBase.replace(/\.md$/i, '') === name.replace(/\.md$/i, ''),
+      candidateBase === name || candidateBase.replace(/\.md$/i, '') === name.replace(/\.md$/i, ''),
   );
 }
 
@@ -237,7 +238,9 @@ function recoverPartialJsonStringField(raw: string, fieldNames: string[]): strin
       }
       result += character;
     }
-    if (result.length >= MIN_USEFUL_DOCUMENT_CHARS) {
+    // Truncated JSON: the string value never closed. Return what we have —
+    // callers gate on MIN_USEFUL_DOCUMENT_CHARS before adopting it.
+    if (result.length > 0) {
       return result;
     }
   }
@@ -265,8 +268,9 @@ function decodeJsonEscape(character: string): string {
 
 /**
  * Extract a full markdown document from an assistant message.
- * Prefers the `#` heading section, not the first fenced code block
- * (which is often a TypeScript snippet inside the plan).
+ * Prefers a standalone `#` heading section. When the document itself is
+ * wrapped in an explicit markdown fence, returns the fence body without its
+ * delimiter; headings inside that fence are not treated as outside documents.
  */
 export function extractMarkdownDocumentFromMessage(
   text: string,
@@ -275,19 +279,21 @@ export function extractMarkdownDocumentFromMessage(
 ): string | null {
   if (!text.trim()) return null;
 
-  const headingDocument = extractHeadingDocument(text, title, path);
+  const fencedDocuments = extractExplicitMarkdownFences(text);
+  const headingDocument = extractHeadingDocument(fencedDocuments.outsideText, title, path);
   if (headingDocument) {
     return headingDocument;
   }
 
-  const markdownFence = extractExplicitMarkdownFence(text);
-  if (markdownFence) {
-    return markdownFence;
+  if (fencedDocuments.bestBody && fencedDocuments.bestBody.length >= MIN_USEFUL_DOCUMENT_CHARS) {
+    return fencedDocuments.bestBody;
   }
 
-  const looksLikeDocument = text.includes('\n# ') || text.trimStart().startsWith('#');
-  if (mentionsDocument(text, title, path) && looksLikeDocument) {
-    const fromHeading = extractFirstHeadingToEnd(text);
+  const headingSource = fencedDocuments.outsideText;
+  const looksLikeDocument =
+    headingSource.includes('\n# ') || headingSource.trimStart().startsWith('#');
+  if (mentionsDocument(headingSource, title, path) && looksLikeDocument) {
+    const fromHeading = extractFirstHeadingToEnd(headingSource);
     if (fromHeading && fromHeading.length >= MIN_USEFUL_DOCUMENT_CHARS) {
       return fromHeading;
     }
@@ -350,24 +356,59 @@ function extractFirstHeadingToEnd(text: string): string | null {
   return match[1].trim();
 }
 
-function extractExplicitMarkdownFence(text: string): string | null {
-  const fencePattern = /```(?:markdown|md)\s*\n([\s\S]*?)\n```/gi;
+function extractExplicitMarkdownFences(text: string): {
+  bestBody: string | null;
+  outsideText: string;
+} {
+  const lines = text.split('\n');
+  const outsideLines = [...lines];
   let best: string | null = null;
   let bestLength = 0;
-  for (const match of text.matchAll(fencePattern)) {
-    const body = (match[1] ?? '').trim();
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex] ?? '';
+    const openingMatch = /^(?: {0,3})(`{3,})(?:markdown|md)[ \t]*\r?$/i.exec(line);
+    const openingFence = openingMatch?.[1];
+    if (!openingFence) {
+      continue;
+    }
+
+    let closingLineIndex: number | null = null;
+    for (let candidateIndex = lineIndex + 1; candidateIndex < lines.length; candidateIndex += 1) {
+      const candidateLine = lines[candidateIndex] ?? '';
+      const closingMatch = /^(?: {0,3})(`{3,})[ \t]*\r?$/.exec(candidateLine);
+      const closingFence = closingMatch?.[1];
+      if (closingFence && closingFence.length >= openingFence.length) {
+        closingLineIndex = candidateIndex;
+        break;
+      }
+    }
+
+    if (closingLineIndex === null) {
+      continue;
+    }
+
+    const body = lines
+      .slice(lineIndex + 1, closingLineIndex)
+      .join('\n')
+      .trim();
+    for (let maskedIndex = lineIndex; maskedIndex <= closingLineIndex; maskedIndex += 1) {
+      outsideLines[maskedIndex] = '';
+    }
     if (body.length > bestLength) {
       best = body;
       bestLength = body.length;
     }
+    lineIndex = closingLineIndex;
   }
-  return best;
+
+  return {
+    bestBody: best,
+    outsideText: outsideLines.join('\n'),
+  };
 }
 
-function scoreDocumentCandidate(
-  content: string,
-  source: 'write-tool' | 'message-body',
-): number {
+function scoreDocumentCandidate(content: string, source: 'write-tool' | 'message-body'): number {
   let score = content.length;
   if (source === 'write-tool') {
     score += 1_000;
