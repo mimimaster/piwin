@@ -118,6 +118,28 @@ describe('session pack commands', () => {
     expect(response?.success ? '' : response?.error).toMatch(/outside the piwin root/i);
   });
 
+  it('refuses to pack an offloaded session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-pack-offloaded-'));
+    const sessionId = 'ses_offloaded_pack';
+    const record = createSessionRecord({
+      id: sessionId,
+      projectPath: '/tmp/project',
+      name: 'Offloaded',
+      kind: 'main',
+    });
+    record.isArchived = true;
+    record.storage = { state: 'offloaded', packId: 'already-packed' };
+    await upsertSessionRecord(getPiwinSessionIndexPath(rootDir), record);
+    const publishDir = await mkdtemp(join(tmpdir(), 'piwin-pack-offloaded-out-'));
+    const response = await handleSessionPackCommand(
+      { type: 'session/pack-create', sessionId, outputDir: publishDir },
+      undefined,
+      context(rootDir),
+    );
+    expect(response?.success).toBe(false);
+    expect(response?.success ? '' : response?.error).toContain('session-body-offloaded');
+  });
+
   it('rejects packing a live session', async () => {
     const { rootDir, sessionId, publishDir } = await prepareRoot();
     const response = await handleSessionPackCommand(

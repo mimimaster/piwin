@@ -5,6 +5,7 @@ import type { SessionScope } from './host.js';
 import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { SubagentLifecycleState } from './subagent-lifecycle.js';
 import type { ProductSessionOrigin } from './session-origin.js';
+import type { SessionStorageInfo } from './session-storage.js';
 
 export type SubagentStatus = 'running' | 'done' | 'failed' | 'cancelled';
 
@@ -89,6 +90,12 @@ export type SessionIndexRecord = {
   subagentLifecycle?: SubagentLifecycleState;
   /** SF-*: product-level session origin (duplicate or fork). Absent on legacy records. */
   origin?: ProductSessionOrigin;
+  /**
+   * Disk residency of the recoverable session payload. Absent means local
+   * (legacy-compatible). Intermediate packing/restoring states must not be
+   * persisted here.
+   */
+  storage?: SessionStorageInfo;
 };
 
 /**

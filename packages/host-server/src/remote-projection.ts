@@ -20,6 +20,7 @@ import type {
   RemoteSessionTranscriptPageInfo,
   RemoteTranscriptMessage,
 } from '@piwin/contracts';
+import { parseSessionStorageInfo, projectRemoteSessionStorage } from '@piwin/contracts';
 
 export type RemoteProjectionContext = {
   hostInstanceId: string;
@@ -249,6 +250,10 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
     }
     if (record.isArchived === true) {
       summary.archived = true;
+    }
+    const storage = projectRemoteSessionStorage(parseSessionStorageInfo(record.storage));
+    if (storage) {
+      summary.storage = storage;
     }
     projected.push(summary);
   }

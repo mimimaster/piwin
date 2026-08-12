@@ -76,4 +76,53 @@ describe('searchSessions', () => {
     expect(activeResult.hits.map((hit) => hit.sessionId)).toEqual(['active']);
     expect(archivedResult.hits.map((hit) => hit.sessionId)).toEqual(['archived']);
   });
+
+  it('searches offloaded stubs by index fields and never opens their body', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-search-storage-'));
+    const indexPath = join(dir, 'index.json');
+    const record = createSessionRecord({
+      id: 'offloaded',
+      projectPath: '/tmp/proj',
+      name: 'cold widgets',
+    });
+    record.isArchived = true;
+    record.storage = {
+      state: 'offloaded',
+      packId: 'pack-off',
+      coldPreview: 'cold widgets',
+    };
+    await upsertSessionRecord(indexPath, record);
+
+    let scanned = 0;
+    const result = await searchSessions(
+      {
+        indexPath,
+        searchTranscript: async () => {
+          scanned += 1;
+          throw new Error('offloaded body must not be scanned');
+        },
+      },
+      { query: 'widgets', projectPath: '/tmp/proj', lifecycle: 'archived' },
+    );
+
+    expect(scanned).toBe(0);
+    expect(result.hits).toHaveLength(1);
+    expect(result.hits[0]?.sessionId).toBe('offloaded');
+    expect(result.hits[0]?.storage?.state).toBe('offloaded');
+    expect(result.hits[0]?.storage?.packId).toBe('pack-off');
+
+    scanned = 0;
+    const bodyOnly = await searchSessions(
+      {
+        indexPath,
+        searchTranscript: async () => {
+          scanned += 1;
+          throw new Error('offloaded body must not be scanned');
+        },
+      },
+      { query: 'only-in-transcript-body', projectPath: '/tmp/proj', lifecycle: 'archived' },
+    );
+    expect(scanned).toBe(0);
+    expect(bodyOnly.hits).toHaveLength(0);
+  });
 });

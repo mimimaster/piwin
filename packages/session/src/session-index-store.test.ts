@@ -57,6 +57,53 @@ describe('session-index-store', () => {
     expect(reloaded.sessions[0]?.thinkingLevel).toBe('high');
   });
 
+  it('persists storage residency and drops invalid storage states', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-storage-'));
+    const filePath = join(dir, 'index.json');
+    const record = createSessionRecord({
+      id: 's-off',
+      projectPath: '/tmp/proj',
+      name: 'offloaded chat',
+    });
+    record.isArchived = true;
+    record.storage = {
+      state: 'offloaded',
+      packId: 'ses_off-20260812T000000Z-abcd',
+      packPath: '/tmp/packs/ses_off.piwin-pack',
+      coldPreview: 'archived preview',
+      offloadedBytes: 2048,
+    };
+    await upsertSessionRecord(filePath, record);
+
+    const reloaded = await loadSessionIndex(filePath);
+    expect(reloaded.sessions[0]?.storage).toEqual({
+      state: 'offloaded',
+      packId: 'ses_off-20260812T000000Z-abcd',
+      packPath: '/tmp/packs/ses_off.piwin-pack',
+      coldPreview: 'archived preview',
+      offloadedBytes: 2048,
+    });
+
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        version: 2,
+        sessions: [
+          {
+            id: 's-bad',
+            projectPath: '/tmp/proj',
+            createdAt: '2026-08-12T00:00:00.000Z',
+            updatedAt: '2026-08-12T00:00:00.000Z',
+            messageCount: 0,
+            storage: { state: 'packing' },
+          },
+        ],
+      }),
+    );
+    const sanitized = await loadSessionIndex(filePath);
+    expect(sanitized.sessions[0]?.storage).toBeUndefined();
+  });
+
   it('pins sessions and sorts pinned first across reloads', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-session-pin-'));
     const filePath = join(dir, 'index.json');

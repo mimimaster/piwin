@@ -41,6 +41,7 @@ import {
   contentKindForMimeType,
   deriveMemoryHighWaterMiB,
   deriveMemoryLowWaterMiB,
+  assertSessionBodyAvailable,
   formatError,
   isRunTerminal,
   LEGACY_LOCAL_SINK_ID,
@@ -3996,20 +3997,32 @@ export class HostRuntime {
     return this.withTranscriptStore(sessionId, (store) => store.listTail(100));
   }
 
+  /**
+   * Central body-availability choke point. Offloaded / missing-pack stubs must
+   * never open or create transcript.sqlite3.
+   */
+  private async requireAvailableSessionBody(sessionId: string) {
+    const record = await getSessionRecord(
+      getPiwinSessionIndexPath(getPiwinRoot(this.options.piwinRoot)),
+      sessionId,
+    );
+    if (record) {
+      assertSessionBodyAvailable(record, 'open-body');
+    }
+    return record;
+  }
+
   private async getTranscriptStore(
     sessionId: string,
     projectPathOverride?: string,
   ): Promise<SessionTranscriptStore> {
-    const projectPath = projectPathOverride ?? this.sessionProjects.get(sessionId);
-    if (projectPath !== undefined) {
-      return this.transcriptStores.get(sessionId, projectPath);
-    }
-    const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
-    if (record === undefined) {
+    const record = await this.requireAvailableSessionBody(sessionId);
+    const projectPath =
+      projectPathOverride ?? this.sessionProjects.get(sessionId) ?? record?.projectPath;
+    if (projectPath === undefined) {
       throw new Error(`Unknown session: ${sessionId}`);
     }
-    return this.transcriptStores.get(sessionId, record.projectPath);
+    return this.transcriptStores.get(sessionId, projectPath);
   }
 
   private async withTranscriptStore<T>(
@@ -4017,21 +4030,15 @@ export class HostRuntime {
     operation: (store: SessionTranscriptStore) => Promise<T>,
     projectPathOverride?: string,
   ): Promise<T> {
-    const projectPath = projectPathOverride ?? this.sessionProjects.get(sessionId);
-    const resolvedProjectPath =
-      projectPath ??
-      (
-        await getSessionRecord(
-          getPiwinSessionIndexPath(getPiwinRoot(this.options.piwinRoot)),
-          sessionId,
-        )
-      )?.projectPath;
-    if (resolvedProjectPath === undefined) {
+    const record = await this.requireAvailableSessionBody(sessionId);
+    const projectPath =
+      projectPathOverride ?? this.sessionProjects.get(sessionId) ?? record?.projectPath;
+    if (projectPath === undefined) {
       throw new Error(`Unknown session: ${sessionId}`);
     }
     return this.transcriptStores.withStore(
       sessionId,
-      resolvedProjectPath,
+      projectPath,
       operation,
       (candidateSessionId) =>
         this.sessions.has(candidateSessionId) || this.transcriptRecorders.has(candidateSessionId),

@@ -30,6 +30,8 @@ export type SessionSearchHit = {
   name?: string;
   updatedAt?: string;
   isPinned?: boolean;
+  /** Disk residency. Absent means local; body search is skipped when not local. */
+  storage?: import('./session-storage.js').SessionStorageInfo;
 };
 
 export type SessionSearchResult = {

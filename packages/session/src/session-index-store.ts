@@ -2,16 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { link, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import type {
-  SessionIndexDocument,
-  SessionIndexRecord,
-  SessionScope,
-  SideChatContextSnapshot,
-  SideChatRelation,
-  SubagentLifecycleState,
-  SubagentRuntimeSnapshot,
-  ThinkingLevel,
-  ModelRef,
+import {
+  parseSessionStorageInfo,
+  type SessionIndexDocument,
+  type SessionIndexRecord,
+  type SessionScope,
+  type SideChatContextSnapshot,
+  type SideChatRelation,
+  type SubagentLifecycleState,
+  type SubagentRuntimeSnapshot,
+  type ThinkingLevel,
+  type ModelRef,
 } from '@piwin/contracts';
 import { isLegacyInternalSessionName, isPlaceholderSessionName } from './session-display-name.js';
 import { writeTextFileAtomic } from './atomic-text-file.js';
@@ -139,6 +140,18 @@ function nowIso(): string {
  * v1 records (no scope) derive scope from their legacy projectPath.
  * v2 records (with scope) are returned as-is.
  */
+function normalizeRecordStorage(record: SessionIndexRecord): SessionIndexRecord {
+  if (record.storage === undefined) {
+    return record;
+  }
+  const parsed = parseSessionStorageInfo(record.storage);
+  if (parsed === undefined) {
+    const { storage: _dropped, ...rest } = record;
+    return rest;
+  }
+  return parsed === record.storage ? record : { ...record, storage: parsed };
+}
+
 function normalizeRecordScope(record: SessionIndexRecord): SessionIndexRecord {
   if (record.scope) {
     // Already a v2-style record with explicit scope
@@ -183,7 +196,7 @@ export async function loadSessionIndex(filePath: string): Promise<SessionIndexDo
     );
     return {
       version: 2,
-      sessions: validSessions.map(normalizeRecordScope),
+      sessions: validSessions.map((item) => normalizeRecordStorage(normalizeRecordScope(item))),
     };
   } catch (error) {
     if (isNotFound(error)) {

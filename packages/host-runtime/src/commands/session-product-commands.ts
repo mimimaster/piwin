@@ -4,6 +4,7 @@
  */
 import { rm } from 'node:fs/promises';
 import { formatError } from '@piwin/contracts';
+import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import type {
   CreateSessionInput,
   HostCommand,
@@ -298,6 +299,19 @@ export async function handleSessionProductCommand(
       return ok(requestId, 'session/lifecycle-apply', result);
     }
     case 'session/unarchive': {
+      const existing = await getSessionRecord(indexPath, command.sessionId);
+      if (!existing) {
+        return fail(requestId, 'session/unarchive', `Unknown session: ${command.sessionId}`);
+      }
+      const rejected = rejectUnavailableSessionBody(
+        requestId,
+        'session/unarchive',
+        existing,
+        'unarchive',
+      );
+      if (rejected) {
+        return rejected;
+      }
       const record = await unarchiveSessionRecord(indexPath, command.sessionId);
       if (!record) {
         return fail(requestId, 'session/unarchive', `Unknown session: ${command.sessionId}`);
@@ -312,6 +326,15 @@ export async function handleSessionProductCommand(
       const existing = await getSessionRecord(indexPath, command.sessionId);
       if (!existing) {
         return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
+      }
+      const rejectedDelete = rejectUnavailableSessionBody(
+        requestId,
+        'session/delete',
+        existing,
+        'delete',
+      );
+      if (rejectedDelete) {
+        return rejectedDelete;
       }
       if (existing.isArchived !== true && command.force !== true) {
         return fail(
@@ -334,6 +357,15 @@ export async function handleSessionProductCommand(
       const source = await getSessionRecord(indexPath, command.sessionId);
       if (!source) {
         return fail(requestId, 'session/duplicate', `Unknown session: ${command.sessionId}`);
+      }
+      const rejectedDuplicate = rejectUnavailableSessionBody(
+        requestId,
+        'session/duplicate',
+        source,
+        'duplicate',
+      );
+      if (rejectedDuplicate) {
+        return rejectedDuplicate;
       }
       const createInput: CreateSessionInput = {
         projectPath: source.projectPath,
@@ -407,6 +439,10 @@ export async function handleSessionProductCommand(
       const source = await getSessionRecord(indexPath, command.sessionId);
       if (!source) {
         return fail(requestId, 'session/fork', `Unknown session: ${command.sessionId}`);
+      }
+      const rejectedFork = rejectUnavailableSessionBody(requestId, 'session/fork', source, 'fork');
+      if (rejectedFork) {
+        return rejectedFork;
       }
       if (source.isArchived === true) {
         return fail(requestId, 'session/fork', 'Source session is archived');

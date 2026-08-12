@@ -29,6 +29,7 @@ export * from './session-capability.js';
 export * from './session-runtime.js';
 export * from './session-lifecycle.js';
 export * from './session-pack.js';
+export * from './session-storage.js';
 export * from './session-pause.js';
 export * from './extensions.js';
 export * from './prompts.js';

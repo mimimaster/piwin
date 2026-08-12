@@ -1,4 +1,4 @@
-import { mkdtemp, stat } from 'node:fs/promises';
+import { access, mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -173,11 +173,13 @@ describe('SessionTranscriptStoreRegistry', () => {
   it('blocks new Store access while maintenance owns the session', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-maintenance-lock-'));
     const registry = createSessionTranscriptStoreRegistry({ rootDir });
-    await registry.withMaintenanceLease('maintenance-lock', async () => {
-      await expect(registry.get('maintenance-lock', '/project')).rejects.toThrow(
-        /under maintenance/,
-      );
+    const sessionId = 'maintenance-lock';
+    await registry.withMaintenanceLease(sessionId, async () => {
+      await expect(registry.get(sessionId, '/project')).rejects.toThrow(/under maintenance/);
     });
+    await expect(access(getPiwinSessionTranscriptDatabasePath(rootDir, sessionId))).rejects.toMatchObject(
+      { code: 'ENOENT' },
+    );
     registry.closeAll();
   });
 

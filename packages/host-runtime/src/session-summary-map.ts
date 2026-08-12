@@ -36,6 +36,7 @@ export function indexRecordToSummary(
     | 'origin'
     | 'model'
     | 'thinkingLevel'
+    | 'storage'
   >,
 ): SessionSummary {
   const scope: SessionScope = scopeFromIndexRecord(record);
@@ -87,6 +88,9 @@ export function indexRecordToSummary(
   }
   if (record.origin) {
     summary.origin = record.origin;
+  }
+  if (record.storage && record.storage.state !== 'local') {
+    summary.storage = record.storage;
   }
   return summary;
 }

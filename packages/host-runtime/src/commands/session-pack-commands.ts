@@ -20,6 +20,7 @@ import type {
 } from '@piwin/contracts';
 import {
   assertSafeSessionPackId,
+  assertSessionBodyAvailable,
   formatError,
 } from '@piwin/contracts';
 import {
@@ -92,6 +93,7 @@ async function handlePackCreate(
   if (!record) {
     throw new Error(`Unknown session: ${command.sessionId}`);
   }
+  assertSessionBodyAvailable(record, 'pack');
   if (context.isLiveSession) {
     const live = await context.isLiveSession(command.sessionId);
     if (live) {
