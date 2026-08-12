@@ -43,6 +43,7 @@ import {
   deriveMemoryLowWaterMiB,
   assertSessionBodyAvailable,
   formatError,
+  type SessionColdStoragePlan,
   isRunTerminal,
   LEGACY_LOCAL_SINK_ID,
   normalizeSessionRuntimeRetentionConfig,
@@ -160,6 +161,7 @@ import {
   appendUsageRecord,
   readLatestSessionContextUsage,
   createSubagentRunStore,
+  recoverJournaledColdStorageTransactions,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import type {
@@ -187,6 +189,7 @@ import {
   type ProductAgentHostToolRegistrationMode,
 } from './product-agent-host.js';
 import { loadPiwinConfig, savePiwinConfig } from './config-store.js';
+import { createSessionStorageCoordinator } from './session-storage-coordinator.js';
 import { permanentlyDeleteSession } from './session-delete-service.js';
 import {
   hasForeignLiveSessionRuntime,
@@ -206,6 +209,8 @@ import {
   getPiwinSessionIndexPath,
   getPiwinSessionPlanPath,
   getPiwinSessionDir,
+  getPiwinSessionMediaDir,
+  getPiwinSessionTranscriptDatabasePath,
   getPiwinUsageLedgerPath,
 } from './paths.js';
 import { buildPermissionRequestContext } from './permission-context.js';
@@ -529,6 +534,9 @@ export class HostRuntime {
   private subagentWorkspaceService: ReturnType<typeof createSubagentWorkspaceService> | null = null;
   /** Resource coordinator for bounded concurrency. */
   private runtimeResourceCoordinator: RuntimeResourceCoordinator | null = null;
+  private readonly sessionStorageCoordinator = createSessionStorageCoordinator();
+  private readonly coldStoragePlans = new Map<string, SessionColdStoragePlan>();
+  private coldStorageRecovery: Promise<void> | null = null;
   private ready = true;
 
   constructor(options: HostRuntimeOptions) {
@@ -1054,6 +1062,7 @@ export class HostRuntime {
     const requestId = typeof command.id === 'string' ? command.id : undefined;
     try {
       await this.ensureRuntimeRetentionLoaded();
+      await this.ensureColdStorageRecovered();
       // §8.1: walkthrough/cancel is a control-channel request that must bypass
       // the normal long-task dispatch chain and abort the in-flight generation
       // immediately. Handle it before buildDomainCommands so it is never queued
@@ -3441,7 +3450,51 @@ export class HostRuntime {
         isLiveSession: (sessionId) =>
           this.runtimeController.hasActiveGeneration(sessionId) || this.sessions.has(sessionId),
       },
+      sessionColdStorage: {
+        ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+        withTranscriptMaintenance: (sessionId, operation) =>
+          this.transcriptStores.withMaintenanceLease(sessionId, operation),
+        storageCoordinator: this.sessionStorageCoordinator,
+        isLiveSession: (sessionId) =>
+          this.runtimeController.hasActiveGeneration(sessionId) || this.sessions.has(sessionId),
+        rememberPlan: (plan) => {
+          this.coldStoragePlans.set(plan.planId, plan);
+        },
+        takePlan: (planId) => this.coldStoragePlans.get(planId),
+      },
     };
+  }
+
+  private async ensureColdStorageRecovered(): Promise<void> {
+    if (this.coldStorageRecovery === null) {
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      this.coldStorageRecovery = recoverJournaledColdStorageTransactions({
+        rootDir,
+        indexPath: getPiwinSessionIndexPath(rootDir),
+        resolvePaths: (sessionId) => ({
+          transcriptPath: getPiwinSessionTranscriptDatabasePath(rootDir, sessionId),
+          mediaDir: getPiwinSessionMediaDir(rootDir, sessionId),
+        }),
+      })
+        .then((result) => {
+          if (result.recovered.length === 0 && result.reports.length === 0) {
+            return;
+          }
+          this.push({
+            type: 'host/log',
+            level: 'info',
+            message: `[cold-storage] recovered ${result.recovered.length} journal(s)`,
+          });
+        })
+        .catch((error: unknown) => {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `[cold-storage] journal recovery failed: ${formatError(error)}`,
+          });
+        });
+    }
+    await this.coldStorageRecovery;
   }
 
   private async ensureRuntimeRetentionLoaded(): Promise<void> {

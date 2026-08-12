@@ -129,6 +129,89 @@ export async function sha256File(filePath: string): Promise<string> {
   return hash.digest('hex');
 }
 
+export async function hashSessionPayload(input: {
+  transcriptPath: string;
+  mediaDir: string;
+}): Promise<{
+  transcriptSha256: string;
+  mediaTreeSha256?: string;
+  payloadBytes: number;
+  mediaIncluded: boolean;
+}> {
+  const transcriptPath = resolve(input.transcriptPath);
+  if (!(await pathExists(transcriptPath))) {
+    throw new Error(`Transcript database missing: ${transcriptPath}`);
+  }
+  const transcriptSha256 = await sha256File(transcriptPath);
+  const transcriptStats = await stat(transcriptPath);
+  const media = await collectMediaTree(input.mediaDir);
+  const result: {
+    transcriptSha256: string;
+    mediaTreeSha256?: string;
+    payloadBytes: number;
+    mediaIncluded: boolean;
+  } = {
+    transcriptSha256,
+    payloadBytes: transcriptStats.size + media.byteLength,
+    mediaIncluded: media.included,
+  };
+  if (media.included) {
+    result.mediaTreeSha256 = media.treeSha256;
+  }
+  return result;
+}
+
+export async function extractVerifiedSessionPack(input: {
+  packPath: string;
+  destinationDir: string;
+}): Promise<{
+  verified: SessionPackVerifyResultData;
+  manifest: SessionPackManifestV1;
+  transcriptPath: string;
+  mediaDir?: string;
+}> {
+  const verified = await verifySessionPack({ packPath: input.packPath });
+  const destinationDir = resolve(input.destinationDir);
+  await rm(destinationDir, { recursive: true, force: true });
+  await mkdir(destinationDir, { recursive: true });
+  const transcriptPath = join(destinationDir, 'transcript.sqlite3');
+  await extractZipEntry(input.packPath, SESSION_PACK_TRANSCRIPT_ENTRY, transcriptPath);
+  const extractedHash = await sha256File(transcriptPath);
+  if (extractedHash !== verified.transcriptSha256) {
+    throw new Error('Extracted transcript hash does not match verified pack');
+  }
+  inspectTranscriptDatabase(transcriptPath, verified.sessionId);
+  const manifest = parseSessionPackManifest(
+    (await readZipEntryBuffer(input.packPath, SESSION_PACK_MANIFEST_ENTRY)).toString('utf8'),
+  );
+  let mediaDir: string | undefined;
+  if (verified.mediaIncluded) {
+    mediaDir = join(destinationDir, 'media');
+    await mkdir(mediaDir, { recursive: true });
+    const entries = await readZipEntries(input.packPath);
+    for (const entry of entries) {
+      if (!entry.fileName.startsWith(SESSION_PACK_MEDIA_PREFIX) || entry.fileName.endsWith('/')) {
+        continue;
+      }
+      const relativePath = entry.fileName.slice(SESSION_PACK_MEDIA_PREFIX.length);
+      if (!relativePath || relativePath.includes('..') || relativePath.startsWith('/')) {
+        throw new Error(`Unsafe media entry path: ${entry.fileName}`);
+      }
+      await extractZipEntry(input.packPath, entry.fileName, join(mediaDir, relativePath));
+    }
+    const hashed = await collectMediaTree(mediaDir);
+    if (!hashed.included || hashed.treeSha256 !== verified.mediaTreeSha256) {
+      throw new Error('Extracted media tree hash does not match verified pack');
+    }
+  }
+  return {
+    verified,
+    manifest,
+    transcriptPath,
+    ...(mediaDir ? { mediaDir } : {}),
+  };
+}
+
 export async function sha256Tree(files: Array<{ relativePath: string; sha256: string }>): Promise<string> {
   const hash = createHash('sha256');
   const ordered = [...files].sort((left, right) =>

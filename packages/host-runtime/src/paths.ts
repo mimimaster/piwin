@@ -115,6 +115,15 @@ export function getPiwinPackStagingDir(rootDir: string): string {
   return join(rootDir, 'pack-staging');
 }
 
+/** Host journals + quarantine for cold-storage transactions. */
+export function getPiwinColdStorageDir(rootDir: string): string {
+  return join(rootDir, 'cold-storage');
+}
+
+export function getPiwinColdStorageTransactionsDir(rootDir: string): string {
+  return join(getPiwinColdStorageDir(rootDir), 'transactions');
+}
+
 export function getPiwinSessionPackStagingDir(rootDir: string, packId: string): string {
   assertSafePathSegment(packId, 'packId');
   return join(getPiwinPackStagingDir(rootDir), packId);

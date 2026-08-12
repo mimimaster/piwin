@@ -141,6 +141,27 @@ describe('config-store', () => {
     expect(loaded.session?.lifecycle).toBeUndefined();
   });
 
+  it('normalizes session cold-storage config with safe defaults', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-session-cold-config-'));
+    const config = createDefaultPiwinConfig();
+    config.session = {
+      coldStorage: {
+        enabled: true,
+        packOutputDir: '/tmp/piwin-packs',
+        minArchivedAgeDays: 14,
+        localBudgetBytes: 1024,
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.session?.coldStorage).toEqual({
+      enabled: true,
+      packOutputDir: '/tmp/piwin-packs',
+      minArchivedAgeDays: 14,
+      localBudgetBytes: 1024,
+    });
+  });
+
   it('round-trips visionDelegation, imageGeneration, videoGeneration, and speech', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
     const config = createDefaultPiwinConfig();
