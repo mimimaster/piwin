@@ -15,6 +15,7 @@ import {
   repairLegacyTextSessionName,
   saveSessionIndex,
   setSessionAutoName,
+  SessionIndexCorruptError,
   unarchiveSessionRecord,
   unpinSessionRecord,
   upsertSessionRecord,
@@ -371,7 +372,7 @@ describe('session-index-store', () => {
       expect(project?.workingDirectory).toBe('/tmp/my-project');
     });
 
-    it('handles empty and corrupt files gracefully', async () => {
+    it('returns an empty document only for a missing file; corrupt content is reported', async () => {
       const dir = await mkdtemp(join(tmpdir(), 'piwin-corrupt-'));
       const filePath = join(dir, 'index.json');
 
@@ -382,15 +383,11 @@ describe('session-index-store', () => {
 
       // Empty content
       await writeFile(filePath, '', 'utf8');
-      const fromEmpty = await loadSessionIndex(filePath);
-      expect(fromEmpty.version).toBe(2);
-      expect(fromEmpty.sessions).toHaveLength(0);
+      await expect(loadSessionIndex(filePath)).rejects.toBeInstanceOf(SessionIndexCorruptError);
 
       // Invalid JSON
       await writeFile(filePath, '{invalid', 'utf8');
-      const fromCorrupt = await loadSessionIndex(filePath);
-      expect(fromCorrupt.version).toBe(2);
-      expect(fromCorrupt.sessions).toHaveLength(0);
+      await expect(loadSessionIndex(filePath)).rejects.toBeInstanceOf(SessionIndexCorruptError);
     });
   });
 
@@ -767,4 +764,31 @@ describe('session-index-store', () => {
       expect(updated?.nameSource).toBe('user');
     });
   });
+
+  it('refuses to treat a corrupt on-disk catalog as an empty index', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-corrupt-'));
+    const filePath = join(dir, 'index.json');
+    await writeFile(filePath, '{not-json', 'utf8');
+    await expect(loadSessionIndex(filePath)).rejects.toBeInstanceOf(SessionIndexCorruptError);
+  });
+
+  it('refuses to treat an existing empty catalog file as a fresh install', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-empty-corrupt-'));
+    const filePath = join(dir, 'index.json');
+    await writeFile(filePath, '   \n', 'utf8');
+    await expect(loadSessionIndex(filePath)).rejects.toBeInstanceOf(SessionIndexCorruptError);
+  });
+
+  it('replaces the catalog through the atomic save path', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-atomic-save-'));
+    const filePath = join(dir, 'index.json');
+    const first = createSessionRecord({ id: 's1', projectPath: '/tmp/proj', name: 'first' });
+    await saveSessionIndex(filePath, { version: 2, sessions: [first] });
+    const second = createSessionRecord({ id: 's2', projectPath: '/tmp/proj', name: 'second' });
+    await saveSessionIndex(filePath, { version: 2, sessions: [second] });
+    const loaded = await loadSessionIndex(filePath);
+    expect(loaded.sessions.map((item) => item.id)).toEqual(['s2']);
+    expect(await readFile(filePath, 'utf8')).toContain('"s2"');
+  });
+
 });

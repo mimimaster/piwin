@@ -517,4 +517,18 @@ describe('config-store', () => {
     // Profile references the model; it does not define a new provider.
     expect(parsed.subagents.profiles).toHaveLength(1);
   });
+
+  it('replaces an existing config file atomically', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-atomic-'));
+    const first = createDefaultPiwinConfig();
+    first.hostMode = 'sdk';
+    await savePiwinConfig(first, rootDir);
+    const second = createDefaultPiwinConfig();
+    second.hostMode = 'rpc';
+    const savedPath = await savePiwinConfig(second, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.hostMode).toBe('rpc');
+    expect(await readFile(savedPath, 'utf8')).toContain('"hostMode": "rpc"');
+  });
+
 });
