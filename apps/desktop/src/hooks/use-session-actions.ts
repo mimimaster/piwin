@@ -1195,6 +1195,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleDuplicateSession = useCallback(
     async (sessionId: string): Promise<void> => {
+      if (
+        state.transcriptOwnerSessionId !== null &&
+        state.transcriptOwnerSessionId !== state.activeSessionId
+      ) {
+        dispatchNotification(
+          pushError('Transcript is still loading for this session — try again in a moment.'),
+        );
+        return;
+      }
       const response = await hostClient.request({
         type: 'session/duplicate',
         sessionId,
@@ -1215,7 +1224,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatchNotification(pushSuccess(`Duplicated as “${listItem.name}”`));
       await handleResumeSession(data.sessionId);
     },
-    [dispatch, dispatchNotification, handleResumeSession, hostClient],
+    [
+      dispatch,
+      dispatchNotification,
+      handleResumeSession,
+      hostClient,
+      state.activeSessionId,
+      state.transcriptOwnerSessionId,
+    ],
   );
 
   const handleContinueSessionInProject = useCallback(
@@ -1247,6 +1263,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleForkSession = useCallback(
     async (sessionId: string, messageId: string): Promise<void> => {
+      if (
+        state.transcriptOwnerSessionId !== null &&
+        state.transcriptOwnerSessionId !== state.activeSessionId
+      ) {
+        dispatchNotification(
+          pushError('Transcript is still loading for this session — try again in a moment.'),
+        );
+        return;
+      }
       const response = await hostClient.request({
         type: 'session/fork',
         sessionId,
@@ -1269,7 +1294,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatchNotification(pushSuccess(`Forked as "${listItem.name}"`));
       await handleResumeSession(data.sessionId);
     },
-    [dispatch, dispatchNotification, handleResumeSession, hostClient],
+    [
+      dispatch,
+      dispatchNotification,
+      handleResumeSession,
+      hostClient,
+      state.activeSessionId,
+      state.transcriptOwnerSessionId,
+    ],
   );
 
   const handleSessionMenuAction = useCallback(
@@ -1479,6 +1511,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (state.streaming) {
         dispatchNotification(
           pushInfo('Wait for the current run to finish (or stop it) before restoring.'),
+        );
+        return;
+      }
+      if (
+        state.transcriptOwnerSessionId !== null &&
+        state.transcriptOwnerSessionId !== state.activeSessionId
+      ) {
+        dispatchNotification(
+          pushError('Transcript is still loading for this session — try again in a moment.'),
         );
         return;
       }
