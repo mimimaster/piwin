@@ -253,6 +253,13 @@ export type ChatUiState = {
    */
   awaitingTranscript: boolean;
   /**
+   * Session that owns the rows currently painted in `messages`. During a cold
+   * resume, `activeSessionId` moves to the new session while old rows remain
+   * visible; derived actions (fork/duplicate/retry) must not combine an old
+   * message id with the new session id, so they verify this field first.
+   */
+  transcriptOwnerSessionId: string | null;
+  /**
    * idle | streaming | aborting — replaces overloaded boolean for Stop UI.
    * `streaming` remains true for both streaming and aborting so existing guards keep working.
    */
@@ -499,6 +506,7 @@ export function createInitialChatUiState(): ChatUiState {
     outline: [],
     activeSessionArchived: false,
     awaitingTranscript: false,
+    transcriptOwnerSessionId: null,
     runPhase: 'idle',
     activeRunId: null,
     activeRunPhase: null,
@@ -846,6 +854,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       // Stream events stay ignored while awaitingTranscript is true.
       const keepPreviousWhileLoading =
         !warmHit && awaitingTranscript && switchingAway && state.messages.length > 0;
+      // Owner follows the painted rows: new session for fresh/warm paint,
+      // the previous owner while old rows stay visible under the loading banner.
+      const transcriptOwnerSessionId = keepPreviousWhileLoading
+        ? (state.transcriptOwnerSessionId ?? state.activeSessionId)
+        : action.sessionId;
 
       return {
         ...state,
@@ -883,6 +896,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         outline: warmHit ? warmHit.outline : keepPreviousWhileLoading ? state.outline : [],
         activeSessionArchived: false,
         awaitingTranscript,
+        transcriptOwnerSessionId,
         runTerminal: { kind: 'none' },
         // C1: clear event id ring for the new session
         receivedEventIds: [],
@@ -963,6 +977,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         outline: action.outline ?? [],
         activeSessionArchived: action.preserveActiveTail ? state.activeSessionArchived : false,
         awaitingTranscript: false,
+        transcriptOwnerSessionId: action.sessionId,
         contextUsage: action.contextUsage !== undefined ? action.contextUsage : state.contextUsage,
         runTerminal: action.preserveActiveTail ? state.runTerminal : { kind: 'none' },
         error: null,
@@ -1388,6 +1403,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return {
         ...state,
         activeSessionId: null,
+        transcriptOwnerSessionId: null,
         // New Agent is only a client-side draft until the first send creates
         // a Host session. Usage belongs to the previous active session and
         // must not leak into the uncreated draft.
