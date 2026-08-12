@@ -76,15 +76,41 @@ import { redactToolText } from '@piwin/agent-host';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
+
+/** Build resolver deps with registered-project-root enforcement (security). */
+function createResolveRefsDeps(context: SessionLiveContext): {
+  loadTranscriptMessages: (
+    sessionId: string,
+  ) => Promise<import('@piwin/contracts').SessionTranscriptMessage[]>;
+  isRegisteredProjectRoot: (projectPath: string) => Promise<boolean>;
+} {
+  return {
+    loadTranscriptMessages: context.loadTranscriptMessages,
+    isRegisteredProjectRoot: async (projectPath: string): Promise<boolean> => {
+      try {
+        const projectsPath = getPiwinProjectsPath(getPiwinRoot(context.piwinRoot));
+        const document = await loadProjectStore(projectsPath);
+        return isRegisteredProjectRoot(
+          document.projects.map((project) => project.path),
+          projectPath,
+        );
+      } catch {
+        return false;
+      }
+    },
+  };
+}
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
+  getPiwinProjectsPath,
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
   getPiwinSessionPlanPath,
 } from '../paths.js';
+import { isRegisteredProjectRoot, loadProjectStore } from '@piwin/project';
 import type { TranscriptRecorder } from '../transcript-recorder.js';
 import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
@@ -220,10 +246,7 @@ export type SessionLiveContext = {
   flushTranscriptRecorder?: (sessionId: string) => Promise<void>;
   /** RunRegistry-backed foreground lifecycle. */
   getForegroundRun: (sessionId: string) => ExecutionRunRecord | undefined;
-  registerForegroundRun: (
-    sessionId: string,
-    resumeCheckpointId?: string,
-  ) => ExecutionRunRecord;
+  registerForegroundRun: (sessionId: string, resumeCheckpointId?: string) => ExecutionRunRecord;
   getRunSignal: (runId: string) => AbortSignal | undefined;
   hasRunReceivedFirstToken: (runId: string) => boolean;
   requestCancelRun: (
@@ -573,7 +596,7 @@ async function preparePromptInput(
       // resolve them alongside the snapshot block on injection.
       if (sideChatSnapshot.refs.length > 0) {
         const refText = await resolvePromptContextRefs(
-          { loadTranscriptMessages: context.loadTranscriptMessages },
+          createResolveRefsDeps(context),
           sideChatSnapshot.refs,
         );
         throwIfPromptPreparationAborted(context, run.runId);
@@ -591,7 +614,7 @@ async function preparePromptInput(
   if (command.input.contextRefs && command.input.contextRefs.length > 0) {
     try {
       const resolvedContext = await resolvePromptContextRefs(
-        { loadTranscriptMessages: context.loadTranscriptMessages },
+        createResolveRefsDeps(context),
         command.input.contextRefs,
       );
       if (resolvedContext) {
@@ -1419,8 +1442,7 @@ export async function handleSessionLiveCommand(
               !completedPlan ||
               completedPlan.revision <= startingPlanRevision ||
               (persistedPlanIntent === 'writing-plans-skill' &&
-                (completedPlan.source !== 'skill' ||
-                  completedPlan.skillId !== 'writing-plans'))
+                (completedPlan.source !== 'skill' || completedPlan.skillId !== 'writing-plans'))
             ) {
               throw new Error(
                 'plan-not-persisted: Plan mode and writing-plans must finish by creating or revising the durable SessionPlan with piwin_plan_create',
@@ -1912,9 +1934,7 @@ async function finalizePausedRun(
       return store.createPauseCheckpoint({
         sessionId,
         sourceRunId: runId,
-        ...(run.resumeCheckpointId !== undefined
-          ? { checkpointId: run.resumeCheckpointId }
-          : {}),
+        ...(run.resumeCheckpointId !== undefined ? { checkpointId: run.resumeCheckpointId } : {}),
         ...(run.runtimeGenerationId !== undefined
           ? { runtimeGenerationId: run.runtimeGenerationId }
           : {}),
