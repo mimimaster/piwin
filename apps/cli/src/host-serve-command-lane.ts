@@ -43,6 +43,7 @@ const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/archive',
   'session/unarchive',
   'session/delete',
+  'session/pack-create',
   'session/duplicate',
   'session/pin',
   'session/unpin',

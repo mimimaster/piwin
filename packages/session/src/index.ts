@@ -161,6 +161,26 @@ export type {
   TranscriptStoreOptions,
 } from './transcript-store.js';
 
+export {
+  checkpointTranscriptWal,
+  createSessionPack,
+  generateSessionPackId,
+  listSessionPacks,
+  parseSessionPackManifest,
+  sha256File,
+  sha256Tree,
+  verifySessionPack,
+  SESSION_PACK_MANIFEST_ENTRY,
+  SESSION_PACK_MEDIA_PREFIX,
+  SESSION_PACK_TRANSCRIPT_ENTRY,
+} from './session-pack.js';
+export type {
+  CreateSessionPackInput,
+  ListSessionPacksInput,
+  SessionPackPaths,
+  VerifySessionPackInput,
+} from './session-pack.js';
+
 export { validateSessionPlan } from './validate-plan.js';
 export type { PlanValidationIssue, PlanValidationResult } from './validate-plan.js';
 export { loadSessionPlan, saveSessionPlan, clearSessionPlan } from './plan-store.js';

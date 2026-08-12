@@ -34,11 +34,15 @@
     "lint": "echo \"lint ok (session)\""
   },
   "dependencies": {
-    "@piwin/contracts": "workspace:*"
+    "@piwin/contracts": "workspace:*",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1"
   },
   "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5",
-    "@types/node": "^22.10.5"
+    "vitest": "^3.0.5"
   }
 }

@@ -3433,6 +3433,13 @@ export class HostRuntime {
         push: (message) => this.push(message),
         pushStatus: () => this.pushStatus(),
       },
+      sessionPack: {
+        ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+        withTranscriptMaintenance: (sessionId, operation) =>
+          this.transcriptStores.withMaintenanceLease(sessionId, operation),
+        isLiveSession: (sessionId) =>
+          this.runtimeController.hasActiveGeneration(sessionId) || this.sessions.has(sessionId),
+      },
     };
   }
 

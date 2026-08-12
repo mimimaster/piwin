@@ -110,6 +110,16 @@ export function getPiwinSessionDeleteTrashDir(rootDir: string): string {
   return join(rootDir, 'trash', 'session-deletes');
 }
 
+/** Staging root for non-destructive pack construction (never publish authority). */
+export function getPiwinPackStagingDir(rootDir: string): string {
+  return join(rootDir, 'pack-staging');
+}
+
+export function getPiwinSessionPackStagingDir(rootDir: string, packId: string): string {
+  assertSafePathSegment(packId, 'packId');
+  return join(getPiwinPackStagingDir(rootDir), packId);
+}
+
 export function getPiwinSessionTranscriptPath(rootDir: string, sessionId: string): string {
   return join(getPiwinSessionDir(rootDir, sessionId), 'transcript.json');
 }
