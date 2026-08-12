@@ -70,6 +70,11 @@ import {
   type SideChatHostClient,
 } from './side-chat-command.js';
 import { runSessionLifecycleApply, runSessionLifecyclePlan } from './session-lifecycle-command.js';
+import {
+  runSessionPackCreate,
+  runSessionPackList,
+  runSessionPackVerify,
+} from './session-pack-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -87,6 +92,9 @@ Usage:
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin session lifecycle plan [--mock]
+  piwin session pack create <sessionId> --out <host-dir> [--pack-id <id>] [--mock]
+  piwin session pack verify <packPath> [--mock]
+  piwin session pack list --dir <host-dir> [--mock]
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
@@ -558,6 +566,63 @@ async function commandSession(argv: string[]): Promise<void> {
         }
         console.error(`Unknown lifecycle action: ${action}`);
         console.error('Usage: piwin session lifecycle plan|apply --plan <plan-id>');
+        process.exitCode = 1;
+        return;
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+        return;
+      }
+    }
+
+
+    if (sub === 'pack') {
+      const action = argv[2] ?? 'list';
+      try {
+        if (action === 'create') {
+          const sessionId = argv[3];
+          const outputDir = readOption(argv, '--out');
+          const packId = readOption(argv, '--pack-id');
+          if (!sessionId || !outputDir) {
+            console.error(
+              'Usage: piwin session pack create <sessionId> --out <host-dir> [--pack-id <id>] [--mock]',
+            );
+            process.exitCode = 1;
+            return;
+          }
+          await runSessionPackCreate(
+            runtime,
+            {
+              sessionId,
+              outputDir,
+              ...(packId ? { packId } : {}),
+            },
+            console.log,
+          );
+          return;
+        }
+        if (action === 'verify') {
+          const packPath = argv[3];
+          if (!packPath) {
+            console.error('Usage: piwin session pack verify <packPath> [--mock]');
+            process.exitCode = 1;
+            return;
+          }
+          await runSessionPackVerify(runtime, packPath, console.log);
+          return;
+        }
+        if (action === 'list') {
+          const directory = readOption(argv, '--dir');
+          if (!directory) {
+            console.error('Usage: piwin session pack list --dir <host-dir> [--mock]');
+            process.exitCode = 1;
+            return;
+          }
+          await runSessionPackList(runtime, directory, console.log);
+          return;
+        }
+        console.error(`Unknown pack action: ${action}`);
+        console.error('Usage: piwin session pack create|verify|list ...');
         process.exitCode = 1;
         return;
       } catch (error) {
