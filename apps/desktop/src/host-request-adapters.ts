@@ -36,6 +36,13 @@ export type HostRequestAdapters = {
       | 'usage/get-rollup'
       | 'session/runtime-status'
       | 'session/compact-export'
+      | 'session/cold-storage-status'
+      | 'session/cold-storage-plan'
+      | 'session/cold-storage-execute'
+      | 'session/cold-storage-restore'
+      | 'session/cold-storage-import'
+      | 'session/cold-storage-reconcile'
+      | 'session/pack-list'
       | 'host/runtime-resources'
       | 'theme/list'
       | 'theme/set-active';
@@ -53,6 +60,11 @@ export type HostRequestAdapters = {
     window?: { from?: string; to?: string };
     topSessions?: number;
     sessionId?: string;
+    sessionIds?: string[];
+    planId?: string;
+    confirmationDigest?: string;
+    packPath?: string;
+    directory?: string;
     customInstructions?: string;
     outputPath?: string;
     themeId?: string;
@@ -393,6 +405,44 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'host/runtime-resources') {
         return hostClient.request({ type: 'host/runtime-resources' });
+      }
+      if (command.type === 'session/cold-storage-status') {
+        return hostClient.request({ type: 'session/cold-storage-status' });
+      }
+      if (command.type === 'session/cold-storage-plan') {
+        return hostClient.request({
+          type: 'session/cold-storage-plan',
+          ...(command.sessionIds ? { sessionIds: command.sessionIds } : {}),
+        });
+      }
+      if (command.type === 'session/cold-storage-execute') {
+        return hostClient.request({
+          type: 'session/cold-storage-execute',
+          planId: command.planId ?? '',
+          confirmationDigest: command.confirmationDigest ?? '',
+        });
+      }
+      if (command.type === 'session/cold-storage-restore') {
+        return hostClient.request({
+          type: 'session/cold-storage-restore',
+          sessionId: command.sessionId ?? '',
+          ...(command.packPath ? { packPath: command.packPath } : {}),
+        });
+      }
+      if (command.type === 'session/cold-storage-import') {
+        return hostClient.request({
+          type: 'session/cold-storage-import',
+          packPath: command.packPath ?? '',
+        });
+      }
+      if (command.type === 'session/cold-storage-reconcile') {
+        return hostClient.request({ type: 'session/cold-storage-reconcile' });
+      }
+      if (command.type === 'session/pack-list') {
+        return hostClient.request({
+          type: 'session/pack-list',
+          directory: command.directory ?? '',
+        });
       }
       if (command.type === 'session/compact-export') {
         const sessionId = command.sessionId?.trim();

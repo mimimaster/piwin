@@ -25,6 +25,7 @@ export type SettingsSectionId =
   | 'tools'
   | 'web'
   | 'session'
+  | 'cold-storage'
   | 'runtime'
   | 'automation'
   | 'subagents'
@@ -65,6 +66,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'artifact', group: 'agent', labelKey: 'artifact' },
   { id: 'artifact-playground', group: 'agent', labelKey: 'artifactPlayground', beta: true },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
+  { id: 'cold-storage', group: 'agent', labelKey: 'coldStorage' },
   { id: 'runtime', group: 'agent', labelKey: 'runtime' },
   { id: 'skills', group: 'integrations', labelKey: 'skills' },
   { id: 'web', group: 'integrations', labelKey: 'web' },

@@ -115,6 +115,7 @@ import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
+import { SessionColdRestoreDialog } from './session-cold-restore-dialog';
 import { StatusBar } from './status-bar';
 import { computeContextUsagePercent } from './context-usage-ring';
 
@@ -180,6 +181,7 @@ function projectSessionSearchHits(
         ...(hit.updatedAt ? { updatedAt: hit.updatedAt } : {}),
         ...(hit.isPinned === true ? { isPinned: true } : {}),
         ...(hit.scope ? { scope: hit.scope } : {}),
+        ...(hit.storage && hit.storage.state !== 'local' ? { storage: hit.storage } : {}),
       };
     })
     .filter((session) => session.name.trim().length > 0);
@@ -1339,6 +1341,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     ensureSession,
     handleNewSession,
     handleResumeSession,
+    coldRestorePrompt,
+    confirmColdRestore,
+    clearColdRestorePrompt,
     handleLoadOlderTranscript,
     handleRenameSession,
     handleDuplicateSession,
@@ -3883,6 +3888,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               });
             }}
           />
+
+          {coldRestorePrompt ? (
+            <SessionColdRestoreDialog
+              sessionId={coldRestorePrompt.sessionId}
+              storage={coldRestorePrompt.storage}
+              onCancel={clearColdRestorePrompt}
+              onRestore={(packPath) => {
+                void confirmColdRestore(packPath);
+              }}
+            />
+          ) : null}
 
           {/* Revert checkpoint confirmation dialog matching exact design specifications */}
           {pendingRevertEdit ? (

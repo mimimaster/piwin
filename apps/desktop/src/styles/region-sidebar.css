@@ -873,6 +873,24 @@
 }
 
 /* Archived sessions: lighter title (Cursor-style history list). */
+.session-storage-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+  background: color-mix(in srgb, var(--faint) 16%, transparent);
+}
+
+.session-storage-badge--missing {
+  color: var(--danger, #c45c26);
+  background: color-mix(in srgb, var(--danger, #c45c26) 14%, transparent);
+}
+
 .session-item[data-archived='true'] .session-item-name {
   color: var(--faint);
   font-weight: 450;

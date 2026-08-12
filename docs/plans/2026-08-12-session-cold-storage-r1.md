@@ -408,5 +408,6 @@ Branch idea: `feat/desktop-cold-storage`
 2. Implement PR 1 non-destructive pack backup ✅
 3. Implement PR 2 storage residency + body guards ✅ (`feat/session-storage-residency`)
 4. Implement PR 3 manual offload / restore / reconcile ✅ (`feat/session-cold-storage-manual`)
-5. Implement PR 4 Desktop discovery + settings
-6. Keep `feat/cold-storage-offload` frozen as reference-only
+5. Implement PR 4 Desktop discovery + settings ✅ (`feat/desktop-cold-storage`)
+6. Implement PR 5 ADR + user docs + release gate
+7. Keep `feat/cold-storage-offload` frozen as reference-only

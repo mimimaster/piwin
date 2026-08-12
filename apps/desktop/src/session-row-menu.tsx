@@ -12,6 +12,7 @@ export type SessionRowMenuAction =
   | 'duplicate'
   | 'archive'
   | 'unarchive'
+  | 'restore-pack'
   | 'delete'
   | 'export';
 
@@ -19,6 +20,7 @@ export type SessionRowMenuProps = {
   sessionId: string;
   isPinned: boolean;
   isArchived: boolean;
+  storageState?: 'local' | 'offloaded' | 'missing-pack';
   /** Screen position for fixed menu (from contextmenu / button). */
   position: { x: number; y: number };
   onAction: (action: SessionRowMenuAction) => void;
@@ -81,6 +83,7 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
   const items = sessionActionItems({
     isPinned: props.isPinned,
     isArchived: props.isArchived,
+    ...(props.storageState ? { storageState: props.storageState } : {}),
   });
 
   return (
