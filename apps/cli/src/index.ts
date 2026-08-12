@@ -48,6 +48,8 @@ import {
 import { pluginSecretRef, type PluginInstallSource } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
 import { HostEgressHub } from '@piwin/host-server';
+import { collectRefArgs, buildCliContextRefs } from './context-ref-args.js';
+
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
 import { createJsonlStdioTransport } from './host-serve-transport.js';
@@ -84,7 +86,7 @@ Usage:
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin status [--project <path>] [--mock]
-  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>]
+  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
   piwin scheme list [--mock]
   piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass]
@@ -774,7 +776,8 @@ async function commandChat(argv: string[]): Promise<void> {
       token === '--mode' ||
       token === '--image' ||
       token === '--permission-mode' ||
-      token === '--scheme'
+      token === '--scheme' ||
+      token === '--ref'
     ) {
       index += 1;
       continue;
@@ -789,7 +792,7 @@ async function commandChat(argv: string[]): Promise<void> {
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
-      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>]',
+      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]',
     );
     process.exitCode = 1;
     return;
@@ -886,6 +889,15 @@ async function commandChat(argv: string[]): Promise<void> {
     }
     const sessionId = (createResponse.data as { sessionId: string }).sessionId;
     const schemeId = readOption(argv, '--scheme')?.trim();
+    // CM-18: `--ref <path>` (repeatable) maps to structured context refs.
+    const refArgs = collectRefArgs(argv);
+    const refsResult =
+      refArgs.length > 0 ? await buildCliContextRefs(projectPath, refArgs) : null;
+    if (refsResult && !refsResult.ok) {
+      console.error(`[ref] ${refsResult.reason}`);
+      process.exitCode = 1;
+      return;
+    }
     const promptResponse = await runtime.handleCommand({
       type: 'session/prompt',
       sessionId,
@@ -893,6 +905,9 @@ async function commandChat(argv: string[]): Promise<void> {
         text: resolvedChatPrompt.text,
         ...(resolvedChatPrompt.skillId ? { skillId: resolvedChatPrompt.skillId } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
+        ...(refsResult && refsResult.ok && refsResult.refs.length > 0
+          ? { contextRefs: refsResult.refs }
+          : {}),
         ...(schemeId && schemeId !== 'off' ? { orchestrationSchemeId: schemeId } : {}),
       },
     });

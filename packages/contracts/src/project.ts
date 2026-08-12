@@ -94,3 +94,13 @@ export type ProjectReadFileData = {
   isBinary: boolean;
   mimeHint?: string;
 };
+
+/** Response for `project/write-file` (CM-14 apply). */
+export type ProjectWriteFileData = {
+  projectPath: string;
+  relativePath: string;
+  absolutePath: string;
+  byteSize: number;
+  /** True when the file already existed and was overwritten. */
+  existed: boolean;
+};

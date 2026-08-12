@@ -75,6 +75,8 @@ import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piw
 import { redactToolText } from '@piwin/agent-host';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
+import { createProductShellSession } from '../product-shell-session.js';
+import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
@@ -570,7 +572,10 @@ async function preparePromptInput(
       // SIDE §7.2: refs captured at open/sync are part of the shared context —
       // resolve them alongside the snapshot block on injection.
       if (sideChatSnapshot.refs.length > 0) {
-        const refText = await resolvePromptContextRefs(context, sideChatSnapshot.refs);
+        const refText = await resolvePromptContextRefs(
+          { loadTranscriptMessages: context.loadTranscriptMessages },
+          sideChatSnapshot.refs,
+        );
         throwIfPromptPreparationAborted(context, run.runId);
         if (refText) {
           promptInput.text = `${refText}\n\n${promptInput.text}`;
@@ -585,7 +590,10 @@ async function preparePromptInput(
   // mutating the recorded user transcript.
   if (command.input.contextRefs && command.input.contextRefs.length > 0) {
     try {
-      const resolvedContext = await resolvePromptContextRefs(context, command.input.contextRefs);
+      const resolvedContext = await resolvePromptContextRefs(
+        { loadTranscriptMessages: context.loadTranscriptMessages },
+        command.input.contextRefs,
+      );
       if (resolvedContext) {
         promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
       }
@@ -735,111 +743,6 @@ function formatBoundedHistory(rows: ReadonlyArray<{ role: string; text: string }
   }
   lines.push('[/piwin-product-history]');
   return lines.join('\n');
-}
-
-/**
- * Resolve structured context refs (SIDE §8.2) into a bounded, labeled context
- * block for the model prompt. The user transcript keeps the original text +
- * refs; this resolution only shapes what the model sees. File refs are
- * path-validated and size-capped by the host; the UI never reads files.
- */
-async function resolvePromptContextRefs(
-  context: SessionLiveContext,
-  refs: import('@piwin/contracts').PromptContextRef[],
-): Promise<string> {
-  const blocks: string[] = [];
-  for (const ref of refs) {
-    switch (ref.kind) {
-      case 'side-chat-message': {
-        const message = await context.withTranscriptStore(ref.sideChatSessionId, (store) =>
-          store.getMessage(ref.messageId),
-        );
-        if (message) {
-          blocks.push(`[side-chat-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`);
-        }
-        break;
-      }
-      case 'main-message': {
-        const message = await context.withTranscriptStore(ref.sourceSessionId, (store) =>
-          store.getMessage(ref.messageId),
-        );
-        if (message) {
-          blocks.push(
-            `[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`,
-          );
-        }
-        break;
-      }
-      case 'file': {
-        const content = await readBoundedFileForRef(ref.projectPath, ref.relativePath);
-        if (content !== undefined) {
-          const range =
-            ref.lineStart !== undefined
-              ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
-              : '';
-          blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${content}`);
-        }
-        break;
-      }
-      case 'diff':
-        blocks.push(`[diff-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
-        break;
-      case 'terminal-output':
-        blocks.push(
-          `[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`,
-        );
-        break;
-      case 'error':
-        blocks.push(`[error-reference: ${ref.title}]\n${ref.detail.slice(0, 8000)}`);
-        break;
-      default:
-        break;
-    }
-  }
-  return blocks.join('\n\n');
-}
-
-const MAX_CONTEXT_REF_FILE_BYTES = 32 * 1024;
-
-/** Read a path-validated file under a project root, bounded and text-only. */
-async function readBoundedFileForRef(
-  projectPath: string,
-  relativePath: string,
-): Promise<string | undefined> {
-  const { readFile, stat, realpath } = await import('node:fs/promises');
-  const { resolve: resolvePath, sep } = await import('node:path');
-  const rootAbsolute = resolvePath(projectPath);
-  const candidate = resolvePath(rootAbsolute, relativePath);
-  // Resolve symlinks before the prefix check so a project symlink that
-  // points outside the project root cannot escape the traversal guard.
-  let realCandidate: string;
-  let realRoot: string;
-  try {
-    [realCandidate, realRoot] = await Promise.all([realpath(candidate), realpath(rootAbsolute)]);
-  } catch {
-    return undefined;
-  }
-  if (!realCandidate.startsWith(`${realRoot}${sep}`) && realCandidate !== realRoot) {
-    return undefined;
-  }
-  let fileStats;
-  try {
-    fileStats = await stat(realCandidate);
-  } catch {
-    return undefined;
-  }
-  if (!fileStats.isFile() || fileStats.size > MAX_CONTEXT_REF_FILE_BYTES) {
-    return undefined;
-  }
-  try {
-    const buffer = await readFile(realCandidate);
-    if (buffer.subarray(0, 8000).includes(0)) {
-      return undefined; // binary — never inject into the prompt
-    }
-    return buffer.toString('utf8').slice(0, MAX_CONTEXT_REF_FILE_BYTES);
-  } catch {
-    return undefined;
-  }
 }
 
 /**
