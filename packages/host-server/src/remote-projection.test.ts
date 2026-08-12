@@ -1,6 +1,55 @@
 import { describe, expect, it } from 'vitest';
 import { createRemoteCapabilities, projectRemoteResponse } from './remote-projection.js';
 
+describe('remote session list storage projection', () => {
+  it('projects offloaded residency without Host pack paths', () => {
+    const projected = projectRemoteResponse(
+      { type: 'session/list', scope: { kind: 'general' } },
+      {
+        type: 'response',
+        command: 'session/list',
+        success: true,
+        data: {
+          sessions: [
+            {
+              id: 'ses_off',
+              scope: { kind: 'general' },
+              workingDirectory: '',
+              projectPath: '',
+              updatedAt: '2026-08-12T00:00:00.000Z',
+              messageCount: 2,
+              isArchived: true,
+              storage: {
+                state: 'offloaded',
+                packId: 'pack-1',
+                packPath: '/Users/me/Drive/session.piwin-pack',
+                packArchiveSha256: 'abc',
+                coldPreview: 'preview',
+                offloadedBytes: 99,
+              },
+            },
+          ],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+    expect(projected.success).toBe(true);
+    if (!projected.success) throw new Error(projected.error);
+    const sessions = (projected.data as { sessions: Array<Record<string, unknown>> }).sessions;
+    expect(sessions[0]?.storage).toEqual({
+      state: 'offloaded',
+      packId: 'pack-1',
+      coldPreview: 'preview',
+      offloadedBytes: 99,
+    });
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/me/Drive');
+  });
+});
+
 describe('remote session resume projection', () => {
   it('preserves sanitized restored context usage', () => {
     const projected = projectRemoteResponse(

@@ -100,4 +100,25 @@ describe('indexRecordToSummary', () => {
     });
     expect(summary.thinkingLevel).toBe('medium');
   });
+
+  it('projects non-local storage residency onto summaries', () => {
+    const record: SessionIndexRecord = {
+      id: 'main-off',
+      projectPath: '/tmp/project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 4,
+      isArchived: true,
+      storage: {
+        state: 'offloaded',
+        packId: 'pack-1',
+        packPath: '/tmp/packs/pack-1.piwin-pack',
+        coldPreview: 'old chat',
+      },
+    };
+    const summary = indexRecordToSummary(record);
+    expect(summary.storage).toEqual(record.storage);
+    const { storage: _ignored, ...localRecord } = record;
+    expect(indexRecordToSummary(localRecord).storage).toBeUndefined();
+  });
 });

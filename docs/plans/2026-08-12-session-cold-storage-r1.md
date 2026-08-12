@@ -404,6 +404,8 @@ Branch idea: `feat/desktop-cold-storage`
 
 ## Immediate next actions
 
-1. Land PR 0 persistence hardening on a clean worktree
-2. Implement PR 1 non-destructive pack backup
-3. Keep `feat/cold-storage-offload` frozen as reference-only
+1. Land PR 0 persistence hardening on a clean worktree ✅
+2. Implement PR 1 non-destructive pack backup ✅
+3. Implement PR 2 storage residency + body guards ✅ (`feat/session-storage-residency`)
+4. Implement PR 3 manual offload / restore / reconcile
+5. Keep `feat/cold-storage-offload` frozen as reference-only
