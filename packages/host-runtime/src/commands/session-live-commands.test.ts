@@ -12,6 +12,8 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadSessionPlan, saveSessionPlan } from '@piwin/session';
+import { openOrCreateProject } from '@piwin/project';
+import { getPiwinProjectsPath } from '../paths.js';
 import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contracts';
 import { RunRegistry } from '../run-registry.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
@@ -649,6 +651,10 @@ describe('session live control commands', () => {
       let modelFacingText = '';
       const root = await mkdtemp(join(tmpdir(), 'piwin-cm-prompt-'));
       await writeFile(join(root, 'a.ts'), 'export const n = 1;\n', 'utf8');
+      // Registered-root gate: the temp project must be a remembered project
+      // before host resolves file refs (security: reject unregistered roots).
+      context.piwinRoot = root;
+      await openOrCreateProject(getPiwinProjectsPath(root), root);
 
       context.recordUserPrompt = async (_sessionId, input): Promise<void> => {
         recordedPrompts.push(input);
@@ -937,8 +943,7 @@ describe('session/tool-output snapshot recovery', () => {
     const { context } = createControlContext(session);
     context.getTranscriptStore = async () =>
       ({
-        getMessage: async (messageId: string) =>
-          messageId === message.id ? message : undefined,
+        getMessage: async (messageId: string) => (messageId === message.id ? message : undefined),
       }) as unknown as import('@piwin/session').SessionTranscriptStore;
     return { context };
   }
