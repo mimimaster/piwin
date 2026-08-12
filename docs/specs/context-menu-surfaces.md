@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Implemented (P0 + P1 shipped 2026-08-10)** — P0 vertical slice (pipeline + file tree + selection + path chip + drag-to-ref) and P1 surfaces (message / code-block / diff-row / tool-card / terminal-selection / error) both done; CM-10…18 closed; Apply P1b (write confirm) + CLI `--ref` parity included |
+| Status | **Implemented (P0 + P1 surfaces shipped, integrated to main 2026-08-12)** — P0 vertical slice (pipeline + file tree + selection + path chip + drag-to-ref) and P1 surfaces (message / code-block / diff-row / tool-card / terminal-selection / error), CLI `--ref` parity, Side Chat ref handoff. CM-14 Apply is **P1a only** (copy + preview + notice): the `project/write-file` host command from the branch was **not** integrated (security review: no registered-root/symlink guard, no host permission gate) and is deferred until redesigned on the hardened project-command base |
 | Date | 2026-08-08 |
 | Branch / worktree | `feat/context-menu-surfaces` · `/Users/yorickjue/Developer/piwin-context-menu` |
 | Trigger | 竞品右键调研后锁定 P0/P1：「指着东西跟 Agent 说话」是 Agent Shell 的核心手感 |
@@ -747,7 +747,7 @@ export function dispatchContextMenuAction(
 | CM-11 | Code block menu + Apply P1a | notice + open | ✅ 2026-08-10 (MarkdownView fence menu; Apply P1a = copy + preview + notice) |
 | CM-12 | Diff row menu | diff ref chip | ✅ 2026-08-10 (DiffCard menu) |
 | CM-13 | Tool card + terminal selection + error | Fix this error path | ✅ 2026-08-10 (ToolCallCard / XtermSurface selection / MainErrorBanner menus) |
-| CM-14 | Apply P1b write confirm | optional follow-up | ✅ 2026-08-10 (`project/write-file` host command + path jail + overwrite gate; Desktop confirm dialog → write → notice; P1a fallback without project/path) |
+| CM-14 | Apply P1b write confirm | optional follow-up | ⏳ **deferred (2026-08-12)** — branch draft (`project/write-file` + confirm dialog) excluded from integration: no registered-root/symlink guard and no Host permission gate. Applied as **P1a** (copy + preview + notice). Redesign on hardened project commands before re-enabling |
 | CM-15 | open-changed-files / rerun-tool | hide if not ready | ✅ 2026-08-10 (open-changed-files opens Review tab; rerun-tool announces unavailability) |
 
 ### Phase 3 — Polish

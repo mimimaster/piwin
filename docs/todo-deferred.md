@@ -353,7 +353,7 @@ SF-06 follows core adoption, and SF-07 remains independently spike-gated.
 | CM-11 | Code block menu + Apply P1a | **Done 2026-08-10** (fence menu; Apply = copy + preview + notice) |
 | CM-12 | Diff row menu | **Done 2026-08-10** (DiffCard menu) |
 | CM-13 | Tool card / terminal / error menus + fix-error | **Done 2026-08-10** (ToolCallCard / XtermSurface / MainErrorBanner) |
-| CM-14 | Apply P1b write confirm | **Done 2026-08-10** — `project/write-file` host command (jail + overwrite gate + parent-dir create) + Desktop confirm dialog → write → notice |
+| CM-14 | Apply P1b write confirm | **Deferred 2026-08-12** — branch draft excluded from main integration (no registered-root/symlink guard, no Host permission gate). Apply ships as **P1a** (copy + preview + notice) until redesigned on hardened project commands |
 | CM-15 | open-changed-files / rerun-tool | **Done 2026-08-10** (open-changed-files → Review tab; rerun announces unavailability) |
 | CM-16 | More… submenu (review/tests) | **Done 2026-08-10** (ui-kit ContextMenuSub) |
 | CM-17 | `@` mention also writes pending refs | **Done 2026-08-10** (file/folder at-items → refs) |

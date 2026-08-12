@@ -24,7 +24,6 @@ import type {
   ProjectRecord,
   SessionListOrder,
   PromptContextRef,
-
   SessionSearchHit,
   SessionScope,
   SettingsMutation,
@@ -42,10 +41,7 @@ import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
 import { formatPlanMarkdown } from './plan-card';
 import { ArtifactCanvasPanel } from './artifact-canvas-panel';
-import {
-  appendComposerProposal,
-  type ArtifactCanvasTarget,
-} from './artifact-canvas-model';
+import { appendComposerProposal, type ArtifactCanvasTarget } from './artifact-canvas-model';
 import { useArtifactCanvas } from './hooks/use-artifact-canvas';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
@@ -58,7 +54,11 @@ import type { SessionDocItem } from './DocPreviewPanel';
 import { resolveDocumentContentFromMessages } from './resolve-document-content';
 import { planDocumentOpenPath } from './document-open-path';
 import type { ActiveDocument } from './active-document';
-import { activeDocumentContent, activeDocumentFilePath, createDocumentRequestId } from './active-document';
+import {
+  activeDocumentContent,
+  activeDocumentFilePath,
+  createDocumentRequestId,
+} from './active-document';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { LineCommentItem } from './EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from './doc-comments';
@@ -87,10 +87,7 @@ import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useComposerContextRefs } from './hooks/use-composer-context-refs';
-import {
-  DesktopContextMenuProvider,
-  type DesktopContextMenuValue,
-} from './context-menu';
+import { DesktopContextMenuProvider, type DesktopContextMenuValue } from './context-menu';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useSessionLineage } from './hooks/use-session-lineage';
 import { getDirectForkCountsByMessageId } from './session-lineage-tree';
@@ -259,7 +256,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   /** Recover the persisted tool output snapshot for a historical tool card. */
   const requestToolSnapshot = useCallback(
-    async (input: { messageId?: string; toolCallId?: string }): Promise<{
+    async (input: {
+      messageId?: string;
+      toolCallId?: string;
+    }): Promise<{
       content: string;
       truncated: boolean;
     } | null> => {
@@ -370,9 +370,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               content: snapshot.content,
               displayRef: displayRef || `skill:${skillId}`,
               provenance: 'tool-snapshot',
-              ...(snapshot.truncated
-                ? { warning: '该次工具输出被截断，只展示部分内容。' }
-                : {}),
+              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
             });
             return;
           }
@@ -401,9 +399,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
                 provenance: 'current-resource',
                 skillId: skillData.skillId || skillId,
-                ...(skillData.effectiveSource
-                  ? { skillSource: skillData.effectiveSource }
-                  : {}),
+                ...(skillData.effectiveSource ? { skillSource: skillData.effectiveSource } : {}),
                 warning: '当前安装版本，可能不同于历史读取内容。',
               });
               return;
@@ -477,9 +473,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               content: snapshot.content,
               displayRef: displayRef || relativePath,
               provenance: 'tool-snapshot',
-              ...(snapshot.truncated
-                ? { warning: '该次工具输出被截断，只展示部分内容。' }
-                : {}),
+              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
             });
             return;
           }
@@ -565,9 +559,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               content: snapshot.content,
               displayRef: cleanPath,
               provenance: 'tool-snapshot',
-              ...(snapshot.truncated
-                ? { warning: '该次工具输出被截断，只展示部分内容。' }
-                : {}),
+              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
             });
             return;
           }
@@ -632,9 +624,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               content: snapshot.content,
               displayRef: cleanPath,
               provenance: 'tool-snapshot',
-              ...(snapshot.truncated
-                ? { warning: '该次工具输出被截断，只展示部分内容。' }
-                : {}),
+              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
             });
             return;
           }
@@ -664,9 +654,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 displayRef: skillData.displayRef || cleanPath,
                 provenance: 'current-resource',
                 ...(skillData.skillId ? { skillId: skillData.skillId } : {}),
-                ...(skillData.effectiveSource
-                  ? { skillSource: skillData.effectiveSource }
-                  : {}),
+                ...(skillData.effectiveSource ? { skillSource: skillData.effectiveSource } : {}),
                 warning: '当前安装版本，可能不同于历史读取内容。',
               });
               return;
@@ -749,14 +737,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         });
       }
     },
-    [
-      hostClient,
-      requestToolSnapshot,
-      rightPanelOpen,
-      shell,
-      state.messages,
-      state.projectPath,
-    ],
+    [hostClient, requestToolSnapshot, rightPanelOpen, shell, state.messages, state.projectPath],
   );
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
@@ -2125,9 +2106,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             current.trim().length > 0 ? `${current.trimEnd()}\n\n${quoted}` : quoted,
           );
           window.setTimeout(() => {
-            document
-              .querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')
-              ?.focus();
+            document.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')?.focus();
           }, 0);
         },
         retryMessage: (messageId) => {
@@ -2139,12 +2118,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         },
         openSideChat: (input) => {
           if (!state.activeSessionId) return;
-          for (const ref of input.refs) {
-            addRef(ref);
-          }
           void hostClient
             .sideChatOpen(state.activeSessionId, {
               ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
+              ...(input.refs && input.refs.length > 0 ? { refs: input.refs } : {}),
             })
             .then((response) => {
               if (!response.success) {
@@ -2155,24 +2132,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             });
         },
         applyToFile: (payload) => {
-          // Apply P1b: explicit confirm → host write (project/write-file).
-          // Without a project or suggested path, fall back to P1a
-          // (copy + preview + notice; no silent write ever).
-          if (!state.projectPath || !payload.suggestedPath) {
-            void navigator.clipboard.writeText(payload.text).catch(() => undefined);
-            if (payload.suggestedPath) {
-              const title = payload.suggestedPath.split(/[\\/]/).pop() || 'File';
-              handleOpenDocument({ title, path: payload.suggestedPath });
-            }
-            notify(
-              payload.suggestedPath
-                ? `Code copied. Preview opened for ${payload.suggestedPath} — paste to apply.`
-                : 'Code copied to clipboard — paste to apply.',
-              'info',
-            );
-            return;
+          // Apply P1a only (write-file host command is not part of this
+          // integration): copy + preview + notice; never a silent write.
+          void navigator.clipboard.writeText(payload.text).catch(() => undefined);
+          if (payload.suggestedPath) {
+            const title = payload.suggestedPath.split(/[\\/]/).pop() || 'File';
+            handleOpenDocument({ title, path: payload.suggestedPath });
           }
-          setApplyDraft({ text: payload.text, suggestedPath: payload.suggestedPath });
+          notify(
+            payload.suggestedPath
+              ? `Code copied. Preview opened for ${payload.suggestedPath} — paste to apply.`
+              : 'Code copied to clipboard — paste to apply.',
+            'info',
+          );
         },
         openChangedFiles: () => {
           shell.openInspector('review');
@@ -2207,12 +2179,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, []);
 
   const [docComments, setDocComments] = useState<Record<string, LineCommentItem[]>>({});
-
-  // CM-14: pending Apply-to-File confirmation (explicit overwrite gate).
-  const [applyDraft, setApplyDraft] = useState<{
-    text: string;
-    suggestedPath?: string | undefined;
-  } | null>(null);
 
   const activeDocKey = activeDocument?.filePath || activeDocument?.title || 'default';
   const activeComments = docComments[activeDocKey] || [];
@@ -3032,954 +2998,914 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
       <DesktopContextMenuProvider value={desktopContextMenuValue}>
+        <div
+          className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
+          style={appShellStyle}
+          data-testid="app-shell"
+          data-layout={layoutMode}
+          data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
+          data-settings-open={settingsOpen ? 'true' : 'false'}
+          data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
+        >
+          <NotificationRegion
+            items={notificationState.items}
+            onDismiss={(id) => dispatchNotification({ type: 'notify/dismiss', id })}
+          />
 
-      <div
-        className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
-        style={appShellStyle}
-        data-testid="app-shell"
-        data-layout={layoutMode}
-        data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
-        data-settings-open={settingsOpen ? 'true' : 'false'}
-        data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
-      >
-        <NotificationRegion
-          items={notificationState.items}
-          onDismiss={(id) => dispatchNotification({ type: 'notify/dismiss', id })}
-        />
-
-        <WorkspaceShell
-          workspaceClassName={settingsOpen ? 'settings-workspace-suspended' : undefined}
-          sidebar={
-            <ProjectSessionSidebar
-              projectPath={state.projectPath}
-              projectTrusted={state.projectTrusted}
-              hostReady={state.hostReady}
-              hostMock={state.hostMock}
-              transportLabel={hostClient.getTransport()}
-              hostStatus={hostStatus}
-              recentProjects={recentProjects}
-              sessions={state.sessions}
-              filteredSessions={filteredSessions}
-              generalSessions={filteredGeneralSessions}
-              projectSessionsByPath={state.projectSessionsByPath}
-              sessionListWindows={sessionListWindows}
-              sessionListOrder={sessionListOrder}
-              onSessionListOrderChange={handleSessionListOrderChange}
-              onSessionPageChange={handleSessionPageChange}
-              onSessionWindowReset={handleSessionWindowReset}
-              sessionGroups={sessionGroups}
-              activeSessionId={state.activeSessionId}
-              sessionSearch={sessionSearch}
-              onSessionSearchChange={setSessionSearch}
-              showArchivedSessions={showArchivedSessions}
-              onToggleShowArchived={() => {
-                const next = !showArchivedSessions;
-                setShowArchivedSessions(next);
-                void hydrateSessions(
-                  { kind: 'general' },
-                  { includeArchived: next, order: sessionListOrder },
-                );
-                for (const project of recentProjects) {
+          <WorkspaceShell
+            workspaceClassName={settingsOpen ? 'settings-workspace-suspended' : undefined}
+            sidebar={
+              <ProjectSessionSidebar
+                projectPath={state.projectPath}
+                projectTrusted={state.projectTrusted}
+                hostReady={state.hostReady}
+                hostMock={state.hostMock}
+                transportLabel={hostClient.getTransport()}
+                hostStatus={hostStatus}
+                recentProjects={recentProjects}
+                sessions={state.sessions}
+                filteredSessions={filteredSessions}
+                generalSessions={filteredGeneralSessions}
+                projectSessionsByPath={state.projectSessionsByPath}
+                sessionListWindows={sessionListWindows}
+                sessionListOrder={sessionListOrder}
+                onSessionListOrderChange={handleSessionListOrderChange}
+                onSessionPageChange={handleSessionPageChange}
+                onSessionWindowReset={handleSessionWindowReset}
+                sessionGroups={sessionGroups}
+                activeSessionId={state.activeSessionId}
+                sessionSearch={sessionSearch}
+                onSessionSearchChange={setSessionSearch}
+                showArchivedSessions={showArchivedSessions}
+                onToggleShowArchived={() => {
+                  const next = !showArchivedSessions;
+                  setShowArchivedSessions(next);
                   void hydrateSessions(
-                    { kind: 'project', projectPath: project.path },
-                    {
-                      includeArchived: next,
-                      order: sessionListOrder,
-                      ...(project.path === state.projectPath ? { fillActiveList: true } : {}),
-                    },
+                    { kind: 'general' },
+                    { includeArchived: next, order: sessionListOrder },
                   );
+                  for (const project of recentProjects) {
+                    void hydrateSessions(
+                      { kind: 'project', projectPath: project.path },
+                      {
+                        includeArchived: next,
+                        order: sessionListOrder,
+                        ...(project.path === state.projectPath ? { fillActiveList: true } : {}),
+                      },
+                    );
+                  }
+                }}
+                settingsOpen={settingsOpen}
+                onOpenWorkspace={() => void handleOpenWorkspaceClick()}
+                onOpenProject={(path) => void handleOpenProject(path)}
+                onRemoveProject={(path) => void handleRemoveProjectFromSidebar(path)}
+                onNewSession={() => void handleStartNewSession()}
+                onNewGeneralSession={() => {
+                  void (async () => {
+                    // Sequence: switch scope → hydrate general list → create new
+                    // general session. Awaiting hydrate before create avoids the
+                    // session/hydrate dispatch clobbering session/add, and the
+                    // explicit general scope avoids reading stale activeScope.
+                    dispatch({ type: 'project/clear' });
+                    await hydrateSessions(
+                      { kind: 'general' },
+                      { includeArchived: showArchivedSessions },
+                    );
+                    await handleStartNewSession({ scope: { kind: 'general' } });
+                  })();
+                }}
+                onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
+                onResumeDraft={handleResumeDraft}
+                draftSessions={draftSessions}
+                activeDraftId={activeDraftId}
+                onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
+                onTogglePin={(sessionId, currentlyPinned) =>
+                  void handleSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
                 }
-              }}
-              settingsOpen={settingsOpen}
-              onOpenWorkspace={() => void handleOpenWorkspaceClick()}
-              onOpenProject={(path) => void handleOpenProject(path)}
-              onRemoveProject={(path) => void handleRemoveProjectFromSidebar(path)}
-              onNewSession={() => void handleStartNewSession()}
-              onNewGeneralSession={() => {
-                void (async () => {
-                  // Sequence: switch scope → hydrate general list → create new
-                  // general session. Awaiting hydrate before create avoids the
-                  // session/hydrate dispatch clobbering session/add, and the
-                  // explicit general scope avoids reading stale activeScope.
+                onArchiveSession={(sessionId) => void handleSessionMenuAction(sessionId, 'archive')}
+                onUnarchiveSession={(sessionId) =>
+                  void handleSessionMenuAction(sessionId, 'unarchive')
+                }
+                onDeleteSession={(sessionId) => {
+                  const session = mergeSessionsForLookup(
+                    state.sessions,
+                    state.generalSessions,
+                  ).find((item) => item.id === sessionId);
+                  setDeleteConfirm({
+                    sessionId,
+                    sessionName: session?.name ?? sessionId.slice(0, 8),
+                  });
+                }}
+                onOpenSettings={() => openSettingsSection('general')}
+                knowledgeOpen={knowledgeOpen}
+                onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
+                generalActive={state.activeScope.kind === 'general'}
+                onSelectGeneral={() => {
                   dispatch({ type: 'project/clear' });
-                  await hydrateSessions(
+                  void hydrateSessions(
                     { kind: 'general' },
                     { includeArchived: showArchivedSessions },
                   );
-                  await handleStartNewSession({ scope: { kind: 'general' } });
-                })();
-              }}
-              onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
-              onResumeDraft={handleResumeDraft}
-              draftSessions={draftSessions}
-              activeDraftId={activeDraftId}
-              onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
-              onTogglePin={(sessionId, currentlyPinned) =>
-                void handleSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
-              }
-              onArchiveSession={(sessionId) => void handleSessionMenuAction(sessionId, 'archive')}
-              onUnarchiveSession={(sessionId) =>
-                void handleSessionMenuAction(sessionId, 'unarchive')
-              }
-              onDeleteSession={(sessionId) => {
-                const session = mergeSessionsForLookup(state.sessions, state.generalSessions).find(
-                  (item) => item.id === sessionId,
-                );
-                setDeleteConfirm({
-                  sessionId,
-                  sessionName: session?.name ?? sessionId.slice(0, 8),
-                });
-              }}
-              onOpenSettings={() => openSettingsSection('general')}
-              knowledgeOpen={knowledgeOpen}
-              onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
-              generalActive={state.activeScope.kind === 'general'}
-              onSelectGeneral={() => {
-                dispatch({ type: 'project/clear' });
-                void hydrateSessions(
-                  { kind: 'general' },
-                  { includeArchived: showArchivedSessions },
-                );
-              }}
-              isOverlayPresentation={isOverlayPresentation}
-              onCloseOverlay={() => shell.closeOverlay()}
-              locale={desktopLocale}
-              sidebarWidthPx={sidebarResize.widthPx}
-              isResizing={sidebarResize.isResizing}
-              onResizePointerDown={sidebarResize.onResizePointerDown}
-              onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
-              workingSessionIds={state.workingSessionIds}
-              backendServiceSessionIds={backendServiceSessionIds}
-              completedAttentionSessionIds={state.completedAttentionSessionIds}
-              onDismissCompletedAttention={(sessionId) => {
-                dispatch({ type: 'session/attention-dismiss', sessionId });
-              }}
-              sessionsExpanded={navDrawerOpen}
-              onToggleSessions={() => {
-                shell.toggleSessions();
-              }}
-              canGoBack={shell.canGoBack}
-              canGoForward={shell.canGoForward}
-              onGoBack={() => {
-                shell.goBack();
-              }}
-              onGoForward={() => {
-                shell.goForward();
-              }}
-            />
-          }
-          contextBar={
-            <ContextBar
-              session={{
-                title: state.projectPath
-                  ? `${projectDisplayName(state.projectPath)} / ${activeSessionName}`
-                  : activeSessionName,
-                scopeLabel:
-                  state.activeScope.kind === 'general'
-                    ? desktopCopy.general
-                    : desktopLocale === 'zh-CN'
-                      ? '项目'
-                      : 'Project',
-              }}
-              {...(state.activeSessionId
-                ? {
-                    sessionTreeControl: (
-                      <SessionLineageHeaderPopover
-                        lineage={sessionLineage}
-                        activeSessionId={state.activeSessionId}
-                        activeSessionName={activeSessionName}
-                        activeSessionArchived={state.activeSessionArchived}
-                        onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
-                        locale={desktopLocale}
-                      />
-                    ),
-                  }
-                : {})}
-              isConversationSession={state.activeScope.kind === 'general'}
-              runState={runStatus}
-              onStop={() => void handleAbort()}
-              onViewActivity={() => openRightTab('terminal')}
-              onReviewPermission={() => {
-                // Focus the inline permission gate in the stream when present.
-                const gate = document.querySelector<HTMLElement>('[data-testid="permission-gate"]');
-                gate?.focus?.();
-                gate?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-              }}
-              onViewPlan={() => openRightTab('terminal')}
-              onCancelCompact={() => void handleCompactAbort()}
-              {...(lastUserMessageId
-                ? {
-                    onRetry: () => {
-                      void handleRetryFromMessage(lastUserMessageId);
-                    },
-                  }
-                : {})}
-              permissionMode={config?.permissions?.preset ?? configPreset}
-              onOpenPermissions={() => openSettingsSection('permissions')}
-              locale={desktopLocale}
-              appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-              sessionsExpanded={navDrawerOpen}
-              onToggleSessions={() => {
-                shell.toggleSessions();
-              }}
-              canGoBack={shell.canGoBack}
-              canGoForward={shell.canGoForward}
-              onGoBack={() => {
-                shell.goBack();
-              }}
-              onGoForward={() => {
-                shell.goForward();
-              }}
-              onOpenSkills={() => openSettingsSection('skills')}
-              onOpenMcp={() => openSettingsSection('tools')}
-              onToggleAppearance={handleToggleAppearance}
-              onOpenSettings={() => openSettingsSection('general')}
-              workPanelOpen={rightPanelOpen}
-              onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
-              {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
-              {...(activeSessionOrigin?.kind === 'fork'
-                ? {
-                    onReturnToRoot: () =>
-                      void handleResumeSession(activeSessionOrigin.rootSessionId),
-                  }
-                : {})}
-            />
-          }
-          chatColumnClassName={
-            [
-              composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
-              activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
-            ]
-              .filter(Boolean)
-              .join(' ') || undefined
-          }
-          activityDock={
-            activeSubagentViews.length > 0 ? (
-              <SubagentWorkingDock items={activeSubagentViews} onInspect={handleInspectSubagent} />
-            ) : undefined
-          }
-          knowledgePanel={
-            knowledgeOpen ? (
-              <section
-                className="knowledge-stage"
-                data-testid="knowledge-stage"
-                aria-label={desktopCopy.knowledgeCenter}
-              >
-                <header className="knowledge-stage-header">
-                  <span className="knowledge-stage-kicker">{desktopCopy.knowledgeCenter}</span>
-                  <IconButton
-                    label={desktopLocale === 'zh-CN' ? '关闭知识中心' : 'Close Knowledge Center'}
-                    data-testid="knowledge-stage-close-btn"
-                    onClick={() => setKnowledgeOpen(false)}
-                  >
-                    <IconClose />
-                  </IconButton>
-                </header>
-                <div className="knowledge-stage-body">
-                  <DeferredSurfaceBoundary
-                    label={desktopLocale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
-                  >
-                    <DeferredKnowledgeCenterPanel
-                      projectPath={state.projectPath}
-                      request={requestKnowledgeCenter}
-                      sendSessionPrompt={sendSessionPrompt}
-                    />
-                  </DeferredSurfaceBoundary>
-                </div>
-              </section>
-            ) : undefined
-          }
-          transcript={
-            <>
-              <MainErrorBanner
-                message={state.error}
-                onDismiss={() => dispatch({ type: 'error/clear' })}
-              />
-              {state.projectPath && !state.projectTrusted ? (
-                <div className="chat-inline-notice">
-                  <ProjectTrustNotice
-                    projectPath={state.projectPath}
-                    onTrust={() => void handleTrustProject(true)}
-                  />
-                </div>
-              ) : null}
-              {state.activeSessionArchived ? (
-                <div className="chat-inline-notice">
-                  <SessionArchivedBanner
-                    sessionName={activeSessionName}
-                    onRestore={() => {
-                      if (state.activeSessionId) {
-                        void handleSessionMenuAction(state.activeSessionId, 'unarchive');
-                      }
-                    }}
-                    onNewAgent={() => void handleStartNewSession()}
-                  />
-                </div>
-              ) : null}
-              {state.awaitingTranscript ? (
-                <div
-                  className="transcript-awaiting-banner"
-                  data-testid="transcript-awaiting-banner"
-                  role="status"
-                  aria-live="polite"
-                >
-                  {desktopLocale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
-                </div>
-              ) : null}
-              <TranscriptViewport
-                key={state.activeSessionId ?? 'no-session'}
-                messageCount={state.messages.length}
-                activitySignal={activitySignal}
-                messages={state.messages}
-                canLoadOlder={
-                  state.transcriptWindow?.olderCursor !== undefined &&
-                  state.transcriptWindow.cacheLimitReached !== true
-                }
-                historyLoading={transcriptHistoryLoading}
-                onLoadOlder={handleLoadOlderTranscript}
-                locale={desktopLocale}
-                turnAnchorMessageId={state.streaming ? lastUserMessageId : null}
-                {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
-              >
-                <ArtifactHeightSignalProvider value={artifactHeightSignal}>
-                  {/*
-                   * Keep the thread mounted during the pre-ACK window. The
-                   * optimistic send marks the run as streaming before the
-                   * Host returns a run id, and ChatThread owns the waiting
-                   * activity locator for that state.
-                   */}
-                  {state.messages.length > 0 || state.streaming ? (
-                    <ChatThread
-                      messages={state.messages}
-                      {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
-                      streaming={state.streaming}
-                      activeSessionId={state.activeSessionId}
-                      editingMessageId={editingMessageId}
-                      lastUserMessageId={lastUserMessageId}
-                      activeTheme={activeTheme}
-                      artifactThemeKey={artifactThemeKey}
-                      runRecordsById={state.runRecordsById}
-                      activeRunId={state.activeRunId}
-                      activeSkill={state.activeSkill}
-                      {...(preferences.agentLocatorAnimation
-                        ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
-                        : {})}
-                      permissionPrompt={state.permissionPrompt}
-                      projectPath={state.projectPath}
-                      toolDiffRequest={requestGit as never}
-                      filesChangedRequest={requestGit as never}
-                      onReviewChanges={() => openRightTab('review')}
-                      onPermission={(decision, scope) => {
-                        void handlePermission(decision, scope);
-                      }}
-                      workDetailsExpanded={preferences.workDetailsExpanded}
-                      toolDensity={preferences.toolDensity}
-                      showThinking={preferences.verboseAgentChat}
-                      artifactPreviewEnabled={config?.artifact?.enabled ?? true}
-                      artifactCodeFirst={preferences.artifactCodeFirst}
-                      plan={sessionPlan}
-                      {...(config?.artifact?.maxBytes !== undefined
-                        ? { artifactMaxBytes: config.artifact.maxBytes }
-                        : {})}
-                      locale={desktopLocale}
-                      onInspectSubagent={handleInspectSubagent}
-                      onEdit={setEditingMessageId}
-                      onCancelEdit={handleCancelMessageEdit}
-                      onEditResend={handleEditAndResendMessage}
-                      onRetry={handleRetryMessage}
-                      onFeedback={handleMessageFeedback}
-                      onArtifactAction={handleArtifactAction}
-                      onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                      onOpenFile={(absolutePath, relativePath) => {
-                        handleOpenDocument(
-                          {
-                            title:
-                              (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
-                            path: absolutePath,
-                          },
-                          'inspector',
-                        );
-                      }}
-                      onOpenDocument={handleOpenDocument}
-                      onPlanExecute={handlePlanExecute}
-                      onPlanAbort={handlePlanAbort}
-                      composerCard={composerCard}
-                      walkthroughsByMessageId={state.walkthroughsByMessageId}
-                      walkthroughEnabled={config?.walkthrough?.enabled !== false}
-                      walkthroughAutoGenerate={false}
-                      onGenerateWalkthrough={handleGenerateWalkthrough}
-                      onCancelWalkthrough={handleCancelWalkthrough}
-                      {...(state.activeSessionId
-                        ? {
-                            onDuplicateSession: () =>
-                              void handleDuplicateSession(state.activeSessionId!),
-                            onForkFromMessage: (messageId: string) =>
-                              void handleForkSession(state.activeSessionId!, messageId),
-                          }
-                        : {})}
-                      {...(sessionLineage ? { sessionLineage } : {})}
-                      forkCountsByMessageId={forkCountsByMessageId}
-                      onOpenSession={(sessionId: string) => void handleResumeSession(sessionId)}
-                      derivedActionsDisabled={!state.activeSessionId || state.streaming}
-                    />
-                  ) : null}
-                </ArtifactHeightSignalProvider>
-              </TranscriptViewport>
-              {state.compacting ? (
-                <Notice
-                  tone="info"
-                  testId="compaction-progress-notice"
-                  title="Compacting context…"
-                  action={
-                    <Button size="compact" onClick={() => void handleCompactAbort()}>
-                      Cancel
-                    </Button>
-                  }
-                />
-              ) : null}
-              {!state.compacting && state.lastCompactionMessage ? (
-                <Notice
-                  tone="success"
-                  testId="compaction-result-notice"
-                  title={state.lastCompactionMessage}
-                  action={
-                    <Button size="compact" onClick={() => dispatch({ type: 'compaction/dismiss' })}>
-                      Dismiss
-                    </Button>
-                  }
-                  details={
-                    <>
-                      {typeof state.lastCompactionDurationMs === 'number' ? (
-                        <span className="muted">Duration {state.lastCompactionDurationMs}ms</span>
-                      ) : null}
-                      {typeof state.lastCompactionTokensBefore === 'number' ||
-                      typeof state.lastCompactionTokensAfter === 'number' ? (
-                        <div className="muted banner-meta">
-                          Tokens
-                          {typeof state.lastCompactionTokensBefore === 'number'
-                            ? ` before: ${state.lastCompactionTokensBefore}`
-                            : ''}
-                          {typeof state.lastCompactionTokensAfter === 'number'
-                            ? ` → after: ${state.lastCompactionTokensAfter}`
-                            : ''}
-                        </div>
-                      ) : null}
-                      {state.lastCompactionSummary ? (
-                        <details className="banner-details">
-                          <summary>Summary</summary>
-                          <pre className="banner-summary-pre">
-                            {state.lastCompactionSummary.slice(0, 500)}
-                          </pre>
-                        </details>
-                      ) : null}
-                    </>
-                  }
-                />
-              ) : null}
-            </>
-          }
-          permissionBar={
-            state.permissionPrompt ? (
-              <PermissionBar
-                prompt={state.permissionPrompt}
-                projectPath={state.projectPath}
-                onPermission={(decision, scope) => {
-                  void handlePermission(decision, scope);
                 }}
-              />
-            ) : extensionUiRequest ? (
-              <ExtensionUiPrompt
-                request={extensionUiRequest}
-                onResolve={(payload) => void handleExtensionUiResolve(payload)}
-              />
-            ) : null
-          }
-          composerDock={
-            <>
-              {state.messages.length === 0 && !state.awaitingTranscript ? (
-                <InkWashEmptyVignette theme={activeTheme} />
-              ) : null}
-              <ComposerDock {...composerCard} />
-            </>
-          }
-          statusBar={
-            <StatusBar
-              modelLabel={selectedModelLabel}
-              skillsCount={menuSkills.filter((s) => s.enabled).length}
-              mcpCount={menuMcp.filter((m) => m.running).length}
-              agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
-              terminalAttention={terminalAttention}
-              {...(typeof contextUsagePercent === 'number'
-                ? { contextPercent: contextUsagePercent }
-                : {})}
-              onOpenSkills={() => openSettingsSection('skills')}
-              onOpenMcp={() => openSettingsSection('tools')}
-              locale={desktopLocale}
-            />
-          }
-          rightPanel={
-            <>
-              {showOverlayScrim ? (
-                <button
-                  type="button"
-                  className="shell-overlay-scrim"
-                  data-testid="shell-overlay-scrim"
-                  aria-label="Close panel"
-                  onClick={() => shell.closeOverlay()}
-                />
-              ) : null}
-
-              <RightPanel
-                open={rightPanelOpen}
-                onOpen={() => shell.openInspector(rightPanelTab)}
-                onClose={() => shell.closeOverlay()}
-                activeTab={rightPanelTab}
-                onTabChange={(tab) => {
-                  shell.setInspectorTab(tab);
-                  if (!rightPanelOpen) {
-                    shell.openInspector(tab);
-                  }
-                }}
-                panelWidthPx={rightPanelResize.widthPx}
-                isResizing={rightPanelResize.isResizing}
-                onResizePointerDown={rightPanelResize.onResizePointerDown}
-                onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
-                isExpanded={rightPanelResize.widthPx > 450}
-                onToggleExpand={() =>
-                  rightPanelResize.setWidthPx(
-                    rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
-                  )
-                }
                 isOverlayPresentation={isOverlayPresentation}
-                runningJobCount={jobs.length}
-                terminalAttention={terminalAttention}
-                onTerminalAttentionClear={() => setTerminalAttention(false)}
-                onViewChange={setRightPanelView}
+                onCloseOverlay={() => shell.closeOverlay()}
+                locale={desktopLocale}
+                sidebarWidthPx={sidebarResize.widthPx}
+                isResizing={sidebarResize.isResizing}
+                onResizePointerDown={sidebarResize.onResizePointerDown}
+                onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
+                workingSessionIds={state.workingSessionIds}
+                backendServiceSessionIds={backendServiceSessionIds}
+                completedAttentionSessionIds={state.completedAttentionSessionIds}
+                onDismissCompletedAttention={(sessionId) => {
+                  dispatch({ type: 'session/attention-dismiss', sessionId });
+                }}
+                sessionsExpanded={navDrawerOpen}
+                onToggleSessions={() => {
+                  shell.toggleSessions();
+                }}
+                canGoBack={shell.canGoBack}
+                canGoForward={shell.canGoForward}
+                onGoBack={() => {
+                  shell.goBack();
+                }}
+                onGoForward={() => {
+                  shell.goForward();
+                }}
+              />
+            }
+            contextBar={
+              <ContextBar
+                session={{
+                  title: state.projectPath
+                    ? `${projectDisplayName(state.projectPath)} / ${activeSessionName}`
+                    : activeSessionName,
+                  scopeLabel:
+                    state.activeScope.kind === 'general'
+                      ? desktopCopy.general
+                      : desktopLocale === 'zh-CN'
+                        ? '项目'
+                        : 'Project',
+                }}
+                {...(state.activeSessionId
+                  ? {
+                      sessionTreeControl: (
+                        <SessionLineageHeaderPopover
+                          lineage={sessionLineage}
+                          activeSessionId={state.activeSessionId}
+                          activeSessionName={activeSessionName}
+                          activeSessionArchived={state.activeSessionArchived}
+                          onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
+                          locale={desktopLocale}
+                        />
+                      ),
+                    }
+                  : {})}
+                isConversationSession={state.activeScope.kind === 'general'}
+                runState={runStatus}
+                onStop={() => void handleAbort()}
+                onViewActivity={() => openRightTab('terminal')}
+                onReviewPermission={() => {
+                  // Focus the inline permission gate in the stream when present.
+                  const gate = document.querySelector<HTMLElement>(
+                    '[data-testid="permission-gate"]',
+                  );
+                  gate?.focus?.();
+                  gate?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+                }}
+                onViewPlan={() => openRightTab('terminal')}
+                onCancelCompact={() => void handleCompactAbort()}
+                {...(lastUserMessageId
+                  ? {
+                      onRetry: () => {
+                        void handleRetryFromMessage(lastUserMessageId);
+                      },
+                    }
+                  : {})}
+                permissionMode={config?.permissions?.preset ?? configPreset}
+                onOpenPermissions={() => openSettingsSection('permissions')}
                 locale={desktopLocale}
                 appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-                onToggleAppearance={handleToggleAppearance}
+                sessionsExpanded={navDrawerOpen}
+                onToggleSessions={() => {
+                  shell.toggleSessions();
+                }}
+                canGoBack={shell.canGoBack}
+                canGoForward={shell.canGoForward}
+                onGoBack={() => {
+                  shell.goBack();
+                }}
+                onGoForward={() => {
+                  shell.goForward();
+                }}
                 onOpenSkills={() => openSettingsSection('skills')}
                 onOpenMcp={() => openSettingsSection('tools')}
+                onToggleAppearance={handleToggleAppearance}
                 onOpenSettings={() => openSettingsSection('general')}
-                onToggleSessions={() => shell.toggleSessions()}
-                notesContent={<DeferredNotesPanel request={requestNotesPanel} />}
-                cardsContent={<DeferredFlashcardsPanel request={requestCardsPanel} />}
-                filesContent={
-                  <DeferredFileTreePanel
-                    projectPath={state.projectPath}
-                    request={requestFileTree}
-                    onAddContextRef={(ref) => {
-                      const result = addContextRef(ref);
-                      if (!result.ok) {
-                        dispatchNotification({
-                          type: 'notify/push',
-                          notification: {
-                            level: 'warning',
-                            message: 'Context chip limit reached (12). Remove one first.',
-                          },
-                        });
-                        return;
-                      }
-                    }}
-                    onSendPreset={(text, refs) => {
-                      for (const ref of refs) {
-                        addContextRef(ref);
-                      }
-                      void handleSend(text);
-                    }}
-                    onInsertPath={(absolutePath) => {
-                      setComposer((current) =>
-                        current.trim().length > 0
-                          ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
-                          : absolutePath,
-                      );
-                    }}
-                    locale={desktopLocale}
-                  />
-                }
-                canvasContent={
-                  <ArtifactCanvasPanel
-                    activeTarget={artifactCanvas.activeTarget}
-                    artifactTheme={mapThemeToArtifactVariables(activeTheme)}
-                    artifactThemeKey={artifactThemeKey}
-                    {...(config?.artifact?.maxBytes !== undefined
-                      ? { artifactMaxBytes: config.artifact.maxBytes }
-                      : {})}
-                    onInsertProposal={(proposal) =>
-                      setComposer((current) => appendComposerProposal(current, proposal.text))
+                workPanelOpen={rightPanelOpen}
+                onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
+                {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
+                {...(activeSessionOrigin?.kind === 'fork'
+                  ? {
+                      onReturnToRoot: () =>
+                        void handleResumeSession(activeSessionOrigin.rootSessionId),
                     }
-                  />
-                }
-                browserContent={
-                  <DeferredBrowserSessionPanel
-                    hostClient={hostClient}
-                    onAddWebElement={addWebElement}
-                    agentRunning={state.streaming}
-                  />
-                }
-                sideChatContent={
-                  <DeferredSideChatPanel
-                    sessionId={state.activeSessionId}
-                    hostClient={hostClient}
-                  />
-                }
-                docPreviewContent={
-                  <DeferredDocPreviewPanel
-                    title={activeDocument?.title}
-                    content={activeDocumentContent(activeDocument)}
-                    filePath={activeDocumentFilePath(activeDocument)}
-                    status={activeDocument?.status}
-                    displayRef={activeDocument?.displayRef}
-                    provenance={activeDocument?.status === 'ready' ? activeDocument.provenance : undefined}
-                    warning={activeDocument?.status === 'ready' ? activeDocument.warning : undefined}
-                    skillId={activeDocument?.status === 'ready' ? activeDocument.skillId : undefined}
-                    skillSource={
-                      activeDocument?.status === 'ready' ? activeDocument.skillSource : undefined
-                    }
-                    unavailableReason={
-                      activeDocument?.status === 'unavailable' ? activeDocument.reason : undefined
-                    }
-                    suggestion={
-                      activeDocument?.status === 'unavailable'
-                        ? activeDocument.suggestion
-                        : undefined
-                    }
-                    sessionDocuments={sessionDocuments}
-                    onOpenFile={(filePath) => {
-                      handleOpenDocument({
-                        title: filePath.split(/[\\/]/).pop() || filePath,
-                        path: filePath,
-                      });
-                    }}
-                    onCommentLine={handleCommentLine}
-                    comments={activeComments}
-                    onAddComment={handleAddDocComment}
-                    onEditComment={handleEditDocComment}
-                    onDeleteComment={handleDeleteDocComment}
-                    onSelectDocument={(doc) => {
-                      const planDocument =
-                        doc.path === `plans/${state.activeSessionId ?? ''}.md` ? sessionPlan : null;
-                      // Walkthrough virtual docs: resolve markdown content from the
-                      // in-memory artifact map (path: walkthroughs/<message-id>.md).
-                      const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
-                      const walkthroughArtifact = walkthroughMatch
-                        ? state.walkthroughsByMessageId[walkthroughMatch[1] as string]
-                        : undefined;
-                      handleOpenDocument({
-                        title: doc.title,
-                        ...(doc.path ? { path: doc.path } : {}),
-                        ...(planDocument ? { content: formatPlanMarkdown(planDocument) } : {}),
-                        ...(walkthroughArtifact?.status === 'ready'
-                          ? { content: walkthroughArtifact.markdown }
-                          : {}),
-                      });
-                    }}
-                    locale={desktopLocale}
-                  />
-                }
-                terminalContent={
-                  <DeferredTerminalDock
-                    projectPath={state.projectPath}
-                    projectTrusted={state.projectTrusted}
-                    ptyOutput={ptyOutput}
-                    onClearPtyOutput={() => setPtyOutput([])}
-                    currentCwd={terminalCwd}
-                    onCwdChange={handleTerminalCwdChange}
-                    recentDirs={terminalRecentDirs}
-                    request={requestPty}
-                  />
-                }
-                reviewContent={
-                  <DeferredReviewPanel
-                    changesContent={
-                      <DeferredChangesPanel
+                  : {})}
+              />
+            }
+            chatColumnClassName={
+              [
+                composerLayoutMode === 'centered' ? 'chat-column-empty' : '',
+                activeTheme.visualStyle === 'ink-wash' ? 'theme-visual-ink-wash' : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
+            activityDock={
+              activeSubagentViews.length > 0 ? (
+                <SubagentWorkingDock
+                  items={activeSubagentViews}
+                  onInspect={handleInspectSubagent}
+                />
+              ) : undefined
+            }
+            knowledgePanel={
+              knowledgeOpen ? (
+                <section
+                  className="knowledge-stage"
+                  data-testid="knowledge-stage"
+                  aria-label={desktopCopy.knowledgeCenter}
+                >
+                  <header className="knowledge-stage-header">
+                    <span className="knowledge-stage-kicker">{desktopCopy.knowledgeCenter}</span>
+                    <IconButton
+                      label={desktopLocale === 'zh-CN' ? '关闭知识中心' : 'Close Knowledge Center'}
+                      data-testid="knowledge-stage-close-btn"
+                      onClick={() => setKnowledgeOpen(false)}
+                    >
+                      <IconClose />
+                    </IconButton>
+                  </header>
+                  <div className="knowledge-stage-body">
+                    <DeferredSurfaceBoundary
+                      label={desktopLocale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
+                    >
+                      <DeferredKnowledgeCenterPanel
                         projectPath={state.projectPath}
-                        request={requestGit as never}
+                        request={requestKnowledgeCenter}
+                        sendSessionPrompt={sendSessionPrompt}
+                      />
+                    </DeferredSurfaceBoundary>
+                  </div>
+                </section>
+              ) : undefined
+            }
+            transcript={
+              <>
+                <MainErrorBanner
+                  message={state.error}
+                  onDismiss={() => dispatch({ type: 'error/clear' })}
+                />
+                {state.projectPath && !state.projectTrusted ? (
+                  <div className="chat-inline-notice">
+                    <ProjectTrustNotice
+                      projectPath={state.projectPath}
+                      onTrust={() => void handleTrustProject(true)}
+                    />
+                  </div>
+                ) : null}
+                {state.activeSessionArchived ? (
+                  <div className="chat-inline-notice">
+                    <SessionArchivedBanner
+                      sessionName={activeSessionName}
+                      onRestore={() => {
+                        if (state.activeSessionId) {
+                          void handleSessionMenuAction(state.activeSessionId, 'unarchive');
+                        }
+                      }}
+                      onNewAgent={() => void handleStartNewSession()}
+                    />
+                  </div>
+                ) : null}
+                {state.awaitingTranscript ? (
+                  <div
+                    className="transcript-awaiting-banner"
+                    data-testid="transcript-awaiting-banner"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {desktopLocale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
+                  </div>
+                ) : null}
+                <TranscriptViewport
+                  key={state.activeSessionId ?? 'no-session'}
+                  messageCount={state.messages.length}
+                  activitySignal={activitySignal}
+                  messages={state.messages}
+                  canLoadOlder={
+                    state.transcriptWindow?.olderCursor !== undefined &&
+                    state.transcriptWindow.cacheLimitReached !== true
+                  }
+                  historyLoading={transcriptHistoryLoading}
+                  onLoadOlder={handleLoadOlderTranscript}
+                  locale={desktopLocale}
+                  turnAnchorMessageId={state.streaming ? lastUserMessageId : null}
+                  {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
+                >
+                  <ArtifactHeightSignalProvider value={artifactHeightSignal}>
+                    {/*
+                     * Keep the thread mounted during the pre-ACK window. The
+                     * optimistic send marks the run as streaming before the
+                     * Host returns a run id, and ChatThread owns the waiting
+                     * activity locator for that state.
+                     */}
+                    {state.messages.length > 0 || state.streaming ? (
+                      <ChatThread
+                        messages={state.messages}
+                        {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
+                        streaming={state.streaming}
+                        activeSessionId={state.activeSessionId}
+                        editingMessageId={editingMessageId}
+                        lastUserMessageId={lastUserMessageId}
+                        activeTheme={activeTheme}
+                        artifactThemeKey={artifactThemeKey}
+                        runRecordsById={state.runRecordsById}
+                        activeRunId={state.activeRunId}
+                        activeSkill={state.activeSkill}
+                        {...(preferences.agentLocatorAnimation
+                          ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
+                          : {})}
+                        permissionPrompt={state.permissionPrompt}
+                        projectPath={state.projectPath}
+                        toolDiffRequest={requestGit as never}
+                        filesChangedRequest={requestGit as never}
+                        onReviewChanges={() => openRightTab('review')}
+                        onPermission={(decision, scope) => {
+                          void handlePermission(decision, scope);
+                        }}
+                        workDetailsExpanded={preferences.workDetailsExpanded}
+                        toolDensity={preferences.toolDensity}
+                        showThinking={preferences.verboseAgentChat}
+                        artifactPreviewEnabled={config?.artifact?.enabled ?? true}
+                        artifactCodeFirst={preferences.artifactCodeFirst}
+                        plan={sessionPlan}
+                        {...(config?.artifact?.maxBytes !== undefined
+                          ? { artifactMaxBytes: config.artifact.maxBytes }
+                          : {})}
+                        locale={desktopLocale}
+                        onInspectSubagent={handleInspectSubagent}
+                        onEdit={setEditingMessageId}
+                        onCancelEdit={handleCancelMessageEdit}
+                        onEditResend={handleEditAndResendMessage}
+                        onRetry={handleRetryMessage}
+                        onFeedback={handleMessageFeedback}
+                        onArtifactAction={handleArtifactAction}
+                        onOpenArtifactCanvas={handleOpenArtifactCanvas}
                         onOpenFile={(absolutePath, relativePath) => {
-                          // Workspace files open beside the file rail only — never the chat stage.
                           handleOpenDocument(
                             {
-                              title: relativePath.split(/[\\/]/).pop() || relativePath,
+                              title:
+                                (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
                               path: absolutePath,
                             },
                             'inspector',
                           );
                         }}
+                        onOpenDocument={handleOpenDocument}
+                        onPlanExecute={handlePlanExecute}
+                        onPlanAbort={handlePlanAbort}
+                        composerCard={composerCard}
+                        walkthroughsByMessageId={state.walkthroughsByMessageId}
+                        walkthroughEnabled={config?.walkthrough?.enabled !== false}
+                        walkthroughAutoGenerate={false}
+                        onGenerateWalkthrough={handleGenerateWalkthrough}
+                        onCancelWalkthrough={handleCancelWalkthrough}
+                        {...(state.activeSessionId
+                          ? {
+                              onDuplicateSession: () =>
+                                void handleDuplicateSession(state.activeSessionId!),
+                              onForkFromMessage: (messageId: string) =>
+                                void handleForkSession(state.activeSessionId!, messageId),
+                            }
+                          : {})}
+                        {...(sessionLineage ? { sessionLineage } : {})}
+                        forkCountsByMessageId={forkCountsByMessageId}
+                        onOpenSession={(sessionId: string) => void handleResumeSession(sessionId)}
+                        derivedActionsDisabled={!state.activeSessionId || state.streaming}
                       />
-                    }
-                    gitContent={
-                      <DeferredGitPanel
-                        projectPath={state.projectPath}
-                        request={requestGit as never}
-                        variant="embedded"
-                      />
+                    ) : null}
+                  </ArtifactHeightSignalProvider>
+                </TranscriptViewport>
+                {state.compacting ? (
+                  <Notice
+                    tone="info"
+                    testId="compaction-progress-notice"
+                    title="Compacting context…"
+                    action={
+                      <Button size="compact" onClick={() => void handleCompactAbort()}>
+                        Cancel
+                      </Button>
                     }
                   />
-                }
+                ) : null}
+                {!state.compacting && state.lastCompactionMessage ? (
+                  <Notice
+                    tone="success"
+                    testId="compaction-result-notice"
+                    title={state.lastCompactionMessage}
+                    action={
+                      <Button
+                        size="compact"
+                        onClick={() => dispatch({ type: 'compaction/dismiss' })}
+                      >
+                        Dismiss
+                      </Button>
+                    }
+                    details={
+                      <>
+                        {typeof state.lastCompactionDurationMs === 'number' ? (
+                          <span className="muted">Duration {state.lastCompactionDurationMs}ms</span>
+                        ) : null}
+                        {typeof state.lastCompactionTokensBefore === 'number' ||
+                        typeof state.lastCompactionTokensAfter === 'number' ? (
+                          <div className="muted banner-meta">
+                            Tokens
+                            {typeof state.lastCompactionTokensBefore === 'number'
+                              ? ` before: ${state.lastCompactionTokensBefore}`
+                              : ''}
+                            {typeof state.lastCompactionTokensAfter === 'number'
+                              ? ` → after: ${state.lastCompactionTokensAfter}`
+                              : ''}
+                          </div>
+                        ) : null}
+                        {state.lastCompactionSummary ? (
+                          <details className="banner-details">
+                            <summary>Summary</summary>
+                            <pre className="banner-summary-pre">
+                              {state.lastCompactionSummary.slice(0, 500)}
+                            </pre>
+                          </details>
+                        ) : null}
+                      </>
+                    }
+                  />
+                ) : null}
+              </>
+            }
+            permissionBar={
+              state.permissionPrompt ? (
+                <PermissionBar
+                  prompt={state.permissionPrompt}
+                  projectPath={state.projectPath}
+                  onPermission={(decision, scope) => {
+                    void handlePermission(decision, scope);
+                  }}
+                />
+              ) : extensionUiRequest ? (
+                <ExtensionUiPrompt
+                  request={extensionUiRequest}
+                  onResolve={(payload) => void handleExtensionUiResolve(payload)}
+                />
+              ) : null
+            }
+            composerDock={
+              <>
+                {state.messages.length === 0 && !state.awaitingTranscript ? (
+                  <InkWashEmptyVignette theme={activeTheme} />
+                ) : null}
+                <ComposerDock {...composerCard} />
+              </>
+            }
+            statusBar={
+              <StatusBar
+                modelLabel={selectedModelLabel}
+                skillsCount={menuSkills.filter((s) => s.enabled).length}
+                mcpCount={menuMcp.filter((m) => m.running).length}
+                agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
+                terminalAttention={terminalAttention}
+                {...(typeof contextUsagePercent === 'number'
+                  ? { contextPercent: contextUsagePercent }
+                  : {})}
+                onOpenSkills={() => openSettingsSection('skills')}
+                onOpenMcp={() => openSettingsSection('tools')}
+                locale={desktopLocale}
               />
-            </>
-          }
-        />
-
-        <AppDialogs
-          projectInput={projectInput}
-          onProjectInputChange={setProjectInput}
-          projectPickerOpen={projectPickerOpen}
-          onProjectPickerOpenChange={setProjectPickerOpen}
-          onOpenProject={(path) => {
-            const requestedPath = path?.trim() || projectInput.trim();
-            if (requestedPath) {
-              void handleOpenProject(requestedPath);
-
             }
-          }}
-          onBrowseProject={() => void handleBrowseProject()}
-          projectPath={state.projectPath}
-          trustDialogOpen={state.trustDialogOpen}
-          onTrustProject={(trust) => void handleTrustProject(trust)}
-          sessionMenu={sessionMenu}
-          onCloseSessionMenu={() => setSessionMenu(null)}
-          sessions={mergeSessionsForLookup(state.sessions, state.generalSessions)}
-          showArchivedSessions={showArchivedSessions}
-          onSessionMenuAction={(sessionId, action) => {
-            if (action === 'delete') {
-              const session = state.sessions.find((item) => item.id === sessionId);
-              setDeleteConfirm({
-                sessionId,
-                sessionName: session?.name ?? sessionId.slice(0, 8),
-              });
-              setSessionMenu(null);
-              return;
-            }
-            void handleSessionMenuAction(sessionId, action);
-          }}
-          renameDraft={renameDraft}
-          onRenameDraftChange={setRenameDraft}
-          onRenameSession={(sessionId, name) => {
-            void handleRenameSession(sessionId, name);
-          }}
-          permissionPrompt={state.permissionPrompt}
-          onPermission={(decision, scope) => {
-            void handlePermission(decision, scope);
-          }}
-        />
+            rightPanel={
+              <>
+                {showOverlayScrim ? (
+                  <button
+                    type="button"
+                    className="shell-overlay-scrim"
+                    data-testid="shell-overlay-scrim"
+                    aria-label="Close panel"
+                    onClick={() => shell.closeOverlay()}
+                  />
+                ) : null}
 
-        <ConfirmDialog
-          open={applyDraft !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setApplyDraft(null);
+                <RightPanel
+                  open={rightPanelOpen}
+                  onOpen={() => shell.openInspector(rightPanelTab)}
+                  onClose={() => shell.closeOverlay()}
+                  activeTab={rightPanelTab}
+                  onTabChange={(tab) => {
+                    shell.setInspectorTab(tab);
+                    if (!rightPanelOpen) {
+                      shell.openInspector(tab);
+                    }
+                  }}
+                  panelWidthPx={rightPanelResize.widthPx}
+                  isResizing={rightPanelResize.isResizing}
+                  onResizePointerDown={rightPanelResize.onResizePointerDown}
+                  onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
+                  isExpanded={rightPanelResize.widthPx > 450}
+                  onToggleExpand={() =>
+                    rightPanelResize.setWidthPx(
+                      rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
+                    )
+                  }
+                  isOverlayPresentation={isOverlayPresentation}
+                  runningJobCount={jobs.length}
+                  terminalAttention={terminalAttention}
+                  onTerminalAttentionClear={() => setTerminalAttention(false)}
+                  onViewChange={setRightPanelView}
+                  locale={desktopLocale}
+                  appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
+                  onToggleAppearance={handleToggleAppearance}
+                  onOpenSkills={() => openSettingsSection('skills')}
+                  onOpenMcp={() => openSettingsSection('tools')}
+                  onOpenSettings={() => openSettingsSection('general')}
+                  onToggleSessions={() => shell.toggleSessions()}
+                  notesContent={<DeferredNotesPanel request={requestNotesPanel} />}
+                  cardsContent={<DeferredFlashcardsPanel request={requestCardsPanel} />}
+                  filesContent={
+                    <DeferredFileTreePanel
+                      projectPath={state.projectPath}
+                      request={requestFileTree}
+                      onAddContextRef={(ref) => {
+                        const result = addContextRef(ref);
+                        if (!result.ok) {
+                          dispatchNotification({
+                            type: 'notify/push',
+                            notification: {
+                              level: 'warning',
+                              message: 'Context chip limit reached (12). Remove one first.',
+                            },
+                          });
+                          return;
+                        }
+                      }}
+                      onSendPreset={(text, refs) => {
+                        for (const ref of refs) {
+                          addContextRef(ref);
+                        }
+                        void handleSend(text);
+                      }}
+                      onInsertPath={(absolutePath) => {
+                        setComposer((current) =>
+                          current.trim().length > 0
+                            ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
+                            : absolutePath,
+                        );
+                      }}
+                      locale={desktopLocale}
+                    />
+                  }
+                  canvasContent={
+                    <ArtifactCanvasPanel
+                      activeTarget={artifactCanvas.activeTarget}
+                      artifactTheme={mapThemeToArtifactVariables(activeTheme)}
+                      artifactThemeKey={artifactThemeKey}
+                      {...(config?.artifact?.maxBytes !== undefined
+                        ? { artifactMaxBytes: config.artifact.maxBytes }
+                        : {})}
+                      onInsertProposal={(proposal) =>
+                        setComposer((current) => appendComposerProposal(current, proposal.text))
+                      }
+                    />
+                  }
+                  browserContent={
+                    <DeferredBrowserSessionPanel
+                      hostClient={hostClient}
+                      onAddWebElement={addWebElement}
+                      agentRunning={state.streaming}
+                    />
+                  }
+                  sideChatContent={
+                    <DeferredSideChatPanel
+                      sessionId={state.activeSessionId}
+                      hostClient={hostClient}
+                    />
+                  }
+                  docPreviewContent={
+                    <DeferredDocPreviewPanel
+                      title={activeDocument?.title}
+                      content={activeDocumentContent(activeDocument)}
+                      filePath={activeDocumentFilePath(activeDocument)}
+                      status={activeDocument?.status}
+                      displayRef={activeDocument?.displayRef}
+                      provenance={
+                        activeDocument?.status === 'ready' ? activeDocument.provenance : undefined
+                      }
+                      warning={
+                        activeDocument?.status === 'ready' ? activeDocument.warning : undefined
+                      }
+                      skillId={
+                        activeDocument?.status === 'ready' ? activeDocument.skillId : undefined
+                      }
+                      skillSource={
+                        activeDocument?.status === 'ready' ? activeDocument.skillSource : undefined
+                      }
+                      unavailableReason={
+                        activeDocument?.status === 'unavailable' ? activeDocument.reason : undefined
+                      }
+                      suggestion={
+                        activeDocument?.status === 'unavailable'
+                          ? activeDocument.suggestion
+                          : undefined
+                      }
+                      sessionDocuments={sessionDocuments}
+                      onOpenFile={(filePath) => {
+                        handleOpenDocument({
+                          title: filePath.split(/[\\/]/).pop() || filePath,
+                          path: filePath,
+                        });
+                      }}
+                      onCommentLine={handleCommentLine}
+                      comments={activeComments}
+                      onAddComment={handleAddDocComment}
+                      onEditComment={handleEditDocComment}
+                      onDeleteComment={handleDeleteDocComment}
+                      onSelectDocument={(doc) => {
+                        const planDocument =
+                          doc.path === `plans/${state.activeSessionId ?? ''}.md`
+                            ? sessionPlan
+                            : null;
+                        // Walkthrough virtual docs: resolve markdown content from the
+                        // in-memory artifact map (path: walkthroughs/<message-id>.md).
+                        const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
+                        const walkthroughArtifact = walkthroughMatch
+                          ? state.walkthroughsByMessageId[walkthroughMatch[1] as string]
+                          : undefined;
+                        handleOpenDocument({
+                          title: doc.title,
+                          ...(doc.path ? { path: doc.path } : {}),
+                          ...(planDocument ? { content: formatPlanMarkdown(planDocument) } : {}),
+                          ...(walkthroughArtifact?.status === 'ready'
+                            ? { content: walkthroughArtifact.markdown }
+                            : {}),
+                        });
+                      }}
+                      locale={desktopLocale}
+                    />
+                  }
+                  terminalContent={
+                    <DeferredTerminalDock
+                      projectPath={state.projectPath}
+                      projectTrusted={state.projectTrusted}
+                      ptyOutput={ptyOutput}
+                      onClearPtyOutput={() => setPtyOutput([])}
+                      currentCwd={terminalCwd}
+                      onCwdChange={handleTerminalCwdChange}
+                      recentDirs={terminalRecentDirs}
+                      request={requestPty}
+                    />
+                  }
+                  reviewContent={
+                    <DeferredReviewPanel
+                      changesContent={
+                        <DeferredChangesPanel
+                          projectPath={state.projectPath}
+                          request={requestGit as never}
+                          onOpenFile={(absolutePath, relativePath) => {
+                            // Workspace files open beside the file rail only — never the chat stage.
+                            handleOpenDocument(
+                              {
+                                title: relativePath.split(/[\\/]/).pop() || relativePath,
+                                path: absolutePath,
+                              },
+                              'inspector',
+                            );
+                          }}
+                        />
+                      }
+                      gitContent={
+                        <DeferredGitPanel
+                          projectPath={state.projectPath}
+                          request={requestGit as never}
+                          variant="embedded"
+                        />
+                      }
+                    />
+                  }
+                />
+              </>
             }
-          }}
-          title="Apply to file"
-          description="Write this code block into the file? The existing content will be replaced."
-          affectedObject={applyDraft?.suggestedPath}
-          confirmLabel="Apply"
-          tone="default"
-          testId="apply-to-file-confirm"
-          onConfirm={() => {
-            const draft = applyDraft;
-            const relativePath = draft?.suggestedPath;
-            if (!draft || !state.projectPath || !relativePath) {
-              setApplyDraft(null);
-              return;
-            }
-            setApplyDraft(null);
-            void hostClient
-              .request({
-                type: 'project/write-file',
-                projectPath: state.projectPath,
-                relativePath,
-                content: draft.text,
-                overwrite: true,
-              })
-              .then((response) => {
-                if (response.success) {
-                  dispatchNotification({
-                    type: 'notify/push',
-                    notification: {
-                      level: 'success',
-                      message: `Applied to ${relativePath}`,
-                    },
-                  });
-                  handleOpenDocument({
-                    title: relativePath.split(/[\\/]/).pop() || relativePath,
-                    path: relativePath,
-                  });
-                  return;
-                }
-                dispatchNotification({
-                  type: 'notify/push',
-                  notification: {
-                    level: 'error',
-                    message: `Could not apply: ${response.error}`,
-                  },
-                });
-              });
-          }}
-        />
+          />
 
-        <CommandPalette
-          open={commandPaletteOpen}
-          onOpenChange={shell.setCommandPaletteOpen}
-          hasProject={Boolean(state.projectPath)}
-          projectTrusted={state.projectTrusted}
-          hasActiveSession={Boolean(state.activeSessionId)}
-          onRun={runDesktopCommand}
-        />
-
-        <ConfirmDialog
-          open={Boolean(deleteConfirm)}
-          onOpenChange={(open) => {
-            if (!open && !deleteBusy) {
-              setDeleteConfirm(null);
-            }
-          }}
-          title="Delete permanently?"
-          description="Transcript files will be removed. This cannot be undone."
-          {...(deleteConfirm?.sessionName ? { affectedObject: deleteConfirm.sessionName } : {})}
-          confirmLabel="Delete permanently"
-          tone="danger"
-          busy={deleteBusy}
-          testId="session-delete-confirm"
-          onConfirm={() => {
-            if (!deleteConfirm) return;
-            setDeleteBusy(true);
-            void confirmDeleteSession(deleteConfirm.sessionId).finally(() => {
-              setDeleteBusy(false);
-              setDeleteConfirm(null);
-            });
-          }}
-        />
-
-        {/* Revert checkpoint confirmation dialog matching exact design specifications */}
-        {pendingRevertEdit ? (
-          <Dialog
-            label="Restore conversation to this message?"
-            open
-            onOpenChange={(open) => {
-              if (!open) {
-                setPendingRevertEdit(null);
-                setDontAskAgainChecked(false);
+          <AppDialogs
+            projectInput={projectInput}
+            onProjectInputChange={setProjectInput}
+            projectPickerOpen={projectPickerOpen}
+            onProjectPickerOpenChange={setProjectPickerOpen}
+            onOpenProject={(path) => {
+              const requestedPath = path?.trim() || projectInput.trim();
+              if (requestedPath) {
+                void handleOpenProject(requestedPath);
               }
             }}
-            testId="revert-edit-confirm"
-          >
-            <div className="revert-modal-content">
-              <h3 className="revert-modal-title">Restore conversation to this message?</h3>
-              <p className="revert-modal-subtitle muted">
-                Later messages will be removed from this chat. File changes on disk are not undone.
-              </p>
-              <div className="revert-modal-footer">
-                <label className="revert-dont-ask">
-                  <input
-                    type="checkbox"
-                    checked={dontAskAgainChecked}
-                    onChange={(e) => setDontAskAgainChecked(e.target.checked)}
-                    data-testid="revert-dont-ask-checkbox"
-                  />
-                  <span>Don't Ask Again</span>
-                </label>
-                <div className="modal-actions">
-                  <Button
-                    data-testid="revert-edit-cancel"
-                    onClick={() => {
-                      setPendingRevertEdit(null);
-                      setDontAskAgainChecked(false);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="revert-continue-btn"
-                    data-testid="revert-edit-confirm"
-                    onClick={() => {
-                      if (dontAskAgainChecked) {
-                        const nextPrefs = { ...preferences, dontAskRevertConfirm: true };
-                        setPreferences(nextPrefs);
-                        saveDesktopPreferences(nextPrefs);
-                      }
-                      const target = pendingRevertEdit;
-                      setPendingRevertEdit(null);
-                      setDontAskAgainChecked(false);
-                      if (target) {
-                        if (target.isEdit) {
-                          void handleEditAndResend(target.messageId, target.text);
-                        } else {
-                          void handleRetryFromMessage(target.messageId);
-                        }
-                      }
-                    }}
-                  >
-                    Continue <span className="enter-symbol">↵</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Dialog>
-        ) : null}
+            onBrowseProject={() => void handleBrowseProject()}
+            projectPath={state.projectPath}
+            trustDialogOpen={state.trustDialogOpen}
+            onTrustProject={(trust) => void handleTrustProject(trust)}
+            sessionMenu={sessionMenu}
+            onCloseSessionMenu={() => setSessionMenu(null)}
+            sessions={mergeSessionsForLookup(state.sessions, state.generalSessions)}
+            showArchivedSessions={showArchivedSessions}
+            onSessionMenuAction={(sessionId, action) => {
+              if (action === 'delete') {
+                const session = state.sessions.find((item) => item.id === sessionId);
+                setDeleteConfirm({
+                  sessionId,
+                  sessionName: session?.name ?? sessionId.slice(0, 8),
+                });
+                setSessionMenu(null);
+                return;
+              }
+              void handleSessionMenuAction(sessionId, action);
+            }}
+            renameDraft={renameDraft}
+            onRenameDraftChange={setRenameDraft}
+            onRenameSession={(sessionId, name) => {
+              void handleRenameSession(sessionId, name);
+            }}
+            permissionPrompt={state.permissionPrompt}
+            onPermission={(decision, scope) => {
+              void handlePermission(decision, scope);
+            }}
+          />
 
-        {inspector.selection !== null ? (
-          <DeferredSurfaceBoundary
-            label={desktopLocale === 'zh-CN' ? '正在加载子代理会话' : 'Loading subagent session'}
-          >
-            <DeferredSubagentSessionDialog
+          <CommandPalette
+            open={commandPaletteOpen}
+            onOpenChange={shell.setCommandPaletteOpen}
+            hasProject={Boolean(state.projectPath)}
+            projectTrusted={state.projectTrusted}
+            hasActiveSession={Boolean(state.activeSessionId)}
+            onRun={runDesktopCommand}
+          />
+
+          <ConfirmDialog
+            open={Boolean(deleteConfirm)}
+            onOpenChange={(open) => {
+              if (!open && !deleteBusy) {
+                setDeleteConfirm(null);
+              }
+            }}
+            title="Delete permanently?"
+            description="Transcript files will be removed. This cannot be undone."
+            {...(deleteConfirm?.sessionName ? { affectedObject: deleteConfirm.sessionName } : {})}
+            confirmLabel="Delete permanently"
+            tone="danger"
+            busy={deleteBusy}
+            testId="session-delete-confirm"
+            onConfirm={() => {
+              if (!deleteConfirm) return;
+              setDeleteBusy(true);
+              void confirmDeleteSession(deleteConfirm.sessionId).finally(() => {
+                setDeleteBusy(false);
+                setDeleteConfirm(null);
+              });
+            }}
+          />
+
+          {/* Revert checkpoint confirmation dialog matching exact design specifications */}
+          {pendingRevertEdit ? (
+            <Dialog
+              label="Restore conversation to this message?"
               open
-              selection={inspector.selection}
-              status={inspector.status}
-              messages={inspector.messages}
-              liveTail={inspector.liveTail}
-              loading={inspector.loading}
-              error={inspector.error}
-              showThinking={preferences.verboseAgentChat}
               onOpenChange={(open) => {
                 if (!open) {
-                  inspector.closeInspector();
+                  setPendingRevertEdit(null);
+                  setDontAskAgainChecked(false);
                 }
               }}
-              onOpenFullSession={inspector.openFullSession}
-              onRetry={inspector.retryLoad}
+              testId="revert-edit-confirm"
+            >
+              <div className="revert-modal-content">
+                <h3 className="revert-modal-title">Restore conversation to this message?</h3>
+                <p className="revert-modal-subtitle muted">
+                  Later messages will be removed from this chat. File changes on disk are not
+                  undone.
+                </p>
+                <div className="revert-modal-footer">
+                  <label className="revert-dont-ask">
+                    <input
+                      type="checkbox"
+                      checked={dontAskAgainChecked}
+                      onChange={(e) => setDontAskAgainChecked(e.target.checked)}
+                      data-testid="revert-dont-ask-checkbox"
+                    />
+                    <span>Don't Ask Again</span>
+                  </label>
+                  <div className="modal-actions">
+                    <Button
+                      data-testid="revert-edit-cancel"
+                      onClick={() => {
+                        setPendingRevertEdit(null);
+                        setDontAskAgainChecked(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="revert-continue-btn"
+                      data-testid="revert-edit-confirm"
+                      onClick={() => {
+                        if (dontAskAgainChecked) {
+                          const nextPrefs = { ...preferences, dontAskRevertConfirm: true };
+                          setPreferences(nextPrefs);
+                          saveDesktopPreferences(nextPrefs);
+                        }
+                        const target = pendingRevertEdit;
+                        setPendingRevertEdit(null);
+                        setDontAskAgainChecked(false);
+                        if (target) {
+                          if (target.isEdit) {
+                            void handleEditAndResend(target.messageId, target.text);
+                          } else {
+                            void handleRetryFromMessage(target.messageId);
+                          }
+                        }
+                      }}
+                    >
+                      Continue <span className="enter-symbol">↵</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Dialog>
+          ) : null}
+
+          {inspector.selection !== null ? (
+            <DeferredSurfaceBoundary
+              label={desktopLocale === 'zh-CN' ? '正在加载子代理会话' : 'Loading subagent session'}
+            >
+              <DeferredSubagentSessionDialog
+                open
+                selection={inspector.selection}
+                status={inspector.status}
+                messages={inspector.messages}
+                liveTail={inspector.liveTail}
+                loading={inspector.loading}
+                error={inspector.error}
+                showThinking={preferences.verboseAgentChat}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    inspector.closeInspector();
+                  }
+                }}
+                onOpenFullSession={inspector.openFullSession}
+                onRetry={inspector.retryLoad}
+              />
+            </DeferredSurfaceBoundary>
+          ) : null}
+        </div>
+        {settingsOpen ? (
+          <DeferredSurfaceBoundary
+            label={desktopLocale === 'zh-CN' ? '正在加载设置' : 'Loading settings'}
+          >
+            <DeferredSettingsPanel
+              hostStatus={hostStatus}
+              hostClient={hostClient}
+              request={requestConfig}
+              preferences={preferences}
+              activeTheme={activeTheme}
+              onPreferencesChange={handleSettingsPreferencesChange}
+              initialSection={settingsSection}
+              onSectionChange={shell.setSettingsSection}
+              projectPath={state.projectPath}
+              projectTrusted={state.projectTrusted}
+              requestSkills={requestSkills}
+              requestMcp={requestMcp}
+              requestExtensions={requestExtensions}
+              requestPlugins={requestPlugins}
+              requestPrompts={requestPrompts}
+              requestPet={requestPet}
+              requestAutomation={requestAutomation}
+              requestSubAgent={requestSubAgent as never}
+              subagentChildren={state.subagentChildren}
+              subagentBatches={state.subagentBatches}
+              activeSessionId={state.activeSessionId}
+              onOpenSubagentSession={handleSettingsOpenSubagentSession}
+              onThemeApplied={onThemeApplied}
+              onPetActiveChanged={setActivePet}
+              onClose={shell.closeSettings}
+              onSaved={handleSettingsSaved}
             />
           </DeferredSurfaceBoundary>
         ) : null}
-      </div>
-      {settingsOpen ? (
-        <DeferredSurfaceBoundary
-          label={desktopLocale === 'zh-CN' ? '正在加载设置' : 'Loading settings'}
-        >
-          <DeferredSettingsPanel
-            hostStatus={hostStatus}
-            hostClient={hostClient}
-            request={requestConfig}
-            preferences={preferences}
-            activeTheme={activeTheme}
-            onPreferencesChange={handleSettingsPreferencesChange}
-            initialSection={settingsSection}
-            onSectionChange={shell.setSettingsSection}
-            projectPath={state.projectPath}
-            projectTrusted={state.projectTrusted}
-            requestSkills={requestSkills}
-            requestMcp={requestMcp}
-            requestExtensions={requestExtensions}
-            requestPlugins={requestPlugins}
-            requestPrompts={requestPrompts}
-            requestPet={requestPet}
-            requestAutomation={requestAutomation}
-            requestSubAgent={requestSubAgent as never}
-            subagentChildren={state.subagentChildren}
-            subagentBatches={state.subagentBatches}
-            activeSessionId={state.activeSessionId}
-            onOpenSubagentSession={handleSettingsOpenSubagentSession}
-            onThemeApplied={onThemeApplied}
-            onPetActiveChanged={setActivePet}
-            onClose={shell.closeSettings}
-            onSaved={handleSettingsSaved}
-          />
-        </DeferredSurfaceBoundary>
-      ) : null}
       </DesktopContextMenuProvider>
-
     </DesktopLocaleProvider>
   );
 }

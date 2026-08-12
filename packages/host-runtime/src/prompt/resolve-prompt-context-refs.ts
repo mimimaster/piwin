@@ -25,6 +25,12 @@ const IGNORED_DIR_NAMES = new Set([
 
 export type ResolvePromptContextRefsDeps = {
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
+  /**
+   * Optional: reject file/folder refs whose project root is not a remembered
+   * (registered) project. Without this, a crafted ref could point at any
+   * directory on the host and have its files read into the model prompt.
+   */
+  isRegisteredProjectRoot?: (projectPath: string) => Promise<boolean>;
 };
 
 /**
@@ -60,6 +66,12 @@ export async function resolvePromptContextRefs(
         break;
       }
       case 'file': {
+        if (
+          deps.isRegisteredProjectRoot &&
+          !(await deps.isRegisteredProjectRoot(ref.projectPath))
+        ) {
+          break;
+        }
         const content = await readBoundedFileForRef(ref.projectPath, ref.relativePath);
         if (content !== undefined) {
           const range =
@@ -71,6 +83,12 @@ export async function resolvePromptContextRefs(
         break;
       }
       case 'folder': {
+        if (
+          deps.isRegisteredProjectRoot &&
+          !(await deps.isRegisteredProjectRoot(ref.projectPath))
+        ) {
+          break;
+        }
         const listing = await listBoundedFolderForRef(ref.projectPath, ref.relativePath);
         if (listing !== undefined) {
           const folderLabel = ref.relativePath === '' ? '.' : ref.relativePath;
@@ -117,7 +135,11 @@ export async function resolvePromptContextRefs(
 export async function readBoundedFileForRef(
   projectPath: string,
   relativePath: string,
+  isRegisteredProjectRoot?: (projectPath: string) => Promise<boolean>,
 ): Promise<string | undefined> {
+  if (isRegisteredProjectRoot && !(await isRegisteredProjectRoot(projectPath))) {
+    return undefined;
+  }
   const rooted = await resolvePathInsideProjectRoot(projectPath, relativePath);
   if (!rooted) {
     return undefined;
@@ -149,7 +171,11 @@ export async function readBoundedFileForRef(
 export async function listBoundedFolderForRef(
   projectPath: string,
   relativePath: string,
+  isRegisteredProjectRoot?: (projectPath: string) => Promise<boolean>,
 ): Promise<string | undefined> {
+  if (isRegisteredProjectRoot && !(await isRegisteredProjectRoot(projectPath))) {
+    return undefined;
+  }
   const rooted = await resolvePathInsideProjectRoot(projectPath, relativePath);
   if (!rooted) {
     return undefined;
@@ -173,7 +199,11 @@ export async function listBoundedFolderForRef(
 
   const names: string[] = [];
   for (const dirent of directoryEntries) {
-    if (dirent.name.startsWith('.') && dirent.name !== '.gitignore' && dirent.name !== '.env.example') {
+    if (
+      dirent.name.startsWith('.') &&
+      dirent.name !== '.gitignore' &&
+      dirent.name !== '.env.example'
+    ) {
       continue;
     }
     if (dirent.isDirectory() && IGNORED_DIR_NAMES.has(dirent.name)) {
@@ -200,11 +230,12 @@ async function resolvePathInsideProjectRoot(
   relativePath: string,
 ): Promise<{ realRoot: string; realCandidate: string } | undefined> {
   const rootAbsolute = resolvePath(projectPath);
-  const relativeNormalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+  const relativeNormalized = relativePath
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
   const candidate =
-    relativeNormalized.length === 0
-      ? rootAbsolute
-      : resolvePath(rootAbsolute, relativeNormalized);
+    relativeNormalized.length === 0 ? rootAbsolute : resolvePath(rootAbsolute, relativeNormalized);
   let realCandidate: string;
   let realRoot: string;
   try {

@@ -454,13 +454,18 @@ export class HostClient {
   /** Open a side chat from a main session. */
   async sideChatOpen(
     sourceSessionId: string,
-    options?: { name?: string; sourceMessageId?: string },
+    options?: {
+      name?: string;
+      sourceMessageId?: string;
+      refs?: import('@piwin/contracts').SideChatContextRef[];
+    },
   ): Promise<HostResponse> {
     return this.request({
       type: 'side-chat/open',
       sourceSessionId,
       ...(options?.name ? { name: options.name } : {}),
       ...(options?.sourceMessageId ? { sourceMessageId: options.sourceMessageId } : {}),
+      ...(options?.refs && options.refs.length > 0 ? { refs: options.refs } : {}),
     });
   }
 

@@ -139,6 +139,45 @@ describe('resolvePromptContextRefs', () => {
     expect(resolved).toContain('- a.ts');
   });
 
+  it('rejects file refs whose project root is not registered', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-ctx-ref-unregistered-'));
+    await writeFile(join(root, 'secret.txt'), 'secret-body', 'utf8');
+    const deps = {
+      loadTranscriptMessages: async (): Promise<SessionTranscriptMessage[]> => [],
+      isRegisteredProjectRoot: async (projectPath: string): Promise<boolean> => {
+        expect(projectPath).toBe(root);
+        return false;
+      },
+    };
+    const text = await resolvePromptContextRefs(deps, [
+      { kind: 'file', projectPath: root, relativePath: 'secret.txt', label: 's' },
+    ]);
+    expect(text).not.toContain('secret-body');
+  });
+
+  it('rejects folder refs whose project root is not registered', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-ctx-ref-folder-unreg-'));
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src', 'a.ts'), 'a', 'utf8');
+    const deps = {
+      loadTranscriptMessages: async (): Promise<SessionTranscriptMessage[]> => [],
+      isRegisteredProjectRoot: async (): Promise<boolean> => false,
+    };
+    const text = await resolvePromptContextRefs(deps, [
+      { kind: 'folder', projectPath: root, relativePath: 'src', label: 'src/' },
+    ]);
+    expect(text).not.toContain('a.ts');
+  });
+
+  it('readBoundedFileForRef honors the optional registered-root check', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-ctx-ref-direct-'));
+    await writeFile(join(root, 'a.ts'), 'body', 'utf8');
+    const blocked = await readBoundedFileForRef(root, 'a.ts', async () => false);
+    expect(blocked).toBeUndefined();
+    const allowed = await readBoundedFileForRef(root, 'a.ts', async () => true);
+    expect(allowed).toContain('body');
+  });
+
   it('formats error/diff/terminal snapshot kinds', async () => {
     const text = await resolvePromptContextRefs(emptyDeps(), [
       {
