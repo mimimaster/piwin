@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type {
@@ -14,6 +14,7 @@ import type {
   ModelRef,
 } from '@piwin/contracts';
 import { isLegacyInternalSessionName, isPlaceholderSessionName } from './session-display-name.js';
+import { writeTextFileAtomic } from './atomic-text-file.js';
 
 /** Serializes read-modify-write cycles per index file (single-writer). */
 const indexWriteQueues = new Map<string, Promise<unknown>>();
@@ -111,6 +112,24 @@ function emptyDoc(): SessionIndexDocument {
   return { version: 2, sessions: [] };
 }
 
+/**
+ * Raised when the on-disk session catalog is present but not valid JSON/object
+ * shape. Callers must surface this for doctor/repair instead of treating the
+ * catalog as empty (which would risk overwriting real history on the next save).
+ */
+export class SessionIndexCorruptError extends Error {
+  public readonly name = 'SessionIndexCorruptError';
+  public readonly filePath: string;
+
+  constructor(filePath: string, cause?: unknown) {
+    super(`Session index is corrupt and must be repaired: ${filePath}`);
+    this.filePath = filePath;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+  }
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -140,17 +159,18 @@ export async function loadSessionIndex(filePath: string): Promise<SessionIndexDo
   try {
     const raw = await readFile(filePath, 'utf8');
     if (raw.trim().length === 0) {
-      return emptyDoc();
+      // An existing but empty catalog file is not a fresh install; refuse to
+      // invent an empty document that a later save would publish as authority.
+      throw new SessionIndexCorruptError(filePath);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
-    } catch {
-      // Corrupt index must not block session creation; rewrite path recovers on next save.
-      return emptyDoc();
+    } catch (error) {
+      throw new SessionIndexCorruptError(filePath, error);
     }
     if (!parsed || typeof parsed !== 'object') {
-      return emptyDoc();
+      throw new SessionIndexCorruptError(filePath);
     }
     const record = parsed as Record<string, unknown>;
     const sessions = Array.isArray(record.sessions) ? record.sessions : [];
@@ -183,13 +203,7 @@ export async function saveSessionIndex(
     version: 2,
     sessions: document.sessions,
   };
-  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporaryPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
-    await rename(temporaryPath, filePath);
-  } finally {
-    await rm(temporaryPath, { force: true });
-  }
+  await writeTextFileAtomic(filePath, `${JSON.stringify(output, null, 2)}\n`);
 }
 
 export async function upsertSessionRecord(

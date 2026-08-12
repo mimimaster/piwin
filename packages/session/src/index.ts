@@ -18,7 +18,9 @@ export {
   normalizeSessionName,
   listAllSessionRecords,
   sortSessionRecords,
+  SessionIndexCorruptError,
 } from './session-index-store.js';
+export { writeTextFileAtomic } from './atomic-text-file.js';
 export type {
   ConditionalSessionArchiveResult,
   ListSessionsForProjectOptions,

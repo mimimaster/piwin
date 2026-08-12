@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import { writeTextFileAtomic } from '@piwin/session';
 import { dirname } from 'node:path';
 import type {
   AutomationConfig,
@@ -115,7 +116,7 @@ export async function savePiwinConfig(config: PiwinConfig, piwinRoot?: string): 
   const configPath = getPiwinConfigPath(rootDir);
   await mkdir(dirname(configPath), { recursive: true });
   const toWrite: PiwinConfig = { ...config, providers };
-  await writeFile(configPath, `${JSON.stringify(toWrite, null, 2)}\n`, 'utf8');
+  await writeTextFileAtomic(configPath, `${JSON.stringify(toWrite, null, 2)}\n`);
   return configPath;
 }
 
