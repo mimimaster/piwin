@@ -56,6 +56,27 @@ describe('resolveResourceActivations', () => {
     expect(result.activeEntries.map((item) => item.resourceId)).toEqual(['review']);
   });
 
+  it('does not activate a managed revision whose user intent is disabled', () => {
+    const result = resolveResourceActivations(
+      policyInput({
+        catalog: catalog([
+          entry({
+            resourceId: 'managed-extension',
+            kind: 'extension',
+            configuredEnabled: false,
+          }),
+        ]),
+      }),
+    );
+
+    expect(result.activations[0]).toMatchObject({
+      configuredEnabled: false,
+      effectiveEnabled: false,
+      blockedReason: 'disabled',
+    });
+    expect(result.activeEntries).toHaveLength(0);
+  });
+
   it('general-scope behavior: project resources are excluded when untrusted', () => {
     const result = resolveResourceActivations(
       policyInput({

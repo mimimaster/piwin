@@ -55,6 +55,26 @@ describe('indexRecordToSummary', () => {
     expect(summary.subagentIntegrationStatus).toBe('applied');
   });
 
+  it('projects the durable parent invocation linkage', () => {
+    const record: SessionIndexRecord = {
+      id: 'child-linked',
+      projectPath: '/tmp/project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 0,
+      subagentInvocationId: 'invocation-1',
+      subagentTaskId: 'task-1',
+      subagentParentRunId: 'run-parent-1',
+      subagentParentToolCallId: 'piw-t-parent-1',
+    };
+    expect(indexRecordToSummary(record)).toMatchObject({
+      subagentInvocationId: 'invocation-1',
+      subagentTaskId: 'task-1',
+      subagentParentRunId: 'run-parent-1',
+      subagentParentToolCallId: 'piw-t-parent-1',
+    });
+  });
+
   it('does not expose skill bodies or secrets from snapshot', () => {
     const record: SessionIndexRecord = {
       id: 'child-3',

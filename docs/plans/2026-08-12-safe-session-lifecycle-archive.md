@@ -63,9 +63,13 @@ the session index and rejects a plan id that no longer matches. Each candidate
 is checked again immediately before mutation; a session changed, pinned,
 archived, missing, or no longer main is skipped.
 
-Apply never aborts a busy session. Resident, activating, suspending, Run-owned,
+Apply never aborts a busy session. Activating, suspending, Run-owned,
 permission-owned, Extension-UI-owned, replacement-owned, or Store-leased
-sessions return `busy` and remain active.
+sessions return `busy` and remain active. Resident-idle sessions are eligible
+for archive: the Host first disposes the live runtime (aborting the idle
+handle) and releases the runtime lease, then archives under the same
+maintenance guard, so the durable record and the runtime never race. Cold
+sessions archive directly.
 
 ## Cross-Host coordination
 
@@ -74,9 +78,12 @@ Activation and lifecycle maintenance also share a per-session operation lock.
 This prevents a one-shot CLI Host from archiving or activating a session owned
 by an attached Desktop or another CLI Host.
 
-Dead owners are removed only after the recorded PID is no longer alive. The
-runtime lease is released after backend generation cleanup and SQLite Store
-closure, not when the in-memory map is first cleared.
+Dead owners are removed when the recorded PID is no longer alive, or when the
+lease heartbeat (`updatedAt`, falling back to `startedAt`) is older than the
+stale window (2 minutes). A live PID with a stale heartbeat is treated as
+abandoned so PID reuse after a crash cannot block archive forever. The runtime
+lease is registered only after a successful bind, and released after backend
+generation cleanup and SQLite Store closure.
 
 ## Permanent delete transaction
 
@@ -124,4 +131,3 @@ Focused tests cover:
 - transcript maintenance leases
 - quarantine delete success and rollback
 - CLI plan/apply command payloads and output
-

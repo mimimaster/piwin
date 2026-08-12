@@ -4,6 +4,9 @@ import { createSubagentRunTool } from './subagent-run-tool.js';
 
 type SpawnCall = {
   parentSessionId: string;
+  invocationId: string;
+  parentRunId: string;
+  parentToolCallId?: string;
   task: string;
   mode?: string;
   applyPolicy?: string;
@@ -41,11 +44,13 @@ async function executeTool(
   tool: HostToolRegistration,
   args: Record<string, unknown>,
   signal = new AbortController().signal,
+  toolCallId?: string,
 ): Promise<ToolResult> {
   return tool.execute(args, signal, {
     sessionId: 'session-1',
     runtimeGenerationId: 'generation-1',
     runId: 'run-1',
+    ...(toolCallId ? { toolCallId } : {}),
     toolName: tool.descriptor.name,
   });
 }
@@ -74,6 +79,8 @@ describe('createSubagentRunTool', () => {
     expect(seam.spawn).toHaveBeenCalledTimes(1);
     expect(firstSpawnArg(seam)).toEqual({
       parentSessionId: 'parent-1',
+      invocationId: expect.any(String),
+      parentRunId: 'run-1',
       task: 'explore the auth module',
       mode: 'readonly',
       signal: expect.any(AbortSignal),
@@ -89,6 +96,15 @@ describe('createSubagentRunTool', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await executeTool(tool, { task: 'test' });
     expect(firstSpawnArg(seam).mode).toBe('readonly');
+  });
+
+  it('binds the Host-normalized parent tool call to the child task', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    await executeTool(tool, { task: 'inspect the repository' }, undefined, 'piw-t-parent-1');
+    expect(firstSpawnArg(seam).parentToolCallId).toBe('piw-t-parent-1');
+    expect(firstSpawnArg(seam).parentRunId).toBe('run-1');
+    expect(firstSpawnArg(seam).invocationId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('lets a selected profile provide isolation when mode is omitted', async () => {

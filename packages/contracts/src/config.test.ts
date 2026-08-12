@@ -35,6 +35,24 @@ describe('ModelConfigEntry capabilities + routes', () => {
     expect(entry.routes?.['image-generation']?.path).toBe('/images/generations');
   });
 
+  it('accepts an image-generation route with an explicit wire format', () => {
+    const entry: ModelConfigEntry = {
+      id: 'gemini-3.1-flash-image',
+      capabilities: ['image-generation'],
+      routes: {
+        'image-generation': {
+          apiStyle: 'gemini',
+          path: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+          timeoutMs: 180_000,
+        },
+      },
+    };
+    expect(entry.routes?.['image-generation']?.apiStyle).toBe('gemini');
+    expect(entry.routes?.['image-generation']?.path).toBe(
+      '/v1beta/models/gemini-3.1-flash-image:generateContent',
+    );
+  });
+
   it('accepts a video-generation route with a native async API style', () => {
     const entry: ModelConfigEntry = {
       id: 'sora-2',
@@ -81,6 +99,8 @@ describe('ModelConfigEntry capabilities + routes', () => {
 
   it('treats legacy models as chat models and requires explicit speech tags', () => {
     expect(modelSupportsCapability({}, 'chat')).toBe(true);
+    expect(modelSupportsCapability({ capabilities: ['native-web-search'] }, 'chat')).toBe(true);
+    expect(modelSupportsCapability({ capabilities: ['image-generation'] }, 'chat')).toBe(false);
     expect(modelSupportsCapability({}, 'speech-to-text')).toBe(false);
     expect(modelSupportsCapability({ capabilities: ['speech-to-text'] }, 'speech-to-text')).toBe(
       true,

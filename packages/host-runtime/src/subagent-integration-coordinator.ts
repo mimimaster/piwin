@@ -29,8 +29,11 @@ export type WorktreeIntegrationInput = {
   readonly worktreeBranch: string;
   readonly baseCommit: string;
   readonly parentRepoPath: string;
-  /** Relative paths that the integration operation may apply. */
-  readonly allowedOutputPaths: string[];
+  /**
+   * Relative paths the integration may apply. `undefined` means unrestricted;
+   * an explicit empty list denies every changed file.
+   */
+  readonly allowedOutputPaths?: readonly string[];
 };
 
 export type WorktreeIntegrationResult =
@@ -72,14 +75,16 @@ export function createGitWorktreeIntegrationAdapter(
       worktreePath: input.worktreePath,
       worktreeBranch: input.worktreeBranch,
       baseCommit: input.baseCommit,
-      allowedOutputPaths: input.allowedOutputPaths,
+      ...(input.allowedOutputPaths
+        ? { allowedOutputPaths: [...input.allowedOutputPaths] }
+        : {}),
     });
 
     if (gitResult.status === 'applied') {
       return {
         success: true,
-        changedFiles: gitResult.integratedFiles,
-        allowedOutputPaths: input.allowedOutputPaths,
+        changedFiles: [...gitResult.integratedFiles],
+        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
       };
     }
 
@@ -89,7 +94,7 @@ export function createGitWorktreeIntegrationAdapter(
         conflict: true,
         conflictFiles: gitResult.conflictedFiles,
         ...(gitResult.error ? { error: gitResult.error } : {}),
-        allowedOutputPaths: input.allowedOutputPaths,
+        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
       };
     }
 
@@ -97,7 +102,7 @@ export function createGitWorktreeIntegrationAdapter(
       success: false,
       conflict: false,
       error: gitResult.error ?? `integration rejected files: ${gitResult.rejectedFiles.join(', ')}`,
-      allowedOutputPaths: input.allowedOutputPaths,
+      allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
     };
   };
 }
@@ -115,13 +120,32 @@ export type SubagentIntegrationCoordinatorOptions = {
   ) => Promise<void>;
 };
 
+export type SubagentIntegrationControl = {
+  /** Cancellation is actionable only before the integration commit point. */
+  readonly signal?: AbortSignal;
+  /** Called immediately before the parent-mutating integration function starts. */
+  readonly onCommitPoint?: () => void;
+};
+
+export class IntegrationQueueCancelledError extends Error {
+  readonly name = 'IntegrationQueueCancelledError';
+
+  constructor(message = 'integration cancelled before parent mutation') {
+    super(message);
+  }
+}
+
 export type SubagentIntegrationCoordinator = {
   /**
    * Serialize and integrate a completed task's worktree changes.
    * Integration is serialized by normalized repository identity.
    * Returns the updated task result with integration status.
    */
-  integrate(result: SubagentTaskResult, lease: SubagentWorkspaceLease): Promise<SubagentTaskResult>;
+  integrate(
+    result: SubagentTaskResult,
+    lease: SubagentWorkspaceLease,
+    control?: SubagentIntegrationControl,
+  ): Promise<SubagentTaskResult>;
 
   /** Retain a failed/conflicted worktree for inspection. */
   retain(worktreePath: string, reason: string): Promise<void>;
@@ -154,8 +178,13 @@ function normalizeOutputPath(outputPath: string): string {
   return outputPath.replaceAll('\\', '/').replace(/^\.\/+/, '');
 }
 
-function findDisallowedOutputPaths(changedFiles: string[], allowedOutputPaths: string[]): string[] {
-  if (allowedOutputPaths.length === 0) return [];
+function findDisallowedOutputPaths(
+  changedFiles: string[],
+  allowedOutputPaths: readonly string[] | undefined,
+): string[] {
+  // `undefined` means unrestricted; an explicit empty list denies everything.
+  if (allowedOutputPaths === undefined) return [];
+  if (allowedOutputPaths.length === 0) return [...changedFiles];
 
   const allowedPathSet = new Set(allowedOutputPaths.map(normalizeOutputPath));
   return changedFiles.filter(
@@ -163,30 +192,22 @@ function findDisallowedOutputPaths(changedFiles: string[], allowedOutputPaths: s
   );
 }
 
-type CompletionLatch = {
-  promise: Promise<void>;
-  resolve(): void;
+type IntegrationQueueEntry = {
+  state: 'queued' | 'acquired' | 'cancelled' | 'released';
+  resolve: (lease: IntegrationQueueLease) => void;
+  reject: (error: Error) => void;
+  signal?: AbortSignal;
+  abortListener: (() => void) | undefined;
 };
 
-function createCompletionLatch(): CompletionLatch {
-  let resolveCompletion: (() => void) | undefined;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolveCompletion = resolvePromise;
-  });
-  let isResolved = false;
+type IntegrationQueueState = {
+  active: boolean;
+  entries: IntegrationQueueEntry[];
+};
 
-  return {
-    promise,
-    resolve: () => {
-      if (isResolved) return;
-      if (!resolveCompletion) {
-        throw new Error('integration completion latch was not initialized');
-      }
-      isResolved = true;
-      resolveCompletion();
-    },
-  };
-}
+type IntegrationQueueLease = {
+  release(): void;
+};
 
 /** Internal record tracking a retained worktree. */
 type RetainedWorktree = {
@@ -209,8 +230,8 @@ export function createSubagentIntegrationCoordinator(
 ): SubagentIntegrationCoordinator {
   const { integrateWorktree, isBaseClean, removeWorktree } = options;
 
-  /** Promise chain per normalized repo path for serialized integration. */
-  const integrationLocks = new Map<string, Promise<void>>();
+  /** Explicit FIFO queues allow a cancelled waiter to be removed safely. */
+  const integrationQueues = new Map<string, IntegrationQueueState>();
 
   /** Worktrees retained due to conflict or failure; never cleaned up. */
   const retainedWorktrees = new Map<string, RetainedWorktree>();
@@ -226,34 +247,84 @@ export function createSubagentIntegrationCoordinator(
   function acquireIntegrationSlot(
     repoPath: string,
     worktreePath: string,
-  ): { whenReady: () => Promise<void>; release: () => void } {
+    signal?: AbortSignal,
+  ): Promise<IntegrationQueueLease> {
     const key = normalizeRepoPath(repoPath);
-    const previous = integrationLocks.get(key) ?? Promise.resolve();
-
-    const completionLatch = createCompletionLatch();
-    // The current queue entry remains pending until this operation releases
-    // it. A later operation therefore waits for completion, not start.
-    const queued = previous.then(() => completionLatch.promise);
-    integrationLocks.set(key, queued);
-
     managedWorktrees.set(worktreePath, repoPath);
 
-    return {
-      whenReady: () => previous,
-      release: () => {
-        completionLatch.resolve();
-        // Clear the lock only if our chained promise is still the current one.
-        const current = integrationLocks.get(key);
-        if (current === queued) {
-          integrationLocks.delete(key);
+    if (signal?.aborted) {
+      return Promise.reject(new IntegrationQueueCancelledError());
+    }
+
+    const queue = integrationQueues.get(key) ?? { active: false, entries: [] };
+    integrationQueues.set(key, queue);
+
+    return new Promise<IntegrationQueueLease>((resolveLease, rejectLease) => {
+      const entry: IntegrationQueueEntry = {
+        state: 'queued',
+        resolve: resolveLease,
+        reject: rejectLease,
+        abortListener: undefined,
+        ...(signal ? { signal } : {}),
+      };
+
+      const removeAbortListener = (): void => {
+        if (entry.signal && entry.abortListener) {
+          entry.signal.removeEventListener('abort', entry.abortListener);
         }
-      },
-    };
+        entry.abortListener = undefined;
+      };
+
+      const grantNextEntry = (): void => {
+        if (queue.active) return;
+
+        while (queue.entries.length > 0) {
+          const nextEntry = queue.entries.shift();
+          if (!nextEntry || nextEntry.state !== 'queued') continue;
+
+          queue.active = true;
+          nextEntry.state = 'acquired';
+          if (nextEntry.signal && nextEntry.abortListener) {
+            nextEntry.signal.removeEventListener('abort', nextEntry.abortListener);
+          }
+          nextEntry.abortListener = undefined;
+
+          let released = false;
+          nextEntry.resolve({
+            release: () => {
+              if (released) return;
+              released = true;
+              nextEntry.state = 'released';
+              queue.active = false;
+              grantNextEntry();
+            },
+          });
+          return;
+        }
+
+        integrationQueues.delete(key);
+      };
+
+      entry.abortListener = () => {
+        if (entry.state !== 'queued') return;
+        entry.state = 'cancelled';
+        const entryIndex = queue.entries.indexOf(entry);
+        if (entryIndex >= 0) queue.entries.splice(entryIndex, 1);
+        removeAbortListener();
+        entry.reject(new IntegrationQueueCancelledError());
+        grantNextEntry();
+      };
+
+      signal?.addEventListener('abort', entry.abortListener, { once: true });
+      queue.entries.push(entry);
+      grantNextEntry();
+    });
   }
 
   async function integrate(
     result: SubagentTaskResult,
     lease: SubagentWorkspaceLease,
+    control: SubagentIntegrationControl = {},
   ): Promise<SubagentTaskResult> {
     // Readonly leases have no worktree to integrate.
     if (lease.mode === 'readonly') {
@@ -267,19 +338,30 @@ export function createSubagentIntegrationCoordinator(
     const worktreeBranch = lease.worktreeBranch;
     const baseCommit = lease.baseCommit;
     const parentRepoPath = lease.parentRepoPath;
-    const allowedOutputPaths = result.allowedOutputPaths ? [...result.allowedOutputPaths] : [];
+    // `undefined` stays unrestricted; an explicit empty list is deny-all.
+    const allowedOutputPaths = result.allowedOutputPaths
+      ? [...result.allowedOutputPaths]
+      : undefined;
 
-    const slot = acquireIntegrationSlot(parentRepoPath, worktreePath);
+    let slot: IntegrationQueueLease | undefined;
 
     try {
-      await slot.whenReady();
+      slot = await acquireIntegrationSlot(parentRepoPath, worktreePath, control.signal);
+      if (control.signal?.aborted) {
+        throw new IntegrationQueueCancelledError();
+      }
 
+      // The current Git adapter is a one-shot operation. Until the durable
+      // prepare/apply journal is introduced, this is the conservative commit
+      // point: cancellation can remove queued work before this callback, but
+      // cannot interrupt or relabel a Git operation after it starts.
+      control.onCommitPoint?.();
       const integrationResult = await integrateWorktree({
         worktreePath,
         worktreeBranch,
         baseCommit,
         parentRepoPath,
-        allowedOutputPaths,
+        ...(allowedOutputPaths !== undefined ? { allowedOutputPaths } : {}),
       });
 
       if (integrationResult.success) {
@@ -346,6 +428,15 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
       };
     } catch (error) {
+      if (error instanceof IntegrationQueueCancelledError) {
+        await retain(worktreePath, error.message);
+        return {
+          ...result,
+          integrationStatus: 'retained',
+          error: error.message,
+          worktreePath,
+        };
+      }
       const message = formatError(error);
       // Unexpected error during integration: retain and mark as failed.
       await retain(worktreePath, `integration exception: ${message}`);
@@ -356,7 +447,7 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
       };
     } finally {
-      slot.release();
+      slot?.release();
     }
   }
 

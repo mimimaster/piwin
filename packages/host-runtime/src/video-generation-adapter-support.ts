@@ -71,6 +71,8 @@ function defaultVideoPath(style: VideoGenerationApiStyle): string {
       return '/dream-machine/v1/generations/video';
     case 'minimax-tasks':
       return '/v2/video_generation';
+    case 'xgrok-videos':
+      return '/videos/generations';
     case 'custom':
       return '/video/generations';
   }
@@ -83,6 +85,7 @@ function isVideoApiStyle(value: unknown): value is VideoGenerationApiStyle {
     value === 'runway-tasks' ||
     value === 'luma-generations' ||
     value === 'minimax-tasks' ||
+    value === 'xgrok-videos' ||
     value === 'custom'
   );
 }

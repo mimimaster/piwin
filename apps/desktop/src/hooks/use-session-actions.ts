@@ -93,6 +93,7 @@ export type UseSessionActionsArgs = {
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   agentMode: AgentModeId;
   orchestrationSchemeId?: string;
+  delegationDisabled?: boolean;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   setRenameDraft: Dispatch<SetStateAction<{ sessionId: string; name: string } | null>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
@@ -124,6 +125,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     thinkingLevel,
     agentMode,
     orchestrationSchemeId,
+    delegationDisabled,
     setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
@@ -522,11 +524,21 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         if (!childrenResponse.success) {
           return;
         }
-        const childrenData = childrenResponse.data as { sessions?: SessionSummary[] } | undefined;
+        const childrenData = childrenResponse.data as
+          | {
+              sessions?: SessionSummary[];
+              invocations?: import('@piwin/contracts').SubagentInvocation[];
+            }
+          | undefined;
         dispatch({
           type: 'subagent/children-hydrate',
           parentSessionId: sessionId,
           children: childrenData?.sessions ?? [],
+        });
+        dispatch({
+          type: 'subagent/invocations-hydrate',
+          parentSessionId: sessionId,
+          invocations: childrenData?.invocations ?? [],
         });
       })();
       if (data.model || data.thinkingLevel !== undefined) {
@@ -561,13 +573,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             contextUsage: data.contextUsage ?? null,
             live: data.live,
           });
-          if (!data.live) {
-            dispatchNotification(
-              pushInfo(
-                'Session history restored (read-only shell). Sending will re-open a live agent.',
-              ),
-            );
-          }
           return;
         }
       }
@@ -588,13 +593,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         contextUsage: data.contextUsage ?? null,
         live: data.live,
       });
-      if (!data.live) {
-        dispatchNotification(
-          pushInfo(
-            'Session history restored (read-only shell). Sending will re-open a live agent.',
-          ),
-        );
-      }
     },
     [
       dispatch,
@@ -1220,6 +1218,33 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [dispatch, dispatchNotification, handleResumeSession, hostClient],
   );
 
+  const handleContinueSessionInProject = useCallback(
+    async (sessionId: string, projectPath: string): Promise<boolean> => {
+      const response = await hostClient.request({
+        type: 'session/duplicate',
+        sessionId,
+        targetScope: { kind: 'project', projectPath },
+        messageProjection: 'none',
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return false;
+      }
+      const data = response.data as {
+        sessionId: string;
+        session?: SessionSummary;
+      };
+      const listItem = data.session
+        ? summaryToListItem(data.session, data.sessionId)
+        : { id: data.sessionId, name: 'Continued session' };
+      dispatch({ type: 'session/update', session: listItem });
+      dispatchNotification(pushSuccess(`Continued “${listItem.name}” in project`));
+      await handleResumeSession(data.sessionId);
+      return true;
+    },
+    [dispatch, dispatchNotification, handleResumeSession, hostClient],
+  );
+
   const handleForkSession = useCallback(
     async (sessionId: string, messageId: string): Promise<void> => {
       const response = await hostClient.request({
@@ -1273,6 +1298,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           break;
         case 'duplicate':
           await handleDuplicateSession(sessionId);
+          break;
+        case 'continue-in-project':
+          // App owns project selection; this action only opens that picker.
           break;
         case 'archive':
           await handleArchiveSession(sessionId);
@@ -1382,6 +1410,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
         agentMode?: import('@piwin/contracts').AgentModeId;
         orchestrationSchemeId?: string;
+        delegationMode?: 'auto' | 'disabled';
         clientMessageId?: string;
       } = {
         text,
@@ -1390,6 +1419,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       };
       if (orchestrationSchemeId && orchestrationSchemeId !== 'off') {
         editInput.orchestrationSchemeId = orchestrationSchemeId;
+      }
+      if (delegationDisabled) {
+        editInput.delegationMode = 'disabled';
       }
       const editModel = selectedModelRef();
       if (editModel) {
@@ -1424,6 +1456,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatchNotification,
       hostClient,
       orchestrationSchemeId,
+      delegationDisabled,
       resolveHostUserMessageId,
       selectedModelRef,
       setEditingMessageId,
@@ -1695,6 +1728,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleDeleteSession,
     confirmDeleteSession,
     handleDuplicateSession,
+    handleContinueSessionInProject,
     handleForkSession,
     handleSessionMenuAction,
     handleEditAndResend,

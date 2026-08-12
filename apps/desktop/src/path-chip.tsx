@@ -1,6 +1,6 @@
 import { useMemo, type ReactElement } from 'react';
 import type { PromptContextRef } from '@piwin/contracts';
-import { FileTypeIcon } from './file-type-icon';
+import { FileTypeIcon } from '@piwin/ui-kit';
 import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
 import type { DesktopLocale } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';

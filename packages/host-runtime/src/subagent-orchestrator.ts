@@ -35,6 +35,9 @@ import type {
   SubagentBatchRequest,
   SubagentBatchProjection,
   SubagentBatchResult,
+  SubagentInvocation,
+  SubagentInvocationActivity,
+  SubagentInvocationStatus,
   SubagentProviderEnvelope,
   SubagentRuntimeSnapshot,
   SubagentTaskResult,
@@ -42,7 +45,14 @@ import type {
   SubagentTaskRunner,
   SubagentTaskSpec,
   SubagentWorkspaceLease,
+  EphemeralProviderSecret,
+  ModelRef,
+  PiwinConfig,
 } from '@piwin/contracts';
+import {
+  invocationActivityForResult,
+  invocationStatusForResult,
+} from './subagent-invocation-state.js';
 import { validateSubagentBatchRequest } from '@piwin/contracts';
 import {
   cancelAll,
@@ -56,7 +66,11 @@ import {
 } from './subagent-scheduler.js';
 import { RunRegistry } from './run-registry.js';
 import type { RuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
-import type { SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
+import type {
+  SubagentIntegrationControl,
+  SubagentIntegrationCoordinator,
+} from './subagent-integration-coordinator.js';
+import { createPersistedFailure, redactPersistedMessage } from './persisted-error-redaction.js';
 
 /** Backend seam: allocates workspace leases (readonly or worktree). */
 export type SubagentWorkspaceService = {
@@ -74,7 +88,14 @@ export type SubagentRunStorePort = {
       }
     | undefined
   >;
+  recordSnapshot?: (
+    runId: string,
+    taskId: string,
+    snapshot: SubagentRuntimeSnapshot,
+  ) => Promise<void>;
+  recordLease?: (runId: string, taskId: string, lease: SubagentWorkspaceLease) => Promise<void>;
   recordResult(runId: string, taskId: string, result: SubagentTaskResult): Promise<void>;
+  recordInvocation?: (runId: string, invocation: SubagentInvocation) => Promise<void>;
   setStatus(
     runId: string,
     status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration',
@@ -97,18 +118,33 @@ export type SubagentTaskPreparationInput = {
   runtimeGenerationId: string;
   task: SubagentTaskSpec;
   workspaceLease: SubagentWorkspaceLease;
+  preflight?: SubagentTaskPreflightContext;
+};
+
+/** Host-only, in-memory snapshot produced before child allocation. */
+export type SubagentTaskPreflightContext = {
+  config: PiwinConfig;
+  effectiveModel?: ModelRef;
+  resolvedProviderSecrets: ReadonlyArray<{
+    providerId: string;
+    apiKeyRef: string;
+    value: string;
+  }>;
 };
 
 export type PreparedSubagentTask = {
   runtimeSnapshot: SubagentRuntimeSnapshot;
   sessionBlueprint: BackendSessionBlueprint;
   preparedPrompt: BackendPreparedPrompt;
+  seedMessages?: readonly import('@piwin/contracts').SessionSeedMessage[];
   /**
    * Provider runtime envelope compiled by the parent — frozen before dispatch.
    * The worker must not resolve secrets itself; the orchestrator passes the
    * compiled envelope through so the runner can construct model clients.
    */
   providers: SubagentProviderEnvelope[];
+  /** In-memory secret material paired with bootstrap auth descriptors. */
+  providerSecrets?: readonly EphemeralProviderSecret[];
 };
 
 /** Synchronously accepted batch identity and its eventual completion. */
@@ -123,6 +159,11 @@ export type SubagentOrchestratorOptions = {
   workspaceService: SubagentWorkspaceService;
   /** Compile the exact runtime and prompt inputs before child dispatch. */
   prepareTask: (input: SubagentTaskPreparationInput) => Promise<PreparedSubagentTask>;
+  /** Check selected-provider credentials before allocating a child identity. */
+  preflightTask?: (input: {
+    parentSessionId: string;
+    task: SubagentTaskSpec;
+  }) => Promise<SubagentTaskPreflightContext | void>;
   /** Serialized code integration coordinator (required). */
   integrationCoordinator: SubagentIntegrationCoordinator;
   /** Resource coordinator for bounded concurrency. */
@@ -145,8 +186,21 @@ export type SubagentOrchestratorOptions = {
     task: SubagentTaskSpec;
     workspaceLease: SubagentWorkspaceLease;
   }) => void | Promise<void>;
+  /** Record the user task only after continuation history has been captured. */
+  recordTaskPrompt?: (input: {
+    childSessionId: string;
+    task: SubagentTaskSpec;
+  }) => void | Promise<void>;
   /** Remove the transient child context after the task runner has joined. */
   unregisterTaskSession?: (childSessionId: string) => void | Promise<void>;
+  /**
+   * Persist/project a task result independently from best-effort push delivery.
+   * Once a child shell exists this callback is the durable terminal-state seam.
+   */
+  onTaskResult?: (input: {
+    parentSessionId: string;
+    result: SubagentTaskResult;
+  }) => void | Promise<void>;
 };
 
 /** Internal state for an active batch. */
@@ -159,6 +213,7 @@ interface BatchState {
   results: Map<string, SubagentTaskResult>;
   leases: Map<string, SubagentWorkspaceLease>;
   taskRunIds: Map<string, string>;
+  invocations: Map<string, SubagentInvocation>;
   errors: Error[];
   completion: Promise<SubagentBatchResult>;
   resolveCompletion: (result: SubagentBatchResult) => void;
@@ -173,6 +228,23 @@ function combineErrors(errors: readonly Error[], message: string): Error {
   const firstError = errors[0];
   if (errors.length === 1 && firstError) return firstError;
   return new AggregateError(errors, message);
+}
+
+function invocationActivityKey(activity: SubagentInvocationActivity): string {
+  switch (activity.kind) {
+    case 'tool':
+      return `${activity.kind}:${activity.toolName}:${activity.title ?? ''}`;
+    case 'permission':
+      return `${activity.kind}:${activity.action}`;
+    case 'completed':
+      return `${activity.kind}:${activity.summary ?? ''}`;
+    case 'needs-integration':
+      return `${activity.kind}:${activity.message ?? ''}`;
+    case 'failed':
+      return `${activity.kind}:${activity.message ?? ''}`;
+    default:
+      return activity.kind;
+  }
 }
 
 function createCompletionLatch(): {
@@ -200,6 +272,7 @@ export class SubagentOrchestrator {
   private readonly prepareTask: (
     input: SubagentTaskPreparationInput,
   ) => Promise<PreparedSubagentTask>;
+  private readonly preflightTask: SubagentOrchestratorOptions['preflightTask'];
   private readonly integrationCoordinator: SubagentIntegrationCoordinator;
   private readonly resourceCoordinator: RuntimeResourceCoordinator | undefined;
   private readonly runRegistry: RunRegistry;
@@ -208,6 +281,8 @@ export class SubagentOrchestrator {
   private readonly getRuntimeGenerationId: (parentSessionId: string) => string;
   private readonly registerTaskSession: SubagentOrchestratorOptions['registerTaskSession'];
   private readonly unregisterTaskSession: SubagentOrchestratorOptions['unregisterTaskSession'];
+  private readonly recordTaskPrompt: SubagentOrchestratorOptions['recordTaskPrompt'];
+  private readonly onTaskResult: SubagentOrchestratorOptions['onTaskResult'];
   /** Active batches keyed by runId. */
   private readonly activeBatches = new Map<string, BatchState>();
 
@@ -224,6 +299,7 @@ export class SubagentOrchestrator {
     this.taskRunner = options.taskRunner;
     this.workspaceService = options.workspaceService;
     this.prepareTask = options.prepareTask;
+    this.preflightTask = options.preflightTask;
     this.integrationCoordinator = options.integrationCoordinator;
     this.resourceCoordinator = options.resourceCoordinator;
     this.runRegistry = options.runRegistry;
@@ -232,6 +308,8 @@ export class SubagentOrchestrator {
     this.getRuntimeGenerationId = options.getRuntimeGenerationId;
     this.registerTaskSession = options.registerTaskSession;
     this.unregisterTaskSession = options.unregisterTaskSession;
+    this.recordTaskPrompt = options.recordTaskPrompt;
+    this.onTaskResult = options.onTaskResult;
   }
 
   /**
@@ -284,6 +362,7 @@ export class SubagentOrchestrator {
       results: new Map(),
       leases: new Map(),
       taskRunIds: new Map(),
+      invocations: new Map(),
       errors: [],
       ...completionLatch,
     };
@@ -323,6 +402,12 @@ export class SubagentOrchestrator {
           });
       }
       await this.runStore?.createManifest(batchState.runId, batchState.request);
+      for (const task of batchState.request.tasks) {
+        await this.updateInvocation(batchState, task, {
+          status: 'queued',
+          activity: { kind: 'queued' },
+        });
+      }
       this.emitPush(batchState, {
         type: 'subagent/batch-updated',
         runId: batchState.runId,
@@ -449,6 +534,24 @@ export class SubagentOrchestrator {
     forcedStatus: 'failed' | undefined,
     fatalError: Error | undefined,
   ): Promise<SubagentBatchResult> {
+    for (const task of batchState.request.tasks) {
+      if (batchState.results.has(task.id)) continue;
+      const fallback: SubagentTaskResult = {
+        runId: batchState.runId,
+        taskId: task.id,
+        executionStatus: forcedStatus === 'failed' ? 'failed' : 'cancelled',
+        summaryStatus: 'not-requested',
+        integrationStatus: 'not-requested',
+        ...(forcedStatus === 'failed' && fatalError ? { error: fatalError.message } : {}),
+        ...(task.profileId ? { profileId: task.profileId } : {}),
+        ...(task.model ? { model: task.model } : {}),
+        ...(task.allowedOutputPaths !== undefined
+          ? { allowedOutputPaths: [...task.allowedOutputPaths] }
+          : {}),
+      };
+      batchState.results.set(task.id, fallback);
+      await this.recordTaskResult(batchState, fallback);
+    }
     const hasIntegrationConflict = [...batchState.results.values()].some(
       (result) => result.integrationStatus === 'conflict',
     );
@@ -501,19 +604,10 @@ export class SubagentOrchestrator {
     const result: SubagentBatchResult = {
       runId: batchState.runId,
       status: batchStatus,
-      results: batchState.request.tasks.map(
-        (task) =>
-          batchState.results.get(task.id) ?? {
-            runId: batchState.runId,
-            taskId: task.id,
-            executionStatus: 'cancelled',
-            summaryStatus: 'not-requested',
-            integrationStatus: 'not-requested',
-            ...(task.allowedOutputPaths !== undefined
-              ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-              : {}),
-          },
-      ),
+      results: batchState.request.tasks.flatMap((task) => {
+        const taskResult = batchState.results.get(task.id);
+        return taskResult ? [taskResult] : [];
+      }),
     };
 
     this.emitPush(batchState, {
@@ -549,8 +643,20 @@ export class SubagentOrchestrator {
     const runtimeGenerationId = batchState.runtimeGenerationId;
     let taskSessionRegistered = false;
     let worktreeHandled = false;
+    let integrationCommitPointReached = false;
 
     try {
+      await this.updateInvocation(batchState, task, {
+        status: 'starting',
+        activity: { kind: 'preparing' },
+      });
+      // Credential/model preflight deliberately runs before resource,
+      // workspace, child-run, and child-session allocation. A missing secret
+      // must not leave a durable empty reviewer session behind.
+      const preflight = await this.preflightTask?.({
+        parentSessionId: task.parentSessionId,
+        task,
+      });
       // SC-14: Acquire resource slot if coordinator is available.
       if (this.resourceCoordinator) {
         const signal = this.runRegistry.getSignal(runId);
@@ -562,6 +668,7 @@ export class SubagentOrchestrator {
 
       lease = await this.workspaceService.acquire(task);
       batchState.leases.set(task.id, lease);
+      await this.runStore?.recordLease?.(runId, task.id, lease);
 
       // Check for cancellation before creating child run — avoids creating a
       // detached child after parent admission has closed.
@@ -569,7 +676,7 @@ export class SubagentOrchestrator {
         return;
       }
 
-      childSessionId = randomUUID();
+      childSessionId = task.continuationSessionId ?? randomUUID();
       const taskRun = this.runRegistry.create({
         kind: 'subagent-task',
         sessionId: childSessionId,
@@ -589,6 +696,11 @@ export class SubagentOrchestrator {
         task,
         workspaceLease: lease,
       });
+      await this.updateInvocation(batchState, task, {
+        status: 'running',
+        activity: { kind: 'thinking' },
+        childSessionId,
+      });
 
       const prepared = await this.prepareTask({
         runId,
@@ -597,6 +709,12 @@ export class SubagentOrchestrator {
         runtimeGenerationId,
         task,
         workspaceLease: lease,
+        ...(preflight ? { preflight } : {}),
+      });
+      await this.runStore?.recordSnapshot?.(runId, task.id, prepared.runtimeSnapshot);
+      await this.recordTaskPrompt?.({
+        childSessionId,
+        task,
       });
 
       const taskInput: SubagentTaskRunInput = {
@@ -609,7 +727,9 @@ export class SubagentOrchestrator {
         workspaceLease: lease,
         sessionBlueprint: prepared.sessionBlueprint,
         preparedPrompt: prepared.preparedPrompt,
+        ...(prepared.seedMessages ? { seedMessages: prepared.seedMessages } : {}),
         providers: prepared.providers,
+        ...(prepared.providerSecrets ? { providerSecrets: prepared.providerSecrets } : {}),
       };
 
       const signal = this.runRegistry.getSignal(taskRunId);
@@ -663,7 +783,12 @@ export class SubagentOrchestrator {
       ) {
         const applyPolicy = task.applyPolicy ?? 'auto';
         if (applyPolicy === 'auto' && task.retainWorktree !== true) {
-          result = await this.integrateTask(result, lease);
+          result = await this.integrateTask(result, lease, {
+            signal,
+            onCommitPoint: () => {
+              integrationCommitPointReached = true;
+            },
+          });
           worktreeHandled = true;
         } else {
           await this.integrationCoordinator.retain(
@@ -677,7 +802,7 @@ export class SubagentOrchestrator {
         }
       }
 
-      if (!this.isTaskAdmitted(state, task.id, batchState)) {
+      if (!this.isTaskAdmitted(state, task.id, batchState) && !integrationCommitPointReached) {
         return;
       }
 
@@ -720,10 +845,19 @@ export class SubagentOrchestrator {
       const failed: SubagentTaskResult = {
         runId,
         taskId: task.id,
+        ...(childSessionId ? { childSessionId } : {}),
         executionStatus: 'failed',
         summaryStatus: 'not-requested',
         integrationStatus: 'not-requested',
-        error: message,
+        ...(task.profileId ? { profileId: task.profileId } : {}),
+        ...(task.model ? { model: task.model } : {}),
+        error: redactPersistedMessage(message),
+        failure: createPersistedFailure(error, {
+          kind: 'internal',
+          code: 'subagent-task-failed',
+          phase: 'execution',
+          retryable: false,
+        }),
         ...(lease?.worktreePath ? { worktreePath: lease.worktreePath } : {}),
         ...(task.allowedOutputPaths !== undefined
           ? { allowedOutputPaths: [...task.allowedOutputPaths] }
@@ -732,7 +866,7 @@ export class SubagentOrchestrator {
       if (lease?.mode === 'worktree') {
         await this.integrationCoordinator.retain(
           lease.worktreePath,
-          `task ${task.id} failed before integration: ${message}`,
+          `task ${task.id} failed before integration: ${redactPersistedMessage(message)}`,
         );
         failed.integrationStatus = 'retained';
         worktreeHandled = true;
@@ -822,22 +956,143 @@ export class SubagentOrchestrator {
     } catch (error) {
       batchState.errors.push(toError(error));
     }
+    const task = batchState.schedulerState.tasks.get(result.taskId);
+    if (task) {
+      await this.updateInvocation(batchState, task, {
+        status: invocationStatusForResult(result),
+        activity: invocationActivityForResult(result),
+        ...(result.childSessionId ? { childSessionId: result.childSessionId } : {}),
+      });
+    }
+    try {
+      await this.onTaskResult?.({
+        parentSessionId: batchState.request.parentSessionId,
+        result,
+      });
+    } catch (error) {
+      batchState.errors.push(toError(error));
+    }
+  }
+
+  private async updateInvocation(
+    batchState: BatchState,
+    task: SubagentTaskSpec,
+    update: {
+      status: SubagentInvocationStatus;
+      activity: SubagentInvocationActivity;
+      childSessionId?: string;
+    },
+  ): Promise<void> {
+    const invocationId = task.invocationId;
+    if (!invocationId) return;
+    const current = batchState.invocations.get(invocationId);
+    if (
+      current &&
+      current.status === update.status &&
+      invocationActivityKey(current.activity) === invocationActivityKey(update.activity) &&
+      (update.childSessionId === undefined || current.childSessionId === update.childSessionId)
+    ) {
+      return;
+    }
+    const now = new Date().toISOString();
+    const invocation: SubagentInvocation = {
+      id: invocationId,
+      parentSessionId: task.parentSessionId,
+      runId: batchState.runId,
+      ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
+      ...(task.parentToolCallId ? { parentToolCallId: task.parentToolCallId } : {}),
+      taskId: task.id,
+      task: task.task,
+      ...(task.sessionName ? { title: task.sessionName } : {}),
+      ...(task.profileId ? { profileId: task.profileId } : {}),
+      ...(task.model ? { model: task.model } : {}),
+      ...(task.isolationOverride ? { isolation: task.isolationOverride } : {}),
+      ...(update.childSessionId
+        ? { childSessionId: update.childSessionId }
+        : current?.childSessionId
+          ? { childSessionId: current.childSessionId }
+          : {}),
+      status: update.status,
+      activity: update.activity,
+      revision: (current?.revision ?? 0) + 1,
+      createdAt: current?.createdAt ?? now,
+      updatedAt: now,
+    };
+    batchState.invocations.set(invocationId, invocation);
+    try {
+      await this.runStore?.recordInvocation?.(batchState.runId, invocation);
+    } catch (error) {
+      batchState.errors.push(toError(error));
+    }
+    this.emitPush(batchState, {
+      type: 'subagent/invocation-updated',
+      parentSessionId: task.parentSessionId,
+      invocation,
+    });
+  }
+
+  /** Persist a low-frequency, display-safe activity transition from child events. */
+  async updateInvocationActivity(
+    invocationId: string,
+    activity: SubagentInvocationActivity,
+  ): Promise<void> {
+    for (const batchState of this.activeBatches.values()) {
+      const current = batchState.invocations.get(invocationId);
+      if (!current || current.status !== 'running') continue;
+      const task = batchState.schedulerState.tasks.get(current.taskId);
+      if (!task) return;
+      await this.updateInvocation(batchState, task, {
+        status: 'running',
+        activity,
+        ...(current.childSessionId ? { childSessionId: current.childSessionId } : {}),
+      });
+      return;
+    }
   }
 
   /** Integrate a completed worktree task's changes. */
   private async integrateTask(
     result: SubagentTaskResult,
     lease: SubagentWorkspaceLease,
+    control?: SubagentIntegrationControl,
   ): Promise<SubagentTaskResult> {
     if (lease.mode === 'readonly') return result;
 
     try {
-      return await this.integrationCoordinator.integrate(result, lease);
+      const integrated = await this.integrationCoordinator.integrate(result, lease, control);
+      if (
+        (integrated.integrationStatus === 'conflict' ||
+          integrated.integrationStatus === 'failed') &&
+        integrated.failure === undefined
+      ) {
+        return {
+          ...integrated,
+          failure: createPersistedFailure(new Error(integrated.error ?? 'integration failed'), {
+            kind:
+              integrated.integrationStatus === 'conflict'
+                ? 'integration-conflict'
+                : 'integration-failed',
+            code:
+              integrated.integrationStatus === 'conflict'
+                ? 'subagent-integration-conflict'
+                : 'subagent-integration-failed',
+            phase: 'integration',
+            retryable: false,
+          }),
+        };
+      }
+      return integrated;
     } catch (error) {
       return {
         ...result,
         integrationStatus: 'conflict',
         error: toError(error).message,
+        failure: createPersistedFailure(error, {
+          kind: 'integration-conflict',
+          code: 'subagent-integration-conflict',
+          phase: 'integration',
+          retryable: false,
+        }),
       };
     }
   }

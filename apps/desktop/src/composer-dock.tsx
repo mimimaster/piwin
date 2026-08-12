@@ -190,6 +190,9 @@ export type ComposerDockProps = {
   orchestrationSchemeId?: string;
   orchestrationSchemeOptions?: readonly OrchestrationSchemeOption[];
   onOrchestrationSchemeChange?: (schemeId: string) => void;
+  /** ORCH: independent per-turn switch for model-facing delegation. */
+  delegationDisabled?: boolean;
+  onDelegationDisabledChange?: (disabled: boolean) => void;
   onOpenOrchestrationSchemeSettings?: () => void;
   /** Optional git request adapter for the footer branch chip. */
   branchRequest?:
@@ -1173,6 +1176,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               value={props.orchestrationSchemeId ?? 'off'}
               options={props.orchestrationSchemeOptions}
               onChange={props.onOrchestrationSchemeChange}
+              delegationDisabled={props.delegationDisabled ?? false}
+              {...(props.onDelegationDisabledChange
+                ? { onDelegationDisabledChange: props.onDelegationDisabledChange }
+                : {})}
               {...(props.onOpenOrchestrationSchemeSettings
                 ? { onOpenSettings: props.onOpenOrchestrationSchemeSettings }
                 : {})}

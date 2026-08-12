@@ -30,6 +30,7 @@ export type ToolResultErrorCode =
   | 'subagent-cancelled'
   | 'subagent-unavailable'
   | 'subagent-unavailable-fallback-main'
+  | 'subagent-delegation-disabled'
   | 'mcp-failed';
 
 export type ToolResult =

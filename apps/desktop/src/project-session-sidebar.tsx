@@ -1147,18 +1147,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         <span>{displayName}</span>
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      className="tree-folder-add-btn"
+                    <IconButton
+                      className="sidebar-icon-btn tree-folder-add-btn"
+                      label={sidebarCopy.newConversationInProject(displayName)}
                       title={sidebarCopy.newConversationInProject(displayName)}
                       onClick={(e) => {
                         e.stopPropagation();
                         props.onOpenProject(project.path);
-                        props.onNewSession();
+                        props.onNewSession({ scope: projectScope });
                       }}
                     >
-                      <IconPlus width={12} height={12} />
-                    </button>
+                      <IconPlus width={14} height={14} />
+                    </IconButton>
                   </div>
                 </ContextMenu>
 
@@ -1214,11 +1214,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                             className="session-list-disclosure"
                             data-testid="load-more-project-sessions"
                             onClick={() => {
-                              void loadSessionWindowPage(
-                                projectScope,
-                                projectNextCursor,
-                                'next',
-                              );
+                              void loadSessionWindowPage(projectScope, projectNextCursor, 'next');
                             }}
                           >
                             {sidebarCopy.loadMoreSessions}
@@ -1400,11 +1396,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                             className="session-list-disclosure"
                             data-testid="load-more-general-sessions"
                             onClick={() => {
-                              void loadSessionWindowPage(
-                                generalScope,
-                                generalNextCursor,
-                                'next',
-                              );
+                              void loadSessionWindowPage(generalScope, generalNextCursor, 'next');
                             }}
                           >
                             {sidebarCopy.loadMoreSessions}

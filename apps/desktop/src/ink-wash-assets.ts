@@ -13,8 +13,8 @@ export type InkWashAssetKind =
   | 'emptyComplete';
 
 const ASSET_PATHS: Record<InkWashAssetKind, string> = {
-  hero: '/ui/ink-wash/hero.jpg',
-  conversationTexture: '/ui/ink-wash/conversation-texture.jpg',
+  hero: '/ui/ink-wash/hero.jpg?v=restore',
+  conversationTexture: '/ui/ink-wash/conversation-texture.jpg?v=restore',
   sidebarBg: '/ui/ink-wash/sidebar-bg.jpg',
   rightPanelBg: '/ui/ink-wash/right-panel-bg.jpg',
   agentSeal: '/ui/ink-wash/agent-seal.jpg',

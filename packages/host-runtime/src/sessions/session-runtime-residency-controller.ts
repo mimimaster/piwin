@@ -110,6 +110,12 @@ export type ResidencyControllerOptions = {
     runtimeGenerationId: string;
     reason: SessionRuntimeEvictionReason;
   }) => Promise<boolean>;
+  /**
+   * Fires on every periodic sweep while at least one runtime is resident
+   * (default every 30s). Used by the Host to refresh cross-process runtime
+   * lease heartbeats so a long-idle resident session never looks abandoned.
+   */
+  onSweep?: () => void;
 };
 
 /** A FIFO waiter blocked on capacity. */
@@ -789,6 +795,7 @@ export function createSessionRuntimeResidencyController(
 
   async function sweepNow(): Promise<void> {
     if (disposed) return;
+    options.onSweep?.();
     // Expired idle first (TTL), then capacity/idle/memory pressure. A runtime
     // blocked by Host work (active Run, pending permission/UI, compaction,
     // replacement, transition) is never an eviction victim.

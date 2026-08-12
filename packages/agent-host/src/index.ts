@@ -24,6 +24,7 @@ export type { GenerationIdentityContext } from './generation-identity.js';
 export {
   buildToolPresentation,
   classifyToolKind,
+  resolvePresentedToolInvocation,
   boundToolOutput,
   redactToolText,
 } from './tool-presentation.js';
@@ -49,11 +50,16 @@ export {
   mapThinkingLevelToPi,
 } from './map-thinking-level.js';
 export type { PiThinkingLevel, PiThinkingLevelMap } from './map-thinking-level.js';
-export { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
+export {
+  buildPiProviderRegistration,
+  resolvePiApiForProvider,
+  resolvePiModelCompat,
+} from './pi-model-runtime.js';
 export { buildPiSessionToolAllowlist } from './pi-session-tool-allowlist.js';
 export type { PiSessionToolAllowlistInput } from './pi-session-tool-allowlist.js';
 export type {
   PiModelRegistration,
+  PiModelCompat,
   PiModelRuntime,
   PiProviderApi,
   PiProviderRegistration,
@@ -68,6 +74,7 @@ export {
 export type {
   SerializableBlueprint,
   SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './rpc/serializable-blueprint.js';
 
 export { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
@@ -154,3 +161,11 @@ export type {
   NativeSearchStreamOptions,
   NativeSearchStreamSimple,
 } from './native-web-search.js';
+export {
+  completeNativeModelWebSearch,
+  NativeModelWebSearchError,
+} from './native-model-web-search.js';
+export type {
+  NativeModelWebSearchDependencies,
+  NativeModelWebSearchRequest,
+} from './native-model-web-search.js';

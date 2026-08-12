@@ -89,4 +89,58 @@ describe('session runtime lease coordination', () => {
       }),
     ).rejects.toThrow(/separators/);
   });
+
+  it('treats a live PID with a stale heartbeat as abandoned', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-runtime-lease-stale-'));
+    const staleIso = new Date(Date.now() - 10 * 60_000).toISOString();
+    await registerSessionRuntimeLease({
+      rootDir,
+      sessionId: 'session-stale',
+      owner: {
+        ownerId: 'foreign-host',
+        pid: process.pid,
+        startedAt: staleIso,
+        updatedAt: staleIso,
+      },
+    });
+    // registerSessionRuntimeLease always writes a fresh updatedAt; overwrite
+    // the on-disk heartbeat to simulate an abandoned owner with a reused PID.
+    const { readFile, writeFile } = await import('node:fs/promises');
+    const leasePath = join(rootDir, 'runtime-leases', 'session-stale', 'foreign-host.json');
+    const parsed = JSON.parse(await readFile(leasePath, 'utf8')) as Record<string, unknown>;
+    await writeFile(
+      leasePath,
+      `${JSON.stringify({ ...parsed, startedAt: staleIso, updatedAt: staleIso })}\n`,
+      'utf8',
+    );
+
+    await expect(
+      hasForeignLiveSessionRuntime({
+        rootDir,
+        sessionId: 'session-stale',
+        ownerId: 'local-host',
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('keeps a fresh foreign lease visible to other owners', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-runtime-lease-fresh-'));
+    await registerSessionRuntimeLease({
+      rootDir,
+      sessionId: 'session-fresh',
+      owner: {
+        ownerId: 'foreign-host',
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    await expect(
+      hasForeignLiveSessionRuntime({
+        rootDir,
+        sessionId: 'session-fresh',
+        ownerId: 'local-host',
+      }),
+    ).resolves.toBe(true);
+  });
 });

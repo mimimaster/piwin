@@ -109,6 +109,13 @@ export function projectRemoteResponse(
     };
   }
 
+  if (command.type === 'session/user-message-index') {
+    return {
+      ...response,
+      data: projectSessionUserMessageIndex(response.data),
+    };
+  }
+
   if (command.type.startsWith('session/') || command.type === 'permission/resolve') {
     return {
       ...response,
@@ -593,6 +600,55 @@ const REMOTE_SECRET_KEYS = new Set([
   'secret',
   'token',
 ]);
+
+
+function projectSessionUserMessageIndex(data: unknown): unknown {
+  const record = asRecord(data);
+  if (record === undefined) return data;
+  const rawAnchors = Array.isArray(record.anchors) ? record.anchors : [];
+  const anchors: Array<Record<string, unknown>> = [];
+  for (const item of rawAnchors) {
+    const anchor = asRecord(item);
+    if (
+      anchor === undefined ||
+      typeof anchor.messageId !== 'string' ||
+      typeof anchor.createdAt !== 'string' ||
+      typeof anchor.ordinal !== 'number' ||
+      !Number.isSafeInteger(anchor.ordinal)
+    ) {
+      continue;
+    }
+    if (anchors.length >= 256) break;
+    anchors.push({
+      messageId: boundedString(anchor.messageId, 512),
+      createdAt: boundedString(anchor.createdAt, 128),
+      ordinal: anchor.ordinal,
+      preview: boundedString(anchor.preview, 512),
+      spanStartOrdinal:
+        typeof anchor.spanStartOrdinal === 'number' && Number.isSafeInteger(anchor.spanStartOrdinal)
+          ? anchor.spanStartOrdinal
+          : anchor.ordinal,
+      spanEndOrdinal:
+        typeof anchor.spanEndOrdinal === 'number' && Number.isSafeInteger(anchor.spanEndOrdinal)
+          ? anchor.spanEndOrdinal
+          : anchor.ordinal,
+    });
+  }
+  const dropped = rawAnchors.length > anchors.length;
+  const mode = record.mode === 'exact' && !dropped ? 'exact' : 'sampled';
+  const anchorBytes = new TextEncoder().encode(JSON.stringify(anchors)).byteLength;
+  return {
+    sessionId: typeof record.sessionId === 'string' ? boundedString(record.sessionId, 256) : '',
+    revision: typeof record.revision === 'string' ? boundedString(record.revision, 128) : '',
+    totalUserMessages:
+      typeof record.totalUserMessages === 'number' && Number.isSafeInteger(record.totalUserMessages)
+        ? record.totalUserMessages
+        : 0,
+    mode,
+    anchors,
+    anchorBytes,
+  };
+}
 
 function sanitizeRemoteValue(value: unknown, key: string | undefined): unknown {
   if (key !== undefined && REMOTE_SECRET_KEYS.has(key)) {

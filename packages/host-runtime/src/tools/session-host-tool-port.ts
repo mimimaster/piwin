@@ -26,6 +26,7 @@ import {
   type HostToolPermissionGate,
   type ToolDisablePredicate,
 } from './host-tool-execution-router.js';
+import { HOST_TOOLBOX_NAME } from '../host-toolbox.js';
 
 /**
  * Callbacks the port needs from the HostRuntime to validate and dispatch.
@@ -53,6 +54,8 @@ type CachedTools = {
   tools: readonly HostToolRegistration[];
   permissionGate: HostToolPermissionGate;
   toolNames: Set<string>;
+  toolboxTargets: ReadonlyMap<string, HostToolRegistration>;
+  toolboxRouter: HostToolExecutionRouter | undefined;
 };
 
 type SessionSurfaces = {
@@ -134,6 +137,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     sessionId: string,
     runtimeGenerationId: string,
     allowedToolNames: readonly string[],
+    toolboxTargetNames: readonly string[] = [],
   ): boolean {
     const surfaces = this.surfacesBySession.get(sessionId);
     const cached =
@@ -153,6 +157,19 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
         );
       }
     }
+    const toolboxTargets = new Map<string, HostToolRegistration>();
+    for (const name of toolboxTargetNames) {
+      const registration = cached.tools.find((tool) => tool.descriptor.name === name);
+      if (!registration) {
+        throw new Error(
+          `compiled Host toolbox target is unregistered: ${sessionId}/${runtimeGenerationId}/${name}`,
+        );
+      }
+      if (allowed.has(name)) {
+        throw new Error(`Host tool cannot be direct and toolbox-only in one generation: ${name}`);
+      }
+      toolboxTargets.set(name, registration);
+    }
 
     const filteredTools = cached.tools.filter((tool) => allowed.has(tool.descriptor.name));
     cached.tools = Object.freeze(filteredTools);
@@ -162,6 +179,17 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
       permissionGate: cached.permissionGate,
     });
+    cached.toolboxTargets = toolboxTargets;
+    cached.toolboxRouter =
+      toolboxTargets.size > 0
+        ? new HostToolExecutionRouter({
+            tools: [...toolboxTargets.values()],
+            ...(this.options.isToolDisabled
+              ? { isToolDisabled: this.options.isToolDisabled }
+              : {}),
+            permissionGate: cached.permissionGate,
+          })
+        : undefined;
     return true;
   }
 
@@ -293,12 +321,17 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       };
     }
 
+    if (input.toolName === HOST_TOOLBOX_NAME) {
+      return await this.executeToolbox(cached, input, signal);
+    }
+
     // 5. Execute through the router. Run identity travels in the Host-only
     // execution context, never through model-visible arguments.
     return await router.execute(input.toolName, input.arguments, signal, {
       sessionId: input.sessionId,
       runtimeGenerationId: input.runtimeGenerationId,
       runId: input.runId,
+      ...(input.toolCallId ? { toolCallId: input.toolCallId } : {}),
       toolName: input.toolName,
     });
   }
@@ -341,7 +374,68 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       tools: frozenTools,
       permissionGate,
       toolNames: new Set(frozenTools.map((tool) => tool.descriptor.name)),
+      toolboxTargets: new Map(),
+      toolboxRouter: undefined,
     };
+  }
+
+  private async executeToolbox(
+    cached: CachedTools,
+    input: HostToolExecutionInput,
+    signal: AbortSignal,
+  ): Promise<HostToolExecutionResult> {
+    const action = String(input.arguments.action ?? '').trim();
+    const targetName = String(input.arguments.target ?? '').trim();
+    const target = cached.toolboxTargets.get(targetName);
+    if (!target) {
+      return {
+        ok: false,
+        code: 'tool-not-available',
+        message: `toolbox target not in session generation: ${targetName || '(empty)'}`,
+      };
+    }
+    if (action === 'describe') {
+      return { ok: true, output: JSON.stringify(target.descriptor) };
+    }
+    if (action !== 'call') {
+      return {
+        ok: false,
+        code: 'invalid-input',
+        message: 'piwin_toolbox action must be describe or call',
+      };
+    }
+    const targetArguments = input.arguments.arguments;
+    if (
+      targetArguments === null ||
+      typeof targetArguments !== 'object' ||
+      Array.isArray(targetArguments)
+    ) {
+      return {
+        ok: false,
+        code: 'invalid-input',
+        message: 'piwin_toolbox call requires an arguments object',
+      };
+    }
+    const router = cached.toolboxRouter;
+    if (!router) {
+      return {
+        ok: false,
+        code: 'tool-not-available',
+        message: 'toolbox target router is unavailable',
+      };
+    }
+    return await router.execute(
+      targetName,
+      targetArguments as Record<string, unknown>,
+      signal,
+      {
+        sessionId: input.sessionId,
+        runtimeGenerationId: input.runtimeGenerationId,
+        runId: input.runId,
+        ...(input.toolCallId ? { toolCallId: input.toolCallId } : {}),
+        toolName: targetName,
+      },
+    );
   }
 }
 

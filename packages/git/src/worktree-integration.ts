@@ -98,8 +98,9 @@ export async function integrateWorktreeChanges(
     await rm(childIndexDirectory, { recursive: true, force: true });
   }
 
-  // Check allowedOutputPaths.
-  if (allowedOutputPaths && allowedOutputPaths.length > 0) {
+  // Check allowedOutputPaths. `undefined` means unrestricted; an explicit
+  // empty list denies every changed file.
+  if (allowedOutputPaths !== undefined) {
     const allowed = new Set(allowedOutputPaths.map((p) => p.replace(/^\.\//, '')));
     for (const file of changedFiles) {
       if (!allowed.has(file)) {

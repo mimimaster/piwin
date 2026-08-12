@@ -38,9 +38,7 @@ describe('resolveContextManifest', () => {
         piNativeFiles: [file('/home/.pi/agent/SYSTEM.md', 'system', 'pi-native')],
       }),
     );
-    expect(manifest.agentsFiles).toEqual([
-      file('/home/.pi/agent/SYSTEM.md', 'system', 'pi-native'),
-    ]);
+    expect(manifest.agentsFiles).toEqual([]);
     expect(manifest.systemPrompt?.absolutePath).toBe('/p/SYSTEM.md');
   });
 
@@ -96,6 +94,32 @@ describe('resolveContextManifest', () => {
     expect(manifest.systemPrompt?.absolutePath).toBe('/p/SYSTEM.md');
     expect(manifest.appendSystemPrompt?.absolutePath).toBe('/p/APPEND_SYSTEM.md');
     expect(manifest.agentsFiles).toEqual([]);
+  });
+
+  it('uses Pi-native context first and falls back to its system prompts', () => {
+    const manifest = resolveContextManifest(
+      {
+        allowPiNativeInstructions: true,
+        allowProjectAgentsFiles: true,
+        allowProjectSystemPrompts: true,
+      },
+      candidates({
+        projectAgentsFiles: [file('/p/AGENTS.md', 'agents', 'project')],
+        piNativeFiles: [
+          file('/home/.pi/agent/AGENTS.md', 'agents', 'pi-native'),
+          file('/home/.pi/agent/SYSTEM.md', 'system', 'pi-native'),
+          file('/home/.pi/agent/APPEND_SYSTEM.md', 'append-system', 'pi-native'),
+        ],
+      }),
+    );
+    expect(manifest.agentsFiles).toEqual([
+      file('/home/.pi/agent/AGENTS.md', 'agents', 'pi-native'),
+      file('/p/AGENTS.md', 'agents', 'project'),
+    ]);
+    expect(manifest.systemPrompt?.absolutePath).toBe('/home/.pi/agent/SYSTEM.md');
+    expect(manifest.appendSystemPrompt?.absolutePath).toBe(
+      '/home/.pi/agent/APPEND_SYSTEM.md',
+    );
   });
 
   it('does not discover context outside the explicit manifest (SCR-16)', () => {

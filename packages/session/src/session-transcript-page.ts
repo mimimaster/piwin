@@ -150,6 +150,8 @@ function clipOversizedMessage(
   if (message.runId !== undefined) base.runId = message.runId;
   if (message.startedAt !== undefined) base.startedAt = message.startedAt;
   if (message.endedAt !== undefined) base.endedAt = message.endedAt;
+  if (message.thinkingStartedAt !== undefined) base.thinkingStartedAt = message.thinkingStartedAt;
+  if (message.thinkingEndedAt !== undefined) base.thinkingEndedAt = message.thinkingEndedAt;
   if (message.outcome !== undefined) base.outcome = message.outcome;
   if (message.model !== undefined) base.model = message.model;
 

@@ -5,10 +5,16 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { assertSafePathSegment } from './paths.js';
 
 const OPERATION_LOCK_WAIT_MILLISECONDS = 10_000;
+/** Foreign leases without a recent heartbeat are treated as abandoned. */
+const RUNTIME_LEASE_STALE_MILLISECONDS = 120_000;
 
 export type SessionRuntimeLeaseOwner = {
   ownerId: string;
   pid: number;
+  /** ISO timestamp when this Host first claimed the session runtime. */
+  startedAt?: string;
+  /** ISO timestamp refreshed by heartbeat while the runtime stays resident. */
+  updatedAt?: string;
 };
 
 export async function registerSessionRuntimeLease(input: {
@@ -21,16 +27,31 @@ export async function registerSessionRuntimeLease(input: {
   await mkdir(leaseDirectory, { recursive: true });
   const leasePath = join(leaseDirectory, `${input.owner.ownerId}.json`);
   const temporaryPath = `${leasePath}.${randomUUID()}.tmp`;
+  const nowIso = new Date().toISOString();
   try {
     await writeFile(
       temporaryPath,
-      `${JSON.stringify({ ...input.owner, updatedAt: new Date().toISOString() })}\n`,
+      `${JSON.stringify({
+        ownerId: input.owner.ownerId,
+        pid: input.owner.pid,
+        startedAt: input.owner.startedAt ?? nowIso,
+        updatedAt: nowIso,
+      })}\n`,
       'utf8',
     );
     await rename(temporaryPath, leasePath);
   } finally {
     await rm(temporaryPath, { force: true });
   }
+}
+
+/** Refresh liveness for a resident runtime so foreign Hosts do not treat it as abandoned. */
+export async function touchSessionRuntimeLease(input: {
+  rootDir: string;
+  sessionId: string;
+  owner: SessionRuntimeLeaseOwner;
+}): Promise<void> {
+  await registerSessionRuntimeLease(input);
 }
 
 export async function releaseSessionRuntimeLease(input: {
@@ -68,8 +89,23 @@ export async function hasForeignLiveSessionRuntime(input: {
     }
     const leasePath = join(leaseDirectory, entry);
     try {
-      const parsed = JSON.parse(await readFile(leasePath, 'utf8')) as { pid?: unknown };
+      const parsed = JSON.parse(await readFile(leasePath, 'utf8')) as {
+        pid?: unknown;
+        updatedAt?: unknown;
+        startedAt?: unknown;
+      };
       if (typeof parsed.pid === 'number' && isProcessAlive(parsed.pid)) {
+        const heartbeatAt =
+          typeof parsed.updatedAt === 'string'
+            ? parsed.updatedAt
+            : typeof parsed.startedAt === 'string'
+              ? parsed.startedAt
+              : undefined;
+        if (heartbeatAt === undefined || !isLeaseHeartbeatFresh(heartbeatAt)) {
+          // PID may have been reused by an unrelated process after crash.
+          await rm(leasePath, { force: true });
+          continue;
+        }
         return true;
       }
       await rm(leasePath, { force: true });
@@ -164,6 +200,14 @@ async function removeDeadOperationLock(lockPath: string): Promise<boolean> {
   }
   await rm(lockPath, { force: true });
   return true;
+}
+
+function isLeaseHeartbeatFresh(timestamp: string): boolean {
+  const heartbeatMilliseconds = Date.parse(timestamp);
+  if (!Number.isFinite(heartbeatMilliseconds)) {
+    return false;
+  }
+  return Date.now() - heartbeatMilliseconds <= RUNTIME_LEASE_STALE_MILLISECONDS;
 }
 
 function getRuntimeLeaseDirectory(rootDir: string, sessionId: string): string {

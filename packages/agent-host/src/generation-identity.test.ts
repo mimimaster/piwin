@@ -50,9 +50,7 @@ describe('generation-identity', () => {
       delta: 'hello',
     });
     if (normalized.type === 'message/text_delta') {
-      expect(normalized.messageId).toBe(
-        normalizeGenerationMessageId(contextA, 'pi-message-2'),
-      );
+      expect(normalized.messageId).toBe(normalizeGenerationMessageId(contextA, 'pi-message-2'));
       expect(normalized.messageId).not.toBe('pi-message-2');
     }
   });
@@ -62,11 +60,13 @@ describe('generation-identity', () => {
       type: 'tool/start',
       toolCallId: 'call_00',
       toolName: 'bash',
+      responseMessageId: 'pi-message-2',
     };
     const normalized = normalizeAgentEventIds(event, contextB);
     if (normalized.type === 'tool/start') {
-      expect(normalized.toolCallId).toBe(
-        normalizeGenerationToolCallId(contextB, 'call_00'),
+      expect(normalized.toolCallId).toBe(normalizeGenerationToolCallId(contextB, 'call_00'));
+      expect(normalized.responseMessageId).toBe(
+        normalizeGenerationMessageId(contextB, 'pi-message-2'),
       );
     }
   });
@@ -111,8 +111,16 @@ describe('generation-identity', () => {
   });
 
   it('two generations emitting the same naked id produce distinct rows', () => {
-    const genAStart: AgentEvent = { type: 'message/start', messageId: 'pi-message-2', role: 'assistant' };
-    const genBStart: AgentEvent = { type: 'message/start', messageId: 'pi-message-2', role: 'assistant' };
+    const genAStart: AgentEvent = {
+      type: 'message/start',
+      messageId: 'pi-message-2',
+      role: 'assistant',
+    };
+    const genBStart: AgentEvent = {
+      type: 'message/start',
+      messageId: 'pi-message-2',
+      role: 'assistant',
+    };
     const a = normalizeAgentEventIds(genAStart, contextA);
     const b = normalizeAgentEventIds(genBStart, contextB);
     if (a.type === 'message/start' && b.type === 'message/start') {

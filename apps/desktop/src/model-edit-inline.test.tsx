@@ -112,14 +112,13 @@ function render(node: ReactElement): { container: HTMLDivElement; root: Root } {
 }
 
 describe('ModelEditInline', () => {
-  it('renders native search capability controls and its always-on mode', () => {
+  it('renders native search capability controls', () => {
     const onSave = vi.fn();
     render(
       <ModelEditInline
         model={{
           id: 'search-model',
           capabilities: ['native-web-search'],
-          nativeWebSearchMode: 'always-on',
         }}
         providerProtocol="openai-compatible"
         disabled={false}
@@ -130,22 +129,18 @@ describe('ModelEditInline', () => {
     );
 
     const checkbox = query<HTMLInputElement>('[data-testid="model-edit-native-web-search"]');
-    const mode = query<HTMLSelectElement>('[data-testid="model-edit-native-web-search-mode"]');
     expect(checkbox?.checked).toBe(true);
-    expect(mode?.value).toBe('always-on');
-    expect(mode?.options[1]?.textContent).toBe('Always on');
-    expect(document.body.textContent).toContain('external-only cannot disable it');
+    expect(query('[data-testid="model-edit-native-web-search-mode"]')).toBeNull();
 
     click('[data-testid="model-edit-save"]');
     expect(onSave.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
         supportsNativeWebSearch: true,
-        nativeWebSearchMode: 'always-on',
       }),
     );
   });
 
-  it('does not show the native search mode selector for models without the capability', () => {
+  it('renders only the native search capability checkbox', () => {
     render(
       <ModelEditInline
         model={{ id: 'text-model' }}
@@ -159,6 +154,31 @@ describe('ModelEditInline', () => {
 
     expect(query('[data-testid="model-edit-native-web-search"]')).not.toBeNull();
     expect(query('[data-testid="model-edit-native-web-search-mode"]')).toBeNull();
+  });
+
+  it('edits the video-generation capability used by Video settings', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'grok-imagine-video' }}
+        providerProtocol="openai-compatible"
+        disabled={false}
+        isChinese
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const checkbox = query<HTMLInputElement>('[data-testid="model-edit-video-generation"]');
+    expect(checkbox).not.toBeNull();
+    expect(checkbox?.checked).toBe(false);
+    expect(checkbox?.parentElement?.textContent).toContain('视频');
+
+    click('[data-testid="model-edit-video-generation"]');
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ supportsVideoGeneration: true }),
+    );
   });
 
   it('shows the native search badge in the model workbench row', () => {

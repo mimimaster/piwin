@@ -35,6 +35,8 @@ export type SessionToolFamily =
   | 'notes-write'
   | 'flashcards-read'
   | 'flashcards-write'
+  | 'artifact'
+  | 'toolbox'
   | 'image-generation'
   | 'video-generation';
 
@@ -66,6 +68,8 @@ export type CapabilityInputRevisions = {
   projectRevision: string;
   mcpRevision: string;
   resourceCatalogRevision: string;
+  /** Exact active Pi Extension revision set, when available. */
+  extensionSetRevision?: string;
 };
 
 /**

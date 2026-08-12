@@ -20,7 +20,7 @@ import type { AgentEvent, HostToolExecutionResult } from '@piwin/contracts';
 import type { WorkerToolCallFrame } from './rpc-sdk-worker-protocol.js';
 import type {
   SerializableBlueprint,
-  SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './rpc/serializable-blueprint.js';
 
 /** Runtime settings for the worker supervisor (internal, not user PiwinConfig). */
@@ -345,11 +345,7 @@ export class AgentWorkerSupervisor {
       }
     }
     const sampleCompleteness: WorkerRssSample['sampleCompleteness'] =
-      sampledWorkers === workers.length
-        ? 'complete'
-        : sampledWorkers > 0
-          ? 'partial'
-          : 'missing';
+      sampledWorkers === workers.length ? 'complete' : sampledWorkers > 0 ? 'partial' : 'missing';
     return {
       rssMiB: Math.round(rssBytes / 1024 / 1024),
       sampledWorkers,
@@ -366,7 +362,7 @@ export class AgentWorkerSupervisor {
     sessionId: string,
     runtimeGenerationId: string,
     blueprint: SerializableBlueprint,
-    providers?: SerializableProviderRuntime[],
+    providers?: SerializableWorkerProviderRuntime[],
   ): Promise<string> {
     const client = await this.acquireWorker(sessionId, runtimeGenerationId);
     const result = await client.createSession({

@@ -71,11 +71,14 @@ export type TranscriptStoreMessageInput = {
   runId?: string;
   model?: ModelRef;
   attachments?: MediaAttachmentRef[];
+  contextRefs?: SessionTranscriptMessage['contextRefs'];
   tools?: SessionToolCardView[];
   metadata?: {
     phaseHistory?: SessionTranscriptMessage['phaseHistory'];
     startedAt?: string;
     endedAt?: string;
+    thinkingStartedAt?: string;
+    thinkingEndedAt?: string;
     outcome?: SessionTranscriptMessage['outcome'];
     terminalMessage?: string;
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
@@ -90,6 +93,7 @@ export type TranscriptStoreMessagePatch = {
   thinking?: string;
   tools?: SessionToolCardView[];
   attachments?: MediaAttachmentRef[];
+  contextRefs?: SessionTranscriptMessage['contextRefs'];
   metadata?: TranscriptStoreMessageInput['metadata'];
 };
 
@@ -166,7 +170,13 @@ export type SessionTranscriptStore = {
     maxMessages?: number;
     maxChars?: number;
     excludeMessageId?: string;
-  }): Promise<Array<{ role: string; text: string }>>;
+  }): Promise<
+    Array<{
+      role: string;
+      text: string;
+      contextRefs?: SessionTranscriptMessage['contextRefs'];
+    }>
+  >;
   /** Newest assistant model snapshot, if any. */
   recentModel(): Promise<ModelRef | undefined>;
   /** Bounded outline page without loading message bodies. */
@@ -235,6 +245,7 @@ type MessageRow = {
   run_id: string | null;
   model_json: string | null;
   attachments_json: string | null;
+  context_refs_json: string | null;
   tools_json: string | null;
   metadata_json: string | null;
 };
@@ -292,6 +303,7 @@ export async function openSessionTranscriptStore(
       run_id TEXT,
       model_json TEXT,
       attachments_json TEXT,
+      context_refs_json TEXT,
       tools_json TEXT,
       metadata_json TEXT,
       UNIQUE(runtime_generation_id, backend_message_id)
@@ -332,6 +344,12 @@ export async function openSessionTranscriptStore(
     db.exec(
       'ALTER TABLE transcript_meta ADD COLUMN user_message_revision INTEGER NOT NULL DEFAULT 0',
     );
+  }
+  const messageColumns = db.prepare('PRAGMA table_info(transcript_message)').all() as Array<{
+    name: string;
+  }>;
+  if (!messageColumns.some((column) => column.name === 'context_refs_json')) {
+    db.exec('ALTER TABLE transcript_message ADD COLUMN context_refs_json TEXT');
   }
   db.prepare(
     `INSERT OR IGNORE INTO transcript_meta(
@@ -375,8 +393,9 @@ export async function openSessionTranscriptStore(
     db.prepare(
       `INSERT INTO transcript_message(
         id, runtime_generation_id, backend_message_id, role, text, thinking,
-        status, created_at, run_id, model_json, attachments_json, tools_json, metadata_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        status, created_at, run_id, model_json, attachments_json, context_refs_json,
+        tools_json, metadata_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.id,
       input.runtimeGenerationId,
@@ -389,6 +408,7 @@ export async function openSessionTranscriptStore(
       input.runId ?? null,
       input.model === undefined ? null : JSON.stringify(input.model),
       input.attachments === undefined ? null : JSON.stringify(input.attachments),
+      input.contextRefs === undefined ? null : JSON.stringify(input.contextRefs),
       input.tools === undefined ? null : JSON.stringify(input.tools),
       input.metadata === undefined ? null : JSON.stringify(input.metadata),
     );
@@ -409,6 +429,14 @@ export async function openSessionTranscriptStore(
     if (row.attachments_json !== null) {
       message.attachments = JSON.parse(row.attachments_json) as MediaAttachmentRef[];
     }
+    if (row.context_refs_json !== null) {
+      const contextRefs = JSON.parse(
+        row.context_refs_json,
+      ) as SessionTranscriptMessage['contextRefs'];
+      if (contextRefs !== undefined) {
+        message.contextRefs = contextRefs;
+      }
+    }
     if (row.tools_json !== null) {
       message.tools = JSON.parse(row.tools_json) as SessionToolCardView[];
     }
@@ -419,6 +447,12 @@ export async function openSessionTranscriptStore(
       if (metadata.phaseHistory !== undefined) message.phaseHistory = metadata.phaseHistory;
       if (metadata.startedAt !== undefined) message.startedAt = metadata.startedAt;
       if (metadata.endedAt !== undefined) message.endedAt = metadata.endedAt;
+      if (metadata.thinkingStartedAt !== undefined) {
+        message.thinkingStartedAt = metadata.thinkingStartedAt;
+      }
+      if (metadata.thinkingEndedAt !== undefined) {
+        message.thinkingEndedAt = metadata.thinkingEndedAt;
+      }
       if (metadata.outcome !== undefined) message.outcome = metadata.outcome;
       if (metadata.terminalMessage !== undefined)
         message.terminalMessage = metadata.terminalMessage;
@@ -545,6 +579,10 @@ export async function openSessionTranscriptStore(
       if (patch.attachments !== undefined) {
         assignments.push('attachments_json = ?');
         values.push(JSON.stringify(patch.attachments));
+      }
+      if (patch.contextRefs !== undefined) {
+        assignments.push('context_refs_json = ?');
+        values.push(JSON.stringify(patch.contextRefs));
       }
       if (patch.metadata !== undefined) {
         assignments.push('metadata_json = ?');
@@ -990,19 +1028,31 @@ export async function openSessionTranscriptStore(
         excluded === null || excluded === undefined
           ? (db
               .prepare(
-                `SELECT role, text FROM transcript_message
+                `SELECT role, text, context_refs_json FROM transcript_message
                WHERE role IN ('user', 'assistant', 'system') AND text != ''
                ORDER BY sequence DESC LIMIT ?`,
               )
-              .all(maxMessages) as Array<{ role: string; text: string }>)
+              .all(maxMessages) as Array<{
+                role: string;
+                text: string;
+                context_refs_json: string | null;
+              }>)
           : (db
               .prepare(
-                `SELECT role, text FROM transcript_message
+                `SELECT role, text, context_refs_json FROM transcript_message
                WHERE sequence < ? AND role IN ('user', 'assistant', 'system') AND text != ''
                ORDER BY sequence DESC LIMIT ?`,
               )
-              .all(excluded.sequence, maxMessages) as Array<{ role: string; text: string }>);
-      const windowed: Array<{ role: string; text: string }> = [];
+              .all(excluded.sequence, maxMessages) as Array<{
+                role: string;
+                text: string;
+                context_refs_json: string | null;
+              }>);
+      const windowed: Array<{
+        role: string;
+        text: string;
+        contextRefs?: SessionTranscriptMessage['contextRefs'];
+      }> = [];
       let usedChars = 0;
       for (let index = rows.length - 1; index >= 0; index -= 1) {
         const row = rows[index];
@@ -1013,7 +1063,17 @@ export async function openSessionTranscriptStore(
         if (usedChars + text.length + 1 > maxChars) {
           break;
         }
-        windowed.push({ role: row.role, text });
+        const entry: {
+          role: string;
+          text: string;
+          contextRefs?: SessionTranscriptMessage['contextRefs'];
+        } = { role: row.role, text };
+        if (row.context_refs_json !== null) {
+          entry.contextRefs = JSON.parse(
+            row.context_refs_json,
+          ) as SessionTranscriptMessage['contextRefs'];
+        }
+        windowed.push(entry);
         usedChars += text.length + 1;
       }
       return windowed;
@@ -1308,6 +1368,8 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
     message.phaseHistory !== undefined ||
     message.startedAt !== undefined ||
     message.endedAt !== undefined ||
+    message.thinkingStartedAt !== undefined ||
+    message.thinkingEndedAt !== undefined ||
     message.outcome !== undefined ||
     message.terminalMessage !== undefined ||
     message.subagentActivity !== undefined ||
@@ -1324,6 +1386,7 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
     ...(message.runId !== undefined ? { runId: message.runId } : {}),
     ...(message.model !== undefined ? { model: message.model } : {}),
     ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
+    ...(message.contextRefs !== undefined ? { contextRefs: message.contextRefs } : {}),
     ...(message.tools !== undefined ? { tools: message.tools } : {}),
     ...(hasMetadata
       ? {
@@ -1331,6 +1394,12 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
             ...(message.phaseHistory !== undefined ? { phaseHistory: message.phaseHistory } : {}),
             ...(message.startedAt !== undefined ? { startedAt: message.startedAt } : {}),
             ...(message.endedAt !== undefined ? { endedAt: message.endedAt } : {}),
+            ...(message.thinkingStartedAt !== undefined
+              ? { thinkingStartedAt: message.thinkingStartedAt }
+              : {}),
+            ...(message.thinkingEndedAt !== undefined
+              ? { thinkingEndedAt: message.thinkingEndedAt }
+              : {}),
             ...(message.outcome !== undefined ? { outcome: message.outcome } : {}),
             ...(message.terminalMessage !== undefined
               ? { terminalMessage: message.terminalMessage }
@@ -1378,7 +1447,7 @@ function digestDatabaseRows(db: DatabaseSync, sessionId: string): string {
 }
 
 function canonicalInput(input: TranscriptStoreMessageInput): Record<string, unknown> {
-  return {
+  const canonical: Record<string, unknown> = {
     id: input.id,
     runtimeGenerationId: input.runtimeGenerationId,
     backendMessageId: input.backendMessageId,
@@ -1393,10 +1462,15 @@ function canonicalInput(input: TranscriptStoreMessageInput): Record<string, unkn
     tools: input.tools ?? null,
     metadata: input.metadata ?? null,
   };
+  // Omit absent contextRefs so legacy import digests stay stable.
+  if (input.contextRefs !== undefined) {
+    canonical.contextRefs = input.contextRefs;
+  }
+  return canonical;
 }
 
 function canonicalRow(row: MessageRow): Record<string, unknown> {
-  return {
+  const canonical: Record<string, unknown> = {
     id: row.id,
     runtimeGenerationId: row.runtime_generation_id,
     backendMessageId: row.backend_message_id,
@@ -1411,6 +1485,11 @@ function canonicalRow(row: MessageRow): Record<string, unknown> {
     tools: parseStoredJson(row.tools_json),
     metadata: parseStoredJson(row.metadata_json),
   };
+  // Null storage means the field was never written; omit for digest parity.
+  if (row.context_refs_json !== null) {
+    canonical.contextRefs = parseStoredJson(row.context_refs_json);
+  }
+  return canonical;
 }
 
 function parseStoredJson(value: string | null): unknown {

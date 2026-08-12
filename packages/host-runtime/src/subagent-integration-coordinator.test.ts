@@ -25,14 +25,14 @@ function createWorktreeLease(
   };
 }
 
-function createTaskResult(taskId: string, allowedOutputPaths: string[] = []): SubagentTaskResult {
+function createTaskResult(taskId: string, allowedOutputPaths?: string[]): SubagentTaskResult {
   return {
     runId: 'run-1',
     taskId,
     executionStatus: 'completed',
     summaryStatus: 'not-requested',
     integrationStatus: 'pending',
-    allowedOutputPaths,
+    ...(allowedOutputPaths !== undefined ? { allowedOutputPaths } : {}),
   };
 }
 
@@ -60,7 +60,7 @@ function createSuccessIntegration(changedFiles: string[]): WorktreeIntegrationFu
   return async (input) => ({
     success: true,
     changedFiles,
-    allowedOutputPaths: input.allowedOutputPaths,
+    allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
   });
 }
 
@@ -88,7 +88,7 @@ describe('SubagentIntegrationCoordinator', () => {
       return {
         success: true as const,
         changedFiles: [],
-        allowedOutputPaths: input.allowedOutputPaths,
+        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
       };
     });
 
@@ -121,6 +121,109 @@ describe('SubagentIntegrationCoordinator', () => {
       '/tmp/project/.piwin-worktrees/two',
     ]);
     expect(maximumActiveIntegrations).toBe(1);
+  });
+
+  it('removes a cancelled waiter before it can call the parent mutator', async () => {
+    const firstIntegrationStarted = createDeferred();
+    const releaseFirstIntegration = createDeferred();
+    const integrationInputs: WorktreeIntegrationInput[] = [];
+
+    const integrateWorktree: WorktreeIntegrationFunction = vi.fn(async (input) => {
+      integrationInputs.push(input);
+      if (integrationInputs.length === 1) {
+        firstIntegrationStarted.resolve();
+        await releaseFirstIntegration.promise;
+      }
+      return {
+        success: true as const,
+        changedFiles: [],
+        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
+      };
+    });
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const firstIntegration = coordinator.integrate(
+      createTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+    await firstIntegrationStarted.promise;
+
+    const cancellationController = new AbortController();
+    const cancelledIntegration = coordinator.integrate(
+      createTaskResult('task-2'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/two'),
+      { signal: cancellationController.signal },
+    );
+    cancellationController.abort();
+
+    const cancelledResult = await cancelledIntegration;
+    expect(cancelledResult.integrationStatus).toBe('retained');
+    expect(cancelledResult.error).toContain('cancelled before parent mutation');
+    expect(integrationInputs).toHaveLength(1);
+    expect(removeWorktree).not.toHaveBeenCalledWith(
+      '/tmp/project/.piwin-worktrees/two',
+      expect.anything(),
+      expect.anything(),
+    );
+
+    releaseFirstIntegration.resolve();
+    await firstIntegration;
+
+    expect(integrationInputs).toHaveLength(1);
+  });
+
+  it('finishes integration when cancellation arrives after the commit point', async () => {
+    const cancellationController = new AbortController();
+    const commitPointReached = vi.fn(() => cancellationController.abort());
+    const integrateWorktree = vi.fn(createSuccessIntegration(['src/applied.ts']));
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const result = await coordinator.integrate(
+      createTaskResult('task-1'),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+      {
+        signal: cancellationController.signal,
+        onCommitPoint: commitPointReached,
+      },
+    );
+
+    expect(commitPointReached).toHaveBeenCalledTimes(1);
+    expect(cancellationController.signal.aborted).toBe(true);
+    expect(integrateWorktree).toHaveBeenCalledTimes(1);
+    expect(result.integrationStatus).toBe('applied');
+    expect(result.changedFiles).toEqual(['src/applied.ts']);
+    expect(removeWorktree).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats an explicit empty allowlist as deny-all', async () => {
+    const integrateWorktree: WorktreeIntegrationFunction = vi.fn(
+      createSuccessIntegration(['src/anything.ts']),
+    );
+    const removeWorktree = vi.fn().mockResolvedValue(undefined);
+    const coordinator = createSubagentIntegrationCoordinator({
+      integrateWorktree,
+      isBaseClean: vi.fn().mockResolvedValue(true),
+      removeWorktree,
+    });
+
+    const result = await coordinator.integrate(
+      createTaskResult('task-1', []),
+      createWorktreeLease('/tmp/project/.piwin-worktrees/one'),
+    );
+
+    expect(result.integrationStatus).toBe('failed');
+    expect(result.error).toContain('src/anything.ts');
+    expect(removeWorktree).not.toHaveBeenCalled();
   });
 
   it('passes allowed output paths and rejects a result that escapes them', async () => {
@@ -159,7 +262,7 @@ describe('SubagentIntegrationCoordinator', () => {
         return {
           success: true as const,
           changedFiles: [],
-          allowedOutputPaths: input.allowedOutputPaths,
+          allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
         };
       }
 
@@ -167,7 +270,7 @@ describe('SubagentIntegrationCoordinator', () => {
         success: false as const,
         conflict: true as const,
         conflictFiles: ['src/conflict.ts'],
-        allowedOutputPaths: input.allowedOutputPaths,
+        allowedOutputPaths: input.allowedOutputPaths ? [...input.allowedOutputPaths] : [],
       };
     });
     const removeWorktree = vi.fn().mockResolvedValue(undefined);

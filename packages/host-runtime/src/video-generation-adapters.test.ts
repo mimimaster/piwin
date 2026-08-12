@@ -154,4 +154,38 @@ describe('callVideoEndpoint', () => {
       'https://example.test/minimax-tasks/v2/query/video_generation/minimax-task',
     );
   });
+
+  it('creates, polls, and downloads an xgrok video via request_id and done status', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(responseJson({ request_id: 'xgrok-task' }))
+      .mockResolvedValueOnce(responseJson({ model: 'video-model', progress: 100, status: 'done' }))
+      .mockResolvedValueOnce(responseJson({}));
+    const result = await callVideoEndpoint({
+      ...options(
+        provider('xgrok-videos', '/videos/generations'),
+        fetchMock as unknown as typeof fetch,
+      ),
+      input: { prompt: 'a cinematic paper boat on a river', durationSeconds: 8, aspectRatio: '16:9' },
+    });
+    expect(result.providerTaskId).toBe('xgrok-task');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://example.test/xgrok-videos/videos/generations',
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ body: expect.stringContaining('"model":"video-model"') }),
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ body: expect.stringContaining('"duration":8') }),
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ body: expect.stringContaining('"aspect_ratio":"16:9"') }),
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      'https://example.test/xgrok-videos/videos/xgrok-task',
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      'https://example.test/xgrok-videos/videos/xgrok-task/content',
+    );
+  });
 });

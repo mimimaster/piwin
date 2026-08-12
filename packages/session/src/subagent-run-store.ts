@@ -8,12 +8,14 @@
  * failed/interrupted state and retains its worktree.
  */
 
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { watch } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type {
   SubagentBatchRequest,
   SubagentFailurePolicy,
+  SubagentInvocation,
   SubagentRuntimeSnapshot,
   SubagentTaskResult,
   SubagentWorkspaceLease,
@@ -28,7 +30,14 @@ export type SubagentRunManifest = {
   tasks: Array<{
     id: string;
     task: string;
+    invocationId?: string;
+    parentRunId?: string;
+    parentToolCallId?: string;
+    sessionName?: string;
     profileId?: string;
+    model?: import('@piwin/contracts').ModelRef;
+    isolationOverride?: import('@piwin/contracts').SubagentIsolationMode;
+    continuationSessionId?: string;
     dependsOn?: string[];
     parallelGroup?: string;
   }>;
@@ -40,6 +49,8 @@ export type SubagentRunManifest = {
   leases: Record<string, SubagentWorkspaceLease>;
   /** Per-task results (updated after each terminal event). */
   results: Record<string, SubagentTaskResult>;
+  /** Parent-transcript invocation projections keyed by invocation id. */
+  invocations: Record<string, SubagentInvocation>;
   /** Batch-level status. */
   status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration';
 };
@@ -49,11 +60,90 @@ export type SubagentRunStoreOptions = {
   runsDir: string;
 };
 
+export class SubagentRunManifestCorruptError extends Error {
+  readonly name = 'SubagentRunManifestCorruptError';
+  readonly code = 'subagent-run-manifest-corrupt';
+  readonly runId: string;
+
+  constructor(runId: string, cause?: unknown) {
+    super(`subagent run manifest for ${runId} is corrupt or unsupported`, { cause });
+    this.runId = runId;
+  }
+}
+
+export class SubagentRunManifestExistsError extends Error {
+  readonly name = 'SubagentRunManifestExistsError';
+  readonly code = 'subagent-run-manifest-exists';
+  readonly runId: string;
+
+  constructor(runId: string) {
+    super(`subagent run manifest already exists: ${runId}`);
+    this.runId = runId;
+  }
+}
+
+function isNodeError(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && error.code === code;
+}
+
+/**
+ * Rejects run ids that could escape the runs directory or collide with
+ * sibling files (for example `../x`, `a/b`, or a cancel marker suffix).
+ */
+function assertSafeRunId(runId: string): void {
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error('Invalid run id: must be a non-empty string');
+  }
+  if (runId === '.' || runId === '..') {
+    throw new Error('Invalid run id: must not be "." or ".."');
+  }
+  if (runId.includes('/') || runId.includes('\\')) {
+    throw new Error('Invalid run id: must not contain path separators');
+  }
+  if (runId.includes('\0')) {
+    throw new Error('Invalid run id: must not contain NUL bytes');
+  }
+  if (runId.trim() !== runId) {
+    throw new Error('Invalid run id: must not have leading or trailing whitespace');
+  }
+}
+
+/**
+ * Publish a JSON document atomically: write a unique same-directory
+ * temporary file, flush it, then rename over the destination so readers
+ * never observe a truncated document. Files are owner-only.
+ */
+async function writeAtomicJson(filePath: string, value: unknown): Promise<void> {
+  const temporaryPath = `${filePath}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+      flag: 'wx',
+    });
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    try {
+      await unlink(temporaryPath);
+    } catch {
+      // Preserve the original publication failure.
+    }
+    throw error;
+  }
+}
+
 export function createSubagentRunStore(options: SubagentRunStoreOptions) {
   const runsDir = options.runsDir;
+  const mutationTails = new Map<string, Promise<void>>();
 
   function runPath(runId: string): string {
+    assertSafeRunId(runId);
     return join(runsDir, `${runId}.json`);
+  }
+
+  function cancelPath(runId: string): string {
+    assertSafeRunId(runId);
+    return join(runsDir, `${runId}.cancel`);
   }
 
   async function ensureDir(): Promise<void> {
@@ -74,7 +164,14 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       tasks: request.tasks.map((t) => ({
         id: t.id,
         task: t.task,
+        ...(t.invocationId ? { invocationId: t.invocationId } : {}),
+        ...(t.parentRunId ? { parentRunId: t.parentRunId } : {}),
+        ...(t.parentToolCallId ? { parentToolCallId: t.parentToolCallId } : {}),
+        ...(t.sessionName ? { sessionName: t.sessionName } : {}),
         ...(t.profileId ? { profileId: t.profileId } : {}),
+        ...(t.model ? { model: { ...t.model } } : {}),
+        ...(t.isolationOverride ? { isolationOverride: t.isolationOverride } : {}),
+        ...(t.continuationSessionId ? { continuationSessionId: t.continuationSessionId } : {}),
         ...(t.dependsOn ? { dependsOn: [...t.dependsOn] } : {}),
         ...(t.parallelGroup ? { parallelGroup: t.parallelGroup } : {}),
       })),
@@ -83,25 +180,119 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       snapshots: {},
       leases: {},
       results: {},
+      invocations: Object.fromEntries(
+        request.tasks.flatMap((task) => {
+          const invocationId = task.invocationId;
+          if (!invocationId) return [];
+          return [
+            [
+              invocationId,
+              {
+                id: invocationId,
+                parentSessionId: request.parentSessionId,
+                runId,
+                ...(task.parentRunId ? { parentRunId: task.parentRunId } : {}),
+                ...(task.parentToolCallId ? { parentToolCallId: task.parentToolCallId } : {}),
+                taskId: task.id,
+                task: task.task,
+                ...(task.sessionName ? { title: task.sessionName } : {}),
+                ...(task.profileId ? { profileId: task.profileId } : {}),
+                ...(task.model ? { model: { ...task.model } } : {}),
+                ...(task.isolationOverride ? { isolation: task.isolationOverride } : {}),
+                status: 'queued',
+                activity: { kind: 'queued' },
+                revision: 1,
+                createdAt: now,
+                updatedAt: now,
+              } satisfies SubagentInvocation,
+            ] as const,
+          ];
+        }),
+      ),
       status: 'running',
     };
-    await writeFile(runPath(runId), JSON.stringify(manifest, null, 2), 'utf8');
+    const finalPath = runPath(runId);
+    try {
+      await readFile(finalPath, 'utf8');
+      throw new SubagentRunManifestExistsError(runId);
+    } catch (error) {
+      if (error instanceof SubagentRunManifestExistsError) throw error;
+      if (!isNodeError(error, 'ENOENT')) throw error;
+    }
+    await writeAtomicJson(finalPath, manifest);
     return manifest;
   }
 
   async function loadManifest(runId: string): Promise<SubagentRunManifest | undefined> {
+    let raw: string;
     try {
-      const raw = await readFile(runPath(runId), 'utf8');
-      return JSON.parse(raw) as SubagentRunManifest;
-    } catch {
-      return undefined;
+      raw = await readFile(runPath(runId), 'utf8');
+    } catch (error) {
+      if (isNodeError(error, 'ENOENT')) return undefined;
+      throw error;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch (error) {
+      throw new SubagentRunManifestCorruptError(runId, error);
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new SubagentRunManifestCorruptError(runId);
+    }
+    const manifest = parsed as SubagentRunManifest;
+    if (manifest.runId !== runId || typeof manifest.status !== 'string') {
+      throw new SubagentRunManifestCorruptError(runId);
+    }
+    manifest.invocations ??= {};
+    return manifest;
+  }
+
+  async function listManifests(): Promise<SubagentRunManifest[]> {
+    try {
+      const entries = await readdir(runsDir, { withFileTypes: true });
+      const manifests = await Promise.all(
+        entries
+          .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+          .map((entry) => loadManifest(entry.name.slice(0, -'.json'.length))),
+      );
+      return manifests
+        .filter((manifest): manifest is SubagentRunManifest => manifest !== undefined)
+        .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        return [];
+      }
+      throw error;
     }
   }
 
   async function saveManifest(manifest: SubagentRunManifest): Promise<void> {
     manifest.updatedAt = new Date().toISOString();
     await ensureDir();
-    await writeFile(runPath(manifest.runId), JSON.stringify(manifest, null, 2), 'utf8');
+    await writeAtomicJson(runPath(manifest.runId), manifest);
+  }
+
+  async function mutateManifest(
+    runId: string,
+    mutate: (manifest: SubagentRunManifest) => boolean | void,
+  ): Promise<void> {
+    const previous = mutationTails.get(runId) ?? Promise.resolve();
+    const operation = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const manifest = await loadManifest(runId);
+        if (!manifest || mutate(manifest) === false) return;
+        await saveManifest(manifest);
+      });
+    mutationTails.set(runId, operation);
+    try {
+      await operation;
+    } finally {
+      if (mutationTails.get(runId) === operation) {
+        mutationTails.delete(runId);
+      }
+    }
   }
 
   async function recordSnapshot(
@@ -109,10 +300,9 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     taskId: string,
     snapshot: SubagentRuntimeSnapshot,
   ): Promise<void> {
-    const manifest = await loadManifest(runId);
-    if (!manifest) return;
-    manifest.snapshots[taskId] = snapshot;
-    await saveManifest(manifest);
+    await mutateManifest(runId, (manifest) => {
+      manifest.snapshots[taskId] = snapshot;
+    });
   }
 
   async function recordLease(
@@ -120,10 +310,9 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     taskId: string,
     lease: SubagentWorkspaceLease,
   ): Promise<void> {
-    const manifest = await loadManifest(runId);
-    if (!manifest) return;
-    manifest.leases[taskId] = lease;
-    await saveManifest(manifest);
+    await mutateManifest(runId, (manifest) => {
+      manifest.leases[taskId] = lease;
+    });
   }
 
   async function recordResult(
@@ -131,33 +320,50 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     taskId: string,
     result: SubagentTaskResult,
   ): Promise<void> {
-    const manifest = await loadManifest(runId);
-    if (!manifest) return;
-    manifest.results[taskId] = result;
-    await saveManifest(manifest);
+    await mutateManifest(runId, (manifest) => {
+      manifest.results[taskId] = result;
+    });
+  }
+
+  async function recordInvocation(runId: string, invocation: SubagentInvocation): Promise<void> {
+    await mutateManifest(runId, (manifest) => {
+      const current = manifest.invocations[invocation.id];
+      if (current && current.revision >= invocation.revision) return false;
+      manifest.invocations[invocation.id] = invocation;
+    });
+  }
+
+  async function listInvocations(parentSessionId: string): Promise<SubagentInvocation[]> {
+    const manifests = await listManifests();
+    return manifests
+      .filter((manifest) => manifest.parentSessionId === parentSessionId)
+      .flatMap((manifest) => Object.values(manifest.invocations))
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   }
 
   async function setStatus(runId: string, status: SubagentRunManifest['status']): Promise<void> {
-    const manifest = await loadManifest(runId);
-    if (!manifest) return;
-    manifest.status = status;
-    await saveManifest(manifest);
+    await mutateManifest(runId, (manifest) => {
+      manifest.status = status;
+    });
   }
 
   async function requestCancel(runId: string): Promise<boolean> {
     const manifest = await loadManifest(runId);
     if (!manifest || manifest.status !== 'running') return false;
     await ensureDir();
-    await writeFile(join(runsDir, `${runId}.cancel`), new Date().toISOString(), 'utf8');
+    await writeFile(cancelPath(runId), new Date().toISOString(), {
+      encoding: 'utf8',
+      mode: 0o600,
+    });
     return true;
   }
 
   async function isCancelRequested(runId: string): Promise<boolean> {
     try {
-      await readFile(join(runsDir, `${runId}.cancel`), 'utf8');
+      await readFile(cancelPath(runId), 'utf8');
       return true;
     } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      if (isNodeError(error, 'ENOENT')) {
         return false;
       }
       throw error;
@@ -233,9 +439,9 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
 
   async function clearCancelRequest(runId: string): Promise<void> {
     try {
-      await unlink(join(runsDir, `${runId}.cancel`));
+      await unlink(cancelPath(runId));
     } catch (error) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      if (isNodeError(error, 'ENOENT')) {
         return;
       }
       throw error;
@@ -277,10 +483,13 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
   return {
     createManifest,
     loadManifest,
+    listManifests,
     saveManifest,
     recordSnapshot,
     recordLease,
     recordResult,
+    recordInvocation,
+    listInvocations,
     setStatus,
     requestCancel,
     isCancelRequested,

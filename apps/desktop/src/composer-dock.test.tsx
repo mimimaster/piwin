@@ -599,9 +599,9 @@ describe('ComposerDock host status', () => {
     expect(sendButton?.getAttribute('aria-label')).toBe('发送');
   });
 
-  it('always shows orchestration scheme trigger (mode picker, including freehand/None)', () => {
+  it('always shows orchestration scheme trigger (mode picker, including freehand)', () => {
     const options = [
-      { id: 'off', name: 'None', description: 'Freehand — no scheme prompt injection' },
+      { id: 'off', name: 'Freehand', description: 'Freehand — no scheme prompt injection' },
       { id: 'ultra-code', name: 'Ultra Code', description: 'Multi-step coding plan' },
     ];
     const onOrchestrationSchemeChange = vi.fn();
@@ -619,7 +619,7 @@ describe('ComposerDock host status', () => {
     );
     expect(freehandTrigger).not.toBeNull();
     expect(freehandTrigger?.getAttribute('data-scheme')).toBe('off');
-    expect(freehandTrigger?.textContent).toContain('None');
+    expect(freehandTrigger?.textContent).toContain('Freehand');
 
     const active = renderDock(
       <ComposerDock

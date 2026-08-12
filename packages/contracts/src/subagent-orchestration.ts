@@ -20,6 +20,7 @@
  * compatible. When the worker task runner receives this envelope it casts
  * to the agent-host type before passing to the worker client.
  */
+import type { EphemeralProviderSecret, WorkerProviderAuthDescriptor } from './provider-auth.js';
 export type SubagentProviderEnvelope = {
   readonly providerId: string;
   readonly protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
@@ -33,10 +34,7 @@ export type SubagentProviderEnvelope = {
     readonly contextWindow?: number;
     readonly maxOutputTokens?: number;
   }>;
-  readonly auth:
-    | { readonly kind: 'env'; readonly envName: string }
-    | { readonly kind: 'inline'; readonly apiKey: string }
-    | { readonly kind: 'none' };
+  readonly auth: WorkerProviderAuthDescriptor;
 };
 
 /**
@@ -57,6 +55,7 @@ import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
 import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { BackendPreparedPrompt } from './backend-prepared-prompt.js';
 import type { BackendSessionBlueprint } from './backend-session-blueprint.js';
+import type { SessionSeedMessage } from './session-seed.js';
 
 /** What to do when a task in a batch fails. */
 export type SubagentFailurePolicy = 'continue' | 'fail-fast';
@@ -87,14 +86,19 @@ export type SubagentWorktreeWorkspaceLease = {
 
 /** A workspace lease allocated by the workspace service. */
 export type SubagentWorkspaceLease =
-  | SubagentReadonlyWorkspaceLease
-  | SubagentWorktreeWorkspaceLease;
+  SubagentReadonlyWorkspaceLease | SubagentWorktreeWorkspaceLease;
 
 /** A single task in a batch request. */
 export type SubagentTaskSpec = {
   id: string;
   parentSessionId: string;
   task: string;
+  /** Stable Host identity for one parent delegation invocation. */
+  invocationId?: string;
+  /** Parent Run that emitted the delegation tool call. */
+  parentRunId?: string;
+  /** Generation-normalized parent tool call used as the transcript anchor. */
+  parentToolCallId?: string;
   /** Optional display name for the child session. */
   sessionName?: string;
   profileId?: string;
@@ -115,6 +119,78 @@ export type SubagentTaskSpec = {
   /** Resolved skill allowlist captured before dispatch. */
   skillIds?: string[];
   allowedOutputPaths?: string[];
+  /** Reuse an existing terminal child identity for a continuation Run. */
+  continuationSessionId?: string;
+  /** Host-validated existing workspace; continuation never allocates a new worktree. */
+  continuationWorkspaceLease?: SubagentWorkspaceLease;
+};
+
+/** Durable parent-transcript projection for one delegation tool invocation. */
+export type SubagentInvocationStatus =
+  'queued' | 'starting' | 'running' | 'completed' | 'needs-integration' | 'failed' | 'cancelled';
+
+/** Display-safe semantic activity retained across reconnect and Host restart. */
+export type SubagentInvocationActivity =
+  | { kind: 'queued' }
+  | { kind: 'preparing' }
+  | { kind: 'thinking' }
+  | { kind: 'responding' }
+  | { kind: 'tool'; toolName: string; title?: string }
+  | { kind: 'permission'; action: string }
+  | { kind: 'completed'; summary?: string }
+  | { kind: 'needs-integration'; message?: string }
+  | { kind: 'failed'; message?: string }
+  | { kind: 'cancelled' };
+
+export type SubagentInvocation = {
+  id: string;
+  parentSessionId: string;
+  /** Batch Run that owns the task. */
+  runId: string;
+  /** Parent foreground Run that emitted the delegation tool. */
+  parentRunId?: string;
+  /** Generation-normalized tool id anchoring the inline parent block. */
+  parentToolCallId?: string;
+  taskId: string;
+  task: string;
+  title?: string;
+  profileId?: string;
+  model?: ModelRef;
+  isolation?: SubagentIsolationMode;
+  childSessionId?: string;
+  status: SubagentInvocationStatus;
+  activity: SubagentInvocationActivity;
+  /** Monotonic within this invocation; consumers ignore stale revisions. */
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Stable, redacted, display-safe failure projection for persisted results. */
+export type SubagentFailureKind =
+  | 'host-interrupted'
+  | 'integration-conflict'
+  | 'integration-failed'
+  | 'validation'
+  | 'provider'
+  | 'internal'
+  | 'cancelled';
+
+/** Which lifecycle axis produced the failure. */
+export type SubagentFailurePhase = 'execution' | 'integration' | 'cleanup';
+
+/**
+ * Structured failure attached to a task result. `code` is a stable
+ * machine-readable identifier; `message` is bounded and redacted. The
+ * human-readable `error` field remains for compatibility but must never be
+ * the only durable representation.
+ */
+export type SubagentFailure = {
+  kind: SubagentFailureKind;
+  code: string;
+  phase: SubagentFailurePhase;
+  retryable: boolean;
+  message: string;
 };
 
 /** A batch of tasks to orchestrate. */
@@ -142,6 +218,8 @@ export type SubagentTaskResult = {
   changedFiles?: string[];
   verification?: string;
   error?: string;
+  /** Structured, redacted failure detail (present whenever a task failed). */
+  failure?: SubagentFailure;
   worktreePath?: string;
   /** Relative paths that the integration operation is allowed to apply. */
   allowedOutputPaths?: string[];
@@ -178,7 +256,6 @@ export type SubagentBatchValidationIssue = {
   message: string;
 };
 
-
 /** Capabilities reported by the task runner backend. */
 export type SubagentTaskRunnerCapabilities = {
   /** True when the backend runs tasks in isolated worker processes. */
@@ -198,6 +275,10 @@ export type SubagentTaskRunInput = {
   sessionBlueprint: BackendSessionBlueprint;
   /** Prepared prompt text and images — frozen before dispatch. */
   preparedPrompt: BackendPreparedPrompt;
+  /** Bounded product transcript used to reconstruct a continuation worker. */
+  seedMessages?: readonly SessionSeedMessage[];
+  /** In-memory secret material for the worker's one-shot bootstrap channel. */
+  providerSecrets?: readonly EphemeralProviderSecret[];
   /**
    * Provider runtime envelope — frozen before backend dispatch.
    *
@@ -233,10 +314,7 @@ export type SubagentTaskRunOutput = {
  */
 export interface SubagentTaskRunner {
   readonly capabilities: SubagentTaskRunnerCapabilities;
-  runTask(
-    input: SubagentTaskRunInput,
-    signal: AbortSignal,
-  ): Promise<SubagentTaskRunOutput>;
+  runTask(input: SubagentTaskRunInput, signal: AbortSignal): Promise<SubagentTaskRunOutput>;
 }
 
 /**
@@ -302,7 +380,9 @@ export function validateSubagentBatchRequest(
   }
 
   // DFS-based cycle detection (WHITE→GRAY→BLACK coloring).
-  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const WHITE = 0,
+    GRAY = 1,
+    BLACK = 2;
   const color = new Map<string, number>();
   for (const id of taskIds) {
     color.set(id, WHITE);
@@ -310,7 +390,7 @@ export function validateSubagentBatchRequest(
 
   function hasCycle(id: string): boolean {
     const c = color.get(id);
-    if (c === GRAY) return true;  // back edge → cycle
+    if (c === GRAY) return true; // back edge → cycle
     if (c === BLACK) return false; // already processed
     color.set(id, GRAY);
     const deps = adj.get(id) ?? [];

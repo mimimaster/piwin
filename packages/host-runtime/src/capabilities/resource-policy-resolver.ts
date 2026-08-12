@@ -117,13 +117,13 @@ export function resolveResourceActivations(
     const idDisabled = disabled.has(resourceId);
     const notAllowed = allow !== null && !allow.has(resourceId);
 
-    const configuredEnabled = !familyOff && !idDisabled;
+    const configuredEnabled = !familyOff && !idDisabled && entry.configuredEnabled !== false;
     const effectiveEnabled = configuredEnabled && sourceAllowed && !notAllowed;
     const blockedReason = projectBlocked
       ? 'project-untrusted'
       : notAllowed
         ? 'not-allowed'
-        : familyOff || idDisabled || !sourceAllowed
+        : familyOff || idDisabled || entry.configuredEnabled === false || !sourceAllowed
           ? 'disabled'
           : undefined;
 

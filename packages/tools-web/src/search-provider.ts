@@ -10,6 +10,7 @@ import { createDefaultWebConfig } from '@piwin/contracts';
 import { mergeSearchHitBatches, type SourceHitBatch } from './search-merge.js';
 import { createProviderForSource, type SearchProvider } from './search-source-providers.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
+import { sameModelRef, type WebSearchModelDelegate } from './model-search-delegate.js';
 
 export type { SearchProvider } from './search-source-providers.js';
 
@@ -27,6 +28,7 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
     searchMaxResults: partial.searchMaxResults ?? defaults.searchMaxResults,
     searchTimeoutMs: partial.searchTimeoutMs ?? defaults.searchTimeoutMs,
     searchSources,
+    ...(partial.searchDelegateModel ? { searchDelegateModel: partial.searchDelegateModel } : {}),
     searchStrategy,
     searchRoutePolicy: partial.searchRoutePolicy ?? defaults.searchRoutePolicy,
     fetchProvider: partial.fetchProvider ?? defaults.fetchProvider,
@@ -45,8 +47,24 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
 export function createSearchProvider(
   config: WebConfig | Partial<WebConfig>,
   credentials: WebRuntimeCredentials = {},
+  delegate?: WebSearchModelDelegate,
 ): SearchProvider {
   const resolved = resolveWebConfig(config);
+  if (resolved.searchDelegateModel) {
+    const selectedModel = resolved.searchDelegateModel;
+    const providerId = `model-delegate:${selectedModel.providerId}/${selectedModel.modelId}`;
+    return {
+      id: providerId,
+      async search(query, options): Promise<SearchHit[]> {
+        if (!delegate || !sameModelRef(delegate.model, selectedModel)) {
+          throw new Error(
+            `web search delegate is unavailable: ${selectedModel.providerId}/${selectedModel.modelId}`,
+          );
+        }
+        return delegate.search(query, options);
+      },
+    };
+  }
   const enabled = resolved.searchSources.filter((source) => source.enabled);
   if (enabled.length === 0) {
     return {
@@ -78,13 +96,14 @@ export async function webSearch(
   config?: Partial<WebConfig>,
   signal?: AbortSignal,
   credentials: WebRuntimeCredentials = {},
+  delegate?: WebSearchModelDelegate,
 ): Promise<WebSearchResult> {
   const resolved = resolveWebConfig(config);
   const trimmed = query.trim();
   if (!trimmed) {
     throw new Error('empty search query');
   }
-  const provider = createSearchProvider(resolved, credentials);
+  const provider = createSearchProvider(resolved, credentials, delegate);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), resolved.searchTimeoutMs);

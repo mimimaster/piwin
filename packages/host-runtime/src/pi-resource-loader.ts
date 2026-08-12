@@ -116,6 +116,10 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
       description: resource.description,
       path: resource.path,
       source: resource.source,
+      ...(resource.contentRevision ? { contentRevision: resource.contentRevision } : {}),
+      ...(resource.configuredEnabled !== undefined
+        ? { configuredEnabled: resource.configuredEnabled }
+        : {}),
     })),
     ...discoveredPrompts.map((resource) => ({
       resourceId: normalizeResourceId(resource.id),

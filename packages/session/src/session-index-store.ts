@@ -290,6 +290,10 @@ export function createSessionRecord(input: {
   sideChatContext?: SideChatContextSnapshot;
   subagentStatus?: SessionIndexRecord['subagentStatus'];
   task?: string;
+  subagentInvocationId?: string;
+  subagentTaskId?: string;
+  subagentParentRunId?: string;
+  subagentParentToolCallId?: string;
   subagentMode?: SessionIndexRecord['subagentMode'];
   subagentApplyPolicy?: SessionIndexRecord['subagentApplyPolicy'];
   subagentAllowedOutputPaths?: string[];
@@ -356,6 +360,18 @@ export function createSessionRecord(input: {
   }
   if (input.task) {
     record.task = input.task;
+  }
+  if (input.subagentInvocationId) {
+    record.subagentInvocationId = input.subagentInvocationId;
+  }
+  if (input.subagentTaskId) {
+    record.subagentTaskId = input.subagentTaskId;
+  }
+  if (input.subagentParentRunId) {
+    record.subagentParentRunId = input.subagentParentRunId;
+  }
+  if (input.subagentParentToolCallId) {
+    record.subagentParentToolCallId = input.subagentParentToolCallId;
   }
   if (input.subagentMode) {
     record.subagentMode = input.subagentMode;

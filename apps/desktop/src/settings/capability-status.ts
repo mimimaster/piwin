@@ -10,6 +10,7 @@
  * the MCP switch never masquerades as Running.
  */
 import type { PiwinConfig, SessionRuntimeStatus } from '@piwin/contracts';
+import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piwin/contracts';
 
 export type CapabilityStateKind = 'configured' | 'effective' | 'loaded' | 'running';
 
@@ -50,24 +51,43 @@ export function resolveCapabilityStatuses(input: CapabilityStatusInput): Capabil
   const webConfig = config.web;
   const searchSourcesReady =
     (webConfig?.searchSources ?? []).filter((source) => source.enabled).length > 0;
+  const delegateRef = webConfig?.searchDelegateModel;
+  const delegateProvider = delegateRef
+    ? config.providers.find(
+        (provider) =>
+          isProviderEnabled(provider) &&
+          provider.id === delegateRef.providerId &&
+          provider.protocol === delegateRef.protocol,
+      )
+    : undefined;
+  const delegateModel = delegateProvider?.models.find(
+    (model) => model.id === delegateRef?.modelId && isModelEnabled(model),
+  );
+  const delegateReady = Boolean(
+    delegateModel && modelSupportsCapability(delegateModel, 'native-web-search'),
+  );
   const mcpRunning = services?.mcpRunning === true;
   const processRunning = services?.processRunning === true;
   const browserRunning = services?.browserRunning === true;
 
   const searchProviderOff = webConfig?.searchProvider === 'none';
+  const searchConfigured = Boolean(delegateRef) || !searchProviderOff;
+  const searchEffective = delegateRef ? delegateReady : !searchProviderOff && searchSourcesReady;
 
   const rows: CapabilityStatus[] = [
     {
       key: 'webSearch',
-      configured: searchProviderOff ? 'off' : 'on',
-      effective: !searchProviderOff && searchSourcesReady,
+      configured: searchConfigured ? 'on' : 'off',
+      effective: searchEffective,
       loaded: !stale,
       running: true,
-      ...(searchProviderOff
+      ...(!searchConfigured
         ? { note: 'No search provider configured' }
-        : !searchSourcesReady
-          ? { note: 'No enabled search source is ready' }
-          : {}),
+        : delegateRef && !delegateReady
+          ? { note: 'Configured web_search delegate model is unavailable' }
+          : !delegateRef && !searchSourcesReady
+            ? { note: 'No enabled search source is ready' }
+            : {}),
     },
     {
       key: 'mcp',

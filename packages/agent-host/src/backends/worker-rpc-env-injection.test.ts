@@ -1,7 +1,7 @@
 /**
  * ADR 0030 Phase C-2: Verify that only required apiKeyEnv values are injected
  * into the worker process environment — never the full host env, and never
- * secrets for providers that use inline or no auth.
+ * inline auth, which is rejected at the worker boundary.
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
@@ -98,7 +98,7 @@ describe('WorkerSessionBackend env injection (ADR 0030 C-2)', () => {
     }
   });
 
-  it('does NOT inject env for auth.kind=inline provider', async () => {
+  it('rejects SDK-only inline auth before acquiring a worker', async () => {
     const provider: SerializableProviderRuntime = {
       providerId: 'custom',
       protocol: 'openai-compatible',
@@ -111,23 +111,14 @@ describe('WorkerSessionBackend env injection (ADR 0030 C-2)', () => {
       supervisor: new AgentWorkerSupervisor({ worker: { workerScript: '/tmp/fake-worker.js' } }),
     });
 
-    await backend.createSession({
-      blueprint: createValidBlueprint(),
-      providers: [provider],
-      hostToolExecution: { execute: vi.fn() },
-    });
-
-    const sessions = Reflect.get(backend, 'sessions') as Map<
-      string,
-      { client: RpcSdkWorkerClient }
-    >;
-    const client = sessions.values().next().value?.client ?? null;
-    expect(client).not.toBeNull();
-    const options = Reflect.get(client as object, 'options') as WorkerClientOptions;
-    // env should be undefined or empty — inline secrets go in the JSONL payload.
-    if (options.env) {
-      expect(Object.keys(options.env)).toEqual([]);
-    }
+    await expect(
+      backend.createSession({
+        blueprint: createValidBlueprint(),
+        providers: [provider],
+        hostToolExecution: { execute: vi.fn() },
+      }),
+    ).rejects.toThrow(/SDK-only inline auth at the worker boundary/);
+    expect(RpcSdkWorkerClient.prototype.start).not.toHaveBeenCalled();
   });
 
   it('skips env vars that are not set in process.env', async () => {

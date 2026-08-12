@@ -10,6 +10,7 @@ import type {
 import { SPEECH_MAX_DURATION_MS, formatError, modelSupportsCapability } from '@piwin/contracts';
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
+import { createExtensionRevisionStore } from '@piwin/extensions';
 import { ensureBundledSkillsInstalled, readSkillPreview, scanSkills } from '@piwin/skills';
 import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
 import {
@@ -296,6 +297,20 @@ export async function handleCatalogCommand(
     }
     case 'extensions/set_enabled': {
       const rootDir = getPiwinRoot(context.piwinRoot);
+      const extensionStore = createExtensionRevisionStore(rootDir);
+      const managedRecord = await extensionStore.getRecord(command.extensionId);
+      if (managedRecord) {
+        const registry = await extensionStore.setEnabled(command.extensionId, command.enabled);
+        await pushExtensionCatalog(context, rootDir, registry.revision);
+        const currentConfig = await loadPiwinConfig(rootDir);
+        return ok(requestId, 'extensions/set_enabled', {
+          extensionId: command.extensionId,
+          enabled: command.enabled,
+          disabledIds: currentConfig.extensions?.disabledIds ?? [],
+          managed: true,
+          registryRevision: registry.revision,
+        });
+      }
       const config = await loadPiwinConfig(rootDir);
       const extensionsConfig = config.extensions ?? {
         extraPaths: [],
@@ -335,9 +350,14 @@ export async function handleCatalogCommand(
         installOptions.name = command.name.trim();
       }
       const result = await installExtension(installOptions);
+      await pushExtensionCatalog(context, rootDir, result.registryRevision);
       return ok(requestId, 'extensions/install', {
         extensionId: result.extensionId,
         targetPath: result.targetPath,
+        packageRoot: result.packageRoot,
+        contentRevision: result.contentRevision,
+        registryRevision: result.registryRevision,
+        configuredEnabled: result.configuredEnabled,
       });
     }
     case 'prompts/list': {
@@ -762,6 +782,24 @@ export async function handleCatalogCommand(
     default:
       return null;
   }
+}
+
+async function pushExtensionCatalog(
+  context: HostCommandContext,
+  rootDir: string,
+  registryRevision: string,
+): Promise<void> {
+  const config = await loadPiwinConfig(rootDir);
+  await ensureBundledExtensionsInstalled(rootDir);
+  const extensions = await scanExtensions({
+    piwinRoot: rootDir,
+    ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
+  });
+  context.push({
+    type: 'extension/catalog-updated',
+    registryRevision,
+    extensions,
+  });
 }
 
 function maskSecretPreview(secret: string): string {

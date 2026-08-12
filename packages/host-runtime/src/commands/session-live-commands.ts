@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
  * HostRuntime provides SessionLiveContext (maps + ensureLiveSession/bindSession/…).
  */
 import { mkdir, open, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
+import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import type {
   AgentHost,
   CreateSessionInput,
@@ -62,6 +62,7 @@ import {
 import {
   clearSessionPlan,
   createSessionRecord,
+  createSubagentRunStore,
   streamTranscriptExport,
   getSessionRecord,
   listChildSessions,
@@ -87,10 +88,25 @@ function createResolveRefsDeps(context: SessionLiveContext): {
   loadTranscriptMessages: (
     sessionId: string,
   ) => Promise<import('@piwin/contracts').SessionTranscriptMessage[]>;
+  loadTranscriptMessage: (
+    sessionId: string,
+    messageId: string,
+  ) => Promise<import('@piwin/contracts').SessionTranscriptMessage | undefined>;
   isRegisteredProjectRoot: (projectPath: string) => Promise<boolean>;
+  onDiagnostic: (message: string) => void;
 } {
   return {
     loadTranscriptMessages: context.loadTranscriptMessages,
+    loadTranscriptMessage: async (sessionId, messageId) => {
+      try {
+        return await (await context.getTranscriptStore(sessionId)).getMessage(messageId);
+      } catch {
+        return undefined;
+      }
+    },
+    onDiagnostic: (message) => {
+      context.push({ type: 'host/log', level: 'warn', message });
+    },
     isRegisteredProjectRoot: async (projectPath: string): Promise<boolean> => {
       try {
         const projectsPath = getPiwinProjectsPath(getPiwinRoot(context.piwinRoot));
@@ -148,6 +164,10 @@ export type SessionLiveContext = {
     runId: string,
     scheme: ResolvedOrchestrationScheme | undefined,
   ) => void;
+  /** ORCH: bind the per-turn model-facing delegation policy. */
+  setRunDelegationMode?: (runId: string, mode: 'auto' | 'disabled') => void;
+  /** Rebuild a warm generation when its frozen delegation surface differs. */
+  prepareDelegationRuntime?: (sessionId: string, mode: 'auto' | 'disabled') => Promise<void>;
   /** ORCH: read scheme for the active/parent run (soft-generic spawn). */
   getRunOrchestrationScheme: (runId: string) => ResolvedOrchestrationScheme | undefined;
   /** Builtin + settings profile ids for scheme resolve validation. */
@@ -215,6 +235,18 @@ export type SessionLiveContext = {
    * (SIDE §7.5(5)) while a version-stable session stays untouched.
    */
   sideChatSnapshotInjectedVersions: Map<string, number>;
+  /**
+   * Active compact-export operations keyed by the source product session id.
+   * Abort targets the temporary runtime registered here, not the source session.
+   */
+  compactExportOperations: Map<
+    string,
+    {
+      sourceSessionId: string;
+      temporarySession?: SessionHandle;
+      abortRequested: boolean;
+    }
+  >;
   stopProcessesForSession: (sessionId: string) => Promise<void>;
   recordUserPrompt: (sessionId: string, input: PromptInput) => Promise<void>;
   touchSession: (sessionId: string, previewText: string) => Promise<void>;
@@ -534,37 +566,62 @@ async function compactTranscriptSnapshot(
   record: SessionIndexRecord,
   customInstructions?: string,
 ): Promise<SessionCompactResult> {
-  const history = await context.withTranscriptStore(record.id, (store) =>
-    store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
-  );
-  const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
-    id: `compact-history-${index}`,
-    role: message.role as SessionTranscriptMessage['role'],
-    text: message.text,
-    createdAt: new Date().toISOString(),
-    status: 'done',
-  }));
-  const seedMessages = buildCompactionSeedMessages(snapshotMessages);
-  if (seedMessages.length === 0) {
-    return { ok: false, message: 'Session has no messages to summarize' };
+  if (context.compactExportOperations.has(record.id)) {
+    return { ok: false, message: 'compaction-active: compact-export already running for this session' };
   }
-  seedMessages.push({
-    role: 'user',
-    text: '[Internal snapshot boundary: summarize the preceding conversation.]',
-    timestamp: Date.now(),
-  });
-
-  const createInput: CreateSessionInput = {
-    projectPath: record.projectPath,
-    ...(record.scope ? { scope: record.scope } : {}),
-    ...(record.workingDirectory ? { cwd: record.workingDirectory } : {}),
-    ...(record.name ? { sessionName: record.name } : {}),
+  const operation: {
+    sourceSessionId: string;
+    temporarySession?: SessionHandle;
+    abortRequested: boolean;
+  } = {
+    sourceSessionId: record.id,
+    abortRequested: false,
   };
+  // Register before any await so an early abort is not missed.
+  context.compactExportOperations.set(record.id, operation);
+
   let temporarySession: SessionHandle | undefined;
   let operationFailed = false;
   let operationError: unknown;
   try {
+    if (operation.abortRequested) {
+      return { ok: false, message: 'Compaction cancelled' };
+    }
+    const history = await context.withTranscriptStore(record.id, (store) =>
+      store.buildHistoryWindow({ maxMessages: 200, maxChars: 200_000 }),
+    );
+    if (operation.abortRequested) {
+      return { ok: false, message: 'Compaction cancelled' };
+    }
+    const snapshotMessages: SessionTranscriptMessage[] = history.map((message, index) => ({
+      id: `compact-history-${index}`,
+      role: message.role as SessionTranscriptMessage['role'],
+      text: message.text,
+      createdAt: new Date().toISOString(),
+      status: 'done',
+    }));
+    const seedMessages = buildCompactionSeedMessages(snapshotMessages);
+    if (seedMessages.length === 0) {
+      return { ok: false, message: 'Session has no messages to summarize' };
+    }
+    seedMessages.push({
+      role: 'user',
+      text: '[Internal snapshot boundary: summarize the preceding conversation.]',
+      timestamp: Date.now(),
+    });
+
+    const createInput: CreateSessionInput = {
+      projectPath: record.projectPath,
+      ...(record.scope ? { scope: record.scope } : {}),
+      ...(record.workingDirectory ? { cwd: record.workingDirectory } : {}),
+      ...(record.name ? { sessionName: record.name } : {}),
+    };
     temporarySession = await context.createSession(createInput, { seedMessages });
+    operation.temporarySession = temporarySession;
+    if (operation.abortRequested) {
+      temporarySession.abortCompaction?.();
+      return { ok: false, message: 'Compaction cancelled' };
+    }
     return await compactSessionHandle(
       context,
       temporarySession.id,
@@ -577,6 +634,10 @@ async function compactTranscriptSnapshot(
     operationError = error;
     throw error;
   } finally {
+    const registered = context.compactExportOperations.get(record.id);
+    if (registered === operation) {
+      context.compactExportOperations.delete(record.id);
+    }
     if (temporarySession) {
       try {
         await context.disposeLiveSession(temporarySession.id);
@@ -690,6 +751,11 @@ async function preparePromptInput(
   };
   throwIfPromptPreparationAborted(context, run.runId);
 
+  context.setRunDelegationMode?.(
+    run.runId,
+    command.input.delegationMode === 'disabled' ? 'disabled' : 'auto',
+  );
+
   // SIDE §7.5(5)/§9.2: inject the side chat's inherited context snapshot
   // whenever the stored context version is newer than the version already
   // injected into this session. This covers the first prompt after
@@ -703,9 +769,10 @@ async function preparePromptInput(
     if (injectedVersion === undefined || injectedVersion < sideChatSnapshot.version) {
       const sideBlock = formatSideChatContextBlock(sideChatSnapshot);
       promptInput.text = mergeSideChatContextIntoPrompt(sideBlock, promptInput.text);
-      context.sideChatSnapshotInjectedVersions.set(command.sessionId, sideChatSnapshot.version);
       // SIDE §7.2: refs captured at open/sync are part of the shared context —
-      // resolve them alongside the snapshot block on injection.
+      // resolve them alongside the snapshot block on injection. Commit the
+      // injected version only after resolution + cancellation checks succeed,
+      // so a failed/cancelled preparation retries the same version next turn.
       if (sideChatSnapshot.refs.length > 0) {
         const refText = await resolvePromptContextRefs(
           createResolveRefsDeps(context),
@@ -715,7 +782,10 @@ async function preparePromptInput(
         if (refText) {
           promptInput.text = `${refText}\n\n${promptInput.text}`;
         }
+      } else {
+        throwIfPromptPreparationAborted(context, run.runId);
       }
+      context.sideChatSnapshotInjectedVersions.set(command.sessionId, sideChatSnapshot.version);
     }
   }
   throwIfPromptPreparationAborted(context, run.runId);
@@ -849,7 +919,7 @@ async function injectProductHistoryOnce(
         ? { excludeMessageId: promptInput.clientMessageId }
         : {}),
     });
-    const history = formatBoundedHistory(historyRows);
+    const history = await formatBoundedHistoryWithContext(context, historyRows);
     if (history) {
       promptInput.text = mergeProductHistoryIntoPrompt(history, promptInput.text);
     }
@@ -864,7 +934,20 @@ async function injectProductHistoryOnce(
   context.markProductHistoryInjected(sessionId);
 }
 
-function formatBoundedHistory(rows: ReadonlyArray<{ role: string; text: string }>): string {
+/**
+ * Cold-start model history rebuild. User rows keep their original text; each
+ * persisted structured context ref is resolved again into a labeled block so
+ * the reconstructed generation sees the same referenced content without the
+ * transcript ever storing resolved bodies.
+ */
+async function formatBoundedHistoryWithContext(
+  context: SessionLiveContext,
+  rows: ReadonlyArray<{
+    role: string;
+    text: string;
+    contextRefs?: import('@piwin/contracts').PromptContextRef[] | undefined;
+  }>,
+): Promise<string> {
   if (rows.length === 0) {
     return '';
   }
@@ -875,6 +958,23 @@ function formatBoundedHistory(rows: ReadonlyArray<{ role: string; text: string }
   for (const row of rows) {
     const role = row.role === 'user' ? 'User' : row.role === 'assistant' ? 'Assistant' : 'System';
     lines.push(`${role}: ${row.text.trim()}`);
+    if (row.role === 'user' && row.contextRefs && row.contextRefs.length > 0) {
+      try {
+        const resolvedContext = await resolvePromptContextRefs(
+          createResolveRefsDeps(context),
+          row.contextRefs,
+        );
+        if (resolvedContext) {
+          lines.push(resolvedContext);
+        }
+      } catch (error) {
+        context.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `context ref resolve failed: ${formatError(error)}`,
+        });
+      }
+    }
   }
   lines.push('[/piwin-product-history]');
   return lines.join('\n');
@@ -1011,9 +1111,13 @@ export async function handleSessionLiveCommand(
         getPiwinSessionIndexPath(rootDir),
         command.parentSessionId,
       );
+      const invocations = await createSubagentRunStore({
+        runsDir: join(rootDir, 'subagent-runs'),
+      }).listInvocations(command.parentSessionId);
       return ok(requestId, 'session/list-children', {
         parentSessionId: command.parentSessionId,
-        sessions: children,
+        sessions: children.map(indexRecordToSummary),
+        invocations,
       });
     }
     case 'session/truncate-from': {
@@ -1520,6 +1624,12 @@ export async function handleSessionLiveCommand(
           return fail(requestId, 'session/prompt', message);
         }
       }
+      const delegationMode = command.input.delegationMode === 'disabled' ? 'disabled' : 'auto';
+      try {
+        await context.prepareDelegationRuntime?.(command.sessionId, delegationMode);
+      } catch (error) {
+        return fail(requestId, 'session/prompt', formatError(error));
+      }
       let run: ExecutionRunRecord;
       try {
         run = context.registerForegroundRun(
@@ -1854,6 +1964,16 @@ export async function handleSessionLiveCommand(
       return ok(requestId, 'session/compact-export', data);
     }
     case 'session/compact-abort': {
+      const exportOperation = context.compactExportOperations.get(command.sessionId);
+      if (exportOperation) {
+        exportOperation.abortRequested = true;
+        exportOperation.temporarySession?.abortCompaction?.();
+        return ok(requestId, 'session/compact-abort', { sessionId: command.sessionId });
+      }
+      // Ordinary live-session compaction abort (not compact-export).
+      if (!context.sessions.has(command.sessionId)) {
+        return ok(requestId, 'session/compact-abort', { sessionId: command.sessionId });
+      }
       const session = context.requireSession(command.sessionId);
       if (session.abortCompaction) {
         session.abortCompaction();

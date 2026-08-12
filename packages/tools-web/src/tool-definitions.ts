@@ -2,10 +2,12 @@ import type { HostToolRegistration, WebConfig } from '@piwin/contracts';
 import { webFetch } from './web-fetch.js';
 import { webSearch } from './search-provider.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
+import type { WebSearchModelDelegate } from './model-search-delegate.js';
 
 export function createWebToolDefinitions(
   config?: Partial<WebConfig>,
   credentials: WebRuntimeCredentials = {},
+  delegate?: WebSearchModelDelegate,
 ): HostToolRegistration[] {
   return [
     {
@@ -30,7 +32,7 @@ export function createWebToolDefinitions(
       },
       async execute(args, signal) {
         const query = String(args.query ?? '');
-        const result = await webSearch(query, config, signal, credentials);
+        const result = await webSearch(query, config, signal, credentials, delegate);
         return { ok: true, output: JSON.stringify(result, null, 2) };
       },
     },

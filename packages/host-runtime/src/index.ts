@@ -2,6 +2,7 @@ export type { SubagentTaskRunner } from '@piwin/contracts';
 export {
   buildToolPresentation,
   classifyToolKind,
+  resolvePresentedToolInvocation,
   boundToolOutput,
   redactToolText,
   estimateMockUsage,
@@ -70,9 +71,7 @@ export {
   listInterruptedTranscriptMigrations,
   repairInterruptedTranscriptMigration,
 } from './session-transcript-store-registry.js';
-export type {
-  InterruptedTranscriptMigration,
-} from './session-transcript-store-registry.js';
+export type { InterruptedTranscriptMigration } from './session-transcript-store-registry.js';
 export {
   listWalkthroughs,
   loadWalkthrough,
@@ -279,6 +278,25 @@ export { createSubagentIntegrationCoordinator } from './subagent-integration-coo
 export type {
   SubagentIntegrationCoordinator,
   SubagentIntegrationCoordinatorOptions,
+  SubagentIntegrationControl,
   WorktreeIntegrationInput,
   WorktreeIntegrationResult,
 } from './subagent-integration-coordinator.js';
+export {
+  acquirePiwinRootLease,
+  PiwinRootAlreadyOwnedError,
+  PiwinRootLeaseCompromisedError,
+  PiwinRootOwnershipUnknownError,
+} from './piwin-root-lease.js';
+export type {
+  AcquirePiwinRootLeaseOptions,
+  PiwinRootLease,
+  PiwinRootOwner,
+  PiwinRootOwnerKind,
+} from './piwin-root-lease.js';
+export {
+  createPersistedFailure,
+  HOST_INTERRUPTED_FAILURE,
+  redactPersistedMessage,
+} from './persisted-error-redaction.js';
+export type { PersistedFailureContext } from './persisted-error-redaction.js';

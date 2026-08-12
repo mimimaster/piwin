@@ -189,6 +189,10 @@ function resolveBackendProviderApiKey(provider: SerializableProviderRuntime): st
       return process.env[provider.auth.envName];
     case 'inline':
       return provider.auth.apiKey;
+    case 'bootstrap':
+      throw new Error(
+        `Provider "${provider.providerId}" uses worker-only bootstrap auth in the SDK backend`,
+      );
     case 'none':
       return undefined;
   }
@@ -259,7 +263,11 @@ function wrapBackendPiSession(
       await piSession.prompt(message);
     },
     async abort() {
-      await piSession.abort?.();
+      try {
+        await piSession.abort?.();
+      } finally {
+        eventMapper.reset?.();
+      }
     },
     ...(piSession.compact
       ? {

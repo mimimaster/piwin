@@ -25,6 +25,19 @@ export type HostServeDispatcher = {
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 45_000;
 
+function commandTimeoutMs(command: HostCommand, defaultTimeoutMs: number): number | undefined {
+  switch (command.type) {
+    case 'session/compact':
+    case 'session/compact-export':
+      // These commands await a model completion. The control lane remains
+      // available for session/compact-abort, so a wall-clock dispatcher
+      // deadline would only detach the response from work that keeps running.
+      return undefined;
+    default:
+      return defaultTimeoutMs;
+  }
+}
+
 export function createHostServeDispatcher(
   options: HostServeDispatcherOptions,
 ): HostServeDispatcher {
@@ -39,12 +52,15 @@ export function createHostServeDispatcher(
       return;
     }
     const lane = classifyHostServeCommand(command);
+    const commandDeadlineMs = commandTimeoutMs(command, timeoutMs);
     if (lane === 'control' || lane === 'concurrent') {
-      void trackCommand(runCommand(options.runtime, options.send, command, timeoutMs));
+      void trackCommand(runCommand(options.runtime, options.send, command, commandDeadlineMs));
       return;
     }
     serializedChain = trackCommand(
-      serializedChain.then(() => runCommand(options.runtime, options.send, command, timeoutMs)),
+      serializedChain.then(() =>
+        runCommand(options.runtime, options.send, command, commandDeadlineMs),
+      ),
     );
   }
 
@@ -78,21 +94,23 @@ async function runCommand(
   runtime: HostRuntime,
   send: HostServeSend,
   command: HostCommand,
-  timeoutMs: number,
+  timeoutMs: number | undefined,
 ): Promise<void> {
   const commandId = typeof command.id === 'string' ? command.id : undefined;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error(`command timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-      timeoutId.unref();
-    });
-    const response: HostResponse = await Promise.race([
-      runtime.handleCommand(command),
-      timeoutPromise,
-    ]);
+    const response: HostResponse =
+      timeoutMs === undefined
+        ? await runtime.handleCommand(command)
+        : await Promise.race([
+            runtime.handleCommand(command),
+            new Promise<never>((_resolve, reject) => {
+              timeoutId = setTimeout(() => {
+                reject(new Error(`command timed out after ${timeoutMs}ms`));
+              }, timeoutMs);
+              timeoutId.unref();
+            }),
+          ]);
     await send(response);
   } catch (error) {
     const failure: HostServerMessage = {

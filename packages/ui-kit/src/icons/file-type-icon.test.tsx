@@ -19,6 +19,7 @@ describe('FileTypeIcon', () => {
 
     expect(markup).toContain('stroke="#3178c6"');
     expect(markup).toContain('file-icon-ts');
+    expect(markup).toContain('d="M5 9l14 0"');
   });
 
   it('preserves semantic colors for non-brand file types', () => {

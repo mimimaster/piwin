@@ -1,7 +1,8 @@
 /** Session runtime status + reload contracts (spec §12). */
 
-import type { SettingsDomain } from './settings.js';
+import type { ImmediateCapabilityRestriction, SettingsDomain } from './settings.js';
 import type { SessionPauseCheckpoint } from './session-pause.js';
+import type { ExtensionSetRevision } from './extensions.js';
 
 /** Live vs product-shell runtime state for one product session (spec §12.2). */
 export type SessionRuntimeState =
@@ -16,20 +17,11 @@ export type SessionRuntimeState =
  * is being used. Clients must not infer residency from Settings staleness.
  */
 export type SessionRuntimeResidency =
-  | 'cold'
-  | 'activating'
-  | 'resident-idle'
-  | 'resident-busy'
-  | 'suspending';
+  'cold' | 'activating' | 'resident-idle' | 'resident-busy' | 'suspending';
 
 /** Stable reasons a runtime was suspended (ADR 0040 §2/§4). */
 export type SessionRuntimeEvictionReason =
-  | 'idle-ttl'
-  | 'max-idle'
-  | 'max-resident'
-  | 'memory-pressure'
-  | 'manual'
-  | 'host-dispose';
+  'idle-ttl' | 'max-idle' | 'max-resident' | 'memory-pressure' | 'manual' | 'host-dispose';
 
 export type SessionRuntimeStatus = {
   sessionId: string;
@@ -40,8 +32,22 @@ export type SessionRuntimeStatus = {
   lastEvictionReason?: SessionRuntimeEvictionReason;
   generationId?: string;
   settingsRevision?: string;
+  /** Exact extension revision set loaded by the active generation. */
+  loadedExtensionSetRevision?: ExtensionSetRevision;
+  /** Exact extension revision set targeted by a pending deployment. */
+  targetExtensionSetRevision?: ExtensionSetRevision;
+  /** Host deployment currently changing this session's extension set. */
+  pendingExtensionDeploymentId?: string;
+  /** Old generation cleanup could not be proven complete. */
+  restartRequired?: boolean;
+  /** Latest committed Settings revision awaiting this generation. */
+  desiredSettingsRevision?: string;
   capabilitySnapshotId?: string;
   staleDomains: SettingsDomain[];
+  /** Exact domains with an immediate capability restriction in effect. */
+  immediateTighteningDomains?: SettingsDomain[];
+  /** Exact capabilities blocked while the old generation drains. */
+  immediateRestrictions?: ImmediateCapabilityRestriction[];
   reconstructionMode?: 'native-live' | 'product-history';
   candidateState?: 'compiling' | 'creating-backend' | 'rebuilding' | 'active' | 'failed';
   candidateError?: string;
@@ -94,6 +100,7 @@ export function isImmediateTighteningDomain(domain: SettingsDomain): boolean {
 export type SessionReloadRuntimeCommand = {
   type: 'session/reload-runtime';
   sessionId: string;
+  /** @deprecated Use the Host-owned desired revision and generation CAS. */
   expectedSettingsRevision: string;
   when: 'now' | 'after-current-run';
 };

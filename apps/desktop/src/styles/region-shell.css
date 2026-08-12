@@ -161,7 +161,7 @@
    Transcript cards, code blocks, logs, terminal, and artifacts retain solid fills for clarity. */
 html[data-theme-visual-style='ink-wash'] .app-shell {
   background-color: #191a1d;
-  background-image: var(--ink-wash-hero, url('/ui/ink-wash/master-bg.jpg'));
+  background-image: var(--ink-wash-hero, url('/ui/ink-wash/master-bg.jpg?v=restore'));
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;

@@ -40,7 +40,22 @@ type WebPageHarnessProps = {
 function baseConfig(): PiwinConfig {
   return {
     hostMode: 'sdk',
-    providers: [],
+    providers: [
+      {
+        id: 'gemini',
+        name: 'Gemini',
+        protocol: 'google-gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        models: [
+          {
+            id: 'gemini-search',
+            label: 'Gemini Search',
+            capabilities: ['chat', 'native-web-search'],
+          },
+          { id: 'gemini-plain', capabilities: ['chat'] },
+        ],
+      },
+    ],
     media: { maxPasteBytes: 1024, allowedMimeTypes: [] },
     artifact: {
       enabled: true,
@@ -63,26 +78,24 @@ function nativePreview(policy: SearchRoutePolicy): SearchRoutePreviewData {
         external: { ready: true, reasons: [] },
       },
       issues: [],
-      incompatible: false,
     },
     modelLabel: 'Native test model',
   };
 }
 
-function incompatiblePreview(policy: SearchRoutePolicy): SearchRoutePreviewData {
+function warningPreview(policy: SearchRoutePolicy): SearchRoutePreviewData {
   return {
     route: {
       policy,
-      selected: 'native',
+      selected: null,
       fallback: null,
       readiness: {
-        native: { ready: true, alwaysOn: true, reasons: [] },
-        external: { ready: true, reasons: [] },
+        native: { ready: false, reasons: ['native search adapter is unavailable'] },
+        external: { ready: false, reasons: ['no enabled external search source'] },
       },
-      issues: [],
-      incompatible: true,
+      issues: ['native search adapter is unavailable'],
     },
-    modelLabel: 'Always-on native model',
+    modelLabel: 'Unavailable search model',
   };
 }
 
@@ -275,11 +288,45 @@ describe('WebPage search route settings', () => {
     expect(previewInputs.at(-1)?.policy).toBe('native-only');
   });
 
-  it('shows a warning status for an incompatible Host route preview', async () => {
+  it('lists only native-search models and sends the selected delegate to Host preview', async () => {
+    const previewInputs: SearchRoutePreviewInput[] = [];
     const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
       const input = getSearchRoutePreviewInput(command);
       if (input) {
-        return successResponse(incompatiblePreview(input.policy));
+        previewInputs.push(input);
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+    const delegateSelect = container.querySelector<HTMLSelectElement>(
+      '[data-testid="web-search-delegate-model"]',
+    );
+    if (!delegateSelect) throw new Error('delegate selector missing');
+
+    expect(delegateSelect.textContent).toContain('Gemini Search');
+    expect(delegateSelect.textContent).not.toContain('gemini-plain');
+    act(() => {
+      delegateSelect.value = 'google-gemini/gemini/gemini-search';
+      delegateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await flushPreviewDebounce();
+
+    expect(previewInputs.at(-1)?.searchDelegateModel).toEqual({
+      protocol: 'google-gemini',
+      providerId: 'gemini',
+      modelId: 'gemini-search',
+    });
+    expect(container.querySelector('[data-testid="web-search-delegate-active"]')).toBeTruthy();
+  });
+
+  it('shows a warning status for a Host route issue', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(warningPreview(input.policy));
       }
       return { type: 'response', command: command.type, success: true, data: {} };
     });
@@ -291,6 +338,6 @@ describe('WebPage search route settings', () => {
       '[data-testid="search-route-selected"]',
     );
     expect(selectedStatus?.getAttribute('data-tone')).toBe('warning');
-    expect(container.querySelector('.ui-notice[data-tone="warning"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="search-route-issues"]')).toBeTruthy();
   });
 });

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { SessionIndexRecord } from '@piwin/contracts';
 import { deleteSessionRecord } from '@piwin/session';
@@ -99,16 +99,38 @@ async function moveDirectoryIfPresent(
     await rename(sourcePath, quarantinePath);
     movedDirectories.push({ sourcePath, quarantinePath });
   } catch (error) {
-    if (!isNotFound(error)) {
-      throw error;
+    if (isNotFound(error)) {
+      return;
     }
+    // rename() fails across devices (EXDEV). Fall back to recursive copy +
+    // source removal so quarantine still works when trash and sessions are on
+    // different mounts.
+    if (isCrossDeviceLink(error)) {
+      await cp(sourcePath, quarantinePath, { recursive: true, force: false, errorOnExist: true });
+      await rm(sourcePath, { recursive: true, force: false });
+      movedDirectories.push({ sourcePath, quarantinePath });
+      return;
+    }
+    throw error;
   }
 }
 
 async function restoreMovedDirectories(movedDirectories: MovedDirectory[]): Promise<void> {
   for (const movedDirectory of [...movedDirectories].reverse()) {
     await mkdir(dirname(movedDirectory.sourcePath), { recursive: true });
-    await rename(movedDirectory.quarantinePath, movedDirectory.sourcePath);
+    try {
+      await rename(movedDirectory.quarantinePath, movedDirectory.sourcePath);
+    } catch (error) {
+      if (!isCrossDeviceLink(error)) {
+        throw error;
+      }
+      await cp(movedDirectory.quarantinePath, movedDirectory.sourcePath, {
+        recursive: true,
+        force: false,
+        errorOnExist: true,
+      });
+      await rm(movedDirectory.quarantinePath, { recursive: true, force: false });
+    }
   }
 }
 
@@ -118,6 +140,15 @@ function isNotFound(error: unknown): boolean {
     error !== null &&
     'code' in error &&
     (error as { code?: string }).code === 'ENOENT'
+  );
+}
+
+function isCrossDeviceLink(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'EXDEV'
   );
 }
 

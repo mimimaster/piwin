@@ -230,7 +230,7 @@ describe('WorkerSessionRuntime tool proxy', () => {
     });
   });
 
-  it('resolves proxy tool with error when parent denies permission', async () => {
+  it('rejects proxy tool when parent denies permission', async () => {
     const frames: WorkerFrame[] = [];
     const createPiSession = vi.fn<(input: unknown) => Promise<WorkerPiSessionLike>>(async () =>
       createMockPiSession(),
@@ -271,12 +271,11 @@ describe('WorkerSessionRuntime tool proxy', () => {
       },
     });
 
-    const result = (await executePromise) as {
-      content: Array<{ text: string }>;
-      details: { error: string };
-    };
-    expect(result.content[0]?.text).toContain('Permission denied');
-    expect(result.details.error).toBe('permission-denied');
+    await expect(executePromise).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      code: 'permission-denied',
+      message: 'Permission denied: user denied bash execution',
+    });
   });
 
   it('rejects pending tool calls when session is dropped', async () => {
@@ -347,8 +346,10 @@ describe('WorkerSessionRuntime tool proxy', () => {
       payload: { method: 'session/abort', sessionId: 'ps-1' },
     });
 
-    await expect(executePromise).resolves.toMatchObject({
-      content: [{ text: expect.stringContaining('Tool execution aborted') }],
+    await expect(executePromise).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      code: 'aborted',
+      message: 'Tool execution aborted',
     });
   });
 });

@@ -9,6 +9,7 @@ import type {
   PermissionDecision,
   PermissionRememberScope,
   PromptInput,
+  SessionScope,
   SessionSummary,
 } from './host.js';
 import type { ExtensionUiKind } from './extension-ui.js';
@@ -21,10 +22,10 @@ import type {
   SessionMessageProjection,
   SessionTranscriptPageQuery,
   SessionTranscriptWindowQuery,
-} from './session-transcript-page.js';
+  } from './session-transcript-page.js';
 import type { SessionUserMessageIndexQuery } from './session-user-message-index.js';
 import type { SkillSummary } from './skills.js';
-import type { ExtensionSummary } from './extensions.js';
+import type { ExtensionDeploymentRecord, ExtensionSummary } from './extensions.js';
 import type { PromptTemplateSummary } from './prompts.js';
 import type { InstallSource } from './mcp.js';
 import type {
@@ -51,6 +52,7 @@ import type { PlanExecutionRequest, PlanExecutionState } from './plan-execution.
 import type {
   SubagentBatchProjection,
   SubagentBatchRequest,
+  SubagentInvocation,
   SubagentTaskResult,
 } from './subagent-orchestration.js';
 import type { PtyOpenInput } from './pty.js';
@@ -190,6 +192,13 @@ export type HostCommand =
     }
   | { id?: string; type: 'subagent/batch-status'; runId: string }
   | { id?: string; type: 'subagent/batch-cancel'; runId: string }
+  | { id?: string; type: 'subagent/continue'; childSessionId: string; text: string }
+  | {
+      id?: string;
+      type: 'subagent/worktree-action';
+      childSessionId: string;
+      action: 'apply' | 'retain' | 'discard';
+    }
   | { id?: string; type: 'session/resume'; sessionId: string }
   | {
       id?: string;
@@ -306,6 +315,16 @@ export type HostCommand =
       type: 'extensions/set_enabled';
       extensionId: string;
       enabled: boolean;
+    }
+  | {
+      id?: string;
+      type: 'extensions/apply';
+      sessionId: string;
+      when: 'now' | 'after-current-run' | 'new-sessions-only';
+      targetExtensionSetRevision?: string;
+      expectedSettingsRevision?: string;
+      expectedRegistryRevision?: string;
+      deploymentId?: string;
     }
   | { id?: string; type: 'extensions/ensure-bundled' }
   | {
@@ -528,6 +547,11 @@ export type HostCommand =
       sessionId: string;
       /** Optional override; default "Copy of <name>". */
       name?: string;
+      /**
+       * Explicit destination for a safe "continue in project" copy. The
+       * source session remains unchanged and auditable.
+       */
+      targetScope?: SessionScope;
       /** Defaults to `full` for older shells. New shells should request `none`. */
       messageProjection?: SessionMessageProjection;
     }
@@ -713,6 +737,11 @@ export type HostPushVariant =
       parentSessionId: string;
       child: SessionSummary;
     }
+  | {
+      type: 'subagent/invocation-updated';
+      parentSessionId: string;
+      invocation: SubagentInvocation;
+    }
   | { type: 'subagent/merged'; parentSessionId: string; childSessionId: string; messageId: string }
   | {
       type: 'subagent/batch-updated';
@@ -790,6 +819,8 @@ export type HostPushVariant =
       sessionId: string;
       artifact: WalkthroughArtifact;
     }
+  | { type: 'extension/catalog-updated'; registryRevision: string; extensions: ExtensionSummary[] }
+  | { type: 'extension/deployment-updated'; deployment: ExtensionDeploymentRecord }
   | {
       /** ADR 0027: replay buffer drained for a sequenced sink. */
       type: 'host/replay-done';
@@ -1011,6 +1042,8 @@ export type ExtensionsSetEnabledData = {
   extensionId: string;
   enabled: boolean;
   disabledIds: string[];
+  managed?: boolean;
+  registryRevision?: string;
 };
 
 export type ExtensionsEnsureBundledData = {
@@ -1020,6 +1053,21 @@ export type ExtensionsEnsureBundledData = {
 export type ExtensionsInstallData = {
   extensionId: string;
   targetPath: string;
+  packageRoot?: string;
+  contentRevision?: string;
+  registryRevision?: string;
+  configuredEnabled?: boolean;
+};
+
+export type ExtensionsApplyData = {
+  sessionId: string;
+  deploymentId: string;
+  state: 'active' | 'pending' | 'new-sessions-only';
+  when: 'now' | 'after-current-run' | 'new-sessions-only';
+  registryRevision: string;
+  generationId?: string;
+  settingsRevision?: string;
+  extensionSetRevision?: string;
 };
 
 export type PromptsListData = {

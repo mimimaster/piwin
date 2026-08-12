@@ -34,6 +34,7 @@ export type ToolExposureInput = {
   subagents: CapabilityExposure;
   notes: NotesAccess;
   flashcards: FlashcardsAccess;
+  artifact?: boolean;
   availability: ToolBackingAvailability;
   /** Optional child ceiling used by the live Blueprint compiler. */
   capabilities?: readonly SubagentCapability[];
@@ -73,6 +74,8 @@ export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonl
   'notes-write': [],
   'flashcards-read': [],
   'flashcards-write': [],
+  artifact: [],
+  toolbox: [],
   'image-generation': [],
   'video-generation': [],
 };
@@ -163,6 +166,12 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   ) {
     enabledFamilies.add('flashcards-read');
     enabledFamilies.add('flashcards-write');
+  }
+  if (input.artifact === true && capabilities === undefined) {
+    enabledFamilies.add('artifact');
+  }
+  if (input.availableFamilies?.has('toolbox')) {
+    enabledFamilies.add('toolbox');
   }
   // Image generation: master AND valid model available.
   if (

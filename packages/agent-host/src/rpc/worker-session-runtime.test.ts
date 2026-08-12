@@ -115,6 +115,48 @@ describe('WorkerSessionRuntime', () => {
     });
   });
 
+  it('rejects a forged inline provider before creating a Pi session', async () => {
+    const frames: WorkerFrame[] = [];
+    const createPiSession = vi.fn(async () => createMockPiSession());
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession,
+      eventMapper: fakeMapper(),
+    });
+    const request = {
+      type: 'request',
+      id: 'req-inline',
+      method: 'session/create',
+      context: frameContext,
+      payload: {
+        method: 'session/create',
+        productSessionId: 'ps-1',
+        blueprint: minimalBlueprint,
+        providers: [
+          {
+            providerId: 'forged-provider',
+            protocol: 'openai-compatible',
+            baseUrl: 'https://example.invalid/v1',
+            models: [{ id: 'forged-model' }],
+            auth: { kind: 'inline', apiKey: 'must-not-cross-jsonl' },
+          },
+        ],
+      },
+    } as unknown as WorkerRequest;
+
+    await runtime.handleRequest(request);
+
+    expect(createPiSession).not.toHaveBeenCalled();
+    expect(frames).toContainEqual(
+      expect.objectContaining({
+        type: 'response',
+        id: 'req-inline',
+        success: false,
+        error: expect.stringContaining('SDK-only inline auth at the worker boundary'),
+      }),
+    );
+  });
+
   it('round-trips the complete ToolResult through the proxy frame', async () => {
     const frames: WorkerFrame[] = [];
     const createPiSession = vi.fn(
@@ -167,6 +209,8 @@ describe('WorkerSessionRuntime', () => {
     if (!toolCall) {
       throw new Error('worker tool-call frame was not emitted');
     }
+    expect(toolCall.context.toolCallId).toMatch(/^piw-t-/);
+    expect(toolCall.id).toBe(toolCall.context.toolCallId);
 
     runtime.handleToolResult({
       type: 'tool-result',

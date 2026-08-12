@@ -292,6 +292,18 @@ export function ModelWorkbench({
                           {copy.nativeSearch}
                         </span>
                       ) : null}
+                      {modelSupportsCapability(model, 'video-generation') ? (
+                        <span
+                          className="pill"
+                          data-testid={`model-pill-video-${model.id}`}
+                          style={{
+                            background: 'var(--surface-hover, rgba(255,255,255,0.08))',
+                            color: 'var(--accent, #60a5fa)',
+                          }}
+                        >
+                          {isChinese ? '视频' : 'Video'}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
                       {formatTokenCount(model.contextWindow)} ctx ·{' '}
@@ -544,6 +556,23 @@ function ModelInlineEditor({
             data-testid="model-edit-reasoning"
           />
           {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={local.supportsImageGeneration}
+            onChange={(e) => setLocal({ ...local, supportsImageGeneration: e.target.checked })}
+          />
+          {isChinese ? '生图能力（Image Generation）' : 'Image generation'}
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={local.supportsVideoGeneration}
+            onChange={(e) => setLocal({ ...local, supportsVideoGeneration: e.target.checked })}
+            data-testid="model-edit-video-generation"
+          />
+          {isChinese ? '视频生成（Video Generation）' : 'Video generation'}
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
           <input

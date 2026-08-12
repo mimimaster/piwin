@@ -112,7 +112,7 @@ describe('buildEnabledModelOptions', () => {
     ]);
   });
 
-  it('excludes pure image-generation and video-generation models from the picker', () => {
+  it('blocks only pure image/video/speech models, keeping chat and web-search models', () => {
     const providers = [
       makeProvider({
         id: 'p1',
@@ -120,6 +120,11 @@ describe('buildEnabledModelOptions', () => {
           makeModel({ id: 'chat-model' }),
           makeModel({ id: 'gpt-image-1', capabilities: ['image-generation'] }),
           makeModel({ id: 'sora-2', capabilities: ['video-generation'] }),
+          makeModel({ id: 'whisper-1', capabilities: ['speech-to-text'] }),
+          makeModel({ id: 'tts-1', capabilities: ['text-to-speech'] }),
+          // Regression: native-web-search implies the chat surface; a model
+          // tagged only for provider-native search must stay in the picker.
+          makeModel({ id: 'search-model', capabilities: ['native-web-search'] }),
           makeModel({
             id: 'hybrid',
             capabilities: ['chat', 'image-generation'],
@@ -132,23 +137,41 @@ describe('buildEnabledModelOptions', () => {
       }),
     ];
     const options = buildEnabledModelOptions(providers);
-    expect(options.map((option) => option.modelId)).toEqual(['chat-model', 'hybrid']);
+    expect(options.map((option) => option.modelId)).toEqual([
+      'chat-model',
+      'search-model',
+      'hybrid',
+    ]);
   });
 
-  it('isComposerChatModel treats omitted capabilities as chat', () => {
+  it('isComposerChatModel blocks only pure auxiliary models', () => {
+    // Omitted capabilities default to chat.
     expect(isComposerChatModel(makeModel({ id: 'legacy' }))).toBe(true);
     expect(isComposerChatModel(makeModel({ id: 'explicit-chat', capabilities: ['chat'] }))).toBe(
       true,
     );
+    // native-web-search implies the chat surface (contracts semantics).
+    expect(
+      isComposerChatModel(makeModel({ id: 'search', capabilities: ['native-web-search'] })),
+    ).toBe(true);
+    // Hybrids that also declare chat stay available.
     expect(
       isComposerChatModel(
-        makeModel({ id: 'image-only', capabilities: ['image-generation'] }),
+        makeModel({ id: 'hybrid', capabilities: ['chat', 'image-generation'] }),
       ),
+    ).toBe(true);
+    // Pure auxiliary models are blocked.
+    expect(
+      isComposerChatModel(makeModel({ id: 'image-only', capabilities: ['image-generation'] })),
     ).toBe(false);
     expect(
-      isComposerChatModel(
-        makeModel({ id: 'video-only', capabilities: ['video-generation'] }),
-      ),
+      isComposerChatModel(makeModel({ id: 'video-only', capabilities: ['video-generation'] })),
+    ).toBe(false);
+    expect(
+      isComposerChatModel(makeModel({ id: 'asr-only', capabilities: ['speech-to-text'] })),
+    ).toBe(false);
+    expect(
+      isComposerChatModel(makeModel({ id: 'tts-only', capabilities: ['text-to-speech'] })),
     ).toBe(false);
   });
 

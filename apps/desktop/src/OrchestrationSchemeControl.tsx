@@ -2,7 +2,9 @@
  * Composer Orchestration Scheme pill (ORCH).
  *
  * Always-on mode picker in the composer toolbar (not a feature switch).
- * Default selection is freehand (`off`) — no scheme preamble is injected.
+ * Default selection is freehand (`off`) — no scheme preamble is injected, but
+ * the model may still delegate when useful. Delegation can be disabled
+ * independently for the current turn.
  * Choosing Ultra Code (or a user scheme) sets PromptInput.orchestrationSchemeId
  * for that send only. No "set as default"; no cross-session persistence.
  */
@@ -22,6 +24,8 @@ export type OrchestrationSchemeControlProps = {
   value: string;
   options: readonly OrchestrationSchemeOption[];
   onChange: (schemeId: string) => void;
+  delegationDisabled?: boolean;
+  onDelegationDisabledChange?: (disabled: boolean) => void;
   onOpenSettings?: () => void;
 };
 
@@ -30,6 +34,8 @@ export function OrchestrationSchemeControl({
   value,
   options,
   onChange,
+  delegationDisabled = false,
+  onDelegationDisabledChange,
   onOpenSettings,
 }: OrchestrationSchemeControlProps): ReactElement {
   const { locale } = useDesktopLocale();
@@ -46,15 +52,15 @@ export function OrchestrationSchemeControl({
     }
     // Freehand is a mode value, not a power switch — only named schemes inject.
     if (option.id === 'off' || option.source === 'off') {
-      return isZh ? '无' : 'None';
+      return isZh ? '自由' : 'Freehand';
     }
     return option.name;
   };
   const displayDescription = (option: OrchestrationSchemeOption): string => {
     if (option.id === 'off' || option.source === 'off') {
       return isZh
-        ? '自由对话 — 不注入编排提示词'
-        : 'Freehand — no scheme prompt injection';
+        ? '自由对话 — 不注入方案提示；仍可自主委派'
+        : 'Freehand — no scheme prompt; delegation remains available';
     }
     return option.description;
   };
@@ -124,6 +130,30 @@ export function OrchestrationSchemeControl({
             );
           })}
         </div>
+        {onDelegationDisabledChange ? (
+          <div className="orchestration-scheme-section">
+            <button
+              type="button"
+              className={
+                delegationDisabled
+                  ? 'orchestration-scheme-option is-selected'
+                  : 'orchestration-scheme-option'
+              }
+              data-testid="orchestration-delegation-disabled"
+              aria-pressed={delegationDisabled}
+              onClick={() => onDelegationDisabledChange(!delegationDisabled)}
+            >
+              <span className="orchestration-scheme-option-label">
+                {isZh ? '禁用委派' : 'Delegation disabled'}
+              </span>
+              <span className="orchestration-scheme-option-desc">
+                {isZh
+                  ? '本轮不向模型提供 Reviewer/Subagent 工具'
+                  : 'Do not expose Reviewer/subagent tools for this turn'}
+              </span>
+            </button>
+          </div>
+        ) : null}
         {onOpenSettings ? (
           <div className="orchestration-scheme-footer">
             <button

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-09)
+Accepted (2026-08-03; amended 2026-08-11)
 
 ## Context
 
@@ -19,6 +19,18 @@ to fit its real container, what the Canvas shell may and may not do, and the
 one narrow Composer capability Canvas frames get.
 
 ## Decision
+
+### 0. The full Artifact contract is loaded on demand
+
+An Artifact-enabled generation keeps only a compact routing hint in its system
+prompt. Before emitting HTML or SVG, the model calls the read-only
+`artifact_instructions` Host tool, which returns the configured decision policy
+and the canonical runtime contract together. The tool is advertised only when
+its concrete executor is present in the compiled generation surface.
+
+This preserves the exact policy at the point where it matters without charging
+every ordinary Markdown turn for the full Artifact protocol. Custom decision
+prompts are also returned by the tool rather than copied into every generation.
 
 ### 1. Surface selection is semantic and explicit
 

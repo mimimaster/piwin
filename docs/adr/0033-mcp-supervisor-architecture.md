@@ -272,6 +272,14 @@ configuration. Its rules are:
 - direct execution and gateway `call` both invoke the same Supervisor
   `callTool` and never own a client or process.
 
+Pinned tools remain first-class direct tools so pinning continues to increase
+their selection likelihood. Their model-visible prose is bounded during
+descriptor projection: names, JSON Schema structure, constraints, execution,
+and trusted MCP admission stay exact, while oversized descriptions are
+truncated. The always-on MCP brief likewise contains only proactive routing,
+gateway flow, bounded inventory, and pinned names; it does not duplicate the
+gateway's full instructions.
+
 The exposure policy has two hard budgets: direct tool count and serialized
 schema bytes. Pinned tools consume those budgets. The Settings UI refuses a pin
 that would exceed a budget and explains the limit. If a manually edited config

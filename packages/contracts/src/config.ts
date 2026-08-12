@@ -27,9 +27,6 @@ export type ModelCapability =
   | 'text-to-speech'
   | 'native-web-search';
 
-/** How a model exposes provider-native web search (ADR 0043). */
-export type NativeWebSearchMode = 'controllable' | 'always-on';
-
 /**
  * Provider wire formats used by the asynchronous video-generation adapters.
  * The value is deliberately separate from the provider protocol: vendors such
@@ -37,7 +34,30 @@ export type NativeWebSearchMode = 'controllable' | 'always-on';
  * shape even when their base URL is configured alongside OpenAI providers.
  */
 export type VideoGenerationApiStyle =
-  'openai-videos' | 'google-veo' | 'runway-tasks' | 'luma-generations' | 'minimax-tasks' | 'custom';
+  | 'openai-videos'
+  | 'google-veo'
+  | 'runway-tasks'
+  | 'luma-generations'
+  | 'minimax-tasks'
+  | 'xgrok-videos'
+  | 'custom';
+
+/**
+ * Provider wire formats for image-generation routes. Like video api styles,
+ * the value is independent of the provider protocol: a gateway registered as
+ * an openai-compatible channel can still expose a Gemini-native image model
+ * (e.g. `gemini-3.1-flash-image` behind `:generateContent`), and a
+ * google-gemini channel can host OpenAI-shaped endpoints.
+ *
+ * - `openai` — POST /images/generations with an OpenAI body; parses
+ *   `data[].b64_json` / `data[].url` (default for openai-compatible providers).
+ * - `imagen` — POST /models/{id}:predict with `instances`/`parameters`;
+ *   parses `predictions[].bytesBase64Encoded` (default for google-gemini).
+ * - `gemini` — POST /models/{id}:generateContent with `contents` and
+ *   `generationConfig.responseModalities: ['TEXT','IMAGE']`; parses
+ *   `candidates[].content.parts[].inlineData` (and `fileData.fileUri`).
+ */
+export type ImageGenerationApiStyle = 'openai' | 'imagen' | 'gemini';
 
 /** Input modalities a model accepts (Pi catalog / ModelRuntime). */
 export type ModelInputModality = 'text' | 'image';
@@ -49,17 +69,14 @@ export type ModelRouteConfig = {
   /** Request timeout in milliseconds. */
   timeoutMs?: number;
   /**
-   * Video-only provider wire format. Image and chat routes leave this unset.
-   * The Host uses it to select a native async adapter.
+   * Provider wire format. Video routes use {@link VideoGenerationApiStyle};
+   * image-generation routes use {@link ImageGenerationApiStyle} (defaults:
+   * `openai` for openai-compatible, `imagen` for google-gemini). Chat routes
+   * leave this unset.
    */
-  apiStyle?: VideoGenerationApiStyle;
+  apiStyle?: VideoGenerationApiStyle | ImageGenerationApiStyle;
   /** Polling cadence for async video jobs, in milliseconds. */
   pollIntervalMs?: number;
-  /**
-   * Native web-search controllability when the capability is present.
-   * Defaults to `controllable` when omitted.
-   */
-  nativeSearchMode?: NativeWebSearchMode;
 };
 
 /** Per-model identity and optional runtime limits. */
@@ -87,12 +104,6 @@ export type ModelConfigEntry = {
   thinkingLevels?: readonly ThinkingLevel[];
   /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
   capabilities?: ModelCapability[];
-  /**
-   * How provider-native web search is exposed for this model.
-   * Only meaningful when `capabilities` includes `native-web-search`.
-   * Defaults to `controllable` when omitted.
-   */
-  nativeWebSearchMode?: NativeWebSearchMode;
   /** Per-capability route overrides (path, timeout). */
   routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
   /**
@@ -191,23 +202,16 @@ export function modelSupportsCapability(
 ): boolean {
   const capabilities = model.capabilities;
   if (capability === 'chat') {
-    return capabilities === undefined || capabilities.length === 0 || capabilities.includes('chat');
+    return (
+      capabilities === undefined ||
+      capabilities.length === 0 ||
+      capabilities.includes('chat') ||
+      // Provider-native search produces a text answer, so the tag implies the
+      // chat surface even when older UI writes only the auxiliary capability.
+      capabilities.includes('native-web-search')
+    );
   }
   return capabilities?.includes(capability) ?? false;
-}
-
-/**
- * Resolve whether native web search can be toggled off for a model.
- * Always-on models cannot honor an `external-only` search route policy.
- */
-export function resolveNativeWebSearchMode(
-  model: Pick<ModelConfigEntry, 'nativeWebSearchMode' | 'routes' | 'capabilities'>,
-): NativeWebSearchMode {
-  if (!modelSupportsCapability(model, 'native-web-search')) {
-    return 'controllable';
-  }
-  const routeMode = model.routes?.['native-web-search']?.nativeSearchMode;
-  return model.nativeWebSearchMode ?? routeMode ?? 'controllable';
 }
 
 /** Normalized model identity returned from a provider's discovery endpoint. */

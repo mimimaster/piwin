@@ -37,6 +37,11 @@ export function sessionActionItems(options: {
     { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
     { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
     { action: 'duplicate', label: 'Duplicate', testId: 'session-menu-duplicate' },
+    {
+      action: 'continue-in-project',
+      label: 'Continue in project…',
+      testId: 'session-menu-continue-in-project',
+    },
     { action: 'export', label: 'Export…', testId: 'session-menu-export' },
     { action: 'archive', label: 'Archive', testId: 'session-menu-archive' },
     {

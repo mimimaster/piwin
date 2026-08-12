@@ -48,7 +48,10 @@ export type SettingsConfigRequest = (command: {
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
     | 'session/runtime-status'
+    | 'session/reload-runtime'
     | 'session/compact-export'
+    | 'session/lifecycle-plan'
+    | 'session/lifecycle-apply'
     | 'host/runtime-resources'
     | 'theme/list'
     | 'theme/set-active';
@@ -66,9 +69,12 @@ export type SettingsConfigRequest = (command: {
   window?: { from?: string; to?: string };
   topSessions?: number;
   sessionId?: string;
+  expectedSettingsRevision?: string;
+  when?: 'now' | 'after-current-run';
   customInstructions?: string;
   outputPath?: string;
   themeId?: string;
+  planId?: string;
   input?:
     | import('@piwin/contracts').ModelCatalogSearchRequest
     | import('@piwin/contracts').VisionDelegateInput

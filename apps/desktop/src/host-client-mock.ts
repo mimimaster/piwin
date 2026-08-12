@@ -656,6 +656,14 @@ export class MockHostBackend {
         if (transcriptPage.status !== 'page') {
           throw new Error('Mock cursorless transcript tail unexpectedly returned stale');
         }
+        const scope =
+          session.scope ??
+          (session.projectPath
+            ? ({ kind: 'project', projectPath: session.projectPath } as const)
+            : ({ kind: 'general' } as const));
+        const workingDirectory =
+          session.workingDirectory ??
+          (scope.kind === 'project' ? scope.projectPath : 'general');
         return {
           id,
           type: 'response',
@@ -667,6 +675,9 @@ export class MockHostBackend {
             messages: transcriptPage.messages,
             transcriptPage: transcriptPage.page,
             projectPath: session.projectPath,
+            scope,
+            workingDirectory,
+            ...(session.name ? { name: session.name } : {}),
           },
         };
       }
@@ -1244,9 +1255,38 @@ export class MockHostBackend {
           type: 'response',
           command: 'session/list-children',
           success: true,
-          data: { parentSessionId: command.parentSessionId, sessions },
+          data: { parentSessionId: command.parentSessionId, sessions, invocations: [] },
         };
       }
+      case 'subagent/continue':
+        return {
+          id,
+          type: 'response',
+          command: 'subagent/continue',
+          success: true,
+          data: {
+            runId: `mock-subagent-continuation-${Date.now()}`,
+            childSessionId: command.childSessionId,
+            acceptedAt: new Date().toISOString(),
+          },
+        };
+      case 'subagent/worktree-action':
+        return {
+          id,
+          type: 'response',
+          command: 'subagent/worktree-action',
+          success: true,
+          data: {
+            childSessionId: command.childSessionId,
+            action: command.action,
+            integrationStatus:
+              command.action === 'apply'
+                ? 'applied'
+                : command.action === 'discard'
+                  ? 'discarded'
+                  : 'retained',
+          },
+        };
       case 'plan/get': {
         const plan = this.plans.get(command.sessionId) ?? null;
         return {
@@ -2023,6 +2063,31 @@ export class MockHostBackend {
           },
         };
       }
+      case 'extensions/apply': {
+        if (!this.sessions.has(command.sessionId)) {
+          return {
+            id,
+            type: 'response',
+            command: 'extensions/apply',
+            success: false,
+            error: `Unknown session: ${command.sessionId}`,
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'extensions/apply',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            deploymentId: command.deploymentId ?? `mock-deployment-${Date.now()}`,
+            state: command.when === 'new-sessions-only' ? 'new-sessions-only' : 'active',
+            when: command.when,
+            registryRevision: 'mock-extension-registry',
+            generationId: `mock-generation-${command.sessionId}`,
+          },
+        };
+      }
       case 'extensions/ensure-bundled': {
         const installed = this.mockBundledExtensionsInstalled ? [] : ['path-guard'];
         this.mockBundledExtensionsInstalled = true;
@@ -2536,10 +2601,12 @@ export class MockHostBackend {
         };
       case 'web/search-route-preview': {
         const hasEnabledSources = command.input.searchSources.some((source) => source.enabled);
+        const hasDelegateModel = command.input.searchDelegateModel !== undefined;
+        const externalReady = hasDelegateModel || hasEnabledSources;
         const data: SearchRoutePreviewData = {
           route: {
             policy: command.input.policy,
-            selected: hasEnabledSources ? 'external' : null,
+            selected: externalReady ? 'external' : null,
             fallback: null,
             readiness: {
               native: {
@@ -2547,22 +2614,21 @@ export class MockHostBackend {
                 modelTagged: false,
                 adapterRequestSupported: false,
                 adapterCitationSupported: false,
-                alwaysOn: false,
                 reasons: ['mock host does not provide a selected native-search model'],
               },
               external: {
-                ready: hasEnabledSources,
+                ready: externalReady,
                 hasEnabledSources,
-                reasons: hasEnabledSources ? [] : ['no enabled external search source'],
+                hasDelegateModel,
+                reasons: externalReady ? [] : ['no enabled external search source'],
               },
             },
-            issues: hasEnabledSources
+            issues: externalReady
               ? []
               : [
                   'no enabled external search source',
                   'no search backend is ready for the configured policy',
                 ],
-            incompatible: false,
           },
         };
         return {
@@ -2621,6 +2687,8 @@ export class MockHostBackend {
             changedDomains: input.mutations.map((mutation) => ({
               domain: mutation.domain,
               timing: 'new-runtime',
+              runtimeSchemaChanged: true,
+              immediateRestrictions: mutation.domain === 'permissions' ? ['permission-policy'] : [],
               securityTightenedImmediately: mutation.domain === 'permissions',
             })),
           },
@@ -2913,12 +2981,17 @@ export class MockHostBackend {
         }
         const newId = crypto.randomUUID();
         const baseName = session.name ?? `session-${command.sessionId.slice(0, 8)}`;
+        const targetScope = command.targetScope ?? session.scope;
+        const targetProjectPath =
+          targetScope?.kind === 'project' ? targetScope.projectPath : session.projectPath;
         const name =
           typeof command.name === 'string' && command.name.trim()
             ? command.name.trim()
-            : baseName.startsWith('Copy of ')
-              ? `${baseName} (2)`
-              : `Copy of ${baseName}`;
+            : command.targetScope
+              ? baseName
+              : baseName.startsWith('Copy of ')
+                ? `${baseName} (2)`
+                : `Copy of ${baseName}`;
         const clonedTranscript = session.transcript.map((message) => {
           const next: SessionTranscriptMessage = {
             id: crypto.randomUUID(),
@@ -2945,7 +3018,9 @@ export class MockHostBackend {
           createdAt: new Date().toISOString(),
         };
         this.sessions.set(newId, {
-          projectPath: session.projectPath,
+          projectPath: targetProjectPath,
+          ...(targetScope ? { scope: targetScope } : {}),
+          ...(targetScope?.kind === 'project' ? { workingDirectory: targetScope.projectPath } : {}),
           events: [],
           transcript: clonedTranscript,
           name,

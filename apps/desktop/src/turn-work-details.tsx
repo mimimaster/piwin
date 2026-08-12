@@ -1,67 +1,72 @@
-/**
- * Per-turn call chain (visual): Thought row + tool timeline.
- * Explore batches and light tool rows help users scan what the agent did.
- */
-import { useEffect, useState, type ReactElement } from 'react';
-import type { WorkDetailsExpanded } from './ui-preferences';
+/** One Assistant response segment rendered in causal order. */
+import { useState, type ReactElement, type ReactNode } from 'react';
+import { RadialBellow } from '@piwin/ui-kit';
+import type { SessionSummary, SubagentInvocation } from '@piwin/contracts';
+import type {
+  ChatMessageUi,
+  PermissionPromptUi,
+  RunRecordUi,
+  SubagentStreamState,
+} from './chat-reducer';
+import type { SkillActivityView } from './chat-reducer';
 import {
   buildTurnPresentation,
   resolveWorkDetailsDefaultOpen,
   type TurnPresentation,
 } from './run-presentation';
-import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
-import type { SkillActivityView } from './chat-reducer';
-import { TurnToolGroup } from './turn-tool-group';
-import type { DocumentOpenInput } from './tool-call-card';
-import { IconChevronRight, IconBrain } from './shell-icons';
-import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
-import { RadialBellow } from '@piwin/ui-kit';
-import type { DiffCardRequest } from './diff-card';
-import type { AgentLocatorAnimation } from './ui-preferences.js';
 import { buildActivityPhrases, runtimeStatusText } from './run-activity-strings.js';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
+import { AgentLocator, SkillActivityChip } from './agent-locator.js';
+import { TurnToolGroup } from './turn-tool-group';
+import type { DocumentOpenInput } from './tool-call-card';
+import type { DiffCardRequest } from './diff-card';
+import type { AgentLocatorAnimation, WorkDetailsExpanded } from './ui-preferences.js';
+import { IconChevronRight, IconBrain } from './shell-icons';
+import { resolveGenerationToolKind } from './generation-tool-kind.js';
+import type { SubagentInspectorSelection } from './subagent-activity-model';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
+  /** Response text/rich blocks. They stay between this response's thought and tools. */
+  children?: ReactNode;
   runRecordsById: Record<string, RunRecordUi>;
   activeRunId: string | null;
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity?: 'compact' | 'comfortable' | 'detailed';
-  /** Whether intermediate Agent thinking should be rendered. */
   showThinking?: boolean;
   locale?: 'zh-CN' | 'en';
-  /** Project root forwarded to tool cards → DiffCard. */
   projectPath?: string | null;
-  /** Host request adapter forwarded to tool cards → DiffCard. */
   request?: DiffCardRequest;
-  /** Callback when user clicks a matched file in tool results. */
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
-  /** Callback when user clicks a logical document target (skill / project file). */
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  /** Collapse historical tool cards into a summary on session hydrate. */
-  historyCollapsed?: boolean;
-  /** Explicit slash Skill currently being applied to this run. */
   activeSkill?: SkillActivityView | null;
-  /** Compact live locator animation selected in Settings. */
   agentLocatorAnimation?: AgentLocatorAnimation;
+  subagentChildren?: Record<string, SessionSummary>;
+  subagentInvocations?: Record<string, SubagentInvocation>;
+  subagentStreams?: Record<string, SubagentStreamState>;
+  onInspectSubagent?: (selection: SubagentInspectorSelection) => void;
 };
 
 function thinkingSummaryLabel(input: {
-  isActive: boolean;
-  answerStarted: boolean;
+  isRunActive: boolean;
+  isThinkingActive: boolean;
   thoughtSeconds?: number;
   locale: 'zh-CN' | 'en';
 }): string {
-  const isChinese = input.locale === 'zh-CN';
-  if (input.isActive) {
-    return runtimeStatusText(input.answerStarted ? 'working' : 'thinking', input.locale);
+  if (input.isThinkingActive) {
+    return runtimeStatusText('thinking', input.locale);
+  }
+  if (input.isRunActive) {
+    return runtimeStatusText('working', input.locale);
   }
   if (input.thoughtSeconds !== undefined) {
-    return isChinese ? `已思考 ${input.thoughtSeconds} 秒` : `Thought for ${input.thoughtSeconds}s`;
+    return input.locale === 'zh-CN'
+      ? `已思考 ${input.thoughtSeconds} 秒`
+      : `Thought for ${input.thoughtSeconds}s`;
   }
-  return isChinese ? '思考过程' : 'Thoughts';
+  return input.locale === 'zh-CN' ? '思考过程' : 'Thoughts';
 }
 
 export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | null {
@@ -73,58 +78,36 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     permissionPrompt: props.permissionPrompt,
     locale,
   });
-
   const defaultOpen = resolveWorkDetailsDefaultOpen(presentation, props.workDetailsExpanded);
-  const [thinkingOpen, setThinkingOpen] = useState(defaultOpen);
-
-  useEffect(() => {
-    setThinkingOpen(resolveWorkDetailsDefaultOpen(presentation, props.workDetailsExpanded));
-    // Re-evaluate when activity, answer start, tool execution, or failure changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- presentation fields are intentional
-  }, [
-    presentation.isActive,
-    presentation.answerStarted,
-    presentation.hasFailure,
-    presentation.isWaitingForModel,
-    presentation.toolCallCount,
-    props.workDetailsExpanded,
-    presentation.summaryLabel,
-    presentation.outcome,
-  ]);
-
+  const [thinkingIntent, setThinkingIntent] = useState<'automatic' | 'user-open' | 'user-closed'>(
+    'automatic',
+  );
+  const thinkingOpen =
+    thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && defaultOpen);
   const tools = presentation.workItems
     .filter((item): item is Extract<typeof item, { kind: 'tool' }> => item.kind === 'tool')
     .map((item) => item.tool);
+  const inlineTools = tools.filter((tool) => resolveGenerationToolKind(tool) === null);
   const thinkingItem = presentation.workItems.find((item) => item.kind === 'thinking');
   const permissionItem = presentation.workItems.find((item) => item.kind === 'permission');
-  const hasThinking = props.showThinking !== false && Boolean(thinkingItem);
-  const thinkingIsStreaming = presentation.isActive && !presentation.answerStarted && hasThinking;
+  const hasThinking = props.showThinking !== false && thinkingItem?.kind === 'thinking';
+  const thinkingIsStreaming = presentation.isThinkingActive && Boolean(hasThinking);
   const thinkingLabelClass = behaviorTextClass('thinking', thinkingIsStreaming);
-  const liveActivityInput = turnPresentationToActivityInput(presentation, props.message, locale);
-  const liveActivityLabel = buildActivityPhrases(liveActivityInput)[0];
-
+  const liveActivityLabel = buildActivityPhrases(
+    turnPresentationToActivityInput(presentation, props.message, locale),
+  )[0];
   const hasVisibleWork =
     hasThinking ||
-    tools.length > 0 ||
+    inlineTools.length > 0 ||
     presentation.isWaitingForModel ||
     presentation.outcome !== undefined ||
     Boolean(presentation.terminalMessage) ||
+    Boolean(permissionItem) ||
     Boolean(props.activeSkill && presentation.isActive);
 
   if (!hasVisibleWork) {
-    return null;
+    return <>{props.children}</>;
   }
-
-  const toolGroupProps = {
-    tools,
-    ...(props.toolDensity ? { density: props.toolDensity } : { density: 'compact' as const }),
-    locale,
-    ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
-    ...(props.request !== undefined ? { request: props.request } : {}),
-    ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
-    ...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {}),
-    ...(props.historyCollapsed ? { historyCollapsed: true } : {}),
-  };
 
   return (
     <div
@@ -137,8 +120,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       data-run-id={presentation.runId ?? undefined}
       data-open={hasThinking && thinkingOpen ? 'true' : 'false'}
     >
-      {/* Thought row — muted timeline line; expand for full reasoning text. */}
-      {hasThinking && thinkingItem && thinkingItem.kind === 'thinking' ? (
+      {hasThinking && thinkingItem?.kind === 'thinking' ? (
         <>
           <button
             type="button"
@@ -149,9 +131,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             aria-label={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
             aria-expanded={thinkingOpen}
             data-testid="turn-work-details-summary"
-            onClick={() => setThinkingOpen((previous) => !previous)}
+            onClick={() => setThinkingIntent(thinkingOpen ? 'user-closed' : 'user-open')}
           >
-            {presentation.isActive && !presentation.answerStarted ? (
+            {thinkingIsStreaming ? (
               <span
                 className="turn-summary-active-animation"
                 data-testid="turn-summary-active-animation"
@@ -167,11 +149,11 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
               <IconBrain className="turn-summary-brain-icon" />
             )}
             <span className={`turn-work-details-label ${thinkingLabelClass}`}>
-              {presentation.isActive && liveActivityLabel
+              {thinkingIsStreaming && liveActivityLabel
                 ? liveActivityLabel
                 : thinkingSummaryLabel({
-                    isActive: presentation.isActive,
-                    answerStarted: presentation.answerStarted,
+                    isRunActive: presentation.isActive,
+                    isThinkingActive: thinkingIsStreaming,
                     locale,
                     ...(presentation.thoughtSeconds !== undefined
                       ? { thoughtSeconds: presentation.thoughtSeconds }
@@ -185,14 +167,13 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
               <IconChevronRight />
             </span>
           </button>
-
           {thinkingOpen ? (
             <div className="turn-work-details-body">
               <div
                 className={`turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}
                 data-testid="turn-thinking"
               >
-                <pre className={thinkingIsStreaming ? 'turn-shimmer-text' : undefined}>
+                <pre>
                   {thinkingItem.text}
                 </pre>
               </div>
@@ -215,6 +196,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
+      {props.children}
+
       {props.activeSkill && presentation.isActive && tools.length > 0 ? (
         <div className="turn-skill-activity-line" data-testid="turn-skill-activity-line">
           <SkillActivityChip
@@ -225,7 +208,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
-      {permissionItem && permissionItem.kind === 'permission' ? (
+      {permissionItem?.kind === 'permission' ? (
         <div
           className="turn-permission-wait behavior-gate-surface"
           data-testid="turn-permission-wait"
@@ -240,8 +223,23 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
-      {/* Tool timeline: Explore groups + individual Read/Ran/Edit rows. */}
-      {tools.length > 0 ? <TurnToolGroup {...toolGroupProps} /> : null}
+      <TurnToolGroup
+        tools={inlineTools}
+        density={props.toolDensity ?? 'compact'}
+        locale={locale}
+        {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+        {...(props.request !== undefined ? { request: props.request } : {})}
+        {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+        {...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {})}
+        {...(props.subagentChildren ? { subagentChildren: props.subagentChildren } : {})}
+        {...(props.subagentInvocations
+          ? { subagentInvocations: props.subagentInvocations }
+          : {})}
+        {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
+        {...(props.onInspectSubagent
+          ? { onInspectSubagent: props.onInspectSubagent }
+          : {})}
+      />
 
       {presentation.terminalMessage ? (
         <div className="turn-terminal-message muted">{presentation.terminalMessage}</div>
@@ -250,5 +248,4 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   );
 }
 
-/** Exported for tests that need the presentation without rendering. */
 export type { TurnPresentation };

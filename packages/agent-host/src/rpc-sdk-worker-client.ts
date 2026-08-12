@@ -11,6 +11,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
+import { Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import {
   parseWorkerFrame,
@@ -33,11 +34,13 @@ import type {
   HostToolExecutionResult,
   SessionCompactResult,
   SessionSeedMessage,
-} from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+  EphemeralProviderSecret,
+} from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
+import { encodeWorkerSecretBootstrap } from './rpc/worker-secret-bootstrap.js';
 import type {
   SerializableBlueprint,
-  SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './rpc/serializable-blueprint.js';
 
 export type WorkerClientOptions = {
@@ -47,6 +50,11 @@ export type WorkerClientOptions = {
   nodeArgs?: string[];
   /** Env vars for the worker process. */
   env?: Record<string, string>;
+  /**
+   * In-memory provider keys sent once over the dedicated bootstrap pipe. Raw
+   * values are never included in JSONL frames, argv, or worker environment.
+   */
+  bootstrapSecrets?: readonly EphemeralProviderSecret[];
   /** Supervisor-owned identity for this worker generation. */
   context?: Pick<WorkerFrameContext, 'sessionId' | 'runtimeGenerationId'>;
   /** Called when the worker emits a normalized event. */
@@ -163,6 +171,8 @@ export class RpcSdkWorkerClient extends EventEmitter {
     if (process.env.PATH) workerEnvironment.PATH = process.env.PATH;
     if (process.env.NODE_ENV) workerEnvironment.NODE_ENV = process.env.NODE_ENV;
     Object.assign(workerEnvironment, this.options.env ?? {});
+    // Validate and bound the payload before allocating a child process.
+    const bootstrapFrame = encodeWorkerSecretBootstrap(this.options.bootstrapSecrets ?? []);
 
     this.exited = false;
     this.exitCode = null;
@@ -170,7 +180,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     this.stdoutBuffer = '';
     try {
       this.child = spawn(process.execPath, args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
+        stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
         env: workerEnvironment,
       });
     } catch (error) {
@@ -215,19 +225,29 @@ export class RpcSdkWorkerClient extends EventEmitter {
       this.emit('exit', code);
     });
 
-    // Wait for hello handshake with timeout (§4.4: 5s default).
+    // Install the hello waiter before writing fd 3. A tiny worker can finish
+    // bootstrap and emit hello in the same event-loop turn.
     const helloTimeout = this.options.helloTimeoutMs ?? 5000;
-    await new Promise<void>((resolve, reject) => {
+    const helloPromise = new Promise<void>((resolve, reject) => {
       this.helloResolve = (hello) => {
-        this.helloReceived = true;
-        this.clearHelloWait();
         // Validate protocol version (§4.3: parent refuses incompatible workers).
         if (hello.protocolVersion !== 1) {
+          this.clearHelloWait();
           reject(
             new Error(`worker protocol version ${hello.protocolVersion} incompatible (expected 1)`),
           );
           return;
         }
+        if (
+          (this.options.bootstrapSecrets?.length ?? 0) > 0 &&
+          hello.capabilities.providerSecretBootstrap !== true
+        ) {
+          this.clearHelloWait();
+          reject(new Error('worker does not support provider secret bootstrap'));
+          return;
+        }
+        this.helloReceived = true;
+        this.clearHelloWait();
         resolve();
       };
       this.helloReject = reject;
@@ -240,11 +260,20 @@ export class RpcSdkWorkerClient extends EventEmitter {
           );
         }
       }, helloTimeout);
-    }).catch(async (error: unknown) => {
+    });
+
+    try {
+      const bootstrap = child.stdio?.[3];
+      const bootstrapPromise =
+        bootstrap instanceof Writable
+          ? writeWorkerSecretBootstrap(bootstrap, bootstrapFrame)
+          : Promise.reject(new Error('worker secret bootstrap pipe is unavailable'));
+      await Promise.all([bootstrapPromise, helloPromise]);
+    } catch (error: unknown) {
       const startupError = error instanceof Error ? error : new Error(String(error));
       await this.cleanupAfterStartupFailure(startupError);
       throw startupError;
-    });
+    }
   }
 
   /** Send a request and wait for the response with optional timeout. */
@@ -343,7 +372,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
   async createSession(input: {
     productSessionId: string;
     blueprint: SerializableBlueprint;
-    providers?: SerializableProviderRuntime[];
+    providers?: SerializableWorkerProviderRuntime[];
     seedMessages?: readonly SessionSeedMessage[];
   }): Promise<{ sessionId: string }>;
   async createSession(input: unknown): Promise<{ sessionId: string }> {
@@ -746,6 +775,32 @@ export class RpcSdkWorkerClient extends EventEmitter {
   get isReady(): boolean {
     return this.helloReceived && !this.exited;
   }
+}
+
+/** Await fd 3 completion so asynchronous EPIPE errors reject startup. */
+function writeWorkerSecretBootstrap(stream: Writable, frame: Buffer): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = (): void => {
+      stream.off('error', onError);
+      stream.off('finish', onFinish);
+    };
+    const onError = (error: Error): void => {
+      cleanup();
+      reject(error);
+    };
+    const onFinish = (): void => {
+      cleanup();
+      resolve();
+    };
+    stream.once('error', onError);
+    stream.once('finish', onFinish);
+    try {
+      stream.end(frame);
+    } catch (error) {
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
 }
 
 function resolveDefaultWorkerScript(): string {

@@ -14,6 +14,8 @@ export type HostToolExecutionInput = {
   sessionId: string;
   runtimeGenerationId: string;
   runId: string;
+  /** Generation-normalized tool call that owns this execution, when proven. */
+  toolCallId?: string;
   toolName: string;
   arguments: Record<string, unknown>;
 };

@@ -4,6 +4,7 @@ export const SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS = 128;
 export const SESSION_USER_MESSAGE_INDEX_MIN_TICKS = 16;
 export const SESSION_USER_MESSAGE_INDEX_MAX_TICKS = 256;
 export const SESSION_USER_MESSAGE_PREVIEW_CHARS = 120;
+/** Hard serialized anchor budget returned to a client. */
 export const SESSION_USER_MESSAGE_INDEX_MAX_BYTES = 128 * 1024;
 
 export type SessionUserMessageIndexQuery = {
@@ -21,6 +22,7 @@ export type SessionUserMessageAnchor = {
   preview: string;
   /** User-message ordinal span represented by this anchor. */
   spanStartOrdinal: number;
+  /** Last user-message ordinal represented by this anchor, inclusive. */
   spanEndOrdinal: number;
 };
 
@@ -31,5 +33,6 @@ export type SessionUserMessageIndexData = {
   totalUserMessages: number;
   mode: 'exact' | 'sampled';
   anchors: SessionUserMessageAnchor[];
+  /** Serialized UTF-8 bytes of the anchors projection. */
   anchorBytes: number;
 };

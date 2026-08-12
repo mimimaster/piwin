@@ -198,8 +198,22 @@ describe('ContextUsageRing', () => {
     const rows = document.querySelectorAll('.context-usage-rows li');
     expect(rows).toHaveLength(6);
     expect(rows[0]?.textContent).toContain('System prompt');
-    expect(rows[0]?.textContent).toContain('1.2K');
+    expect(rows[0]?.textContent).toContain('~1.2K');
     expect(rows[1]?.textContent).toContain('—');
+  });
+
+  it('does not mark Pi-provided breakdown values as estimates', () => {
+    render(
+      createBaseProps({
+        breakdown: { systemPromptTokens: 1200, source: 'pi' },
+      }),
+      root,
+    );
+    activateTrigger();
+
+    const systemPromptRow = document.querySelector('.context-usage-rows li');
+    expect(systemPromptRow?.textContent).toContain('1.2K');
+    expect(systemPromptRow?.textContent).not.toContain('~1.2K');
   });
 
   it('reports a critical tone', () => {

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import type { ProductSessionLineageNode, ProductSessionLineageView } from '@piwin/contracts';
-import { Popover } from '@piwin/ui-kit';
-import { IconForkConversation, IconSessionTree } from './shell-icons';
+import { IconGit, Popover } from '@piwin/ui-kit';
+import { IconSessionTree } from './shell-icons';
 import { buildSessionLineageTree, type SessionLineageTreeNode } from './session-lineage-tree';
 
 export type SessionLineagePopoverProps = {
@@ -182,7 +182,7 @@ function SessionLineageTreePanel(props: {
       {branchCount === 0 ? (
         <div className="session-lineage-empty" data-testid="session-lineage-empty">
           <span className="session-lineage-empty-icon" aria-hidden>
-            <IconForkConversation width={15} height={15} />
+            <IconGit width={15} height={15} stroke={1.8} />
           </span>
           <span className="session-lineage-empty-copy">
             <strong>{isChinese ? '当前还没有分支' : 'No branches yet'}</strong>

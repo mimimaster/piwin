@@ -209,6 +209,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
     percent >= 90 ? 'critical' : percent >= 70 ? 'warn' : 'ok';
 
   const breakdown = props.breakdown ?? props.usage?.breakdown;
+  const breakdownIsEstimated = breakdown?.source === 'host-estimate';
   const { secondsRemaining: cacheExpirySeconds, isExpired: isCacheExpired } =
     getCacheStatus(props.usage?.updatedAt, now);
 
@@ -337,7 +338,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
               </span>
               <span className="context-usage-row-value muted">
                 {typeof row.tokens === 'number'
-                  ? formatTokens(row.tokens)
+                  ? `${breakdownIsEstimated ? '~' : ''}${formatTokens(row.tokens)}`
                   : '—'}
               </span>
             </li>

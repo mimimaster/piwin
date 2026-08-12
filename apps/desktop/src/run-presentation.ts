@@ -23,6 +23,8 @@ export type TurnPresentation = {
   workItems: WorkItemView[];
   hasFailure: boolean;
   isActive: boolean;
+  /** True only while this response is still emitting reasoning. */
+  isThinkingActive: boolean;
   /** True when assistant answer text has started (the default keeps work collapsed). */
   answerStarted: boolean;
   /** Waiting for first model output (no thinking/tools yet). */
@@ -62,6 +64,13 @@ export function buildTurnPresentation(input: BuildTurnPresentationInput): TurnPr
     (runId !== null && activeRunId === runId) ||
     message.tools.some((tool) => tool.status === 'running');
   const answerStarted = message.text.trim().length > 0;
+  const isThinkingActive =
+    isActive &&
+    message.status === 'streaming' &&
+    message.thinking.trim().length > 0 &&
+    message.thinkingEndedAt === undefined &&
+    !answerStarted &&
+    message.tools.length === 0;
   const permissionForThisTurn =
     permissionPrompt &&
     (permissionPrompt.runId === undefined ||
@@ -100,18 +109,20 @@ export function buildTurnPresentation(input: BuildTurnPresentationInput): TurnPr
     message.tools.some((tool) => tool.status === 'error') ||
     runRecord?.outcome === 'failed';
   const toolCallCount = message.tools.length;
-  const thoughtSeconds = resolveThoughtSeconds(runRecord, isActive);
+  const thoughtSeconds = resolveThoughtSeconds(message, isThinkingActive);
   const presentation: TurnPresentation = {
     runId,
     phaseHistory,
     workItems,
     hasFailure,
     isActive,
+    isThinkingActive,
     answerStarted,
     isWaitingForModel,
     toolCallCount,
     summaryLabel: buildSummaryLabel({
       isActive,
+      isThinkingActive,
       isWaitingForModel,
       answerStarted,
       hasFailure,
@@ -163,19 +174,19 @@ export function resolveWorkDetailsDefaultOpen(
 }
 
 function resolveThoughtSeconds(
-  runRecord: RunRecordUi | undefined,
-  isActive: boolean,
+  message: ChatMessageUi,
+  isThinkingActive: boolean,
 ): number | undefined {
-  if (!runRecord?.startedAt) {
-    return undefined;
-  }
-  const endMs = runRecord.endedAt ?? (isActive ? Date.now() : runRecord.startedAt);
-  const elapsedMs = Math.max(0, endMs - runRecord.startedAt);
+  if (message.thinkingStartedAt === undefined) return undefined;
+  const thinkingEnd = message.thinkingEndedAt ?? (isThinkingActive ? Date.now() : undefined);
+  if (thinkingEnd === undefined) return undefined;
+  const elapsedMs = Math.max(0, thinkingEnd - message.thinkingStartedAt);
   return Math.max(1, Math.round(elapsedMs / 1000));
 }
 
 function buildSummaryLabel(input: {
   isActive: boolean;
+  isThinkingActive: boolean;
   isWaitingForModel: boolean;
   answerStarted: boolean;
   hasFailure: boolean;
@@ -197,7 +208,7 @@ function buildSummaryLabel(input: {
       const toolTitle = runningTool.presentation?.title ?? runningTool.toolName;
       return isChinese ? `工作中 · ${toolTitle}` : `Working · ${toolTitle}`;
     }
-    if (input.thinkingLength > 0 && !input.answerStarted) {
+    if (input.isThinkingActive) {
       return isChinese ? '思考中' : 'Thinking';
     }
     return isChinese ? '工作中…' : 'Working…';
@@ -215,15 +226,26 @@ function buildSummaryLabel(input: {
     return isChinese ? '已停止' : 'Stopped';
   }
 
-  // Completed summary: prototype “已思考 N 秒 · M 次工具调用”
   const seconds = input.thoughtSeconds;
   const toolCount = input.toolCallCount;
-  if (seconds !== undefined || toolCount > 0 || input.thinkingLength > 0) {
-    const safeSeconds = seconds ?? 1;
+  if (seconds !== undefined) {
     if (isChinese) {
-      return `已思考 ${safeSeconds} 秒 · ${toolCount} 次工具调用`;
+      return `已思考 ${seconds} 秒 · ${toolCount} 次工具调用`;
     }
-    return `Thought for ${safeSeconds}s · ${toolCount} tool call${toolCount === 1 ? '' : 's'}`;
+    return `Thought for ${seconds}s · ${toolCount} tool call${toolCount === 1 ? '' : 's'}`;
+  }
+  if (input.thinkingLength > 0) {
+    if (toolCount > 0) {
+      return isChinese
+        ? `思考过程 · ${toolCount} 次工具调用`
+        : `Thoughts · ${toolCount} tool call${toolCount === 1 ? '' : 's'}`;
+    }
+    return isChinese ? '思考过程' : 'Thoughts';
+  }
+  if (toolCount > 0) {
+    return isChinese
+      ? `${toolCount} 次工具调用`
+      : `${toolCount} tool call${toolCount === 1 ? '' : 's'}`;
   }
   return isChinese ? '工作详情' : 'Work details';
 }

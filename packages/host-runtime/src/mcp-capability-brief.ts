@@ -15,8 +15,8 @@ export const MCP_BRIEF_MAX_SERVERS = 24;
 export const MCP_BRIEF_MAX_TOOLS_PER_SERVER = 8;
 export const MCP_BRIEF_MAX_TOOL_NAME_CHARS = 40;
 export const MCP_BRIEF_MAX_SELECTOR_CHARS = 160;
-export const MCP_BRIEF_MAX_DESCRIPTION_CHARS = 2_400;
-export const MCP_BRIEF_MAX_SYSTEM_CHARS = 3_200;
+export const MCP_BRIEF_MAX_DESCRIPTION_CHARS = 1_200;
+export const MCP_BRIEF_MAX_SYSTEM_CHARS = 1_600;
 
 export type McpServerBriefEntry = {
   serverId: string;
@@ -122,21 +122,9 @@ export function formatMcpCapabilitySystemPrompt(brief: McpCapabilityBrief): stri
 
   const lines: string[] = [
     '## MCP tools (use them proactively)',
-    'You have external MCP capabilities for this session. Prefer them when the user task matches a configured server (APIs, browsers, docs, tickets, memory, etc.).',
-    '',
-    '### How to call non-direct MCP tools',
-    'Use the single gateway tool `mcp_gateway` (do not invent ad-hoc tool names):',
-    '1. `action=search` with `query` — check cached metadata first; on a cache miss, perform bounded lazy discovery (`discover=false` keeps the search cache-only)',
-    '2. `action=describe` with `selector` like `server.tool` — load input schema',
-    '3. `action=call` with `selector` + `arguments` — invoke (lazy-connects that server only)',
-    '4. `action=status` — server health without starting servers',
-    '',
-    'Rules:',
-    '- Be proactive: if a configured MCP server can help, search/call it instead of guessing.',
-    '- Never invent selectors; search or describe first when unsure.',
-    '- Uncached servers are eligible for bounded lazy discovery from a normal search; if search still returns no match, describe/call with a known selector remains available.',
-    '',
-    '### Configured servers',
+    'Use a pinned direct tool when it matches; otherwise use `mcp_gateway` proactively.',
+    'Gateway flow: `search(query)` → `describe(server.tool)` → `call(server.tool, arguments)`. Never invent selectors. Search may lazily discover uncached servers.',
+    'Configured servers:',
   ];
 
   if (brief.omittedServerCount > 0) {
@@ -162,11 +150,7 @@ export function formatMcpCapabilitySystemPrompt(brief: McpCapabilityBrief): stri
   }
 
   if (brief.directExposedNames.length > 0) {
-    lines.push('');
-    lines.push('### Pinned direct tools (also in the tool list)');
-    for (const name of brief.directExposedNames.slice(0, 16)) {
-      lines.push(`- \`${name}\``);
-    }
+    lines.push(`Pinned direct: ${brief.directExposedNames.slice(0, 16).join(', ')}`);
     if (brief.directExposedNames.length > 16) {
       lines.push(`- …(+${brief.directExposedNames.length - 16} more)`);
     }
@@ -195,24 +179,15 @@ export function formatMcpGatewayToolDescription(brief: McpCapabilityBrief): stri
     .filter((server) => server.cached)
     .flatMap((server) =>
       server.sampleToolSelectors
-        .filter((selector) => selector.length <= MCP_BRIEF_MAX_SELECTOR_CHARS)
+        .filter((selector) => selector.length <= Math.min(MCP_BRIEF_MAX_SELECTOR_CHARS, 96))
         .slice(0, 3),
     )
-    .slice(0, 12);
+    .slice(0, 3);
 
   const parts = [
-    'MCP gateway: discover and call external MCP tools. Prefer this whenever a configured MCP server can help the user task.',
-    'Search: cache first; a cache miss triggers bounded lazy discovery (discover=false for cache-only). Then describe server.tool and call it (lazy-connects one server); status reports health without starting.',
+    'Discover and call external MCP tools proactively when a configured server matches the task.',
+    'Use search(query), describe(server.tool), call(server.tool, arguments), or status. Search checks cache then bounded lazy discovery unless discover=false. Never invent selectors.',
   ];
-  if (brief.omittedServerCount > 0) {
-    parts.push(
-      `Configured server list truncated: ${brief.omittedServerCount} more configured server(s) omitted from this bounded summary.`,
-    );
-  }
-  parts.push(
-    `Enabled servers (${brief.enabledServerCount}): ${serverSummary || '(none)'}.`,
-    `Cached tools visible to search: ${brief.cachedToolCount}.`,
-  );
 
   if (sampleSelectors.length > 0) {
     const exampleSelectors: string[] = [];
@@ -228,20 +203,24 @@ export function formatMcpGatewayToolDescription(brief: McpCapabilityBrief): stri
       parts.push(`Example selectors: ${exampleSelectors.join(', ')}.`);
     }
   }
+  if (brief.omittedServerCount > 0) {
+    parts.push(
+      `Configured server list truncated: ${brief.omittedServerCount} more configured server(s) omitted from this bounded summary.`,
+    );
+  }
+  parts.push(
+    `Enabled servers (${brief.enabledServerCount}): ${serverSummary || '(none)'}. Cached tools visible to search: ${brief.cachedToolCount}.`,
+  );
   if (brief.uncachedServerIds.length > 0) {
     parts.push(
-      `Uncached/empty metadata: ${brief.uncachedServerIds.join(', ')}. A normal search performs bounded lazy discovery for those servers; describe/call also works with a known selector.`,
+      `Uncached: ${brief.uncachedServerIds.join(', ')}; search can discover them lazily.`,
     );
   }
   if (brief.directExposedNames.length > 0) {
     parts.push(
-      `Pinned direct tools already registered separately: ${brief.directExposedNames.slice(0, 8).join(', ')}.`,
+      `Pinned direct: ${brief.directExposedNames.slice(0, 8).join(', ')}.`,
     );
   }
-  parts.push(
-    'Do not invent tool names outside this gateway or the pinned direct tools. Search first when unsure.',
-  );
-
   return truncate(parts.join(' '), MCP_BRIEF_MAX_DESCRIPTION_CHARS);
 }
 

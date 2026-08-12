@@ -722,9 +722,11 @@ export type SerializableSessionBlueprint = {
 };
 ```
 
-The projection contains no raw provider secrets. Credentials are provided by a
-dedicated process environment or narrow secret-resolution channel and are
-never emitted in protocol logs.
+The projection contains no raw provider secrets. `apiKeyEnv` is injected only
+for the selected provider generation; `apiKeyRef` uses a bounded one-shot fd 3
+bootstrap channel whose JSONL envelope contains only an opaque secret id.
+Bootstrap material is never emitted in protocol logs, argv, environment,
+blueprints, or durable state.
 
 ### 4.5 Worker protocol
 

@@ -1,6 +1,7 @@
 import { toMediaAttachmentRef, isModelEnabled } from '@piwin/contracts';
 import type {
   HostToolRegistration,
+  ImageGenerationApiStyle,
   ModelCapability,
   ModelConfigEntry,
   ModelProviderConfig,
@@ -146,24 +147,59 @@ function normalizeCustomImagePath(routePath: string): string {
   return routePath.startsWith('/') ? routePath : `/${routePath}`;
 }
 
-function resolveImagePath(
+const IMAGE_API_STYLES: readonly ImageGenerationApiStyle[] = ['openai', 'imagen', 'gemini'];
+
+function isImageApiStyle(value: unknown): value is ImageGenerationApiStyle {
+  return IMAGE_API_STYLES.includes(value as ImageGenerationApiStyle);
+}
+
+/**
+ * Pick the wire format for an image-generation route. The apiStyle is
+ * deliberately independent of the provider protocol: gateways registered as
+ * openai-compatible channels may host Gemini-native image models and vice
+ * versa. Without an explicit apiStyle the protocol defaults apply
+ * (`openai` for openai-compatible, `imagen` for google-gemini).
+ */
+function resolveImageApiStyle(
   provider: ModelProviderConfig,
-  model: { id: string; routes?: Partial<Record<ModelCapability, ModelRouteConfig>> },
-): string {
-  const route = model.routes?.['image-generation'];
-  if (route?.path?.trim()) {
-    const base = provider.baseUrl.replace(/\/+$/, '');
-    return `${base}${normalizeCustomImagePath(route.path.trim())}`;
+  model: ModelConfigEntry,
+): ImageGenerationApiStyle {
+  const configured = model.routes?.['image-generation']?.apiStyle;
+  if (isImageApiStyle(configured)) return configured;
+  if (configured !== undefined) {
+    throw new ImageGenConfigError(
+      `image_gen: apiStyle "${configured}" is not valid for image generation (supported: ${IMAGE_API_STYLES.join(', ')}).`,
+    );
   }
-  if (provider.protocol === 'openai-compatible') {
-    return `${provider.baseUrl.replace(/\/+$/, '')}/images/generations`;
-  }
-  if (provider.protocol === 'google-gemini') {
-    return `${provider.baseUrl.replace(/\/+$/, '')}/models/${encodeURIComponent(model.id)}:predict`;
-  }
+  if (provider.protocol === 'openai-compatible') return 'openai';
+  if (provider.protocol === 'google-gemini') return 'imagen';
   throw new ImageGenConfigError(
     `image_gen: protocol "${provider.protocol}" does not support image generation.`,
   );
+}
+
+function defaultImagePath(style: ImageGenerationApiStyle, modelId: string): string {
+  switch (style) {
+    case 'openai':
+      return '/images/generations';
+    case 'imagen':
+      return `/models/${encodeURIComponent(modelId)}:predict`;
+    case 'gemini':
+      return `/models/${encodeURIComponent(modelId)}:generateContent`;
+  }
+}
+
+function resolveImagePath(
+  provider: ModelProviderConfig,
+  model: { id: string; routes?: Partial<Record<ModelCapability, ModelRouteConfig>> },
+  style: ImageGenerationApiStyle,
+): string {
+  const route = model.routes?.['image-generation'];
+  const base = provider.baseUrl.replace(/\/+$/, '');
+  if (route?.path?.trim()) {
+    return `${base}${normalizeCustomImagePath(route.path.trim())}`;
+  }
+  return `${base}${defaultImagePath(style, model.id)}`;
 }
 
 function resolveImageTimeout(model: {
@@ -389,6 +425,104 @@ function parseGoogleImages(payload: unknown): GeneratedImage[] {
   return images;
 }
 
+/**
+ * Parse a Gemini-native `:generateContent` response: images arrive as
+ * `candidates[].content.parts[].inlineData.data` (raw base64 or a data URL).
+ * `fileData.fileUri` entries are downloaded like OpenAI URL outputs.
+ */
+async function parseGeminiImages(
+  payload: unknown,
+  signal: AbortSignal,
+  fetchImpl: typeof fetch,
+): Promise<GeneratedImage[]> {
+  const candidates = asRecord(payload)?.candidates;
+  if (!Array.isArray(candidates)) {
+    throw new ImageGenConfigError('image_gen: provider returned no image data');
+  }
+  const images: GeneratedImage[] = [];
+  for (const rawCandidate of candidates) {
+    const candidate = asRecord(rawCandidate);
+    const content = asRecord(candidate?.content);
+    const parts = content?.parts;
+    if (!Array.isArray(parts)) continue;
+    for (const rawPart of parts) {
+      const part = asRecord(rawPart);
+      const inlineData = asRecord(part?.inlineData);
+      const base64 = optionalString(inlineData?.data);
+      if (base64) {
+        const inline = decodeDataUrl(base64);
+        images.push(generatedImage(inline ?? base64ToBytes(base64)));
+        continue;
+      }
+      const fileData = asRecord(part?.fileData);
+      const fileUri = optionalString(fileData?.fileUri);
+      if (fileUri) {
+        images.push(await downloadGeneratedImage(fileUri, signal, fetchImpl));
+      }
+    }
+  }
+  if (images.length === 0) {
+    throw new ImageGenConfigError('image_gen: provider returned no image data');
+  }
+  return images;
+}
+
+function buildOpenAiImageBody(
+  modelId: string,
+  args: ImageGenerationCallArgs,
+  count: number,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { model: modelId, prompt: args.prompt.trim(), n: count };
+  if (args.size?.trim()) body.size = args.size.trim();
+  if (args.quality?.trim()) body.quality = args.quality.trim();
+  return body;
+}
+
+function buildImagenImageBody(
+  args: ImageGenerationCallArgs,
+  count: number,
+): Record<string, unknown> {
+  return {
+    instances: [{ prompt: args.prompt.trim() }],
+    parameters: {
+      sampleCount: count,
+      ...(args.size?.trim() ? { aspectRatio: args.size.trim() } : {}),
+    },
+  };
+}
+
+function buildGeminiImageBody(
+  args: ImageGenerationCallArgs,
+  count: number,
+): Record<string, unknown> {
+  const generationConfig: Record<string, unknown> = {
+    responseModalities: ['TEXT', 'IMAGE'],
+  };
+  if (count > 1) generationConfig.candidateCount = count;
+  return {
+    contents: [{ role: 'user', parts: [{ text: args.prompt.trim() }] }],
+    generationConfig,
+  };
+}
+
+/**
+ * Credentials for an image call. OpenAI-style requests use a Bearer token;
+ * Imagen requests use `x-goog-api-key` on google-gemini channels. Gemini
+ * native style keeps the channel's default credential so proxies registered
+ * as openai-compatible (Bearer) or google-gemini (x-goog-api-key) both work.
+ */
+function imageRequestCredentials(
+  provider: ModelProviderConfig,
+  style: ImageGenerationApiStyle,
+  apiKey: string,
+): Record<string, string> {
+  if (!apiKey) return {};
+  if (style === 'openai') return { authorization: `Bearer ${apiKey}` };
+  return provider.protocol === 'google-gemini'
+    ? { 'x-goog-api-key': apiKey }
+    : { authorization: `Bearer ${apiKey}` };
+}
+
 /** Call a provider image endpoint and normalize all returned raster images. */
 export async function callImageEndpoint(
   provider: ModelProviderConfig,
@@ -405,55 +539,48 @@ export async function callImageEndpoint(
   }
 
   const count = resolveRequestedCount(args.n);
-  const endpoint = resolveImagePath(provider, model);
+  const style = resolveImageApiStyle(provider, model);
+  const endpoint = resolveImagePath(provider, model, style);
   const timeoutMs = resolveImageTimeout(model);
   const requestSignal = signal
     ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
     : AbortSignal.timeout(timeoutMs);
 
-  if (provider.protocol === 'openai-compatible') {
-    if (args.editPath) {
-      throw new ImageGenConfigError(
-        'image_gen: image editing is not yet supported. Use generation (prompt-only) instead.',
-      );
-    }
-    const body: Record<string, unknown> = { model: model.id, prompt, n: count };
-    if (args.size?.trim()) body.size = args.size.trim();
-    if (args.quality?.trim()) body.quality = args.quality.trim();
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers: providerRequestHeaders(
-        provider,
-        apiKey ? { authorization: `Bearer ${apiKey}` } : {},
-      ),
-      body: JSON.stringify(body),
-      signal: requestSignal,
-    });
-    if (!response.ok) throw await providerHttpError(response, model.id);
-    return parseOpenAiImages(await readProviderJson(response, model.id), requestSignal, fetchImpl);
+  let body: Record<string, unknown>;
+  switch (style) {
+    case 'openai':
+      if (args.editPath) {
+        throw new ImageGenConfigError(
+          'image_gen: image editing is not yet supported. Use generation (prompt-only) instead.',
+        );
+      }
+      body = buildOpenAiImageBody(model.id, args, count);
+      break;
+    case 'imagen':
+      body = buildImagenImageBody(args, count);
+      break;
+    case 'gemini':
+      body = buildGeminiImageBody(args, count);
+      break;
   }
 
-  if (provider.protocol === 'google-gemini') {
-    const body = {
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: count,
-        ...(args.size?.trim() ? { aspectRatio: args.size.trim() } : {}),
-      },
-    };
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers: providerRequestHeaders(provider, apiKey ? { 'x-goog-api-key': apiKey } : {}),
-      body: JSON.stringify(body),
-      signal: requestSignal,
-    });
-    if (!response.ok) throw await providerHttpError(response, model.id);
-    return parseGoogleImages(await readProviderJson(response, model.id));
-  }
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: providerRequestHeaders(provider, imageRequestCredentials(provider, style, apiKey)),
+    body: JSON.stringify(body),
+    signal: requestSignal,
+  });
+  if (!response.ok) throw await providerHttpError(response, model.id);
 
-  throw new ImageGenConfigError(
-    `image_gen: protocol "${provider.protocol}" does not support image generation in piwin (supported: openai-compatible, google-gemini).`,
-  );
+  const payload = await readProviderJson(response, model.id);
+  switch (style) {
+    case 'openai':
+      return parseOpenAiImages(payload, requestSignal, fetchImpl);
+    case 'imagen':
+      return parseGoogleImages(payload);
+    case 'gemini':
+      return parseGeminiImages(payload, requestSignal, fetchImpl);
+  }
 }
 
 export function base64ToBytes(base64Data: string): Uint8Array {

@@ -78,16 +78,38 @@ function fitAnchorsToByteBudget(
     return { anchors, mode: 'exact' };
   }
 
-  const shortened = anchors.map((anchor) => ({
+  let current = anchors.map((anchor) => ({
     ...anchor,
     preview: normalizePreview(anchor.preview.slice(0, 64)),
   }));
-  if (serializedAnchorBytes(shortened) <= SESSION_USER_MESSAGE_INDEX_MAX_BYTES) {
-    return { anchors: shortened, mode: 'sampled' };
+  if (serializedAnchorBytes(current) <= SESSION_USER_MESSAGE_INDEX_MAX_BYTES) {
+    return { anchors: current, mode: 'sampled' };
   }
 
-  const targetCount = Math.max(SESSION_USER_MESSAGE_INDEX_MIN_TICKS, Math.floor(maximumTicks / 2));
-  return { anchors: sampleAnchors(shortened, targetCount), mode: 'sampled' };
+  let targetCount = Math.max(
+    1,
+    Math.min(
+      maximumTicks,
+      Math.max(SESSION_USER_MESSAGE_INDEX_MIN_TICKS, Math.floor(current.length / 2)),
+    ),
+  );
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    current = sampleAnchors(current, targetCount);
+    if (serializedAnchorBytes(current) <= SESSION_USER_MESSAGE_INDEX_MAX_BYTES) {
+      return { anchors: current, mode: 'sampled' };
+    }
+    if (current.length <= 1) {
+      break;
+    }
+    targetCount = Math.max(1, Math.floor(current.length / 2));
+  }
+  while (
+    current.length > 0 &&
+    serializedAnchorBytes(current) > SESSION_USER_MESSAGE_INDEX_MAX_BYTES
+  ) {
+    current = current.slice(0, current.length - 1);
+  }
+  return { anchors: current, mode: 'sampled' };
 }
 
 export function sampleUserMessageIndexRows(

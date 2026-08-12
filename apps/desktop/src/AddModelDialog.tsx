@@ -37,8 +37,10 @@ export function AddModelDialog({
   const [maxOutputTokens, setMaxOutputTokens] = useState('');
   const [supportsImage, setSupportsImage] = useState(false);
   const [imageGeneration, setImageGeneration] = useState(false);
+  const [videoGeneration, setVideoGeneration] = useState(false);
   const [speechToText, setSpeechToText] = useState(false);
   const [textToSpeech, setTextToSpeech] = useState(false);
+  const [nativeWebSearch, setNativeWebSearch] = useState(false);
   const [imageGenTimeout, setImageGenTimeout] = useState('180');
   const [reasoning, setReasoning] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +63,10 @@ export function AddModelDialog({
     setMaxOutputTokens('');
     setSupportsImage(false);
     setImageGeneration(false);
+    setVideoGeneration(false);
     setSpeechToText(false);
     setTextToSpeech(false);
+    setNativeWebSearch(false);
     setImageGenTimeout('180');
     setReasoning(true);
     setError(null);
@@ -201,11 +205,17 @@ export function AddModelDialog({
     if (imageGeneration) {
       capabilities.push('image-generation');
     }
+    if (videoGeneration) {
+      capabilities.push('video-generation');
+    }
     if (speechToText) {
       capabilities.push('speech-to-text');
     }
     if (textToSpeech) {
       capabilities.push('text-to-speech');
+    }
+    if (nativeWebSearch) {
+      capabilities.push('native-web-search');
     }
     const timeoutSeconds = Number(imageGenTimeout.trim());
     const hasValidTimeout =
@@ -392,6 +402,15 @@ export function AddModelDialog({
           <label className="add-model-flag">
             <input
               type="checkbox"
+              checked={videoGeneration}
+              onChange={(event) => setVideoGeneration(event.currentTarget.checked)}
+              data-testid="add-model-video-generation"
+            />
+            {isChinese ? '视频生成（Video Generation）' : 'Video generation'}
+          </label>
+          <label className="add-model-flag">
+            <input
+              type="checkbox"
               checked={speechToText}
               onChange={(event) => setSpeechToText(event.currentTarget.checked)}
               data-testid="add-model-speech-to-text"
@@ -406,6 +425,15 @@ export function AddModelDialog({
               data-testid="add-model-text-to-speech"
             />
             {isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
+          </label>
+          <label className="add-model-flag">
+            <input
+              type="checkbox"
+              checked={nativeWebSearch}
+              onChange={(event) => setNativeWebSearch(event.currentTarget.checked)}
+              data-testid="add-model-native-web-search"
+            />
+            {copy.nativeSearch}
           </label>
           <label className="add-model-flag">
             <input

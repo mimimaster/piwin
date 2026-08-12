@@ -17,6 +17,8 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+const mountedMarkdownRenders: Array<{ container: HTMLElement; root: Root }> = [];
+
 const ARTIFACT_HTML_FENCE = '```artifact-html\n<div><h1>Hi</h1></div>\n```';
 const CANVAS_ARTIFACT_FENCE =
   '```artifact-html title="Wide workspace" surface="canvas"\n<div>Wide</div>\n```';
@@ -33,7 +35,33 @@ function renderMarkdown(node: ReactElement): { container: HTMLElement; root: Roo
   act(() => {
     root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>);
   });
-  return { container, root };
+  const render = { container, root };
+  mountedMarkdownRenders.push(render);
+  return render;
+}
+
+function unmountMarkdown(render: { container: HTMLElement; root: Root }): void {
+  const index = mountedMarkdownRenders.indexOf(render);
+  if (index >= 0) {
+    mountedMarkdownRenders.splice(index, 1);
+  }
+  try {
+    act(() => {
+      render.root.unmount();
+    });
+  } catch {
+    // Root may already have been unmounted by the test body.
+  }
+  render.container.remove();
+}
+
+function cleanupMountedMarkdownRenders(): void {
+  while (mountedMarkdownRenders.length > 0) {
+    const render = mountedMarkdownRenders.pop();
+    if (render) {
+      unmountMarkdown(render);
+    }
+  }
 }
 
 describe('MarkdownView artifact preview policy', () => {
@@ -45,6 +73,7 @@ describe('MarkdownView artifact preview policy', () => {
   });
 
   afterEach(() => {
+    cleanupMountedMarkdownRenders();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -309,10 +338,7 @@ describe('MarkdownView artifact preview policy', () => {
     );
     const offLang = off.container.querySelector('[data-testid="code-fence-source"] .md-code-lang');
     const offText = offLang?.textContent ?? '';
-    act(() => {
-      off.root.unmount();
-    });
-    off.container.remove();
+    unmountMarkdown(off);
 
     // Code-first mode: renders artifact-with-source with the same normalized label.
     const on = renderMarkdown(
@@ -320,10 +346,7 @@ describe('MarkdownView artifact preview policy', () => {
     );
     const onLang = on.container.querySelector('.artifact-with-source .md-code-lang');
     const onText = onLang?.textContent ?? '';
-    act(() => {
-      on.root.unmount();
-    });
-    on.container.remove();
+    unmountMarkdown(on);
 
     // Both should normalize to the same language label (evaluate normalizes
     // artifact-html -> html). The invariant is equality across modes.
@@ -446,6 +469,10 @@ describe('MarkdownView artifact preview policy', () => {
 });
 
 describe('MarkdownView file references', () => {
+  afterEach(() => {
+    cleanupMountedMarkdownRenders();
+  });
+
   it('collapses a full .md path to its file name', () => {
     const fullPath = '/Users/yorickjue/.piwin/workspace/自我介绍.md';
     const { container } = renderMarkdown(
@@ -568,8 +595,7 @@ describe('MarkdownView file references', () => {
     expect(empty.container.querySelector('.markdown')?.getAttribute('style') ?? '').not.toContain(
       '--streamdown-caret',
     );
-    act(() => empty.root.unmount());
-    empty.container.remove();
+    unmountMarkdown(empty);
 
     const notOwner = renderMarkdown(
       <MarkdownView
@@ -581,8 +607,7 @@ describe('MarkdownView file references', () => {
     expect(
       notOwner.container.querySelector('.markdown')?.getAttribute('style') ?? '',
     ).not.toContain('--streamdown-caret');
-    act(() => notOwner.root.unmount());
-    notOwner.container.remove();
+    unmountMarkdown(notOwner);
   });
 
   it('keeps the live caret attached to text instead of a trailing blank line', () => {
@@ -600,10 +625,7 @@ describe('MarkdownView file references', () => {
     expect(
       streaming.container.querySelector('.md-code-content')?.getAttribute('data-syntax-highlight'),
     ).toBe('deferred');
-    act(() => {
-      streaming.root.unmount();
-    });
-    streaming.container.remove();
+    unmountMarkdown(streaming);
 
     const completed = renderMarkdown(<MarkdownView text={fence} renderingPhase="completed" />);
     expect(

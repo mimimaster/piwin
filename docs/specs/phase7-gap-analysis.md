@@ -57,7 +57,8 @@
 
 **修复:** `buildProviderEnvelope(config)` 从 enabled providers 构建 `SerializableProviderRuntime[]`:
 - `apiKeyEnv` → `auth: { kind: 'env', envName }` (worker 继承 env)
-- `apiKeyRef` → `auth: { kind: 'inline', apiKey }` (parent 从 keychain 解析)
+- `apiKeyRef` → `auth: { kind: 'bootstrap', secretId }` + one-shot fd 3 secret
+  bootstrap (parent 从 keychain 解析；原始 key 不进入 JSONL)
 - 无 auth → `auth: { kind: 'none' }`
 - 测试覆盖 env/inline/none auth + disabled provider exclusion
 

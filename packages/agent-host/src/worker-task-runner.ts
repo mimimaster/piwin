@@ -13,6 +13,7 @@
 
 import type {
   AgentEvent,
+  ProviderAuthDescriptor,
   SubagentTaskRunner,
   SubagentTaskRunInput,
   SubagentTaskRunOutput,
@@ -25,7 +26,7 @@ import {
   projectBackendBlueprintForWorker,
   type SerializableBlueprint,
 } from './rpc/serializable-blueprint.js';
-import type { SerializableProviderRuntime } from './rpc/serializable-blueprint.js';
+import type { SerializableWorkerProviderRuntime } from './rpc/serializable-blueprint.js';
 
 /** Options for the worker task runner. */
 export type WorkerTaskRunnerOptions = {
@@ -50,10 +51,7 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
     processIsolation: true,
   };
 
-  async runTask(
-    input: SubagentTaskRunInput,
-    signal: AbortSignal,
-  ): Promise<SubagentTaskRunOutput> {
+  async runTask(input: SubagentTaskRunInput, signal: AbortSignal): Promise<SubagentTaskRunOutput> {
     const { workspaceLease, childSessionId, runtimeGenerationId } = input;
     let client: RpcSdkWorkerClient | undefined;
     let workerSessionId: string | undefined;
@@ -89,8 +87,14 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       client = await this.supervisor.acquireWorker(
         childSessionId,
         runtimeGenerationId,
-        Object.keys(providerEnvironment).length > 0
-          ? { env: providerEnvironment }
+        Object.keys(providerEnvironment).length > 0 ||
+          (input.providerSecrets !== undefined && input.providerSecrets.length > 0)
+          ? {
+              ...(Object.keys(providerEnvironment).length > 0 ? { env: providerEnvironment } : {}),
+              ...(input.providerSecrets && input.providerSecrets.length > 0
+                ? { bootstrapSecrets: input.providerSecrets }
+                : {}),
+            }
           : undefined,
       );
       let summaryText = '';
@@ -112,10 +116,30 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       // Create a session in the worker. createSession takes the product
       // session ID but returns its own internal session ID, which must be
       // used for subsequent prompt/abort calls.
+      const workerProviders: SerializableWorkerProviderRuntime[] = input.providers.map(
+        (provider) => ({
+          providerId: provider.providerId,
+          protocol: provider.protocol,
+          baseUrl: provider.baseUrl,
+          ...(provider.headers ? { headers: { ...provider.headers } } : {}),
+          models: provider.models.map((model) => ({
+            id: model.id,
+            ...(model.label ? { label: model.label } : {}),
+            ...(model.input ? { input: [...model.input] } : {}),
+            ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+            ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+            ...(model.maxOutputTokens !== undefined
+              ? { maxOutputTokens: model.maxOutputTokens }
+              : {}),
+          })),
+          auth: provider.auth,
+        }),
+      );
       const sessionResult = await client.createSession({
         productSessionId: childSessionId,
         blueprint,
-        providers: input.providers as SerializableProviderRuntime[],
+        providers: workerProviders,
+        ...(input.seedMessages ? { seedMessages: input.seedMessages } : {}),
       });
       workerSessionId = sessionResult.sessionId;
 
@@ -171,8 +195,7 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
       ]);
 
       // Determine integration status based on workspace lease.
-      const integrationStatus =
-        workspaceLease.mode === 'worktree' ? 'pending' : 'not-requested';
+      const integrationStatus = workspaceLease.mode === 'worktree' ? 'pending' : 'not-requested';
 
       return {
         executionStatus: 'completed',
@@ -228,10 +251,7 @@ function truncateSummary(text: string): string {
 /** Copy only explicitly declared provider env refs into the isolated worker. */
 function collectProviderEnvironment(
   providers: ReadonlyArray<{
-    auth:
-      | { kind: 'env'; envName: string }
-      | { kind: 'inline'; apiKey: string }
-      | { kind: 'none' };
+    auth: ProviderAuthDescriptor;
   }>,
 ): Record<string, string> {
   const environment: Record<string, string> = {};

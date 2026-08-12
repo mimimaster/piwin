@@ -15,11 +15,13 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import type { ExtensionUiPort, SessionSeedMessage, ThinkingLevel } from '@piwin/contracts';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
 import { buildThinkingLevelMap, mapThinkingLevelToPi } from '../map-thinking-level.js';
 import {
   buildPiProviderRegistration,
+  resolvePiModelCompat,
   type PiModelRuntime,
   type PiModelRegistration,
   type PiProviderApi,
@@ -30,10 +32,12 @@ import {
   wrapStreamSimpleForNativeSearch,
   type NativeSearchStreamSimple,
 } from '../native-web-search.js';
+import { resolvePiNativeSearchStream } from '../pi-native-search-stream.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './serializable-blueprint.js';
 import type { WorkerPiSessionLike } from './worker-session-runtime.js';
 import {
@@ -47,7 +51,9 @@ import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 export type WorkerPiSessionFactoryInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
-  providers?: SerializableProviderRuntime[];
+  providers?: SerializableWorkerProviderRuntime[];
+  /** Opaque bootstrap ids resolved inside the worker, never from JSONL. */
+  bootstrapSecrets?: ReadonlyMap<string, string>;
   seedMessages?: readonly SessionSeedMessage[];
   extensionUi?: ExtensionUiPort;
   /** Proxy tools to register as Pi customTools (WP4). */
@@ -92,53 +98,114 @@ export async function createBlueprintResourceLoader(
     reload: () => Promise<void>;
   };
 
+  const agentsFiles = await Promise.all(
+    blueprint.contextManifest.agentsFiles.map(async (file) => ({
+      path: file.absolutePath,
+      content: await readCompiledContextFile(file.absolutePath),
+    })),
+  );
+  const systemPrompt = blueprint.contextManifest.systemPrompt
+    ? await readCompiledContextFile(blueprint.contextManifest.systemPrompt.absolutePath)
+    : undefined;
+  const appendSystemPrompts: string[] = [];
+  if (blueprint.contextManifest.appendSystemPrompt) {
+    appendSystemPrompts.push(
+      await readCompiledContextFile(blueprint.contextManifest.appendSystemPrompt.absolutePath),
+    );
+  }
+  const productAppendPrompt = blueprint.appendSystemPrompt?.trim();
+  if (productAppendPrompt) {
+    appendSystemPrompts.push(productAppendPrompt);
+  }
+
   const loaderOptions: Record<string, unknown> = {
     cwd: blueprint.workingDirectory,
     agentDir,
+    // SCR-16: the parent-compiled manifests are authoritative. These flags
+    // prevent Pi from rediscovering cwd/global resources behind the Host.
+    noContextFiles: true,
+    noSkills: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noThemes: true,
     additionalSkillPaths: [...blueprint.activeSkillPaths],
     additionalExtensionPaths: [...blueprint.activeExtensionPaths],
     additionalPromptTemplatePaths: [...blueprint.activePromptPaths],
+    // Empty explicit sources suppress Pi's SYSTEM/APPEND_SYSTEM discovery;
+    // overrides inject only content from the frozen manifest.
+    systemPrompt: '',
+    appendSystemPrompt: [],
+    agentsFilesOverride: () => ({ agentsFiles }),
+    systemPromptOverride: () => systemPrompt,
+    appendSystemPromptOverride: () => appendSystemPrompts,
   };
-
-  // Inject product-level append system prompt (artifact decision + runtime
-  // contract, ADR 0029). Use appendSystemPromptOverride (not appendSystemPrompt)
-  // to preserve Pi's own APPEND_SYSTEM.md discovery while appending ours.
-  const artifactAppendPrompt = blueprint.appendSystemPrompt?.trim();
-  if (artifactAppendPrompt) {
-    loaderOptions.appendSystemPromptOverride = (base: string[]) =>
-      base.includes(artifactAppendPrompt) ? base : [...base, artifactAppendPrompt];
-  }
 
   const loader = new LoaderCtor(loaderOptions);
   await loader.reload();
   return loader;
 }
 
+async function readCompiledContextFile(absolutePath: string): Promise<string> {
+  try {
+    return await readFile(absolutePath, 'utf8');
+  } catch (error) {
+    throw new CompiledContextFileReadError(absolutePath, error);
+  }
+}
+
+class CompiledContextFileReadError extends Error {
+  constructor(absolutePath: string, cause: unknown) {
+    super(`Failed to read compiled context file: ${absolutePath}`, { cause });
+    this.name = 'CompiledContextFileReadError';
+  }
+}
+
 /**
  * Register provider runtimes from the serializable envelope into a Pi
  * `ModelRuntime`. The worker must not resolve secrets itself — the envelope
- * carries the auth mode (env name already in worker env, inline key, or none).
+ * carries only a worker-safe auth mode (env name already in worker env,
+ * one-shot bootstrap id, or none). Inline keys cannot enter this type.
  */
 export function registerWorkerProviders(
   modelRuntime: PiModelRuntime,
-  providers: SerializableProviderRuntime[],
+  providers: SerializableWorkerProviderRuntime[],
   searchRoute?: import('@piwin/contracts').ResolvedSearchRoute | null | undefined,
+  bootstrapSecrets?: ReadonlyMap<string, string>,
 ): void {
+  const referencedBootstrapIds = new Set<string>();
   for (const provider of providers) {
-    const apiKey = resolveWorkerProviderApiKey(provider);
+    if (provider.auth.kind === 'bootstrap') {
+      referencedBootstrapIds.add(provider.auth.secretId);
+    }
+    const apiKey = resolveWorkerProviderApiKey(provider, bootstrapSecrets);
     modelRuntime.registerProvider(
       provider.providerId,
       buildWorkerProviderRegistration(provider, apiKey, searchRoute),
     );
   }
+  if (bootstrapSecrets) {
+    for (const secretId of bootstrapSecrets.keys()) {
+      if (!referencedBootstrapIds.has(secretId)) {
+        throw new Error('worker secret bootstrap contains an unreferenced entry');
+      }
+    }
+  }
 }
 
-function resolveWorkerProviderApiKey(provider: SerializableProviderRuntime): string | undefined {
+function resolveWorkerProviderApiKey(
+  provider: SerializableWorkerProviderRuntime,
+  bootstrapSecrets?: ReadonlyMap<string, string>,
+): string | undefined {
   switch (provider.auth.kind) {
     case 'env':
       return process.env[provider.auth.envName];
-    case 'inline':
-      return provider.auth.apiKey;
+    case 'bootstrap': {
+      const apiKey = bootstrapSecrets?.get(provider.auth.secretId);
+      if (!apiKey) {
+        throw new Error(`Provider "${provider.providerId}" bootstrap secret is unavailable`);
+      }
+      return apiKey;
+    }
     case 'none':
       return undefined;
   }
@@ -171,12 +238,14 @@ export function buildWorkerProviderRegistration(
       model.reasoning === false
         ? undefined
         : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
+    const compat = resolvePiModelCompat(api, model.id);
     return {
       id: model.id,
       name: model.label?.trim() || model.id,
       api,
       baseUrl: provider.baseUrl,
       reasoning: model.reasoning ?? true,
+      ...(compat ? { compat } : {}),
       ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -184,7 +253,6 @@ export function buildWorkerProviderRegistration(
       maxTokens: model.maxOutputTokens ?? 8_192,
       ...(provider.headers ? { headers: provider.headers } : {}),
       ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
-      ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
     };
   });
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
@@ -203,12 +271,12 @@ export function buildWorkerProviderRegistration(
   const nativeFlags = models.map((model) => ({
     id: model.id,
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
-    ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
   }));
   if (providerNeedsNativeSearchWrapper(nativeFlags, searchRoute)) {
     const wrapped = wrapStreamSimpleForNativeSearch(streamSimple, {
       models: nativeFlags,
       searchRoute: searchRoute ?? null,
+      fallbackStreamSimple: resolvePiNativeSearchStream(api),
     });
     if (wrapped) {
       registration.streamSimple = wrapped;
@@ -250,7 +318,12 @@ export function createWorkerPiSessionFactory(
       options.modelRuntime ??
       (await createWorkerModelRuntime(piModule as Record<string, unknown>, agentDir));
     if (providers && providers.length > 0) {
-      registerWorkerProviders(modelRuntime, providers, input.blueprint.searchRoute);
+      registerWorkerProviders(
+        modelRuntime,
+        providers,
+        input.blueprint.searchRoute,
+        input.bootstrapSecrets,
+      );
     }
     await modelRuntime.refresh({ allowNetwork: false });
 
@@ -368,7 +441,7 @@ function adaptPiSessionForWorker(
   piSession: WorkerPiSessionHandle,
   productSessionId: string,
   modelRuntime: PiModelRuntime,
-  providers: SerializableProviderRuntime[] | undefined,
+  providers: SerializableWorkerProviderRuntime[] | undefined,
 ): WorkerPiSessionLike {
   return {
     id: piSession.sessionId ?? productSessionId,
@@ -446,8 +519,8 @@ async function createWorkerModelRuntime(
 
 /** Infer the model protocol from the provider envelope for thinking-level mapping. */
 function inferProtocolFromProviderId(
-  providers: SerializableProviderRuntime[] | undefined,
+  providers: SerializableWorkerProviderRuntime[] | undefined,
   providerId: string,
-): SerializableProviderRuntime['protocol'] | undefined {
+): SerializableWorkerProviderRuntime['protocol'] | undefined {
   return providers?.find((provider) => provider.providerId === providerId)?.protocol;
 }

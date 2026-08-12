@@ -15,6 +15,7 @@ import {
   generateCustomVideo,
   generateMiniMaxVideo,
 } from './video-generation-provider-minimax-custom.js';
+import { generateXgrokVideo } from './video-generation-provider-xgrok.js';
 
 export { resolveVideoApiStyle, resolveVideoEndpoint } from './video-generation-adapter-support.js';
 
@@ -45,6 +46,8 @@ export async function callVideoEndpoint(
       return await generateLumaVideo(adapterOptions);
     case 'minimax-tasks':
       return await generateMiniMaxVideo(adapterOptions);
+    case 'xgrok-videos':
+      return await generateXgrokVideo(adapterOptions);
     case 'custom':
       return await generateCustomVideo(adapterOptions);
   }

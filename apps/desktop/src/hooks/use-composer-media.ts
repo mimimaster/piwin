@@ -78,6 +78,8 @@ export type UseComposerMediaArgs = {
     reasoning?: boolean;
   }>;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  /** ORCH: omit the model-facing delegation tool for this turn. */
+  delegationDisabled?: boolean;
   /** ORCH: per-send scheme id; omit/off means no scheme field. */
   orchestrationSchemeId?: string;
   /** ORCH: slash /scheme sets the composer scheme without sending. */
@@ -91,8 +93,16 @@ export type UseComposerMediaArgs = {
   confirmTextOnlyImageSend?: (message: string) => Promise<boolean>;
   /** CM: pending structured context refs for session/prompt. */
   getPendingContextRefs?: () => PromptContextRef[];
+  /** CM: token-stable snapshot so a send never re-reads mutable chips. */
+  getPendingContextRefTokens?: () => import('./use-composer-context-refs').ContextRefSnapshot;
   /** CM: clear chips after a successful optimistic send paint. */
   clearPendingContextRefs?: () => void;
+  /** CM: consume only the ref instances this send actually captured. */
+  consumePendingContextRefs?: (
+    snapshot: import('./use-composer-context-refs').ContextRefSnapshot,
+  ) => void;
+  /** CM: restore chips for a session/draft snapshot (session isolation). */
+  restorePendingContextRefs?: (refs: PromptContextRef[]) => void;
   /**
    * CM-08: convert a workspace file-tree path drop into a structured context
    * ref. Return false to fall back to inserting the path text into the composer.
@@ -103,8 +113,16 @@ export type UseComposerMediaArgs = {
   }) => boolean;
 };
 
+type SessionComposerSnapshot = {
+  text: string;
+  attachments: PendingComposerAttachment[];
+  contextRefs: PromptContextRef[];
+};
+
 export function useComposerMedia(args: UseComposerMediaArgs) {
   const [composer, setComposer] = useState('');
+  const composerRef = useRef('');
+  composerRef.current = composer;
   const [pendingAttachments, setPendingAttachments] = useState<PendingComposerAttachment[]>([]);
   const [dropActive, setDropActive] = useState(false);
   // State updates are asynchronous. This ref rejects a double click or an
@@ -129,6 +147,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   pendingAttachmentsRef.current = pendingAttachments;
   /** Structured refs for trusted workspace-tree drops; never inject absolute paths. */
   const pendingContextRefsRef = useRef<PromptContextRef[]>([]);
+  /**
+   * Visible chips live in useComposerContextRefs (external authority). Prefer
+   * that list for snapshots/content checks; the internal ref is only a fallback
+   * for harnesses without the external wiring.
+   */
+  const readVisibleContextRefs = useCallback((): PromptContextRef[] => {
+    return args.getPendingContextRefs?.() ?? [...pendingContextRefsRef.current];
+  }, [args]);
   const [steerQueuesBySession, setSteerQueuesBySession] = useState<SteerQueuesBySession>({});
   const steerQueuesBySessionRef = useRef<SteerQueuesBySession>({});
   const queueDrainInProgressRef = useRef(false);
@@ -148,11 +174,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   // sessions behind.
   const [draftSessions, setDraftSessions] = useState<DraftSessionItemUi[]>([]);
   const draftSessionsRef = useRef<DraftSessionItemUi[]>([]);
+  const draftComposerSnapshotsRef = useRef(new Map<string, SessionComposerSnapshot>());
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const activeDraftIdRef = useRef<string | null>(null);
   /** Draft record associated with the current composer, even while its row is not selected. */
   const currentDraftIdRef = useRef<string | null>(null);
   const draftTextRef = useRef('');
+  /** Per-session unsent composer state (text + chips + refs). */
+  const sessionComposerSnapshotsRef = useRef(new Map<string, SessionComposerSnapshot>());
+  /** Scope chosen by the New Agent entry point, independent of async navigation. */
+  const currentDraftScopeRef = useRef(args.state.activeScope);
   const previousActiveScopeRef = useRef(args.state.activeScope);
   // When a session is created on first send, activeSessionId transitions from
   // null → new id. The effect below would normally save the composer text as
@@ -165,6 +196,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
    */
   const preserveComposerOnSessionActivationRef = useRef(false);
   const prevActiveSessionIdRef = useRef<string | null>(args.state.activeSessionId);
+  const activeSessionIdRef = useRef<string | null>(args.state.activeSessionId);
+  activeSessionIdRef.current = args.state.activeSessionId;
 
   const setActiveDraft = useCallback((draftId: string | null): void => {
     activeDraftIdRef.current = draftId;
@@ -173,13 +206,24 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
 
   const upsertCurrentDraft = useCallback(
     (text: string, scope: import('@piwin/contracts').SessionScope): void => {
-      if (text.trim().length === 0) return;
+      const attachments = [...pendingAttachmentsRef.current];
+      const contextRefs = readVisibleContextRefs();
+      if (text.trim().length === 0 && attachments.length === 0 && contextRefs.length === 0) {
+        return;
+      }
       const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current ?? crypto.randomUUID();
       const existing = draftSessionsRef.current.find((draft) => draft.id === draftId);
       const createdAt = existing?.createdAt ?? new Date().toISOString();
+      const attachmentTitle = attachments
+        .map((item) =>
+          item.attachment.kind === 'media'
+            ? item.attachment.name?.trim()
+            : item.attachment.text.trim().slice(0, 80),
+        )
+        .find((name) => name);
       const draft: DraftSessionItemUi = {
         id: draftId,
-        name: text.trim().replace(/\s+/g, ' '),
+        name: text.trim().replace(/\s+/g, ' ') || attachmentTitle || 'Attachment draft',
         text,
         createdAt,
         updatedAt: existing?.updatedAt ?? createdAt,
@@ -188,12 +232,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       };
       const next = [draft, ...draftSessionsRef.current.filter((item) => item.id !== draftId)];
       draftSessionsRef.current = next;
+      draftComposerSnapshotsRef.current.set(draftId, { text, attachments, contextRefs });
       setDraftSessions(sortDraftSessions(next));
       currentDraftIdRef.current = draftId;
       setActiveDraft(draftId);
       draftTextRef.current = text;
     },
-    [setActiveDraft],
+    [readVisibleContextRefs, setActiveDraft],
   );
 
   const removeCurrentDraft = useCallback((): void => {
@@ -202,32 +247,137 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     setActiveDraft(null);
     draftTextRef.current = '';
     if (!draftId) return;
+    draftComposerSnapshotsRef.current.delete(draftId);
     const next = draftSessionsRef.current.filter((draft) => draft.id !== draftId);
     draftSessionsRef.current = next;
     setDraftSessions(next);
   }, [setActiveDraft]);
 
+  const saveSessionComposerSnapshot = useCallback((sessionId: string): void => {
+    const snapshot: SessionComposerSnapshot = {
+      text: composerRef.current,
+      attachments: [...pendingAttachmentsRef.current],
+      contextRefs: readVisibleContextRefs(),
+    };
+    if (
+      snapshot.text.trim().length === 0 &&
+      snapshot.attachments.length === 0 &&
+      snapshot.contextRefs.length === 0
+    ) {
+      sessionComposerSnapshotsRef.current.delete(sessionId);
+      return;
+    }
+    sessionComposerSnapshotsRef.current.set(sessionId, snapshot);
+  }, [readVisibleContextRefs]);
+
+  const restoreSessionComposerSnapshot = useCallback(
+    (sessionId: string): void => {
+      const snapshot = sessionComposerSnapshotsRef.current.get(sessionId);
+      const text = snapshot?.text ?? '';
+      const contextRefs = [...(snapshot?.contextRefs ?? [])];
+      composerRef.current = text;
+      pendingAttachmentsRef.current = [...(snapshot?.attachments ?? [])];
+      pendingContextRefsRef.current = contextRefs;
+      currentDraftIdRef.current = null;
+      setActiveDraft(null);
+      setComposer(text);
+      setPendingAttachments([...(snapshot?.attachments ?? [])]);
+      args.restorePendingContextRefs?.(contextRefs);
+    },
+    [args, setActiveDraft, setComposer],
+  );
+
+  const restoreDraftComposerSnapshot = useCallback(
+    (draft: DraftSessionItemUi): void => {
+      const snapshot = draftComposerSnapshotsRef.current.get(draft.id) ?? {
+        text: draft.text,
+        attachments: [],
+        contextRefs: [],
+      };
+      composerRef.current = snapshot.text;
+      pendingAttachmentsRef.current = [...snapshot.attachments];
+      pendingContextRefsRef.current = [...snapshot.contextRefs];
+      currentDraftScopeRef.current = draft.scope;
+      draftTextRef.current = snapshot.text;
+      setComposer(snapshot.text);
+      setPendingAttachments([...snapshot.attachments]);
+      args.restorePendingContextRefs?.([...snapshot.contextRefs]);
+    },
+    [args, setComposer],
+  );
+
   /** Start an empty composer without restoring the previously selected draft. */
-  const startNewDraft = useCallback((): void => {
-    currentDraftIdRef.current = null;
-    setActiveDraft(null);
-    draftTextRef.current = '';
-    setComposer('');
-  }, [setActiveDraft]);
+  const startNewDraft = useCallback(
+    (scope?: import('@piwin/contracts').SessionScope): void => {
+      const sessionId = activeSessionIdRef.current;
+      if (sessionId !== null) {
+        saveSessionComposerSnapshot(sessionId);
+      } else if (
+        composerRef.current.trim().length > 0 ||
+        pendingAttachmentsRef.current.length > 0 ||
+        readVisibleContextRefs().length > 0
+      ) {
+        upsertCurrentDraft(composerRef.current, currentDraftScopeRef.current);
+      } else if (currentDraftIdRef.current !== null || activeDraftIdRef.current !== null) {
+        removeCurrentDraft();
+      }
+      currentDraftIdRef.current = null;
+      setActiveDraft(null);
+      draftTextRef.current = '';
+      composerRef.current = '';
+      pendingAttachmentsRef.current = [];
+      pendingContextRefsRef.current = [];
+      setComposer('');
+      setPendingAttachments([]);
+      args.restorePendingContextRefs?.([]);
+      currentDraftScopeRef.current = scope ?? args.state.activeScope;
+    },
+    [
+      args.state.activeScope,
+      removeCurrentDraft,
+      saveSessionComposerSnapshot,
+      setActiveDraft,
+      setComposer,
+      upsertCurrentDraft,
+    ],
+  );
 
   const resumeDraft = useCallback(
     (draftId: string): void => {
       const draft = draftSessionsRef.current.find((item) => item.id === draftId);
       if (!draft) return;
+      const sessionId = activeSessionIdRef.current;
+      if (sessionId !== null) {
+        saveSessionComposerSnapshot(sessionId);
+      } else {
+        const currentDraftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
+        if (currentDraftId !== draftId) {
+          if (
+            composerRef.current.trim().length > 0 ||
+            pendingAttachmentsRef.current.length > 0 ||
+            readVisibleContextRefs().length > 0
+          ) {
+            upsertCurrentDraft(composerRef.current, currentDraftScopeRef.current);
+          } else if (currentDraftId !== null) {
+            removeCurrentDraft();
+          }
+        }
+      }
       currentDraftIdRef.current = draft.id;
       setActiveDraft(draft.id);
-      draftTextRef.current = draft.text;
-      setComposer(draft.text);
-      if (args.state.activeSessionId !== null) {
+      restoreDraftComposerSnapshot(draft);
+      if (sessionId !== null) {
         args.dispatch({ type: 'session/clear-active' });
       }
     },
-    [args, setActiveDraft],
+    [
+      args,
+      removeCurrentDraft,
+      restoreDraftComposerSnapshot,
+      saveSessionComposerSnapshot,
+      setActiveDraft,
+      upsertCurrentDraft,
+    ],
   );
 
   // Keep a selected draft row's title in sync while the user continues typing.
@@ -245,7 +395,29 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     draftSessionsRef.current = next;
     setDraftSessions(next);
     draftTextRef.current = composer;
+    const snapshot = draftComposerSnapshotsRef.current.get(draftId);
+    if (snapshot) {
+      draftComposerSnapshotsRef.current.set(draftId, { ...snapshot, text: composer });
+    }
   }, [composer]);
+
+  // Host-less blank composer follows the latest navigation scope. Contentful
+  // drafts keep their explicit/restored binding.
+  useEffect(() => {
+    if (args.state.activeSessionId !== null) {
+      return;
+    }
+    const hasContent =
+      composerRef.current.trim().length > 0 ||
+      pendingAttachmentsRef.current.length > 0 ||
+      readVisibleContextRefs().length > 0 ||
+      currentDraftIdRef.current !== null ||
+      activeDraftIdRef.current !== null;
+    if (hasContent) {
+      return;
+    }
+    currentDraftScopeRef.current = args.state.activeScope;
+  }, [args.state.activeScope, args.state.activeSessionId]);
 
   useEffect(() => {
     const prevId = prevActiveSessionIdRef.current;
@@ -256,16 +428,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     prevActiveSessionIdRef.current = currentId;
 
     // Switching between two real sessions must not leak the old composer text
-    // into the newly selected session. Keep it as a local draft instead.
+    // into the newly selected session, and must not create a phantom draft row.
+    // Each session owns an independent composer snapshot.
     if (prevId !== null && currentId !== null) {
-      if (composer.trim().length > 0) {
-        upsertCurrentDraft(composer, previousScope);
-      } else if (currentDraftIdRef.current !== null) {
-        removeCurrentDraft();
-      }
-      currentDraftIdRef.current = null;
-      setActiveDraft(null);
-      setComposer('');
+      saveSessionComposerSnapshot(prevId);
+      restoreSessionComposerSnapshot(currentId);
       return;
     }
 
@@ -292,9 +459,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         setActiveDraft(null);
         break;
       case 'save-and-clear-composer':
-        // User switched to an existing session — save draft, clear composer
-        // so the draft text does not leak into the resumed session.
-        if (composer.trim().length > 0) {
+        // User switched to an existing session — park any unsent content as a
+        // draft row, then restore that session's own snapshot.
+        if (
+          composer.trim().length > 0 ||
+          pendingAttachmentsRef.current.length > 0 ||
+          readVisibleContextRefs().length > 0
+        ) {
           upsertCurrentDraft(composer, previousScope);
         } else if (currentDraftIdRef.current !== null) {
           removeCurrentDraft();
@@ -302,22 +473,43 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         currentDraftIdRef.current = null;
         setActiveDraft(null);
         setComposer('');
+        if (currentId !== null) {
+          restoreSessionComposerSnapshot(currentId);
+        }
         break;
       case 'restore-draft':
-        // User entered draft mode (clicked "+" or switched scope) — restore draft.
+        // Only an explicitly resumed phantom draft restores old New Agent
+        // text. Scope changes also pass through activeSessionId=null and must
+        // not resurrect a previously parked draft while another session loads.
         preserveComposerOnSessionActivationRef.current = false;
-        setComposer(draftTextRef.current);
+        const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
+        const draft = draftId
+          ? draftSessionsRef.current.find((item) => item.id === draftId)
+          : undefined;
+        if (draft) {
+          restoreDraftComposerSnapshot(draft);
+        } else {
+          composerRef.current = '';
+          pendingAttachmentsRef.current = [];
+          pendingContextRefsRef.current = [];
+          setComposer('');
+          setPendingAttachments([]);
+        }
         break;
     }
-    // else: switching between two existing sessions — no draft management.
     // composer intentionally omitted from deps; reading it here captures the
     // value at the time activeSessionId changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     args.state.activeSessionId,
     args.state.activeScope,
+    readVisibleContextRefs,
     removeCurrentDraft,
+    restoreDraftComposerSnapshot,
+    restoreSessionComposerSnapshot,
+    saveSessionComposerSnapshot,
     setActiveDraft,
+    setComposer,
     upsertCurrentDraft,
   ]);
 
@@ -353,8 +545,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     if (args.state.activeSessionId) {
       return args.state.activeSessionId;
     }
-    const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
-    if (!isGeneral && !args.state.projectTrusted) {
+    // Explicit New Agent scope binding (clicked project folder / restored
+    // draft) wins over the latest navigation scope, so project first-send
+    // never falls back to a General session.
+    const draftScope = currentDraftScopeRef.current;
+    const isGeneral = draftScope.kind === 'general';
+    const draftProjectTrusted =
+      draftScope.kind === 'project' &&
+      args.state.projectPath === draftScope.projectPath &&
+      args.state.projectTrusted;
+    if (!isGeneral && !draftProjectTrusted) {
       args.dispatch({ type: 'project/trust-dialog', open: true });
       return null;
     }
@@ -369,7 +569,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     // handleSend sets skipDraftSaveRef first, so the send path still clears.
     const sessionId = isGeneral
       ? await args.ensureSession({ scope: { kind: 'general' } })
-      : await args.ensureSession({ alreadyTrusted: true });
+      : await args.ensureSession({
+          scope: draftScope,
+          projectPath: draftScope.projectPath,
+          alreadyTrusted: true,
+        });
     if (sessionId) {
       preserveComposerOnSessionActivationRef.current = true;
     }
@@ -895,11 +1099,10 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (params.attachments && params.attachments.length > 0) {
         input.attachments = params.attachments;
       }
-      const contextRefs = args.getPendingContextRefs?.() ?? [];
-      if (contextRefs.length > 0) {
-        input.contextRefs = contextRefs;
-
-      }
+      // Immutable send snapshot: never re-read live pending refs.
+      if (params.contextRefs && params.contextRefs.length > 0) {
+        input.contextRefs = params.contextRefs;
+}
       const model = resolveTurnModel();
       if (model) {
         input.model = model;
@@ -917,7 +1120,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       return input;
     },
     [
-      args.getPendingContextRefs,
       args.modelOptions,
       args.orchestrationSchemeId,
       args.selectedModelKey,
@@ -1021,7 +1223,10 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             : pendingAttachmentsRef.current.filter(isPendingAttachmentReady);
         attachments = readyItems.map((item) => item.attachment);
       }
-      const contextRefs = args.getPendingContextRefs?.() ?? [];
+      const promptRefsSnapshot = args.getPendingContextRefTokens?.() ?? null;
+      const contextRefs = promptRefsSnapshot
+        ? promptRefsSnapshot.items.map((item) => item.ref)
+        : (args.getPendingContextRefs?.() ?? []);
       if (!text && attachments.length === 0 && contextRefs.length === 0) {
         return;
       }
@@ -1136,7 +1341,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
-      const promptContextRefs = args.getPendingContextRefs?.() ?? [];
+      // Immutable send snapshot: never re-read live chips after this point.
+      // Concurrent chip edits must not change the turn that was already sent.
+      const promptContextRefs = contextRefs;
       let skillActivity: SkillActivityView | undefined;
 
       if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
@@ -1204,7 +1411,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         pendingContextRefsRef.current = [];
 
         applyAcceptedRun(response.data);
-        args.clearPendingContextRefs?.();
+        if (promptRefsSnapshot) {
+          args.consumePendingContextRefs?.(promptRefsSnapshot);
+        } else {
+          args.clearPendingContextRefs?.();
+        }
 
         // Optimistic text title on send (host also persists nameSource:text).
         // This inserts the row into the sidebar immediately; LLM may upgrade later.

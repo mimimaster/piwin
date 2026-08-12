@@ -14,6 +14,7 @@ import type {
 } from './pi-session-backend.js';
 import { assertValidBackendSessionBlueprint } from './pi-session-backend.js';
 import {
+  assertWorkerSafeProviderRuntimes,
   projectBackendBlueprintForWorker,
   type SerializableBlueprint,
 } from '../rpc/serializable-blueprint.js';
@@ -55,6 +56,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
 
   async createSession(input: CreateBackendSessionInput): Promise<BackendSessionHandle> {
     assertValidBackendSessionBlueprint(input.blueprint);
+    assertWorkerSafeProviderRuntimes(input.providers);
     // Inject only explicitly required apiKeyEnv values into this generation's
     // worker environment. The supervisor never inherits the host environment.
     const env: Record<string, string> = { ...(this.options.worker?.env ?? {}) };
@@ -70,6 +72,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
       {
         ...this.options.worker,
         ...(Object.keys(env).length > 0 ? { env } : {}),
+        ...(input.providerSecrets ? { bootstrapSecrets: input.providerSecrets } : {}),
         onToolCall: (frame, signal) => this.executeHostTool(frame, signal),
         onExtensionUiRequest: (request) => this.requestExtensionUi(request),
       },
@@ -220,6 +223,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
         // rewrite a frame's generation to the matched session as a fallback.
         runtimeGenerationId: frame.context.runtimeGenerationId,
         runId,
+        ...(frame.context.toolCallId ? { toolCallId: frame.context.toolCallId } : {}),
         toolName: descriptor.name,
         arguments: argumentsRecord,
       },

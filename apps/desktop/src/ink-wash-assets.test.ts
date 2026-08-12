@@ -4,7 +4,7 @@ import { getThemeAsset } from './ink-wash-assets';
 
 describe('ink-wash asset registry', () => {
   it('returns only fixed product-owned paths for the ink-wash style', () => {
-    expect(getThemeAsset(PIWIN_APPEARANCE_INK_WASH, 'hero')).toBe('/ui/ink-wash/hero.jpg');
+    expect(getThemeAsset(PIWIN_APPEARANCE_INK_WASH, 'hero')).toBe('/ui/ink-wash/hero.jpg?v=restore');
     expect(getThemeAsset(PIWIN_APPEARANCE_INK_WASH, 'agentSeal')).toBe(
       '/ui/ink-wash/agent-seal.jpg',
     );

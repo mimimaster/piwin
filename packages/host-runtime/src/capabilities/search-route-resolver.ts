@@ -23,14 +23,13 @@ import {
   isModelEnabled,
   isProviderEnabled,
   modelSupportsCapability,
-  resolveNativeWebSearchMode,
 } from '@piwin/contracts';
 
 /** Adapter-reported native-search support for the active host mode. */
 export type NativeSearchAdapterSupport = {
   /**
-   * Whether the adapter can inject/disable provider-native search on the
-   * request (streamSimple / onPayload wrapper). Required for readiness.
+   * Whether the adapter can shape provider-native search fields on the request
+   * (streamSimple / onPayload wrapper). Required for readiness.
    */
   requestSupported: boolean;
   /**
@@ -43,12 +42,14 @@ export type NativeSearchAdapterSupport = {
 export type ResolveSearchRouteInput = {
   policy?: SearchRoutePolicy;
   /** Selected chat model for this generation, when known. */
-  model?: Pick<
-    ModelConfigEntry,
-    'id' | 'enabled' | 'capabilities' | 'nativeWebSearchMode' | 'routes'
-  > | null;
-  /** External multi-source web config (Host `web_search`). */
-  web?: Pick<WebConfig, 'searchSources' | 'searchRoutePolicy'> | null | undefined;
+  model?: Pick<ModelConfigEntry, 'id' | 'enabled' | 'capabilities'> | null;
+  /** External Host `web_search` config (ordinary sources or model delegate). */
+  web?:
+    | Pick<WebConfig, 'searchSources' | 'searchRoutePolicy' | 'searchDelegateModel'>
+    | null
+    | undefined;
+  /** Host validation result for the configured `web_search` delegate model. */
+  externalDelegateReady?: boolean;
   adapter: NativeSearchAdapterSupport;
 };
 
@@ -60,15 +61,6 @@ export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSear
   const policy = input.policy ?? input.web?.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY;
   const readiness = evaluateSearchReadiness(input);
   const issues: string[] = [...readiness.native.reasons, ...readiness.external.reasons];
-  let incompatible = false;
-
-  // Always-on native search cannot honor external-only exclusivity.
-  if (policy === 'external-only' && readiness.native.alwaysOn) {
-    incompatible = true;
-    issues.push(
-      'external-only is incompatible with an always-on native-web-search model; native search cannot be disabled',
-    );
-  }
 
   const nativeReady = readiness.native.ready;
   const externalReady = readiness.external.ready;
@@ -106,18 +98,10 @@ export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSear
       break;
     }
     case 'external-only': {
-      // Always-on native still forces native when exclusivity cannot be claimed.
-      if (readiness.native.alwaysOn && nativeReady) {
-        selected = 'native';
-        fallback = null;
-      } else {
-        selected = externalReady ? 'external' : null;
-        fallback = null;
-        if (!externalReady) {
-          issues.push(
-            'external-only policy selected but no enabled external search source is ready',
-          );
-        }
+      selected = externalReady ? 'external' : null;
+      fallback = null;
+      if (!externalReady) {
+        issues.push('external-only policy selected but no external web_search backend is ready');
       }
       break;
     }
@@ -133,7 +117,6 @@ export function resolveSearchRoute(input: ResolveSearchRouteInput): ResolvedSear
     fallback,
     readiness,
     issues: dedupeIssues(issues),
-    incompatible,
   };
 }
 
@@ -162,8 +145,6 @@ function evaluateNativeReadiness(input: ResolveSearchRouteInput): SearchBackendR
     reasons.push('selected chat model is not tagged native-web-search');
   }
 
-  const alwaysOn = modelTagged && model ? resolveNativeWebSearchMode(model) === 'always-on' : false;
-
   const adapterRequestSupported = input.adapter.requestSupported;
   if (modelTagged && !adapterRequestSupported) {
     reasons.push('active Pi adapter cannot express provider-native web search for this model');
@@ -186,7 +167,6 @@ function evaluateNativeReadiness(input: ResolveSearchRouteInput): SearchBackendR
     modelTagged: Boolean(modelTagged),
     adapterRequestSupported,
     adapterCitationSupported,
-    alwaysOn,
     reasons,
   };
 }
@@ -195,14 +175,19 @@ function evaluateExternalReadiness(input: ResolveSearchRouteInput): SearchBacken
   const reasons: string[] = [];
   const sources = input.web?.searchSources ?? [];
   const hasEnabledSources = sources.some((source) => source.enabled);
+  const delegateConfigured = input.web?.searchDelegateModel !== undefined;
+  const hasDelegateModel = delegateConfigured && input.externalDelegateReady === true;
   if (!input.web) {
     reasons.push('web tools config is absent');
-  } else if (!hasEnabledSources) {
+  } else if (delegateConfigured && !hasDelegateModel) {
+    reasons.push('configured web_search delegate model is unavailable');
+  } else if (!delegateConfigured && !hasEnabledSources) {
     reasons.push('no enabled external search source');
   }
   return {
-    ready: Boolean(input.web && hasEnabledSources),
+    ready: Boolean(input.web && (delegateConfigured ? hasDelegateModel : hasEnabledSources)),
     hasEnabledSources,
+    hasDelegateModel,
     reasons,
   };
 }
@@ -243,15 +228,47 @@ export function findConfiguredModel(
   return undefined;
 }
 
-/**
- * Build the default adapter support declaration for the current product.
- * Request shaping is supported via streamSimple wrappers; citation
- * normalization is best-effort and provider-specific.
- */
-export function defaultNativeSearchAdapterSupport(): NativeSearchAdapterSupport {
+/** Resolve a valid configured model that may exclusively back Host `web_search`. */
+export function findReadyWebSearchDelegate(
+  config: Pick<PiwinConfig, 'providers'> & { web?: Pick<WebConfig, 'searchDelegateModel'> },
+  modelRef: ModelRef | undefined = config.web?.searchDelegateModel,
+): { provider: ModelProviderConfig; model: ModelConfigEntry; ref: ModelRef } | undefined {
+  if (!modelRef) {
+    return undefined;
+  }
+  const configured = findConfiguredModel(config, modelRef);
+  if (
+    !configured ||
+    configured.provider.protocol !== modelRef.protocol ||
+    !isModelEnabled(configured.model) ||
+    !modelSupportsCapability(configured.model, 'native-web-search') ||
+    !resolveNativeSearchAdapterSupport(configured.provider.protocol).requestSupported
+  ) {
+    return undefined;
+  }
   return {
-    requestSupported: true,
-    citationSupported: true,
+    ...configured,
+    ref: {
+      protocol: configured.provider.protocol,
+      providerId: configured.provider.id,
+      modelId: configured.model.id,
+    },
+  };
+}
+
+/** Resolve native-search support for the selected product provider protocol. */
+export function resolveNativeSearchAdapterSupport(
+  protocol: ModelProviderConfig['protocol'] | undefined,
+): NativeSearchAdapterSupport {
+  return {
+    requestSupported:
+      protocol === 'openai-compatible' ||
+      protocol === 'anthropic-compatible' ||
+      protocol === 'google-gemini',
+    // Pi 0.80.10 does not preserve provider annotations/grounding metadata in
+    // its normalized AssistantMessage events. Keep this false until the
+    // adapter receives those response fields; request shaping still works.
+    citationSupported: false,
   };
 }
 
@@ -287,7 +304,7 @@ export function formatSearchRouteCapabilityBrief(route: ResolvedSearchRoute): st
   if (route.selected === 'external') {
     return [
       'Search routing: external Host web_search is enabled for this generation.',
-      'Provider-native web search is disabled when controllable.',
+      'Provider-native web search fields are omitted for this generation.',
       'Use the web_search tool for web lookup.',
     ].join(' ');
   }

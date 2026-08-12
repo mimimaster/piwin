@@ -2,23 +2,21 @@
  * Provider-native web search request shaping + citation normalization (ADR 0043).
  *
  * agent-host wraps Pi provider `streamSimple` with an `onPayload` transform so
- * the Host can enable or disable provider-native search without forking Pi.
+ * the Host can apply the resolved search policy without forking Pi.
  * Desktop never parses provider-native payloads; citations are normalized here.
  */
 
 import type {
   ModelCapability,
-  NativeWebSearchMode,
   ResolvedSearchRoute,
   SearchCitation,
   SearchEvidence,
 } from '@piwin/contracts';
-import { modelSupportsCapability, resolveNativeWebSearchMode } from '@piwin/contracts';
+import { modelSupportsCapability } from '@piwin/contracts';
 
 export type NativeSearchModelFlags = {
   id: string;
   capabilities?: readonly ModelCapability[];
-  nativeWebSearchMode?: NativeWebSearchMode;
 };
 
 export type NativeSearchStreamOptions = {
@@ -36,9 +34,9 @@ export type NativeSearchStreamSimple = (
 ) => unknown;
 
 /**
- * Whether this registration should wrap streamSimple for native search control.
- * True when any model is tagged native-web-search or the resolved route needs
- * native enable/disable.
+ * Whether this registration should wrap streamSimple for native search policy
+ * shaping. True when any model is tagged native-web-search or the resolved
+ * route needs provider-native fields to be injected or removed.
  */
 export function providerNeedsNativeSearchWrapper(
   models: readonly NativeSearchModelFlags[],
@@ -56,7 +54,7 @@ export function providerNeedsNativeSearchWrapper(
 }
 
 /**
- * Decide if native search should be turned on for one model request.
+ * Decide if provider-native search fields should be present for one request.
  */
 export function resolveNativeSearchEnabledForModel(
   model: NativeSearchModelFlags | undefined,
@@ -69,13 +67,6 @@ export function resolveNativeSearchEnabledForModel(
     { ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}) },
     'native-web-search',
   );
-  const mode = resolveNativeWebSearchMode({
-    ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
-    ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
-  });
-  if (mode === 'always-on') {
-    return true;
-  }
   if (!tagged) {
     return false;
   }
@@ -88,7 +79,7 @@ export function resolveNativeSearchEnabledForModel(
  * Supported shapes (best-effort, provider-specific):
  * - OpenAI-compatible: `web_search_options` / `tools: [{ type: 'web_search*' }]`
  * - Anthropic: tools entry `web_search` / `web_search_20250305`
- * - Google: `tools: [{ google_search: {} }]` / `googleSearch`
+ * - Google: `config.tools: [{ googleSearch: {} }]`
  */
 export function applyNativeSearchToPayload(
   payload: unknown,
@@ -106,16 +97,23 @@ export function applyNativeSearchToPayload(
       ensureAnthropicWebSearchTool(record);
     } else if (api.includes('google')) {
       ensureGoogleSearchTool(record);
+    } else if (api.includes('responses')) {
+      ensureOpenAiResponsesWebSearchTool(record);
     } else {
-      ensureOpenAiWebSearch(record);
+      ensureOpenAiCompletionsWebSearch(record);
     }
     return record;
   }
 
-  // Disable controllable native search when external (or none) is selected.
+  // Remove native search fields when the resolved policy selects external (or none).
   delete record.web_search_options;
   delete record.webSearchOptions;
   stripNativeSearchTools(record);
+  if (record.config && typeof record.config === 'object' && !Array.isArray(record.config)) {
+    const config = { ...(record.config as Record<string, unknown>) };
+    stripNativeSearchTools(config);
+    record.config = config;
+  }
   if (record.tool_config && typeof record.tool_config === 'object') {
     const toolConfig = { ...(record.tool_config as Record<string, unknown>) };
     if (toolConfig.function_calling_config) {
@@ -126,10 +124,13 @@ export function applyNativeSearchToPayload(
   return record;
 }
 
-function ensureOpenAiWebSearch(record: Record<string, unknown>): void {
+function ensureOpenAiCompletionsWebSearch(record: Record<string, unknown>): void {
   if (!record.web_search_options && !record.webSearchOptions) {
     record.web_search_options = {};
   }
+}
+
+function ensureOpenAiResponsesWebSearchTool(record: Record<string, unknown>): void {
   const tools = Array.isArray(record.tools) ? [...record.tools] : [];
   const hasSearchTool = tools.some((tool) => isNativeSearchTool(tool));
   if (!hasSearchTool) {
@@ -147,11 +148,18 @@ function ensureAnthropicWebSearchTool(record: Record<string, unknown>): void {
 }
 
 function ensureGoogleSearchTool(record: Record<string, unknown>): void {
-  const tools = Array.isArray(record.tools) ? [...record.tools] : [];
+  const config =
+    record.config && typeof record.config === 'object' && !Array.isArray(record.config)
+      ? { ...(record.config as Record<string, unknown>) }
+      : {};
+  const tools = Array.isArray(config.tools) ? [...config.tools] : [];
   if (!tools.some((tool) => isNativeSearchTool(tool))) {
-    tools.push({ google_search: {} });
-    record.tools = tools;
+    // @google/genai uses camelCase request properties. Its wire serializer
+    // converts this to the provider's google_search field.
+    tools.push({ googleSearch: {} });
+    config.tools = tools;
   }
+  record.config = config;
 }
 
 function stripNativeSearchTools(record: Record<string, unknown>): void {
@@ -172,13 +180,7 @@ function isNativeSearchTool(tool: unknown): boolean {
   }
   const record = tool as Record<string, unknown>;
   const type = typeof record.type === 'string' ? record.type.toLowerCase() : '';
-  const name = typeof record.name === 'string' ? record.name.toLowerCase() : '';
-  if (
-    type.includes('web_search') ||
-    type.includes('web-search') ||
-    name === 'web_search' ||
-    name.includes('web_search')
-  ) {
+  if (type.includes('web_search') || type.includes('web-search')) {
     return true;
   }
   if (
@@ -192,8 +194,8 @@ function isNativeSearchTool(tool: unknown): boolean {
 }
 
 /**
- * Wrap a provider streamSimple so every request applies the resolved native
- * search enablement for the active model.
+ * Wrap a provider streamSimple so every request applies the resolved search
+ * policy for the active model.
  */
 export function wrapStreamSimpleForNativeSearch(
   baseStreamSimple: NativeSearchStreamSimple | undefined,

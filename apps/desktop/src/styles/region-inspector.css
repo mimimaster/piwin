@@ -2980,6 +2980,14 @@
   letter-spacing: -0.011em;
 }
 
+.enhanced-list-item > .enhanced-code-block,
+.enhanced-list-item > .md-code-block,
+.enhanced-list-item > pre,
+.enhanced-list-item > .md-table-wrapper {
+  margin-left: -18px;
+  width: calc(100% + 18px);
+}
+
 .enhanced-blockquote {
   margin: 8px 0;
   padding: 10px 14px;
@@ -3302,6 +3310,11 @@
   color: var(--accent, #60a5fa);
   border: none;
   box-shadow: none;
+}
+
+.md-doc-chip span,
+.md-doc-chip .chip-text {
+  color: inherit !important;
 }
 
 [data-theme='light'] .md-doc-chip {

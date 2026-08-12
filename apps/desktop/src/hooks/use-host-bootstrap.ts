@@ -231,6 +231,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           parentSessionId: message.parentSessionId,
           childSessionId: message.childSessionId,
           event: message.event,
+          ...(message.envelope ? { envelope: message.envelope } : {}),
         });
         return;
       }
@@ -247,6 +248,14 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           type: 'subagent/updated',
           parentSessionId: message.parentSessionId,
           child: message.child,
+        });
+        return;
+      }
+      if (message.type === 'subagent/invocation-updated') {
+        dispatch({
+          type: 'subagent/invocation-updated',
+          parentSessionId: message.parentSessionId,
+          invocation: message.invocation,
         });
         return;
       }

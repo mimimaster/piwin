@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -16,7 +16,10 @@ describe('installExtension local', () => {
       source: { kind: 'local', path: srcFile },
     });
     expect(result.extensionId).toBe('hello');
-    expect(result.targetPath).toContain(join(root, 'extensions', 'hello.ts'));
+    expect(result.targetPath).toContain(join(root, 'extensions', 'revisions', 'hello'));
+    expect(result.targetPath).toContain(result.contentRevision);
+    expect(result.configuredEnabled).toBe(false);
+    expect(await readFile(result.targetPath, 'utf8')).toContain('export default');
   });
 
   it('copies package-style index.ts directory', async () => {
@@ -30,6 +33,7 @@ describe('installExtension local', () => {
       source: { kind: 'local', path: srcDir },
     });
     expect(result.extensionId).toBe('mypack');
-    expect(result.targetPath).toContain(join(root, 'extensions', 'mypack'));
+    expect(result.targetPath).toContain(join(root, 'extensions', 'revisions', 'mypack'));
+    expect(result.targetPath).toContain(result.contentRevision);
   });
 });

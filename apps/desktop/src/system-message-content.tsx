@@ -1,6 +1,6 @@
 import { useMemo, type ReactElement } from 'react';
+import { FileTypeIcon } from '@piwin/ui-kit';
 import { formatFilePillPath } from './activity-timeline';
-import { FileTypeIcon } from './file-type-icon';
 import { PathChip } from './path-chip';
 import { splitSystemFileReferences, type SystemFileTextPart } from './system-file-references';
 

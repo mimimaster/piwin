@@ -101,7 +101,7 @@ export function modelCaps(
   if (modelSupportsCapability(model, 'native-web-search')) {
     caps.push({
       key: 'native-web-search',
-      label: isChinese ? '内置搜索' : 'Native search',
+      label: isChinese ? '模型内置搜索' : 'Native search',
       bg: '#e5ecfd',
       fg: '#3558b8',
     });

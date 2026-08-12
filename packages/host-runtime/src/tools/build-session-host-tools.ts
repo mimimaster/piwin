@@ -27,6 +27,7 @@ import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
+import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
@@ -37,8 +38,8 @@ import {
 } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
 import {
-  defaultNativeSearchAdapterSupport,
   findConfiguredModel,
+  resolveNativeSearchAdapterSupport,
   resolveSearchRoute,
   shouldExposeExternalWebSearch,
 } from '../capabilities/search-route-resolver.js';
@@ -55,6 +56,12 @@ import {
   formatMcpGatewayToolDescription,
   type McpCapabilityBrief,
 } from '../mcp-capability-brief.js';
+import { compactModelToolDescriptor } from '../model-tool-descriptor.js';
+import {
+  buildHostToolboxRegistration,
+  isHostToolboxTargetFamily,
+} from '../host-toolbox.js';
+import { buildWebSearchModelDelegate } from '../model-web-search-delegate.js';
 
 /**
  * Lazy provider for notes services. The Host owns the lifecycle; this
@@ -156,14 +163,19 @@ export async function buildSessionHostTools(
   // ADR 0043: expose external web_search only when the resolved search route
   // selected the external backend for this generation's model/policy.
   if (options.config?.web) {
+    const webSearchDelegate = options.secretResolver
+      ? buildWebSearchModelDelegate(options.config, options.secretResolver)
+      : undefined;
     const webRegistration = buildSessionTools({
       webConfig: options.config.web,
+      ...(webSearchDelegate ? { webSearchDelegate } : {}),
     });
     const configuredModel = findConfiguredModel(options.config, options.model);
     const searchRoute = resolveSearchRoute({
       ...(configuredModel?.model ? { model: configuredModel.model } : {}),
       web: resolveWebConfig(options.config.web),
-      adapter: defaultNativeSearchAdapterSupport(),
+      adapter: resolveNativeSearchAdapterSupport(configuredModel?.provider.protocol),
+      externalDelegateReady: Boolean(webSearchDelegate),
     });
     const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
     tools.push(
@@ -301,6 +313,11 @@ export async function buildSessionHostTools(
     );
   }
 
+  // --- Artifact instructions (full contract is lazy, not system-prompt resident) ---
+  if (options.config?.artifact.enabled) {
+    tools.push(buildArtifactInstructionsTool(options.config.artifact));
+  }
+
   // --- Subagent run tool ---
   if (options.subagentSeam) {
     tools.push(
@@ -350,6 +367,11 @@ export async function buildSessionHostTools(
     }
   }
 
+  const toolboxTargets = tools.filter((tool) => isHostToolboxTargetFamily(tool.family));
+  if (toolboxTargets.length > 0) {
+    tools.push(buildHostToolboxRegistration(toolboxTargets));
+  }
+
   return tools;
 }
 
@@ -361,11 +383,9 @@ export async function buildSessionHostTools(
 export function descriptorsFromTools(
   tools: readonly HostToolRegistration[],
 ): import('@piwin/contracts').HostToolDescriptor[] {
-  return tools.map((tool) => ({
-    name: tool.descriptor.name,
-    description: tool.descriptor.description,
-    parameters: tool.descriptor.parameters,
-  }));
+  return tools
+    .filter((tool) => !isHostToolboxTargetFamily(tool.family))
+    .map((tool) => compactModelToolDescriptor(tool.descriptor));
 }
 
 function reportCompositionDiagnostic(

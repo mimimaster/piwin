@@ -35,7 +35,10 @@ export type HostRequestAdapters = {
       | 'project/permissions-revoke'
       | 'usage/get-rollup'
       | 'session/runtime-status'
+      | 'session/reload-runtime'
       | 'session/compact-export'
+      | 'session/lifecycle-plan'
+      | 'session/lifecycle-apply'
       | 'host/runtime-resources'
       | 'theme/list'
       | 'theme/set-active';
@@ -53,9 +56,12 @@ export type HostRequestAdapters = {
     window?: { from?: string; to?: string };
     topSessions?: number;
     sessionId?: string;
+    expectedSettingsRevision?: string;
+    when?: 'now' | 'after-current-run';
     customInstructions?: string;
     outputPath?: string;
     themeId?: string;
+    planId?: string;
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
       | import('@piwin/contracts').VisionDelegateInput
@@ -81,11 +87,17 @@ export type HostRequestAdapters = {
     type:
       | 'extensions/list'
       | 'extensions/set_enabled'
+      | 'extensions/apply'
       | 'extensions/ensure-bundled'
       | 'extensions/install';
     projectPath?: string;
     extensionId?: string;
     enabled?: boolean;
+    sessionId?: string;
+    when?: 'now' | 'after-current-run' | 'new-sessions-only';
+    expectedSettingsRevision?: string;
+    expectedRegistryRevision?: string;
+    deploymentId?: string;
     source?: InstallSource;
     name?: string;
   }) => Promise<HostResponse>;
@@ -391,6 +403,14 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           sessionId: command.sessionId ?? '',
         });
       }
+      if (command.type === 'session/reload-runtime') {
+        return hostClient.request({
+          type: 'session/reload-runtime',
+          sessionId: command.sessionId ?? '',
+          expectedSettingsRevision: command.expectedSettingsRevision ?? '',
+          when: command.when ?? 'after-current-run',
+        });
+      }
       if (command.type === 'host/runtime-resources') {
         return hostClient.request({ type: 'host/runtime-resources' });
       }
@@ -418,6 +438,15 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'theme/set-active') {
         return hostClient.request({ type: 'theme/set-active', themeId: command.themeId ?? '' });
+      }
+      if (command.type === 'session/lifecycle-plan') {
+        return hostClient.request({ type: 'session/lifecycle-plan' });
+      }
+      if (command.type === 'session/lifecycle-apply') {
+        return hostClient.request({
+          type: 'session/lifecycle-apply',
+          planId: command.planId ?? '',
+        });
       }
       if (!command.config) {
         return {
@@ -476,6 +505,28 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       });
     },
     requestExtensions: async (command) => {
+      if (command.type === 'extensions/apply') {
+        if (!command.sessionId) {
+          return {
+            type: 'response',
+            command: 'extensions/apply',
+            success: false,
+            error: 'missing session id',
+          };
+        }
+        return hostClient.request({
+          type: 'extensions/apply',
+          sessionId: command.sessionId,
+          when: command.when ?? 'after-current-run',
+          ...(command.expectedSettingsRevision
+            ? { expectedSettingsRevision: command.expectedSettingsRevision }
+            : {}),
+          ...(command.expectedRegistryRevision
+            ? { expectedRegistryRevision: command.expectedRegistryRevision }
+            : {}),
+          ...(command.deploymentId ? { deploymentId: command.deploymentId } : {}),
+        });
+      }
       if (command.type === 'extensions/list') {
         const payload: { type: 'extensions/list'; projectPath?: string } = {
           type: 'extensions/list',

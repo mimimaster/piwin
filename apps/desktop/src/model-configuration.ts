@@ -2,7 +2,6 @@ import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
   modelSupportsCapability,
-  resolveNativeWebSearchMode,
   THINKING_LEVEL_OPTIONS,
 } from '@piwin/contracts';
 import type {
@@ -12,7 +11,6 @@ import type {
   ModelConfigEntry,
   ModelInputModality,
   ModelProviderConfig,
-  NativeWebSearchMode,
   ThinkingLevel,
 } from '@piwin/contracts';
 import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
@@ -29,14 +27,14 @@ export type ModelConfigurationDraft = {
   supportsImage: boolean;
   /** Maps to `capabilities` including `image-generation`. */
   supportsImageGeneration: boolean;
+  /** Maps to `capabilities` including `video-generation`. */
+  supportsVideoGeneration: boolean;
   /** Maps to `capabilities` including `speech-to-text`. */
   supportsSpeechToText: boolean;
   /** Maps to `capabilities` including `text-to-speech`. */
   supportsTextToSpeech: boolean;
   /** Maps to `capabilities` including `native-web-search`. */
   supportsNativeWebSearch: boolean;
-  /** Controls whether provider-native search can be disabled for a request. */
-  nativeWebSearchMode: NativeWebSearchMode;
   /** Maps to `reasoning`. */
   reasoning: boolean;
 };
@@ -83,10 +81,10 @@ export function createModelConfigurationDraft(
     thinkingLevels,
     supportsImage: effective.input?.includes('image') ?? false,
     supportsImageGeneration: effective.capabilities?.includes('image-generation') ?? false,
+    supportsVideoGeneration: effective.capabilities?.includes('video-generation') ?? false,
     supportsSpeechToText: effective.capabilities?.includes('speech-to-text') ?? false,
     supportsTextToSpeech: effective.capabilities?.includes('text-to-speech') ?? false,
     supportsNativeWebSearch: modelSupportsCapability(effective, 'native-web-search'),
-    nativeWebSearchMode: resolveNativeWebSearchMode(effective),
     reasoning: effective.reasoning ?? true,
   };
 }
@@ -131,6 +129,9 @@ export function createModelConfigurationEntry(
   if (draft.supportsImageGeneration) {
     capabilities.push('image-generation');
   }
+  if (draft.supportsVideoGeneration) {
+    capabilities.push('video-generation');
+  }
   if (draft.supportsSpeechToText) {
     capabilities.push('speech-to-text');
   }
@@ -139,7 +140,6 @@ export function createModelConfigurationEntry(
   }
   if (draft.supportsNativeWebSearch) {
     capabilities.push('native-web-search');
-    model.nativeWebSearchMode = draft.nativeWebSearchMode;
   }
   if (capabilities.length > 0) {
     model.capabilities = capabilities;
@@ -194,18 +194,19 @@ export function applyModelConfigurationDraft(
   if (!draft.maxOutputTokens.trim()) delete updated.maxOutputTokens;
   if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
-  // Preserve capability tags that this editor does not expose (for example
-  // video-generation), while replacing the image, speech, and native-search
-  // flags it owns.
+  // Preserve capability tags that this editor does not expose while replacing
+  // the generation, speech, and native-search flags it owns.
   const preservedCapabilities = (original.capabilities ?? []).filter(
     (capability) =>
       capability !== 'image-generation' &&
+      capability !== 'video-generation' &&
       capability !== 'speech-to-text' &&
       capability !== 'text-to-speech' &&
       capability !== 'native-web-search',
   );
   const editedCapabilities = new Set<ModelCapability>(preservedCapabilities);
   if (draft.supportsImageGeneration) editedCapabilities.add('image-generation');
+  if (draft.supportsVideoGeneration) editedCapabilities.add('video-generation');
   if (draft.supportsSpeechToText) editedCapabilities.add('speech-to-text');
   if (draft.supportsTextToSpeech) editedCapabilities.add('text-to-speech');
   if (draft.supportsNativeWebSearch) editedCapabilities.add('native-web-search');
@@ -214,18 +215,15 @@ export function applyModelConfigurationDraft(
   } else {
     delete updated.capabilities;
   }
-  if (draft.supportsNativeWebSearch) {
-    updated.nativeWebSearchMode = draft.nativeWebSearchMode;
-  } else {
-    delete updated.nativeWebSearchMode;
-    if (updated.routes && 'native-web-search' in updated.routes) {
-      const preservedRoutes = { ...updated.routes };
-      delete preservedRoutes['native-web-search'];
-      if (Object.keys(preservedRoutes).length > 0) {
-        updated.routes = preservedRoutes;
-      } else {
-        delete updated.routes;
-      }
+  const legacyUpdated = updated as ModelConfigEntry & { nativeWebSearchMode?: unknown };
+  delete legacyUpdated.nativeWebSearchMode;
+  if (updated.routes && 'native-web-search' in updated.routes) {
+    const preservedRoutes = { ...updated.routes };
+    delete preservedRoutes['native-web-search'];
+    if (Object.keys(preservedRoutes).length > 0) {
+      updated.routes = preservedRoutes;
+    } else {
+      delete updated.routes;
     }
   }
   if (draft.thinkingLevels.length === 0) {

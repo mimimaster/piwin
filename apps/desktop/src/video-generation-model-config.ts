@@ -17,8 +17,14 @@ export const VIDEO_API_STYLE_OPTIONS: readonly VideoGenerationApiStyle[] = [
   'runway-tasks',
   'luma-generations',
   'minimax-tasks',
+  'xgrok-videos',
   'custom',
 ];
+
+/** Narrow a route apiStyle to the video wire formats (image styles excluded). */
+export function isVideoApiStyle(value: unknown): value is VideoGenerationApiStyle {
+  return (VIDEO_API_STYLE_OPTIONS as readonly unknown[]).includes(value);
+}
 
 /** Video-capable when it declares the capability or has a video route. */
 export function isVideoGenerationModel(model: ModelConfigEntry): boolean {
@@ -60,6 +66,8 @@ export function defaultVideoGenerationPath(apiStyle: VideoGenerationApiStyle): s
       return '/dream-machine/v1/generations/video';
     case 'minimax-tasks':
       return '/v2/video_generation';
+    case 'xgrok-videos':
+      return '/videos/generations';
     case 'custom':
       return '/video/generations';
   }
@@ -138,6 +146,7 @@ export function videoApiStyleLabel(
     'runway-tasks': locale === 'zh-CN' ? 'Runway Tasks' : 'Runway Tasks',
     'luma-generations': locale === 'zh-CN' ? 'Luma Generations' : 'Luma Generations',
     'minimax-tasks': locale === 'zh-CN' ? 'MiniMax Tasks' : 'MiniMax Tasks',
+    'xgrok-videos': locale === 'zh-CN' ? 'xGrok Videos' : 'xGrok Videos',
     custom: locale === 'zh-CN' ? '自定义异步任务' : 'Custom async task',
   };
   return labels[apiStyle];

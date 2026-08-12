@@ -202,4 +202,38 @@ describe('resolvePromptContextRefs', () => {
     expect(text).toContain('[diff-reference: d]');
     expect(text).toContain('[terminal-output-reference: term]');
   });
+
+  it('prefers direct message lookup over the tail scan', async () => {
+    const deps = {
+      loadTranscriptMessages: async (): Promise<SessionTranscriptMessage[]> => {
+        // Old message is not in the newest tail — the direct lookup must win.
+        return [];
+      },
+      loadTranscriptMessage: async (
+        sessionId: string,
+        messageId: string,
+      ): Promise<SessionTranscriptMessage | undefined> => {
+        expect(sessionId).toBe('main-1');
+        if (messageId !== 'old-msg') return undefined;
+        return {
+          id: 'old-msg',
+          role: 'assistant',
+          text: 'old body',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          status: 'done',
+        };
+      },
+    };
+    const text = await resolvePromptContextRefs(deps, [
+      {
+        kind: 'main-message',
+        sourceSessionId: 'main-1',
+        messageId: 'old-msg',
+        label: 'Old',
+      },
+    ]);
+    expect(text).toContain('[main-message-reference: Old]');
+    expect(text).toContain('old body');
+  });
+
 });

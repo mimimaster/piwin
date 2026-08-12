@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolCardUi } from './chat-reducer';
 import {
+  classifyToolHistoryCategory,
   countExploreFiles,
   exploreGroupLabel,
   extractSearchInfo,
   formatFilePillPath,
+  groupToolsByHistoryCategory,
   groupToolsForTimeline,
   isExploreLikeTool,
+  toolHistoryCategoryLabel,
 } from './activity-timeline';
 
 function makeTool(
@@ -152,11 +155,85 @@ describe('groupToolsForTimeline', () => {
     });
 
     const segments = groupToolsForTimeline([readA, readB, shell, readC, readD]);
-    expect(segments.map((segment) => segment.kind)).toEqual([
-      'explore',
-      'tool',
-      'explore',
-    ]);
+    expect(segments.map((segment) => segment.kind)).toEqual(['explore', 'tool', 'explore']);
+  });
+});
+
+describe('tool history categories', () => {
+  it('maps normalized tool actions into stable rollup categories', () => {
+    const fixtures: Array<[ToolCardUi, string]> = [
+      [
+        makeTool({
+          toolCallId: 'read',
+          toolName: 'read_file',
+          presentation: { kind: 'filesystem', title: 'Read', actionVerb: 'Read' },
+        }),
+        'explore',
+      ],
+      [
+        makeTool({
+          toolCallId: 'edit',
+          toolName: 'write_file',
+          presentation: { kind: 'filesystem', title: 'Write', actionVerb: 'Edited' },
+        }),
+        'edit',
+      ],
+      [
+        makeTool({
+          toolCallId: 'command',
+          toolName: 'bash',
+          presentation: { kind: 'shell', title: 'Bash', actionVerb: 'Ran command' },
+        }),
+        'command',
+      ],
+      [
+        makeTool({
+          toolCallId: 'web',
+          toolName: 'web_fetch',
+          presentation: { kind: 'web', title: 'Fetch', actionVerb: 'Fetched' },
+        }),
+        'web',
+      ],
+      [
+        makeTool({
+          toolCallId: 'mcp',
+          toolName: 'mcp__docs__lookup',
+          presentation: { kind: 'mcp', title: 'Lookup', actionVerb: 'MCP call' },
+        }),
+        'mcp',
+      ],
+      [
+        makeTool({
+          toolCallId: 'image',
+          toolName: 'image_gen',
+          presentation: { kind: 'other', title: 'Image', actionVerb: 'Generated image' },
+        }),
+        'generation',
+      ],
+      [
+        makeTool({
+          toolCallId: 'delegate',
+          toolName: 'subagent_run',
+          presentation: { kind: 'other', title: 'Delegate', actionVerb: 'Delegated' },
+        }),
+        'delegate',
+      ],
+    ];
+
+    for (const [tool, expected] of fixtures) {
+      expect(classifyToolHistoryCategory(tool)).toBe(expected);
+    }
+  });
+
+  it('groups tools in stable category order while preserving order within a category', () => {
+    const commandA = makeTool({ toolCallId: 'command-a', toolName: 'bash' });
+    const read = makeTool({ toolCallId: 'read', toolName: 'read_file' });
+    const commandB = makeTool({ toolCallId: 'command-b', toolName: 'run_bash' });
+
+    const groups = groupToolsByHistoryCategory([commandA, read, commandB]);
+    expect(groups.map((group) => group.category)).toEqual(['explore', 'command']);
+    expect(groups[1]?.tools.map((tool) => tool.toolCallId)).toEqual(['command-a', 'command-b']);
+    expect(toolHistoryCategoryLabel('explore', 'zh-CN')).toBe('读取与搜索');
   });
 });
 
@@ -240,4 +317,3 @@ describe('search helpers', () => {
     expect(formatted.displayPath).toBe('/src/composer-dock.test.tsx');
   });
 });
-

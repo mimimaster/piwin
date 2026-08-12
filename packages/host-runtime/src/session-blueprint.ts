@@ -24,5 +24,7 @@ export type SessionBlueprint = {
   contextManifest: ContextManifest;
   /** Model-visible projection; Host-local registrations stay in HostRuntime. */
   hostToolDescriptors: readonly HostToolDescriptor[];
+  /** Low-frequency target registrations reachable only through piwin_toolbox. */
+  hostToolboxTargetNames: readonly string[];
   backendBlueprint: BackendSessionBlueprint;
 };

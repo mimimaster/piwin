@@ -26,7 +26,8 @@ export type SubagentIntegrationStatus =
   | 'applied'
   | 'conflict'
   | 'failed'
-  | 'retained';
+  | 'retained'
+  | 'discarded';
 
 /** Persisted lifecycle state for a child session. */
 export type SubagentLifecycleState = {

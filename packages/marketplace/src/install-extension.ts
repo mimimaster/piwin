@@ -1,8 +1,10 @@
-import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
+import { createExtensionRevisionStore } from '@piwin/extensions';
 import { resolveCloneContentRoot } from './clone-content-root.js';
 
 const execFileAsync = promisify(execFile);
@@ -10,127 +12,109 @@ const execFileAsync = promisify(execFile);
 export type InstallExtensionResult = {
   extensionId: string;
   targetPath: string;
+  packageRoot: string;
+  contentRevision: string;
+  registryRevision: string;
   source: InstallSource;
+  /** First install is inactive; updates preserve the existing user intent. */
+  configuredEnabled: boolean;
 };
 
 export type InstallExtensionOptions = {
   piwinRoot: string;
   source: InstallSource;
-  /** Override destination name under ~/.piwin/extensions */
+  /** Override display/directory name in the managed registry. */
   name?: string;
 };
 
 /**
- * Install a Pi extension into ~/.piwin/extensions.
- * - local file: copy `*.ts` into extensions root
- * - local dir: must contain index.ts (package layout) or a single *.ts
- * - git: clone then copy entry
+ * Acquire a Pi extension into the Host-owned immutable revision store.
+ *
+ * Installing only stages an inactive revision. It never overwrites a mutable
+ * path and never imports or executes the extension entrypoint.
  */
 export async function installExtension(
   options: InstallExtensionOptions,
 ): Promise<InstallExtensionResult> {
-  const extensionsRoot = join(options.piwinRoot, 'extensions');
-  await mkdir(extensionsRoot, { recursive: true });
-
+  const store = createExtensionRevisionStore(options.piwinRoot);
   if (options.source.kind === 'local') {
-    return installExtensionFromLocal(extensionsRoot, options.source.path, options.name);
-  }
-  return installExtensionFromGit(extensionsRoot, options.source, options.name);
-}
-
-async function installExtensionFromLocal(
-  extensionsRoot: string,
-  sourcePath: string,
-  nameOverride?: string,
-): Promise<InstallExtensionResult> {
-  const absoluteSource = resolve(sourcePath);
-  const sourceStat = await stat(absoluteSource);
-
-  if (sourceStat.isFile()) {
-    if (!absoluteSource.endsWith('.ts') || absoluteSource.endsWith('.d.ts')) {
-      throw new Error(`Local extension file must be a .ts module: ${absoluteSource}`);
-    }
-    const baseName = nameOverride ?? basename(absoluteSource).replace(/\.ts$/i, '');
-    const safeName = sanitizeName(baseName);
-    const targetPath = join(extensionsRoot, `${safeName}.ts`);
-    const body = await readFile(absoluteSource, 'utf8');
-    await writeFile(targetPath, body, 'utf8');
+    const absoluteSource = resolve(options.source.path);
+    const staged = await store.stage({
+      sourcePath: absoluteSource,
+      ...(options.name ? { name: options.name } : {}),
+      source: 'user',
+      sourceLocator: `local:${absoluteSource}`,
+    });
     return {
-      extensionId: safeName.toLowerCase(),
-      targetPath,
+      extensionId: staged.extensionId,
+      targetPath: staged.targetPath,
+      packageRoot: staged.packageRoot,
+      contentRevision: staged.contentRevision,
+      registryRevision: staged.registryRevision,
       source: { kind: 'local', path: absoluteSource },
+      configuredEnabled: staged.record.configuredEnabled,
     };
   }
-
-  if (!sourceStat.isDirectory()) {
-    throw new Error(`Local extension source must be a file or directory: ${absoluteSource}`);
-  }
-
-  const indexPath = join(absoluteSource, 'index.ts');
-  try {
-    if (!(await stat(indexPath)).isFile()) {
-      throw new Error('missing');
-    }
-  } catch {
-    throw new Error(`Extension directory must contain index.ts: ${absoluteSource}`);
-  }
-
-  const packageName = nameOverride ?? basename(absoluteSource);
-  const safeName = sanitizeName(packageName);
-  const targetPath = join(extensionsRoot, safeName);
-  await rmQuiet(targetPath);
-  await cp(absoluteSource, targetPath, { recursive: true, force: true });
-  return {
-    extensionId: safeName.toLowerCase(),
-    targetPath,
-    source: { kind: 'local', path: absoluteSource },
-  };
+  return installExtensionFromGit(store, {
+    ...options,
+    source: options.source,
+  });
 }
 
 async function installExtensionFromGit(
-  extensionsRoot: string,
-  source: Extract<InstallSource, { kind: 'git' }>,
-  nameOverride?: string,
+  store: ReturnType<typeof createExtensionRevisionStore>,
+  options: Omit<InstallExtensionOptions, 'source'> & {
+    source: Extract<InstallSource, { kind: 'git' }>;
+  },
 ): Promise<InstallExtensionResult> {
-  const tempName = `.tmp-git-ext-${Date.now().toString(36)}`;
-  const clonePath = join(extensionsRoot, tempName);
+  const clonePath = await mkdtemp(`${tmpdir()}/piwin-extension-git-`);
   const args = ['clone', '--depth', '1'];
-  if (source.ref) {
-    args.push('--branch', source.ref);
+  if (options.source.ref) {
+    args.push('--branch', options.source.ref);
   }
-  args.push(source.url, clonePath);
+  args.push(options.source.url, clonePath);
   try {
     await execFileAsync('git', args, { timeout: 120_000 });
+    const contentRoot = resolveCloneContentRoot(clonePath, options.source.subdir);
+    const resolvedCommit = await readGitCommit(clonePath);
+    const sourceLocator = `git:${options.source.url}@${resolvedCommit}`;
+    const staged = await store.stage({
+      sourcePath: contentRoot,
+      ...(options.name ? { name: options.name } : {}),
+      source: 'user',
+      sourceLocator,
+    });
+    const source: InstallSource = {
+      kind: 'git',
+      url: options.source.url,
+      ...(options.source.ref ? { ref: options.source.ref } : {}),
+      ...(options.source.subdir ? { subdir: options.source.subdir } : {}),
+    };
+    return {
+      extensionId: staged.extensionId,
+      targetPath: staged.targetPath,
+      packageRoot: staged.packageRoot,
+      contentRevision: staged.contentRevision,
+      registryRevision: staged.registryRevision,
+      source,
+      configuredEnabled: staged.record.configuredEnabled,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`git clone failed: ${message}`);
-  }
-
-  let contentRoot: string;
-  try {
-    contentRoot = resolveCloneContentRoot(clonePath, source.subdir);
-    const result = await installExtensionFromLocal(extensionsRoot, contentRoot, nameOverride);
-    await rmQuiet(clonePath);
-    const resultSource: InstallSource = { kind: 'git', url: source.url };
-    if (source.ref) resultSource.ref = source.ref;
-    if (source.subdir) resultSource.subdir = source.subdir;
-    return { ...result, source: resultSource };
-  } catch (error) {
-    await rmQuiet(clonePath);
-    throw error;
+    throw new Error(`git extension install failed: ${message}`);
+  } finally {
+    await rm(clonePath, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
-function sanitizeName(value: string): string {
-  const cleaned = value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
-  return cleaned.length > 0 ? cleaned : 'extension';
-}
-
-async function rmQuiet(pathValue: string): Promise<void> {
-  try {
-    const { rm } = await import('node:fs/promises');
-    await rm(pathValue, { recursive: true, force: true });
-  } catch {
-    // ignore
+async function readGitCommit(clonePath: string): Promise<string> {
+  const result = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+    cwd: clonePath,
+    timeout: 15_000,
+  });
+  const commit = result.stdout.trim();
+  if (!/^[0-9a-f]{40}$/i.test(commit)) {
+    throw new Error(`git clone returned invalid commit: ${basename(clonePath)}`);
   }
+  return commit.toLowerCase();
 }

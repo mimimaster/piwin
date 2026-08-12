@@ -1,9 +1,4 @@
-import type {
-  ModelCapability,
-  ModelProviderConfig,
-  NativeWebSearchMode,
-  ResolvedSearchRoute,
-} from '@piwin/contracts';
+import type { ModelCapability, ModelProviderConfig, ResolvedSearchRoute } from '@piwin/contracts';
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
@@ -17,8 +12,47 @@ import {
   type NativeSearchModelFlags,
   type NativeSearchStreamSimple,
 } from './native-web-search.js';
+import { resolvePiNativeSearchStream } from './pi-native-search-stream.js';
 
 export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
+
+export type PiModelCompat = {
+  supportsStore?: boolean;
+  supportsDeveloperRole?: boolean;
+  maxTokensField?: 'max_tokens' | 'max_completion_tokens';
+  requiresReasoningContentOnAssistantMessages?: boolean;
+  thinkingFormat?: 'deepseek';
+};
+
+/**
+ * DeepSeek models behind a local OpenAI-compatible gateway cannot be detected
+ * from the base URL. Keep this model-id prefix as an explicit compatibility
+ * rule: it mirrors Pi's DeepSeek/OpenCode request shape without changing the
+ * product protocol or affecting Anthropic/Google registrations.
+ */
+const DEEPSEEK_MODEL_ID_PREFIX = 'deepseek';
+
+const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
+  supportsStore: false,
+  supportsDeveloperRole: false,
+  maxTokensField: 'max_tokens',
+  requiresReasoningContentOnAssistantMessages: true,
+  thinkingFormat: 'deepseek',
+};
+
+/** Resolve the Pi wire compatibility profile hidden by local gateway URLs. */
+export function resolvePiModelCompat(
+  api: PiProviderApi,
+  modelId: string,
+): PiModelCompat | undefined {
+  if (api !== 'openai-completions') {
+    return undefined;
+  }
+  if (!modelId.trim().toLowerCase().startsWith(DEEPSEEK_MODEL_ID_PREFIX)) {
+    return undefined;
+  }
+  return { ...DEEPSEEK_OPENAI_COMPAT };
+}
 
 export type PiModelRegistration = {
   id: string;
@@ -26,6 +60,7 @@ export type PiModelRegistration = {
   api: PiProviderApi;
   baseUrl: string;
   reasoning: boolean;
+  compat?: PiModelCompat;
   thinkingLevelMap?: PiThinkingLevelMap;
   input: Array<'text' | 'image'>;
   cost: {
@@ -39,7 +74,6 @@ export type PiModelRegistration = {
   headers?: Record<string, string>;
   /** Product capability tags retained for native-search request shaping. */
   capabilities?: ModelCapability[];
-  nativeWebSearchMode?: NativeWebSearchMode;
 };
 
 export type PiProviderRegistration = {
@@ -94,6 +128,7 @@ export function buildPiProviderRegistration(
         model.reasoning === false
           ? undefined
           : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
+      const compat = resolvePiModelCompat(api, model.id);
       const registration: PiModelRegistration = {
         id: model.id,
         name: model.label?.trim() || model.id,
@@ -101,6 +136,7 @@ export function buildPiProviderRegistration(
         baseUrl: provider.baseUrl,
         // Omit → true: preserve legacy "all models reasoning-capable" registration.
         reasoning: model.reasoning ?? true,
+        ...(compat ? { compat } : {}),
         ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
         // Omit → ['text']: safe default; do not claim vision without config.
         input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
@@ -116,9 +152,6 @@ export function buildPiProviderRegistration(
       };
       if (model.capabilities?.length) {
         registration.capabilities = [...model.capabilities];
-      }
-      if (model.nativeWebSearchMode) {
-        registration.nativeWebSearchMode = model.nativeWebSearchMode;
       }
       return registration;
     });
@@ -140,12 +173,12 @@ export function buildPiProviderRegistration(
   const nativeFlags: NativeSearchModelFlags[] = models.map((model) => ({
     id: model.id,
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
-    ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
   }));
   if (providerNeedsNativeSearchWrapper(nativeFlags, options.searchRoute)) {
     const wrapped = wrapStreamSimpleForNativeSearch(options.streamSimple, {
       models: nativeFlags,
       searchRoute: options.searchRoute ?? null,
+      fallbackStreamSimple: resolvePiNativeSearchStream(api),
     });
     if (wrapped) {
       registration.streamSimple = wrapped;

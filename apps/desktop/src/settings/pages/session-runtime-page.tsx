@@ -117,6 +117,7 @@ export function SessionRuntimePage(): ReactElement {
     useSettings();
   const [runtimeStatus, setRuntimeStatus] = useState<SessionRuntimeStatus | null>(null);
   const [resources, setResources] = useState<HostRuntimeResourcesData | null>(null);
+  const [retryingRuntime, setRetryingRuntime] = useState(false);
 
   const savedRetention = useMemo(
     () => normalizeSessionRuntimeRetentionConfig(config?.session?.runtimeRetention),
@@ -237,6 +238,30 @@ export function SessionRuntimePage(): ReactElement {
     }
   }
 
+  async function handleRetryRuntime(): Promise<void> {
+    if (!activeSessionId || !runtimeStatus?.settingsRevision) return;
+    setRetryingRuntime(true);
+    try {
+      const response = await request({
+        type: 'session/reload-runtime',
+        sessionId: activeSessionId,
+        expectedSettingsRevision: runtimeStatus.settingsRevision,
+        when: 'after-current-run',
+      });
+      if (response.success) {
+        setInfo(isZh ? '已重新提交运行时更新。' : 'Runtime update retry submitted.', 'info');
+      } else {
+        setInfo(
+          isZh ? `运行时更新重试失败：${response.error}` : `Runtime retry failed: ${response.error}`,
+          'warning',
+        );
+      }
+      await refreshStatus();
+    } finally {
+      setRetryingRuntime(false);
+    }
+  }
+
   const stale = runtimeStatus?.state === 'stale';
   const rebuilding = runtimeStatus?.state === 'rebuilding';
   const failed = runtimeStatus?.state === 'failed';
@@ -294,6 +319,15 @@ export function SessionRuntimePage(): ReactElement {
           </div>
         ) : null}
 
+        {runtimeStatus?.desiredSettingsRevision ? (
+          <div className="ui-field-row" data-testid="runtime-desired-revision-row">
+            <span className="muted">{isZh ? '目标设置版本' : 'Desired settings'}:</span>
+            <code data-testid="runtime-desired-revision">
+              {runtimeStatus.desiredSettingsRevision}
+            </code>
+          </div>
+        ) : null}
+
         {evictionLabel ? (
           <div className="ui-field-row" data-testid="runtime-eviction-row">
             <span className="muted">{isZh ? '上次挂起原因' : 'Last eviction'}:</span>
@@ -330,14 +364,30 @@ export function SessionRuntimePage(): ReactElement {
                 {runtimeStatus.staleDomains.join(', ')}
               </p>
             ) : null}
+            {runtimeStatus.immediateRestrictions?.length ? (
+              <p className="muted" data-testid="runtime-immediate-restrictions">
+                {isZh ? '即时限制：' : 'Immediate restrictions: '}
+                {runtimeStatus.immediateRestrictions.join(', ')}
+              </p>
+            ) : null}
+            {failed ? (
+              <Button
+                data-testid="runtime-retry-button"
+                variant="secondary"
+                disabled={retryingRuntime}
+                onClick={() => void handleRetryRuntime()}
+              >
+                {retryingRuntime ? (isZh ? '重试中…' : 'Retrying…') : isZh ? '重试更新' : 'Retry update'}
+              </Button>
+            ) : null}
             <p className="muted" data-testid="runtime-reload-unavailable-note">
               {isZh
                 ? failed
-                  ? '请检查错误后重试运行时重建，或新建会话应用设置。'
-                  : '运行时重建完成前，安全收紧会立即生效。'
+                  ? '请检查错误后重试运行时更新；新消息不会静默使用旧配置。'
+                  : '当前 Run 完成后 Host 会自动应用最新设置；真正的安全收紧会立即生效。'
                 : failed
-                  ? 'Retry the runtime rebuild after resolving the error, or start a new session.'
-                  : 'Safety tightening takes effect immediately while the runtime rebuild completes.'}
+                  ? 'Retry the runtime update after resolving the error; new prompts will not silently use stale configuration.'
+                  : 'The Host applies the latest settings after the current Run; genuine safety tightening takes effect immediately.'}
             </p>
           </div>
         ) : (

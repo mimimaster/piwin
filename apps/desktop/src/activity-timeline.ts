@@ -4,10 +4,121 @@
  * Does not change host events or chat-reducer data.
  */
 import type { ToolCardUi } from './chat-reducer';
+import { resolveToolBehaviorId } from './behavior-activity.js';
 
 export type TimelineSegment =
-  | { kind: 'tool'; tool: ToolCardUi }
-  | { kind: 'explore'; tools: ToolCardUi[]; fileCount: number };
+  { kind: 'tool'; tool: ToolCardUi } | { kind: 'explore'; tools: ToolCardUi[]; fileCount: number };
+
+export type ToolHistoryCategory =
+  'explore' | 'edit' | 'command' | 'web' | 'mcp' | 'generation' | 'delegate' | 'other';
+
+export type ToolHistoryCategoryGroup = {
+  category: ToolHistoryCategory;
+  tools: ToolCardUi[];
+};
+
+const TOOL_HISTORY_CATEGORY_ORDER: readonly ToolHistoryCategory[] = [
+  'explore',
+  'edit',
+  'command',
+  'web',
+  'mcp',
+  'generation',
+  'delegate',
+  'other',
+];
+
+/** Map the normalized behavior vocabulary into stable user-facing history buckets. */
+export function classifyToolHistoryCategory(tool: ToolCardUi): ToolHistoryCategory {
+  const behaviorId = resolveToolBehaviorId({
+    kind: tool.presentation?.kind ?? 'unknown',
+    toolName: tool.toolName,
+    ...(tool.presentation?.actionVerb ? { actionVerb: tool.presentation.actionVerb } : {}),
+  });
+
+  switch (behaviorId) {
+    case 'explore':
+    case 'search':
+    case 'read':
+      return 'explore';
+    case 'edit':
+    case 'git':
+      return 'edit';
+    case 'shell':
+    case 'test':
+    case 'build':
+    case 'process':
+      return 'command';
+    case 'web.search':
+    case 'web.fetch':
+    case 'browser':
+      return 'web';
+    case 'mcp.server.connect':
+    case 'mcp.server.stop':
+    case 'mcp.server.status':
+    case 'mcp.discovery':
+    case 'mcp.call':
+    case 'mcp.call.done':
+    case 'mcp.call.error':
+      return 'mcp';
+    case 'artifact':
+    case 'image':
+    case 'video':
+      return 'generation';
+    case 'subagent.batch.prepare':
+    case 'subagent.batch.running':
+    case 'subagent.batch.complete':
+    case 'subagent.batch.fail':
+    case 'subagent.batch.cancelled':
+    case 'subagent.task.queued':
+    case 'subagent.task.running':
+    case 'subagent.task.complete':
+    case 'subagent.task.fail':
+    case 'subagent.task.cancelled':
+    case 'subagent.inspector.live':
+    case 'subagent':
+      return 'delegate';
+    default:
+      return 'other';
+  }
+}
+
+export function groupToolsByHistoryCategory(
+  tools: readonly ToolCardUi[],
+): ToolHistoryCategoryGroup[] {
+  const toolsByCategory = new Map<ToolHistoryCategory, ToolCardUi[]>();
+  for (const tool of tools) {
+    const category = classifyToolHistoryCategory(tool);
+    const categoryTools = toolsByCategory.get(category);
+    if (categoryTools) {
+      categoryTools.push(tool);
+    } else {
+      toolsByCategory.set(category, [tool]);
+    }
+  }
+
+  return TOOL_HISTORY_CATEGORY_ORDER.flatMap((category) => {
+    const categoryTools = toolsByCategory.get(category);
+    return categoryTools ? [{ category, tools: categoryTools }] : [];
+  });
+}
+
+export function toolHistoryCategoryLabel(
+  category: ToolHistoryCategory,
+  locale: 'zh-CN' | 'en',
+): string {
+  const labels: Record<ToolHistoryCategory, readonly [string, string]> = {
+    explore: ['读取与搜索', 'Read & search'],
+    edit: ['编辑与 Git', 'Edit & Git'],
+    command: ['命令与任务', 'Commands & jobs'],
+    web: ['网络与浏览器', 'Web & browser'],
+    mcp: ['MCP', 'MCP'],
+    generation: ['生成内容', 'Generation'],
+    delegate: ['子代理', 'Delegation'],
+    other: ['其他', 'Other'],
+  };
+  return labels[category][locale === 'zh-CN' ? 0 : 1];
+}
 
 /**
  * Tools that read/search the workspace — candidates for explore batching.
@@ -15,11 +126,7 @@ export type TimelineSegment =
  */
 export function isExploreLikeTool(tool: ToolCardUi): boolean {
   const actionVerb = tool.presentation?.actionVerb?.trim() ?? '';
-  if (
-    actionVerb === 'Read' ||
-    actionVerb === 'Searched' ||
-    actionVerb === 'Explored'
-  ) {
+  if (actionVerb === 'Read' || actionVerb === 'Searched' || actionVerb === 'Explored') {
     return true;
   }
 
@@ -334,7 +441,5 @@ export function exploreGroupLabel(input: {
       ? `正在探查... ${input.fileCount} 个文件`
       : `Exploring... ${input.fileCount} files`;
   }
-  return isChinese
-    ? `已探查 ${input.fileCount} 个文件`
-    : `Explored ${input.fileCount} files`;
+  return isChinese ? `已探查 ${input.fileCount} 个文件` : `Explored ${input.fileCount} files`;
 }

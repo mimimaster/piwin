@@ -11,6 +11,8 @@ export type HostToolExecutionContext = {
   sessionId: string;
   runtimeGenerationId: string;
   runId: string;
+  /** Generation-normalized parent tool call, when the backend supplied it. */
+  toolCallId?: string;
   toolName: string;
 };
 

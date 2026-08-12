@@ -55,6 +55,10 @@ export type ResourceCatalogEntry = {
   description?: string;
   path: string;
   source: ResourceSource;
+  /** Immutable content identity when the Host can determine one. */
+  contentRevision?: string;
+  /** User intent captured by scanners that own a separate registry. */
+  configuredEnabled?: boolean;
   /** Pi-native root marker (e.g. `~/.pi/agent`); undefined for product roots. */
   piNativeRoot?: string;
 };

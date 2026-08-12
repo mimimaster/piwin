@@ -30,6 +30,7 @@
     "@piwin/browser": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",
+    "@piwin/extensions": "workspace:*",
     "@piwin/flashcards": "workspace:*",
     "@piwin/git": "workspace:*",
     "@piwin/marketplace": "workspace:*",

@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelConfigEntry, WebConfig } from '@piwin/contracts';
 import {
-  defaultNativeSearchAdapterSupport,
+  findReadyWebSearchDelegate,
   formatSearchRouteCapabilityBrief,
+  resolveNativeSearchAdapterSupport,
   resolveSearchRoute,
   shouldEnableNativeWebSearch,
   shouldExposeExternalWebSearch,
 } from './search-route-resolver.js';
 
-const adapterReady = defaultNativeSearchAdapterSupport();
+const adapterReady = resolveNativeSearchAdapterSupport('openai-compatible');
 const adapterNoRequest = { requestSupported: false, citationSupported: false };
 
 function nativeModel(overrides: Partial<ModelConfigEntry> = {}): ModelConfigEntry {
@@ -27,6 +28,17 @@ function externalWeb(enabled = true): Pick<WebConfig, 'searchSources' | 'searchR
 }
 
 describe('resolveSearchRoute', () => {
+  it('reports request support by protocol without claiming citation support', () => {
+    expect(resolveNativeSearchAdapterSupport('openai-compatible')).toEqual({
+      requestSupported: true,
+      citationSupported: false,
+    });
+    expect(resolveNativeSearchAdapterSupport(undefined)).toEqual({
+      requestSupported: false,
+      citationSupported: false,
+    });
+  });
+
   it('defaults to external-first and selects external when both are ready', () => {
     const route = resolveSearchRoute({
       model: nativeModel(),
@@ -49,6 +61,52 @@ describe('resolveSearchRoute', () => {
     });
     expect(route.selected).toBe('native');
     expect(route.fallback).toBeNull();
+  });
+
+  it('treats a validated delegate model as the exclusive external web_search backend', () => {
+    const delegateModel = {
+      protocol: 'google-gemini' as const,
+      providerId: 'gemini',
+      modelId: 'gemini-search',
+    };
+    const route = resolveSearchRoute({
+      policy: 'external-first',
+      model: nativeModel(),
+      web: {
+        ...externalWeb(false),
+        searchDelegateModel: delegateModel,
+      },
+      externalDelegateReady: true,
+      adapter: adapterReady,
+    });
+
+    expect(route.selected).toBe('external');
+    expect(route.readiness.external).toMatchObject({
+      ready: true,
+      hasEnabledSources: false,
+      hasDelegateModel: true,
+    });
+  });
+
+  it('fails a stale delegate closed instead of silently using configured sources', () => {
+    const route = resolveSearchRoute({
+      policy: 'external-only',
+      model: nativeModel(),
+      web: {
+        ...externalWeb(true),
+        searchDelegateModel: {
+          protocol: 'google-gemini',
+          providerId: 'missing',
+          modelId: 'missing',
+        },
+      },
+      externalDelegateReady: false,
+      adapter: adapterReady,
+    });
+
+    expect(route.selected).toBeNull();
+    expect(route.readiness.external.ready).toBe(false);
+    expect(route.issues).toContain('configured web_search delegate model is unavailable');
   });
 
   it('selects native under native-first when ready', () => {
@@ -97,18 +155,6 @@ describe('resolveSearchRoute', () => {
     expect(route.fallback).toBeNull();
   });
 
-  it('marks external-only incompatible for always-on native models and keeps native', () => {
-    const route = resolveSearchRoute({
-      policy: 'external-only',
-      model: nativeModel({ nativeWebSearchMode: 'always-on' }),
-      web: externalWeb(true),
-      adapter: adapterReady,
-    });
-    expect(route.incompatible).toBe(true);
-    expect(route.selected).toBe('native');
-    expect(route.readiness.native.alwaysOn).toBe(true);
-  });
-
   it('treats a model badge alone as insufficient without adapter support', () => {
     const route = resolveSearchRoute({
       policy: 'native-only',
@@ -149,5 +195,33 @@ describe('resolveSearchRoute', () => {
       adapter: adapterReady,
     });
     expect(formatSearchRouteCapabilityBrief(external)).toContain('web_search');
+  });
+});
+
+describe('findReadyWebSearchDelegate', () => {
+  it('accepts only an enabled configured model with both chat and native search', () => {
+    const delegate = {
+      protocol: 'google-gemini' as const,
+      providerId: 'gemini',
+      modelId: 'gemini-search',
+    };
+    const config = {
+      providers: [
+        {
+          id: 'gemini',
+          name: 'Gemini',
+          protocol: 'google-gemini' as const,
+          baseUrl: 'https://example.test',
+          models: [nativeModel({ id: 'gemini-search' })],
+        },
+      ],
+      web: { searchDelegateModel: delegate },
+    };
+
+    expect(findReadyWebSearchDelegate(config)?.ref).toEqual(delegate);
+    const model = config.providers[0]?.models[0];
+    if (!model) throw new Error('test model missing');
+    model.enabled = false;
+    expect(findReadyWebSearchDelegate(config)).toBeUndefined();
   });
 });

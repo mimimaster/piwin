@@ -21,6 +21,8 @@ import {
   resolvePreset,
 } from '@piwin/contracts';
 import type {
+  PermissionDecision,
+  PermissionRememberScope,
   PermissionPreset,
   PiwinConfig,
   ProjectRecord,
@@ -33,7 +35,12 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import { listOrchestrationSchemes, ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
-import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
+import {
+  chatUiReducer,
+  createInitialChatUiState,
+  type PermissionPromptUi,
+  type SessionListItemUi,
+} from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
 import { NotificationRegion } from './NotificationRegion';
@@ -95,12 +102,7 @@ import { useSessionLineage } from './hooks/use-session-lineage';
 import { getDirectForkCountsByMessageId } from './session-lineage-tree';
 import { SessionLineageHeaderPopover } from './session-lineage-popover';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
-import {
-  selectActiveSubagents,
-  type ActiveSubagentView,
-  type SubagentInspectorSelection,
-} from './subagent-activity-model';
-import { SubagentWorkingDock } from './subagent-working-dock';
+import type { SubagentInspectorSelection } from './subagent-activity-model';
 import { useJobs } from './hooks/use-jobs';
 import { Button, ConfirmDialog, Dialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
@@ -764,13 +766,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     sessionName: string;
   } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [continueInProject, setContinueInProject] = useState<{
+    sessionId: string;
+    sessionName: string;
+  } | null>(null);
+  const [continueInProjectBusy, setContinueInProjectBusy] = useState(false);
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
     ORCHESTRATION_SCHEME_OFF_ID,
   );
+  const [delegationDisabled, setDelegationDisabled] = useState(false);
   // ORCH: scheme picker stays visible; switching sessions resets to freehand (no injection).
   useEffect(() => {
     setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+    setDelegationDisabled(false);
   }, [state.activeSessionId]);
 
   const [remoteSearchHitsByScope, setRemoteSearchHitsByScope] = useState<Record<
@@ -1048,8 +1057,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const orchestrationSchemeOptions = useMemo(() => {
     const offOption = {
       id: ORCHESTRATION_SCHEME_OFF_ID,
-      name: 'None',
-      description: 'Freehand — no scheme prompt injection',
+      name: 'Freehand',
+      description: 'Freehand — no scheme prompt; delegation remains available',
       source: 'off' as const,
     };
     const schemes = listOrchestrationSchemes({
@@ -1342,6 +1351,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     handleLoadOlderTranscript,
     handleRenameSession,
     handleDuplicateSession,
+    handleContinueSessionInProject,
     handleForkSession,
     handleSessionMenuAction,
     confirmDeleteSession,
@@ -1367,6 +1377,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     thinkingLevel,
     agentMode,
     orchestrationSchemeId,
+    delegationDisabled,
     setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
@@ -1986,6 +1997,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     removeContextRef,
     clearContextRefs,
     snapshotContextRefs,
+    snapshotContextRefTokens,
+    consumeContextRefSnapshot,
+    replaceContextRefs,
   } = useComposerContextRefs();
 
   const {
@@ -2028,13 +2042,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     selectedModelKey,
     modelOptions,
     thinkingLevel,
+    delegationDisabled,
     visionDelegationEnabled: config?.visionDelegation?.enabled === true,
     confirmTextOnlyImageSend: async (message) => {
       // Lightweight confirm; host still path-injects if user continues.
       return window.confirm(message);
     },
     getPendingContextRefs: snapshotContextRefs,
+    getPendingContextRefTokens: snapshotContextRefTokens,
     clearPendingContextRefs: clearContextRefs,
+    consumePendingContextRefs: consumeContextRefSnapshot,
+    restorePendingContextRefs: replaceContextRefs,
     addContextRefFromDrop: ({ relativePath }) => {
       if (!state.projectPath) {
         return false;
@@ -2084,7 +2102,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     async (options?: {
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
     }): Promise<void> => {
-      startNewDraft();
+      startNewDraft(options?.scope);
       await handleNewSession(options);
     },
     [handleNewSession, startNewDraft],
@@ -2897,6 +2915,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
       orchestrationSchemeId,
       orchestrationSchemeOptions,
+      delegationDisabled,
+      onDelegationDisabledChange: setDelegationDisabled,
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
       branchRequest: requestGit as ComposerDockProps['branchRequest'],
@@ -2908,6 +2928,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [
       agentMode,
       orchestrationSchemeId,
+      delegationDisabled,
       orchestrationSchemeOptions,
       composer,
       composerLayoutMode,
@@ -3010,18 +3031,51 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
     [inspector.openInspector],
   );
-  // Shared activity model drives the dock/ticker; every entry opens the same
-  // read-only inspector so no surface interprets lifecycle state itself.
-  const activeSubagentViews = useMemo<ActiveSubagentView[]>(
-    () =>
-      state.activeSessionId !== null
-        ? selectActiveSubagents({
-            parentSessionId: state.activeSessionId,
-            children: state.subagentChildren,
-            streams: state.subagentStreams,
-          })
-        : [],
-    [state.activeSessionId, state.subagentChildren, state.subagentStreams],
+  const handleSubagentPermission = useCallback(
+    async (
+      prompt: PermissionPromptUi,
+      decision: PermissionDecision,
+      rememberScope?: PermissionRememberScope,
+    ): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'permission/resolve',
+        requestId: prompt.requestId,
+        decision,
+        ...(decision === 'allow' && rememberScope ? { rememberScope } : {}),
+      });
+      if (state.permissionPrompt?.requestId === prompt.requestId) {
+        dispatch({ type: 'permission/clear', requestId: prompt.requestId });
+      }
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+      }
+    },
+    [dispatch, hostClient, state.permissionPrompt?.requestId],
+  );
+  const handleContinueSubagent = useCallback(
+    async (childSessionId: string, text: string): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'subagent/continue',
+        childSessionId,
+        text,
+      });
+      if (!response.success) throw new Error(response.error);
+    },
+    [hostClient],
+  );
+  const handleSubagentWorktreeAction = useCallback(
+    async (
+      childSessionId: string,
+      action: 'apply' | 'retain' | 'discard',
+    ): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'subagent/worktree-action',
+        childSessionId,
+        action,
+      });
+      if (!response.success) throw new Error(response.error);
+    },
+    [hostClient],
   );
   const handleCancelMessageEdit = useCallback((): void => {
     setEditingMessageId(null);
@@ -3037,7 +3091,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [handleEditAndResend, lastUserMessageId, preferences.dontAskRevertConfirm],
   );
   const handleMessageFeedback = useCallback(
-    (message: string, level: 'success' | 'error'): void => {
+    (message: string, level: 'info' | 'success' | 'error'): void => {
       dispatchNotification({
         type: 'notify/push',
         notification: { level, message },
@@ -3319,14 +3373,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 .filter(Boolean)
                 .join(' ') || undefined
             }
-            activityDock={
-              activeSubagentViews.length > 0 ? (
-                <SubagentWorkingDock
-                  items={activeSubagentViews}
-                  onInspect={handleInspectSubagent}
-                />
-              ) : undefined
-            }
             knowledgePanel={
               knowledgeOpen ? (
                 <section
@@ -3412,7 +3458,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   historyLoading={transcriptHistoryLoading}
                   onLoadOlder={handleLoadOlderTranscript}
                   locale={desktopLocale}
-                  turnAnchorMessageId={
+                  liveTurnId={
                     !historyViewActive && state.streaming ? lastUserMessageId : null
                   }
                   {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
@@ -3460,6 +3506,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                           : {})}
                         locale={desktopLocale}
                         onInspectSubagent={handleInspectSubagent}
+                        subagentChildren={state.subagentChildren}
+                        subagentInvocations={state.subagentInvocations}
+                        subagentStreams={state.subagentStreams}
                         onEdit={setEditingMessageId}
                         onCancelEdit={handleCancelMessageEdit}
                         onEditResend={handleEditAndResendMessage}
@@ -3497,7 +3546,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         {...(sessionLineage ? { sessionLineage } : {})}
                         forkCountsByMessageId={forkCountsByMessageId}
                         onOpenSession={(sessionId: string) => void handleResumeSession(sessionId)}
-                        derivedActionsDisabled={!state.activeSessionId || state.streaming}
+                        derivedActionsDisabled={!state.activeSessionId || state.streaming || state.awaitingTranscript}
                       />
                     ) : null}
                   </ArtifactHeightSignalProvider>
@@ -3829,16 +3878,28 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             sessions={mergeSessionsForLookup(state.sessions, state.generalSessions)}
             showArchivedSessions={showArchivedSessions}
             onSessionMenuAction={(sessionId, action) => {
-              if (action === 'delete') {
-                const session = state.sessions.find((item) => item.id === sessionId);
+            if (action === 'delete') {
+              const session = state.sessions.find((item) => item.id === sessionId);
                 setDeleteConfirm({
                   sessionId,
                   sessionName: session?.name ?? sessionId.slice(0, 8),
                 });
-                setSessionMenu(null);
-                return;
-              }
-              void handleSessionMenuAction(sessionId, action);
+              setSessionMenu(null);
+              return;
+            }
+            if (action === 'continue-in-project') {
+              const session = mergeSessionsForLookup(
+                state.sessions,
+                state.generalSessions,
+              ).find((item) => item.id === sessionId);
+              setContinueInProject({
+                sessionId,
+                sessionName: session?.name ?? sessionId.slice(0, 8),
+              });
+              setSessionMenu(null);
+              return;
+            }
+            void handleSessionMenuAction(sessionId, action);
             }}
             renameDraft={renameDraft}
             onRenameDraftChange={setRenameDraft}
@@ -3850,6 +3911,64 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               void handlePermission(decision, scope);
             }}
           />
+
+          <Dialog
+            label={desktopLocale === 'zh-CN' ? '继续到项目' : 'Continue in project'}
+            open={continueInProject !== null}
+            onOpenChange={(open) => {
+              if (!open && !continueInProjectBusy) setContinueInProject(null);
+            }}
+            testId="continue-session-in-project-dialog"
+          >
+            <h3>{desktopLocale === 'zh-CN' ? '选择目标项目' : 'Choose a project'}</h3>
+            <p className="muted">
+              {desktopLocale === 'zh-CN'
+                ? `将“${continueInProject?.sessionName ?? ''}”的完整历史复制到项目会话；原会话会保留。`
+                : `Copy the full history of “${continueInProject?.sessionName ?? ''}” into a project session. The original remains unchanged.`}
+            </p>
+            <div className="continue-session-project-list">
+              {recentProjects.filter((project) => project.trust === 'trusted').length > 0 ? (
+                recentProjects
+                  .filter((project) => project.trust === 'trusted')
+                  .map((project) => (
+                    <Button
+                      key={project.path}
+                      disabled={continueInProjectBusy}
+                      data-testid="continue-session-project-option"
+                      onClick={() => {
+                        if (!continueInProject) return;
+                        setContinueInProjectBusy(true);
+                        void handleContinueSessionInProject(
+                          continueInProject.sessionId,
+                          project.path,
+                        )
+                          .then((continued) => {
+                            if (continued) setContinueInProject(null);
+                          })
+                          .finally(() => setContinueInProjectBusy(false));
+                      }}
+                    >
+                      {projectDisplayName(project.path)}
+                    </Button>
+                  ))
+              ) : (
+                <p className="muted">
+                  {desktopLocale === 'zh-CN'
+                    ? '请先打开并信任一个项目。'
+                    : 'Open and trust a project first.'}
+                </p>
+              )}
+            </div>
+            <div className="modal-actions">
+              <Button
+                variant="ghost"
+                disabled={continueInProjectBusy}
+                onClick={() => setContinueInProject(null)}
+              >
+                {desktopLocale === 'zh-CN' ? '取消' : 'Cancel'}
+              </Button>
+            </div>
+          </Dialog>
 
           <CommandPalette
             open={commandPaletteOpen}
@@ -3960,12 +4079,39 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               <DeferredSubagentSessionDialog
                 open
                 selection={inspector.selection}
+                {...(state.subagentChildren[inspector.selection.childSessionId]
+                  ? { child: state.subagentChildren[inspector.selection.childSessionId] }
+                  : {})}
                 status={inspector.status}
                 messages={inspector.messages}
                 liveTail={inspector.liveTail}
                 loading={inspector.loading}
                 error={inspector.error}
                 showThinking={preferences.verboseAgentChat}
+                projectPath={
+                  state.subagentChildren[inspector.selection.childSessionId]?.projectPath ?? null
+                }
+                request={requestGit as never}
+                filesChangedRequest={requestGit as never}
+                onOpenFile={(absolutePath, relativePath) => {
+                  handleOpenDocument(
+                    {
+                      title: (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
+                      path: absolutePath,
+                    },
+                    'inspector',
+                  );
+                }}
+                onOpenDocument={handleOpenDocument}
+                onArtifactAction={handleArtifactAction}
+                onOpenArtifactCanvas={handleOpenArtifactCanvas}
+                artifactPreviewEnabled={config?.artifact?.enabled ?? true}
+                {...(config?.artifact?.maxBytes !== undefined
+                  ? { artifactMaxBytes: config.artifact.maxBytes }
+                  : {})}
+                onPermission={(prompt, decision, rememberScope) => {
+                  void handleSubagentPermission(prompt, decision, rememberScope);
+                }}
                 onOpenChange={(open) => {
                   if (!open) {
                     inspector.closeInspector();
@@ -3973,6 +4119,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 }}
                 onOpenFullSession={inspector.openFullSession}
                 onRetry={inspector.retryLoad}
+                onContinue={handleContinueSubagent}
+                onWorktreeAction={handleSubagentWorktreeAction}
               />
             </DeferredSurfaceBoundary>
           ) : null}

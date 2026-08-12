@@ -9,6 +9,7 @@ import {
   SettingsRevisionConflictError,
   SettingsService,
   applySettingsMutations,
+  classifySettingsImpact,
   createSettingsSnapshot,
   migrateSettingsDocument,
 } from './settings-service.js';
@@ -34,7 +35,12 @@ describe('createSettingsSnapshot', () => {
       agentMock: false,
       providers: [],
       media: { maxPasteBytes: 100, allowedMimeTypes: ['image/png'] },
-      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 100,
+      },
     };
     const snapshotOne = createSettingsSnapshot(base);
     const snapshotTwo = createSettingsSnapshot(base);
@@ -50,7 +56,12 @@ describe('createSettingsSnapshot', () => {
       agentMock: false,
       providers: [],
       media: { maxPasteBytes: 100, allowedMimeTypes: ['image/png'] },
-      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 100,
+      },
     };
     const snapshot = createSettingsSnapshot(normalized);
     expect(snapshot.schemaVersion).toBe(PIWIN_SETTINGS_SCHEMA_VERSION);
@@ -100,6 +111,54 @@ describe('SettingsService', () => {
     const reloaded = await service.getSnapshot();
     expect(reloaded.revision).toBe(result.snapshot.revision);
     expect(reloaded.config.automation?.enabled).toBe(true);
+  });
+
+  it('does not mark a Web source switch as an immediate tightening', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const before = await service.getSnapshot();
+    const currentWeb = before.config.web;
+    if (!currentWeb) throw new Error('default Web config missing');
+    const result = await service.apply({
+      expectedRevision: before.revision,
+      mutations: [
+        mutation('web', {
+          ...currentWeb,
+          searchProvider: 'cli',
+          searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
+          searchDelegateModel: undefined,
+        }),
+      ],
+    });
+    expect(result.changedDomains).toContainEqual(
+      expect.objectContaining({
+        domain: 'web',
+        timing: 'new-runtime',
+        runtimeSchemaChanged: true,
+        immediateRestrictions: [],
+        securityTightenedImmediately: false,
+      }),
+    );
+  });
+
+  it('marks an equal-length blocked URL prefix replacement as a Web fetch tightening', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const web = snapshot.config.web;
+    if (!web) throw new Error('default Web config missing');
+
+    const impact = classifySettingsImpact(
+      'web',
+      {
+        ...snapshot.config,
+        web: { ...web, fetchBlockedUrlPrefixes: ['https://old.example/'] },
+      },
+      {
+        ...snapshot.config,
+        web: { ...web, fetchBlockedUrlPrefixes: ['https://new.example/'] },
+      },
+    );
+
+    expect(impact.immediateRestrictions).toContain('web-fetch');
+    expect(impact.securityTightenedImmediately).toBe(true);
   });
 
   it('rejects a stale expectedRevision with a typed conflict error', async () => {

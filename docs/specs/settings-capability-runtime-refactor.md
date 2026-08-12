@@ -129,7 +129,9 @@ The work must be deliverable as vertical, reviewable phases. Each phase must lea
 7. Replacing the existing product transcript format.
 8. Introducing another Agent kernel or an Electron runtime.
 9. Automatically killing user-started managed processes merely because Agent exposure is turned off.
-10. Silent automatic rebuild of long-running conversations after every Settings change.
+10. In-place, lossless mutation of a long-running Pi conversation. Host-owned
+    generation replacement after Settings save is permitted and is described
+    by ADR 0048.
 
 ---
 
@@ -142,7 +144,7 @@ The work must be deliverable as vertical, reviewable phases. Each phase must lea
 | SCR-03 | Pi adapters consume a `SessionBlueprint`; they do not read Settings or project trust. |
 | SCR-04 | Safety disable/revocation blocks new execution immediately, including calls from stale live sessions. |
 | SCR-05 | Tool/resource schema changes apply to a new Agent Runtime, not through partial hot reload. |
-| SCR-06 | The default product action for a stale runtime is `Start new session`; once the complete Run tree and replacement transaction are available, runtime replacement is an explicit action that reports rebuilding/failed/active truthfully and warns about reconstructed context. |
+| SCR-06 | Host-owned runtime replacement is automatic for `new-runtime` Settings changes: the current Run tree drains, new roots wait for the desired generation, and latest-wins saves coalesce. Manual reload/retry remains a recovery action and reports rebuilding/failed/active truthfully. |
 | SCR-07 | Project-scoped Agent sessions require an explicitly trusted project. Opening a folder does not automatically trust it. |
 | SCR-08 | ResourcePolicy still defensively excludes project resources when project trust is absent, even if session creation should already have been rejected. |
 | SCR-09 | Resource IDs use one canonical function from `@piwin/contracts`. A logical ID toggle applies to all copies with that ID; the UI shows the effective source and shadowed copies. |
@@ -1068,8 +1070,10 @@ export type SessionRuntimeStatus = {
   state: 'none' | 'lazy-shell' | 'live' | 'stale' | 'rebuilding' | 'failed';
   runtimeGenerationId?: string;
   settingsRevision?: string;
+  desiredSettingsRevision?: string;
   capabilitySnapshotId?: string;
   staleDomains: SettingsDomain[];
+  immediateRestrictions?: ImmediateCapabilityRestriction[];
   reconstructionMode?: 'native-live' | 'product-history';
 };
 ```
@@ -1092,13 +1096,17 @@ on Runtime Refactor Phase 2 (`RunRegistry`). The implementation order is:
 
 The binding replacement transaction is:
 
-1. Compile a new blueprint with a new `runtimeGenerationId`.
-2. Publish `rebuilding` without publishing the generation as active.
-3. Close admission to the old generation and cancel/join its active Runs.
-4. Dispose the old backend handle or worker.
-5. Create the new backend from the compiled blueprint.
-6. Atomically publish the new generation as active.
-7. Drop late events from prior generations.
+1. Compile a new blueprint with a new `runtimeGenerationId` and desired
+   Settings revision.
+2. Publish `rebuilding` without publishing the candidate as active.
+3. Keep the current Run tree on the old generation while joining all of its
+   active descendants; bar only new root Runs from binding to it.
+4. Create the candidate backend and re-check the desired revision and active
+   generation identity.
+5. Atomically publish the new generation as active, then dispose the old
+   backend/worker and drop its late events.
+6. If a newer Settings revision arrived, discard the obsolete candidate before
+   publication and continue with the latest target.
 
 ### 12.3 Runtime staleness
 

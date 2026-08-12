@@ -702,6 +702,10 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     fetchBlockedUrlPrefixes:
       asStringArray(record.fetchBlockedUrlPrefixes) ?? defaults.fetchBlockedUrlPrefixes,
   };
+  const searchDelegateModel = normalizeModelRef(record.searchDelegateModel);
+  if (searchDelegateModel) {
+    normalized.searchDelegateModel = searchDelegateModel;
+  }
   if (typeof record.fetchApiKeyRef === 'string' && record.fetchApiKeyRef.trim()) {
     normalized.fetchApiKeyRef = record.fetchApiKeyRef.trim();
   }

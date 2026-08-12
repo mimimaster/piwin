@@ -9,7 +9,6 @@ import {
   type ModelCatalogEntry,
   type ModelConfigEntry,
   type ModelProviderConfig,
-  type NativeWebSearchMode,
   type ThinkingLevel,
 } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
@@ -174,13 +173,10 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         vision: '视觉',
         reasoning: '推理',
         imageGen: '生图',
+        videoGen: '视频',
         asr: '语音识别',
         tts: '语音合成',
         nativeSearch: providerCopy.nativeSearch,
-        nativeSearchMode: providerCopy.nativeSearchMode,
-        nativeSearchControllable: providerCopy.nativeSearchControllable,
-        nativeSearchAlwaysOn: providerCopy.nativeSearchAlwaysOn,
-        nativeSearchAlwaysOnDescription: providerCopy.nativeSearchAlwaysOnDescription,
         cancel: '取消',
         save: '保存',
         savedAuto: '已自动保存',
@@ -197,13 +193,10 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         vision: 'Vision',
         reasoning: 'Reasoning',
         imageGen: 'Image gen',
+        videoGen: 'Video',
         asr: 'ASR',
         tts: 'TTS',
         nativeSearch: providerCopy.nativeSearch,
-        nativeSearchMode: providerCopy.nativeSearchMode,
-        nativeSearchControllable: providerCopy.nativeSearchControllable,
-        nativeSearchAlwaysOn: providerCopy.nativeSearchAlwaysOn,
-        nativeSearchAlwaysOnDescription: providerCopy.nativeSearchAlwaysOnDescription,
         cancel: 'Cancel',
         save: 'Save',
         savedAuto: 'Auto-saved',
@@ -328,6 +321,21 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         <label className="model-edit-inline-cap">
           <input
             type="checkbox"
+            checked={localDraft.supportsVideoGeneration}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              updateDraft((current) => ({
+                ...current,
+                supportsVideoGeneration: event.target.checked,
+              }))
+            }
+            data-testid="model-edit-video-generation"
+            disabled={disabled}
+          />
+          <span>{t.videoGen}</span>
+        </label>
+        <label className="model-edit-inline-cap">
+          <input
+            type="checkbox"
             checked={localDraft.supportsSpeechToText}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
               updateDraft((current) => ({
@@ -371,31 +379,6 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           <span>{t.nativeSearch}</span>
         </label>
       </div>
-
-      {localDraft.supportsNativeWebSearch ? (
-        <label className="model-edit-inline-field">
-          <span className="model-edit-inline-label">{t.nativeSearchMode}</span>
-          <select
-            value={localDraft.nativeWebSearchMode}
-            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-              updateDraft((current) => ({
-                ...current,
-                nativeWebSearchMode: event.target.value as NativeWebSearchMode,
-              }))
-            }
-            data-testid="model-edit-native-web-search-mode"
-            disabled={disabled}
-          >
-            <option value="controllable">{t.nativeSearchControllable}</option>
-            <option value="always-on">{t.nativeSearchAlwaysOn}</option>
-          </select>
-          {localDraft.nativeWebSearchMode === 'always-on' ? (
-            <span className="model-edit-inline-thinking-hint">
-              {t.nativeSearchAlwaysOnDescription}
-            </span>
-          ) : null}
-        </label>
-      ) : null}
 
       {localDraft.reasoning ? (
         <div className="model-edit-inline-thinking">
@@ -493,10 +476,10 @@ function draftsEqual(left: ModelConfigurationDraft, right: ModelConfigurationDra
     left.thinkingLevel === right.thinkingLevel &&
     left.supportsImage === right.supportsImage &&
     left.supportsImageGeneration === right.supportsImageGeneration &&
+    left.supportsVideoGeneration === right.supportsVideoGeneration &&
     left.supportsSpeechToText === right.supportsSpeechToText &&
     left.supportsTextToSpeech === right.supportsTextToSpeech &&
     left.supportsNativeWebSearch === right.supportsNativeWebSearch &&
-    left.nativeWebSearchMode === right.nativeWebSearchMode &&
     left.reasoning === right.reasoning &&
     left.thinkingLevels.length === right.thinkingLevels.length &&
     left.thinkingLevels.every((level, index) => level === right.thinkingLevels[index])

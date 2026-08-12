@@ -36,10 +36,10 @@ export {
   SessionTranscriptCursorError,
 } from './session-transcript-page.js';
 export { createSubagentRunStore } from './subagent-run-store.js';
-export type {
-  SubagentRunStore,
-  SubagentRunManifest,
-  SubagentRunStoreOptions,
+export type { SubagentRunStore, SubagentRunManifest } from './subagent-run-store.js';
+export {
+  SubagentRunManifestCorruptError,
+  SubagentRunManifestExistsError,
 } from './subagent-run-store.js';
 export { deriveDefaultNameFromMessage, extractUserFacingBody } from './derive-default-name.js';
 export {

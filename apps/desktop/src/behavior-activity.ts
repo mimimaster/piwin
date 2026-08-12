@@ -552,6 +552,12 @@ export function resolveToolBehaviorId(input: ToolActivityInput): BehaviorActivit
   if (input.kind === 'web') {
     return verb.startsWith('searched') || name.includes('search') ? 'web.search' : 'web.fetch';
   }
+  if (input.kind === 'video') {
+    return 'video';
+  }
+  if (input.kind === 'image') {
+    return 'image';
+  }
   if (verb.startsWith('generated video') || name.includes('video')) {
     return 'video';
   }
@@ -788,7 +794,7 @@ export function localizeBehaviorAction(
     case 'edit':
       return '修改';
     case 'shell':
-      return '执行';
+      return '命令';
     case 'test':
       return '测试';
     case 'build':

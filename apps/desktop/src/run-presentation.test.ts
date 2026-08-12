@@ -48,7 +48,7 @@ describe('buildTurnPresentation', () => {
     expect(presentation.workItems).toHaveLength(2);
     expect(presentation.outcome).toBe('completed');
     expect(presentation.hasFailure).toBe(false);
-    expect(presentation.summaryLabel).toMatch(/Thought for \d+s · 1 tool call/);
+    expect(presentation.summaryLabel).toBe('Thoughts · 1 tool call');
     expect(presentation.answerStarted).toBe(true);
     expect(presentation.toolCallCount).toBe(1);
   });
@@ -119,6 +119,84 @@ describe('buildTurnPresentation', () => {
     expect(presentation.summaryLabel).toBe('Thinking');
   });
 
+  it('keeps completed reasoning fixed while the parent run continues tool work', () => {
+    const presentation = buildTurnPresentation({
+      message: assistantMessage({
+        status: 'done',
+        text: '',
+        thinking: 'inspect the repository',
+        thinkingStartedAt: 1_000,
+        thinkingEndedAt: 5_000,
+        runId: 'run-tool-work',
+        tools: [{ toolCallId: 'tool-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+      runRecordsById: {
+        'run-tool-work': {
+          runId: 'run-tool-work',
+          phaseHistory: [{ phase: 'tool-running', at: 6_000 }],
+          startedAt: 500,
+          endedAt: null,
+        },
+      },
+      activeRunId: 'run-tool-work',
+      permissionPrompt: null,
+    });
+
+    expect(presentation.isActive).toBe(true);
+    expect(presentation.isThinkingActive).toBe(false);
+    expect(presentation.thoughtSeconds).toBe(4);
+    expect(presentation.summaryLabel).toMatch(/Working/);
+  });
+
+  it('uses the reasoning interval instead of the whole run duration after completion', () => {
+    const presentation = buildTurnPresentation({
+      message: assistantMessage({
+        thinking: 'inspect the repository',
+        thinkingStartedAt: 1_000,
+        thinkingEndedAt: 5_000,
+        runId: 'run-long',
+        tools: [{ toolCallId: 'tool-1', toolName: 'read', status: 'done', output: '' }],
+      }),
+      runRecordsById: {
+        'run-long': {
+          runId: 'run-long',
+          phaseHistory: [],
+          startedAt: 0,
+          endedAt: 1_707_000,
+          outcome: 'completed',
+        },
+      },
+      activeRunId: null,
+      permissionPrompt: null,
+    });
+
+    expect(presentation.thoughtSeconds).toBe(4);
+    expect(presentation.summaryLabel).toBe('Thought for 4s · 1 tool call');
+  });
+
+  it('does not replace a missing reasoning end boundary with the whole run duration', () => {
+    const presentation = buildTurnPresentation({
+      message: assistantMessage({
+        text: 'answer',
+        thinking: 'reasoning',
+        thinkingStartedAt: 1_000,
+        runId: 'run-incomplete-boundary',
+      }),
+      runRecordsById: {
+        'run-incomplete-boundary': {
+          runId: 'run-incomplete-boundary',
+          phaseHistory: [],
+          startedAt: 1,
+          endedAt: 1_707_000,
+        },
+      },
+      activeRunId: null,
+      permissionPrompt: null,
+    });
+
+    expect(presentation.thoughtSeconds).toBeUndefined();
+  });
+
   it('shows connecting wait state with no process content yet', () => {
     const presentation = buildTurnPresentation({
       message: assistantMessage({
@@ -168,7 +246,7 @@ describe('buildTurnPresentation', () => {
       permissionPrompt: null,
       locale: 'zh-CN',
     });
-    expect(presentation.summaryLabel).toBe('已思考 8 秒 · 1 次工具调用');
+    expect(presentation.summaryLabel).toBe('思考过程 · 1 次工具调用');
   });
 });
 

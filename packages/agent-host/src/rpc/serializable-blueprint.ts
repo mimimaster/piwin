@@ -4,7 +4,6 @@ import type {
   BackendSessionBlueprint,
   ResolvedSearchRoute,
   ModelCapability,
-  NativeWebSearchMode,
   ContextManifest,
   ResourceManifest,
   ResourceInstance,
@@ -13,6 +12,8 @@ import type {
   SubagentCapability,
   SubagentIsolationMode,
   ThinkingLevel,
+  ProviderAuthDescriptor,
+  WorkerProviderAuthDescriptor,
 } from '@piwin/contracts';
 
 /** Protocol version spoken between parent and worker for blueprint frames. */
@@ -79,10 +80,26 @@ export type SerializableProviderRuntime = {
     contextWindow?: number;
     maxOutputTokens?: number;
     capabilities?: ModelCapability[];
-    nativeWebSearchMode?: NativeWebSearchMode;
   }>;
-  auth: { kind: 'env'; envName: string } | { kind: 'inline'; apiKey: string } | { kind: 'none' };
+  auth: ProviderAuthDescriptor;
 };
+
+/** Provider envelope that is safe to serialize over worker JSONL. */
+export type SerializableWorkerProviderRuntime = Omit<SerializableProviderRuntime, 'auth'> & {
+  auth: WorkerProviderAuthDescriptor;
+};
+
+/** Fail closed at the RPC boundary even when an untyped caller bypasses TS. */
+export function assertWorkerSafeProviderRuntimes(
+  providers: SerializableProviderRuntime[],
+): asserts providers is SerializableWorkerProviderRuntime[] {
+  const inlineProvider = providers.find((provider) => provider.auth.kind === 'inline');
+  if (inlineProvider) {
+    throw new Error(
+      `Provider "${inlineProvider.providerId}" uses SDK-only inline auth at the worker boundary`,
+    );
+  }
+}
 
 function activePathsOf(instances: ResourceInstance[]): string[] {
   return instances.map((instance) => instance.path).sort();

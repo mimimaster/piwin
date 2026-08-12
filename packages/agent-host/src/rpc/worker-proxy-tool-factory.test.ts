@@ -56,12 +56,18 @@ describe('buildWorkerProxyTools', () => {
 
     const result = await tool.execute('tc-1', { query: 'piwin' }, undefined, undefined, undefined);
 
-    expect(proxyCall).toHaveBeenCalledWith('sess-1', 'web_search', { query: 'piwin' }, undefined);
+    expect(proxyCall).toHaveBeenCalledWith(
+      'sess-1',
+      'tc-1',
+      'web_search',
+      { query: 'piwin' },
+      undefined,
+    );
     expect(result.content).toEqual([{ type: 'text', text: 'search results here' }]);
     expect(result.details).toMatchObject({ toolName: 'web_search', proxied: true });
   });
 
-  it('proxy executor maps permission-denied to model-facing error text', async () => {
+  it('proxy executor throws permission-denied so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
       code: 'permission-denied' as const,
@@ -70,19 +76,15 @@ describe('buildWorkerProxyTools', () => {
     const tools = buildWorkerProxyTools(blueprintWithTools(['bash']), proxyCall, 'sess-1');
     const tool = tools[0]!;
 
-    const result = await tool.execute(
-      'tc-1',
-      { command: 'rm -rf /' },
-      undefined,
-      undefined,
-      undefined,
-    );
-
-    expect(result.content[0]?.text).toContain('Permission denied');
-    expect(result.details).toMatchObject({ error: 'permission-denied' });
+    await expect(
+      tool.execute('tc-1', { command: 'rm -rf /' }, undefined, undefined, undefined),
+    ).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      message: 'Permission denied: user denied bash execution',
+    });
   });
 
-  it('proxy executor maps aborted to clean abort message', async () => {
+  it('proxy executor throws aborted executions so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
       code: 'aborted' as const,
@@ -90,12 +92,15 @@ describe('buildWorkerProxyTools', () => {
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
 
-    const result = await tools[0]!.execute('tc', {}, undefined, undefined, undefined);
-
-    expect(result.content[0]?.text).toContain('aborted');
+    await expect(
+      tools[0]!.execute('tc', {}, undefined, undefined, undefined),
+    ).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      message: 'Tool execution aborted',
+    });
   });
 
-  it('proxy executor maps tool-not-available to error text', async () => {
+  it('proxy executor throws tool-not-available so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
       code: 'tool-not-available' as const,
@@ -103,12 +108,15 @@ describe('buildWorkerProxyTools', () => {
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['missing_tool']), proxyCall, 'sess-1');
 
-    const result = await tools[0]!.execute('tc', {}, undefined, undefined, undefined);
-
-    expect(result.content[0]?.text).toContain('Tool not available');
+    await expect(
+      tools[0]!.execute('tc', {}, undefined, undefined, undefined),
+    ).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      message: 'Tool not available: tool not in registry',
+    });
   });
 
-  it('proxy executor maps tool-disabled to error text', async () => {
+  it('proxy executor throws tool-disabled so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
       code: 'tool-disabled' as const,
@@ -116,9 +124,12 @@ describe('buildWorkerProxyTools', () => {
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
 
-    const result = await tools[0]!.execute('tc', {}, undefined, undefined, undefined);
-
-    expect(result.content[0]?.text).toContain('Tool disabled');
+    await expect(
+      tools[0]!.execute('tc', {}, undefined, undefined, undefined),
+    ).rejects.toMatchObject({
+      name: 'PiBackendToolExecutionError',
+      message: 'Tool disabled: web tools family disabled',
+    });
   });
 });
 
