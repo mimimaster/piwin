@@ -89,6 +89,18 @@ export type UseComposerMediaArgs = {
   visionDelegationEnabled?: boolean;
   /** Optional confirm dialog for text-only + media without delegation. */
   confirmTextOnlyImageSend?: (message: string) => Promise<boolean>;
+  /** CM: pending structured context refs for session/prompt. */
+  getPendingContextRefs?: () => PromptContextRef[];
+  /** CM: clear chips after a successful optimistic send paint. */
+  clearPendingContextRefs?: () => void;
+  /**
+   * CM-08: convert a workspace file-tree path drop into a structured context
+   * ref. Return false to fall back to inserting the path text into the composer.
+   */
+  addContextRefFromDrop?: (payload: {
+    absolutePath: string;
+    relativePath: string;
+  }) => boolean;
 };
 
 export function useComposerMedia(args: UseComposerMediaArgs) {
@@ -699,7 +711,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       event.preventDefault();
       setDropActive(false);
 
-      // Workspace file tree path drop → inject absolute path for text models.
+      // Workspace file tree path drop → structured context ref chip (CM-08);
+      // falls back to absolute-path text for text models when not wired.
       const pathPayload = event.dataTransfer?.getData(PIWIN_PATH_MIME);
       if (pathPayload) {
         try {
@@ -709,24 +722,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           };
           const absolutePath = parsed.absolutePath?.trim();
           const relativePath = parsed.relativePath?.trim();
-          const projectPath = args.state.projectPath?.trim();
-          if (absolutePath && relativePath && projectPath) {
-            const contextRef: PromptContextRef = {
-              kind: 'file',
-              projectPath,
-              relativePath,
-              label: relativePath,
-            };
-            pendingContextRefsRef.current = [
-              ...pendingContextRefsRef.current.filter(
-                (ref) => ref.kind !== 'file' || ref.relativePath !== relativePath,
-              ),
-              contextRef,
-            ];
+          if (absolutePath) {
+            if (args.addContextRefFromDrop && relativePath) {
+              const added = args.addContextRefFromDrop({ absolutePath, relativePath });
+              if (added) {
+                return;
+              }
+            }
+
             setComposer((current) =>
               current.trim().length > 0
-                ? `${current.replace(/\s+$/, '')}\n${relativePath}`
-                : relativePath,
+                ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
+                : absolutePath,
             );
             return;
           }
@@ -762,7 +769,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         enqueueAttachmentFile(file, 'drop');
       }
     },
-    [enqueueAttachmentFile],
+    [args.addContextRefFromDrop, enqueueAttachmentFile],
+
   );
 
   const canAttachFiles = useCallback((): boolean => {
@@ -887,8 +895,10 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (params.attachments && params.attachments.length > 0) {
         input.attachments = params.attachments;
       }
-      if (params.contextRefs && params.contextRefs.length > 0) {
-        input.contextRefs = params.contextRefs;
+      const contextRefs = args.getPendingContextRefs?.() ?? [];
+      if (contextRefs.length > 0) {
+        input.contextRefs = contextRefs;
+
       }
       const model = resolveTurnModel();
       if (model) {
@@ -907,10 +917,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       return input;
     },
     [
+      args.getPendingContextRefs,
       args.modelOptions,
+      args.orchestrationSchemeId,
       args.selectedModelKey,
       args.thinkingLevel,
-      args.orchestrationSchemeId,
+
       resolveTurnModel,
     ],
   );
@@ -1009,7 +1021,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             : pendingAttachmentsRef.current.filter(isPendingAttachmentReady);
         attachments = readyItems.map((item) => item.attachment);
       }
-      if (!text && attachments.length === 0) {
+      const contextRefs = args.getPendingContextRefs?.() ?? [];
+      if (!text && attachments.length === 0 && contextRefs.length === 0) {
         return;
       }
       // Streaming is allowed: host supersedes the in-flight run when a newer
@@ -1123,7 +1136,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
-      const promptContextRefs = [...pendingContextRefsRef.current];
+      const promptContextRefs = args.getPendingContextRefs?.() ?? [];
       let skillActivity: SkillActivityView | undefined;
 
       if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
@@ -1191,6 +1204,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         pendingContextRefsRef.current = [];
 
         applyAcceptedRun(response.data);
+        args.clearPendingContextRefs?.();
 
         // Optimistic text title on send (host also persists nameSource:text).
         // This inserts the row into the sidebar immediately; LLM may upgrade later.

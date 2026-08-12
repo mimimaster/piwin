@@ -25,11 +25,10 @@ import type {
   ProjectDirEntry,
   ProjectListDirData,
   ProjectReadFileData,
+  PromptContextRef,
 } from '@piwin/contracts';
 import {
   Button,
-  ContextMenu,
-  ContextMenuItem,
   EmptyState,
   IconButton,
   Notice,
@@ -61,6 +60,8 @@ import type { DesktopLocale } from './desktop-locale';
 import { writeTextToSystemClipboard } from './desktop-clipboard';
 import { resolveProjectEntryAbsolutePath } from './file-tree-path';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
+import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
+
 
 export type FileTreeRequest =
   | {
@@ -84,6 +85,10 @@ export type FileTreePanelProps = {
   request: (command: FileTreeRequest) => Promise<HostResponse>;
   /** Insert absolute/relative path into composer (text models). */
   onInsertPath?: (absolutePath: string, relativePath: string) => void;
+  /** CM: add structured file/folder context ref to composer. */
+  onAddContextRef?: (ref: PromptContextRef) => void;
+  /** CM: auto-send a preset turn (Explain/Fix) with the mapped refs. */
+  onSendPreset?: (text: string, refs: PromptContextRef[]) => void;
   /**
    * Optional external open hook (e.g. DocPreview). Primary UX is the inline
    * split preview inside this panel — content stays in the right column.
@@ -443,6 +448,44 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     }
   }
 
+  const contextMenuDispatchers: ContextMenuDispatchers = {
+    addToChat: (ref) => {
+      props.onAddContextRef?.(ref);
+    },
+    focusComposer: () => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        '[data-testid="composer-input"]',
+      );
+      textarea?.focus();
+    },
+    sendPreset: (text, refs) => {
+      props.onSendPreset?.(text, refs);
+    },
+    openPath: (absolutePath, relativePath) => {
+      void openFilePreview(relativePath);
+      props.onOpenFile?.(absolutePath, relativePath);
+    },
+    revealPath: (_absolutePath) => {
+      // Tauri reveal lands with CM-05 polish; copy path remains available.
+    },
+    copyText: (value) => {
+      void navigator.clipboard.writeText(value).catch(() => undefined);
+    },
+    quoteInComposer: () => undefined,
+    retryMessage: () => undefined,
+    forkMessage: () => undefined,
+    openSideChat: () => undefined,
+    notify: () => undefined,
+  };
+
+  const contextMenuCaps = {
+    hasProject: Boolean(props.projectPath),
+    canReveal: false,
+    sideChatAvailable: false,
+    applyAvailable: false,
+    locale,
+  } as const;
+
   /** Load file content into the left pane of the right-panel split. */
   async function openFilePreview(relativePath: string): Promise<void> {
     if (!props.projectPath) return;
@@ -659,7 +702,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                     filePath={preview.relativePath}
                   />
                 ) : (
-                  <CodePreviewView code={preview.content} filePath={preview.relativePath} />
+                  <CodePreviewView
+                    code={preview.content}
+                    filePath={preview.relativePath}
+                    projectPath={props.projectPath ?? undefined}
+                    contextMenuCaps={contextMenuCaps}
+                    contextMenuDispatchers={contextMenuDispatchers}
+                  />
                 )}
               </>
             ) : null}
@@ -736,6 +785,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   depth={0}
                   selectedPath={selectedPath}
                   gitStatusMap={gitStatusMap}
+                  projectPath={props.projectPath}
                   onSelectFile={(relativePath) => {
                     void openFilePreview(relativePath);
                   }}
@@ -746,6 +796,11 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                     void copyAbsolutePath(relativePath);
                   }}
                   copyAbsolutePathLabel={locale === 'zh-CN' ? '复制绝对路径' : 'Copy absolute path'}
+                  absoluteFor={absoluteFor}
+                  contextMenuCaps={contextMenuCaps}
+                  contextMenuDispatchers={contextMenuDispatchers}
+                  enableContextMenu={Boolean(props.onAddContextRef && props.projectPath)}
+
                 />
               ))
             )}
@@ -772,19 +827,31 @@ function FileTreeNodeView(props: {
   depth: number;
   selectedPath: string | null;
   gitStatusMap: Map<string, GitFileStatusCode>;
+  projectPath: string | null;
   onSelectFile: (path: string) => void;
   onSelectPath: (path: string) => void;
   onToggle: (path: string) => void;
   onDragStart: (event: DragEvent, relativePath: string) => void;
   onCopyAbsolutePath: (path: string) => void;
   copyAbsolutePathLabel: string;
+  absoluteFor: (relativePath: string) => string;
+  contextMenuCaps: {
+    hasProject: boolean;
+    canReveal: boolean;
+    sideChatAvailable: boolean;
+    applyAvailable: boolean;
+    locale: DesktopLocale;
+  };
+  contextMenuDispatchers: ContextMenuDispatchers;
+  enableContextMenu: boolean;
+
 }): ReactElement {
   const { node, depth } = props;
   const isDir = node.entry.kind === 'directory';
   const selected = props.selectedPath === node.entry.relativePath;
   const status = gitStatusForPath(props.gitStatusMap, node.entry.relativePath, node.entry.kind);
-
-  const row = (
+  const absolutePath = props.absoluteFor(node.entry.relativePath);
+  const rowButton = (
     <button
       type="button"
       className="file-tree-row"
@@ -792,9 +859,6 @@ function FileTreeNodeView(props: {
       draggable={!isDir}
       onDragStart={(event) => {
         if (!isDir) props.onDragStart(event, node.entry.relativePath);
-      }}
-      onContextMenu={() => {
-        if (!isDir) props.onSelectPath(node.entry.relativePath);
       }}
       onClick={() => {
         if (isDir) {
@@ -833,28 +897,35 @@ function FileTreeNodeView(props: {
     </button>
   );
 
+  const row =
+    props.enableContextMenu && props.projectPath ? (
+      <ContextMenuFromCatalog
+        testId={`file-tree-context-${node.entry.relativePath}`}
+        target={{
+          surface: isDir ? 'file-tree-folder' : 'file-tree-file',
+          projectPath: props.projectPath,
+          relativePath: node.entry.relativePath,
+          absolutePath,
+          label: node.entry.name,
+        }}
+        caps={props.contextMenuCaps}
+        dispatchers={props.contextMenuDispatchers}
+      >
+        {rowButton}
+      </ContextMenuFromCatalog>
+    ) : (
+      rowButton
+    );
+
+
   return (
     <li
       role="treeitem"
       aria-expanded={isDir ? node.expanded : undefined}
       className={`file-tree-node${selected ? ' selected' : ''}`}
     >
-      {isDir ? row : (
-        <ContextMenu
-          label={props.copyAbsolutePathLabel}
-          testId={`file-tree-context-menu-${node.entry.relativePath}`}
-          content={
-            <ContextMenuItem
-              testId={`file-tree-copy-path-${node.entry.relativePath}`}
-              onSelect={() => props.onCopyAbsolutePath(node.entry.relativePath)}
-            >
-              {props.copyAbsolutePathLabel}
-            </ContextMenuItem>
-          }
-        >
-          {row}
-        </ContextMenu>
-      )}
+      {row}
+
       {node.loading ? (
         <div className="file-tree-nested muted" style={{ paddingLeft: 24 + depth * 14 }}>
           Loading…
@@ -874,12 +945,18 @@ function FileTreeNodeView(props: {
               depth={depth + 1}
               selectedPath={props.selectedPath}
               gitStatusMap={props.gitStatusMap}
+              projectPath={props.projectPath}
               onSelectFile={props.onSelectFile}
               onSelectPath={props.onSelectPath}
               onToggle={props.onToggle}
               onDragStart={props.onDragStart}
               onCopyAbsolutePath={props.onCopyAbsolutePath}
               copyAbsolutePathLabel={props.copyAbsolutePathLabel}
+              absoluteFor={props.absoluteFor}
+              contextMenuCaps={props.contextMenuCaps}
+              contextMenuDispatchers={props.contextMenuDispatchers}
+              enableContextMenu={props.enableContextMenu}
+
             />
           ))}
         </ul>

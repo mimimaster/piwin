@@ -7,8 +7,8 @@ import type {
   ResolvedOrchestrationScheme,
   SessionHandle,
 } from '@piwin/contracts';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadSessionPlan, saveSessionPlan } from '@piwin/session';
@@ -639,6 +639,68 @@ describe('session live control commands', () => {
       expect(modelFacingText).toContain('fix the login bug');
       expect(modelFacingText).toContain('Operating contract');
       expect(modelFacingText.startsWith('[piwin-mode:agent]')).toBe(true);
+    });
+
+    it('resolves context refs into model-facing prompt only (CM-02)', async () => {
+      const session = createDelayedSessionHandle();
+      const promptContext = createPromptContext(session);
+      const context = promptContext.context;
+      const recordedPrompts: PromptInput[] = [];
+      let modelFacingText = '';
+      const root = await mkdtemp(join(tmpdir(), 'piwin-cm-prompt-'));
+      await writeFile(join(root, 'a.ts'), 'export const n = 1;\n', 'utf8');
+
+      context.recordUserPrompt = async (_sessionId, input): Promise<void> => {
+        recordedPrompts.push(input);
+      };
+      const originalPrompt = session.prompt.bind(session);
+      session.prompt = async (input: PromptInput): Promise<void> => {
+        modelFacingText = input.text;
+        await originalPrompt(input);
+      };
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: {
+            text: 'explain the attached selection',
+            contextRefs: [
+              {
+                kind: 'selection',
+                relativePath: 'src/a.ts',
+                lineStart: 2,
+                lineEnd: 4,
+                snapshotText: 'const value = 1;',
+                label: 'a.ts selection',
+              },
+              {
+                kind: 'file',
+                projectPath: root,
+                relativePath: 'a.ts',
+                lineStart: 1,
+                label: 'a.ts',
+              },
+            ],
+          },
+        },
+        undefined,
+        context,
+      );
+      expect(response?.success).toBe(true);
+
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(modelFacingText).toContain('[selection-reference: src/a.ts:2-4]');
+        expect(modelFacingText).toContain('[file-reference: a.ts:1]');
+        expect(modelFacingText).toContain('export const n = 1;');
+      });
+
+      // Transcript records the user's original text; refs only shape model-facing text.
+      expect(recordedPrompts).toHaveLength(1);
+      expect(recordedPrompts[0]?.text).toBe('explain the attached selection');
+      expect(recordedPrompts[0]?.text).not.toContain('[selection-reference:');
+      expect(modelFacingText).toContain('explain the attached selection');
     });
 
     it('clears scheme binding on Off turn (no residual force)', async () => {
