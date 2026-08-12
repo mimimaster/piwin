@@ -17,6 +17,7 @@ import type { SubagentProfileSettings } from './subagent-profile.js';
 import type { OrchestrationSchemeSettings } from './orchestration-scheme.js';
 import type { RemoteConfig } from './remote.js';
 import type { SessionLifecycleConfig } from './session-lifecycle.js';
+import type { SessionColdStorageConfig } from './session-cold-storage.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability =
@@ -354,6 +355,8 @@ export type SessionConfig = {
   runtimeRetention?: SessionRuntimeRetentionConfig;
   /** Explicit, plan-before-apply durable session archive policy. */
   lifecycle?: SessionLifecycleConfig;
+  /** Manual cold-storage backup / offload / restore. Default disabled. */
+  coldStorage?: SessionColdStorageConfig;
 };
 
 export function createDefaultSessionConfig(): SessionConfig {

@@ -164,7 +164,9 @@ export type {
 export {
   checkpointTranscriptWal,
   createSessionPack,
+  extractVerifiedSessionPack,
   generateSessionPackId,
+  hashSessionPayload,
   listSessionPacks,
   parseSessionPackManifest,
   sha256File,
@@ -180,6 +182,35 @@ export type {
   SessionPackPaths,
   VerifySessionPackInput,
 } from './session-pack.js';
+export { evaluateColdStorageEligibility, isMainSessionRecord } from './session-cold-storage-eligibility.js';
+export {
+  buildSessionColdStoragePlan,
+  createColdStorageConfirmationDigest,
+  createColdStoragePlanId,
+} from './session-cold-storage-plan.js';
+export {
+  createColdStorageJournal,
+  createColdStorageTransactionId,
+  getColdStorageExtractDir,
+  getColdStorageJournalPath,
+  getColdStorageQuarantineDir,
+  getColdStorageTransactionDir,
+  getColdStorageTransactionsDir,
+  listColdStorageJournals,
+  pathExists as coldStoragePathExists,
+  readColdStorageJournal,
+  removeColdStorageTransaction,
+  updateColdStorageJournalPhase,
+  writeColdStorageJournal,
+} from './session-cold-storage-journal.js';
+export type { ColdStorageJournalV1 } from './session-cold-storage-journal.js';
+export { offloadSessionPayload } from './session-cold-storage-offload.js';
+export type { OffloadSessionHooks, OffloadSessionInput } from './session-cold-storage-offload.js';
+export { restoreSessionPayload } from './session-cold-storage-restore.js';
+export {
+  reconcileSessionColdStorage,
+  recoverJournaledColdStorageTransactions,
+} from './session-cold-storage-reconcile.js';
 
 export { validateSessionPlan } from './validate-plan.js';
 export type { PlanValidationIssue, PlanValidationResult } from './validate-plan.js';

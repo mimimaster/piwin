@@ -41,7 +41,9 @@ import {
   createSafeFallbackPermissionConfig,
   createDefaultProcessConfig,
   createDefaultPromptsConfig,
+  createDefaultSessionColdStorageConfig,
   createDefaultSessionConfig,
+  DEFAULT_COLD_STORAGE_MIN_ARCHIVED_AGE_DAYS,
   createDefaultSkillsConfig,
   createDefaultSubagentConfig,
   createDefaultWalkthroughConfig,
@@ -340,6 +342,30 @@ function normalizeSessionConfig(value: unknown, defaults: SessionConfig): Sessio
     if (Object.keys(normalizedArchive).length > 0) {
       config.lifecycle = { archive: normalizedArchive };
     }
+  }
+  if (record.coldStorage !== undefined) {
+    config.coldStorage = normalizeSessionColdStorageConfig(record.coldStorage);
+  }
+  return config;
+}
+
+function normalizeSessionColdStorageConfig(value: unknown): NonNullable<SessionConfig['coldStorage']> {
+  const defaults = createDefaultSessionColdStorageConfig();
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  const config: NonNullable<SessionConfig['coldStorage']> = {
+    enabled: record.enabled === true,
+    minArchivedAgeDays: isPositiveInteger(record.minArchivedAgeDays)
+      ? record.minArchivedAgeDays
+      : DEFAULT_COLD_STORAGE_MIN_ARCHIVED_AGE_DAYS,
+  };
+  if (typeof record.packOutputDir === 'string' && record.packOutputDir.trim().length > 0) {
+    config.packOutputDir = record.packOutputDir.trim();
+  }
+  if (isPositiveInteger(record.localBudgetBytes)) {
+    config.localBudgetBytes = record.localBudgetBytes;
   }
   return config;
 }

@@ -75,6 +75,14 @@ import {
   runSessionPackList,
   runSessionPackVerify,
 } from './session-pack-command.js';
+import {
+  runSessionColdStorageExecute,
+  runSessionColdStorageImport,
+  runSessionColdStoragePlan,
+  runSessionColdStorageReconcile,
+  runSessionColdStorageRestore,
+  runSessionColdStorageStatus,
+} from './session-cold-storage-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -95,6 +103,12 @@ Usage:
   piwin session pack create <sessionId> --out <host-dir> [--pack-id <id>] [--mock]
   piwin session pack verify <packPath> [--mock]
   piwin session pack list --dir <host-dir> [--mock]
+  piwin session cold status [--mock]
+  piwin session cold plan [--session <id>] [--mock]
+  piwin session cold execute --plan <plan-id> --confirm <digest> [--mock]
+  piwin session cold restore <sessionId> [--pack <path>] [--mock]
+  piwin session cold import --pack <path> [--mock]
+  piwin session cold reconcile [--mock]
   piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
@@ -576,6 +590,86 @@ async function commandSession(argv: string[]): Promise<void> {
     }
 
 
+    if (sub === 'cold') {
+      const action = argv[2] ?? 'status';
+      try {
+        if (action === 'status') {
+          await runSessionColdStorageStatus(runtime, console.log);
+          return;
+        }
+        if (action === 'plan') {
+          const sessionId = readOption(argv, '--session');
+          await runSessionColdStoragePlan(
+            runtime,
+            sessionId ? [sessionId] : undefined,
+            console.log,
+          );
+          return;
+        }
+        if (action === 'execute') {
+          const planId = readOption(argv, '--plan');
+          const confirmationDigest = readOption(argv, '--confirm');
+          if (!planId || !confirmationDigest) {
+            console.error(
+              'Usage: piwin session cold execute --plan <plan-id> --confirm <digest> [--mock]',
+            );
+            process.exitCode = 1;
+            return;
+          }
+          const result = await runSessionColdStorageExecute(
+            runtime,
+            { planId, confirmationDigest },
+            console.log,
+          );
+          if (result.failed.length > 0) {
+            process.exitCode = 2;
+          }
+          return;
+        }
+        if (action === 'restore') {
+          const sessionId = argv[3];
+          const packPath = readOption(argv, '--pack');
+          if (!sessionId) {
+            console.error(
+              'Usage: piwin session cold restore <sessionId> [--pack <path>] [--mock]',
+            );
+            process.exitCode = 1;
+            return;
+          }
+          await runSessionColdStorageRestore(
+            runtime,
+            { sessionId, ...(packPath ? { packPath } : {}) },
+            console.log,
+          );
+          return;
+        }
+        if (action === 'import') {
+          const packPath = readOption(argv, '--pack');
+          if (!packPath) {
+            console.error('Usage: piwin session cold import --pack <path> [--mock]');
+            process.exitCode = 1;
+            return;
+          }
+          await runSessionColdStorageImport(runtime, packPath, console.log);
+          return;
+        }
+        if (action === 'reconcile') {
+          await runSessionColdStorageReconcile(runtime, console.log);
+          return;
+        }
+        console.error(`Unknown cold action: ${action}`);
+        console.error(
+          'Usage: piwin session cold status|plan|execute|restore|import|reconcile',
+        );
+        process.exitCode = 1;
+        return;
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+        return;
+      }
+    }
+
     if (sub === 'pack') {
       const action = argv[2] ?? 'list';
       try {
@@ -814,7 +908,9 @@ async function commandSession(argv: string[]): Promise<void> {
     }
 
     console.error(`Unknown session subcommand: ${sub}`);
-    console.error('Usage: piwin session list|pin|unpin|pause|resume-run|search|export|lifecycle');
+    console.error(
+      'Usage: piwin session list|pin|unpin|pause|resume-run|search|export|lifecycle|pack|cold',
+    );
     process.exitCode = 1;
   } finally {
     await runtime.dispose();

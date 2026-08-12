@@ -16,6 +16,8 @@ import { handlePluginCommand } from './plugin-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
 import { handleSessionPackCommand } from './session-pack-commands.js';
 import type { SessionPackCommandContext } from './session-pack-commands.js';
+import { handleSessionColdStorageCommand } from './session-cold-storage-commands.js';
+import type { SessionColdStorageCommandContext } from './session-cold-storage-commands.js';
 import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
 import { handleSideChatCommand } from './side-chat-commands.js';
@@ -26,6 +28,7 @@ import { handleSubagentCommand } from './subagent-commands.js';
 export type DomainDispatchContext = HostCommandContext & {
   sessionProduct: SessionProductCommandContext;
   sessionPack?: SessionPackCommandContext;
+  sessionColdStorage?: SessionColdStorageCommandContext;
 };
 
 export async function dispatchDomainCommands(
@@ -54,6 +57,15 @@ export async function dispatchDomainCommands(
   if (context.sessionPack) {
     const pack = await handleSessionPackCommand(command, requestId, context.sessionPack);
     if (pack) return pack;
+  }
+
+  if (context.sessionColdStorage) {
+    const cold = await handleSessionColdStorageCommand(
+      command,
+      requestId,
+      context.sessionColdStorage,
+    );
+    if (cold) return cold;
   }
 
   const sideChat = await handleSideChatCommand(command, requestId, context.sessionProduct);
