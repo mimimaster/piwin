@@ -27,6 +27,7 @@ import type {
   HostServerMessage,
   HostStatusData,
   PermissionMode,
+  SessionColdStorageStatus,
   UsageRollup,
 } from '@piwin/contracts';
 import {
@@ -82,6 +83,7 @@ import {
   runSessionColdStorageReconcile,
   runSessionColdStorageRestore,
   runSessionColdStorageStatus,
+  formatDoctorColdStorageLines,
 } from './session-cold-storage-command.js';
 
 function printHelp(): void {
@@ -461,6 +463,17 @@ async function commandDoctor(args: string[] = []): Promise<void> {
         }
       } else {
         console.log(`- runtime residency: (unavailable: ${resources.error})`);
+      }
+      const coldStorage = await runtime.handleCommand({ type: 'session/cold-storage-status' });
+      if (coldStorage.success) {
+        console.log('--- session cold storage ---');
+        for (const line of formatDoctorColdStorageLines(
+          coldStorage.data as SessionColdStorageStatus,
+        )) {
+          console.log(line);
+        }
+      } else {
+        console.log(`- session cold storage: (unavailable: ${coldStorage.error})`);
       }
     } finally {
       await runtime.dispose();

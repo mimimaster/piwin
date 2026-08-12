@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-08-10 |
+| Updated | 2026-08-13 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
@@ -19,6 +19,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Desktop renderer bounds | green (automated) / native evidence pending | Bounded Host batches, 256 KiB visible tool output, 500-turn virtualization, and a separate pet overlay entry; 30-minute Gate A remains open |
 | Session runtime residency (ADR 0040) | green (core) / soak evidence pending | Host-owned cold/activate/suspend; TTL/LRU/memory budgets; Desktop settings + CLI doctor/status aggregate metrics; SQLite transcript store landed with legacy fallback |
 | Session rename/archive/delete/duplicate | green | PD-SESS archive-first |
+| Session cold storage (ADR 0044) | green (manual R1) | Archive first, then pack / plan+confirm offload / restore; Desktop restore-first; doctor + reconcile; no schedule or force-replace |
 | Pin + search | green | Pinned group in sidebar |
 | Project rail density | green | Project section folds; recent projects are capped in the rail with a searchable all-project picker |
 | Skills / MCP panels | green | stdio lifecycle |
@@ -66,5 +67,6 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 ```bash
 pnpm typecheck
 pnpm test
+pnpm test:cold-storage
 pnpm e2e:desktop
 ```

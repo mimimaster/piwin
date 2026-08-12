@@ -18,6 +18,7 @@
     "dev:desktop": "pnpm --dir apps/desktop dev",
     "dev:host": "pnpm --filter @piwin/host-app dev",
     "check": "pnpm typecheck && pnpm test && pnpm test:architecture",
+    "test:cold-storage": "pnpm --filter @piwin/contracts exec vitest run src/session-storage.test.ts src/session-cold-storage.test.ts && pnpm --filter @piwin/session exec vitest run src/session-pack.test.ts src/session-cold-storage.test.ts && pnpm --filter @piwin/host-runtime exec vitest run src/session-cold-storage.integration.test.ts src/session-storage-residency.integration.test.ts src/session-storage-coordinator.test.ts src/commands/session-pack-commands.test.ts && pnpm --filter @piwin/cli exec vitest run src/session-cold-storage-command.test.ts src/session-pack-command.test.ts src/host-serve-command-lane.test.ts && pnpm --dir apps/desktop exec vitest run src/session-storage-ui.test.ts src/settings/cold-storage-draft.test.ts src/settings/pages/session-cold-storage-page.test.tsx",
     "dev:tauri": "pnpm ensure:packaging-placeholders && pnpm --dir apps/desktop dev:tauri",
     "bundle:host": "node scripts/bundle-host.mjs",
     "fetch:node-runtime": "node scripts/fetch-node-runtime.mjs",

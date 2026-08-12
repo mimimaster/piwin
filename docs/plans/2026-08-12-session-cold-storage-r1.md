@@ -363,9 +363,13 @@ Branch idea: `feat/desktop-cold-storage`
 
 ### PR 5 — ADR + user docs + release gate
 
-- `docs/adr/00xx-safe-session-cold-storage.md`
-- User recovery docs (Host path semantics, missing pack, external retention)
-- Full `pnpm check` + focused cold fault suite
+Branch: `docs/session-cold-storage-r1`
+
+- `docs/adr/0044-safe-session-cold-storage.md`
+- User recovery docs (Host path semantics, missing pack, external retention):
+  `docs/guides/session-cold-storage.md`
+- `piwin doctor` reports residual journals and missing packs
+- Full `pnpm check` + focused `pnpm test:cold-storage`
 
 ## Obsolete branch handling
 
@@ -409,5 +413,5 @@ Branch idea: `feat/desktop-cold-storage`
 3. Implement PR 2 storage residency + body guards ✅ (`feat/session-storage-residency`)
 4. Implement PR 3 manual offload / restore / reconcile ✅ (`feat/session-cold-storage-manual`)
 5. Implement PR 4 Desktop discovery + settings ✅ (`feat/desktop-cold-storage`)
-6. Implement PR 5 ADR + user docs + release gate
+6. Implement PR 5 ADR + user docs + release gate ✅ (`docs/session-cold-storage-r1`)
 7. Keep `feat/cold-storage-offload` frozen as reference-only
