@@ -27,6 +27,7 @@ export type ModelOption = {
   modelId: string;
   label: string;
   contextWindow?: number;
+  maxOutputTokens?: number;
   /** Configured thinking level default for this model. */
   thinkingLevel?: ThinkingLevel;
   /** Configured thinking effort levels supported by this model. */
@@ -73,6 +74,9 @@ export function buildEnabledModelOptions(
         modelId: model.id,
         label: `${provider.name} / ${model.label ?? model.id}`,
         ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
+        ...(typeof model.maxOutputTokens === 'number'
+          ? { maxOutputTokens: model.maxOutputTokens }
+          : {}),
         ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
         ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
         ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),

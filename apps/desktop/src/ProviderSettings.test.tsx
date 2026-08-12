@@ -87,7 +87,6 @@ function makeProps(
     })),
     onTestModel: vi.fn(async () => ({ durationMs: 100 })),
     onStoreSecret: vi.fn(async (providerId) => `keychain-${providerId}`),
-    onLoadSecret: vi.fn(async () => ''),
     searchCatalog: vi.fn(async () => []),
   };
 }
@@ -371,7 +370,8 @@ describe('ProviderSettings', () => {
       protocol: 'openai-compatible' as const,
       models: [{ id: 'gpt-4.1' }, { id: 'gpt-4.1-mini' }],
     }));
-    const props = makeProps();
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const props = makeProps(onSave);
     props.onDiscoverModels = onDiscoverModels;
     const { container, root } = renderProviderSettings(props);
     instances.push({ container, root });
@@ -383,6 +383,13 @@ describe('ProviderSettings', () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+    const apiKeyInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="provider-apikey-input"]',
+    );
+    expect(apiKeyInput).not.toBeNull();
+    act(() => {
+      setInputValue(apiKeyInput, '123456');
+    });
     const testBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="provider-test-connection"]',
     );
@@ -391,7 +398,21 @@ describe('ProviderSettings', () => {
       testBtn?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(onDiscoverModels).toHaveBeenCalled();
+    expect(onDiscoverModels).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'openai' }),
+      { apiKey: '123456' },
+    );
+    expect(props.onStoreSecret).not.toHaveBeenCalled();
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="provider-save-btn"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(props.onStoreSecret).toHaveBeenCalledWith('openai', '123456');
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    const provider = saved.providers.find((item) => item.id === 'openai');
+    expect(provider?.apiKeyRef).toBe('keychain-openai');
+    expect(provider?.apiKeyEnv).toBeUndefined();
     expect(props.onInfo).toHaveBeenCalled();
   });
 

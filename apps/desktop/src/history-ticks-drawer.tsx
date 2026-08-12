@@ -18,11 +18,14 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChatMessageUi } from './chat-reducer';
+import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
 import { messageAnchorId } from './transcript-outline';
 import { useTranscriptScrollPort } from './transcript-scroll-port';
 
 export type HistoryTicksDrawerProps = {
   messages?: ChatMessageUi[] | undefined;
+  historyIndex?: SessionUserMessageIndexData | null | undefined;
+  onJumpToAnchor?: ((anchor: SessionUserMessageAnchor) => Promise<void> | void) | undefined;
 };
 
 export function formatFullTimestamp(createdAt?: string): string {
@@ -83,6 +86,13 @@ type CollapsedRailMetrics = {
   top: number;
   right: number;
   tickCount: number;
+};
+
+type HistoryTickMessage = {
+  id: string;
+  text: string;
+  createdAt?: string;
+  anchor?: SessionUserMessageAnchor;
 };
 
 /** Gap between the peak wave tip and the preview bubble. Keep small so the
@@ -166,6 +176,8 @@ export function scrollTranscriptToMessage(messageId: string): boolean {
 
 export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   messages = [],
+  historyIndex = null,
+  onJumpToAnchor,
 }: HistoryTicksDrawerProps): ReactElement | null {
   const transcriptScrollPort = useTranscriptScrollPort();
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -177,9 +189,23 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   const railMetricsRef = useRef<CollapsedRailMetrics | null>(null);
   const hoveredIndexRef = useRef<number | null>(null);
 
-  const userMessages = useMemo(() => {
-    return messages.filter((message) => message.role === 'user' && message.text.trim().length > 0);
-  }, [messages]);
+  const userMessages = useMemo<HistoryTickMessage[]>(() => {
+    if (historyIndex !== null) {
+      return historyIndex.anchors.map((anchor) => ({
+        id: anchor.messageId,
+        text: anchor.preview,
+        createdAt: anchor.createdAt,
+        anchor,
+      }));
+    }
+    return messages
+      .filter((message) => message.role === 'user' && message.text.trim().length > 0)
+      .map((message) => ({
+        id: message.id,
+        text: message.text,
+        ...(message.createdAt ? { createdAt: message.createdAt } : {}),
+      }));
+  }, [historyIndex, messages]);
 
   const clearPreview = useCallback((): void => {
     setHoveredMessageId(null);
@@ -255,11 +281,26 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
 
   const handleTickJump = useCallback(
     (messageId: string): void => {
-      if (!transcriptScrollPort?.scrollToMessage(messageId)) {
-        scrollTranscriptToMessage(messageId);
+      if (transcriptScrollPort?.scrollToMessage(messageId)) {
+        return;
       }
+      const target = userMessages.find((message) => message.id === messageId);
+      const anchor = target?.anchor;
+      if (anchor && onJumpToAnchor) {
+        const jump = async (): Promise<void> => {
+          await onJumpToAnchor(anchor);
+          window.requestAnimationFrame(() => {
+            scrollTranscriptToMessage(messageId);
+          });
+        };
+        void jump().catch((error: unknown) => {
+          console.error('history anchor jump failed', error);
+        });
+        return;
+      }
+      scrollTranscriptToMessage(messageId);
     },
-    [transcriptScrollPort],
+    [onJumpToAnchor, transcriptScrollPort, userMessages],
   );
 
   /** Click anywhere on the rail (including gaps between 1px ticks) jumps. */
@@ -342,6 +383,12 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   }
 
   const previewMessage = userMessages.find((message) => message.id === hoveredMessageId);
+  const previewPosition =
+    previewMessage?.anchor && historyIndex
+      ? previewMessage.anchor.spanStartOrdinal === previewMessage.anchor.spanEndOrdinal
+        ? `${previewMessage.anchor.ordinal + 1} / ${historyIndex.totalUserMessages}`
+        : `${previewMessage.anchor.spanStartOrdinal + 1}–${previewMessage.anchor.spanEndOrdinal + 1} / ${historyIndex.totalUserMessages}`
+      : null;
 
   return (
     <div
@@ -355,6 +402,8 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         clearRailInteraction();
       }}
       data-testid="history-ticks-drawer"
+      data-history-index-mode={historyIndex?.mode ?? 'resident-fallback'}
+      data-history-total-user-messages={historyIndex?.totalUserMessages ?? userMessages.length}
     >
       <div
         className="history-ticks-border-strip"
@@ -392,7 +441,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
                 role="button"
                 tabIndex={0}
                 aria-describedby={isPreviewed ? 'history-message-bubble' : undefined}
-                aria-label={`Jump to history message ${index + 1}: ${truncateMessageText(message.text, 60)}`}
+                aria-label={`Jump to history message ${(message.anchor?.ordinal ?? index) + 1}: ${truncateMessageText(message.text, 60)}`}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
@@ -405,31 +454,34 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         </div>
       </div>
 
-      {previewMessage && collapsedBubbleAnchor ? (
-        // Portal to document.body so position:fixed is viewport-relative.
-        // Parent chat-column/workspace use backdrop-filter, which creates a
-        // containing block and made the bubble sit far from the tick rail.
-        createPortal(
-          <div
-            id="history-message-bubble"
-            className="history-message-bubble history-message-bubble--collapsed"
-            data-testid="history-message-bubble"
-            role="tooltip"
-            style={{
-              left: `${collapsedBubbleAnchor.left}px`,
-              top: `${collapsedBubbleAnchor.top}px`,
-            }}
-          >
-            <div className="history-bubble-header">
-              {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
-            </div>
-            <div className="history-bubble-text">
-              {truncateMessageText(previewMessage.text, 240)}
-            </div>
-          </div>,
-          document.body,
-        )
-      ) : null}
+      {previewMessage && collapsedBubbleAnchor
+        ? // Portal to document.body so position:fixed is viewport-relative.
+          // Parent chat-column/workspace use backdrop-filter, which creates a
+          // containing block and made the bubble sit far from the tick rail.
+          createPortal(
+            <div
+              id="history-message-bubble"
+              className="history-message-bubble history-message-bubble--collapsed"
+              data-testid="history-message-bubble"
+              role="tooltip"
+              style={{
+                left: `${collapsedBubbleAnchor.left}px`,
+                top: `${collapsedBubbleAnchor.top}px`,
+              }}
+            >
+              <div className="history-bubble-header">
+                {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
+              </div>
+              {previewPosition ? (
+                <div className="history-bubble-position">User message {previewPosition}</div>
+              ) : null}
+              <div className="history-bubble-text">
+                {truncateMessageText(previewMessage.text, 240)}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 });

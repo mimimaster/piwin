@@ -2,6 +2,8 @@ import { isPlaceholderSessionName } from './title-display';
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 import { buildForkSessionName } from '@piwin/session/fork-session-name';
 import { createMockSessionTranscriptPage } from './mock-session-transcript-page';
+import { createMockSessionTranscriptWindow } from './mock-session-transcript-window';
+import { createMockSessionUserMessageIndex } from './mock-session-user-message-index';
 import { PIWIN_APPEARANCE_INK_WASH } from './appearance-tokens';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
@@ -239,6 +241,8 @@ export class MockHostBackend {
               sessionPin: true,
               sessionLifecycle: true,
               sessionPause: true,
+              sessionUserMessageIndex: true,
+              sessionTranscriptSeek: true,
               sessionExport: true,
               usage: true,
               pty: false,
@@ -696,6 +700,66 @@ export class MockHostBackend {
           success: true,
           data: page,
         };
+      }
+      case 'session/user-message-index': {
+        const session = this.sessions.get(command.query.sessionId);
+        if (!session) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/user-message-index',
+            success: false,
+            error: `Unknown session: ${command.query.sessionId}`,
+          };
+        }
+        try {
+          const index = createMockSessionUserMessageIndex(session.transcript, command.query);
+          return {
+            id,
+            type: 'response',
+            command: 'session/user-message-index',
+            success: true,
+            data: index,
+          };
+        } catch (error) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/user-message-index',
+            success: false,
+            error: error instanceof Error ? error.message : 'Invalid user-message index request',
+          };
+        }
+      }
+      case 'session/transcript-window': {
+        const session = this.sessions.get(command.query.sessionId);
+        if (!session) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/transcript-window',
+            success: false,
+            error: `Unknown session: ${command.query.sessionId}`,
+          };
+        }
+        try {
+          const window = createMockSessionTranscriptWindow(session.transcript, command.query);
+          return {
+            id,
+            type: 'response',
+            command: 'session/transcript-window',
+            success: true,
+            data: window,
+          };
+        } catch (error) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/transcript-window',
+            success: false,
+            error: error instanceof Error ? error.message : 'Invalid transcript window request',
+          };
+        }
       }
       case 'session/messages': {
         const session = this.sessions.get(command.sessionId);
@@ -1276,7 +1340,11 @@ export class MockHostBackend {
         }
         const canAtomicallyApproveDraft =
           plan.status === 'draft' && command.request.approveDraft === true;
-        if (plan.status !== 'approved' && plan.status !== 'executing' && !canAtomicallyApproveDraft) {
+        if (
+          plan.status !== 'approved' &&
+          plan.status !== 'executing' &&
+          !canAtomicallyApproveDraft
+        ) {
           return {
             id,
             type: 'response',

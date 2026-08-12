@@ -15,6 +15,8 @@ import type {
   SessionSummary,
   SessionTranscriptMessage,
   SessionTranscriptPageInfo,
+  SessionTranscriptWindowInfo,
+  SessionUserMessageIndexData,
   SubagentActivityView,
   SubagentBatchProjection,
   SubagentTaskResult,
@@ -89,6 +91,13 @@ export type ChatMessageUi = {
   /** Run that produced this assistant message when host provided run identity. */
   runId?: string;
   subagentActivity?: SubagentActivityView;
+};
+
+export type TranscriptHistoryViewUi = {
+  /** Indexed user message that owns this temporary bounded history view. */
+  anchorMessageId: string;
+  messages: ChatMessageUi[];
+  runRecordsById: Record<string, RunRecordUi>;
 };
 
 /** Inline subagent stream state — live child session work shown in parent UI. */
@@ -208,6 +217,15 @@ export type ChatUiState = {
     retainedBytes: number;
     cacheLimitReached: boolean;
   } | null;
+  /**
+   * Temporary bounded history view. `messages` and `transcriptWindow` remain
+   * the live tail so Host pushes never create a false contiguous timeline.
+   */
+  historyView: TranscriptHistoryViewUi | null;
+  /** Host-owned user-message navigation anchors; never contains assistant/tool rows. */
+  userMessageIndex: SessionUserMessageIndexData | null;
+  /** Monotonic invalidation token used to reject stale async index responses. */
+  userMessageIndexEpoch: number;
   outline: SessionOutlineNode[];
   /** Active session was archived without switching context. */
   activeSessionArchived: boolean;
@@ -336,6 +354,20 @@ export type ChatUiAction =
       messages: SessionTranscriptMessage[];
       transcriptPage: SessionTranscriptPageInfo;
     }
+  | {
+      type: 'session/seek-messages';
+      sessionId: string;
+      epoch: number;
+      messages: SessionTranscriptMessage[];
+      window: SessionTranscriptWindowInfo;
+    }
+  | {
+      type: 'session/user-message-index';
+      sessionId: string;
+      epoch: number;
+      index: SessionUserMessageIndexData;
+    }
+  | { type: 'session/return-to-live'; sessionId: string }
   | { type: 'session/update'; session: SessionListItemUi }
   | { type: 'session/remove'; sessionId: string }
   | { type: 'session/mark-archived-active'; archived: boolean }
@@ -434,6 +466,9 @@ export function createInitialChatUiState(): ChatUiState {
     messages: [],
     warmSessionCache: createEmptyWarmSessionCache(),
     transcriptWindow: null,
+    historyView: null,
+    userMessageIndex: null,
+    userMessageIndexEpoch: 0,
     outline: [],
     activeSessionArchived: false,
     awaitingTranscript: false,
@@ -643,6 +678,8 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: null,
         messages: [],
         transcriptWindow: null,
+        historyView: null,
+        userMessageIndex: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -671,6 +708,8 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: null,
         messages: [],
         transcriptWindow: null,
+        historyView: null,
+        userMessageIndex: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -701,6 +740,8 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: null,
         messages: [],
         transcriptWindow: null,
+        historyView: null,
+        userMessageIndex: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -788,6 +829,15 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           : keepPreviousWhileLoading
             ? state.transcriptWindow
             : null,
+        historyView: null,
+        userMessageIndex:
+          preserveOptimisticDraftSend || state.activeSessionId === action.sessionId
+            ? state.userMessageIndex
+            : null,
+        userMessageIndexEpoch:
+          state.activeSessionId === action.sessionId
+            ? state.userMessageIndexEpoch
+            : state.userMessageIndexEpoch + 1,
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
@@ -859,6 +909,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         ...state,
         activeSessionId: action.sessionId,
         messages,
+        historyView: null,
         transcriptWindow: action.transcriptPage
           ? {
               revision: action.transcriptPage.revision,
@@ -929,6 +980,36 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         },
       };
     }
+    case 'session/seek-messages': {
+      if (
+        state.activeSessionId !== action.sessionId ||
+        state.userMessageIndexEpoch !== action.epoch
+      ) {
+        return state;
+      }
+      const messages = mapTranscriptMessagesToUi(action.messages);
+      const bounded = retainBoundedTranscriptWindow(
+        messages,
+        collectRetainedTranscriptMessageIds(messages, state.streaming),
+      );
+      return {
+        ...state,
+        historyView: {
+          anchorMessageId: action.window.anchorMessageId,
+          messages: bounded.messages,
+          runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
+        },
+      };
+    }
+    case 'session/user-message-index':
+      return state.activeSessionId === action.sessionId &&
+        state.userMessageIndexEpoch === action.epoch
+        ? { ...state, userMessageIndex: action.index }
+        : state;
+    case 'session/return-to-live':
+      return state.activeSessionId === action.sessionId && state.historyView !== null
+        ? { ...state, historyView: null }
+        : state;
     case 'session/add': {
       // Stamp updatedAt so Conversations / project lists sort the new row to the
       // top (sort is pinned first, then updatedAt desc; missing timestamps sink).
@@ -974,6 +1055,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: action.sessionId,
         messages: [],
         transcriptWindow: null,
+        historyView: null,
+        userMessageIndex: null,
+        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -1229,6 +1313,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: activeRemoved ? null : state.activeSessionId,
         messages: activeRemoved ? [] : state.messages,
         transcriptWindow: activeRemoved ? null : state.transcriptWindow,
+        historyView: activeRemoved ? null : state.historyView,
+        userMessageIndex: activeRemoved ? null : state.userMessageIndex,
+        userMessageIndexEpoch: activeRemoved
+          ? state.userMessageIndexEpoch + 1
+          : state.userMessageIndexEpoch,
         outline: activeRemoved ? [] : state.outline,
         activeSessionArchived: activeRemoved ? false : state.activeSessionArchived,
         awaitingTranscript: activeRemoved ? false : state.awaitingTranscript,
@@ -1270,6 +1359,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: null,
         messages: [],
         transcriptWindow: null,
+        historyView: null,
+        userMessageIndex: null,
+        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -1292,6 +1384,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return enforceBoundedTranscriptWindow({
         ...state,
         messages,
+        historyView: null,
+        userMessageIndex: null,
+        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         transcriptWindow: action.transcriptPage
           ? {
               revision: action.transcriptPage.revision,
@@ -1329,6 +1424,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...state.messages, userMessage],
+        historyView: null,
+        userMessageIndex: null,
+        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         runPhase: 'streaming',
         activeRunId: null,
         activeRunPhase: null,
@@ -1362,6 +1460,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...state.messages, userMessage],
+        historyView: null,
+        userMessageIndex: null,
+        userMessageIndexEpoch: state.userMessageIndexEpoch + 1,
         error: null,
       });
     }
@@ -1523,6 +1624,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...state.messages, nextMessage],
+        userMessageIndex:
+          action.message.role === 'user' && action.message.text.trim().length > 0
+            ? null
+            : state.userMessageIndex,
+        userMessageIndexEpoch:
+          action.message.role === 'user' && action.message.text.trim().length > 0
+            ? state.userMessageIndexEpoch + 1
+            : state.userMessageIndexEpoch,
       });
     }
     case 'event':
@@ -2202,8 +2311,23 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ? 'Compaction finished with errors'
             : 'Context compacted';
       const fileOps = 'fileOps' in event && event.fileOps ? event.fileOps : null;
+      const contextUsage =
+        event.ok !== false && typeof event.tokensAfter === 'number' && state.contextUsage
+          ? {
+              ...state.contextUsage,
+              tokensUsed: event.tokensAfter,
+              totalTokens: event.tokensAfter,
+              ...(typeof state.contextUsage.tokensLimit === 'number' &&
+              state.contextUsage.tokensLimit > 0
+                ? { contextRatio: event.tokensAfter / state.contextUsage.tokensLimit }
+                : {}),
+              updatedAt: new Date().toISOString(),
+              source: 'pi-contextUsage' as const,
+            }
+          : state.contextUsage;
       return {
         ...state,
+        contextUsage,
         compacting: false,
         lastCompactionMessage: message,
         lastCompactionSummary:

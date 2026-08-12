@@ -135,6 +135,8 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     hydration: true,
     skillPreview: true,
     toolOutputRead: true,
+    sessionUserMessageIndex: true,
+    sessionTranscriptSeek: true,
   };
 }
 

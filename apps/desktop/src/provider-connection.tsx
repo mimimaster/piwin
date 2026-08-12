@@ -8,7 +8,7 @@ import { Button, Collapse, IconButton, Modal, TextInput } from '@piwin/ui-kit';
 import type { ProviderDraft } from './provider-draft.js';
 import { createHeaderRow, hasKeychainSecret } from './provider-draft.js';
 import { ProviderIcon } from './provider-icons.js';
-import { IconClose, IconSettings } from './shell-icons.js';
+import { IconClose } from './shell-icons.js';
 import { FieldRow } from './settings/field-row.js';
 
 export type ProviderConnectionStripProps = {
@@ -88,11 +88,11 @@ export type ProviderConnectionFieldsProps = {
     headerName: string;
     headerValue: string;
     addHeader: string;
-    keyManager: string;
+    apiKeyEnvironment: string;
+    apiKeyEnvironmentDescription: string;
   };
   common: { remove: string };
   onDraftChange: (next: ProviderDraft) => void;
-  onOpenKeyManager: () => void;
   children?: ReactNode;
 };
 
@@ -102,7 +102,6 @@ export function ProviderConnectionFields({
   copy,
   common,
   onDraftChange,
-  onOpenKeyManager,
   children,
 }: ProviderConnectionFieldsProps): ReactElement {
   const lastAddedHeaderIdRef = useRef<string | null>(null);
@@ -160,7 +159,7 @@ export function ProviderConnectionFields({
         <div className="provider-connection-key-row">
           <TextInput
             type="password"
-            testId="provider-apikey-env-input"
+            testId="provider-apikey-input"
             value={draft.apiKeyInput}
             onChange={(event) => {
               onDraftChange({ ...draft, apiKeyInput: event.currentTarget.value });
@@ -170,15 +169,6 @@ export function ProviderConnectionFields({
             autoComplete="off"
             disabled={saving}
           />
-          <IconButton
-            label={copy.keyManager}
-            title={copy.keyManager}
-            onClick={onOpenKeyManager}
-            data-testid="provider-key-manager-btn"
-            disabled={saving}
-          >
-            <IconSettings width={14} height={14} />
-          </IconButton>
         </div>
       </FieldRow>
 
@@ -189,6 +179,27 @@ export function ProviderConnectionFields({
           onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })}
           spellCheck={false}
           placeholder="https://api.example.com/v1"
+          disabled={saving}
+        />
+      </FieldRow>
+
+      <FieldRow
+        label={copy.apiKeyEnvironment}
+        description={copy.apiKeyEnvironmentDescription}
+      >
+        <TextInput
+          testId="provider-apikey-env-input"
+          value={draft.storedApiKeyEnv}
+          onChange={(event) =>
+            onDraftChange({
+              ...draft,
+              storedApiKeyEnv: event.currentTarget.value,
+              ...(event.currentTarget.value.trim() ? { storedApiKeyRef: '' } : {}),
+            })
+          }
+          placeholder="OPENAI_API_KEY"
+          spellCheck={false}
+          autoComplete="off"
           disabled={saving}
         />
       </FieldRow>

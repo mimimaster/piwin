@@ -20,12 +20,9 @@ export type ProviderDraft = {
   baseUrl: string;
   /** Active unless explicitly disabled. */
   enabled: boolean;
-  /**
-   * Field the user edits. Empty means "keep stored secret / none".
-   * May be a raw secret or an ENV_VAR_NAME (ALL_CAPS).
-   */
+  /** Raw API key entered for this provider. Empty means keep the saved key. */
   apiKeyInput: string;
-  /** Saved env var name from config (if any). */
+  /** Legacy saved env var name from config (if any). */
   storedApiKeyEnv: string;
   /** Saved keychain ref from config (if any). */
   storedApiKeyRef: string;
@@ -69,7 +66,10 @@ export function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
     baseUrl: provider.baseUrl,
     enabled: provider.enabled !== false,
     apiKeyInput: '',
-    storedApiKeyEnv: provider.apiKeyEnv ?? '',
+    // A provider is single-key. If an older config contains both fields,
+    // keep the keychain ref as the authoritative source and drop the stale
+    // env-ref from the editable draft.
+    storedApiKeyEnv: provider.apiKeyRef?.trim() ? '' : (provider.apiKeyEnv ?? ''),
     storedApiKeyRef: provider.apiKeyRef ?? '',
     headerRows: headersToRows(provider.headers),
     models: provider.models,
@@ -89,11 +89,11 @@ export function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
   if (headers) {
     config.headers = headers;
   }
-  if (draft.storedApiKeyEnv) {
-    config.apiKeyEnv = draft.storedApiKeyEnv;
-  }
   if (draft.storedApiKeyRef) {
     config.apiKeyRef = draft.storedApiKeyRef;
+  } else if (draft.storedApiKeyEnv) {
+    // Preserve legacy env-only providers until the user replaces the key.
+    config.apiKeyEnv = draft.storedApiKeyEnv;
   }
   return config;
 }
@@ -136,16 +136,4 @@ export function resolveDefaultAfterProviderChange(
   }
 
   return {};
-}
-
-export function oneShotApiKeyFromDraft(draft: ProviderDraft): string | undefined {
-  const input = draft.apiKeyInput.trim();
-  if (!input) {
-    return undefined;
-  }
-  // If it's an ENV_VAR_NAME, it's not a one-shot secret to be persisted.
-  if (/^[A-Z0-9_]+$/.test(input)) {
-    return undefined;
-  }
-  return input;
 }

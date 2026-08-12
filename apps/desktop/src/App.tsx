@@ -16,6 +16,8 @@ import {
   isProviderEnabled,
   modelSupportsCapability,
   modeToPreset,
+  readContextOccupiedTokens,
+  resolveModelContextBudget,
   resolvePreset,
 } from '@piwin/contracts';
 import type {
@@ -846,6 +848,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   >([]);
   const [menuMcp, setMenuMcp] = useState<Array<{ id: string; name: string; running: boolean }>>([]);
   const [selectedModelKey, setSelectedModelKey] = useState('');
+  const modelSwitchInFlightRef = useRef(false);
+  const activeSessionIdRef = useRef<string | null>(state.activeSessionId);
+  useEffect(() => {
+    activeSessionIdRef.current = state.activeSessionId;
+  }, [state.activeSessionId]);
   const [thinkingLevel, setThinkingLevel] =
     useState<import('@piwin/contracts').ThinkingLevel>('off');
   /**
@@ -1322,6 +1329,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     hydrateSessions,
     sessionListWindows,
     transcriptHistoryLoading,
+    loadUserMessageIndex,
+    handleJumpToHistoryAnchor,
+    handleReturnToLiveTranscript,
     handleOpenWorkspaceClick,
     handleBrowseProject,
     handleOpenProject,
@@ -1368,6 +1378,22 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       sessionComposerProfileRestoredRef.current(profile);
     },
   });
+
+  useEffect(() => {
+    const sessionId = state.activeSessionId;
+    if (!sessionId || state.userMessageIndex !== null || state.streaming) {
+      return;
+    }
+    // The index is a small independent query. Keep transcript hydration and
+    // the live tail responsive while it arrives.
+    void loadUserMessageIndex(sessionId, state.userMessageIndexEpoch);
+  }, [
+    loadUserMessageIndex,
+    state.activeSessionId,
+    state.streaming,
+    state.userMessageIndex,
+    state.userMessageIndexEpoch,
+  ]);
 
   const handleSessionPageChange = useCallback(
     async (scope: SessionScope, cursor: string, direction: 'previous' | 'next'): Promise<void> => {
@@ -1803,10 +1829,60 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   );
 
   const handleSelectModel = useCallback(
-    (nextModelKey: string): void => {
+    async (nextModelKey: string): Promise<void> => {
       const nextModel = modelOptions.find(
         (model) => `${model.providerId}::${model.modelId}` === nextModelKey,
       );
+      if (!nextModel || nextModelKey === selectedModelKey || modelSwitchInFlightRef.current) {
+        return;
+      }
+      const occupiedTokens = readContextOccupiedTokens(state.contextUsage);
+      const targetBudget = resolveModelContextBudget({
+        ...(nextModel.contextWindow !== undefined
+          ? { contextWindow: nextModel.contextWindow }
+          : {}),
+        ...(nextModel.maxOutputTokens !== undefined
+          ? { maxOutputTokens: nextModel.maxOutputTokens }
+          : {}),
+      });
+      if (
+        state.activeSessionId &&
+        occupiedTokens !== undefined &&
+        occupiedTokens > targetBudget.inputBudget
+      ) {
+        if (state.streaming || state.compacting) {
+          dispatch({
+            type: 'error',
+            message: 'Wait for the current operation to finish before switching models.',
+          });
+          return;
+        }
+        modelSwitchInFlightRef.current = true;
+        const preparedSessionId = state.activeSessionId;
+        try {
+          const response = await hostClient.request({
+            type: 'session/compact',
+            sessionId: preparedSessionId,
+            targetModel: {
+              protocol: nextModel.protocol,
+              providerId: nextModel.providerId,
+              modelId: nextModel.modelId,
+            },
+          });
+          if (!response.success) {
+            dispatch({ type: 'error', message: response.error });
+            return;
+          }
+          if (activeSessionIdRef.current !== preparedSessionId) {
+            return;
+          }
+        } catch (error) {
+          dispatch({ type: 'error', message: formatError(error) });
+          return;
+        } finally {
+          modelSwitchInFlightRef.current = false;
+        }
+      }
       const nextThinkingLevel =
         resolveThinkingLevelForModel(
           nextModel,
@@ -1817,7 +1893,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       setThinkingLevel(nextThinkingLevel);
       persistComposerProfile(nextModelKey, nextThinkingLevel);
     },
-    [config?.thinking?.ultraEnabled, modelOptions, persistComposerProfile, thinkingLevel],
+    [
+      config?.thinking?.ultraEnabled,
+      dispatch,
+      hostClient,
+      modelOptions,
+      persistComposerProfile,
+      selectedModelKey,
+      state.activeSessionId,
+      state.compacting,
+      state.contextUsage,
+      state.streaming,
+      thinkingLevel,
+    ],
   );
 
   const handleThinkingLevelChange = useCallback(
@@ -2037,7 +2125,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // surface owns its own half-wired dispatcher set anymore.
   const handleRetryMessage = useCallback(
     (messageId: string): void => {
-      const msg = state.messages.find((m) => m.id === messageId);
+      const visibleMessages = state.historyView?.messages ?? state.messages;
+      const msg = visibleMessages.find((message) => message.id === messageId);
       if (!msg) return;
       if (preferences.dontAskRevertConfirm) {
         void handleRetryFromMessage(messageId);
@@ -2045,7 +2134,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       }
       setPendingRevertEdit({ messageId, text: msg.text, isEdit: false });
     },
-    [handleRetryFromMessage, preferences.dontAskRevertConfirm, state.messages],
+    [
+      handleRetryFromMessage,
+      preferences.dontAskRevertConfirm,
+      state.historyView,
+      state.messages,
+    ],
   );
 
   const desktopContextMenuValue = useMemo<DesktopContextMenuValue>(() => {
@@ -2554,6 +2648,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       .join(',');
     return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}:ah${artifactHeightTick}`;
   }, [state.runPhase, state.messages, sessionTools, artifactHeightTick]);
+
+  const historyViewActive = state.historyView !== null;
+  const visibleTranscriptMessages = state.historyView?.messages ?? state.messages;
+  const visibleRunRecordsById = state.historyView?.runRecordsById ?? state.runRecordsById;
 
   const selectedModelLabel = useMemo(() => {
     if (!selectedModelKey) {
@@ -3299,17 +3397,24 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 ) : null}
                 <TranscriptViewport
                   key={state.activeSessionId ?? 'no-session'}
-                  messageCount={state.messages.length}
-                  activitySignal={activitySignal}
-                  messages={state.messages}
+                  messageCount={visibleTranscriptMessages.length}
+                  activitySignal={historyViewActive ? 'history-view' : activitySignal}
+                  messages={visibleTranscriptMessages}
+                  historyIndex={state.userMessageIndex}
+                  onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
+                  historyViewActive={historyViewActive}
+                  onReturnToLatest={handleReturnToLiveTranscript}
                   canLoadOlder={
+                    !historyViewActive &&
                     state.transcriptWindow?.olderCursor !== undefined &&
                     state.transcriptWindow.cacheLimitReached !== true
                   }
                   historyLoading={transcriptHistoryLoading}
                   onLoadOlder={handleLoadOlderTranscript}
                   locale={desktopLocale}
-                  turnAnchorMessageId={state.streaming ? lastUserMessageId : null}
+                  turnAnchorMessageId={
+                    !historyViewActive && state.streaming ? lastUserMessageId : null
+                  }
                   {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
                 >
                   <ArtifactHeightSignalProvider value={artifactHeightSignal}>
@@ -3319,19 +3424,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                      * Host returns a run id, and ChatThread owns the waiting
                      * activity locator for that state.
                      */}
-                    {state.messages.length > 0 || state.streaming ? (
+                    {visibleTranscriptMessages.length > 0 ||
+                    (!historyViewActive && state.streaming) ? (
                       <ChatThread
-                        messages={state.messages}
+                        messages={visibleTranscriptMessages}
                         {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
-                        streaming={state.streaming}
+                        streaming={!historyViewActive && state.streaming}
                         activeSessionId={state.activeSessionId}
                         editingMessageId={editingMessageId}
                         lastUserMessageId={lastUserMessageId}
                         activeTheme={activeTheme}
                         artifactThemeKey={artifactThemeKey}
-                        runRecordsById={state.runRecordsById}
-                        activeRunId={state.activeRunId}
-                        activeSkill={state.activeSkill}
+                        runRecordsById={visibleRunRecordsById}
+                        activeRunId={historyViewActive ? null : state.activeRunId}
+                        activeSkill={historyViewActive ? null : state.activeSkill}
                         {...(preferences.agentLocatorAnimation
                           ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
                           : {})}

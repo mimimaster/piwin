@@ -18,7 +18,6 @@ import type {
 } from '@piwin/contracts';
 import { ProviderAddDialog } from './provider-add-dialog.js';
 import { ProviderDrawer } from './provider-drawer.js';
-import { ProviderKeyManagerDialog } from './ProviderKeyManagerDialog.js';
 import { ProviderList, type ModelTestState } from './provider-list.js';
 import {
   allocateUniqueProviderId,
@@ -30,7 +29,6 @@ import { useDesktopLocale } from './desktop-locale-context.js';
 import { useConfirmDialog } from './use-confirm-dialog.js';
 import {
   draftToProvider,
-  oneShotApiKeyFromDraft,
   providerToDraft,
   resolveDefaultAfterProviderChange,
   type ProviderDraft,
@@ -57,8 +55,6 @@ export type ProviderSettingsProps = {
   ) => Promise<{ durationMs: number }>;
   /** Persist secret to host keychain; returns apiKeyRef. */
   onStoreSecret: (providerId: string, secret: string) => Promise<string>;
-  /** Load multi-line secret for key manager. */
-  onLoadSecret: (providerId: string) => Promise<string | null>;
   searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
 };
 
@@ -72,7 +68,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     onDiscoverModels,
     onTestModel,
     onStoreSecret,
-    onLoadSecret,
     searchCatalog,
   } = props;
   const { locale, translator } = useDesktopLocale();
@@ -85,7 +80,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const [filter, setFilter] = useState<'all' | 'on' | 'off'>('all');
   const [drawer, setDrawer] = useState<{ draft: ProviderDraft; isNew: boolean } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [keyManagerOpen, setKeyManagerOpen] = useState(false);
   const [testStatus, setTestStatus] = useState<Record<string, ProviderTestStatus>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
   const testInFlightRef = useRef(false);
@@ -123,24 +117,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     setDrawer({ ...drawer, draft: next });
   }
 
-  async function storeOneShotKeyIfNeeded(draft: ProviderDraft): Promise<ProviderDraft> {
-    const oneShot = oneShotApiKeyFromDraft(draft);
-    if (!oneShot) return draft;
-    const apiKeyRef = await onStoreSecret(draft.id.trim(), oneShot);
-    return { ...draft, apiKeyInput: '', storedApiKeyEnv: '', storedApiKeyRef: apiKeyRef };
-  }
-
-  async function testManagedKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
-    if (!drawer) return { ok: false, message: copy.detectFail };
-    try {
-      const result = await onDiscoverModels(draftToProvider(drawer.draft), { apiKey });
-      return { ok: true, message: copy.detectOk(result.models.length) };
-    } catch (error) {
-      const message = formatError(error);
-      return { ok: false, message: `${copy.detectFail}: ${message}` };
-    }
-  }
-
   async function handleTestConnection(): Promise<void> {
     if (!drawer || testInFlightRef.current) return;
     const id = drawer.draft.id;
@@ -148,15 +124,10 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     setTestingId(id);
     const start = performance.now();
     try {
-      let current = drawer.draft;
-      const oneShot = oneShotApiKeyFromDraft(current);
-      if (oneShot) {
-        current = await storeOneShotKeyIfNeeded(current);
-        markDraft(current);
-      }
+      const apiKey = drawer.draft.apiKeyInput.trim();
       const result = await onDiscoverModels(
-        draftToProvider(current),
-        oneShot ? { apiKey: oneShot } : undefined,
+        draftToProvider(drawer.draft),
+        apiKey ? { apiKey } : undefined,
       );
       const duration = Math.round(performance.now() - start);
       const nextStatus: ProviderTestStatus = {
@@ -212,10 +183,10 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
 
     let current = draft;
-    const oneShot = oneShotApiKeyFromDraft(draft);
-    if (oneShot) {
-      current = await storeOneShotKeyIfNeeded(current);
-      markDraft(current);
+    const enteredApiKey = draft.apiKeyInput.trim();
+    if (enteredApiKey) {
+      const apiKeyRef = await onStoreSecret(draft.id.trim(), enteredApiKey);
+      current = { ...draft, apiKeyInput: '', storedApiKeyEnv: '', storedApiKeyRef: apiKeyRef };
     }
 
     const provider = draftToProvider(current);
@@ -479,8 +450,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
           onDelete={handleDeleteFromDrawer}
           onDraftChange={markDraft}
           onTestConnection={handleTestConnection}
-          onOpenKeyManager={() => setKeyManagerOpen(true)}
-          onLoadSecret={onLoadSecret}
         />
       )}
 
@@ -495,20 +464,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         onAdd={handleAddFromPreset}
       />
 
-      <ProviderKeyManagerDialog
-        open={keyManagerOpen}
-        onOpenChange={setKeyManagerOpen}
-        providerId={drawer?.draft.id ?? ''}
-        providerName={drawer?.draft.name ?? ''}
-        loadSecret={onLoadSecret}
-        saveSecret={onStoreSecret}
-        testKey={testManagedKey}
-        onSaved={(apiKeyRef) => {
-          if (drawer) {
-            markDraft({ ...drawer.draft, storedApiKeyRef: apiKeyRef, apiKeyInput: '' });
-          }
-        }}
-      />
     </>
   );
 }

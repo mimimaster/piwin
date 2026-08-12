@@ -17,12 +17,26 @@ function makeProvider(partial: Partial<ModelProviderConfig> & { id: string }): M
 }
 
 describe('provider-draft', () => {
-  it('draftToProvider strips one-shot apiKeyInput and keeps stored key refs', () => {
+  it('draftToProvider never serializes the raw API key input', () => {
     const draft = providerToDraft(makeProvider({ id: 'a', apiKeyRef: 'ref-123' }));
-    draft.apiKeyInput = 'one-shot-key';
+    draft.apiKeyInput = 'raw-api-key';
     const provider = draftToProvider(draft);
     expect(provider.apiKeyRef).toBe('ref-123');
     expect((provider as { apiKeyInput?: string }).apiKeyInput).toBeUndefined();
+  });
+
+  it('treats a keychain ref as the single authoritative key source', () => {
+    const provider = makeProvider({
+      id: 'a',
+      apiKeyEnv: 'STALE_API_KEY_ENV',
+      apiKeyRef: 'ref-123',
+    });
+    const draft = providerToDraft(provider);
+    expect(draft.storedApiKeyEnv).toBe('');
+
+    const saved = draftToProvider(draft);
+    expect(saved.apiKeyRef).toBe('ref-123');
+    expect(saved.apiKeyEnv).toBeUndefined();
   });
 
   it('providerToDraft preserves enabled and apiKeyRef', () => {

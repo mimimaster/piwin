@@ -18,6 +18,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
+import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
 import { isNearBottom, useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
 import { TranscriptScrollProvider } from './transcript-scroll-port';
@@ -33,6 +34,11 @@ export type TranscriptViewportProps = {
   messageCount: number;
   activitySignal: string;
   messages?: ChatMessageUi[];
+  historyIndex?: SessionUserMessageIndexData | null;
+  onJumpToHistoryAnchor?: (anchor: SessionUserMessageAnchor) => Promise<void> | void;
+  /** A bounded anchor window is visible while the live tail stays resident. */
+  historyViewActive?: boolean;
+  onReturnToLatest?: () => void;
   sessionId?: string;
   canLoadOlder?: boolean;
   historyLoading?: boolean;
@@ -47,9 +53,9 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const locale = props.locale ?? 'zh-CN';
   // Keep the most recent submitted turn anchored after the terminal event so
   // a short answer does not immediately sink back toward the composer.
-  const [retainedTurnAnchorMessageId, setRetainedTurnAnchorMessageId] = useState<
-    string | null
-  >(props.turnAnchorMessageId ?? null);
+  const [retainedTurnAnchorMessageId, setRetainedTurnAnchorMessageId] = useState<string | null>(
+    props.turnAnchorMessageId ?? null,
+  );
   const releaseTurnAnchor = useCallback((): void => {
     setRetainedTurnAnchorMessageId(null);
   }, []);
@@ -207,10 +213,13 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
 
   const handleJumpToLatest = useCallback((): void => {
     releaseTurnAnchor();
+    props.onReturnToLatest?.();
     // Remove the temporary tail spacer before resolving the real transcript
     // bottom; otherwise the first write would land inside blank reserve space.
     window.requestAnimationFrame(() => scroll.jumpToLatest());
-  }, [releaseTurnAnchor, scroll]);
+  }, [props.onReturnToLatest, releaseTurnAnchor, scroll]);
+
+  const showJumpToLatest = props.historyViewActive === true || scroll.showJumpToLatest;
 
   return (
     <TranscriptScrollProvider
@@ -219,7 +228,11 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
       notifyContentGrew={scroll.notifyContentGrew}
     >
       <div className="transcript-viewport">
-        <HistoryTicksDrawer messages={props.messages} />
+        <HistoryTicksDrawer
+          messages={props.messages}
+          historyIndex={props.historyIndex}
+          onJumpToAnchor={props.onJumpToHistoryAnchor}
+        />
         <div
           className="chat-stream"
           data-testid="chat-stream"
@@ -241,29 +254,37 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
             />
           ) : null}
         </div>
-        {scroll.showJumpToLatest ? (
+        {showJumpToLatest ? (
           <button
             type="button"
             className="jump-to-latest-btn"
             data-testid="jump-to-latest-btn"
             onClick={handleJumpToLatest}
             aria-label={
-              retainedTurnAnchorMessageId
+              props.historyViewActive
                 ? locale === 'zh-CN'
-                  ? '跟随最新回复'
-                  : 'Follow latest response'
-                : locale === 'zh-CN'
-                  ? '跳到最新'
-                  : 'Jump to latest'
+                  ? '返回最新消息'
+                  : 'Return to latest messages'
+                : retainedTurnAnchorMessageId
+                  ? locale === 'zh-CN'
+                    ? '跟随最新回复'
+                    : 'Follow latest response'
+                  : locale === 'zh-CN'
+                    ? '跳到最新'
+                    : 'Jump to latest'
             }
           >
-            {retainedTurnAnchorMessageId
+            {props.historyViewActive
               ? locale === 'zh-CN'
-                ? '跟随最新'
-                : 'Follow latest'
-              : locale === 'zh-CN'
-                ? '跳到最新'
-                : 'Jump to latest'}
+                ? '返回最新'
+                : 'Back to latest'
+              : retainedTurnAnchorMessageId
+                ? locale === 'zh-CN'
+                  ? '跟随最新'
+                  : 'Follow latest'
+                : locale === 'zh-CN'
+                  ? '跳到最新'
+                  : 'Jump to latest'}
           </button>
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}

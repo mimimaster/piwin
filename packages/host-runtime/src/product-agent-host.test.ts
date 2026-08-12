@@ -47,4 +47,17 @@ describe('ProductAgentHost', () => {
     expect(receivedModel).toEqual(expectedModel);
     await host.dispose();
   });
+
+  it('detaches only the expected quarantined session handle', async () => {
+    const host = new ProductAgentHost({ mode: 'sdk', mock: true });
+    const session = await host.createSession({ scope: { kind: 'general' } });
+    const differentSession = await host.createSession({ scope: { kind: 'general' } });
+
+    expect(host.detachSessionHandle(session.id, differentSession)).toBe(false);
+    expect(await host.resumeSession(session.id)).toBe(session);
+    expect(host.detachSessionHandle(session.id, session)).toBe(true);
+    await expect(host.resumeSession(session.id)).rejects.toThrow('is not live');
+
+    await host.dispose();
+  });
 });

@@ -247,6 +247,13 @@
   letter-spacing: 0.01em;
 }
 
+.history-bubble-position {
+  margin: -2px 0 6px;
+  font-size: 10px;
+  color: color-mix(in srgb, var(--text) 46%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
 .history-bubble-text {
   font-size: 13px;
   line-height: 1.45;
