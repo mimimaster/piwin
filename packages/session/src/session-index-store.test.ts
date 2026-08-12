@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionIndexDocument, SessionIndexRecord } from '@piwin/contracts';
 import {
   archiveSessionRecord,
+  archiveSessionRecordIfUnchanged,
   createSessionRecord,
   deleteSessionRecord,
   listSessionsForProject,
@@ -117,6 +118,89 @@ describe('session-index-store', () => {
       includeArchived: true,
     });
     expect(afterDelete.map((item) => item.id)).toEqual(['s2']);
+  });
+
+  it('conditionally archives only the unchanged, unpinned main session snapshot', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-conditional-archive-'));
+    const filePath = join(dir, 'index.json');
+    const record = createSessionRecord({
+      id: 'main-conditional',
+      projectPath: '/tmp/proj',
+      name: 'Conditional',
+      kind: 'main',
+    });
+    record.updatedAt = '2026-08-01T00:00:00.000Z';
+    await upsertSessionRecord(filePath, record);
+
+    await expect(
+      archiveSessionRecordIfUnchanged(filePath, {
+        sessionId: record.id,
+        expectedUpdatedAt: '2026-07-31T00:00:00.000Z',
+      }),
+    ).resolves.toEqual({ status: 'changed' });
+
+    await pinSessionRecord(filePath, record.id);
+    const pinnedRecord = (await loadSessionIndex(filePath)).sessions[0];
+    if (!pinnedRecord) throw new Error('expected pinned record');
+    await expect(
+      archiveSessionRecordIfUnchanged(filePath, {
+        sessionId: record.id,
+        expectedUpdatedAt: pinnedRecord.updatedAt,
+      }),
+    ).resolves.toEqual({ status: 'protected' });
+
+    await unpinSessionRecord(filePath, record.id);
+    const unpinnedRecord = (await loadSessionIndex(filePath)).sessions[0];
+    if (!unpinnedRecord) throw new Error('expected unpinned record');
+    const result = await archiveSessionRecordIfUnchanged(filePath, {
+      sessionId: record.id,
+      expectedUpdatedAt: unpinnedRecord.updatedAt,
+    });
+    expect(result.status).toBe('archived');
+  });
+
+  it('updates dependent side-chat state in the same archive, restore, and delete mutations', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-side-state-'));
+    const filePath = join(dir, 'index.json');
+    const main = createSessionRecord({
+      id: 'main-source',
+      projectPath: '/tmp/proj',
+      name: 'Main source',
+      kind: 'main',
+    });
+    const sideChat = createSessionRecord({
+      id: 'side-chat',
+      projectPath: '/tmp/proj',
+      name: 'Side chat',
+      kind: 'side-chat',
+      sideChatRelation: {
+        kind: 'side-chat',
+        sourceSessionId: main.id,
+        sourceCapturedAt: '2026-08-01T00:00:00.000Z',
+        sourceState: 'active',
+        contextVersion: 1,
+      },
+    });
+    await upsertSessionRecord(filePath, main);
+    await upsertSessionRecord(filePath, sideChat);
+
+    await archiveSessionRecord(filePath, main.id);
+    expect(
+      (await loadSessionIndex(filePath)).sessions.find((record) => record.id === sideChat.id)
+        ?.sideChatRelation?.sourceState,
+    ).toBe('archived');
+
+    await unarchiveSessionRecord(filePath, main.id);
+    expect(
+      (await loadSessionIndex(filePath)).sessions.find((record) => record.id === sideChat.id)
+        ?.sideChatRelation?.sourceState,
+    ).toBe('active');
+
+    await deleteSessionRecord(filePath, main.id);
+    expect(
+      (await loadSessionIndex(filePath)).sessions.find((record) => record.id === sideChat.id)
+        ?.sideChatRelation?.sourceState,
+    ).toBe('missing');
   });
 
   it('legacy string project filter excludes general-scope sessions', async () => {

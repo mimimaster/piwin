@@ -326,7 +326,29 @@ function normalizeSessionConfig(value: unknown, defaults: SessionConfig): Sessio
         : {}),
     });
   }
+  const lifecycle = asRecord(record.lifecycle);
+  const archive = asRecord(lifecycle?.archive);
+  if (archive) {
+    const normalizedArchive: NonNullable<NonNullable<SessionConfig['lifecycle']>['archive']> = {};
+    if (isPositiveInteger(archive.maxInactiveDays)) {
+      normalizedArchive.maxInactiveDays = archive.maxInactiveDays;
+    }
+    if (isNonNegativeInteger(archive.maxActiveMainSessions)) {
+      normalizedArchive.maxActiveMainSessions = archive.maxActiveMainSessions;
+    }
+    if (Object.keys(normalizedArchive).length > 0) {
+      config.lifecycle = { archive: normalizedArchive };
+    }
+  }
   return config;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 /**
@@ -685,7 +707,6 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
   }
   return normalized;
 }
-
 
 function normalizeSearchRoutePolicy(
   value: unknown,

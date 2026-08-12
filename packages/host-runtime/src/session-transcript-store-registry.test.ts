@@ -140,6 +140,97 @@ describe('SessionTranscriptStoreRegistry', () => {
     registry.closeAll();
   });
 
+  it('rejects a try-maintenance lease while a command owns the Store', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-maintenance-busy-'));
+    const registry = createSessionTranscriptStoreRegistry({ rootDir });
+    let releaseCommand: (() => void) | undefined;
+    const commandGate = new Promise<void>((resolve) => {
+      releaseCommand = resolve;
+    });
+    let storeReady: (() => void) | undefined;
+    const ready = new Promise<void>((resolve) => {
+      storeReady = resolve;
+    });
+    const command = registry.withCommandLease(
+      async () => {
+        await registry.get('maintenance-busy', '/project');
+        storeReady?.();
+        await commandGate;
+      },
+      () => true,
+    );
+    await ready;
+
+    await expect(
+      registry.tryWithMaintenanceLease('maintenance-busy', async () => 'unexpected'),
+    ).resolves.toEqual({ acquired: false });
+
+    releaseCommand?.();
+    await command;
+    registry.closeAll();
+  });
+
+  it('blocks new Store access while maintenance owns the session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-maintenance-lock-'));
+    const registry = createSessionTranscriptStoreRegistry({ rootDir });
+    await registry.withMaintenanceLease('maintenance-lock', async () => {
+      await expect(registry.get('maintenance-lock', '/project')).rejects.toThrow(
+        /under maintenance/,
+      );
+    });
+    registry.closeAll();
+  });
+
+  it('serializes concurrent maintenance operations for the same session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-maintenance-queue-'));
+    const registry = createSessionTranscriptStoreRegistry({ rootDir });
+    let releaseFirst: (() => void) | undefined;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const order: string[] = [];
+    const first = registry.withMaintenanceLease('maintenance-queue', async () => {
+      order.push('first-start');
+      await firstGate;
+      order.push('first-end');
+    });
+    const second = registry.withMaintenanceLease('maintenance-queue', async () => {
+      order.push('second-start');
+      order.push('second-end');
+    });
+
+    await vi.waitFor(() => expect(order).toEqual(['first-start']));
+    releaseFirst?.();
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(['first-start', 'first-end', 'second-start', 'second-end']);
+    registry.closeAll();
+  });
+
+  it('rejects queued maintenance after the registry closes', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-maintenance-close-'));
+    const registry = createSessionTranscriptStoreRegistry({ rootDir });
+    let releaseFirst: (() => void) | undefined;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const first = registry.withMaintenanceLease('maintenance-close', async () => {
+      firstStarted?.();
+      await firstGate;
+    });
+    const queued = registry.withMaintenanceLease('maintenance-close', async () => 'unexpected');
+    await started;
+    registry.closeAll();
+    releaseFirst?.();
+
+    await expect(first).resolves.toBeUndefined();
+    await expect(queued).rejects.toThrow(/closed/);
+  });
+
   it('fails closed when an existing database cannot verify the legacy source', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-interrupted-'));
     const sessionId = 'interrupted';

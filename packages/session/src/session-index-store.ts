@@ -1,5 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import type {
   SessionIndexDocument,
   SessionIndexRecord,
@@ -11,13 +13,11 @@ import type {
   ThinkingLevel,
   ModelRef,
 } from '@piwin/contracts';
-import {
-  isLegacyInternalSessionName,
-  isPlaceholderSessionName,
-} from './session-display-name.js';
+import { isLegacyInternalSessionName, isPlaceholderSessionName } from './session-display-name.js';
 
 /** Serializes read-modify-write cycles per index file (single-writer). */
 const indexWriteQueues = new Map<string, Promise<unknown>>();
+const INDEX_LOCK_WAIT_MILLISECONDS = 10_000;
 
 /**
  * Run a mutation against the index file behind a per-file lock so concurrent
@@ -28,7 +28,15 @@ const indexWriteQueues = new Map<string, Promise<unknown>>();
  */
 function withIndexWriteLock<T>(filePath: string, operation: () => Promise<T>): Promise<T> {
   const previous = indexWriteQueues.get(filePath) ?? Promise.resolve();
-  const next = previous.then(operation, operation);
+  const runWithFileLock = async (): Promise<T> => {
+    const releaseFileLock = await acquireIndexFileLock(filePath);
+    try {
+      return await operation();
+    } finally {
+      await releaseFileLock();
+    }
+  };
+  const next = previous.then(runWithFileLock, runWithFileLock);
   indexWriteQueues.set(
     filePath,
     next.then(
@@ -37,6 +45,66 @@ function withIndexWriteLock<T>(filePath: string, operation: () => Promise<T>): P
     ),
   );
   return next;
+}
+
+async function acquireIndexFileLock(filePath: string): Promise<() => Promise<void>> {
+  const lockPath = `${filePath}.lock`;
+  await mkdir(dirname(filePath), { recursive: true });
+  const deadline = Date.now() + INDEX_LOCK_WAIT_MILLISECONDS;
+  while (Date.now() < deadline) {
+    const temporaryLockPath = `${lockPath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFile(
+        temporaryLockPath,
+        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+        'utf8',
+      );
+      await link(temporaryLockPath, lockPath);
+      await rm(temporaryLockPath, { force: true });
+      return async () => {
+        await rm(lockPath, { force: true });
+      };
+    } catch (error) {
+      await rm(temporaryLockPath, { force: true });
+      if (!isAlreadyExists(error)) {
+        throw error;
+      }
+      if (await removeDeadIndexLock(lockPath)) {
+        continue;
+      }
+      await delay(25);
+    }
+  }
+  throw new Error(`Timed out waiting for session index lock: ${lockPath}`);
+}
+
+async function removeDeadIndexLock(lockPath: string): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(await readFile(lockPath, 'utf8')) as { pid?: unknown };
+    if (typeof parsed.pid === 'number' && isProcessAlive(parsed.pid)) {
+      return false;
+    }
+  } catch (error) {
+    if (isNotFound(error)) {
+      return false;
+    }
+  }
+  await rm(lockPath, { force: true });
+  return true;
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'EPERM'
+    );
+  }
 }
 
 function emptyDoc(): SessionIndexDocument {
@@ -115,7 +183,13 @@ export async function saveSessionIndex(
     version: 2,
     sessions: document.sessions,
   };
-  await writeFile(filePath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
+    await rename(temporaryPath, filePath);
+  } finally {
+    await rm(temporaryPath, { force: true });
+  }
 }
 
 export async function upsertSessionRecord(
@@ -462,7 +536,10 @@ export async function setSessionAutoName(
     if (source === 'text' && record.nameSource === 'text') {
       return undefined;
     }
-    record.name = options?.dedupe === false ? normalized : uniqueAutoName(document.sessions, sessionId, normalized);
+    record.name =
+      options?.dedupe === false
+        ? normalized
+        : uniqueAutoName(document.sessions, sessionId, normalized);
     record.nameSource = source;
     // Auto-name is metadata-only; do not bump updatedAt so sort order stays stable.
     await saveSessionIndex(filePath, document);
@@ -496,11 +573,7 @@ export async function repairLegacyTextSessionName(
   return withIndexWriteLock(filePath, async () => {
     const document = await loadSessionIndex(filePath);
     const record = document.sessions.find((item) => item.id === sessionId);
-    if (
-      !record ||
-      record.nameSource !== 'text' ||
-      !isLegacyInternalSessionName(record.name)
-    ) {
+    if (!record || record.nameSource !== 'text' || !isLegacyInternalSessionName(record.name)) {
       return undefined;
     }
     record.name = uniqueAutoName(document.sessions, sessionId, normalized);
@@ -525,8 +598,43 @@ export async function archiveSessionRecord(
     // Archived sessions drop pin so they do not reappear as pinned when restored unexpectedly.
     record.isPinned = false;
     delete record.pinnedAt;
+    markDependentSideChats(document.sessions, sessionId, 'archived');
     await saveSessionIndex(filePath, document);
     return record;
+  });
+}
+
+export type ConditionalSessionArchiveResult =
+  | { status: 'archived'; record: SessionIndexRecord }
+  | { status: 'missing' | 'already-archived' | 'changed' | 'protected' };
+
+/** Apply one lifecycle candidate only while its durable snapshot is unchanged. */
+export async function archiveSessionRecordIfUnchanged(
+  filePath: string,
+  input: { sessionId: string; expectedUpdatedAt: string },
+): Promise<ConditionalSessionArchiveResult> {
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === input.sessionId);
+    if (!record) {
+      return { status: 'missing' };
+    }
+    if (record.isArchived === true) {
+      return { status: 'already-archived' };
+    }
+    if (record.updatedAt !== input.expectedUpdatedAt) {
+      return { status: 'changed' };
+    }
+    if (record.isPinned === true || (record.kind !== undefined && record.kind !== 'main')) {
+      return { status: 'protected' };
+    }
+    record.isArchived = true;
+    record.archivedAt = nowIso();
+    record.isPinned = false;
+    delete record.pinnedAt;
+    markDependentSideChats(document.sessions, record.id, 'archived');
+    await saveSessionIndex(filePath, document);
+    return { status: 'archived', record };
   });
 }
 
@@ -542,6 +650,9 @@ export async function unarchiveSessionRecord(
     }
     record.isArchived = false;
     delete record.archivedAt;
+    if (record.kind === undefined || record.kind === 'main') {
+      markDependentSideChats(document.sessions, sessionId, 'active');
+    }
     await saveSessionIndex(filePath, document);
     return record;
   });
@@ -562,9 +673,29 @@ export async function deleteSessionRecord(
       return undefined;
     }
     const [removed] = document.sessions.splice(index, 1);
+    markDependentSideChats(document.sessions, sessionId, 'missing');
     await saveSessionIndex(filePath, document);
     return removed;
   });
+}
+
+function markDependentSideChats(
+  records: SessionIndexRecord[],
+  sourceSessionId: string,
+  sourceState: 'active' | 'archived' | 'missing',
+): void {
+  for (const record of records) {
+    if (
+      record.kind === 'side-chat' &&
+      record.sideChatRelation?.sourceSessionId === sourceSessionId &&
+      record.sideChatRelation.sourceState !== sourceState
+    ) {
+      record.sideChatRelation = {
+        ...record.sideChatRelation,
+        sourceState,
+      };
+    }
+  }
 }
 
 /**
@@ -616,5 +747,14 @@ function isNotFound(error: unknown): boolean {
     typeof error === 'object' &&
     'code' in error &&
     (error as { code?: string }).code === 'ENOENT',
+  );
+}
+
+function isAlreadyExists(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === 'EEXIST',
   );
 }

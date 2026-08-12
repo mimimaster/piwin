@@ -99,6 +99,48 @@ describe('config-store', () => {
     expect(loaded.session).toEqual(config.session);
   });
 
+  it('round-trips valid session lifecycle archive thresholds', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-session-lifecycle-config-'));
+    const config = createDefaultPiwinConfig();
+    config.session = {
+      lifecycle: {
+        archive: {
+          maxInactiveDays: 30,
+          maxActiveMainSessions: 20,
+        },
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.session?.lifecycle?.archive).toEqual({
+      maxInactiveDays: 30,
+      maxActiveMainSessions: 20,
+    });
+  });
+
+  it('drops invalid session lifecycle archive thresholds', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-session-lifecycle-invalid-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      `${JSON.stringify({
+        version: 1,
+        session: {
+          lifecycle: {
+            archive: {
+              maxInactiveDays: 0,
+              maxActiveMainSessions: -1,
+            },
+          },
+        },
+      })}\n`,
+      'utf8',
+    );
+
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.session?.lifecycle).toBeUndefined();
+  });
+
   it('round-trips visionDelegation, imageGeneration, videoGeneration, and speech', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
     const config = createDefaultPiwinConfig();

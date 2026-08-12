@@ -139,6 +139,8 @@ import {
 
 import {
   createSessionRecord,
+  archiveSessionRecord,
+  archiveSessionRecordIfUnchanged,
   deriveDefaultNameFromMessage,
   isPlaceholderSessionName,
   getSessionRecord,
@@ -163,6 +165,7 @@ import type {
   ContextUsageSnapshot,
   SessionPlan,
   SessionResumeData,
+  SessionIndexRecord,
   SessionTranscriptMessage,
   UsageRecord,
 } from '@piwin/contracts';
@@ -183,6 +186,14 @@ import {
   type ProductAgentHostToolRegistrationMode,
 } from './product-agent-host.js';
 import { loadPiwinConfig, savePiwinConfig } from './config-store.js';
+import { permanentlyDeleteSession } from './session-delete-service.js';
+import {
+  hasForeignLiveSessionRuntime,
+  registerSessionRuntimeLease,
+  releaseSessionRuntimeLease,
+  tryWithSessionOperationLock,
+  withSessionOperationLock,
+} from './session-runtime-lease.js';
 import { maybeAutoNameSession } from './session-naming-service.js';
 import { createSecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
@@ -331,6 +342,7 @@ type ComposedSessionHostTools = {
 };
 
 export class HostRuntime {
+  private readonly runtimeLeaseOwnerId = `host-${process.pid}-${randomUUID()}`;
   private readonly host: ProductAgentHost;
   private readonly sessions = new Map<string, SessionHandle>();
   /**
@@ -338,6 +350,8 @@ export class HostRuntime {
    * session id so simultaneous prompts/resumes share one in-flight transition.
    */
   private readonly sessionActivationPromises = new Map<string, Promise<SessionHandle>>();
+  /** Blocks runtime activation while durable archive/delete maintenance runs. */
+  private readonly sessionMaintenanceSessions = new Set<string>();
   /** Complete suspension transactions, shared by eviction and prompt races. */
   private readonly sessionSuspensionPromises = new Map<string, Promise<boolean>>();
   /**
@@ -938,7 +952,8 @@ export class HostRuntime {
       }
     }
     this.unsubscribers.clear();
-    for (const sessionId of this.sessions.keys()) {
+    const residentSessionIds = [...this.sessions.keys()];
+    for (const sessionId of residentSessionIds) {
       this.runEventCorrelator.clear(sessionId);
       this.eventEnvelopeGenerators.delete(sessionId);
     }
@@ -988,6 +1003,13 @@ export class HostRuntime {
     } catch (error) {
       shutdownErrors.push(error);
     }
+    await Promise.all(
+      residentSessionIds.map((sessionId) =>
+        this.releaseRuntimeLease(sessionId).catch((error: unknown) => {
+          shutdownErrors.push(error);
+        }),
+      ),
+    );
     // ADR 0040: stop the residency sweep timer and reject pending waiters.
     this.residencyController.dispose();
     this.subagentSessionContexts.clear();
@@ -3403,6 +3425,9 @@ export class HostRuntime {
           this.withTranscriptStore(sessionId, operation, projectPath),
         abortLiveSession: (sessionId) => this.abortLiveSession(sessionId),
         disposeLiveSession: (sessionId) => this.disposeLiveSession(sessionId),
+        archiveSession: (sessionId) => this.archiveSessionForMaintenance(sessionId),
+        tryArchiveLifecycleCandidate: (input) => this.tryArchiveLifecycleCandidate(input),
+        deleteSession: (sessionId) => this.deleteSessionForMaintenance(sessionId),
         bindSession: (session, projectPath, sessionName, lineage) =>
           this.bindSession(session, projectPath, sessionName, lineage),
         push: (message) => this.push(message),
@@ -3780,6 +3805,14 @@ export class HostRuntime {
       this.pendingDirectActivations.delete(session.id);
       this.residencyController.commitActivation(session.id, pendingDirectGeneration);
     }
+    await registerSessionRuntimeLease({
+      rootDir: getPiwinRoot(this.options.piwinRoot),
+      sessionId: session.id,
+      owner: {
+        ownerId: this.runtimeLeaseOwnerId,
+        pid: process.pid,
+      },
+    });
 
     // Apply durable auto-compaction default (or session override) when handle supports it.
     void this.applyAutoCompactionToSession(session).catch((error: unknown) => {
@@ -4130,6 +4163,9 @@ export class HostRuntime {
     runId?: string,
     signal?: AbortSignal,
   ): Promise<SessionHandle> {
+    if (this.sessionMaintenanceSessions.has(sessionId)) {
+      return Promise.reject(new Error(`Session is under lifecycle maintenance: ${sessionId}`));
+    }
     const suspension = this.sessionSuspensionPromises.get(sessionId);
     if (suspension) {
       return suspension.then(() => this.activateSessionRuntime(sessionId, runId, signal));
@@ -4142,7 +4178,23 @@ export class HostRuntime {
     if (inFlight) {
       return inFlight;
     }
-    const activation = this.doActivateSessionRuntime(sessionId, runId, signal).finally(() => {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const activation = withSessionOperationLock({
+      rootDir,
+      sessionId,
+      operation: async () => {
+        if (
+          await hasForeignLiveSessionRuntime({
+            rootDir,
+            sessionId,
+            ownerId: this.runtimeLeaseOwnerId,
+          })
+        ) {
+          throw new Error(`Session is active in another Host: ${sessionId}`);
+        }
+        return this.doActivateSessionRuntime(sessionId, runId, signal);
+      },
+    }).finally(() => {
       this.sessionActivationPromises.delete(sessionId);
     });
     this.sessionActivationPromises.set(sessionId, activation);
@@ -4160,6 +4212,12 @@ export class HostRuntime {
     const record = await getSessionRecord(indexPath, sessionId);
     if (!record) {
       throw new Error(`Unknown session: ${sessionId}`);
+    }
+    if (record.isArchived === true) {
+      throw new Error(`Archived session must be restored before activation: ${sessionId}`);
+    }
+    if (this.sessionMaintenanceSessions.has(sessionId)) {
+      throw new Error(`Session is under lifecycle maintenance: ${sessionId}`);
     }
     // 2. reserve residency capacity (ADR 0040 §4). Admission evicts idle
     // runtimes first (with the aggregate Host/worker RSS sample); a
@@ -4235,6 +4293,7 @@ export class HostRuntime {
       const recorder = this.transcriptRecorders.get(sessionId);
       recorder?.dispose();
       this.transcriptRecorders.delete(sessionId);
+      await this.releaseRuntimeLease(sessionId).catch(() => undefined);
       await this.host.dropSession(sessionId).catch((dropError: unknown) => {
         this.push({
           type: 'host/log',
@@ -4487,6 +4546,11 @@ export class HostRuntime {
     }
     this.runEventCorrelator.clear(sessionId);
     this.sessions.delete(sessionId);
+    try {
+      await this.releaseRuntimeLease(sessionId);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     this.coldStartHistoryBySession.delete(sessionId);
     if (recorder) {
       try {
@@ -4640,6 +4704,149 @@ export class HostRuntime {
     await this.stopProcessesForSession(sessionId);
   }
 
+  private async archiveSessionForMaintenance(
+    sessionId: string,
+  ): Promise<SessionIndexRecord | undefined> {
+    return this.withSessionMaintenance(sessionId, async () => {
+      await this.waitForSessionActivation(sessionId);
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      return withSessionOperationLock({
+        rootDir,
+        sessionId,
+        operation: async () => {
+          if (await this.hasForeignRuntimeLease(sessionId)) {
+            throw new Error(`Session is active in another Host: ${sessionId}`);
+          }
+          return this.transcriptStores.withMaintenanceLease(sessionId, async () => {
+            await this.disposeLiveSession(sessionId, 'manual');
+            return archiveSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+          });
+        },
+      });
+    });
+  }
+
+  private async tryArchiveLifecycleCandidate(input: {
+    sessionId: string;
+    expectedUpdatedAt: string;
+  }): Promise<
+    | { status: 'archived'; record: SessionIndexRecord }
+    | { status: 'busy' | 'missing' | 'already-archived' | 'changed' | 'protected' }
+  > {
+    if (this.isSessionLifecycleBusy(input.sessionId)) {
+      return { status: 'busy' };
+    }
+    if (this.sessionMaintenanceSessions.has(input.sessionId)) {
+      return { status: 'busy' };
+    }
+    this.sessionMaintenanceSessions.add(input.sessionId);
+    try {
+      if (this.isSessionLifecycleBusy(input.sessionId)) {
+        return { status: 'busy' };
+      }
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      const operationResult = await tryWithSessionOperationLock({
+        rootDir,
+        sessionId: input.sessionId,
+        operation: async () => {
+          if (
+            this.isSessionLifecycleBusy(input.sessionId) ||
+            (await this.hasForeignRuntimeLease(input.sessionId))
+          ) {
+            return { status: 'busy' } as const;
+          }
+          const leaseResult = await this.transcriptStores.tryWithMaintenanceLease(
+            input.sessionId,
+            async () => {
+              if (this.isSessionLifecycleBusy(input.sessionId)) {
+                return { status: 'busy' } as const;
+              }
+              return archiveSessionRecordIfUnchanged(getPiwinSessionIndexPath(rootDir), input);
+            },
+          );
+          return leaseResult.acquired ? leaseResult.value : { status: 'busy' as const };
+        },
+      });
+      return operationResult.acquired ? operationResult.value : { status: 'busy' };
+    } finally {
+      this.sessionMaintenanceSessions.delete(input.sessionId);
+    }
+  }
+
+  private async deleteSessionForMaintenance(
+    sessionId: string,
+  ): Promise<{ removed: SessionIndexRecord; cleanupWarning?: string } | undefined> {
+    return this.withSessionMaintenance(sessionId, async () => {
+      await this.waitForSessionActivation(sessionId);
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      return withSessionOperationLock({
+        rootDir,
+        sessionId,
+        operation: async () => {
+          if (await this.hasForeignRuntimeLease(sessionId)) {
+            throw new Error(`Session is active in another Host: ${sessionId}`);
+          }
+          return this.transcriptStores.withMaintenanceLease(sessionId, async () => {
+            await this.disposeLiveSession(sessionId, 'manual');
+            return permanentlyDeleteSession({
+              rootDir,
+              indexPath: getPiwinSessionIndexPath(rootDir),
+              sessionId,
+            });
+          });
+        },
+      });
+    });
+  }
+
+  private async withSessionMaintenance<T>(
+    sessionId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (this.sessionMaintenanceSessions.has(sessionId)) {
+      throw new Error(`Session is already under lifecycle maintenance: ${sessionId}`);
+    }
+    this.sessionMaintenanceSessions.add(sessionId);
+    try {
+      return await operation();
+    } finally {
+      this.sessionMaintenanceSessions.delete(sessionId);
+    }
+  }
+
+  private async waitForSessionActivation(sessionId: string): Promise<void> {
+    const activation = this.sessionActivationPromises.get(sessionId);
+    if (activation) {
+      await activation.catch(() => undefined);
+    }
+  }
+
+  private isSessionLifecycleBusy(sessionId: string): boolean {
+    return (
+      this.sessions.has(sessionId) ||
+      this.transcriptRecorders.has(sessionId) ||
+      this.sessionActivationPromises.has(sessionId) ||
+      this.sessionSuspensionPromises.has(sessionId) ||
+      this.isSessionRuntimeProtected(sessionId)
+    );
+  }
+
+  private hasForeignRuntimeLease(sessionId: string): Promise<boolean> {
+    return hasForeignLiveSessionRuntime({
+      rootDir: getPiwinRoot(this.options.piwinRoot),
+      sessionId,
+      ownerId: this.runtimeLeaseOwnerId,
+    });
+  }
+
+  private releaseRuntimeLease(sessionId: string): Promise<void> {
+    return releaseSessionRuntimeLease({
+      rootDir: getPiwinRoot(this.options.piwinRoot),
+      sessionId,
+      ownerId: this.runtimeLeaseOwnerId,
+    });
+  }
+
   private async disposeLiveSession(
     sessionId: string,
     reason: import('@piwin/contracts').SessionRuntimeEvictionReason = 'host-dispose',
@@ -4701,6 +4908,7 @@ export class HostRuntime {
     this.sessionAutoCompactionOverrides.delete(sessionId);
     this.sessionFilesTouched.delete(sessionId);
     await this.host.dropSession(sessionId);
+    await this.releaseRuntimeLease(sessionId);
     // §11.3: abort in-flight walkthrough generations for the disposed session.
     this.walkthroughRegistry.abortSession(sessionId);
     // ADR 0030 Phase B: stop session-lifetime Jobs when the session is disposed.
@@ -4741,9 +4949,10 @@ export class HostRuntime {
     }
 
     const recorder = this.transcriptRecorders.get(sessionId);
+    let recorderCleanup = Promise.resolve();
     if (recorder) {
       this.transcriptRecorders.delete(sessionId);
-      void (async () => {
+      recorderCleanup = (async () => {
         try {
           await recorder.flush();
         } catch (error) {
@@ -4783,13 +4992,15 @@ export class HostRuntime {
     this.sessionHostToolPort?.clearSession(sessionId);
 
     if (runtimeGenerationId !== undefined) {
-      void this.releaseQuarantinedRuntime(sessionId, runtimeGenerationId).catch((error: unknown) => {
-        this.push({
-          type: 'host/log',
-          level: 'warn',
-          message: `quarantined runtime cleanup failed: ${formatError(error)}`,
-        });
-      });
+      void this.releaseQuarantinedRuntime(sessionId, runtimeGenerationId).catch(
+        (error: unknown) => {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `quarantined runtime cleanup failed: ${formatError(error)}`,
+          });
+        },
+      );
     }
   }
 
@@ -4801,13 +5012,15 @@ export class HostRuntime {
       this.host.releaseSessionGeneration(sessionId, runtimeGenerationId),
       this.releaseGenerationToolSurface(sessionId, runtimeGenerationId),
     ]);
-    const failures = cleanupResults.filter(
+    const releaseLeaseResult = await Promise.allSettled([this.releaseRuntimeLease(sessionId)]);
+    const failures = [...cleanupResults, ...releaseLeaseResult].filter(
       (result): result is PromiseRejectedResult => result.status === 'rejected',
     );
     if (failures.length > 0) {
+      const generationLabel = runtimeGenerationId ?? 'untracked-generation';
       throw new AggregateError(
         failures.map((failure) => failure.reason),
-        `failed to release quarantined runtime ${sessionId}/${runtimeGenerationId}`,
+        `failed to release quarantined runtime ${sessionId}/${generationLabel}`,
       );
     }
   }
@@ -4885,10 +5098,26 @@ export class HostRuntime {
           // Direct create and cold activation share the same stable-identity
           // backend path. The reservation remains `activating` until bindSession
           // has installed the recorder/subscription and publishes the handle.
-          return await this.host.activateSession(sessionId, input, runtimeGenerationId, options);
+          const session = await this.host.activateSession(
+            sessionId,
+            input,
+            runtimeGenerationId,
+            options,
+          );
+          await registerSessionRuntimeLease({
+            rootDir: getPiwinRoot(this.options.piwinRoot),
+            sessionId,
+            owner: {
+              ownerId: this.runtimeLeaseOwnerId,
+              pid: process.pid,
+            },
+          });
+          return session;
         } catch (error) {
           this.pendingDirectActivations.delete(sessionId);
           this.residencyController.abortActivation(sessionId, runtimeGenerationId);
+          await this.releaseRuntimeLease(sessionId).catch(() => undefined);
+          await this.host.dropSession(sessionId).catch(() => undefined);
           throw error;
         }
       }

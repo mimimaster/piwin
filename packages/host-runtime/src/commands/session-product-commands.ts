@@ -12,10 +12,13 @@ import type {
   ProductSessionOrigin,
   SessionHandle,
   SessionIndexRecord,
+  SessionLifecycleApplyResult,
+  SessionLifecycleApplySkipReason,
+  SessionLifecyclePlan,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import {
-  archiveSessionRecord,
+  createSessionLifecyclePlan,
   deleteSessionRecord,
   deriveDefaultNameFromMessage,
   buildDuplicateSessionName,
@@ -24,6 +27,7 @@ import {
   createSessionRecord,
   getSessionRecord,
   listSessionsForProject,
+  loadSessionIndex,
   createSessionIndexPage,
   SessionIndexCursorError,
   pinSessionRecord,
@@ -36,17 +40,17 @@ import {
   filterListableSessions,
   type SessionTranscriptStore,
 } from '@piwin/session';
-import { markSideChatSourceState } from '@piwin/session';
 import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
+  getPiwinMediaDir,
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
-  getPiwinSessionMediaDir,
 } from '../paths.js';
+import { loadPiwinConfig } from '../config-store.js';
 import { resolveListFilter } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
@@ -71,6 +75,16 @@ export type SessionProductCommandContext = {
    * Abort + drop live maps/recorders for permanent delete.
    */
   disposeLiveSession: (sessionId: string) => Promise<void>;
+  archiveSession: (sessionId: string) => Promise<SessionIndexRecord | undefined>;
+  tryArchiveLifecycleCandidate: (input: {
+    sessionId: string;
+    expectedUpdatedAt: string;
+  }) => Promise<
+    { status: 'archived'; record: SessionIndexRecord } | { status: SessionLifecycleApplySkipReason }
+  >;
+  deleteSession: (
+    sessionId: string,
+  ) => Promise<{ removed: SessionIndexRecord; cleanupWarning?: string } | undefined>;
   bindSession: (
     session: SessionHandle,
     projectPath?: string,
@@ -91,6 +105,8 @@ const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/auto-name',
   'session/archive',
   'session/unarchive',
+  'session/lifecycle-plan',
+  'session/lifecycle-apply',
   'session/delete',
   'session/duplicate',
   'session/fork',
@@ -233,13 +249,10 @@ export async function handleSessionProductCommand(
       });
     }
     case 'session/archive': {
-      const record = await archiveSessionRecord(indexPath, command.sessionId);
+      const record = await context.archiveSession(command.sessionId);
       if (!record) {
         return fail(requestId, 'session/archive', `Unknown session: ${command.sessionId}`);
       }
-      await context.abortLiveSession(command.sessionId);
-      // SIDE §11.3: mark dependent side chats' source state as 'archived'.
-      await markSideChatSourceState(indexPath, command.sessionId, 'archived');
       return ok(requestId, 'session/archive', {
         sessionId: record.id,
         isArchived: true,
@@ -247,15 +260,47 @@ export async function handleSessionProductCommand(
         session: indexRecordToSummary(record),
       });
     }
+    case 'session/lifecycle-plan': {
+      const plan = await buildCurrentLifecyclePlan(rootDir, indexPath);
+      return ok(requestId, 'session/lifecycle-plan', plan);
+    }
+    case 'session/lifecycle-apply': {
+      const plan = await buildCurrentLifecyclePlan(rootDir, indexPath);
+      if (plan.planId !== command.planId) {
+        return fail(
+          requestId,
+          'session/lifecycle-apply',
+          `Lifecycle plan is stale: expected ${plan.planId}, received ${command.planId}. Run plan again.`,
+        );
+      }
+      const result: SessionLifecycleApplyResult = {
+        planId: plan.planId,
+        appliedAt: new Date().toISOString(),
+        archived: [],
+        skipped: [],
+        failed: [],
+      };
+      for (const candidate of plan.candidates) {
+        try {
+          const archiveResult = await context.tryArchiveLifecycleCandidate({
+            sessionId: candidate.sessionId,
+            expectedUpdatedAt: candidate.updatedAt,
+          });
+          if (archiveResult.status === 'archived') {
+            result.archived.push(candidate.sessionId);
+          } else {
+            result.skipped.push({ sessionId: candidate.sessionId, reason: archiveResult.status });
+          }
+        } catch (error) {
+          result.failed.push({ sessionId: candidate.sessionId, error: formatError(error) });
+        }
+      }
+      return ok(requestId, 'session/lifecycle-apply', result);
+    }
     case 'session/unarchive': {
       const record = await unarchiveSessionRecord(indexPath, command.sessionId);
       if (!record) {
         return fail(requestId, 'session/unarchive', `Unknown session: ${command.sessionId}`);
-      }
-      // SIDE §11.3: un-archiving a main session re-enables sync for its side
-      // chats by resetting their sourceState from 'archived' back to 'active'.
-      if (record.kind === 'main') {
-        await markSideChatSourceState(indexPath, command.sessionId, 'active');
       }
       return ok(requestId, 'session/unarchive', {
         sessionId: record.id,
@@ -275,30 +320,14 @@ export async function handleSessionProductCommand(
           'Session must be archived before permanent delete (or pass force: true)',
         );
       }
-      await context.disposeLiveSession(command.sessionId);
-      const removed = await deleteSessionRecord(indexPath, command.sessionId);
-      if (!removed) {
+      const deletion = await context.deleteSession(command.sessionId);
+      if (!deletion) {
         return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
-      }
-      // SIDE §11.3: mark dependent side chats' source state as 'missing'.
-      await markSideChatSourceState(indexPath, command.sessionId, 'missing');
-      const sessionDir = getPiwinSessionDir(rootDir, command.sessionId);
-      try {
-        await rm(sessionDir, { recursive: true, force: true });
-      } catch {
-        // Index already cleaned; leftover files are non-fatal.
-      }
-      // Product media vault is per-session — permanent delete removes it too
-      // (not archive). Missing dir is fine (session never pasted images).
-      const mediaSessionDir = getPiwinSessionMediaDir(rootDir, command.sessionId);
-      try {
-        await rm(mediaSessionDir, { recursive: true, force: true });
-      } catch {
-        // Non-fatal: index + session dir already gone.
       }
       return ok(requestId, 'session/delete', {
         sessionId: command.sessionId,
         deleted: true,
+        ...(deletion.cleanupWarning ? { cleanupWarning: deletion.cleanupWarning } : {}),
       });
     }
     case 'session/duplicate': {
@@ -401,7 +430,7 @@ export async function handleSessionProductCommand(
         createInput.scope = source.scope;
       }
       const created = await context.createSession(createInput);
-      const mediaRoot = getPiwinSessionMediaDir(rootDir, '');
+      const mediaRoot = getPiwinMediaDir(rootDir);
       // Compute existing fork names for collision avoidance.
       const allRecords = await listAllSessionRecords(indexPath);
       const existingForkNames = getDirectForkNames(allRecords, command.sessionId);
@@ -512,6 +541,20 @@ export async function handleSessionProductCommand(
     default:
       return null;
   }
+}
+
+async function buildCurrentLifecyclePlan(
+  rootDir: string,
+  indexPath: string,
+): Promise<SessionLifecyclePlan> {
+  const [config, document] = await Promise.all([
+    loadPiwinConfig(rootDir),
+    loadSessionIndex(indexPath),
+  ]);
+  return createSessionLifecyclePlan({
+    records: document.sessions,
+    policy: config.session?.lifecycle?.archive,
+  });
 }
 
 async function appendDerivedMessage(

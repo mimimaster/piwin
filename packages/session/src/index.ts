@@ -12,6 +12,7 @@ export {
   repairLegacyTextSessionName,
   setSessionAutoName,
   archiveSessionRecord,
+  archiveSessionRecordIfUnchanged,
   unarchiveSessionRecord,
   deleteSessionRecord,
   normalizeSessionName,
@@ -19,9 +20,16 @@ export {
   sortSessionRecords,
 } from './session-index-store.js';
 export type {
+  ConditionalSessionArchiveResult,
   ListSessionsForProjectOptions,
   SessionAutoNameSource,
 } from './session-index-store.js';
+export {
+  calculateSessionLifecyclePlanId,
+  createSessionLifecyclePlan,
+  normalizeSessionArchivePolicy,
+  sessionArchivePoliciesEqual,
+} from './session-lifecycle.js';
 export { createSessionIndexPage, SessionIndexCursorError } from './session-index-page.js';
 export {
   createSessionTranscriptPage,

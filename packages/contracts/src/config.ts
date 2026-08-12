@@ -16,6 +16,7 @@ import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentProfileSettings } from './subagent-profile.js';
 import type { OrchestrationSchemeSettings } from './orchestration-scheme.js';
 import type { RemoteConfig } from './remote.js';
+import type { SessionLifecycleConfig } from './session-lifecycle.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability =
@@ -351,6 +352,8 @@ export type SessionConfig = {
    * There is no persisted "unbounded" mode.
    */
   runtimeRetention?: SessionRuntimeRetentionConfig;
+  /** Explicit, plan-before-apply durable session archive policy. */
+  lifecycle?: SessionLifecycleConfig;
 };
 
 export function createDefaultSessionConfig(): SessionConfig {
