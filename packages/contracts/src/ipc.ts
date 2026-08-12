@@ -20,7 +20,9 @@ import type { SessionListPageQuery } from './session-list-page.js';
 import type {
   SessionMessageProjection,
   SessionTranscriptPageQuery,
+  SessionTranscriptWindowQuery,
 } from './session-transcript-page.js';
+import type { SessionUserMessageIndexQuery } from './session-user-message-index.js';
 import type { SkillSummary } from './skills.js';
 import type { ExtensionSummary } from './extensions.js';
 import type { PromptTemplateSummary } from './prompts.js';
@@ -195,7 +197,9 @@ export type HostCommand =
       type: 'session/outline-page';
       query: import('./session-transcript.js').SessionOutlinePageQuery;
     }
+  | { id?: string; type: 'session/user-message-index'; query: SessionUserMessageIndexQuery }
   | { id?: string; type: 'session/transcript-page'; query: SessionTranscriptPageQuery }
+  | { id?: string; type: 'session/transcript-window'; query: SessionTranscriptWindowQuery }
   | { id?: string; type: 'session/runtime-status'; sessionId: string }
   | {
       id?: string;
@@ -224,6 +228,12 @@ export type HostCommand =
       type: 'session/compact';
       sessionId: string;
       customInstructions?: string;
+      /**
+       * When present, compact only if needed and validate the result against
+       * this configured model's Host-resolved input budget before committing a
+       * client-side model selection.
+       */
+      targetModel?: import('./host.js').ModelRef;
     }
   | {
       id?: string;
@@ -869,6 +879,10 @@ export type HostStatusData = {
     runtimeResidency?: boolean;
     /** ADR 0040 §9: host supports bounded `session/outline-page` paging. */
     sessionOutlinePage?: boolean;
+    /** Host maintains a bounded index of user-authored transcript messages. */
+    sessionUserMessageIndex?: boolean;
+    /** Host can seek to a user-message anchor and return a bounded transcript window. */
+    sessionTranscriptSeek?: boolean;
   };
 };
 
@@ -919,6 +933,10 @@ export type SessionCreateData = {
 
 export type SessionCompactData = {
   ok: boolean;
+  /** False when the current working set already fit the requested target. */
+  compacted?: boolean;
+  /** Host-authoritative input budget used for target validation. */
+  targetInputBudget?: number;
   message?: string;
   summary?: string;
   tokensBefore?: number;

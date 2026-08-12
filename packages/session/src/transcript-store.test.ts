@@ -618,6 +618,163 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('builds a user-only navigation index with a stable independent revision', async () => {
+    const { store } = await openStore('user-index');
+    await store.appendMessage(
+      messageInput({
+        id: 'assistant-1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'assistant-1',
+        role: 'assistant',
+        text: 'answer',
+      }),
+    );
+    const empty = await store.userMessageIndex({
+      sessionId: 'session-user-index',
+      maximumTicks: 16,
+    });
+    expect(empty.totalUserMessages).toBe(0);
+    const firstRevision = empty.revision;
+
+    await store.appendMessage(
+      messageInput({
+        id: 'user-1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'user-1',
+        role: 'user',
+        text: '  first   request  ',
+      }),
+    );
+    await store.appendMessage(
+      messageInput({
+        id: 'assistant-2',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'assistant-2',
+        role: 'assistant',
+        text: 'second answer',
+      }),
+    );
+    const indexed = await store.userMessageIndex({
+      sessionId: 'session-user-index',
+      maximumTicks: 16,
+    });
+    expect(indexed).toMatchObject({
+      totalUserMessages: 1,
+      mode: 'exact',
+    });
+    expect(indexed.anchors[0]).toMatchObject({
+      messageId: 'user-1',
+      ordinal: 0,
+      spanStartOrdinal: 0,
+      spanEndOrdinal: 0,
+      preview: 'first request',
+    });
+    expect(indexed.revision).not.toBe(firstRevision);
+
+    const assistantRevision = indexed.revision;
+    await store.updateMessage('assistant-2', { text: 'assistant changed' });
+    await expect(
+      store.userMessageIndex({ sessionId: 'session-user-index', maximumTicks: 16 }),
+    ).resolves.toMatchObject({ revision: assistantRevision });
+    store.close();
+  });
+
+  it('samples large user-message indexes and preserves bucket spans', async () => {
+    const { store } = await openStore('user-index-sampled');
+    for (let index = 0; index < 300; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `user-${index}`,
+          runtimeGenerationId: 'gen-sampled',
+          backendMessageId: `user-${index}`,
+          role: 'user',
+          text: `request ${index}`,
+        }),
+      );
+    }
+    const indexed = await store.userMessageIndex({
+      sessionId: 'session-user-index-sampled',
+      maximumTicks: 16,
+    });
+    expect(indexed.mode).toBe('sampled');
+    expect(indexed.totalUserMessages).toBe(300);
+    expect(indexed.anchors).toHaveLength(16);
+    expect(indexed.anchors[0]).toMatchObject({
+      messageId: 'user-0',
+      spanStartOrdinal: 0,
+    });
+    expect(indexed.anchors[15]?.spanEndOrdinal).toBe(299);
+    store.close();
+  });
+
+  it('reads only a bounded preview for oversized user-message anchors', async () => {
+    const { store } = await openStore('user-index-oversized');
+    await store.appendMessage(
+      messageInput({
+        id: 'oversized-user',
+        runtimeGenerationId: 'gen-oversized',
+        backendMessageId: 'oversized-user',
+        role: 'user',
+        text: `important prefix ${'x'.repeat(100_000)}`,
+      }),
+    );
+
+    const indexed = await store.userMessageIndex({
+      sessionId: 'session-user-index-oversized',
+      maximumTicks: 16,
+    });
+    expect(indexed.anchors).toHaveLength(1);
+    expect(indexed.anchors[0]?.preview).toHaveLength(120);
+    expect(indexed.anchorBytes).toBeLessThan(1_024);
+    store.close();
+  });
+
+  it('seeks to an indexed message without loading the full transcript', async () => {
+    const { store } = await openStore('transcript-window');
+    for (let index = 0; index < 80; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `message-${index}`,
+          runtimeGenerationId: 'gen-window',
+          backendMessageId: `message-${index}`,
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          text: `message ${index}`,
+        }),
+      );
+    }
+    const result = await store.transcriptWindow({
+      sessionId: 'session-transcript-window',
+      anchorMessageId: 'message-40',
+      beforeItems: 3,
+      afterItems: 4,
+      maximumBytes: 64 * 1024,
+    });
+    expect(result.status).toBe('window');
+    if (result.status === 'window') {
+      expect(result.messages.map((message) => message.id)).toEqual([
+        'message-37',
+        'message-38',
+        'message-39',
+        'message-40',
+        'message-41',
+        'message-42',
+        'message-43',
+        'message-44',
+      ]);
+      expect(result.window.anchorOffset).toBe(3);
+    }
+    await expect(
+      store.transcriptWindow({
+        sessionId: 'session-transcript-window',
+        anchorMessageId: 'missing',
+        beforeItems: 3,
+        afterItems: 4,
+        maximumBytes: 64 * 1024,
+      }),
+    ).resolves.toEqual({ status: 'not-found' });
+    store.close();
+  });
+
   it('rejects operations after close', async () => {
     const { store } = await openStore('closed');
     store.close();

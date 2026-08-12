@@ -211,6 +211,18 @@ export class ProductAgentHost implements AgentHost {
     this.sessions.set(sessionId, session);
   }
 
+  /**
+   * Forget exactly the stuck handle held by HostRuntime without waiting for
+   * its abort promise. Generation cleanup remains exact and asynchronous.
+   */
+  detachSessionHandle(sessionId: string, expected: SessionHandle): boolean {
+    if (this.sessions.get(sessionId) !== expected) {
+      return false;
+    }
+    this.sessions.delete(sessionId);
+    return true;
+  }
+
   /** Abort a prepared candidate and release only its backend generation. */
   async abortPreparedSession(prepared: PreparedProductSession): Promise<void> {
     let abortError: unknown;

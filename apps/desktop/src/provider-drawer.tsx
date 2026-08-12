@@ -20,7 +20,6 @@ import {
   IconChevronRight,
   IconClose,
   IconRefresh,
-  IconSettings,
   IconSpark,
 } from './shell-icons.js';
 
@@ -89,13 +88,14 @@ export type ProviderDrawerCopy = {
   apiKeyLabel: string;
   apiKeyPlaceholder: string;
   apiKeyStoredPlaceholder: string;
+  apiKeyEnvironment: string;
+  apiKeyEnvironmentDescription: string;
   apiAddress: string;
   requestHeaders: string;
   requestHeadersHint: string;
   headerName: string;
   headerValue: string;
   addHeader: string;
-  keyManager: string;
   advanced: string;
 };
 
@@ -122,9 +122,6 @@ export type ProviderDrawerProps = {
   onDelete: () => Promise<void>;
   onDraftChange: (draft: ProviderDraft) => void;
   onTestConnection: () => void;
-  onOpenKeyManager: () => void;
-  /** Load keychain secret so the eye toggle can reveal a stored key. */
-  onLoadSecret: (providerId: string) => Promise<string | null>;
 };
 
 export function ProviderDrawer({
@@ -141,11 +138,8 @@ export function ProviderDrawer({
   onDelete,
   onDraftChange,
   onTestConnection,
-  onOpenKeyManager,
-  onLoadSecret,
 }: ProviderDrawerProps): ReactElement {
   const [showKey, setShowKey] = useState(false);
-  const [revealingKey, setRevealingKey] = useState(false);
   const [advOpen, setAdvOpen] = useState(false);
 
   const status = draft.enabled
@@ -159,33 +153,8 @@ export function ProviderDrawer({
     setAdvOpen(true);
   }
 
-  async function handleToggleKeyVisibility(): Promise<void> {
-    if (showKey) {
-      setShowKey(false);
-      return;
-    }
-
-    // Field is empty but keychain has a secret — load it so reveal is meaningful.
-    // Without this, type=text on an empty input still shows only the •••• placeholder.
-    if (!draft.apiKeyInput.trim() && hasStoredKey) {
-      setRevealingKey(true);
-      try {
-        const raw = await onLoadSecret(draft.id);
-        const firstLine = (raw ?? '')
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .find((line) => line.length > 0);
-        if (firstLine) {
-          onDraftChange({ ...draft, apiKeyInput: firstLine });
-        }
-      } catch {
-        // Still flip to text mode; user can open key manager if load failed.
-      } finally {
-        setRevealingKey(false);
-      }
-    }
-
-    setShowKey(true);
+  function handleToggleKeyVisibility(): void {
+    setShowKey((current) => !current);
   }
 
   return (
@@ -279,7 +248,7 @@ export function ProviderDrawer({
           <div className="provider-input-wrap">
             <TextInput
               type={showKey ? 'text' : 'password'}
-              testId="provider-apikey-env-input"
+              testId="provider-apikey-input"
               value={draft.apiKeyInput}
               onChange={(event) => {
                 onDraftChange({ ...draft, apiKeyInput: event.currentTarget.value });
@@ -312,24 +281,13 @@ export function ProviderDrawer({
                       : 'Show key'
                 }
                 data-testid="provider-toggle-key-visibility"
-                disabled={saving || revealingKey}
+                disabled={saving}
               >
                 {showKey ? (
                   <IconEyeOff width={14} height={14} />
                 ) : (
                   <IconEye width={14} height={14} />
                 )}
-              </button>
-              <button
-                type="button"
-                className="provider-mini-btn"
-                onClick={onOpenKeyManager}
-                aria-label={copy.keyManager}
-                title={copy.keyManager}
-                data-testid="provider-key-manager-btn"
-                disabled={saving}
-              >
-                <IconSettings width={13} height={13} />
               </button>
             </div>
           </div>
@@ -365,6 +323,27 @@ export function ProviderDrawer({
           </button>
           {advOpen && (
             <div className="provider-adv-body" data-testid="provider-headers">
+              <div className="provider-field-label">
+                <span>{copy.apiKeyEnvironment}</span>
+              </div>
+              <TextInput
+                testId="provider-apikey-env-input"
+                value={draft.storedApiKeyEnv}
+                onChange={(event) =>
+                  onDraftChange({
+                    ...draft,
+                    storedApiKeyEnv: event.currentTarget.value,
+                    ...(event.currentTarget.value.trim() ? { storedApiKeyRef: '' } : {}),
+                  })
+                }
+                placeholder="OPENAI_API_KEY"
+                spellCheck={false}
+                autoComplete="off"
+                disabled={saving}
+                className="provider-input-mono"
+              />
+              <div className="provider-field-hint">{copy.apiKeyEnvironmentDescription}</div>
+
               <div className="provider-field-label">
                 <span>{copy.requestHeaders}</span>
                 <button

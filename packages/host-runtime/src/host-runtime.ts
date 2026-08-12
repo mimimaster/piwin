@@ -270,7 +270,9 @@ const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/pause',
   'session/resume-run',
   'session/outline-page',
+  'session/user-message-index',
   'session/transcript-page',
+  'session/transcript-window',
   'session/messages',
   'session/export',
   'session/truncate-from',
@@ -3071,7 +3073,7 @@ export class HostRuntime {
       updateRunPhase: (runId, phase, detail) => {
         this.runRegistry.updatePhase(runId, phase, detail);
       },
-      terminateRun: async (sessionId, runId, outcome, code, message) => {
+      terminateRun: async (sessionId, runId, outcome, code, message, options) => {
         const run = this.runRegistry.get(runId);
         if (
           !run ||
@@ -3087,7 +3089,7 @@ export class HostRuntime {
               ? 'failed'
               : 'run-cancelled';
         let cleanupFailed = false;
-        if (this.jobController) {
+        if (this.jobController && options?.skipJobCleanup !== true) {
           try {
             const cleanup = await this.jobController.stopByRun(runId, jobReason);
             cleanupFailed = cleanup.failedJobIds.length > 0;
@@ -3195,6 +3197,8 @@ export class HostRuntime {
       resetSessionEventState: (sessionId) => this.resetSessionEventState(sessionId),
       cancelRuntimeReplacement: (sessionId) => this.runtimeReplacementEngine.cancel(sessionId),
       disposeLiveSession: (sessionId, reason) => this.disposeLiveSession(sessionId, reason),
+      quarantineSessionRuntime: (sessionId, runId) =>
+        this.quarantineSessionRuntime(sessionId, runId),
       reloadRuntime: (request) =>
         this.runtimeReplacementEngine.replace(request).then((result) => ({
           generationId: result.candidate.generationId,
@@ -3462,6 +3466,8 @@ export class HostRuntime {
         sessionPause: true,
         runtimeResidency: true,
         sessionOutlinePage: true,
+        sessionUserMessageIndex: true,
+        sessionTranscriptSeek: true,
         usage: true,
         process: true,
         // Keep this fail-closed if construction or the command surface ever
@@ -3654,8 +3660,7 @@ export class HostRuntime {
       }
       // Attach logical documentTargets for Doc Preview without rewriting
       // targetPaths (actual tool evidence stays intact).
-      const projectPathForTargets =
-        this.sessionProjects.get(session.id) ?? projectPath ?? null;
+      const projectPathForTargets = this.sessionProjects.get(session.id) ?? projectPath ?? null;
       const eventForClients = enrichAgentEventDocumentTargets(correlatedEvent, {
         ...(projectPathForTargets ? { projectPath: projectPathForTargets } : {}),
       });
@@ -3696,6 +3701,28 @@ export class HostRuntime {
         if (event.usage.source !== 'pi-contextUsage') {
           void this.recordUsageToLedger(session.id, event.usage);
         }
+      }
+      if (
+        eventForClients.type === 'compaction/end' &&
+        eventForClients.ok !== false &&
+        typeof eventForClients.tokensAfter === 'number'
+      ) {
+        const previous = this.sessionUsage.get(session.id);
+        const tokensAfter = eventForClients.tokensAfter;
+        this.sessionUsage.set(session.id, {
+          sessionId: session.id,
+          ...(previous?.modelId ? { modelId: previous.modelId } : {}),
+          tokensUsed: tokensAfter,
+          ...(typeof previous?.tokensLimit === 'number'
+            ? { tokensLimit: previous.tokensLimit }
+            : {}),
+          totalTokens: tokensAfter,
+          ...(typeof previous?.tokensLimit === 'number' && previous.tokensLimit > 0
+            ? { contextRatio: tokensAfter / previous.tokensLimit }
+            : {}),
+          updatedAt: new Date().toISOString(),
+          source: 'pi-contextUsage',
+        });
       }
       // CE-OBS: if mock/host did not emit usage, estimate after assistant message ends.
       if (correlatedEvent.type === 'message/end') {
@@ -4678,6 +4705,111 @@ export class HostRuntime {
     this.walkthroughRegistry.abortSession(sessionId);
     // ADR 0030 Phase B: stop session-lifetime Jobs when the session is disposed.
     await this.stopProcessesForSession(sessionId);
+  }
+
+  /**
+   * Remove a non-responsive runtime from product authority synchronously.
+   * Backend cleanup is generation-scoped and deliberately detached so a
+   * stuck Pi abort cannot keep the Run/UI or the next activation blocked.
+   */
+  private quarantineSessionRuntime(sessionId: string, runId: string): void {
+    const run = this.runRegistry.get(runId);
+    if (!run || run.sessionId !== sessionId || !isRunTerminal(run.status)) {
+      return;
+    }
+    const live = this.sessions.get(sessionId);
+    const runtimeGenerationId =
+      run.runtimeGenerationId ?? this.runtimeController.getStatus(sessionId).generationId;
+
+    this.runEventCorrelator.markRunTerminal(sessionId, runId);
+    if (live) {
+      this.sessions.delete(sessionId);
+      this.host.detachSessionHandle(sessionId, live);
+    }
+    const unsubscribe = this.unsubscribers.get(sessionId);
+    if (unsubscribe) {
+      try {
+        unsubscribe();
+      } catch (error) {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `quarantined session unsubscribe failed: ${formatError(error)}`,
+        });
+      }
+      this.unsubscribers.delete(sessionId);
+    }
+
+    const recorder = this.transcriptRecorders.get(sessionId);
+    if (recorder) {
+      this.transcriptRecorders.delete(sessionId);
+      void (async () => {
+        try {
+          await recorder.flush();
+        } catch (error) {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `quarantined transcript flush failed: ${formatError(error)}`,
+          });
+        } finally {
+          try {
+            recorder.dispose();
+          } catch (error) {
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `quarantined transcript dispose failed: ${formatError(error)}`,
+            });
+          }
+        }
+      })();
+    }
+
+    this.coldStartHistoryBySession.delete(sessionId);
+    this.pendingDirectActivations.delete(sessionId);
+    this.runtimeController.detachGeneration(sessionId);
+    if (runtimeGenerationId !== undefined) {
+      const suspension = this.residencyController.beginSuspend(
+        sessionId,
+        runtimeGenerationId,
+        'manual',
+      );
+      if (suspension.ok) {
+        this.residencyController.finishSuspend(sessionId, runtimeGenerationId);
+      }
+    }
+    this.runtimeController.markCold(sessionId, 'manual');
+    this.sessionHostToolPort?.clearSession(sessionId);
+
+    if (runtimeGenerationId !== undefined) {
+      void this.releaseQuarantinedRuntime(sessionId, runtimeGenerationId).catch((error: unknown) => {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `quarantined runtime cleanup failed: ${formatError(error)}`,
+        });
+      });
+    }
+  }
+
+  private async releaseQuarantinedRuntime(
+    sessionId: string,
+    runtimeGenerationId: string,
+  ): Promise<void> {
+    const cleanupResults = await Promise.allSettled([
+      this.host.releaseSessionGeneration(sessionId, runtimeGenerationId),
+      this.releaseGenerationToolSurface(sessionId, runtimeGenerationId),
+    ]);
+    const failures = cleanupResults.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map((failure) => failure.reason),
+        `failed to release quarantined runtime ${sessionId}/${runtimeGenerationId}`,
+      );
+    }
   }
 
   private requireSession(sessionId: string): SessionHandle {

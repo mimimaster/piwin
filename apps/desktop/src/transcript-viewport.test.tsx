@@ -74,6 +74,8 @@ describe('TranscriptViewport session scroll recovery', () => {
       onLoadOlder?: () => Promise<void>;
       turnAnchorMessageId?: string;
       anchorDocumentTop?: number;
+      historyViewActive?: boolean;
+      onReturnToLatest?: () => void;
     } = {},
   ): Promise<void> {
     await act(async () => {
@@ -87,8 +89,10 @@ describe('TranscriptViewport session scroll recovery', () => {
             messages={[]}
             locale="en"
             canLoadOlder={options.canLoadOlder === true}
+            historyViewActive={options.historyViewActive === true}
             turnAnchorMessageId={options.turnAnchorMessageId ?? null}
             {...(options.onLoadOlder ? { onLoadOlder: options.onLoadOlder } : {})}
+            {...(options.onReturnToLatest ? { onReturnToLatest: options.onReturnToLatest } : {})}
           >
             <TranscriptGeometry
               scrollHeight={options.scrollHeight ?? 1_000}
@@ -212,6 +216,20 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')?.textContent).toContain(
       'Follow latest',
     );
+  });
+
+  it('keeps a return-to-latest control visible for a bounded history view', async () => {
+    const onReturnToLatest = vi.fn();
+    await renderSession('history-focus-session', {
+      historyViewActive: true,
+      onReturnToLatest,
+      scrollHeight: 300,
+    });
+
+    const button = container.querySelector<HTMLButtonElement>('[data-testid="jump-to-latest-btn"]');
+    expect(button?.textContent).toContain('Back to latest');
+    act(() => button?.click());
+    expect(onReturnToLatest).toHaveBeenCalledOnce();
   });
 
   it('loads an older page invisibly and preserves the visible scroll anchor', async () => {

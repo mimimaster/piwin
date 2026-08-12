@@ -777,40 +777,10 @@ async function buildSingleProviderRuntime(
   allowInlineProviderSecrets: boolean,
   resolveProviderSecret: ((provider: ModelProviderConfig) => Promise<string>) | undefined,
 ): Promise<SerializableProviderRuntime> {
-  // Prefer env-ref auth: the parent injects the env var into the worker
-  // process environment, so the worker never sees the raw key.
-  if (provider.apiKeyEnv?.trim()) {
-    return {
-      providerId: provider.id,
-      protocol: provider.protocol,
-      baseUrl: provider.baseUrl,
-      ...(provider.headers ? { headers: provider.headers } : {}),
-      models: provider.models
-        .filter((model) => modelSupportsCapability(model, 'chat'))
-        .map((model) => ({
-          id: model.id,
-          ...(model.label ? { label: model.label } : {}),
-          ...(model.input ? { input: [...model.input] } : {}),
-          ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-          ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
-          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-          ...(model.maxOutputTokens !== undefined
-            ? { maxOutputTokens: model.maxOutputTokens }
-            : {}),
-          ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
-          ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
-        })),
-      auth: { kind: 'env', envName: provider.apiKeyEnv.trim() },
-    };
-  }
-
-  // apiKeyRef is parent-owned keychain state and has no safe worker channel.
-  // Do not resolve it before this check: the raw key must never enter the RPC
-  // request or serialized provider envelope.
-  if (provider.apiKeyRef?.trim()) {
-    if (!allowInlineProviderSecrets) {
-      throw new ProviderSecretCompileError(provider.id);
-    }
+  // apiKeyRef is authoritative for SDK. RPC cannot serialize a resolved
+  // keychain secret, so an explicitly configured env ref remains its safe
+  // worker-side source when both legacy fields are present.
+  if (allowInlineProviderSecrets && provider.apiKeyRef?.trim()) {
     if (!resolveProviderSecret) {
       throw new Error('Provider secret resolver is unavailable for inline SDK auth');
     }
@@ -842,6 +812,37 @@ async function buildSingleProviderRuntime(
       // Keep the provider registered with 'none' auth so the worker
       // can report a precise unavailable error.
     }
+  }
+
+  // Preserve legacy env-only providers. A config containing both fields has
+  // already been handled above, so a stale env ref cannot override the keychain.
+  if (provider.apiKeyEnv?.trim()) {
+    return {
+      providerId: provider.id,
+      protocol: provider.protocol,
+      baseUrl: provider.baseUrl,
+      ...(provider.headers ? { headers: provider.headers } : {}),
+      models: provider.models
+        .filter((model) => modelSupportsCapability(model, 'chat'))
+        .map((model) => ({
+          id: model.id,
+          ...(model.label ? { label: model.label } : {}),
+          ...(model.input ? { input: [...model.input] } : {}),
+          ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+          ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
+          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+          ...(model.maxOutputTokens !== undefined
+            ? { maxOutputTokens: model.maxOutputTokens }
+            : {}),
+          ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
+          ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
+        })),
+      auth: { kind: 'env', envName: provider.apiKeyEnv.trim() },
+    };
+  }
+
+  if (provider.apiKeyRef?.trim()) {
+    throw new ProviderSecretCompileError(provider.id);
   }
 
   // No auth configured — provider may work without API key (e.g. local).

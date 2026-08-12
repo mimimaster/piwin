@@ -329,7 +329,8 @@ export type DesktopTranslator = {
       apiKeyStoredPlaceholder: string;
       apiKeyStoredKeychain: string;
       apiKeyStoredEnv: (envName: string) => string;
-      apiKeyPasteHint: string;
+      apiKeyEnvironment: string;
+      apiKeyEnvironmentDescription: string;
       enableProvider: string;
       providerEnabledHint: string;
       providerDisabledHint: string;
@@ -349,19 +350,6 @@ export type DesktopTranslator = {
       saveAndAdd: string;
       providerName: string;
       modelsWithCount: (count: number) => string;
-      apiKeyEnvironment: string;
-      apiKeyEnvironmentDescription: string;
-      keychainReference: string;
-      showKeychain: string;
-      hideKeychain: string;
-      detect: string;
-      detecting: string;
-      detectOk: (count: number) => string;
-      detectFail: string;
-      keyManager: string;
-      keyManagerTitle: (name: string) => string;
-      keyManagerHint: string;
-      keyManagerAdd: string;
       requestHeaders: string;
       requestHeadersHint: string;
       headerName: string;
@@ -1053,9 +1041,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           isChinese
             ? `当前使用环境变量 ${envName}（需在进程内导出）。`
             : `Using env var ${envName} (must be exported in the process).`,
-        apiKeyPasteHint: isChinese
-          ? '粘贴 API 密钥后获取模型列表或保存。密钥存入本机钥匙串，绝不写入配置文件。'
-          : 'Paste your API key, then Fetch models or Save. Keys go to the local keychain — never into config files.',
+        apiKeyEnvironment: isChinese ? 'API Key 环境变量名' : 'API key environment variable',
+        apiKeyEnvironmentDescription: isChinese
+          ? 'RPC/Worker 模式使用。填写变量名，不要粘贴密钥；填写后将改用该环境变量。'
+          : 'For RPC/Worker mode. Enter the variable name, not the secret; setting it switches this provider to env auth.',
         enableProvider: isChinese ? '启用此提供商' : 'Enable provider',
         providerEnabledHint: isChinese ? '已加入全局模型列表' : 'Included in the global model list',
         providerDisabledHint: isChinese
@@ -1085,24 +1074,6 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         providerName: isChinese ? '提供商名称' : 'Provider name',
         modelsWithCount: (count) =>
           isChinese ? `${count} 个模型` : `${count} model${count === 1 ? '' : 's'}`,
-        apiKeyEnvironment: isChinese ? 'API Key 环境变量名' : 'API key environment variable',
-        apiKeyEnvironmentDescription: isChinese
-          ? '填写环境变量名，不写入配置文件。本地无鉴权端点可留空。切勿直接粘贴原始密钥。'
-          : 'Environment variable name only — never paste a raw secret. Leave empty for local no-auth endpoints.',
-        keychainReference: isChinese ? '钥匙串引用（可选）' : 'Keychain reference (optional)',
-        showKeychain: isChinese ? '使用钥匙串引用…' : 'Use keychain reference…',
-        hideKeychain: isChinese ? '隐藏钥匙串引用' : 'Hide keychain reference',
-        detect: isChinese ? '检测' : 'Test',
-        detecting: isChinese ? '检测中…' : 'Testing…',
-        detectOk: (count) =>
-          isChinese ? `连接成功 — 发现 ${count} 个模型` : `Connected — found ${count} models`,
-        detectFail: isChinese ? '连接失败' : 'Connection failed',
-        keyManager: isChinese ? '密钥管理' : 'Key manager',
-        keyManagerTitle: (name) => (isChinese ? `${name} API 密钥管理` : `${name} API keys`),
-        keyManagerHint: isChinese
-          ? '多密钥每行一个；请求使用首行。密钥存入本机钥匙串。'
-          : 'One key per line; the first line is used for requests. Keys stay in the local keychain.',
-        keyManagerAdd: isChinese ? '添加' : 'Add',
         requestHeaders: isChinese ? '请求头' : 'Request headers',
         requestHeadersHint: isChinese
           ? '可选。用于网关自定义请求头（如 HTTP-Referer）。不会覆盖协议鉴权头。'

@@ -387,11 +387,13 @@ describe('compileBlueprintForWorker', () => {
     expect(configuredResult.settingsRevision).not.toBe(baseResult.settingsRevision);
   });
 
-  it('keeps env-ref auth when an apiKeyRef is also configured', async () => {
-    const resolveProviderSecret = vi.fn(async () => 'must-not-enter-provider-envelope');
+  it('prefers the keychain ref over a stale env ref for SDK auth', async () => {
+    const apiKey = 'keychain-secret-wins';
+    const resolveProviderSecret = vi.fn(async () => apiKey);
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
+        allowInlineProviderSecrets: true,
         config: createConfig({
           providers: [
             {
@@ -410,8 +412,34 @@ describe('compileBlueprintForWorker', () => {
       },
     );
 
+    expect(result.providers[0]?.auth).toEqual({ kind: 'inline', apiKey });
+    expect(resolveProviderSecret).toHaveBeenCalledOnce();
+  });
+
+  it('uses the explicit env ref when worker mode cannot resolve a keychain ref', async () => {
+    const resolveProviderSecret = vi.fn(async () => 'must-not-cross-worker-jsonl');
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({
+          providers: [
+            {
+              id: 'openai',
+              protocol: 'openai-compatible',
+              name: 'OpenAI',
+              baseUrl: 'https://api.openai.com/v1',
+              apiKeyEnv: 'OPENAI_API_KEY',
+              apiKeyRef: 'keychain:piwin-openai',
+              models: [{ id: 'gpt-4.1' }],
+            },
+          ],
+        }),
+        secretResolver: { resolveProviderSecret },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+
     expect(result.providers[0]?.auth).toEqual({ kind: 'env', envName: 'OPENAI_API_KEY' });
-    expect(JSON.stringify(result.providers)).not.toContain('must-not-enter-provider-envelope');
     expect(resolveProviderSecret).not.toHaveBeenCalled();
   });
 

@@ -11,6 +11,7 @@ import {
   truncateMessageText,
 } from './history-ticks-drawer';
 import type { ChatMessageUi } from './chat-reducer';
+import type { SessionUserMessageIndexData } from '@piwin/contracts';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -163,6 +164,93 @@ describe('HistoryTicksDrawer component', () => {
 
     expect(container?.querySelector('.history-ticks-drawer')).not.toBeNull();
     expect(container?.querySelectorAll('.border-tick-line').length).toBe(2);
+  });
+
+  it('renders the Host index instead of assistant rows and exposes the global position', () => {
+    const historyIndex: SessionUserMessageIndexData = {
+      sessionId: 'session-indexed',
+      revision: 'rev-1',
+      totalUserMessages: 240,
+      mode: 'sampled',
+      anchors: [
+        {
+          messageId: 'msg-user-120',
+          ordinal: 119,
+          createdAt: '2026-07-31T17:03:00Z',
+          preview: 'indexed request',
+          spanStartOrdinal: 112,
+          spanEndOrdinal: 127,
+        },
+      ],
+      anchorBytes: 180,
+    };
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={[]} historyIndex={historyIndex} />);
+    });
+
+    expect(container?.querySelectorAll('.border-tick-line').length).toBe(1);
+    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
+    expect(drawer?.getAttribute('data-history-index-mode')).toBe('sampled');
+    expect(drawer?.getAttribute('data-history-total-user-messages')).toBe('240');
+
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]');
+    if (rail instanceof HTMLElement) {
+      vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
+        top: 100,
+        left: 8,
+        right: 50,
+        bottom: 200,
+        width: 42,
+        height: 100,
+        x: 8,
+        y: 100,
+        toJSON: () => ({}),
+      } as DOMRect);
+    }
+    act(() => {
+      rail?.dispatchEvent(
+        new window.MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          clientY: 108.5,
+        }),
+      );
+    });
+    expect(document.querySelector('.history-bubble-position')?.textContent).toBe(
+      'User message 113–128 / 240',
+    );
+  });
+
+  it('asks the Host for a window when an indexed anchor is not resident', async () => {
+    const historyIndex: SessionUserMessageIndexData = {
+      sessionId: 'session-indexed',
+      revision: 'rev-1',
+      totalUserMessages: 80,
+      mode: 'exact',
+      anchors: [
+        {
+          messageId: 'remote-user-1',
+          ordinal: 0,
+          createdAt: '2026-07-31T17:03:00Z',
+          preview: 'remote request',
+          spanStartOrdinal: 0,
+          spanEndOrdinal: 0,
+        },
+      ],
+      anchorBytes: 120,
+    };
+    const onJumpToAnchor = vi.fn().mockResolvedValue(undefined);
+    act(() => {
+      root?.render(
+        <HistoryTicksDrawer historyIndex={historyIndex} onJumpToAnchor={onJumpToAnchor} />,
+      );
+    });
+    const tick = container?.querySelector('[data-testid="history-tick-remote-user-1"]');
+    await act(async () => {
+      tick?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+    expect(onJumpToAnchor).toHaveBeenCalledWith(historyIndex.anchors[0]);
   });
 
   it('shows the corresponding user message when a collapsed tick is hovered', () => {

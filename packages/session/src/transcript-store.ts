@@ -25,6 +25,13 @@ import {
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
   SESSION_TRANSCRIPT_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_MIN_BYTES,
+  SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS,
+  SESSION_USER_MESSAGE_PREVIEW_CHARS,
+  type SessionTranscriptWindowData,
+  type SessionTranscriptWindowInfo,
+  type SessionTranscriptWindowQuery,
+  type SessionUserMessageIndexData,
+  type SessionUserMessageIndexQuery,
   USER_AUTHORED_GENERATION,
   type MediaAttachmentRef,
   type ModelRef,
@@ -40,6 +47,11 @@ import {
   type SessionToolCardView,
 } from '@piwin/contracts';
 import { projectTranscriptMessagesForUi } from './transcript-ui-projection.js';
+import {
+  createUserMessageIndexData,
+  validateUserMessageIndexQuery,
+  type UserMessageIndexRow,
+} from './user-message-index.js';
 
 export { LEGACY_IMPORT_GENERATION, USER_AUTHORED_GENERATION };
 
@@ -131,6 +143,10 @@ export type SessionTranscriptStore = {
   listTail(limit: number, beforeSequence?: number): Promise<SessionTranscriptMessage[]>;
   /** Revision-bound, byte-bounded transcript page for Host clients. */
   transcriptPage(query: SessionTranscriptPageQuery): Promise<SessionTranscriptPageData>;
+  /** Bounded index containing only non-empty user-authored messages. */
+  userMessageIndex(query: SessionUserMessageIndexQuery): Promise<SessionUserMessageIndexData>;
+  /** Seek to one user-authored message and return a bounded nearby window. */
+  transcriptWindow(query: SessionTranscriptWindowQuery): Promise<SessionTranscriptWindowData>;
   /** Number of persisted rows. */
   count(): Promise<number>;
   /** Current monotonic transcript revision used by durable checkpoints. */
@@ -255,6 +271,7 @@ export async function openSessionTranscriptStore(
     CREATE TABLE IF NOT EXISTS transcript_meta(
       session_id TEXT PRIMARY KEY,
       revision INTEGER NOT NULL,
+      user_message_revision INTEGER NOT NULL DEFAULT 0,
       project_path TEXT NOT NULL,
       scope_json TEXT,
       working_directory TEXT,
@@ -283,6 +300,9 @@ export async function openSessionTranscriptStore(
       ON transcript_message(runtime_generation_id, backend_message_id);
     CREATE INDEX IF NOT EXISTS idx_message_sequence
       ON transcript_message(sequence);
+    CREATE INDEX IF NOT EXISTS idx_message_user_sequence
+      ON transcript_message(sequence)
+      WHERE role = 'user' AND length(trim(text)) > 0;
     CREATE TABLE IF NOT EXISTS pause_checkpoint(
       checkpoint_id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
@@ -308,6 +328,11 @@ export async function openSessionTranscriptStore(
       "ALTER TABLE transcript_meta ADD COLUMN authority_state TEXT NOT NULL DEFAULT 'pending'",
     );
   }
+  if (!metaColumns.some((column) => column.name === 'user_message_revision')) {
+    db.exec(
+      'ALTER TABLE transcript_meta ADD COLUMN user_message_revision INTEGER NOT NULL DEFAULT 0',
+    );
+  }
   db.prepare(
     `INSERT OR IGNORE INTO transcript_meta(
       session_id, revision, project_path, updated_at
@@ -329,10 +354,21 @@ export async function openSessionTranscriptStore(
     return row?.revision ?? 0;
   }
 
-  function bumpRevision(by = 1): void {
+  function bumpRevision(by = 1, userMessageBy = 0): void {
     db.prepare(
-      `UPDATE transcript_meta SET revision = revision + ?, updated_at = ? WHERE session_id = ?`,
-    ).run(by, new Date().toISOString(), options.sessionId);
+      `UPDATE transcript_meta
+       SET revision = revision + ?,
+           user_message_revision = user_message_revision + ?,
+           updated_at = ?
+       WHERE session_id = ?`,
+    ).run(by, userMessageBy, new Date().toISOString(), options.sessionId);
+  }
+
+  function currentUserMessageRevision(): number {
+    const row = db
+      .prepare('SELECT user_message_revision FROM transcript_meta WHERE session_id = ?')
+      .get(options.sessionId) as { user_message_revision: number } | undefined;
+    return row?.user_message_revision ?? 0;
   }
 
   function insertMessageRow(input: TranscriptStoreMessageInput): void {
@@ -474,7 +510,7 @@ export async function openSessionTranscriptStore(
       db.exec('BEGIN');
       try {
         insertMessageRow(input);
-        bumpRevision();
+        bumpRevision(1, isIndexedUserMessage(input.role, input.text) ? 1 : 0);
         db.exec('COMMIT');
         return { ok: true };
       } catch (error) {
@@ -519,11 +555,26 @@ export async function openSessionTranscriptStore(
       }
       db.exec('BEGIN');
       try {
+        const previous = db
+          .prepare('SELECT role, text FROM transcript_message WHERE id = ?')
+          .get(id) as { role: string; text: string } | undefined;
         const result = db
           .prepare(`UPDATE transcript_message SET ${assignments.join(', ')} WHERE id = ?`)
           .run(...values, id);
         if (result.changes > 0) {
-          bumpRevision();
+          const userTextChanged =
+            previous !== undefined &&
+            patch.text !== undefined &&
+            patch.text !== previous.text &&
+            isIndexedUserMessage(previous.role, previous.text);
+          const userTextBecameIndexed =
+            previous !== undefined &&
+            patch.text !== undefined &&
+            patch.text !== previous.text &&
+            previous.role === 'user' &&
+            !isIndexedUserMessage(previous.role, previous.text) &&
+            isIndexedUserMessage(previous.role, patch.text);
+          bumpRevision(1, userTextChanged || userTextBecameIndexed ? 1 : 0);
         }
         db.exec('COMMIT');
         return result.changes > 0;
@@ -608,9 +659,15 @@ export async function openSessionTranscriptStore(
       ensureOpen();
       db.exec('BEGIN');
       try {
+        const previous = db
+          .prepare('SELECT role, text FROM transcript_message WHERE id = ?')
+          .get(id) as { role: string; text: string } | undefined;
         const result = db.prepare('DELETE FROM transcript_message WHERE id = ?').run(id);
         if (result.changes > 0) {
-          bumpRevision();
+          bumpRevision(
+            1,
+            previous !== undefined && isIndexedUserMessage(previous.role, previous.text) ? 1 : 0,
+          );
         }
         db.exec('COMMIT');
         return result.changes > 0;
@@ -709,6 +766,74 @@ export async function openSessionTranscriptStore(
         });
       }
       return { status: 'page', messages: selectedMessages, page: resultPage };
+    },
+
+    async userMessageIndex(query) {
+      ensureOpen();
+      validateUserMessageIndexQuery(query, options.sessionId);
+      const totalUserMessages = countIndexedUserMessages(db);
+      const rows =
+        totalUserMessages <= query.maximumTicks
+          ? readExactUserMessageIndexRows(db)
+          : readSampledUserMessageIndexRows(db, query.maximumTicks);
+      return createUserMessageIndexData({
+        sessionId: options.sessionId,
+        revision: revisionToken(options.sessionId, currentUserMessageRevision()),
+        totalUserMessages,
+        maximumTicks: query.maximumTicks,
+        rows,
+      });
+    },
+
+    async transcriptWindow(query) {
+      ensureOpen();
+      validateTranscriptWindowQuery(query, options.sessionId);
+      const anchorRow = db
+        .prepare('SELECT * FROM transcript_message WHERE id = ?')
+        .get(query.anchorMessageId) as unknown as MessageRow | undefined;
+      if (anchorRow === undefined) {
+        return { status: 'not-found' };
+      }
+
+      const beforeRows = db
+        .prepare(
+          `SELECT * FROM transcript_message
+           WHERE sequence < ? ORDER BY sequence DESC LIMIT ?`,
+        )
+        .all(anchorRow.sequence, query.beforeItems) as unknown as MessageRow[];
+      beforeRows.reverse();
+      const afterRows = db
+        .prepare(
+          `SELECT * FROM transcript_message
+           WHERE sequence > ? ORDER BY sequence ASC LIMIT ?`,
+        )
+        .all(anchorRow.sequence, query.afterItems) as unknown as MessageRow[];
+      const entries = [...beforeRows, anchorRow, ...afterRows].map((row) => ({
+        sequence: row.sequence,
+        message: projectTranscriptMessagesForUi([rowToMessage(row)])[0] ?? rowToMessage(row),
+      }));
+      const selected = selectTranscriptWindowMessages(
+        entries,
+        query.anchorMessageId,
+        query.maximumBytes,
+      );
+      const selectedSequences = selected.entries.map((entry) => entry.sequence);
+      const firstSequence = selectedSequences[0] ?? anchorRow.sequence;
+      const lastSequence = selectedSequences[selectedSequences.length - 1] ?? anchorRow.sequence;
+      const totalCount = countRows(db);
+      const page: SessionTranscriptWindowInfo = {
+        revision: revisionToken(options.sessionId, currentRevision()),
+        totalCount,
+        startIndex: countRowsBeforeSequence(db, firstSequence),
+        endIndex: countRowsBeforeSequence(db, lastSequence) + 1,
+        messageBytes: selected.messageBytes,
+        anchorMessageId: query.anchorMessageId,
+        anchorOffset: selected.anchorOffset,
+      };
+      if (selected.truncatedMessageIds.length > 0) {
+        page.truncatedMessageIds = selected.truncatedMessageIds;
+      }
+      return { status: 'window', messages: selected.messages, window: page };
     },
 
     async count() {
@@ -975,11 +1100,17 @@ export async function openSessionTranscriptStore(
       }
       db.exec('BEGIN');
       try {
+        const removedUser = db
+          .prepare(
+            `SELECT COUNT(*) AS count FROM transcript_message
+             WHERE sequence >= ? AND role = 'user' AND length(trim(text)) > 0`,
+          )
+          .get(target.sequence) as { count: number };
         const removed = db
           .prepare('DELETE FROM transcript_message WHERE sequence >= ?')
           .run(target.sequence);
         const removedCount = Number(removed.changes);
-        bumpRevision(removedCount);
+        bumpRevision(removedCount, removedUser.count);
         db.exec('COMMIT');
         const remaining = db.prepare('SELECT COUNT(*) AS count FROM transcript_message').get() as {
           count: number;
@@ -1073,9 +1204,13 @@ export async function openSessionTranscriptStore(
       db.exec('BEGIN');
       try {
         let imported = 0;
+        let importedUserMessages = 0;
         for (const message of document.messages) {
           insertMessageRow(legacyMessageToInput(message));
           imported += 1;
+          if (isIndexedUserMessage(message.role, message.text)) {
+            importedUserMessages += 1;
+          }
         }
         const storedDigest = digestDatabaseRows(db, options.sessionId);
         if (storedDigest !== digest || countRows(db) !== document.messages.length) {
@@ -1086,7 +1221,7 @@ export async function openSessionTranscriptStore(
            SET import_digest = ?, authority_state = 'v2', updated_at = ?
            WHERE session_id = ?`,
         ).run(storedDigest, new Date().toISOString(), options.sessionId);
-        bumpRevision(imported);
+        bumpRevision(imported, importedUserMessages);
         db.exec('COMMIT');
         return { imported };
       } catch (error) {
@@ -1313,6 +1448,163 @@ function countRowsBeforeSequence(db: DatabaseSync, sequence: number): number {
   return row.count;
 }
 
+function countIndexedUserMessages(db: DatabaseSync): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS count FROM transcript_message
+       WHERE role = 'user' AND length(trim(text)) > 0`,
+    )
+    .get() as { count: number };
+  return row.count;
+}
+
+function isIndexedUserMessage(role: string, text: string): boolean {
+  return role === 'user' && text.trim().length > 0;
+}
+
+function readExactUserMessageIndexRows(db: DatabaseSync): UserMessageIndexRow[] {
+  const rows = db
+    .prepare(
+      `SELECT id, created_at, substr(text, 1, ?) AS preview,
+              ROW_NUMBER() OVER (ORDER BY sequence) - 1 AS ordinal
+       FROM transcript_message
+       WHERE role = 'user' AND length(trim(text)) > 0
+       ORDER BY sequence ASC`,
+    )
+    .all(SESSION_USER_MESSAGE_PREVIEW_CHARS + 1) as unknown as Array<{
+    id: string;
+    created_at: string;
+    preview: string;
+    ordinal: number;
+  }>;
+  return rows.map((row) => ({
+    messageId: row.id,
+    createdAt: row.created_at,
+    ordinal: row.ordinal,
+    spanStartOrdinal: row.ordinal,
+    spanEndOrdinal: row.ordinal,
+    preview: row.preview,
+  }));
+}
+
+function readSampledUserMessageIndexRows(
+  db: DatabaseSync,
+  maximumTicks: number,
+): UserMessageIndexRow[] {
+  const rows = db
+    .prepare(
+      `WITH user_rows AS (
+         SELECT sequence, id,
+                ROW_NUMBER() OVER (ORDER BY sequence) - 1 AS ordinal,
+                COUNT(*) OVER () AS total
+         FROM transcript_message
+         WHERE role = 'user' AND length(trim(text)) > 0
+       ), bucketed AS (
+         SELECT *, CAST(ordinal * ? / total AS INTEGER) AS bucket
+         FROM user_rows
+       ), representatives AS (
+         SELECT bucket, MIN(ordinal) AS span_start_ordinal,
+                MAX(ordinal) AS span_end_ordinal,
+                MIN(ordinal) AS representative_ordinal
+         FROM bucketed
+         GROUP BY bucket
+         ORDER BY bucket
+         LIMIT ?
+       )
+       SELECT source.id, message.created_at,
+              substr(message.text, 1, ?) AS preview,
+              source.ordinal,
+              representatives.span_start_ordinal,
+              representatives.span_end_ordinal
+       FROM representatives
+       JOIN bucketed AS source
+         ON source.ordinal = representatives.representative_ordinal
+       JOIN transcript_message AS message
+         ON message.sequence = source.sequence
+       ORDER BY source.ordinal ASC`,
+    )
+    .all(maximumTicks, maximumTicks, SESSION_USER_MESSAGE_PREVIEW_CHARS + 1) as unknown as Array<{
+    id: string;
+    created_at: string;
+    preview: string;
+    ordinal: number;
+    span_start_ordinal: number;
+    span_end_ordinal: number;
+  }>;
+  return rows.map((row) => ({
+    messageId: row.id,
+    createdAt: row.created_at,
+    ordinal: row.ordinal,
+    spanStartOrdinal: row.span_start_ordinal,
+    spanEndOrdinal: row.span_end_ordinal,
+    preview: row.preview,
+  }));
+}
+
+type TranscriptWindowEntry = {
+  sequence: number;
+  message: SessionTranscriptMessage;
+};
+
+function selectTranscriptWindowMessages(
+  entries: readonly TranscriptWindowEntry[],
+  anchorMessageId: string,
+  maximumBytes: number,
+): {
+  entries: TranscriptWindowEntry[];
+  messages: SessionTranscriptMessage[];
+  messageBytes: number;
+  anchorOffset: number;
+  truncatedMessageIds: string[];
+} {
+  const anchorIndex = entries.findIndex((entry) => entry.message.id === anchorMessageId);
+  const anchor = entries[anchorIndex];
+  if (anchor === undefined) {
+    return { entries: [], messages: [], messageBytes: 2, anchorOffset: 0, truncatedMessageIds: [] };
+  }
+
+  const selected = new Map<string, TranscriptWindowEntry>();
+  const truncatedMessageIds: string[] = [];
+  let messageBytes = 2;
+  const add = (entry: TranscriptWindowEntry, force = false): void => {
+    if (selected.has(entry.message.id)) return;
+    const delimiterBytes = selected.size === 0 ? 0 : 1;
+    let candidate = entry.message;
+    let encodedBytes = serializedMessageBytes(candidate);
+    if (messageBytes + delimiterBytes + encodedBytes > maximumBytes) {
+      if (!force && selected.size > 0) return;
+      candidate = clipOversizedMessage(entry.message, maximumBytes - 2);
+      encodedBytes = serializedMessageBytes(candidate);
+      truncatedMessageIds.push(entry.message.id);
+    }
+    selected.set(entry.message.id, { ...entry, message: candidate });
+    messageBytes += delimiterBytes + encodedBytes;
+  };
+
+  add(anchor, true);
+  for (let index = anchorIndex + 1; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (entry) add(entry);
+  }
+  for (let index = anchorIndex - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry) add(entry);
+  }
+  const selectedEntries = [...selected.values()].sort(
+    (left, right) => left.sequence - right.sequence,
+  );
+  return {
+    entries: selectedEntries,
+    messages: selectedEntries.map((entry) => entry.message),
+    messageBytes,
+    anchorOffset: Math.max(
+      0,
+      selectedEntries.findIndex((entry) => entry.message.id === anchorMessageId),
+    ),
+    truncatedMessageIds,
+  };
+}
+
 function validatePositiveBoundedInteger(value: number, label: string, maximum: number): void {
   if (!Number.isSafeInteger(value) || value <= 0 || value > maximum) {
     throw new RangeError(`${label} must be between 1 and ${maximum}`);
@@ -1346,6 +1638,34 @@ function validateTranscriptPageQuery(query: SessionTranscriptPageQuery, sessionI
     throw new RangeError(
       `Session transcript page byte limit must be between ${SESSION_TRANSCRIPT_PAGE_MIN_BYTES} and ${SESSION_TRANSCRIPT_PAGE_MAX_BYTES}`,
     );
+  }
+}
+
+function validateTranscriptWindowQuery(
+  query: SessionTranscriptWindowQuery,
+  sessionId: string,
+): void {
+  if (query.sessionId !== sessionId) {
+    throw new RangeError('Transcript window session does not match the opened transcript store');
+  }
+  if (query.anchorMessageId.trim().length === 0 || query.anchorMessageId.length > 256) {
+    throw new RangeError('Transcript window anchor message id is invalid');
+  }
+  if (
+    !Number.isSafeInteger(query.beforeItems) ||
+    query.beforeItems < 0 ||
+    !Number.isSafeInteger(query.afterItems) ||
+    query.afterItems < 0 ||
+    query.beforeItems + query.afterItems + 1 > SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS
+  ) {
+    throw new RangeError('Transcript window item limits are invalid');
+  }
+  if (
+    !Number.isSafeInteger(query.maximumBytes) ||
+    query.maximumBytes < SESSION_TRANSCRIPT_PAGE_MIN_BYTES ||
+    query.maximumBytes > SESSION_TRANSCRIPT_PAGE_MAX_BYTES
+  ) {
+    throw new RangeError('Transcript window byte limit is invalid');
   }
 }
 

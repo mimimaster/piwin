@@ -6,6 +6,9 @@ export const SESSION_TRANSCRIPT_PAGE_MAX_ITEMS = 50;
 export const SESSION_TRANSCRIPT_PAGE_MIN_BYTES = 16 * 1024;
 export const SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES = 256 * 1024;
 export const SESSION_TRANSCRIPT_PAGE_MAX_BYTES = 512 * 1024;
+export const SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS = 8;
+export const SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS = 41;
+export const SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS = 50;
 
 /** Optional response projection for transcript-mutating compatibility commands. */
 export type SessionMessageProjection = 'full' | 'tail' | 'none';
@@ -34,6 +37,8 @@ export type SessionTranscriptPageInfo = {
   truncatedMessageIds?: string[];
   /** Fetches the next older page when present. */
   olderCursor?: string;
+  /** Fetches the next newer page when present. Reserved for bidirectional seeks. */
+  newerCursor?: string;
 };
 
 /**
@@ -52,3 +57,26 @@ export type SessionTranscriptPageResult<Message> =
     };
 
 export type SessionTranscriptPageData = SessionTranscriptPageResult<SessionTranscriptMessage>;
+
+export type SessionTranscriptWindowQuery = {
+  sessionId: string;
+  anchorMessageId: string;
+  beforeItems: number;
+  afterItems: number;
+  maximumBytes: number;
+};
+
+export type SessionTranscriptWindowInfo = SessionTranscriptPageInfo & {
+  anchorMessageId: string;
+  /** Offset of the anchor inside `messages`. */
+  anchorOffset: number;
+};
+
+export type SessionTranscriptWindowData =
+  | {
+      status: 'window';
+      messages: SessionTranscriptMessage[];
+      window: SessionTranscriptWindowInfo;
+    }
+  | { status: 'not-found' }
+  | { status: 'stale-cursor'; currentRevision: string };

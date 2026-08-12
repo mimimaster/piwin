@@ -85,6 +85,7 @@ describe('buildEnabledModelOptions', () => {
           makeModel({
             id: 'gemini-pro',
             contextWindow: 1_000_000,
+            maxOutputTokens: 32_000,
             thinkingLevel: 'low',
             thinkingLevels: ['off', 'low'],
             reasoning: true,
@@ -101,6 +102,7 @@ describe('buildEnabledModelOptions', () => {
         modelId: 'gemini-pro',
         label: 'p1 / gemini-pro',
         contextWindow: 1_000_000,
+        maxOutputTokens: 32_000,
         thinkingLevel: 'low',
         thinkingLevels: ['off', 'low'],
         reasoning: true,

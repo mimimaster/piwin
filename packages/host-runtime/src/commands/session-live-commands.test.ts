@@ -18,10 +18,128 @@ import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contr
 import { RunRegistry } from '../run-registry.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
 import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
+import { createDefaultPiwinConfig } from '../config-store.js';
 import type { SessionLiveContext } from './session-live-commands.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
 
 describe('session live control commands', () => {
+  it('compacts an oversized live source context before a target-model switch', async () => {
+    const baseSession = createDelayedSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        compactCalls += 1;
+        return { ok: true, tokensBefore: 900_000, tokensAfter: 120_000 };
+      },
+    };
+    const { context } = createControlContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 900_000,
+      tokensLimit: 1_000_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(compactCalls).toBe(1);
+    expect(response).toMatchObject({
+      success: true,
+      data: { ok: true, compacted: true, targetInputBudget: 201_600, tokensAfter: 120_000 },
+    });
+    expect(context.sessionModels.get(session.id)).toEqual(largeModelRef());
+  });
+
+  it('does not compact when the measured source context already fits the target', async () => {
+    const baseSession = createDelayedSessionHandle();
+    let compactCalls = 0;
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        compactCalls += 1;
+        return { ok: true, tokensBefore: 100_000, tokensAfter: 50_000 };
+      },
+    };
+    const { context } = createControlContext(session);
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 100_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/compact',
+        sessionId: session.id,
+        targetModel: smallModelRef(),
+      },
+      undefined,
+      context,
+    );
+
+    expect(compactCalls).toBe(0);
+    expect(response).toMatchObject({
+      success: true,
+      data: { ok: true, compacted: false, targetInputBudget: 201_600 },
+    });
+  });
+
+  it('rechecks and compacts before applying the target model on prompt', async () => {
+    const baseSession = createDelayedSessionHandle();
+    const order: string[] = [];
+    const session: SessionHandle = {
+      ...baseSession,
+      async compact(): Promise<import('@piwin/contracts').SessionCompactResult> {
+        order.push('compact-source');
+        return { ok: true, tokensBefore: 900_000, tokensAfter: 120_000 };
+      },
+      async prompt(input): Promise<void> {
+        order.push(`prompt:${input.model?.modelId ?? 'default'}`);
+      },
+    };
+    const { context } = createPromptContext(session);
+    context.hasRunReceivedFirstToken = () => true;
+    context.sessionModels.set(session.id, largeModelRef());
+    context.loadSessionUsage = async () => ({
+      sessionId: session.id,
+      tokensUsed: 900_000,
+      tokensLimit: 1_000_000,
+      updatedAt: new Date().toISOString(),
+      source: 'pi-contextUsage',
+    });
+    context.loadConfig = async () => modelSwitchConfig();
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'continue with the smaller model', model: smallModelRef() },
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
+    expect(order).toEqual(['compact-source', 'prompt:small-252k']);
+    expect(context.sessionModels.get(session.id)).toEqual(smallModelRef());
+  });
+
   it('persists an accepted steer with the client message id', async () => {
     const session = createDelayedSessionHandle();
     const { context, activeRun } = createControlContext(session);
@@ -158,6 +276,57 @@ describe('session live control commands', () => {
     expect(Date.now() - startedAt).toBeLessThan(100);
     expect(registry.get(activeRun.runId)?.status).toBe('cancelling');
     expect(session.abortRequested).toBe(true);
+  });
+
+  it('terminalizes and quarantines a run when the provider abort never settles', async () => {
+    const baseSession = createDelayedSessionHandle();
+    const session: SessionHandle = {
+      ...baseSession,
+      async abort(): Promise<void> {
+        await new Promise<void>(() => {
+          // Provider regression fixture: abort acknowledgement never arrives.
+        });
+      },
+    };
+    const { context, activeRun, registry } = createControlContext(session);
+    const quarantineSessionRuntime = vi.fn();
+    const terminateRun = vi.fn(context.terminateRun);
+    context.abortCleanupTimeoutMs = 10;
+    context.quarantineSessionRuntime = quarantineSessionRuntime;
+    context.terminateRun = terminateRun;
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/abort',
+        sessionId: session.id,
+        runId: activeRun.runId,
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: { cancelled: true, runId: activeRun.runId },
+    });
+    await vi.waitFor(() => {
+      expect(registry.get(activeRun.runId)).toMatchObject({
+        status: 'cancelled',
+        terminalCode: 'cancelled',
+        error: expect.stringContaining('fresh runtime'),
+      });
+    });
+    expect(quarantineSessionRuntime).toHaveBeenCalledOnce();
+    expect(quarantineSessionRuntime).toHaveBeenCalledWith(session.id, activeRun.runId);
+    expect(terminateRun).toHaveBeenCalledWith(
+      session.id,
+      activeRun.runId,
+      'cancelled',
+      'cancelled',
+      expect.stringContaining('fresh runtime'),
+      { skipJobCleanup: true },
+    );
+    expect(registry.getForegroundRun(session.id)).toBeUndefined();
   });
 
   it('returns prompt ack without waiting for delayed preparation', async () => {
@@ -769,6 +938,45 @@ describe('session live control commands', () => {
   });
 });
 
+function largeModelRef(): import('@piwin/contracts').ModelRef {
+  return {
+    protocol: 'anthropic-compatible',
+    providerId: 'large-provider',
+    modelId: 'large-1m',
+  };
+}
+
+function smallModelRef(): import('@piwin/contracts').ModelRef {
+  return {
+    protocol: 'openai-compatible',
+    providerId: 'small-provider',
+    modelId: 'small-252k',
+  };
+}
+
+function modelSwitchConfig(): import('@piwin/contracts').PiwinConfig {
+  const config = createDefaultPiwinConfig();
+  return {
+    ...config,
+    providers: [
+      {
+        id: 'large-provider',
+        protocol: 'anthropic-compatible',
+        name: 'Large',
+        baseUrl: 'https://large.invalid',
+        models: [{ id: 'large-1m', contextWindow: 1_000_000 }],
+      },
+      {
+        id: 'small-provider',
+        protocol: 'openai-compatible',
+        name: 'Small',
+        baseUrl: 'https://small.invalid',
+        models: [{ id: 'small-252k', contextWindow: 252_000, maxOutputTokens: 8_000 }],
+      },
+    ],
+  };
+}
+
 /**
  * A session handle whose prompt() resolves immediately without emitting any
  * assistant events (no message/start, no text_delta, no message/end).
@@ -926,6 +1134,7 @@ function createControlContext(
     }),
     cancelRuntimeReplacement: async () => undefined,
     disposeLiveSession: async () => undefined,
+    quarantineSessionRuntime: (): void => undefined,
     reloadRuntime: async () => ({ generationId: 'generation-2', settingsRevision: 'rev-2' }),
     loadConfig: async () => ({}) as any,
     setRunOrchestrationScheme: (_runId, _scheme): void => undefined,

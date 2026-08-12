@@ -1145,6 +1145,38 @@ describe('chatUiReducer', () => {
     expect(state.lastCompactionSummary).toBeNull();
   });
 
+  it('updates measured context occupancy after a successful compaction', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'usage/update',
+        sessionId: 's1',
+        usage: {
+          sessionId: 's1',
+          tokensUsed: 900_000,
+          tokensLimit: 1_000_000,
+          updatedAt: new Date(0).toISOString(),
+          source: 'pi-contextUsage',
+        },
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'compaction/end', ok: true, tokensAfter: 120_000 },
+    });
+
+    expect(state.contextUsage).toMatchObject({
+      tokensUsed: 120_000,
+      totalTokens: 120_000,
+      contextRatio: 0.12,
+      source: 'pi-contextUsage',
+    });
+  });
+
   it('stores usage/update on contextUsage', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -1363,6 +1395,116 @@ describe('chatUiReducer', () => {
       cacheLimitReached: false,
     });
     expect(state.transcriptWindow?.olderCursor).toBeUndefined();
+  });
+
+  it('keeps the live tail separate while a bounded history view is open', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'history-session' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'history-session',
+      messages: [
+        {
+          id: 'tail-user',
+          role: 'user',
+          text: 'latest request',
+          createdAt: '2026-08-12T00:10:00.000Z',
+          status: 'done',
+        },
+        {
+          id: 'tail-assistant',
+          role: 'assistant',
+          text: 'latest answer',
+          createdAt: '2026-08-12T00:10:01.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    state = chatUiReducer(state, {
+      type: 'session/seek-messages',
+      sessionId: 'history-session',
+      epoch: state.userMessageIndexEpoch,
+      messages: [
+        {
+          id: 'old-user',
+          role: 'user',
+          text: 'old request',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          status: 'done',
+        },
+        {
+          id: 'old-assistant',
+          role: 'assistant',
+          text: 'old answer',
+          createdAt: '2026-08-01T00:00:01.000Z',
+          status: 'done',
+        },
+      ],
+      window: {
+        revision: 'history-revision',
+        totalCount: 200,
+        startIndex: 20,
+        endIndex: 22,
+        messageBytes: 256,
+        anchorMessageId: 'old-user',
+        anchorOffset: 0,
+      },
+    });
+
+    expect(state.messages.map((message) => message.id)).toEqual(['tail-user', 'tail-assistant']);
+    expect(state.historyView?.messages.map((message) => message.id)).toEqual([
+      'old-user',
+      'old-assistant',
+    ]);
+
+    state = chatUiReducer(state, {
+      type: 'transcript/append',
+      sessionId: 'history-session',
+      message: {
+        id: 'new-live-message',
+        role: 'assistant',
+        text: 'arrived while reading history',
+        createdAt: '2026-08-12T00:10:02.000Z',
+        status: 'done',
+      },
+    });
+
+    expect(state.messages.at(-1)?.id).toBe('new-live-message');
+    expect(state.historyView?.messages.at(-1)?.id).toBe('old-assistant');
+
+    state = chatUiReducer(state, {
+      type: 'session/return-to-live',
+      sessionId: 'history-session',
+    });
+    expect(state.historyView).toBeNull();
+    expect(state.messages.at(-1)?.id).toBe('new-live-message');
+  });
+
+  it('rejects a user-message index response from an invalidated request epoch', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'index-session' });
+    const staleEpoch = state.userMessageIndexEpoch;
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'new request',
+      clientMessageId: 'new-request',
+    });
+    state = chatUiReducer(state, {
+      type: 'session/user-message-index',
+      sessionId: 'index-session',
+      epoch: staleEpoch,
+      index: {
+        sessionId: 'index-session',
+        revision: 'stale-index',
+        totalUserMessages: 0,
+        mode: 'exact',
+        anchors: [],
+        anchorBytes: 2,
+      },
+    });
+
+    expect(state.userMessageIndex).toBeNull();
+    expect(state.userMessageIndexEpoch).toBeGreaterThan(staleEpoch);
   });
 
   it('bounds messages appended during a long-lived renderer session', () => {

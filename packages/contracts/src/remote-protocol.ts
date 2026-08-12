@@ -54,6 +54,10 @@ export type RemoteCapabilitySummary = {
   skillPreview?: boolean;
   /** Bounded persisted tool output snapshot recovery. */
   toolOutputRead?: boolean;
+  /** Host maintains a bounded user-message navigation index. */
+  sessionUserMessageIndex?: boolean;
+  /** Host supports bounded transcript windows around an anchor message. */
+  sessionTranscriptSeek?: boolean;
 };
 
 export type HostHello = {

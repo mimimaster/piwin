@@ -35,6 +35,8 @@ import type {
 import {
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+  SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
+  SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
   DEFAULT_PERMISSION_PRESET,
   resolvePreset,
@@ -45,6 +47,9 @@ import {
   isModelEnabled,
   isProviderEnabled,
   modelSupportsCapability,
+  estimatePendingPromptTokens,
+  readContextOccupiedTokens,
+  resolveModelContextBudget,
   type ResolvedOrchestrationScheme,
 } from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
@@ -121,6 +126,7 @@ import {
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
+import { findEnabledModel } from '../provider-helpers.js';
 
 function listKnownChatModelKeys(config: PiwinConfig): string[] {
   return (config.providers ?? [])
@@ -284,6 +290,7 @@ export type SessionLiveContext = {
     outcome: 'completed' | 'cancelled' | 'failed' | 'paused',
     code?: RunTerminalCode,
     message?: string,
+    options?: { skipJobCleanup?: boolean },
   ) => boolean | Promise<boolean>;
   settlePendingPermissionsForSession: (sessionId: string) => void;
   /** Resolve Extension UI waits so Stop cannot leave a Pi prompt suspended. */
@@ -305,6 +312,13 @@ export type SessionLiveContext = {
     sessionId: string,
     reason?: import('@piwin/contracts').SessionRuntimeEvictionReason,
   ) => Promise<void>;
+  /**
+   * Detach a generation whose abort acknowledgement missed the Host deadline.
+   * Late events/tools are rejected and the next prompt activates a fresh runtime.
+   */
+  quarantineSessionRuntime: (sessionId: string, runId: string) => void;
+  /** Test seam; production uses the bounded default below. */
+  abortCleanupTimeoutMs?: number;
   reloadRuntime: (request: {
     sessionId: string;
     expectedSettingsRevision: string;
@@ -318,7 +332,9 @@ const TYPES = new Set<HostCommand['type']>([
   'session/truncate-from',
   'session/resume',
   'session/outline-page',
+  'session/user-message-index',
   'session/transcript-page',
+  'session/transcript-window',
   'session/messages',
   'session/prompt',
   'session/pause',
@@ -354,6 +370,96 @@ async function compactLiveSession(
 ): Promise<SessionCompactResult> {
   const session = context.requireSession(sessionId);
   return compactSessionHandle(context, sessionId, session, customInstructions, true);
+}
+
+type TargetCompactionResult = SessionCompactResult & {
+  compacted: boolean;
+  targetInputBudget: number;
+};
+
+async function compactLiveSessionForTarget(
+  context: SessionLiveContext,
+  sessionId: string,
+  targetModel: ModelRef,
+  pendingPromptTokens = 0,
+  customInstructions?: string,
+): Promise<TargetCompactionResult> {
+  const config = await context.loadConfig();
+  const configuredTarget = findEnabledModel(config, targetModel.providerId, targetModel.modelId);
+  if (!configuredTarget || !modelSupportsCapability(configuredTarget, 'chat')) {
+    throw new Error(
+      `model-unavailable: ${targetModel.providerId}/${targetModel.modelId} is not an enabled chat model`,
+    );
+  }
+
+  const targetBudget = resolveModelContextBudget({
+    ...(configuredTarget.contextWindow !== undefined
+      ? { contextWindow: configuredTarget.contextWindow }
+      : {}),
+    ...(configuredTarget.maxOutputTokens !== undefined
+      ? { maxOutputTokens: configuredTarget.maxOutputTokens }
+      : {}),
+  });
+  const usage = await context.loadSessionUsage(sessionId);
+  const occupiedTokens = readContextOccupiedTokens(usage);
+  const requiredTokens =
+    occupiedTokens === undefined ? undefined : occupiedTokens + Math.max(0, pendingPromptTokens);
+  const sourceModel = context.sessionModels.get(sessionId);
+  const alreadyUsingTarget =
+    sourceModel?.providerId === targetModel.providerId &&
+    sourceModel.modelId === targetModel.modelId &&
+    sourceModel.protocol === targetModel.protocol;
+
+  // Cold sessions reconstruct a bounded product-history window on activation;
+  // there is no native source-model context to mutate before the switch.
+  if (
+    alreadyUsingTarget ||
+    !context.sessions.has(sessionId) ||
+    requiredTokens === undefined ||
+    requiredTokens <= targetBudget.inputBudget
+  ) {
+    return {
+      ok: true,
+      compacted: false,
+      targetInputBudget: targetBudget.inputBudget,
+      message: alreadyUsingTarget
+        ? 'Session is already using the target model'
+        : requiredTokens === undefined
+          ? 'Target context could not be measured; final provider limits still apply'
+          : 'Current context fits the target model budget',
+    };
+  }
+
+  const targetInstructions = [
+    customInstructions?.trim(),
+    `Prepare this session for migration to ${targetModel.providerId}/${targetModel.modelId}.`,
+    `The resulting model context must not exceed ${targetBudget.inputBudget} tokens, including retained recent turns.`,
+    'Preserve goals, constraints, decisions, plan status, files changed, test results, unresolved errors, and pending user intent.',
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join('\n');
+  const result = await compactLiveSession(context, sessionId, targetInstructions);
+  if (!result.ok) {
+    throw new Error(result.message ?? 'Target-model compaction failed');
+  }
+
+  const postCompactTokens = result.tokensAfter;
+  if (postCompactTokens === undefined) {
+    throw new Error(
+      `context-limit-unverified: compaction did not report post-compact tokens for target budget ${targetBudget.inputBudget}`,
+    );
+  }
+  if (postCompactTokens + Math.max(0, pendingPromptTokens) > targetBudget.inputBudget) {
+    throw new Error(
+      `context-limit-exceeded: compacted context ${postCompactTokens + Math.max(0, pendingPromptTokens)} exceeds target input budget ${targetBudget.inputBudget}`,
+    );
+  }
+
+  return {
+    ...result,
+    compacted: true,
+    targetInputBudget: targetBudget.inputBudget,
+  };
 }
 
 async function compactSessionHandle(
@@ -487,8 +593,14 @@ async function compactTranscriptSnapshot(
   }
 }
 
-function toSessionCompactData(result: SessionCompactResult): SessionCompactData {
+function toSessionCompactData(
+  result: SessionCompactResult & { compacted?: boolean; targetInputBudget?: number },
+): SessionCompactData {
   const data: SessionCompactData = { ok: result.ok };
+  if (typeof result.compacted === 'boolean') data.compacted = result.compacted;
+  if (typeof result.targetInputBudget === 'number') {
+    data.targetInputBudget = result.targetInputBudget;
+  }
   if (result.message) data.message = result.message;
   if (result.summary) data.summary = result.summary;
   if (typeof result.tokensBefore === 'number') data.tokensBefore = result.tokensBefore;
@@ -1058,6 +1170,31 @@ export async function handleSessionLiveCommand(
         throw error;
       }
     }
+    case 'session/user-message-index': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const existing = await getSessionRecord(
+        getPiwinSessionIndexPath(rootDir),
+        command.query.sessionId,
+      );
+      if (!existing) {
+        return fail(
+          requestId,
+          'session/user-message-index',
+          `Unknown session: ${command.query.sessionId}`,
+        );
+      }
+      try {
+        const index = await (
+          await context.getTranscriptStore(command.query.sessionId)
+        ).userMessageIndex(command.query);
+        return ok(requestId, 'session/user-message-index', index);
+      } catch (error) {
+        if (error instanceof RangeError) {
+          return fail(requestId, 'session/user-message-index', error.message);
+        }
+        throw error;
+      }
+    }
     case 'session/transcript-page': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const existing = await getSessionRecord(
@@ -1079,6 +1216,35 @@ export async function handleSessionLiveCommand(
       } catch (error) {
         if (error instanceof RangeError) {
           return fail(requestId, 'session/transcript-page', error.message);
+        }
+        throw error;
+      }
+    }
+    case 'session/transcript-window': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const existing = await getSessionRecord(
+        getPiwinSessionIndexPath(rootDir),
+        command.query.sessionId,
+      );
+      if (!existing) {
+        return fail(
+          requestId,
+          'session/transcript-window',
+          `Unknown session: ${command.query.sessionId}`,
+        );
+      }
+      try {
+        const window = await (
+          await context.getTranscriptStore(command.query.sessionId)
+        ).transcriptWindow({
+          ...command.query,
+          beforeItems: command.query.beforeItems ?? SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
+          afterItems: command.query.afterItems ?? SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
+        });
+        return ok(requestId, 'session/transcript-window', window);
+      } catch (error) {
+        if (error instanceof RangeError) {
+          return fail(requestId, 'session/transcript-window', error.message);
         }
         throw error;
       }
@@ -1374,6 +1540,22 @@ export async function handleSessionLiveCommand(
       // callback owns the run's single terminal transition.
       context.runWithContext(run.runId, async () => {
         try {
+          if (command.input.model) {
+            await compactLiveSessionForTarget(
+              context,
+              command.sessionId,
+              command.input.model,
+              estimatePendingPromptTokens({
+                text: command.input.text,
+                ...(command.input.attachments
+                  ? { attachmentCount: command.input.attachments.length }
+                  : {}),
+                ...(command.input.contextRefs
+                  ? { contextRefCount: command.input.contextRefs.length }
+                  : {}),
+              }),
+            );
+          }
           const promptInput = await preparePromptInput(context, command, run);
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeAbortedRun(context, command.sessionId, run.runId);
@@ -1622,11 +1804,15 @@ export async function handleSessionLiveCommand(
       });
     }
     case 'session/compact': {
-      const result = await compactLiveSession(
-        context,
-        command.sessionId,
-        command.customInstructions,
-      );
+      const result = command.targetModel
+        ? await compactLiveSessionForTarget(
+            context,
+            command.sessionId,
+            command.targetModel,
+            0,
+            command.customInstructions,
+          )
+        : await compactLiveSession(context, command.sessionId, command.customInstructions);
       return ok(requestId, 'session/compact', toSessionCompactData(result));
     }
     case 'session/compact-export': {
@@ -1833,6 +2019,25 @@ function scheduleAbortCleanup(
   });
 }
 
+const DEFAULT_ABORT_CLEANUP_TIMEOUT_MS = 2_000;
+
+async function settlesWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(false);
+    }, timeoutMs);
+    void promise.then(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(true);
+    });
+  });
+}
+
 function schedulePauseCleanup(context: SessionLiveContext, sessionId: string, runId: string): void {
   void finalizePausedRun(context, sessionId, runId).catch((error: unknown) => {
     const message = formatError(error);
@@ -1870,10 +2075,34 @@ async function finalizeCancelledRun(
   if (context.getForegroundRun(sessionId)?.runId !== runId) {
     return;
   }
-  const cleanupResults = await Promise.allSettled([
+  const cleanupPromise = Promise.allSettled([
     abortLiveSession(context, sessionId),
     context.stopProcessesForSession(sessionId),
   ]);
+  const cleanupSettled = await settlesWithin(
+    cleanupPromise,
+    context.abortCleanupTimeoutMs ?? DEFAULT_ABORT_CLEANUP_TIMEOUT_MS,
+  );
+  if (!cleanupSettled) {
+    if (context.getForegroundRun(sessionId)?.runId !== runId) {
+      return;
+    }
+    const timeoutMessage =
+      'The runtime did not acknowledge Stop in time and was detached. The next prompt will use a fresh runtime.';
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `session abort cleanup timed out: ${sessionId}/${runId}`,
+    });
+    await context.terminateRun(sessionId, runId, 'cancelled', 'cancelled', timeoutMessage, {
+      // stopProcessesForSession is already running in cleanupPromise. Do not
+      // let the terminal Run wait on the same non-responsive jobs a second time.
+      skipJobCleanup: true,
+    });
+    context.quarantineSessionRuntime(sessionId, runId);
+    return;
+  }
+  const cleanupResults = await cleanupPromise;
   for (const cleanupResult of cleanupResults) {
     if (cleanupResult.status === 'rejected') {
       const detail = formatError(cleanupResult.reason);

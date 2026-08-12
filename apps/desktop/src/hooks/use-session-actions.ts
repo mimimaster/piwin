@@ -12,10 +12,16 @@ import type {
   SessionSummary,
   SessionTranscriptMessage,
   SessionTranscriptPageInfo,
+  SessionTranscriptWindowData,
+  SessionUserMessageAnchor,
+  SessionUserMessageIndexData,
 } from '@piwin/contracts';
 import {
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+  SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
+  SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
+  SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
 } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
@@ -129,11 +135,80 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
   const sessionPageRequestGenerations = useRef(new Map<string, number>());
   const transcriptHistoryRequestSessionId = useRef<string | null>(null);
+  const historySeekRequestGeneration = useRef(0);
   const sessionListWindowsRef = useRef<SessionListWindowsState<SessionListItemUi>>(
     createSessionListWindowsState(),
   );
   const [sessionListWindows, setSessionListWindows] = useState(sessionListWindowsRef.current);
   const [transcriptHistoryLoading, setTranscriptHistoryLoading] = useState(false);
+
+  const loadUserMessageIndex = useCallback(
+    async (sessionId: string, epoch: number): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'session/user-message-index',
+        query: {
+          sessionId,
+          maximumTicks: SESSION_USER_MESSAGE_INDEX_DEFAULT_TICKS,
+        },
+      });
+      if (!response.success) {
+        // The rail can continue using resident user rows while an older Host
+        // or a cold session does not expose the optional index capability.
+        return;
+      }
+      const index = response.data as SessionUserMessageIndexData;
+      dispatch({ type: 'session/user-message-index', sessionId, epoch, index });
+    },
+    [dispatch, hostClient],
+  );
+
+  const handleJumpToHistoryAnchor = useCallback(
+    async (anchor: SessionUserMessageAnchor): Promise<void> => {
+      const sessionId = state.activeSessionId;
+      if (!sessionId) {
+        return;
+      }
+      const requestGeneration = historySeekRequestGeneration.current + 1;
+      historySeekRequestGeneration.current = requestGeneration;
+      const epoch = state.userMessageIndexEpoch;
+      const response = await hostClient.request({
+        type: 'session/transcript-window',
+        query: {
+          sessionId,
+          anchorMessageId: anchor.messageId,
+          beforeItems: SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
+          afterItems: SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
+          maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+        },
+      });
+      if (historySeekRequestGeneration.current !== requestGeneration) {
+        return;
+      }
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return;
+      }
+      const data = response.data as SessionTranscriptWindowData;
+      if (data.status === 'window') {
+        dispatch({
+          type: 'session/seek-messages',
+          sessionId,
+          epoch,
+          messages: data.messages,
+          window: data.window,
+        });
+      }
+    },
+    [dispatch, hostClient, state.activeSessionId, state.userMessageIndexEpoch],
+  );
+
+  const handleReturnToLiveTranscript = useCallback((): void => {
+    historySeekRequestGeneration.current += 1;
+    const sessionId = state.activeSessionId;
+    if (sessionId) {
+      dispatch({ type: 'session/return-to-live', sessionId });
+    }
+  }, [dispatch, state.activeSessionId]);
 
   const selectedModelRef = useCallback((): ModelRef | undefined => {
     if (!selectedModelKey) {
@@ -1235,7 +1310,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   /** UI pages and optimistic sends both retain the Host-persisted message id. */
   const resolveHostUserMessageId = useCallback(
     (uiMessageId: string): string | null => {
-      const uiMessage = state.messages.find((message) => message.id === uiMessageId);
+      const visibleMessages = state.historyView?.messages ?? state.messages;
+      const uiMessage = visibleMessages.find((message) => message.id === uiMessageId);
       if (!uiMessage || uiMessage.role !== 'user') {
         const errorMessage = `Cannot restore: message not found in chat (${uiMessageId})`;
         dispatch({ type: 'error', message: errorMessage });
@@ -1244,7 +1320,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       return uiMessage.id;
     },
-    [dispatch, dispatchNotification, state.messages],
+    [dispatch, dispatchNotification, state.historyView, state.messages],
   );
 
   const handleEditAndResend = useCallback(
@@ -1373,7 +1449,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         );
         return;
       }
-      const message = state.messages.find((item) => item.id === messageId);
+      const visibleMessages = state.historyView?.messages ?? state.messages;
+      const message = visibleMessages.find((item) => item.id === messageId);
       if (!message || message.role !== 'user') {
         dispatchNotification(pushError('Can only restore from a user message.'));
         return;
@@ -1431,6 +1508,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       setComposer,
       state.activeScope.kind,
       state.activeSessionId,
+      state.historyView,
       state.messages,
       state.projectPath,
       state.projectTrusted,
@@ -1510,9 +1588,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     const response = await hostClient.request({
       type: 'session/resume-run',
       sessionId: state.activeSessionId,
-      ...(state.runTerminal.checkpointId
-        ? { checkpointId: state.runTerminal.checkpointId }
-        : {}),
+      ...(state.runTerminal.checkpointId ? { checkpointId: state.runTerminal.checkpointId } : {}),
     });
     if (!response.success) {
       dispatch({ type: 'error', message: response.error });
@@ -1526,12 +1602,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         ...(data.acceptedAt ? { acceptedAt: data.acceptedAt } : {}),
       });
     }
-  }, [
-    dispatch,
-    hostClient,
-    state.activeSessionId,
-    state.runTerminal,
-  ]);
+  }, [dispatch, hostClient, state.activeSessionId, state.runTerminal]);
 
   const handleCompact = useCallback(
     async (customInstructions?: string): Promise<void> => {
@@ -1605,6 +1676,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     hydrateSessions,
     sessionListWindows,
     transcriptHistoryLoading,
+    loadUserMessageIndex,
+    handleJumpToHistoryAnchor,
+    handleReturnToLiveTranscript,
     handleOpenWorkspaceClick,
     handleBrowseProject,
     handleOpenProject,

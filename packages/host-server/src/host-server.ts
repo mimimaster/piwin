@@ -24,6 +24,9 @@ import {
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
   SESSION_TRANSCRIPT_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_MIN_BYTES,
+  SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS,
+  SESSION_USER_MESSAGE_INDEX_MAX_TICKS,
+  SESSION_USER_MESSAGE_INDEX_MIN_TICKS,
   isSupportedAttachmentMimeType,
 } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
@@ -101,7 +104,9 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/list-page',
   'session/create',
   'session/resume',
+  'session/user-message-index',
   'session/transcript-page',
+  'session/transcript-window',
   'session/messages',
   'session/prompt',
   'session/pause',
@@ -712,6 +717,42 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         query.maximumBytes <= SESSION_TRANSCRIPT_PAGE_MAX_BYTES &&
         (query.beforeCursor === undefined ||
           (typeof query.beforeCursor === 'string' && query.beforeCursor.length <= 512))
+      );
+    }
+    case 'session/user-message-index': {
+      const query: unknown = command.query;
+      if (!isRecord(query)) return false;
+      return (
+        typeof query.sessionId === 'string' &&
+        query.sessionId.length > 0 &&
+        query.sessionId.length <= 256 &&
+        typeof query.maximumTicks === 'number' &&
+        Number.isSafeInteger(query.maximumTicks) &&
+        query.maximumTicks >= SESSION_USER_MESSAGE_INDEX_MIN_TICKS &&
+        query.maximumTicks <= SESSION_USER_MESSAGE_INDEX_MAX_TICKS
+      );
+    }
+    case 'session/transcript-window': {
+      const query: unknown = command.query;
+      if (!isRecord(query)) return false;
+      return (
+        typeof query.sessionId === 'string' &&
+        query.sessionId.length > 0 &&
+        query.sessionId.length <= 256 &&
+        typeof query.anchorMessageId === 'string' &&
+        query.anchorMessageId.length > 0 &&
+        query.anchorMessageId.length <= 256 &&
+        typeof query.beforeItems === 'number' &&
+        Number.isSafeInteger(query.beforeItems) &&
+        query.beforeItems >= 0 &&
+        typeof query.afterItems === 'number' &&
+        Number.isSafeInteger(query.afterItems) &&
+        query.afterItems >= 0 &&
+        query.beforeItems + query.afterItems + 1 <= SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS &&
+        typeof query.maximumBytes === 'number' &&
+        Number.isSafeInteger(query.maximumBytes) &&
+        query.maximumBytes >= SESSION_TRANSCRIPT_PAGE_MIN_BYTES &&
+        query.maximumBytes <= SESSION_TRANSCRIPT_PAGE_MAX_BYTES
       );
     }
     case 'session/create':

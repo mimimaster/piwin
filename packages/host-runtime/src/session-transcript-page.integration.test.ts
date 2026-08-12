@@ -7,6 +7,8 @@ import type {
   SessionResumeData,
   SessionTranscriptDocument,
   SessionTranscriptPageData,
+  SessionTranscriptWindowData,
+  SessionUserMessageIndexData,
 } from '@piwin/contracts';
 import {
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
@@ -88,6 +90,41 @@ describe('HostRuntime transcript paging', () => {
       expect(older.messages[0]?.id).toBe('message-0');
       expect(older.messages.at(-1)?.id).toBe('message-29');
       expect(older.page.messageBytes).toBeLessThanOrEqual(SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES);
+
+      const indexResponse = await runtime.handleCommand({
+        type: 'session/user-message-index',
+        query: { sessionId, maximumTicks: 16 },
+      });
+      expect(indexResponse.success).toBe(true);
+      if (!indexResponse.success) throw new Error(indexResponse.error);
+      const userIndex = indexResponse.data as SessionUserMessageIndexData;
+      expect(userIndex.totalUserMessages).toBe(40);
+      expect(userIndex.anchors).toHaveLength(16);
+
+      const windowResponse = await runtime.handleCommand({
+        type: 'session/transcript-window',
+        query: {
+          sessionId,
+          anchorMessageId: 'message-40',
+          beforeItems: 2,
+          afterItems: 2,
+          maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+        },
+      });
+      expect(windowResponse.success).toBe(true);
+      if (!windowResponse.success) throw new Error(windowResponse.error);
+      const window = windowResponse.data as SessionTranscriptWindowData;
+      expect(window.status).toBe('window');
+      if (window.status === 'window') {
+        expect(window.messages.map((message) => message.id)).toEqual([
+          'message-38',
+          'message-39',
+          'message-40',
+          'message-41',
+          'message-42',
+        ]);
+        expect(window.window.anchorOffset).toBe(2);
+      }
     } finally {
       await runtime.dispose();
     }
