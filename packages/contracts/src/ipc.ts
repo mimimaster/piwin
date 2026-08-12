@@ -143,6 +143,17 @@ export type HostCommand =
     }
   | {
       id?: string;
+      type: 'project/write-file';
+      projectPath: string;
+      /** Relative path under project root (posix-style). */
+      relativePath: string;
+      /** UTF-8 content to write. */
+      content: string;
+      /** When true, overwrite an existing file (CM-14 apply gate). */
+      overwrite: boolean;
+    }
+  | {
+      id?: string;
       type: 'session/list';
       /** @deprecated Use `scope` field instead. */
       projectPath?: string;

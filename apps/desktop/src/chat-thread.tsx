@@ -31,6 +31,11 @@ import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
 import { IconCopy, IconCheck, IconRevert } from './shell-icons';
 import { AssistantResponseActions } from './assistant-response-actions';
+import {
+  ContextMenuFromCatalog,
+  useDesktopContextMenu,
+  type ContextMenuTarget,
+} from './context-menu';
 
 /**
  * In-place composer for editing a user message. Renders the same ComposerCard
@@ -184,6 +189,8 @@ export type ChatThreadProps = {
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
   artifactThemeKey: number;
+  /** Active session id — CM-10 message context menu source session. */
+  activeSessionId?: string | null;
   /** Session-level plan rendered once at the top of the thread (not per-message). */
   plan?: SessionPlan | null;
   runRecordsById?: Record<string, RunRecordUi>;
@@ -337,6 +344,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               })()}
               isNew={enteringIds.has(message.id)}
               streaming={props.streaming}
+              activeSessionId={props.activeSessionId ?? null}
               editingMessageId={props.editingMessageId}
               lastUserMessageId={props.lastUserMessageId}
               activeTheme={props.activeTheme}
@@ -434,6 +442,8 @@ type ChatMessageRowProps = {
   /** Quiet workbench: entrance animation for messages that arrived after mount. */
   isNew: boolean;
   streaming: boolean;
+  /** CM-10: source session for the message context menu ref. */
+  activeSessionId: string | null;
   editingMessageId: string | null;
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
@@ -658,6 +668,7 @@ function UserMessageContent(props: {
 const ChatMessageRow = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
     const { message } = props;
+    const contextMenu = useDesktopContextMenu();
     if (message.subagentActivity) {
       return (
         <div id={`msg-${message.id}`} className="chat-subagent-slot">
@@ -691,7 +702,30 @@ const ChatMessageRow = memo(
         ? () => props.onEdit(message.id)
         : undefined;
 
-    return (
+    // CM-10: message surface target. Capabilities follow existing session
+    // action rules: retry on user bubbles; fork on completed assistants when a
+    // fork hook exists; side chat when the host has a session.
+    const messageTarget: ContextMenuTarget | null =
+      contextMenu && props.activeSessionId && (message.role === 'user' || message.role === 'assistant')
+        ? {
+            surface: message.role === 'user' ? 'message-user' : 'message-assistant',
+            sessionId: props.activeSessionId,
+            messageId: message.id,
+            text: message.text,
+            label: message.role === 'user' ? 'User message' : 'Assistant response',
+            capabilities: {
+              canRetry: isUserMessage && !props.streaming,
+              canFork:
+                message.role === 'assistant' &&
+                message.status === 'done' &&
+                props.onForkFromMessage !== undefined &&
+                !props.streaming,
+              canSideChat: Boolean(props.activeSessionId && !props.streaming),
+            },
+          }
+        : null;
+
+    const bubble = (
       <article
         id={`msg-${message.id}`}
         className={rowClass}
@@ -805,6 +839,23 @@ const ChatMessageRow = memo(
         ) : null}
       </article>
     );
+
+    // CM-10: message context menu wraps the whole bubble. Streaming rows keep
+    // the menu (retry/fork are capability-gated off); subagent cards are
+    // handled by the early return above.
+    if (!messageTarget || !contextMenu) {
+      return bubble;
+    }
+    return (
+      <ContextMenuFromCatalog
+        testId="message-context-menu"
+        target={messageTarget}
+        caps={contextMenu.caps}
+        dispatchers={contextMenu.dispatchers}
+      >
+        {bubble}
+      </ContextMenuFromCatalog>
+    );
   },
   (previous, next) => {
     const isActionableUserMessage = previous.message.role === 'user';
@@ -835,6 +886,7 @@ const ChatMessageRow = memo(
       previous.message === next.message &&
       previous.messageIndex === next.messageIndex &&
       streamingIsStable &&
+      previous.activeSessionId === next.activeSessionId &&
       previous.editingMessageId === next.editingMessageId &&
       previous.lastUserMessageId === next.lastUserMessageId &&
       previous.activeTheme === next.activeTheme &&

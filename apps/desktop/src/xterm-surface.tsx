@@ -7,7 +7,7 @@
  * panel is collapsed or the tab is hidden, which was the source of garbled
  * prompt output and diagonal wrapping.
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -20,6 +20,11 @@ import {
   tauriPtyResize,
   tauriPtyWrite,
 } from './tauri-pty';
+import {
+  ContextMenuFromCatalog,
+  useDesktopContextMenu,
+  type ContextMenuTarget,
+} from './context-menu';
 
 export type PtyStatus = 'idle' | 'starting' | 'open' | 'error' | 'exited';
 
@@ -42,6 +47,12 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
   const ptyIdRef = useRef<string | null>(null);
   const bootingRef = useRef(false);
   const onStatusRef = useRef(props.onStatus);
+  const contextMenu = useDesktopContextMenu();
+  // CM-13: terminal-selection menu target, captured on right-click.
+  // The menu stays mounted so a single right-click opens it; last non-null
+  // selection keeps it populated when Radix clears the xterm selection.
+  const [selectionTarget, setSelectionTarget] = useState<ContextMenuTarget | null>(null);
+  const lastSelectionRef = useRef<ContextMenuTarget | null>(null);
   onStatusRef.current = props.onStatus;
 
   useEffect(() => {
@@ -221,12 +232,43 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     };
   }, [props.cwd, props.projectPath]);
 
-  return (
+  // CM-13: read the xterm selection on right-click; only then show the menu.
+  function handleContextMenu(): void {
+    const selected = terminalRef.current?.getSelection().trim();
+    if (!contextMenu || !selected) {
+      setSelectionTarget(null);
+      return;
+    }
+    const next: ContextMenuTarget = {
+      surface: 'terminal-selection',
+      selectedText: selected.slice(0, 8000),
+      label: 'Terminal selection',
+    };
+    lastSelectionRef.current = next;
+    setSelectionTarget(next);
+  }
+
+  const surface = (
     <div
       className="xterm-surface"
       data-testid="xterm-surface"
       ref={containerRef}
+      onContextMenu={handleContextMenu}
       style={{ width: '100%', height: '100%', minHeight: 160 }}
     />
+  );
+
+  if (!contextMenu) {
+    return surface;
+  }
+  return (
+    <ContextMenuFromCatalog
+      testId="terminal-selection-context-menu"
+      target={selectionTarget ?? lastSelectionRef.current}
+      caps={contextMenu.caps}
+      dispatchers={contextMenu.dispatchers}
+    >
+      {surface}
+    </ContextMenuFromCatalog>
   );
 }

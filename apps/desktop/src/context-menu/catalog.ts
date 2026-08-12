@@ -59,8 +59,17 @@ const ZH_LABELS: LabelTable = {
   'rerun-tool': '重新运行工具',
 };
 
+const EN_SUBMENU_LABELS = { more: 'More…' } as const;
+const ZH_SUBMENU_LABELS = { more: '更多…' } as const;
+
+type SubmenuLabelTable = { more: string };
+
 function labelsFor(locale: ContextMenuCapabilities['locale']): LabelTable {
   return locale === 'zh-CN' ? ZH_LABELS : EN_LABELS;
+}
+
+function submenuLabelsFor(locale: ContextMenuCapabilities['locale']): SubmenuLabelTable {
+  return locale === 'zh-CN' ? ZH_SUBMENU_LABELS : EN_SUBMENU_LABELS;
 }
 
 function item(
@@ -118,6 +127,20 @@ export function buildContextMenuItems(
         sep(),
         item('copy-relative-path', labels, { disabled: noProject }),
         item('copy-absolute-path', labels, { disabled: noProject }),
+        ...(noProject
+          ? []
+          : [
+              {
+                type: 'submenu' as const,
+                id: 'more',
+                label: submenuLabelsFor(caps.locale).more,
+                children: [
+                  item('explain', labels),
+                  item('review', labels),
+                  item('tests', labels),
+                ],
+              },
+            ]),
       ]);
     case 'file-tree-folder':
       return compact([
@@ -169,6 +192,7 @@ export function buildContextMenuItems(
         ...(capsMsg.canSideChat && caps.sideChatAvailable ? [item('side-chat', labels)] : []),
         sep(),
         item('add-to-chat', labels),
+        ...(caps.openChangedFilesAvailable ? [item('open-changed-files', labels)] : []),
       ]);
     }
     case 'diff-row':

@@ -14,3 +14,8 @@ export {
   type ContextMenuDispatchers,
 } from './dispatch.js';
 export { ContextMenuFromCatalog } from './ContextMenuFromCatalog.js';
+export {
+  DesktopContextMenuProvider,
+  useDesktopContextMenu,
+} from './desktop-context-menu-context.js';
+export type { DesktopContextMenuValue } from './desktop-context-menu-context.js';

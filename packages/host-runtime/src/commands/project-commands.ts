@@ -1,7 +1,7 @@
 /**
  * project/open + trust + permissions + list-dir + read-file.
  */
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { HostCommand, HostResponse } from '@piwin/contracts'
@@ -27,6 +27,7 @@ const PROJECT_TYPES = new Set<HostCommand['type']>([
   'project/permissions-revoke',
   'project/list-dir',
   'project/read-file',
+  'project/write-file',
 ]);
 
 export function isProjectCommand(command: HostCommand): boolean {
@@ -98,6 +99,15 @@ export async function handleProjectCommand(
         command.projectPath,
         command.relativePath,
         command.maxBytes,
+        requestId,
+      );
+    }
+    case 'project/write-file': {
+      return writeProjectFile(
+        command.projectPath,
+        command.relativePath,
+        command.content,
+        command.overwrite,
         requestId,
       );
     }
@@ -275,6 +285,63 @@ async function readProjectFile(
     truncated,
     isBinary: false,
     mimeHint: 'text/plain',
+  });
+}
+
+/**
+ * Write a text file under project root (CM-14 apply).
+ * Enforces the path jail; refuses overwrite unless `overwrite: true`
+ * (Desktop gates the call behind an explicit confirm).
+ */
+async function writeProjectFile(
+  projectPath: string,
+  relativePath: string,
+  content: string,
+  overwrite: boolean,
+  requestId: string | undefined,
+): Promise<HostResponse> {
+  const rootAbsolute = path.resolve(projectPath);
+  const relativeNormalized = (relativePath ?? '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+  if (!relativeNormalized) {
+    return fail(requestId, 'project/write-file', 'relativePath is required');
+  }
+  const resolved = resolveInsideRoot(rootAbsolute, relativePath);
+  if (!resolved.ok) {
+    return fail(requestId, 'project/write-file', resolved.reason);
+  }
+  const targetAbsolute = resolved.absolute;
+
+  let existed = false;
+  try {
+    const fileStats = await stat(targetAbsolute);
+    existed = fileStats.isFile();
+  } catch {
+    existed = false;
+  }
+  if (existed && !overwrite) {
+    return fail(requestId, 'project/write-file', 'file exists; overwrite was not confirmed');
+  }
+
+  try {
+    // Apply may target a nested/new path; create parent dirs (jail already
+    // verified the target stays inside the project root).
+    await mkdir(path.dirname(targetAbsolute), { recursive: true });
+    await writeFile(targetAbsolute, content, 'utf8');
+  } catch (error) {
+    const message = formatError(error);
+    return fail(requestId, 'project/write-file', `cannot write file: ${message}`);
+  }
+
+  const byteSize = Buffer.byteLength(content, 'utf8');
+  return ok(requestId, 'project/write-file', {
+    projectPath: rootAbsolute,
+    relativePath: relativeNormalized,
+    absolutePath: targetAbsolute,
+    byteSize,
+    existed,
   });
 }
 
