@@ -24,6 +24,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'tools',
   'web',
   'session',
+  'cold-storage',
   'runtime',
   'automation',
   'subagents',

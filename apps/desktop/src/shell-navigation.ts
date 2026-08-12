@@ -23,6 +23,7 @@ export type ShellSettingsSection =
   | 'automation'
   | 'subagents'
   | 'session'
+  | 'cold-storage'
   | 'runtime'
   | 'usage'
   | 'shortcuts'

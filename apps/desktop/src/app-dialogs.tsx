@@ -134,6 +134,12 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
               props.sessions.find((item) => item.id === props.sessionMenu?.sessionId)
                 ?.isArchived === true || props.showArchivedSessions
             }
+            {...(() => {
+              const storageState = props.sessions.find(
+                (item) => item.id === props.sessionMenu?.sessionId,
+              )?.storage?.state;
+              return storageState ? { storageState } : {};
+            })()}
             position={{ x: props.sessionMenu.x, y: props.sessionMenu.y }}
             onClose={props.onCloseSessionMenu}
             onAction={(action) => {

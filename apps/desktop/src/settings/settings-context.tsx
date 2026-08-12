@@ -49,6 +49,13 @@ export type SettingsConfigRequest = (command: {
     | 'usage/get-rollup'
     | 'session/runtime-status'
     | 'session/compact-export'
+    | 'session/cold-storage-status'
+    | 'session/cold-storage-plan'
+    | 'session/cold-storage-execute'
+    | 'session/cold-storage-restore'
+    | 'session/cold-storage-import'
+    | 'session/cold-storage-reconcile'
+    | 'session/pack-list'
     | 'host/runtime-resources'
     | 'theme/list'
     | 'theme/set-active';
@@ -66,6 +73,11 @@ export type SettingsConfigRequest = (command: {
   window?: { from?: string; to?: string };
   topSessions?: number;
   sessionId?: string;
+  sessionIds?: string[];
+  planId?: string;
+  confirmationDigest?: string;
+  packPath?: string;
+  directory?: string;
   customInstructions?: string;
   outputPath?: string;
   themeId?: string;

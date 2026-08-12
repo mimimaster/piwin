@@ -9,6 +9,7 @@ import type {
   SessionListOrder,
   SessionListPageQuery,
   SessionScope,
+  SessionStorageInfo,
   SessionSummary,
   SessionTranscriptMessage,
   SessionTranscriptPageInfo,
@@ -36,6 +37,8 @@ import { sessionHasListName } from '../title-display';
 import { resolveSessionOutline } from '../transcript-outline';
 import { canUseThinkingLevel } from '../model-thinking-policy';
 import { chooseSessionExportPath } from '../session-export-dialog';
+import { chooseSessionPackPath } from '../session-pack-dialog';
+import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { GENERAL_SESSION_PAGE_SIZE, PROJECT_SESSION_PAGE_SIZE } from '../session-sidebar-page';
 import {
@@ -141,6 +144,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   );
   const [sessionListWindows, setSessionListWindows] = useState(sessionListWindowsRef.current);
   const [transcriptHistoryLoading, setTranscriptHistoryLoading] = useState(false);
+  const [coldRestorePrompt, setColdRestorePrompt] = useState<{
+    sessionId: string;
+    storage: SessionStorageInfo;
+  } | null>(null);
 
   const loadUserMessageIndex = useCallback(
     async (sessionId: string, epoch: number): Promise<void> => {
@@ -388,6 +395,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         pageAnchoredToSession = true;
       }
 
+      if (isSessionBodyOffloaded(existingListItem?.storage)) {
+        const storage = existingListItem?.storage;
+        if (storage) {
+          setColdRestorePrompt({ sessionId, storage });
+        }
+        return;
+      }
+
       dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
       const resumed = await hostClient.request({
         type: 'session/resume',
@@ -607,6 +622,50 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       state.activeScope,
       state.generalSessions,
       state.projectSessionsByPath,
+      state.sessions,
+    ],
+  );
+
+  const confirmColdRestore = useCallback(
+    async (packPath?: string): Promise<void> => {
+      if (!coldRestorePrompt) {
+        return;
+      }
+      const sessionId = coldRestorePrompt.sessionId;
+      const resolvedPackPath =
+        packPath ??
+        (coldRestorePrompt.storage.state === 'missing-pack'
+          ? ((await chooseSessionPackPath('Choose session pack')) ?? undefined)
+          : coldRestorePrompt.storage.packPath);
+      if (coldRestorePrompt.storage.state === 'missing-pack' && !resolvedPackPath) {
+        return;
+      }
+      const response = await hostClient.request({
+        type: 'session/cold-storage-restore',
+        sessionId,
+        ...(resolvedPackPath ? { packPath: resolvedPackPath } : {}),
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return;
+      }
+      const existing =
+        state.sessions.find((item) => item.id === sessionId) ??
+        state.generalSessions.find((item) => item.id === sessionId);
+      if (existing) {
+        const next = { ...existing };
+        delete next.storage;
+        dispatch({ type: 'session/update', session: next });
+      }
+      setColdRestorePrompt(null);
+      await handleResumeSession(sessionId);
+    },
+    [
+      coldRestorePrompt,
+      dispatch,
+      handleResumeSession,
+      hostClient,
+      state.generalSessions,
       state.sessions,
     ],
   );
@@ -1280,6 +1339,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         case 'unarchive':
           await handleUnarchiveSession(sessionId);
           break;
+        case 'restore-pack':
+          if (session?.storage && isSessionBodyOffloaded(session.storage)) {
+            setColdRestorePrompt({ sessionId, storage: session.storage });
+          }
+          break;
         case 'delete':
           // App owns ConfirmDialog for permanent delete — menu only signals intent.
           break;
@@ -1686,6 +1750,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ensureSession,
     handleNewSession,
     handleResumeSession,
+    coldRestorePrompt,
+    confirmColdRestore,
+    clearColdRestorePrompt: () => setColdRestorePrompt(null),
     handleLoadOlderTranscript,
     handleExportSession,
     handleTogglePin,

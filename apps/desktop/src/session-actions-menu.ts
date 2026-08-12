@@ -13,7 +13,15 @@ export type SessionActionItem = {
 export function sessionActionItems(options: {
   isPinned: boolean;
   isArchived: boolean;
+  storageState?: 'local' | 'offloaded' | 'missing-pack';
 }): SessionActionItem[] {
+  if (options.storageState === 'offloaded' || options.storageState === 'missing-pack') {
+    return [
+      { action: 'restore-pack', label: 'Restore from pack…', testId: 'session-menu-restore-pack' },
+      { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
+      { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
+    ];
+  }
   if (options.isArchived) {
     return [
       { action: 'unarchive', label: 'Restore', testId: 'session-menu-unarchive' },
