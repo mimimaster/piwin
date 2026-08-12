@@ -15,6 +15,7 @@ import type {
   PermissionPreset,
   PiwinConfig,
   ProjectRecord,
+  PromptContextRef,
   SessionSearchHit,
   SettingsMutation,
   ThemeManifest,
@@ -71,6 +72,10 @@ import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useComposerContextRefs } from './hooks/use-composer-context-refs';
+import {
+  DesktopContextMenuProvider,
+  type DesktopContextMenuValue,
+} from './context-menu';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
 import {
@@ -1344,6 +1349,151 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   });
   composerSetterRef.current = setComposer;
 
+  // CM P1: single app-level dispatcher set shared by all context-menu surfaces.
+  // Deep components consume this through DesktopContextMenuProvider, so no
+  // surface owns its own half-wired dispatcher set anymore.
+  const handleRetryMessage = useCallback(
+    (messageId: string): void => {
+      const msg = state.messages.find((m) => m.id === messageId);
+      if (!msg) return;
+      if (preferences.dontAskRevertConfirm) {
+        void handleRetryFromMessage(messageId);
+        return;
+      }
+      setPendingRevertEdit({ messageId, text: msg.text, isEdit: false });
+    },
+    [handleRetryFromMessage, preferences.dontAskRevertConfirm, state.messages],
+  );
+
+  const desktopContextMenuValue = useMemo<DesktopContextMenuValue>(() => {
+    const notify = (message: string, level: 'success' | 'error' | 'info'): void => {
+      dispatchNotification({ type: 'notify/push', notification: { level, message } });
+    };
+    const addRef = (ref: PromptContextRef): boolean => {
+      const result = addContextRef(ref);
+      if (!result.ok) {
+        notify('Context chip limit reached (12). Remove one first.', 'error');
+        return false;
+      }
+      return true;
+    };
+    return {
+      caps: {
+        hasProject: Boolean(state.projectPath),
+        canReveal: false,
+        sideChatAvailable: Boolean(state.activeSessionId && state.hostReady),
+        applyAvailable: true,
+        openChangedFilesAvailable: Boolean(state.projectPath),
+        locale: desktopLocale,
+      },
+      dispatchers: {
+        addToChat: (ref) => {
+          addRef(ref);
+        },
+        focusComposer: () => {
+          const textarea = document.querySelector<HTMLTextAreaElement>(
+            '[data-testid="composer-input"]',
+          );
+          textarea?.focus();
+        },
+        sendPreset: (text, refs) => {
+          for (const ref of refs) {
+            addRef(ref);
+          }
+          void handleSend(text);
+        },
+        openPath: (absolutePath, relativePath) => {
+          const title = (relativePath || absolutePath).split(/[\\/]/).pop() || 'File';
+          handleOpenDocument({ title, path: relativePath || absolutePath });
+        },
+        revealPath: (_absolutePath) => {
+          notify('Reveal in file manager is not available in this build', 'info');
+        },
+        copyText: (value) => {
+          void navigator.clipboard.writeText(value).catch(() => {
+            notify('Could not copy to clipboard', 'error');
+          });
+        },
+        quoteInComposer: (text) => {
+          const quoted = text
+            .split('\n')
+            .map((line) => `> ${line}`)
+            .join('\n');
+          setComposer((current) =>
+            current.trim().length > 0 ? `${current.trimEnd()}\n\n${quoted}` : quoted,
+          );
+          window.setTimeout(() => {
+            document
+              .querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')
+              ?.focus();
+          }, 0);
+        },
+        retryMessage: (messageId) => {
+          handleRetryMessage(messageId);
+        },
+        forkMessage: (messageId) => {
+          if (!state.activeSessionId) return;
+          void handleForkSession(state.activeSessionId, messageId);
+        },
+        openSideChat: (input) => {
+          if (!state.activeSessionId) return;
+          for (const ref of input.refs) {
+            addRef(ref);
+          }
+          void hostClient
+            .sideChatOpen(state.activeSessionId, {
+              ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
+            })
+            .then((response) => {
+              if (!response.success) {
+                notify(`Could not open side chat: ${response.error}`, 'error');
+                return;
+              }
+              shell.openInspector('sideChat');
+            });
+        },
+        applyToFile: (payload) => {
+          // Apply P1b: explicit confirm → host write (project/write-file).
+          // Without a project or suggested path, fall back to P1a
+          // (copy + preview + notice; no silent write ever).
+          if (!state.projectPath || !payload.suggestedPath) {
+            void navigator.clipboard.writeText(payload.text).catch(() => undefined);
+            if (payload.suggestedPath) {
+              const title = payload.suggestedPath.split(/[\\/]/).pop() || 'File';
+              handleOpenDocument({ title, path: payload.suggestedPath });
+            }
+            notify(
+              payload.suggestedPath
+                ? `Code copied. Preview opened for ${payload.suggestedPath} — paste to apply.`
+                : 'Code copied to clipboard — paste to apply.',
+              'info',
+            );
+            return;
+          }
+          setApplyDraft({ text: payload.text, suggestedPath: payload.suggestedPath });
+        },
+        openChangedFiles: () => {
+          shell.openInspector('review');
+        },
+        notify,
+      },
+    };
+  }, [
+    addContextRef,
+    desktopLocale,
+    dispatchNotification,
+    handleForkSession,
+    handleOpenDocument,
+    handleRetryMessage,
+    handleSend,
+    hostClient,
+    setComposer,
+    shell,
+    state.activeSessionId,
+    state.hostReady,
+    state.projectPath,
+  ]);
+
   const handleCommentLine = useCallback((_lineContent: string) => {
     // Chip is the attachment; do not inject quote text into the textarea.
     setTimeout(() => {
@@ -1355,6 +1505,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, []);
 
   const [docComments, setDocComments] = useState<Record<string, LineCommentItem[]>>({});
+
+  // CM-14: pending Apply-to-File confirmation (explicit overwrite gate).
+  const [applyDraft, setApplyDraft] = useState<{
+    text: string;
+    suggestedPath?: string | undefined;
+  } | null>(null);
 
   const activeDocKey = activeDocument?.filePath || activeDocument?.title || 'default';
   const activeComments = docComments[activeDocKey] || [];
@@ -1879,6 +2035,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onRetryAttachment: retryPendingAttachment,
       pendingContextRefs,
       onRemoveContextRef: removeContextRef,
+      onAddContextRef: (ref) => {
+        addContextRef(ref);
+      },
       docCommentsAttachment,
       onRemoveDocComments: handleRemoveDocComments,
       dropActive,
@@ -2056,18 +2215,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
     [handleEditAndResend, lastUserMessageId, preferences.dontAskRevertConfirm],
   );
-  const handleRetryMessage = useCallback(
-    (messageId: string): void => {
-      const msg = state.messages.find((m) => m.id === messageId);
-      if (!msg) return;
-      if (preferences.dontAskRevertConfirm) {
-        void handleRetryFromMessage(messageId);
-        return;
-      }
-      setPendingRevertEdit({ messageId, text: msg.text, isEdit: false });
-    },
-    [handleRetryFromMessage, preferences.dontAskRevertConfirm, state.messages],
-  );
   const handleMessageFeedback = useCallback(
     (message: string, level: 'success' | 'error'): void => {
       dispatchNotification({
@@ -2126,6 +2273,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         saveDesktopLocale(locale);
       }}
     >
+      <DesktopContextMenuProvider value={desktopContextMenuValue}>
       <div
         className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
         style={appShellStyle}
@@ -2382,6 +2530,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     <ChatThread
                       messages={state.messages}
                       streaming={state.streaming}
+                      activeSessionId={state.activeSessionId}
                       editingMessageId={editingMessageId}
                       lastUserMessageId={lastUserMessageId}
                       activeTheme={activeTheme}
@@ -2582,6 +2731,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         return;
                       }
                     }}
+                    onSendPreset={(text, refs) => {
+                      for (const ref of refs) {
+                        addContextRef(ref);
+                      }
+                      void handleSend(text);
+                    }}
                     onInsertPath={(absolutePath) => {
                       setComposer((current) =>
                         current.trim().length > 0
@@ -2688,8 +2843,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           projectPickerOpen={projectPickerOpen}
           onProjectPickerOpenChange={setProjectPickerOpen}
           onOpenProject={(path) => {
-            if (path) {
-              void handleOpenProject(path);
+            // Dialog invokes this without an argument; fall back to the
+            // controlled input state so Open/Enter actually open a workspace.
+            const targetPath = (path ?? projectInput).trim();
+            if (targetPath) {
+              void handleOpenProject(targetPath);
             }
           }}
           onBrowseProject={() => void handleBrowseProject()}
@@ -2720,6 +2878,61 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           permissionPrompt={state.permissionPrompt}
           onPermission={(decision, scope) => {
             void handlePermission(decision, scope);
+          }}
+        />
+
+        <ConfirmDialog
+          open={applyDraft !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setApplyDraft(null);
+            }
+          }}
+          title="Apply to file"
+          description="Write this code block into the file? The existing content will be replaced."
+          affectedObject={applyDraft?.suggestedPath}
+          confirmLabel="Apply"
+          tone="default"
+          testId="apply-to-file-confirm"
+          onConfirm={() => {
+            const draft = applyDraft;
+            const relativePath = draft?.suggestedPath;
+            if (!draft || !state.projectPath || !relativePath) {
+              setApplyDraft(null);
+              return;
+            }
+            setApplyDraft(null);
+            void hostClient
+              .request({
+                type: 'project/write-file',
+                projectPath: state.projectPath,
+                relativePath,
+                content: draft.text,
+                overwrite: true,
+              })
+              .then((response) => {
+                if (response.success) {
+                  dispatchNotification({
+                    type: 'notify/push',
+                    notification: {
+                      level: 'success',
+                      message: `Applied to ${relativePath}`,
+                    },
+                  });
+                  handleOpenDocument({
+                    title: relativePath.split(/[\\/]/).pop() || relativePath,
+                    path: relativePath,
+                  });
+                  return;
+                }
+                dispatchNotification({
+                  type: 'notify/push',
+                  notification: {
+                    level: 'error',
+                    message: `Could not apply: ${response.error}`,
+                  },
+                });
+              });
           }}
         />
 
@@ -2883,6 +3096,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           onRetry={inspector.retryLoad}
         />
       </div>
+      </DesktopContextMenuProvider>
     </DesktopLocaleProvider>
   );
 }

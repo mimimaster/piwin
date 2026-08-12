@@ -238,3 +238,62 @@ export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
 export function ContextMenuSeparator(): ReactElement {
   return <ContextMenuPrimitive.Separator className="ui-menu-separator" />;
 }
+
+export type ContextMenuSubProps = {
+  children: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+/** Nested context-menu branch (CM-16 More…). Radix owns hover intent and Escape. */
+export function ContextMenuSub(props: ContextMenuSubProps): ReactElement {
+  const subProps: { open?: boolean; onOpenChange?: (open: boolean) => void } = {};
+  if (props.open !== undefined) subProps.open = props.open;
+  if (props.onOpenChange !== undefined) subProps.onOpenChange = props.onOpenChange;
+
+  return <ContextMenuPrimitive.Sub {...subProps}>{props.children}</ContextMenuPrimitive.Sub>;
+}
+
+export type ContextMenuSubTriggerProps = {
+  children: ReactNode;
+  disabled?: boolean;
+  testId?: string;
+};
+
+export function ContextMenuSubTrigger(props: ContextMenuSubTriggerProps): ReactElement {
+  const triggerProps: {
+    className: string;
+    disabled?: boolean;
+    'data-testid'?: string;
+  } = { className: 'ui-menu-item' };
+  if (props.disabled !== undefined) triggerProps.disabled = props.disabled;
+  if (props.testId !== undefined) triggerProps['data-testid'] = props.testId;
+
+  return (
+    <ContextMenuPrimitive.SubTrigger {...triggerProps}>
+      {props.children}
+    </ContextMenuPrimitive.SubTrigger>
+  );
+}
+
+export type ContextMenuSubContentProps = {
+  children: ReactNode;
+  className?: string;
+  testId?: string;
+  label?: string;
+};
+
+export function ContextMenuSubContent(props: ContextMenuSubContentProps): ReactElement {
+  return (
+    <ContextMenuPrimitive.Portal>
+      <ContextMenuPrimitive.SubContent
+        className={props.className ? `ui-menu-content ${props.className}` : 'ui-menu-content'}
+        sideOffset={4}
+        {...(props.testId ? { 'data-testid': props.testId } : {})}
+        {...(props.label ? { 'aria-label': props.label } : {})}
+      >
+        {props.children}
+      </ContextMenuPrimitive.SubContent>
+    </ContextMenuPrimitive.Portal>
+  );
+}

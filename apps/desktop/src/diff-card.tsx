@@ -16,6 +16,11 @@ import {
 } from './syntax-highlight';
 
 import { CollapsibleContentBlock } from './collapsible-content-block';
+import {
+  ContextMenuFromCatalog,
+  useDesktopContextMenu,
+  type ContextMenuTarget,
+} from './context-menu';
 
 /**
  * Same request signature injected into ChangesPanel (changes-panel.tsx:38).
@@ -56,6 +61,7 @@ export function DiffCard(props: {
 }): ReactElement {
   const [state, setState] = useState<DiffState>({ kind: 'loading' });
   const [verdict, setVerdict] = useState<'accepted' | 'rejected' | null>(null);
+  const contextMenu = useDesktopContextMenu();
 
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +107,19 @@ export function DiffCard(props: {
   const tokenMap = useHighlightLines(contentTexts, sourceLang);
   const stats = diffLineStats(patch);
 
-  return (
+  // CM-12: diff-row surface menu on the whole card.
+  const diffTarget: ContextMenuTarget | null =
+    contextMenu && patch.trim().length > 0
+      ? {
+          surface: 'diff-row',
+          projectPath: props.projectPath,
+          relativePath: props.path,
+          snapshotText: patch,
+          label: props.path,
+        }
+      : null;
+
+  const card = (
     <div
       className={`diff-card${verdict === 'accepted' ? ' accepted' : ''}`}
       data-testid="diff-card"
@@ -191,5 +209,19 @@ export function DiffCard(props: {
         </CollapsibleContentBlock>
       )}
     </div>
+  );
+
+  if (!diffTarget || !contextMenu) {
+    return card;
+  }
+  return (
+    <ContextMenuFromCatalog
+      testId="diff-row-context-menu"
+      target={diffTarget}
+      caps={contextMenu.caps}
+      dispatchers={contextMenu.dispatchers}
+    >
+      {card}
+    </ContextMenuFromCatalog>
   );
 }

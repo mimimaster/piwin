@@ -2,7 +2,14 @@
  * Render a ui-kit ContextMenu from a pure catalog + dispatchers.
  */
 import type { ReactElement, ReactNode } from 'react';
-import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from '@piwin/ui-kit';
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+} from '@piwin/ui-kit';
 import { buildContextMenuItems } from './catalog.js';
 import { dispatchContextMenuAction, type ContextMenuDispatchers } from './dispatch.js';
 import type {
@@ -12,7 +19,7 @@ import type {
 } from './types.js';
 
 export type ContextMenuFromCatalogProps = {
-  target: ContextMenuTarget;
+  target: ContextMenuTarget | null;
   caps: ContextMenuCapabilities;
   dispatchers: ContextMenuDispatchers;
   children: ReactNode;
@@ -30,11 +37,15 @@ function renderItems(
       return <ContextMenuSeparator key={`sep-${index}`} />;
     }
     if (entry.type === 'submenu') {
-      // P0 catalogs are flat; submenu support lands with CM-16 More…
       return (
-        <ContextMenuItem key={entry.id} disabled testId={`context-menu-sub-${entry.id}`}>
-          {entry.label}
-        </ContextMenuItem>
+        <ContextMenuSub key={entry.id}>
+          <ContextMenuSubTrigger testId={`context-menu-sub-${entry.id}`}>
+            {entry.label}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            {renderItems(entry.children, target, dispatchers)}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
       );
     }
     return (
@@ -52,12 +63,17 @@ function renderItems(
 }
 
 export function ContextMenuFromCatalog(props: ContextMenuFromCatalogProps): ReactElement {
-  const items = buildContextMenuItems(props.target, props.caps);
+  const items =
+    props.target !== null ? buildContextMenuItems(props.target, props.caps) : [];
   return (
     <ContextMenu
       {...(props.testId !== undefined ? { testId: props.testId } : {})}
       {...(props.label !== undefined ? { label: props.label } : {})}
-      content={<>{renderItems(items, props.target, props.dispatchers)}</>}
+      content={
+        <>
+          {props.target !== null && renderItems(items, props.target, props.dispatchers)}
+        </>
+      }
     >
       {props.children}
     </ContextMenu>

@@ -105,4 +105,56 @@ describe('buildContextMenuItems', () => {
       zhAdd && 'testId' in zhAdd ? zhAdd.testId : '',
     );
   });
+
+  it('puts review/tests under a More submenu for file-tree-file (CM-16)', () => {
+    const target: ContextMenuTarget = {
+      surface: 'file-tree-file',
+      projectPath: '/p',
+      relativePath: 'a.ts',
+      absolutePath: '/p/a.ts',
+      label: 'a.ts',
+    };
+    const items = buildContextMenuItems(target, baseCaps);
+    const more = items.find(
+      (item): item is Extract<typeof item, { type: 'submenu' }> =>
+        item.type === 'submenu' && item.id === 'more',
+    );
+    expect(more).toBeDefined();
+    const childIds = more?.children
+      .filter((child): child is Extract<typeof child, { type: 'item' }> => child.type === 'item')
+      .map((child) => child.id);
+    expect(childIds).toEqual(['explain', 'review', 'tests']);
+    // Root menu must not exceed 8 visible items (separators excluded).
+    const rootItems = items.filter((item) => item.type === 'item').length;
+    expect(rootItems).toBeLessThanOrEqual(8);
+  });
+
+  it('hides the More submenu without a project', () => {
+    const target: ContextMenuTarget = {
+      surface: 'file-tree-file',
+      projectPath: '',
+      relativePath: 'a.ts',
+      absolutePath: '/a.ts',
+      label: 'a.ts',
+    };
+    const items = buildContextMenuItems(target, { ...baseCaps, hasProject: false });
+    expect(items.some((item) => item.type === 'submenu')).toBe(false);
+  });
+
+  it('shows open-changed-files for message surfaces only when available (CM-15)', () => {
+    const target: ContextMenuTarget = {
+      surface: 'message-assistant',
+      sessionId: 's1',
+      messageId: 'm1',
+      text: 'hello',
+      label: 'Assistant',
+      capabilities: { canRetry: false, canFork: true, canSideChat: true },
+    };
+    expect(actionIds(target, { ...baseCaps, openChangedFilesAvailable: true })).toContain(
+      'open-changed-files',
+    );
+    expect(actionIds(target, { ...baseCaps, openChangedFilesAvailable: false })).not.toContain(
+      'open-changed-files',
+    );
+  });
 });

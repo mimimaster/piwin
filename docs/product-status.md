@@ -26,7 +26,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Artifact HTML | green | Sandbox iframe |
 | Git status/commit | green | No force-push |
 | Composer branch chip | green | Local branches list + checkout confirm; project sessions only |
-| Context menus (CM-*) | green | **P0 shipped 2026-08-10** — right-click file tree / path chip / code selection → Add to Chat / Ask / Explain / Fix; composer context-ref chips + `PromptInput.contextRefs`; drag-to-ref. P1 surfaces (message / code / diff / tool / terminal / error) queued |
+| Context menus (CM-*) | green | **P0 + P1 shipped 2026-08-10** — right-click file tree / path chip / code selection → Add to Chat / Ask / Explain / Fix; message / code block / diff / tool card / terminal selection / error menus; Apply (confirm + `project/write-file`); More… submenu; `@` mention → refs; CLI `--ref` parity; composer context-ref chips + `PromptInput.contextRefs`; drag-to-ref |
 | Memory / process tools | green | Feature-flagged config |
 | Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; Node shell preview is removed by Runtime Refactor Phase 1 |
 | Runtime target chip (Local / Cloud) | yellow | **Stub shipped:** 本机 active; 云端 grey + tooltip「未连接到远程服务器」; real switch after CE-GW (D-CTX-01b) |

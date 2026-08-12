@@ -172,4 +172,10 @@ describe('dispatchContextMenuAction', () => {
     );
     expect(dispatchers.notify).toHaveBeenCalledWith(expect.any(String), 'info');
   });
+
+  it('open-changed-files routes to the message dispatcher (CM-15)', () => {
+    const dispatchers = createDispatchers();
+    dispatchContextMenuAction('open-changed-files', messageTarget, dispatchers);
+    expect(dispatchers.openChangedFiles).toHaveBeenCalledWith('m1');
+  });
 });

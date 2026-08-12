@@ -105,6 +105,8 @@ export type ContextMenuCapabilities = {
   canReveal: boolean;
   sideChatAvailable: boolean;
   applyAvailable: boolean;
+  /** CM-15: "Open changed files" for message surfaces (turn has changed paths). */
+  openChangedFilesAvailable?: boolean;
   locale: DesktopLocale;
 };
 

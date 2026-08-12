@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Implemented (P0 shipped 2026-08-10)** — P0 vertical slice done: context pipeline + file tree + selection + path chip + drag-to-ref. P1 surfaces (CM-10…15) deferred by design |
+| Status | **Implemented (P0 + P1 shipped 2026-08-10)** — P0 vertical slice (pipeline + file tree + selection + path chip + drag-to-ref) and P1 surfaces (message / code-block / diff-row / tool-card / terminal-selection / error) both done; CM-10…18 closed; Apply P1b (write confirm) + CLI `--ref` parity included |
 | Date | 2026-08-08 |
 | Branch / worktree | `feat/context-menu-surfaces` · `/Users/yorickjue/Developer/piwin-context-menu` |
 | Trigger | 竞品右键调研后锁定 P0/P1：「指着东西跟 Agent 说话」是 Agent Shell 的核心手感 |
@@ -729,9 +729,9 @@ export function dispatchContextMenuAction(
 
 | ID | Work | Exit criteria | Status |
 |----|------|---------------|--------|
-| CM-05 | File tree file/folder context menu | e2e: right-click -> chip | ✅ 2026-08-10 (unit: menu testIds + refs) |
+| CM-05 | File tree file/folder context menu | e2e: right-click -> chip | ✅ 2026-08-10 (e2e: file-add-to-chat green; unit: menu testIds + refs) |
 | CM-06 | PathChip menu upgrade | unit/e2e | ✅ 2026-08-10 (unit) |
-| CM-07 | Code preview selection + Explain/Fix presets | manual + unit | ✅ 2026-08-10 (typecheck + unit; manual TBD) |
+| CM-07 | Code preview selection + Explain/Fix presets | e2e + unit | ✅ 2026-08-10 (e2e: selection-explain green; unit: catalog + dispatch + file-tree-panel) |
 | CM-08 | Drag path -> context ref | chip not raw-path-only | ✅ 2026-08-10 (drop → file ref chip; text fallback kept) |
 | CM-09 | en/zh labels | both locales | ✅ 2026-08-10 (catalog-local en/zh tables — see note below) |
 
@@ -743,20 +743,20 @@ export function dispatchContextMenuAction(
 
 | ID | Work | Exit criteria | Status |
 |----|------|---------------|--------|
-| CM-10 | Message context menu; share catalog with hover | Copy/Quote/Retry/Fork/Side Chat | ⏳ queued |
-| CM-11 | Code block menu + Apply P1a | notice + open | ⏳ queued |
-| CM-12 | Diff row menu | diff ref chip | ⏳ queued |
-| CM-13 | Tool card + terminal selection + error | Fix this error path | ⏳ queued |
-| CM-14 | Apply P1b write confirm | optional follow-up | ⏳ queued |
-| CM-15 | open-changed-files / rerun-tool | hide if not ready | ⏳ queued |
+| CM-10 | Message context menu; share catalog with hover | Copy/Quote/Retry/Fork/Side Chat | ✅ 2026-08-10 (chat-thread bubble menu; capabilities gated per message) |
+| CM-11 | Code block menu + Apply P1a | notice + open | ✅ 2026-08-10 (MarkdownView fence menu; Apply P1a = copy + preview + notice) |
+| CM-12 | Diff row menu | diff ref chip | ✅ 2026-08-10 (DiffCard menu) |
+| CM-13 | Tool card + terminal selection + error | Fix this error path | ✅ 2026-08-10 (ToolCallCard / XtermSurface selection / MainErrorBanner menus) |
+| CM-14 | Apply P1b write confirm | optional follow-up | ✅ 2026-08-10 (`project/write-file` host command + path jail + overwrite gate; Desktop confirm dialog → write → notice; P1a fallback without project/path) |
+| CM-15 | open-changed-files / rerun-tool | hide if not ready | ✅ 2026-08-10 (open-changed-files opens Review tab; rerun-tool announces unavailability) |
 
 ### Phase 3 — Polish
 
 | ID | Work | Status |
 |----|------|--------|
-| CM-16 | More... submenu for review/tests | ⏳ queued |
-| CM-17 | `@` mention also writes pending refs (recommended P0.1/P1) | ⏳ queued |
-| CM-18 | CLI note / optional ref flags parity | ⏳ queued |
+| CM-16 | More... submenu for review/tests | ✅ 2026-08-10 (file-tree-file More… submenu; ui-kit ContextMenuSub) |
+| CM-17 | `@` mention also writes pending refs (recommended P0.1/P1) | ✅ 2026-08-10 (file/folder at-items add structured refs) |
+| CM-18 | CLI note / optional ref flags parity | ✅ 2026-08-10 (`piwin chat --ref <path>` repeatable → `contextRefs`; file/folder auto-detect; jail + existence checks; unit-tested) |
 | CM-19 | `todo-deferred.md` + product-status updates | ✅ 2026-08-10 |
 
 ---

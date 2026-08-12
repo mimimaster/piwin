@@ -24,6 +24,41 @@ import {
 import { parseUnifiedDiff } from './diff-view';
 import { computeDiffLineNumbers } from './diff-line-numbers';
 import { CollapsibleContentBlock } from './collapsible-content-block';
+import {
+  ContextMenuFromCatalog,
+  useDesktopContextMenu,
+  type ContextMenuTarget,
+} from './context-menu';
+
+/** CM-11: code-block surface menu wrapper around a rendered fence. */
+function CodeBlockContextMenu(props: {
+  source: string;
+  language: string;
+  children: ReactNode;
+}): ReactElement {
+  const contextMenu = useDesktopContextMenu();
+  const target: ContextMenuTarget | null =
+    contextMenu && props.source.trim().length > 0
+      ? {
+          surface: 'code-block',
+          selectedText: props.source,
+          label: props.language || 'code',
+        }
+      : null;
+  if (!target || !contextMenu) {
+    return <>{props.children}</>;
+  }
+  return (
+    <ContextMenuFromCatalog
+      testId="code-block-context-menu"
+      target={target}
+      caps={contextMenu.caps}
+      dispatchers={contextMenu.dispatchers}
+    >
+      {props.children}
+    </ContextMenuFromCatalog>
+  );
+}
 
 /** C5: explicit rendering phases for coding-agent transcript policy. */
 export type MarkdownRenderingPhase = 'streaming' | 'completed' | 'explicit-artifact-review';
@@ -253,7 +288,11 @@ export function MarkdownView({
           if (artifactMaxBytes !== undefined) {
             fenceProps.artifactMaxBytes = artifactMaxBytes;
           }
-          return <CodeFenceView key={index} {...fenceProps} />;
+          return (
+            <CodeBlockContextMenu key={index} source={block.source} language={block.language}>
+              <CodeFenceView {...fenceProps} />
+            </CodeBlockContextMenu>
+          );
         }
         if (block.type === 'heading') {
           const HeadingTag = `h${Math.min(6, Math.max(1, block.level))}` as

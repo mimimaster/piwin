@@ -328,13 +328,15 @@
 **Execution order:** SF-00 → SF-01 → SF-02 → SF-03 → SF-04 → SF-05;
 SF-06 follows core adoption, and SF-07 remains independently spike-gated.
 
-### 2.15 Context Menu Surfaces (CM-*) — P0 shipped 2026-08-10, P1 queued
+### 2.15 Context Menu Surfaces (CM-*) — P0 + P1 shipped 2026-08-10
 
 > Spec: [`docs/specs/context-menu-surfaces.md`](specs/context-menu-surfaces.md)  
 > P0 slice (right-click → Agent entry): `selection`/`folder` contracts + Host resolve,
 > composer context-ref chips + `PromptInput.contextRefs`, catalog/dispatch, file-tree +
-> path-chip + code-preview selection menus, drag-to-ref. P1 (message / code-block / diff /
-> tool-card / terminal / error surfaces) intentionally deferred per L8 vertical slice.
+> path-chip + code-preview selection menus, drag-to-ref. P1 slice: message / code-block /
+> diff-row / tool-card / terminal-selection / error menus, Apply P1a (copy+preview+notice),
+> More… submenu, `@` mention → structured refs. All shipped 2026-08-10 via one
+> app-level `DesktopContextMenuProvider` so deep components share one dispatcher set.
 
 | ID | Item | Status |
 |----|------|--------|
@@ -347,12 +349,15 @@ SF-06 follows core adoption, and SF-07 remains independently spike-gated.
 | CM-07 | Code preview selection + Explain/Fix presets | **Done 2026-08-10** (typecheck + unit; manual smoke TBD) |
 | CM-08 | Drag path → context ref | **Done 2026-08-10** (chip; text fallback kept) |
 | CM-09 | en/zh labels | **Done 2026-08-10** (catalog-local tables; desktop-locale merge optional) |
-| CM-10 | Message context menu (share catalog with hover) | Queued (P1) |
-| CM-11 | Code block menu + Apply P1a | Queued (P1) |
-| CM-12 | Diff row menu | Queued (P1) |
-| CM-13 | Tool card / terminal / error menus + fix-error | Queued (P1) |
-| CM-14 | Apply P1b write confirm | Queued (P1, optional) |
-| CM-15 | open-changed-files / rerun-tool | Queued (P1) |
+| CM-10 | Message context menu (share catalog with hover) | **Done 2026-08-10** (chat bubble menu, capability-gated) |
+| CM-11 | Code block menu + Apply P1a | **Done 2026-08-10** (fence menu; Apply = copy + preview + notice) |
+| CM-12 | Diff row menu | **Done 2026-08-10** (DiffCard menu) |
+| CM-13 | Tool card / terminal / error menus + fix-error | **Done 2026-08-10** (ToolCallCard / XtermSurface / MainErrorBanner) |
+| CM-14 | Apply P1b write confirm | **Done 2026-08-10** — `project/write-file` host command (jail + overwrite gate + parent-dir create) + Desktop confirm dialog → write → notice |
+| CM-15 | open-changed-files / rerun-tool | **Done 2026-08-10** (open-changed-files → Review tab; rerun announces unavailability) |
+| CM-16 | More… submenu (review/tests) | **Done 2026-08-10** (ui-kit ContextMenuSub) |
+| CM-17 | `@` mention also writes pending refs | **Done 2026-08-10** (file/folder at-items → refs) |
+| CM-18 | CLI note / optional ref flags parity | **Done 2026-08-10** (`piwin chat --ref <path>` → contextRefs; file/folder auto-detect; unit-tested) |
 
 ---
 

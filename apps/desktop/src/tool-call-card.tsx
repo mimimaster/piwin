@@ -23,6 +23,11 @@ import {
   IconSpark,
 } from './shell-icons';
 import type { ToolKind } from '@piwin/contracts';
+import {
+  ContextMenuFromCatalog,
+  useDesktopContextMenu,
+  type ContextMenuTarget,
+} from './context-menu';
 
 export type ToolCallCardProps = {
   tool: ToolCardUi;
@@ -251,6 +256,7 @@ export function resolveToolCallHeaderPreview(input: {
 
 export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const { tool } = props;
+  const contextMenu = useDesktopContextMenu();
   const density = resolveDensity(props.density, props.compact);
   const autoExpand =
     props.defaultExpanded ??
@@ -344,7 +350,20 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     hasChangedPaths ||
     Boolean(tool.presentation?.error);
 
-  return (
+  // CM-13: tool-card surface menu. relatedPath prefers the first changed path.
+  const toolTarget: ContextMenuTarget | null = contextMenu
+    ? {
+        surface: 'tool-card',
+        toolCallId: tool.toolCallId,
+        toolName: tool.toolName,
+        outputText: displayOutput,
+        ...(changedPaths[0] ? { relatedPath: changedPaths[0] as string } : {}),
+        label: displayName,
+        canRerun: false,
+      }
+    : null;
+
+  const card = (
     <div
       className={`tool-call-card density-${density} status-${tool.status}${
         expanded ? ' is-expanded' : ''
@@ -490,6 +509,20 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         </div>
       ) : null}
     </div>
+  );
+
+  if (!toolTarget || !contextMenu) {
+    return card;
+  }
+  return (
+    <ContextMenuFromCatalog
+      testId="tool-card-context-menu"
+      target={toolTarget}
+      caps={contextMenu.caps}
+      dispatchers={contextMenu.dispatchers}
+    >
+      {card}
+    </ContextMenuFromCatalog>
   );
 }
 

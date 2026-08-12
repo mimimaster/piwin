@@ -110,6 +110,8 @@ export type ComposerDockProps = {
   /** CM: structured context ref chips (file/selection/folder/…). */
   pendingContextRefs?: PendingContextRefItem[];
   onRemoveContextRef?: (key: string) => void;
+  /** CM-17: `@` mention file/folder items also become structured refs. */
+  onAddContextRef?: ((ref: import('@piwin/contracts').PromptContextRef) => void) | undefined;
   docCommentsAttachment?: { docTitle: string; commentCount: number } | null | undefined;
   onRemoveDocComments?: (() => void) | undefined;
   dropActive: boolean;
@@ -415,6 +417,16 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   function applyAtItem(item: AtItem): void {
     if (!activeAtToken) {
       return;
+    }
+    // CM-17: workspace file/folder mentions also land in the structured
+    // pending refs so Host resolves them the same way as right-click refs.
+    if (props.onAddContextRef && (item.kind === 'file' || item.kind === 'folder') && props.projectPath) {
+      props.onAddContextRef({
+        kind: item.kind === 'folder' ? 'folder' : 'file',
+        projectPath: props.projectPath,
+        relativePath: item.name,
+        label: item.name,
+      });
     }
     const next = replaceActiveAtToken(props.composer, activeAtToken, item.insertValue);
     props.onComposerChange(next);

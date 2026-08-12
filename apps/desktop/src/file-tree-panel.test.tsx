@@ -365,12 +365,16 @@ describe('FileTreePanel context menu (CM-05)', () => {
       container.parentNode.removeChild(container);
     }
     document.body.innerHTML = '';
+    vi.restoreAllMocks();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
   function renderTree(
     request: (command: FileTreeRequest) => Promise<HostResponse>,
-    onAddContextRef?: (ref: import('@piwin/contracts').PromptContextRef) => void,
+    handlers: {
+      onAddContextRef?: (ref: import('@piwin/contracts').PromptContextRef) => void;
+      onSendPreset?: (text: string, refs: import('@piwin/contracts').PromptContextRef[]) => void;
+    } = {},
   ): void {
     const tree: ReactElement = (
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -378,7 +382,8 @@ describe('FileTreePanel context menu (CM-05)', () => {
           projectPath="/proj"
           request={request}
           locale="en"
-          {...(onAddContextRef ? { onAddContextRef } : {})}
+          {...(handlers.onAddContextRef ? { onAddContextRef: handlers.onAddContextRef } : {})}
+          {...(handlers.onSendPreset ? { onSendPreset: handlers.onSendPreset } : {})}
         />
       </PiwinUiProvider>
     );
@@ -417,7 +422,7 @@ describe('FileTreePanel context menu (CM-05)', () => {
   }
 
   it('right-clicking a file row opens the catalog menu with CM testIds', async () => {
-    renderTree(createRequestMock(), () => undefined);
+    renderTree(createRequestMock(), { onAddContextRef: () => undefined });
     await act(async () => {
       await Promise.resolve();
     });
@@ -439,7 +444,7 @@ describe('FileTreePanel context menu (CM-05)', () => {
 
   it('Add to Chat on a file row emits a file ref', async () => {
     const onAddContextRef = vi.fn();
-    renderTree(createRequestMock(), onAddContextRef);
+    renderTree(createRequestMock(), { onAddContextRef });
     await act(async () => {
       await Promise.resolve();
     });
@@ -464,7 +469,7 @@ describe('FileTreePanel context menu (CM-05)', () => {
 
   it('Add to Chat on a folder row emits a folder ref', async () => {
     const onAddContextRef = vi.fn();
-    renderTree(createRequestMock(), onAddContextRef);
+    renderTree(createRequestMock(), { onAddContextRef });
     await act(async () => {
       await Promise.resolve();
     });
@@ -499,5 +504,107 @@ describe('FileTreePanel context menu (CM-05)', () => {
       fileRow?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     });
     expect(document.body.querySelector('[data-testid^="file-tree-context-"]')).toBeNull();
+  });
+
+  it('selection menu on the code preview sends the Explain preset (CM-07)', async () => {
+    const onAddContextRef = vi.fn();
+    const onSendPreset = vi.fn();
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([
+          { name: 'package.json', relativePath: 'package.json', kind: 'file' },
+          { name: 'src', relativePath: 'src', kind: 'directory' },
+        ]);
+      }
+      if (cmd.type === 'project/read-file') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'package.json',
+            absolutePath: '/proj/package.json',
+            content: '{\n  "name": "demo"\n}\n',
+            byteSize: 24,
+            truncated: false,
+            isBinary: false,
+          },
+        };
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderTree(request, { onAddContextRef, onSendPreset });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Open the file so the code preview (CodePreviewView) renders.
+    const fileRow = rowFor('package.json');
+    await act(async () => {
+      fileRow?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const preview = document.querySelector('[data-testid="code-preview-view"]') as HTMLElement;
+    expect(preview).not.toBeNull();
+
+    // Simulate a text selection over the first preview row.
+    const firstRowText = preview.querySelector('.code-preview-text') as HTMLElement;
+    expect(firstRowText).not.toBeNull();
+    const range = document.createRange();
+    range.selectNodeContents(firstRowText);
+    const selectionStub = {
+      isCollapsed: false,
+      rangeCount: 1,
+      getRangeAt: () => range,
+      toString: () => 'name',
+    } as unknown as Selection;
+    vi.spyOn(window, 'getSelection').mockReturnValue(selectionStub);
+
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    // The preview is remounted inside the Radix trigger once a selection
+    // target exists — re-query, the old reference is detached.
+    const wrappedPreview = document.querySelector(
+      '[data-testid="code-preview-view"]',
+    ) as HTMLElement | null;
+    expect(wrappedPreview).not.toBeNull();
+    act(() => {
+      wrappedPreview?.dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+      );
+    });
+    const explainItem = menuItem('context-menu-explain') as HTMLElement | null;
+    expect(explainItem).not.toBeNull();
+    act(() => {
+      explainItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onSendPreset).toHaveBeenCalledTimes(1);
+    const [text, refs] = onSendPreset.mock.calls[0] as [
+      string,
+      import('@piwin/contracts').PromptContextRef[],
+    ];
+    expect(text).toContain('Explain the attached context');
+    expect(refs).toEqual([
+      expect.objectContaining({
+        kind: 'file',
+        projectPath: '/proj',
+        relativePath: 'package.json',
+        lineStart: 1,
+        lineEnd: 1,
+      }),
+    ]);
+    expect(onAddContextRef).toHaveBeenCalledTimes(1);
   });
 });

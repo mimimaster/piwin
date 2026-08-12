@@ -76,6 +76,8 @@ export type FileTreePanelProps = {
   onInsertPath?: (absolutePath: string, relativePath: string) => void;
   /** CM: add structured file/folder context ref to composer. */
   onAddContextRef?: (ref: PromptContextRef) => void;
+  /** CM: auto-send a preset turn (Explain/Fix) with the mapped refs. */
+  onSendPreset?: (text: string, refs: PromptContextRef[]) => void;
   /**
    * Optional external open hook (e.g. DocPreview). Primary UX is the inline
    * split preview inside this panel — content stays in the right column.
@@ -426,8 +428,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       );
       textarea?.focus();
     },
-    sendPreset: () => {
-      // File-tree P0 menus do not auto-send presets.
+    sendPreset: (text, refs) => {
+      props.onSendPreset?.(text, refs);
     },
     openPath: (absolutePath, relativePath) => {
       void openFilePreview(relativePath);
@@ -670,7 +672,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                     filePath={preview.relativePath}
                   />
                 ) : (
-                  <CodePreviewView code={preview.content} filePath={preview.relativePath} />
+                  <CodePreviewView
+                    code={preview.content}
+                    filePath={preview.relativePath}
+                    projectPath={props.projectPath ?? undefined}
+                    contextMenuCaps={contextMenuCaps}
+                    contextMenuDispatchers={contextMenuDispatchers}
+                  />
                 )}
               </>
             ) : null}
