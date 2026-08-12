@@ -10,7 +10,13 @@ import type {
   SessionTranscriptMessage,
   SessionTranscriptDocument,
 } from '@piwin/contracts';
-import { createSessionRecord, getSessionRecord, upsertSessionRecord } from '@piwin/session';
+import {
+  archiveSessionRecord,
+  createSessionRecord,
+  deleteSessionRecord,
+  getSessionRecord,
+  upsertSessionRecord,
+} from '@piwin/session';
 import { handleSideChatCommand, type SideChatCommandContext } from './side-chat-commands.js';
 import {
   handleSessionProductCommand,
@@ -136,6 +142,7 @@ function createProductContext(
   transcriptMap: Map<string, SessionTranscriptMessage[]>,
 ): SessionProductCommandContext {
   const host = createMockHost(randomUUID());
+  const indexPath = getPiwinSessionIndexPath(rootDir);
   return {
     piwinRoot: rootDir,
     createSession: (input) => host.createSession(input),
@@ -148,6 +155,12 @@ function createProductContext(
     },
     abortLiveSession: vi.fn(async () => undefined),
     disposeLiveSession: vi.fn(async () => undefined),
+    archiveSession: vi.fn((sessionId) => archiveSessionRecord(indexPath, sessionId)),
+    tryArchiveLifecycleCandidate: vi.fn(async () => ({ status: 'busy' as const })),
+    deleteSession: vi.fn(async (sessionId) => {
+      const removed = await deleteSessionRecord(indexPath, sessionId);
+      return removed ? { removed } : undefined;
+    }),
     bindSession: vi.fn(async () => undefined),
     pushStatus: vi.fn(),
   };

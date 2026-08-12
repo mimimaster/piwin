@@ -509,6 +509,8 @@ export type HostCommand =
     }
   | { id?: string; type: 'session/archive'; sessionId: string }
   | { id?: string; type: 'session/unarchive'; sessionId: string }
+  | { id?: string; type: 'session/lifecycle-plan' }
+  | { id?: string; type: 'session/lifecycle-apply'; planId: string }
   | {
       id?: string;
       type: 'session/delete';

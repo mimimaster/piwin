@@ -7,7 +7,7 @@ import { join } from 'node:path';
  * must be single path segments with no separators, parent references, or NUL
  * bytes. Throws so callers cannot silently persist a traversal payload.
  */
-function assertSafePathSegment(id: string, label: string): void {
+export function assertSafePathSegment(id: string, label: string): void {
   if (typeof id !== 'string' || id.length === 0) {
     throw new Error(`Invalid ${label}: must be a non-empty string`);
   }
@@ -56,6 +56,7 @@ export function getPiwinMediaDir(rootDir: string): string {
  * Must stay under {@link getPiwinMediaDir}; deleted with permanent session delete.
  */
 export function getPiwinSessionMediaDir(rootDir: string, sessionId: string): string {
+  assertSafePathSegment(sessionId, 'sessionId');
   return join(getPiwinMediaDir(rootDir), sessionId);
 }
 
@@ -101,7 +102,12 @@ export function getPiwinSessionsDir(rootDir: string): string {
 }
 
 export function getPiwinSessionDir(rootDir: string, sessionId: string): string {
+  assertSafePathSegment(sessionId, 'sessionId');
   return join(getPiwinSessionsDir(rootDir), sessionId);
+}
+
+export function getPiwinSessionDeleteTrashDir(rootDir: string): string {
+  return join(rootDir, 'trash', 'session-deletes');
 }
 
 export function getPiwinSessionTranscriptPath(rootDir: string, sessionId: string): string {

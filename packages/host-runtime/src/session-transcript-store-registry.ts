@@ -26,6 +26,11 @@ export type SessionTranscriptStoreRegistry = {
     operation: () => Promise<T>,
     shouldRetain: (sessionId: string) => boolean,
   ): Promise<T>;
+  withMaintenanceLease<T>(sessionId: string, operation: () => Promise<T>): Promise<T>;
+  tryWithMaintenanceLease<T>(
+    sessionId: string,
+    operation: () => Promise<T>,
+  ): Promise<{ acquired: true; value: T } | { acquired: false }>;
   close(sessionId: string): void;
   closeAll(): void;
 };
@@ -46,6 +51,10 @@ export function createSessionTranscriptStoreRegistry(input: {
   const deferredCloseSessions = new Set<string>();
   const commandLeaseContext = new AsyncLocalStorage<Set<string>>();
   const commandLeaseCounts = new Map<string, number>();
+  /** Active and queued maintenance demand; any demand blocks new Store access. */
+  const maintenanceDemandCounts = new Map<string, number>();
+  const maintenanceQueues = new Map<string, Promise<void>>();
+  const commandLeaseReleaseWaiters = new Map<string, Set<() => void>>();
   let disposed = false;
 
   async function open(sessionId: string, projectPath: string): Promise<SessionTranscriptStore> {
@@ -93,6 +102,10 @@ export function createSessionTranscriptStoreRegistry(input: {
         throw new Error('SessionTranscriptStoreRegistry is closed');
       }
       const leasedSessions = commandLeaseContext.getStore();
+      const alreadyLeased = leasedSessions?.has(sessionId) === true;
+      if ((maintenanceDemandCounts.get(sessionId) ?? 0) > 0 && !alreadyLeased) {
+        throw new Error(`Session transcript is under maintenance: ${sessionId}`);
+      }
       if (leasedSessions !== undefined && !leasedSessions.has(sessionId)) {
         leasedSessions.add(sessionId);
         commandLeaseCounts.set(sessionId, (commandLeaseCounts.get(sessionId) ?? 0) + 1);
@@ -144,6 +157,7 @@ export function createSessionTranscriptStoreRegistry(input: {
             continue;
           }
           commandLeaseCounts.delete(sessionId);
+          notifyCommandLeaseReleased(sessionId);
           const closeWasDeferred = deferredCloseSessions.delete(sessionId);
           if (closeWasDeferred || !shouldRetain(sessionId)) {
             const store = stores.get(sessionId);
@@ -153,6 +167,57 @@ export function createSessionTranscriptStoreRegistry(input: {
             }
           }
         }
+      }
+    },
+
+    async withMaintenanceLease(sessionId, operation) {
+      if (disposed) {
+        throw new Error('SessionTranscriptStoreRegistry is closed');
+      }
+      maintenanceDemandCounts.set(sessionId, (maintenanceDemandCounts.get(sessionId) ?? 0) + 1);
+      const previousMaintenance = maintenanceQueues.get(sessionId) ?? Promise.resolve();
+      const maintenance = previousMaintenance.then(async () => {
+        if (disposed) {
+          throw new Error('SessionTranscriptStoreRegistry is closed');
+        }
+        while ((commandLeaseCounts.get(sessionId) ?? 0) > 0) {
+          await waitForCommandLeaseRelease(sessionId);
+          if (disposed) {
+            throw new Error('SessionTranscriptStoreRegistry is closed');
+          }
+        }
+        return operation();
+      });
+      const queueTail = maintenance.then(
+        () => undefined,
+        () => undefined,
+      );
+      maintenanceQueues.set(sessionId, queueTail);
+      try {
+        return await maintenance;
+      } finally {
+        decrementMaintenanceDemand(sessionId);
+        if (maintenanceQueues.get(sessionId) === queueTail) {
+          maintenanceQueues.delete(sessionId);
+        }
+        notifyCommandLeaseReleased(sessionId);
+      }
+    },
+
+    async tryWithMaintenanceLease(sessionId, operation) {
+      if (
+        disposed ||
+        (maintenanceDemandCounts.get(sessionId) ?? 0) > 0 ||
+        (commandLeaseCounts.get(sessionId) ?? 0) > 0
+      ) {
+        return { acquired: false };
+      }
+      maintenanceDemandCounts.set(sessionId, 1);
+      try {
+        return { acquired: true, value: await operation() };
+      } finally {
+        decrementMaintenanceDemand(sessionId);
+        notifyCommandLeaseReleased(sessionId);
       }
     },
 
@@ -180,12 +245,48 @@ export function createSessionTranscriptStoreRegistry(input: {
       }
       stores.clear();
       commandLeaseCounts.clear();
+      maintenanceDemandCounts.clear();
+      maintenanceQueues.clear();
+      for (const waiters of commandLeaseReleaseWaiters.values()) {
+        for (const resolve of waiters) {
+          resolve();
+        }
+      }
+      commandLeaseReleaseWaiters.clear();
       deferredCloseSessions.clear();
       for (const sessionId of openings.keys()) {
         closingSessions.add(sessionId);
       }
     },
   };
+
+  function waitForCommandLeaseRelease(sessionId: string): Promise<void> {
+    return new Promise((resolve) => {
+      const waiters = commandLeaseReleaseWaiters.get(sessionId) ?? new Set<() => void>();
+      waiters.add(resolve);
+      commandLeaseReleaseWaiters.set(sessionId, waiters);
+    });
+  }
+
+  function notifyCommandLeaseReleased(sessionId: string): void {
+    const waiters = commandLeaseReleaseWaiters.get(sessionId);
+    if (!waiters) {
+      return;
+    }
+    commandLeaseReleaseWaiters.delete(sessionId);
+    for (const resolve of waiters) {
+      resolve();
+    }
+  }
+
+  function decrementMaintenanceDemand(sessionId: string): void {
+    const remaining = (maintenanceDemandCounts.get(sessionId) ?? 1) - 1;
+    if (remaining > 0) {
+      maintenanceDemandCounts.set(sessionId, remaining);
+    } else {
+      maintenanceDemandCounts.delete(sessionId);
+    }
+  }
   return registry;
 }
 

@@ -69,6 +69,7 @@ import {
   runSideChatResume,
   type SideChatHostClient,
 } from './side-chat-command.js';
+import { runSessionLifecycleApply, runSessionLifecyclePlan } from './session-lifecycle-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -85,6 +86,8 @@ Usage:
   piwin session resume-run <sessionId> [--checkpoint <checkpointId>] [--mock]
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
+  piwin session lifecycle plan [--mock]
+  piwin session lifecycle apply --plan <plan-id> [--mock]
   piwin status [--project <path>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>] [--ref <path>…]
   piwin scheme list [--mock]
@@ -533,6 +536,37 @@ async function commandSession(argv: string[]): Promise<void> {
   const runtime = new HostRuntime({ mode, mock });
 
   try {
+    if (sub === 'lifecycle') {
+      const action = argv[2] ?? 'plan';
+      try {
+        if (action === 'plan') {
+          await runSessionLifecyclePlan(runtime, console.log);
+          return;
+        }
+        if (action === 'apply') {
+          const planId = readOption(argv, '--plan');
+          if (!planId) {
+            console.error('Usage: piwin session lifecycle apply --plan <plan-id> [--mock]');
+            process.exitCode = 1;
+            return;
+          }
+          const result = await runSessionLifecycleApply(runtime, planId, console.log);
+          if (result.failed.length > 0) {
+            process.exitCode = 2;
+          }
+          return;
+        }
+        console.error(`Unknown lifecycle action: ${action}`);
+        console.error('Usage: piwin session lifecycle plan|apply --plan <plan-id>');
+        process.exitCode = 1;
+        return;
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+        return;
+      }
+    }
+
     if (sub === 'list') {
       const projectPath = parseOptionalProject(argv);
       const response = await runtime.handleCommand(
@@ -715,7 +749,7 @@ async function commandSession(argv: string[]): Promise<void> {
     }
 
     console.error(`Unknown session subcommand: ${sub}`);
-    console.error('Usage: piwin session list|pin|unpin|pause|resume-run|search|export');
+    console.error('Usage: piwin session list|pin|unpin|pause|resume-run|search|export|lifecycle');
     process.exitCode = 1;
   } finally {
     await runtime.dispose();
@@ -891,8 +925,7 @@ async function commandChat(argv: string[]): Promise<void> {
     const schemeId = readOption(argv, '--scheme')?.trim();
     // CM-18: `--ref <path>` (repeatable) maps to structured context refs.
     const refArgs = collectRefArgs(argv);
-    const refsResult =
-      refArgs.length > 0 ? await buildCliContextRefs(projectPath, refArgs) : null;
+    const refsResult = refArgs.length > 0 ? await buildCliContextRefs(projectPath, refArgs) : null;
     if (refsResult && !refsResult.ok) {
       console.error(`[ref] ${refsResult.reason}`);
       process.exitCode = 1;
