@@ -234,6 +234,23 @@ describe('config-store', () => {
     expect(loaded.visionDelegation?.model?.modelId).toBe('vision-model');
   });
 
+  it('round-trips the web_search delegate model without storing credentials in Web config', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-web-delegate-'));
+    const config = createDefaultPiwinConfig();
+    if (!config.web) throw new Error('default Web config missing');
+    config.web.searchDelegateModel = {
+      protocol: 'google-gemini',
+      providerId: 'gemini',
+      modelId: 'gemini-search',
+    };
+
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+
+    expect(loaded.web?.searchDelegateModel).toEqual(config.web.searchDelegateModel);
+    expect(JSON.stringify(loaded.web)).not.toContain('apiKey');
+  });
+
   it('round-trips desktop model, effort, and session restoration preferences', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-desktop-restore-'));
     const config = createDefaultPiwinConfig();

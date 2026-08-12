@@ -386,10 +386,6 @@ export type DesktopTranslator = {
       modelId: string;
       modelDisplayName: string;
       nativeSearch: string;
-      nativeSearchMode: string;
-      nativeSearchControllable: string;
-      nativeSearchAlwaysOn: string;
-      nativeSearchAlwaysOnDescription: string;
       contextLimit: string;
       outputLimit: string;
       tooltipMarkdown: string;
@@ -990,9 +986,9 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         searchRouteDescription: isChinese
           ? '每次生成只选择一个搜索出口；不会在请求失败后静默重试另一个出口。'
           : 'Each generation uses one search outlet; a completed or failed request is never silently retried through the other outlet.',
-        nativeSearchFirst: isChinese ? '内置搜索优先' : 'Native search first',
+        nativeSearchFirst: isChinese ? '模型内置搜索优先' : 'Native search first',
         externalSearchFirst: isChinese ? '外部搜索优先（默认）' : 'External search first (default)',
-        nativeSearchOnly: isChinese ? '仅内置搜索' : 'Native search only',
+        nativeSearchOnly: isChinese ? '仅模型内置搜索' : 'Native search only',
         externalSearchOnly: isChinese ? '仅外部搜索' : 'External search only',
         previewRequestFailed: isChinese
           ? '暂时无法计算搜索路由，已保留上一次成功的预览。'
@@ -1121,13 +1117,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           : 'Runtime limits are explicit per model.',
         modelId: isChinese ? '模型 ID' : 'Model ID',
         modelDisplayName: isChinese ? '模型名称' : 'Model name',
-        nativeSearch: isChinese ? '内置搜索' : 'Native search',
-        nativeSearchMode: isChinese ? '内置搜索模式' : 'Native search mode',
-        nativeSearchControllable: isChinese ? '可控' : 'Controllable',
-        nativeSearchAlwaysOn: isChinese ? '始终开启' : 'Always on',
-        nativeSearchAlwaysOnDescription: isChinese
-          ? '提供商始终启用此功能，external-only 无法将其关闭。'
-          : 'The provider feature is always enabled; external-only cannot disable it.',
+        nativeSearch: isChinese ? '模型内置搜索' : 'Native search',
         contextLimit: isChinese ? 'Context 上限' : 'Context token limit',
         outputLimit: isChinese ? '最大输出' : 'Max output tokens',
         tooltipMarkdown: isChinese ? 'Tooltip Markdown' : 'Tooltip markdown',

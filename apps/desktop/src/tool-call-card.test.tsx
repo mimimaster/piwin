@@ -211,10 +211,71 @@ describe('ToolCallCard openable file paths', () => {
     });
 
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
-    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('执行失败');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('命令失败');
     expect(card?.querySelector('.tool-call-summary')?.textContent).not.toContain('Tool error');
     expect(card?.querySelector('.tool-call-body')?.textContent).toContain('Command failed');
     expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+  });
+
+  it('preserves a manual collapse while a running tool streams output', () => {
+    const runningTool = createReadTool({
+      toolCallId: 'read-streaming-1',
+      status: 'running',
+      output: 'first chunk',
+    });
+
+    act(() => {
+      root.render(<ToolCallCard tool={runningTool} density="compact" locale="en" />);
+    });
+    const summary = container.querySelector<HTMLElement>('.tool-call-summary');
+    expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
+      true,
+    );
+
+    act(() => summary?.click());
+    expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
+      false,
+    );
+
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={{ ...runningTool, output: 'second chunk' }}
+          density="compact"
+          locale="en"
+        />,
+      );
+    });
+    expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
+      false,
+    );
+  });
+
+  it('keeps a terminal failure visible but collapsed when owned by a call chain', () => {
+    const failedTool = createReadTool({
+      toolCallId: 'read-error-collapsed',
+      status: 'error',
+      output: 'Permission denied',
+      presentation: {
+        title: 'Read',
+        kind: 'filesystem',
+        actionVerb: 'Read',
+        summary: 'private.txt',
+        targetPaths: ['private.txt'],
+        error: { category: 'permission', message: 'Permission denied' },
+      },
+    });
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={failedTool} density="compact" collapseWhenTerminal locale="en" />,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+    expect(card?.querySelector('.tool-call-body')).toBeNull();
   });
 
   it('renders fetch-like shell commands with the reference request surface', () => {

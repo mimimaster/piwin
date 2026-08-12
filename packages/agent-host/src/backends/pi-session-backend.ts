@@ -19,6 +19,7 @@ import type {
   HostToolExecutionPort,
   SessionCompactResult,
   SessionSeedMessage,
+  EphemeralProviderSecret,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.js';
 
@@ -51,6 +52,8 @@ export type CreateBackendSessionInput = {
   blueprint: BackendSessionBlueprint;
   /** Ephemeral provider runtime data; credentials are never persisted by a backend. */
   providers: SerializableProviderRuntime[];
+  /** Raw key material for an isolated worker's one-shot bootstrap channel. */
+  providerSecrets?: readonly EphemeralProviderSecret[];
   /** Parent-owned execution port for descriptors in the blueprint. */
   hostToolExecution: HostToolExecutionPort;
   /** Optional parent-owned extension UI bridge. */

@@ -40,6 +40,11 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       );
     case 'subagent/updated':
       return projection(deliveryKey('subagent', push.parentSessionId, push.child.id));
+    case 'subagent/invocation-updated':
+      return projection(
+        deliveryKey('subagent', push.parentSessionId, 'invocation', push.invocation.id),
+        push.invocation.parentRunId,
+      );
     case 'subagent/merged':
       return control([deliveryKey('subagent', push.parentSessionId, push.childSessionId)]);
     case 'subagent/batch-updated':
@@ -74,6 +79,20 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return control([deliveryKey('automation', 'cron', push.jobId)]);
     case 'extension/ui_request':
       return control([deliveryKey('session', push.sessionId, 'extension', push.requestId)]);
+    case 'extension/catalog-updated':
+      return projection(deliveryKey('extensions', 'catalog'));
+    case 'extension/deployment-updated': {
+      const key = deliveryKey('extensions', 'deployment', push.deployment.deploymentId);
+      if (
+        push.deployment.phase === 'active' ||
+        push.deployment.phase === 'failed' ||
+        push.deployment.phase === 'rolled-back' ||
+        push.deployment.phase === 'restart-required'
+      ) {
+        return control([key]);
+      }
+      return projection(key);
+    }
     case 'pet/state':
       return projection(deliveryKey('pet', 'state'));
     case 'browser/frame':

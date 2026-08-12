@@ -115,9 +115,30 @@ export type SettingsApplyTiming =
   | 'service-restart'
   | 'host-restart';
 
+/**
+ * A capability whose future admission must be re-evaluated immediately while
+ * an older runtime generation is draining. This is deliberately narrower than
+ * a SettingsDomain: changing a Web source, for example, does not revoke the
+ * Web search capability when the replacement source remains available.
+ */
+export type ImmediateCapabilityRestriction =
+  | 'web-search'
+  | 'web-fetch'
+  | 'browser-network'
+  | 'process'
+  | 'notes-write'
+  | 'flashcards-write'
+  | 'delegate'
+  | 'permission-policy';
+
 export type SettingsDomainImpact = {
   domain: SettingsDomain;
   timing: SettingsApplyTiming;
+  /** True when the domain must be compiled into a replacement generation. */
+  runtimeSchemaChanged: boolean;
+  /** Exact capabilities narrowed before the replacement generation is live. */
+  immediateRestrictions: ImmediateCapabilityRestriction[];
+  /** @deprecated Derive from `immediateRestrictions.length > 0`. */
   securityTightenedImmediately: boolean;
 };
 

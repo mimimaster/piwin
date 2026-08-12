@@ -58,6 +58,14 @@ export type SessionIndexRecord = {
   subagentStatus?: SubagentStatus;
   /** Brief task description for sub-agents. */
   task?: string;
+  /** Stable Host identity for the delegation invocation that created this child. */
+  subagentInvocationId?: string;
+  /** Task identity within the owning subagent batch. */
+  subagentTaskId?: string;
+  /** Parent foreground Run that emitted the delegation. */
+  subagentParentRunId?: string;
+  /** Generation-normalized parent tool call anchoring the inline block. */
+  subagentParentToolCallId?: string;
   /** When set, child summary was merged into parent product transcript. */
   mergedAt?: string;
   /** Parent transcript message id for the merge card (idempotency). */

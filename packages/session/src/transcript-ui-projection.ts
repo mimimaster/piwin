@@ -22,6 +22,9 @@ export function slimToolPresentation(
     kind: presentation.kind,
     title: presentation.title,
   };
+  if (presentation.routedToolName !== undefined) {
+    slim.routedToolName = presentation.routedToolName;
+  }
   if (presentation.summary !== undefined) slim.summary = presentation.summary;
   if (presentation.inputPreview !== undefined) slim.inputPreview = presentation.inputPreview;
   if (presentation.command !== undefined) slim.command = presentation.command;
@@ -50,6 +53,7 @@ export function slimToolCardForUi(tool: SessionToolCardView): SessionToolCardVie
     output: '',
   };
   if (tool.runId !== undefined) card.runId = tool.runId;
+  if (tool.responseMessageId !== undefined) card.responseMessageId = tool.responseMessageId;
   if (presentation !== undefined) card.presentation = presentation;
   return card;
 }
@@ -58,10 +62,7 @@ function withoutPhaseHistory(message: SessionTranscriptMessage): SessionTranscri
   if (!message.phaseHistory) {
     return message;
   }
-  const {
-    phaseHistory: _phaseHistory,
-    ...rest
-  } = message;
+  const { phaseHistory: _phaseHistory, ...rest } = message;
   return rest;
 }
 

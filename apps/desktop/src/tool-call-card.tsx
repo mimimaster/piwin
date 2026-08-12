@@ -3,7 +3,7 @@
  * Write/edit tools with non-empty `changedPaths` render a DiffCard per path;
  * the original raw output is folded into a <details> below.
  */
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import type { DocumentTargetRef } from '@piwin/contracts';
@@ -46,6 +46,14 @@ export type ToolCallCardProps = {
   tool: ToolCardUi;
   /** Default expanded while running; collapsed when done. */
   defaultExpanded?: boolean | undefined;
+  /** Controlled disclosure state for virtualized or otherwise remounted cards. */
+  expanded?: boolean | undefined;
+  /** Records an explicit user disclosure choice. */
+  onExpandedChange?: ((expanded: boolean) => void) | undefined;
+  /** Whether this card should automatically hold expanded focus while running. */
+  expandWhileRunning?: boolean | undefined;
+  /** Collapse both successful and failed terminal calls back to a timeline row. */
+  collapseWhenTerminal?: boolean | undefined;
   /** @deprecated prefer density */
   compact?: boolean | undefined;
   density?: ToolCallDensity | undefined;
@@ -203,17 +211,6 @@ function ToolDocumentTargetList(props: {
   );
 }
 
-function summarizeToolOutput(toolName: string, output: string, maxLength: number): string {
-  const trimmed = output.replace(/\s+/g, ' ').trim();
-  if (!trimmed) {
-    return toolName;
-  }
-  if (trimmed.length <= maxLength) {
-    return trimmed;
-  }
-  return `${trimmed.slice(0, maxLength - 1)}…`;
-}
-
 function formatDuration(ms: number): string {
   if (ms < 1000) {
     return `${ms}ms`;
@@ -338,6 +335,9 @@ function kindIcon(
       return <IconBrowser className="tool-call-kind-icon" />;
     case 'mcp':
       return <IconPlug className="tool-call-kind-icon" />;
+    case 'image':
+    case 'video':
+      return <IconSpark className="tool-call-kind-icon" />;
     case 'other':
       return <IconActivity className="tool-call-kind-icon" />;
     default:
@@ -371,6 +371,10 @@ function kindVerb(kind: ToolKind | 'unknown', toolName: string): string {
       return 'Fetched';
     case 'mcp':
       return 'MCP';
+    case 'image':
+      return 'Generated image';
+    case 'video':
+      return 'Generated video';
     default:
       return toolName;
   }
@@ -467,7 +471,9 @@ export function looksLikeArgsDumpSummary(text: string): boolean {
  * Recover a human label from tool inputPreview when the stored summary is a
  * raw JSON dump (legacy image_gen presentations after tool/end overwrite).
  */
-export function recoverSummaryFromInputPreview(inputPreview: string | undefined): string | undefined {
+export function recoverSummaryFromInputPreview(
+  inputPreview: string | undefined,
+): string | undefined {
   if (!inputPreview) {
     return undefined;
   }
@@ -554,29 +560,60 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const { tool } = props;
   const contextMenu = useDesktopContextMenu();
   const density = resolveDensity(props.density, props.compact);
-  const autoExpand =
-    props.defaultExpanded ??
-    (tool.status === 'running' ||
-      tool.status === 'error' ||
-      (density === 'detailed' && Boolean(tool.output)));
-  const [expanded, setExpanded] = useState(autoExpand);
+  const expandWhileRunning = props.expandWhileRunning !== false;
+  const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
+  const autoExpand = terminalMustCollapse
+    ? false
+    : (props.defaultExpanded ??
+      ((tool.status === 'running' && expandWhileRunning) ||
+        tool.status === 'error' ||
+        (density === 'detailed' && Boolean(tool.output))));
+  const [internalExpanded, setInternalExpanded] = useState(autoExpand);
+  const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
+  const expanded = props.expanded ?? internalExpanded;
 
   useEffect(() => {
-    if (tool.status === 'running' || tool.status === 'error') {
-      setExpanded(true);
-    } else if (tool.status === 'done' && density !== 'detailed') {
-      setExpanded(false);
-    } else if (density === 'compact') {
-      setExpanded(false);
-    } else if (density === 'detailed' && tool.output) {
-      setExpanded(true);
+    if (props.expanded !== undefined) {
+      return;
     }
-  }, [tool.status, tool.output, density]);
+    if (disclosureIntentRef.current !== 'automatic') {
+      return;
+    }
+    if (tool.status === 'running') {
+      setInternalExpanded(expandWhileRunning);
+    } else if (props.collapseWhenTerminal === true) {
+      setInternalExpanded(false);
+    } else if (tool.status === 'error') {
+      setInternalExpanded(true);
+    } else if (tool.status === 'done' && density !== 'detailed') {
+      setInternalExpanded(false);
+    } else if (density === 'compact') {
+      setInternalExpanded(false);
+    } else if (density === 'detailed' && tool.output) {
+      setInternalExpanded(true);
+    }
+  }, [
+    tool.status,
+    tool.output,
+    density,
+    props.collapseWhenTerminal,
+    props.defaultExpanded,
+    props.expanded,
+    expandWhileRunning,
+  ]);
+
+  function toggleExpanded(): void {
+    const nextExpanded = !expanded;
+    disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
+    if (props.expanded === undefined) {
+      setInternalExpanded(nextExpanded);
+    }
+    props.onExpandedChange?.(nextExpanded);
+  }
 
   const displayOutput = tool.presentation?.output?.text ?? tool.output;
   const outputTruncated = tool.presentation?.output?.truncated === true;
   const citations = parseToolCitations(tool.toolName, displayOutput);
-  const previewMax = density === 'compact' ? 48 : density === 'detailed' ? 160 : 96;
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
   // Prefer host changedPaths; fall back to write-like targetPaths so DiffCard
@@ -614,15 +651,15 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const isPathLike = behaviorId === 'read' || behaviorId === 'edit' || behaviorId === 'git';
   const rawSummary =
     tool.status === 'error'
-      ? tool.presentation?.command ??
+      ? (tool.presentation?.command ??
         (targetPaths.length > 0
           ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
-          : displayName)
-      : tool.presentation?.summary ??
+          : displayName))
+      : (tool.presentation?.summary ??
         tool.presentation?.command ??
         (targetPaths.length > 0
           ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
-          : summarizeToolOutput(tool.toolName, tool.output, previewMax));
+          : displayName));
   // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
   const inputPreview =
     tool.presentation?.inputPreview ||
@@ -734,11 +771,11 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       */}
       <div
         className="tool-call-summary"
-        onClick={() => setExpanded((previous) => !previous)}
+        onClick={toggleExpanded}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            setExpanded((previous) => !previous);
+            toggleExpanded();
           }
         }}
         role="button"
@@ -836,8 +873,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                 />
               ))
             : null}
-          {tool.presentation?.documentTargets &&
-          tool.presentation.documentTargets.length > 0 ? (
+          {tool.presentation?.documentTargets && tool.presentation.documentTargets.length > 0 ? (
             <ToolDocumentTargetList
               targets={tool.presentation.documentTargets}
               toolCallId={tool.toolCallId}
@@ -885,10 +921,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           (tool.presentation?.command ||
             inputPreview ||
             (displayOutput && citations.kind === 'none' && !canRenderDiffCard)) ? (
-            <CollapsibleContentBlock
-              maxCollapsedHeight={130}
-              defaultCollapsed={tool.status === 'done'}
-            >
+            <CollapsibleContentBlock maxCollapsedHeight={130} defaultCollapsed>
               {tool.presentation?.command ? (
                 <div className="tool-call-command" data-testid="tool-call-command">
                   <code>{tool.presentation.command}</code>
@@ -910,10 +943,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             </CollapsibleContentBlock>
           ) : null}
           {isFetchStyle && displayOutput && citations.kind === 'none' && !canRenderDiffCard ? (
-            <CollapsibleContentBlock
-              maxCollapsedHeight={130}
-              defaultCollapsed={tool.status === 'done'}
-            >
+            <CollapsibleContentBlock maxCollapsedHeight={130} defaultCollapsed>
               <pre className="tool-call-output">
                 {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
               </pre>

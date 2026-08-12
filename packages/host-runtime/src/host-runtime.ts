@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { totalmem } from 'node:os';
 import type {
@@ -14,7 +14,11 @@ import type {
   HostResponse,
   HostStatusData,
   HostToolRegistration,
+  SettingsDomainImpact,
+  SettingsApplyResult,
   JobController,
+  ExtensionDeploymentRecord,
+  ExtensionsApplyData,
   MediaAttachmentRef,
   McpConfigDocument,
   MediaSaveData,
@@ -71,6 +75,7 @@ import {
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { enrichAgentEventDocumentTargets } from './document-targets.js';
 import { installSkill, installExtension } from '@piwin/marketplace';
+import { createExtensionRevisionStore } from '@piwin/extensions';
 import { scanExtensions } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { scanPrompts } from './prompt-scanner.js';
@@ -92,6 +97,7 @@ import {
   removeWorktree,
   integrateWorktreeChanges,
   isWorktreeBaseClean,
+  runGitCommand,
 } from '@piwin/git';
 import {
   deleteCronJob,
@@ -159,6 +165,7 @@ import {
   appendUsageRecord,
   readLatestSessionContextUsage,
   createSubagentRunStore,
+  buildCompactionSeedMessages,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import type {
@@ -191,12 +198,17 @@ import {
   hasForeignLiveSessionRuntime,
   registerSessionRuntimeLease,
   releaseSessionRuntimeLease,
+  touchSessionRuntimeLease,
   tryWithSessionOperationLock,
   withSessionOperationLock,
 } from './session-runtime-lease.js';
 import { maybeAutoNameSession } from './session-naming-service.js';
 import { createSecretResolver } from './secret-resolver.js';
-import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
+import {
+  findEnabledProvider,
+  getEnabledProviders,
+  resolveDefaultModelRef,
+} from './provider-helpers.js';
 import {
   getPiwinMediaDir,
   getPiwinGeneralWorkspacePath,
@@ -250,9 +262,21 @@ import type {
   SubagentOrchestratorOptions,
   SubagentTaskPreparationInput,
   PreparedSubagentTask,
+  SubagentTaskPreflightContext,
 } from './subagent-orchestrator.js';
 import { planSubagentSpawn } from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
+import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
+import { reconcileSubagentBatchStatusAfterWorktreeAction } from './subagent-batch-status.js';
+import {
+  invocationActivityForResult,
+  invocationStatusForResult,
+} from './subagent-invocation-state.js';
+import {
+  buildPersistedSubagentRepair,
+  selectPersistedSubagentChild,
+  terminalizePersistedInvocation,
+} from './subagent-reconciliation.js';
 import {
   createSubagentIntegrationCoordinator,
   createGitWorktreeIntegrationAdapter,
@@ -264,6 +288,11 @@ import {
 } from './runtime-resource-coordinator.js';
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
+import {
+  acquirePiwinRootLease,
+  type PiwinRootLease,
+  type PiwinRootOwnerKind,
+} from './piwin-root-lease.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import type {
   SubagentRuntimeSnapshot,
@@ -271,6 +300,7 @@ import type {
   BackendPreparedPrompt,
   SubagentBatchRequest,
   SubagentBatchResult,
+  SubagentInvocationActivity,
   SubagentTaskSpec,
   SubagentTaskResult,
   SubagentWorkspaceLease,
@@ -293,10 +323,53 @@ const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'walkthrough/generate',
 ]);
 
+type ExtensionApplyCommand = Extract<HostCommand, { type: 'extensions/apply' }> & {
+  deploymentId: string;
+};
+
+type ExtensionDeploymentPatch = {
+  phase: ExtensionDeploymentRecord['phase'];
+  generationId?: string;
+  targetExtensionSetRevision?: string;
+  expectedSettingsRevision?: string;
+  error?: string;
+};
+
+function extensionApplyDataFromRecord(
+  record: ExtensionDeploymentRecord,
+  stateOverride?: ExtensionsApplyData['state'],
+): ExtensionsApplyData {
+  const state =
+    stateOverride ?? (record.when === 'new-sessions-only' ? 'new-sessions-only' : 'active');
+  return {
+    sessionId: record.sessionId,
+    deploymentId: record.deploymentId,
+    state,
+    when: record.when,
+    registryRevision: record.targetRegistryRevision,
+    ...(record.generationId ? { generationId: record.generationId } : {}),
+    ...(record.expectedSettingsRevision
+      ? { settingsRevision: record.expectedSettingsRevision }
+      : {}),
+    ...(record.targetExtensionSetRevision
+      ? { extensionSetRevision: record.targetExtensionSetRevision }
+      : {}),
+  };
+}
+
 export type HostRuntimeOptions = {
   mode: HostMode;
   mock?: boolean;
   piwinRoot?: string;
+  /**
+   * Cross-process ownership of the canonical piwin data root. Production
+   * defaults to enabled; tests default to disabled unless explicitly enabled.
+   */
+  rootOwnership?: {
+    enabled: boolean;
+    ownerKind?: PiwinRootOwnerKind;
+    hostInstanceId?: string;
+  };
   rpcCommand?: string;
   /** Explicit internal worker artifact for source-mode diagnostics/soak. */
   agentWorkerScript?: string;
@@ -343,6 +416,10 @@ type ComposedSessionHostTools = {
 
 export class HostRuntime {
   private readonly runtimeLeaseOwnerId = `host-${process.pid}-${randomUUID()}`;
+  /** First claim time per session for runtime lease heartbeat continuity. */
+  private readonly runtimeLeaseStartedAt = new Map<string, string>();
+  private readonly rootLease: PiwinRootLease | null;
+  private readonly hostInstanceId: string;
   private readonly host: ProductAgentHost;
   private readonly sessions = new Map<string, SessionHandle>();
   /**
@@ -370,6 +447,7 @@ export class HostRuntime {
       runtimeGenerationId: string;
       workingDirectory: string;
       parentRepoPath: string;
+      invocationId?: string;
     }
   >();
   /** Model-facing merge seam cache, keyed by the child product session id. */
@@ -379,6 +457,10 @@ export class HostRuntime {
     string,
     import('@piwin/contracts').ResolvedOrchestrationScheme
   >();
+  /** ORCH: turn-scoped model-facing delegation policy. */
+  private readonly runDelegationModes = new Map<string, 'auto' | 'disabled'>();
+  /** Delegation surface frozen into each currently resident generation. */
+  private readonly sessionRuntimeDelegationModes = new Map<string, 'auto' | 'disabled'>();
   /**
    * ORCH §8.4: turn-scoped concurrency / tasks-per-run gate for scheme-bound
    * parent runs. Bound when a scheme resolves; cleared on run terminate.
@@ -403,6 +485,14 @@ export class HostRuntime {
   private readonly sessionFilesTouched = new Map<string, string>();
   /** SIDE: last injected side-chat context version per session (§7.5(5)). */
   private readonly sideChatSnapshotInjectedVersions = new Map<string, number>();
+  private readonly compactExportOperations = new Map<
+    string,
+    {
+      sourceSessionId: string;
+      temporarySession?: import('@piwin/contracts').SessionHandle;
+      abortRequested: boolean;
+    }
+  >();
   /** Structured lifecycle authority for every foreground and descendant Run. */
   private readonly runRegistry: RunRegistry;
   /** Preserves the run identity across asynchronous SDK event callbacks. */
@@ -477,6 +567,9 @@ export class HostRuntime {
   /** Direct creates hold an activating reservation until bind publishes them. */
   private readonly pendingDirectActivations = new Map<string, string>();
   private readonly runtimeReplacementEngine: SessionRuntimeReplacementEngine;
+  private readonly extensionRevisionStore: ReturnType<typeof createExtensionRevisionStore>;
+  private readonly extensionDeploymentIdsBySession = new Map<string, string>();
+  private readonly extensionDeploymentPromisesById = new Map<string, Promise<HostResponse>>();
   /** ADR 0040 §3: normalized retention policy (adaptive high water derived). */
   private runtimeRetention: SessionRuntimeRetentionConfig;
   /** Effective automatic RSS high-water budget in MiB. */
@@ -520,6 +613,13 @@ export class HostRuntime {
   private readonly pushSinks = new Map<RemoteSinkId, PushSink>();
   /** ADR 0030: production subagent orchestrator (non-mock mode only). */
   private subagentOrchestrator: SubagentOrchestrator | null = null;
+  /** Durable subagent run manifest store (production non-mock mode). */
+  private subagentRunStore: ReturnType<typeof createSubagentRunStore> | null = null;
+  /**
+   * Ownership-fenced startup reconciliation. New subagent admission waits on
+   * this promise so recovered state is visible before any batch starts.
+   */
+  private subagentStartupRecovery: Promise<void> | null = null;
   /** Worker supervisor for isolated Pi child processes. */
   private agentWorkerSupervisor: AgentWorkerSupervisor | null = null;
   /** Integration coordinator for worktree code integration. */
@@ -531,311 +631,388 @@ export class HostRuntime {
   private ready = true;
 
   constructor(options: HostRuntimeOptions) {
-    this.options = options;
-    this.transcriptStores = createSessionTranscriptStoreRegistry({
-      rootDir: getPiwinRoot(options.piwinRoot),
-      onDiagnostic: (message) =>
-        this.push({ type: 'host/log', level: 'info', message: `[transcript] ${message}` }),
-    });
-    if (options.onPush) {
-      this.pushSinks.set(LEGACY_LOCAL_SINK_ID, {
-        id: LEGACY_LOCAL_SINK_ID,
-        push: options.onPush,
-      });
+    const rootOwnershipEnabled = options.rootOwnership?.enabled ?? process.env.NODE_ENV !== 'test';
+    let leaseCompromiseHandler: (error: Error) => void = () => undefined;
+    const rootLease = rootOwnershipEnabled
+      ? acquirePiwinRootLease({
+          rootDir: getPiwinRoot(options.piwinRoot),
+          ownerKind: options.rootOwnership?.ownerKind ?? 'cli-command',
+          ...(options.rootOwnership?.hostInstanceId
+            ? { hostInstanceId: options.rootOwnership.hostInstanceId }
+            : {}),
+          onCompromised: (error) => leaseCompromiseHandler(error),
+        })
+      : null;
+    this.rootLease = rootLease;
+    this.hostInstanceId =
+      rootLease?.owner.hostInstanceId ?? options.rootOwnership?.hostInstanceId ?? randomUUID();
+    if (rootLease) {
+      options = { ...options, piwinRoot: rootLease.canonicalRootDir };
     }
-    this.runRegistry = new RunRegistry({
-      onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
-      onRunTerminal: (run) => this.push({ type: 'run/terminal', run }),
-    });
-    this.runtimeController = new SessionRuntimeController({
-      isRunInFlight: (sessionId) => {
-        const generationId = this.runtimeController.getStatus(sessionId).generationId;
-        return this.runRegistry
-          .list({
-            status: ['queued', 'running', 'cancelling'],
-          })
-          .some(
-            (run) =>
-              run.sessionId === sessionId ||
-              (generationId !== undefined && run.runtimeGenerationId === generationId),
+
+    try {
+      this.options = options;
+      this.extensionRevisionStore = createExtensionRevisionStore(getPiwinRoot(options.piwinRoot));
+      this.transcriptStores = createSessionTranscriptStoreRegistry({
+        rootDir: getPiwinRoot(options.piwinRoot),
+        onDiagnostic: (message) =>
+          this.push({ type: 'host/log', level: 'info', message: `[transcript] ${message}` }),
+      });
+      if (options.onPush) {
+        this.pushSinks.set(LEGACY_LOCAL_SINK_ID, {
+          id: LEGACY_LOCAL_SINK_ID,
+          push: options.onPush,
+        });
+      }
+      this.runRegistry = new RunRegistry({
+        onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
+        onRunTerminal: (run) => this.push({ type: 'run/terminal', run }),
+      });
+      this.runtimeController = new SessionRuntimeController({
+        isRunInFlight: (sessionId) => {
+          const generationId = this.runtimeController.getStatus(sessionId).generationId;
+          return this.runRegistry
+            .list({
+              status: ['queued', 'running', 'cancelling'],
+            })
+            .some(
+              (run) =>
+                run.sessionId === sessionId ||
+                (generationId !== undefined && run.runtimeGenerationId === generationId),
+            );
+        },
+        onChanged: (status) => this.push({ type: 'session/runtime-updated', status }),
+      });
+      // ADR 0040 §2/§5/§6: the residency state machine decides when a runtime
+      // may be created or must be suspended. HostRuntime owns the real cleanup
+      // transaction (`suspendSessionRuntime`) and the blocker predicate that
+      // keeps active/cancelling/permission/UI/compaction/replacement runtimes
+      // resident. §3/§8: the adaptive RSS high water (25% of system memory,
+      // clamped 512–2048 MiB) powers admission eviction; worker samples are
+      // cached and marked incomplete when missing/stale.
+      this.runtimeRetention = normalizeSessionRuntimeRetentionConfig(undefined);
+      this.runtimeMemoryHighWaterMiB = deriveMemoryHighWaterMiB(totalmem() / 1024 / 1024);
+      this.residencyController = createSessionRuntimeResidencyController({
+        retention: {
+          ...this.runtimeRetention,
+          memoryHighWaterMiB: this.runtimeMemoryHighWaterMiB,
+        },
+        resolveMaxResidentRuntimes: () => {
+          const executionConcurrency =
+            this.runtimeResourceCoordinator?.getStatus().effectiveMaxConcurrency ?? 1;
+          const adaptive = executionConcurrency + this.runtimeRetention.maxIdleRuntimes;
+          const workerCapacity = this.agentWorkerSupervisor?.getStatus().maxActiveWorkers;
+          return workerCapacity === undefined ? adaptive : Math.min(adaptive, workerCapacity);
+        },
+        isRuntimeProtected: (sessionId) => this.isSessionRuntimeProtected(sessionId),
+        onResidencyChanged: (entry) => {
+          this.runtimeController.setResidency(
+            entry.sessionId,
+            entry.state,
+            entry.state === 'suspending' && entry.lastEvictionReason !== undefined
+              ? { lastEvictionReason: entry.lastEvictionReason }
+              : undefined,
           );
-      },
-      onChanged: (status) => this.push({ type: 'session/runtime-updated', status }),
-    });
-    // ADR 0040 §2/§5/§6: the residency state machine decides when a runtime
-    // may be created or must be suspended. HostRuntime owns the real cleanup
-    // transaction (`suspendSessionRuntime`) and the blocker predicate that
-    // keeps active/cancelling/permission/UI/compaction/replacement runtimes
-    // resident. §3/§8: the adaptive RSS high water (25% of system memory,
-    // clamped 512–2048 MiB) powers admission eviction; worker samples are
-    // cached and marked incomplete when missing/stale.
-    this.runtimeRetention = normalizeSessionRuntimeRetentionConfig(undefined);
-    this.runtimeMemoryHighWaterMiB = deriveMemoryHighWaterMiB(totalmem() / 1024 / 1024);
-    this.residencyController = createSessionRuntimeResidencyController({
-      retention: {
-        ...this.runtimeRetention,
-        memoryHighWaterMiB: this.runtimeMemoryHighWaterMiB,
-      },
-      resolveMaxResidentRuntimes: () => {
-        const executionConcurrency =
-          this.runtimeResourceCoordinator?.getStatus().effectiveMaxConcurrency ?? 1;
-        const adaptive = executionConcurrency + this.runtimeRetention.maxIdleRuntimes;
-        const workerCapacity = this.agentWorkerSupervisor?.getStatus().maxActiveWorkers;
-        return workerCapacity === undefined ? adaptive : Math.min(adaptive, workerCapacity);
-      },
-      isRuntimeProtected: (sessionId) => this.isSessionRuntimeProtected(sessionId),
-      onResidencyChanged: (entry) => {
-        this.runtimeController.setResidency(
-          entry.sessionId,
-          entry.state,
-          entry.state === 'suspending' && entry.lastEvictionReason !== undefined
-            ? { lastEvictionReason: entry.lastEvictionReason }
-            : undefined,
-        );
-      },
-      suspendRuntime: (input) => {
-        return this.suspendSessionRuntime(input.sessionId, input.runtimeGenerationId, input.reason);
-      },
-      sampleMemory: () => {
-        const hostRssMiB = Math.max(1, Math.round(process.memoryUsage().rss / 1024 / 1024));
-        const worker = this.workerRssSample;
-        if (!worker || worker.rssMiB <= 0) {
-          return { hostRssMiB, sampleCompleteness: worker?.completeness ?? 'missing' };
-        }
-        return {
-          hostRssMiB,
-          workerRssMiB: worker.rssMiB,
-          sampleCompleteness: worker.completeness,
-        };
-      },
-    });
-    this.runtimeReplacementEngine = new SessionRuntimeReplacementEngine({
-      controller: this.runtimeController,
-      getActiveGenerationId: (sessionId) =>
-        this.runtimeController.getStatus(sessionId).generationId,
-      getRunIds: (_sessionId, generationId) =>
-        this.runRegistry
-          .list({ status: ['queued', 'running', 'cancelling'] })
-          .filter((run) => run.runtimeGenerationId === generationId)
-          .map((run) => run.runId),
-      waitForRuns: async (runIds) => {
-        await Promise.all(runIds.map((runId) => this.runRegistry.join(runId)));
-      },
-      compileCandidate: (sessionId, generationId, settingsRevision) =>
-        this.compileRuntimeCandidate(sessionId, generationId, settingsRevision),
-      disposeGeneration: (sessionId, generationId) =>
-        this.disposeRuntimeGeneration(sessionId, generationId),
-      createGeneration: (sessionId, candidate) =>
-        this.createRuntimeGeneration(sessionId, candidate),
-      rollbackGeneration: (sessionId, generationId) =>
-        this.rollbackRuntimeGeneration(sessionId, generationId),
-      abortGeneration: (sessionId, generationId) =>
-        this.abortRuntimeGeneration(sessionId, generationId),
-      onCleanupError: ({ sessionId, generationId, error }) => {
+        },
+        suspendRuntime: (input) => {
+          return this.suspendSessionRuntime(
+            input.sessionId,
+            input.runtimeGenerationId,
+            input.reason,
+          );
+        },
+        onSweep: () => {
+          // Keep runtime lease heartbeats fresh for every resident session so a
+          // long-idle runtime never looks abandoned to a foreign Host (2-minute
+          // stale window vs. 30s sweep).
+          for (const sessionId of this.runtimeLeaseStartedAt.keys()) {
+            void this.heartbeatRuntimeLease(sessionId).catch(() => undefined);
+          }
+        },
+        sampleMemory: () => {
+          const hostRssMiB = Math.max(1, Math.round(process.memoryUsage().rss / 1024 / 1024));
+          const worker = this.workerRssSample;
+          if (!worker || worker.rssMiB <= 0) {
+            return { hostRssMiB, sampleCompleteness: worker?.completeness ?? 'missing' };
+          }
+          return {
+            hostRssMiB,
+            workerRssMiB: worker.rssMiB,
+            sampleCompleteness: worker.completeness,
+          };
+        },
+      });
+      this.runtimeReplacementEngine = new SessionRuntimeReplacementEngine({
+        controller: this.runtimeController,
+        getActiveGenerationId: (sessionId) =>
+          this.runtimeController.getStatus(sessionId).generationId,
+        getRunIds: (_sessionId, generationId) =>
+          this.runRegistry
+            .list({ status: ['queued', 'running', 'cancelling'] })
+            .filter((run) => run.runtimeGenerationId === generationId)
+            .map((run) => run.runId),
+        waitForRuns: async (runIds) => {
+          await Promise.all(runIds.map((runId) => this.runRegistry.join(runId)));
+        },
+        compileCandidate: (sessionId, generationId, settingsRevision) =>
+          this.compileRuntimeCandidate(sessionId, generationId, settingsRevision),
+        disposeGeneration: (sessionId, generationId) =>
+          this.disposeRuntimeGeneration(sessionId, generationId),
+        createGeneration: (sessionId, candidate) =>
+          this.createRuntimeGeneration(sessionId, candidate),
+        rollbackGeneration: (sessionId, generationId) =>
+          this.rollbackRuntimeGeneration(sessionId, generationId),
+        abortGeneration: (sessionId, generationId) =>
+          this.abortRuntimeGeneration(sessionId, generationId),
+        onCleanupError: ({ sessionId, generationId, error }) => {
+          this.push({
+            type: 'host/log',
+            level: 'error',
+            message: `runtime replacement cleanup failed for ${sessionId}/${generationId}: ${formatUnknownError(error)}`,
+          });
+        },
+      });
+      // Single process owner for Desktop UI lifecycle + SDK session tools.
+      const rootDir = getPiwinRoot(options.piwinRoot);
+      const mcpManager = createMcpLifecycleManager(rootDir);
+      this.mcpManager = mcpManager;
+      // CE-JOB: unified job controller — sole authority for non-interactive
+      // OS child processes (ADR 0030 Phase B). No legacy compatibility layer.
+      // ADR 0030: durable JobRecord persistence for host-start reconciliation.
+      const jobRecordStore = createFileRecordStore(join(rootDir, 'jobs', 'records.json'));
+      const jobController = createJobRegistry({
+        recordStore: jobRecordStore,
+        // Admission policy is derived from the persisted settings on every
+        // start, so a settings tighten (maxProcesses / enabled) applies to new
+        // Jobs immediately without killing already-running Jobs (ADR 0030 B1).
+        getJobPolicy: async () => {
+          try {
+            const config = await loadPiwinConfig(this.options.piwinRoot);
+            const processConfig = config.process;
+            const maxActiveJobs =
+              typeof processConfig?.maxProcesses === 'number' && processConfig.maxProcesses > 0
+                ? processConfig.maxProcesses
+                : 8;
+            return {
+              enabled: processConfig?.enabled !== false,
+              maxActiveJobs,
+            };
+          } catch {
+            // Unreadable settings must not silently block or permit Jobs; keep
+            // the safe default (enabled with the registry default capacity).
+            return { enabled: true, maxActiveJobs: 8 };
+          }
+        },
+        getTrustedProjectRoots: async () => {
+          try {
+            const projects = await listProjects(getPiwinProjectsPath(rootDir));
+            return projects
+              .filter((project) => project.trust === 'trusted')
+              .map((project) => project.path);
+          } catch (error) {
+            const detail = formatError(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `trusted project roots read failed (jobs): ${detail}`,
+            });
+            return [];
+          }
+        },
+        onEvent: (event: JobRegistryEvent) => this.emitJobEvent(event),
+      });
+      this.jobController = jobController;
+
+      const commonHostOptions = {
+        mode: options.mode,
+        ...(options.piwinRoot ? { piwinRoot: options.piwinRoot } : {}),
+        onGenerationCreated: (
+          sessionId: string,
+          generationId: string,
+          settingsRevision: string,
+          extensionSetRevision?: string,
+        ) =>
+          this.runtimeController.attachGeneration(
+            sessionId,
+            generationId,
+            settingsRevision,
+            extensionSetRevision,
+          ),
+        onGenerationDetached: async (sessionId: string) => {
+          this.runtimeController.detachGeneration(sessionId);
+          this.sessionHostToolPort?.clearSession(sessionId);
+          await this.releaseGenerationToolSurfaces(sessionId);
+        },
+        getMcpConfig: async (sessionId: string, runtimeGenerationId: string) =>
+          this.getGenerationMcpConfig(sessionId, runtimeGenerationId),
+        getMcpCapabilityBrief: async (sessionId: string, runtimeGenerationId: string) =>
+          this.getGenerationMcpCapabilityBrief(sessionId, runtimeGenerationId),
+        getPermissionRulesRevision: (sessionId: string, runtimeGenerationId: string) =>
+          this.generationPermissionRuleRevisions.get(`${sessionId}\u0000${runtimeGenerationId}`),
+        restrictToolSurface: (
+          sessionId: string,
+          runtimeGenerationId: string,
+          toolNames: readonly string[],
+          toolboxTargetNames: readonly string[],
+        ) => {
+          if (
+            !this.sessionHostToolPort?.restrictGeneration(
+              sessionId,
+              runtimeGenerationId,
+              toolNames,
+              toolboxTargetNames,
+            )
+          ) {
+            throw new Error(
+              `compiled Host tool surface is not registered: ${sessionId}/${runtimeGenerationId}`,
+            );
+          }
+        },
+        getCurrentRunId: () => this.runExecutionContext.getStore(),
+      };
+      if (options.mock === true) {
+        this.sessionHostToolPort = null;
+        this.host = new ProductAgentHost({ ...commonHostOptions, mock: true });
+      } else {
+        this.sessionHostToolPort = createSessionHostToolExecutionPort({
+          isSessionKnown: (sessionId) =>
+            this.runtimeController.hasActiveGeneration(sessionId) ||
+            this.sessions.has(sessionId) ||
+            this.subagentSessionContexts.has(sessionId),
+          getRuntimeGenerationId: (sessionId) =>
+            this.subagentSessionContexts.get(sessionId)?.runtimeGenerationId ??
+            this.runtimeController.getStatus(sessionId).generationId,
+          isRunAdmitted: (runId, sessionId, runtimeGenerationId) => {
+            const run = this.runRegistry.get(runId);
+            const admitted =
+              run?.status === 'running' &&
+              run.sessionId === sessionId &&
+              run.runtimeGenerationId === runtimeGenerationId;
+            if (!admitted) {
+              // CE run-admission diagnostics: log WHY a tool frame was rejected.
+              // The model sees only "run is not admitted for tool execution", so
+              // the exact failure reason must be captured host-side.
+              const denialKey = `${sessionId}\u0000${runId}`;
+              const count = (this.runAdmissionDenials.get(denialKey) ?? 0) + 1;
+              this.runAdmissionDenials.set(denialKey, count);
+              const foreground = this.runRegistry.getForegroundRun(sessionId);
+              const activeGeneration = this.runtimeController.getStatus(sessionId).generationId;
+              let why: string;
+              if (!run) {
+                why = 'run-missing';
+              } else if (run.status !== 'running') {
+                why = `status=${run.status}`;
+              } else if (run.sessionId !== sessionId) {
+                why = `session-mismatch run=${run.sessionId} frame=${sessionId}`;
+              } else {
+                why = `generation-mismatch run=${run.runtimeGenerationId} frame=${runtimeGenerationId}`;
+              }
+              // First denial per (runId, sessionId) logs in full; repeats are
+              // sampled at 1/10 to avoid flooding the host log during loops.
+              if (count === 1 || count % 10 === 0) {
+                this.push({
+                  type: 'host/log',
+                  level: 'warn',
+                  message:
+                    `run admission denied (x${count}): runId=${runId} sessionId=${sessionId} ` +
+                    `why=${why} frameGen=${runtimeGenerationId} ` +
+                    `activeGen=${activeGeneration} foregroundRun=${foreground?.runId ?? '-'} ` +
+                    `foregroundStatus=${foreground?.status ?? '-'}`,
+                });
+              }
+            }
+            return admitted;
+          },
+          // Repair spec WP2: the live safety predicate reads only exact
+          // capability-restriction domains on every tool call. A Web source
+          // switch still makes the runtime stale, but does not disable all Web
+          // tools while the replacement generation is being prepared.
+          isToolDisabled: createImmediateSafetyPredicate({
+            getPendingDomains: (sessionId) => {
+              const safetySessionId =
+                this.subagentSessionContexts.get(sessionId)?.parentSessionId ?? sessionId;
+              return this.runtimeController.getImmediateTighteningDomains(safetySessionId);
+            },
+            getPendingRestrictions: (sessionId) => {
+              const safetySessionId =
+                this.subagentSessionContexts.get(sessionId)?.parentSessionId ?? sessionId;
+              return this.runtimeController.getImmediateRestrictions(safetySessionId);
+            },
+          }),
+        });
+        this.agentWorkerSupervisor = this.createAgentWorkerSupervisor();
+        this.host = new ProductAgentHost({
+          ...commonHostOptions,
+          mock: false,
+          hostToolExecution: this.sessionHostToolPort,
+          buildToolDescriptors: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
+            const tools = await this.buildSessionHostToolsForSession(
+              sessionId,
+              runtimeGenerationId,
+              model,
+              mode,
+            );
+            return descriptorsFromTools(tools);
+          },
+          buildToolFamilyIndex: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
+            const tools = await this.buildSessionHostToolsForSession(
+              sessionId,
+              runtimeGenerationId,
+              model,
+              mode,
+            );
+            return toolFamilyIndex(tools);
+          },
+          // Resolve trust from the project store so untrusted projects
+          // cannot compile write/process/bash/delegate capabilities.
+          trustResolver: async (projectPath: string) => {
+            try {
+              const rootDir = getPiwinRoot(this.options.piwinRoot);
+              const projects = await listProjects(getPiwinProjectsPath(rootDir));
+              const record = projects.find((p) => p.path === projectPath);
+              return record?.trust === 'trusted';
+            } catch {
+              return false;
+            }
+          },
+          workerSupervisor: this.agentWorkerSupervisor,
+        });
+
+        // ADR 0030 Phase D-3: compose the production SubagentOrchestrator.
+        // Only non-mock mode gets real worker processes, workspace services,
+        // and integration coordinators. Mock mode leaves the orchestrator null
+        // and batch IPC returns a normalized not-ready response.
+        this.composeSubagentOrchestrator();
+      }
+      leaseCompromiseHandler = (error) => {
+        this.ready = false;
+        this.hostClosing = true;
         this.push({
           type: 'host/log',
           level: 'error',
-          message: `runtime replacement cleanup failed for ${sessionId}/${generationId}: ${formatUnknownError(error)}`,
+          message: `piwin root ownership was compromised: ${error.message}`,
         });
-      },
-    });
-    // Single process owner for Desktop UI lifecycle + SDK session tools.
-    const rootDir = getPiwinRoot(options.piwinRoot);
-    const mcpManager = createMcpLifecycleManager(rootDir);
-    this.mcpManager = mcpManager;
-    // CE-JOB: unified job controller — sole authority for non-interactive
-    // OS child processes (ADR 0030 Phase B). No legacy compatibility layer.
-    // ADR 0030: durable JobRecord persistence for host-start reconciliation.
-    const jobRecordStore = createFileRecordStore(join(rootDir, 'jobs', 'records.json'));
-    const jobController = createJobRegistry({
-      recordStore: jobRecordStore,
-      // Admission policy is derived from the persisted settings on every
-      // start, so a settings tighten (maxProcesses / enabled) applies to new
-      // Jobs immediately without killing already-running Jobs (ADR 0030 B1).
-      getJobPolicy: async () => {
-        try {
-          const config = await loadPiwinConfig(this.options.piwinRoot);
-          const processConfig = config.process;
-          const maxActiveJobs =
-            typeof processConfig?.maxProcesses === 'number' && processConfig.maxProcesses > 0
-              ? processConfig.maxProcesses
-              : 8;
-          return {
-            enabled: processConfig?.enabled !== false,
-            maxActiveJobs,
-          };
-        } catch {
-          // Unreadable settings must not silently block or permit Jobs; keep
-          // the safe default (enabled with the registry default capacity).
-          return { enabled: true, maxActiveJobs: 8 };
-        }
-      },
-      getTrustedProjectRoots: async () => {
-        try {
-          const projects = await listProjects(getPiwinProjectsPath(rootDir));
-          return projects
-            .filter((project) => project.trust === 'trusted')
-            .map((project) => project.path);
-        } catch (error) {
-          const detail = formatError(error);
-          this.push({
-            type: 'host/log',
-            level: 'warn',
-            message: `trusted project roots read failed (jobs): ${detail}`,
-          });
-          return [];
-        }
-      },
-      onEvent: (event: JobRegistryEvent) => this.emitJobEvent(event),
-    });
-    this.jobController = jobController;
-
-    const commonHostOptions = {
-      mode: options.mode,
-      ...(options.piwinRoot ? { piwinRoot: options.piwinRoot } : {}),
-      onGenerationCreated: (sessionId: string, generationId: string, settingsRevision: string) =>
-        this.runtimeController.attachGeneration(sessionId, generationId, settingsRevision),
-      onGenerationDetached: async (sessionId: string) => {
-        this.runtimeController.detachGeneration(sessionId);
-        this.sessionHostToolPort?.clearSession(sessionId);
-        await this.releaseGenerationToolSurfaces(sessionId);
-      },
-      getMcpConfig: async (sessionId: string, runtimeGenerationId: string) =>
-        this.getGenerationMcpConfig(sessionId, runtimeGenerationId),
-      getMcpCapabilityBrief: async (sessionId: string, runtimeGenerationId: string) =>
-        this.getGenerationMcpCapabilityBrief(sessionId, runtimeGenerationId),
-      getPermissionRulesRevision: (sessionId: string, runtimeGenerationId: string) =>
-        this.generationPermissionRuleRevisions.get(`${sessionId}\u0000${runtimeGenerationId}`),
-      restrictToolSurface: (
-        sessionId: string,
-        runtimeGenerationId: string,
-        toolNames: readonly string[],
-      ) => {
-        if (
-          !this.sessionHostToolPort?.restrictGeneration(sessionId, runtimeGenerationId, toolNames)
-        ) {
-          throw new Error(
-            `compiled Host tool surface is not registered: ${sessionId}/${runtimeGenerationId}`,
-          );
-        }
-      },
-      getCurrentRunId: () => this.runExecutionContext.getStore(),
-    };
-    if (options.mock === true) {
-      this.sessionHostToolPort = null;
-      this.host = new ProductAgentHost({ ...commonHostOptions, mock: true });
-    } else {
-      this.sessionHostToolPort = createSessionHostToolExecutionPort({
-        isSessionKnown: (sessionId) =>
-          this.runtimeController.hasActiveGeneration(sessionId) ||
-          this.sessions.has(sessionId) ||
-          this.subagentSessionContexts.has(sessionId),
-        getRuntimeGenerationId: (sessionId) =>
-          this.subagentSessionContexts.get(sessionId)?.runtimeGenerationId ??
-          this.runtimeController.getStatus(sessionId).generationId,
-        isRunAdmitted: (runId, sessionId, runtimeGenerationId) => {
-          const run = this.runRegistry.get(runId);
-          const admitted =
-            run?.status === 'running' &&
-            run.sessionId === sessionId &&
-            run.runtimeGenerationId === runtimeGenerationId;
-          if (!admitted) {
-            // CE run-admission diagnostics: log WHY a tool frame was rejected.
-            // The model sees only "run is not admitted for tool execution", so
-            // the exact failure reason must be captured host-side.
-            const denialKey = `${sessionId}\u0000${runId}`;
-            const count = (this.runAdmissionDenials.get(denialKey) ?? 0) + 1;
-            this.runAdmissionDenials.set(denialKey, count);
-            const foreground = this.runRegistry.getForegroundRun(sessionId);
-            const activeGeneration = this.runtimeController.getStatus(sessionId).generationId;
-            let why: string;
-            if (!run) {
-              why = 'run-missing';
-            } else if (run.status !== 'running') {
-              why = `status=${run.status}`;
-            } else if (run.sessionId !== sessionId) {
-              why = `session-mismatch run=${run.sessionId} frame=${sessionId}`;
-            } else {
-              why = `generation-mismatch run=${run.runtimeGenerationId} frame=${runtimeGenerationId}`;
-            }
-            // First denial per (runId, sessionId) logs in full; repeats are
-            // sampled at 1/10 to avoid flooding the host log during loops.
-            if (count === 1 || count % 10 === 0) {
-              this.push({
-                type: 'host/log',
-                level: 'warn',
-                message:
-                  `run admission denied (x${count}): runId=${runId} sessionId=${sessionId} ` +
-                  `why=${why} frameGen=${runtimeGenerationId} ` +
-                  `activeGen=${activeGeneration} foregroundRun=${foreground?.runId ?? '-'} ` +
-                  `foregroundStatus=${foreground?.status ?? '-'}`,
-              });
-            }
-          }
-          return admitted;
-        },
-        // Repair spec WP2: the live safety predicate reads the controller's
-        // pending tightening domains on every tool call, so a settings
-        // tighten blocks new side effects immediately — before the candidate
-        // generation finishes compiling. Child task sessions inherit the
-        // parent's runtime generation and therefore read the parent's live
-        // tightening state as well.
-        isToolDisabled: createImmediateSafetyPredicate({
-          getPendingDomains: (sessionId) => {
-            const safetySessionId =
-              this.subagentSessionContexts.get(sessionId)?.parentSessionId ?? sessionId;
-            return this.runtimeController.getStatus(safetySessionId).staleDomains;
-          },
-        }),
-      });
-      this.agentWorkerSupervisor = this.createAgentWorkerSupervisor();
-      this.host = new ProductAgentHost({
-        ...commonHostOptions,
-        mock: false,
-        hostToolExecution: this.sessionHostToolPort,
-        buildToolDescriptors: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
-          const tools = await this.buildSessionHostToolsForSession(
-            sessionId,
-            runtimeGenerationId,
-            model,
-            mode,
-          );
-          return descriptorsFromTools(tools);
-        },
-        buildToolFamilyIndex: async (sessionId, runtimeGenerationId, model, mode = 'active') => {
-          const tools = await this.buildSessionHostToolsForSession(
-            sessionId,
-            runtimeGenerationId,
-            model,
-            mode,
-          );
-          return toolFamilyIndex(tools);
-        },
-        // Resolve trust from the project store so untrusted projects
-        // cannot compile write/process/bash/delegate capabilities.
-        trustResolver: async (projectPath: string) => {
-          try {
-            const rootDir = getPiwinRoot(this.options.piwinRoot);
-            const projects = await listProjects(getPiwinProjectsPath(rootDir));
-            const record = projects.find((p) => p.path === projectPath);
-            return record?.trust === 'trusted';
-          } catch {
-            return false;
-          }
-        },
-        workerSupervisor: this.agentWorkerSupervisor,
-      });
-
-      // ADR 0030 Phase D-3: compose the production SubagentOrchestrator.
-      // Only non-mock mode gets real worker processes, workspace services,
-      // and integration coordinators. Mock mode leaves the orchestrator null
-      // and batch IPC returns a normalized not-ready response.
-      this.composeSubagentOrchestrator();
+        void this.dispose().catch(() => undefined);
+      };
+    } catch (error) {
+      try {
+        rootLease?.release();
+      } catch (releaseError) {
+        throw new AggregateError(
+          [error, releaseError],
+          'HostRuntime initialization failed and root ownership could not be released cleanly',
+        );
+      }
+      throw error;
     }
   }
 
   getMode(): HostMode {
     return this.host.mode;
+  }
+
+  getHostInstanceId(): string {
+    return this.hostInstanceId;
   }
 
   async dispose(): Promise<void> {
@@ -1013,6 +1190,9 @@ export class HostRuntime {
     // ADR 0040: stop the residency sweep timer and reject pending waiters.
     this.residencyController.dispose();
     this.subagentSessionContexts.clear();
+    this.runOrchestrationSchemes.clear();
+    this.runDelegationModes.clear();
+    this.sessionRuntimeDelegationModes.clear();
     this.generationToolSurfaces.clear();
     this.generationMcpConfigs.clear();
     this.generationMcpSnapshots.clear();
@@ -1033,13 +1213,39 @@ export class HostRuntime {
     this.eventEnvelopeGenerators.clear();
     this.sessionHostToolPort?.clear();
     this.pendingDirectActivations.clear();
+    this.extensionDeploymentIdsBySession.clear();
+    this.extensionDeploymentPromisesById.clear();
     this.ready = false;
+    if (this.subagentStartupRecovery) {
+      try {
+        await this.subagentStartupRecovery;
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
+      this.subagentStartupRecovery = null;
+    }
+    if (this.rootLease) {
+      try {
+        this.rootLease.release();
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
+    }
     if (shutdownErrors.length > 0) {
       throw new AggregateError(shutdownErrors, 'HostRuntime shutdown completed with errors');
     }
   }
 
   async handleCommand(command: HostCommand): Promise<HostResponse> {
+    try {
+      this.rootLease?.assertHeld();
+    } catch (error) {
+      return fail(
+        typeof command.id === 'string' ? command.id : undefined,
+        command.type,
+        `piwin root ownership unavailable: ${formatError(error)}`,
+      );
+    }
     if (TRANSCRIPT_STORE_LEASED_COMMANDS.has(command.type)) {
       return this.transcriptStores.withCommandLease(
         () => this.handleCommandWithTranscriptLease(command),
@@ -1065,6 +1271,20 @@ export class HostRuntime {
           this.walkthroughRegistry,
         );
       }
+      if (command.type === 'extensions/apply') {
+        const deploymentId = command.deploymentId ?? randomUUID();
+        const existing = this.extensionDeploymentPromisesById.get(deploymentId);
+        if (existing) return existing;
+        const operation = this.executeExtensionApply({ ...command, deploymentId }, requestId);
+        this.extensionDeploymentPromisesById.set(deploymentId, operation);
+        try {
+          return await operation;
+        } finally {
+          if (this.extensionDeploymentPromisesById.get(deploymentId) === operation) {
+            this.extensionDeploymentPromisesById.delete(deploymentId);
+          }
+        }
+      }
       const ctx = await this.buildDomainContext();
       const domain = await dispatchDomainCommands(command, requestId, ctx);
       if (domain) {
@@ -1072,12 +1292,9 @@ export class HostRuntime {
         // sessions stale and keep safety gates tight without aborting the
         // current run. Only runtime-stale domains are recorded.
         if (command.type === 'settings/apply' && domain.type === 'response' && domain.success) {
-          const data = domain.data as
-            | { changedDomains?: { domain: import('@piwin/contracts').SettingsDomain }[] }
-            | null
-            | undefined;
+          const data = domain.data as SettingsApplyResult | null | undefined;
           if (Array.isArray(data?.changedDomains)) {
-            const changedDomains = data.changedDomains.map((item) => item.domain);
+            const changedDomains = data.changedDomains;
             const settingsConfig = (
               domain.data as {
                 snapshot?: { config?: import('@piwin/contracts').PiwinConfig };
@@ -1089,8 +1306,34 @@ export class HostRuntime {
             if (settingsConfig?.session) {
               this.applyRuntimeRetention(settingsConfig.session.runtimeRetention);
             }
+            const runtimeChanges = changedDomains.filter(
+              (change: SettingsDomainImpact) =>
+                change.runtimeSchemaChanged ?? change.timing === 'new-runtime',
+            );
             for (const sessionId of this.sessions.keys()) {
-              this.runtimeController.recordSettingsChange(sessionId, changedDomains);
+              const activeGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+              if (activeGenerationId === undefined || runtimeChanges.length === 0) {
+                continue;
+              }
+              this.runtimeController.recordSettingsChange(
+                sessionId,
+                runtimeChanges,
+                data.snapshot.revision,
+              );
+              void this.runtimeReplacementEngine
+                .replace({
+                  sessionId,
+                  targetSettingsRevision: data.snapshot.revision,
+                  expectedActiveGenerationId: activeGenerationId,
+                  when: 'after-current-run',
+                })
+                .catch((error: unknown) => {
+                  this.push({
+                    type: 'host/log',
+                    level: 'warn',
+                    message: `automatic runtime update failed for ${sessionId}: ${formatError(error)}`,
+                  });
+                });
             }
           }
         }
@@ -1124,6 +1367,217 @@ export class HostRuntime {
       const message = formatError(error);
       return fail(requestId, command.type, message);
     }
+  }
+
+  private async executeExtensionApply(
+    command: ExtensionApplyCommand,
+    requestId: string | undefined,
+  ): Promise<HostResponse> {
+    const registry = await this.extensionRevisionStore.readRegistry();
+    if (
+      command.expectedRegistryRevision !== undefined &&
+      command.expectedRegistryRevision !== registry.revision
+    ) {
+      return fail(
+        requestId,
+        'extensions/apply',
+        `extension-registry-revision-conflict: expected ${command.expectedRegistryRevision}, current ${registry.revision}`,
+      );
+    }
+
+    const persisted = await this.extensionRevisionStore.readDeployment(command.deploymentId);
+    if (persisted && persisted.sessionId === command.sessionId && persisted.phase === 'active') {
+      return ok(requestId, 'extensions/apply', extensionApplyDataFromRecord(persisted));
+    }
+
+    const activeDeploymentId = this.extensionDeploymentIdsBySession.get(command.sessionId);
+    if (activeDeploymentId !== undefined && activeDeploymentId !== command.deploymentId) {
+      return fail(
+        requestId,
+        'extensions/apply',
+        `extension-deployment-in-progress: ${activeDeploymentId}`,
+      );
+    }
+
+    const now = new Date().toISOString();
+    let deployment: ExtensionDeploymentRecord = {
+      deploymentId: command.deploymentId,
+      sessionId: command.sessionId,
+      targetRegistryRevision: registry.revision,
+      ...(command.targetExtensionSetRevision !== undefined
+        ? { targetExtensionSetRevision: command.targetExtensionSetRevision }
+        : {}),
+      ...(command.expectedSettingsRevision !== undefined
+        ? { expectedSettingsRevision: command.expectedSettingsRevision }
+        : {}),
+      when: command.when,
+      phase: 'queued',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.writeExtensionDeployment(deployment);
+    this.extensionDeploymentIdsBySession.set(command.sessionId, command.deploymentId);
+    this.runtimeController.setExtensionDeploymentPending(command.sessionId, command.deploymentId);
+
+    try {
+      deployment = await this.updateExtensionDeployment(deployment, { phase: 'validating' });
+
+      const durableSession = await getSessionRecord(
+        getPiwinSessionIndexPath(getPiwinRoot(this.options.piwinRoot)),
+        command.sessionId,
+      );
+      if (!durableSession && !this.sessions.has(command.sessionId)) {
+        throw new Error(`Unknown session: ${command.sessionId}`);
+      }
+
+      if (command.when === 'new-sessions-only' || !this.sessions.has(command.sessionId)) {
+        deployment = await this.updateExtensionDeployment(deployment, { phase: 'active' });
+        this.runtimeController.clearExtensionDeploymentPending(command.sessionId);
+        return ok(
+          requestId,
+          'extensions/apply',
+          extensionApplyDataFromRecord(deployment, 'new-sessions-only'),
+        );
+      }
+
+      this.requireSession(command.sessionId);
+      const status = this.runtimeController.getStatus(command.sessionId);
+      const expectedSettingsRevision = command.expectedSettingsRevision ?? status.settingsRevision;
+      if (expectedSettingsRevision === undefined) {
+        throw new Error('extension-apply-settings-revision-missing');
+      }
+      if (
+        status.settingsRevision !== undefined &&
+        status.settingsRevision !== expectedSettingsRevision
+      ) {
+        throw new Error('extension-apply-settings-revision-conflict');
+      }
+
+      this.runtimeController.recordSettingsChange(
+        command.sessionId,
+        ['extensions'],
+        expectedSettingsRevision,
+      );
+      if (command.targetExtensionSetRevision !== undefined) {
+        this.runtimeController.setExtensionDeploymentTarget(
+          command.sessionId,
+          command.targetExtensionSetRevision,
+          command.deploymentId,
+        );
+      }
+      const runInFlight = this.runRegistry
+        .list({ status: ['queued', 'running', 'cancelling'] })
+        .some((run) => run.sessionId === command.sessionId);
+      deployment = await this.updateExtensionDeployment(deployment, {
+        phase:
+          runInFlight && command.when === 'after-current-run' ? 'waiting-current-run' : 'compiling',
+        ...(expectedSettingsRevision ? { expectedSettingsRevision } : {}),
+      });
+
+      const result = await this.runtimeReplacementEngine.replace({
+        sessionId: command.sessionId,
+        targetSettingsRevision: expectedSettingsRevision,
+        ...(status.generationId !== undefined
+          ? { expectedActiveGenerationId: status.generationId }
+          : {}),
+        when: command.when === 'after-current-run' ? 'after-current-run' : 'now',
+      });
+      const targetExtensionSetRevision =
+        result.candidate.extensionSetRevision ??
+        this.runtimeController.getStatus(command.sessionId).loadedExtensionSetRevision;
+      const finalRegistry = await this.extensionRevisionStore.readRegistry();
+      for (const reference of await this.extensionRevisionStore.listActiveRevisionRefs()) {
+        try {
+          await this.extensionRevisionStore.markLastKnownGood(
+            reference.extensionId,
+            reference.contentRevision,
+          );
+        } catch (error) {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `extension last-known-good update failed for ${reference.extensionId}: ${formatError(error)}`,
+          });
+        }
+      }
+      const registryAfterActivation = await this.extensionRevisionStore.readRegistry();
+      const activeConfig = await loadPiwinConfig(this.options.piwinRoot);
+      const catalog = await scanExtensions({
+        piwinRoot: getPiwinRoot(this.options.piwinRoot),
+        ...(activeConfig.extensions ? { extensionsConfig: activeConfig.extensions } : {}),
+      });
+      this.push({
+        type: 'extension/catalog-updated',
+        registryRevision: registryAfterActivation.revision,
+        extensions: catalog,
+      });
+      deployment = await this.updateExtensionDeployment(deployment, {
+        phase: 'active',
+        generationId: result.candidate.generationId,
+        ...(targetExtensionSetRevision !== undefined ? { targetExtensionSetRevision } : {}),
+      });
+      const statusAfterActivation = this.runtimeController.getStatus(command.sessionId);
+      const data: ExtensionsApplyData = {
+        sessionId: command.sessionId,
+        deploymentId: deployment.deploymentId,
+        state: 'active',
+        when: command.when,
+        registryRevision: registryAfterActivation.revision || finalRegistry.revision,
+        generationId: result.candidate.generationId,
+        settingsRevision: result.candidate.settingsRevision,
+        ...(targetExtensionSetRevision !== undefined
+          ? { extensionSetRevision: targetExtensionSetRevision }
+          : {}),
+      };
+      if (statusAfterActivation.restartRequired) {
+        deployment = await this.updateExtensionDeployment(deployment, {
+          phase: 'restart-required',
+        });
+        return ok(requestId, 'extensions/apply', { ...data, state: 'active' });
+      }
+      return ok(requestId, 'extensions/apply', data);
+    } catch (error) {
+      const message = formatError(error);
+      const status = this.runtimeController.getStatus(command.sessionId);
+      const phase =
+        status.candidateState === 'active' && status.generationId !== undefined
+          ? 'restart-required'
+          : 'rolled-back';
+      deployment = await this.updateExtensionDeployment(deployment, {
+        phase: 'failed',
+        error: message,
+      });
+      await this.updateExtensionDeployment(deployment, { phase, error: message });
+      if (phase === 'restart-required') {
+        this.runtimeController.setExtensionRestartRequired(command.sessionId, true);
+      } else {
+        this.runtimeController.clearExtensionDeploymentPending(command.sessionId);
+      }
+      return fail(requestId, 'extensions/apply', message);
+    } finally {
+      if (this.extensionDeploymentIdsBySession.get(command.sessionId) === command.deploymentId) {
+        this.extensionDeploymentIdsBySession.delete(command.sessionId);
+      }
+    }
+  }
+
+  private async writeExtensionDeployment(record: ExtensionDeploymentRecord): Promise<void> {
+    await this.extensionRevisionStore.writeDeployment(record);
+    this.push({ type: 'extension/deployment-updated', deployment: record });
+  }
+
+  private async updateExtensionDeployment(
+    record: ExtensionDeploymentRecord,
+    patch: ExtensionDeploymentPatch,
+  ): Promise<ExtensionDeploymentRecord> {
+    const next: ExtensionDeploymentRecord = {
+      ...record,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.writeExtensionDeployment(next);
+    return next;
   }
 
   /** Trust project explicitly after user confirms. */
@@ -1822,8 +2276,20 @@ export class HostRuntime {
     this.subagentWorkspaceService = createSubagentWorkspaceService({
       projectPath: defaultProjectPath,
       worktreeStorageRoot: join(rootDir, 'worktrees'),
-      resolveProjectPath: (task) =>
-        this.sessionProjects.get(task.parentSessionId) ?? defaultProjectPath,
+      resolveProjectPath: async (task) => {
+        const parentRecord = await getSessionRecord(
+          getPiwinSessionIndexPath(rootDir),
+          task.parentSessionId,
+        );
+        if (!parentRecord) {
+          throw new Error(`subagent parent session not found: ${task.parentSessionId}`);
+        }
+        return resolveSubagentParentLocation(
+          parentRecord,
+          task.isolationOverride ?? 'readonly',
+          defaultProjectPath,
+        ).workspacePath;
+      },
       dirtyBasePolicy: async () => {
         const config = await loadPiwinConfig(this.options.piwinRoot);
         return config.subagents?.dirtyBasePolicy ?? 'ask';
@@ -1876,23 +2342,16 @@ export class HostRuntime {
       taskRunner,
       workspaceService: this.subagentWorkspaceService,
       prepareTask: (input) => this.prepareSubagentTask(input),
+      preflightTask: (input) => this.preflightSubagentTask(input.task),
       integrationCoordinator: this.subagentIntegrationCoordinator,
       resourceCoordinator: this.runtimeResourceCoordinator,
       runRegistry: this.runRegistry,
       runStore,
       push: (message) => {
         this.push(message);
-        if (message.type === 'subagent/task-updated') {
-          void this.persistSubagentTaskResult(message.parentSessionId, message.result).catch(
-            (error: unknown) => {
-              this.push({
-                type: 'host/log',
-                level: 'warn',
-                message: `subagent session update failed: ${formatError(error)}`,
-              });
-            },
-          );
-        }
+      },
+      onTaskResult: async ({ parentSessionId, result }) => {
+        await this.persistSubagentTaskResult(parentSessionId, result);
       },
       getRuntimeGenerationId: (parentSessionId) => {
         const genId = this.runtimeController.getStatus(parentSessionId).generationId;
@@ -1909,6 +2368,7 @@ export class HostRuntime {
           runtimeGenerationId: input.runtimeGenerationId,
           workingDirectory: input.workingDirectory,
           parentRepoPath: input.workspaceLease.parentRepoPath,
+          ...(input.task.invocationId ? { invocationId: input.task.invocationId } : {}),
         });
         await this.persistSubagentSessionStart(input).catch((error: unknown) => {
           this.push({
@@ -1925,14 +2385,15 @@ export class HostRuntime {
           input.workspaceLease.parentRepoPath,
           input.runtimeGenerationId,
         );
-        const recorder = this.transcriptRecorders.get(input.childSessionId);
-        if (recorder) {
-          await recorder.recordUserPrompt({
-            text: input.task.task,
-            ...(input.task.model ? { model: input.task.model } : {}),
-            ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
-          });
-        }
+      },
+      recordTaskPrompt: async ({ childSessionId, task }) => {
+        const recorder = this.transcriptRecorders.get(childSessionId);
+        if (!recorder) return;
+        await recorder.recordUserPrompt({
+          text: task.task,
+          ...(task.model ? { model: task.model } : {}),
+          ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
+        });
       },
       unregisterTaskSession: async (childSessionId) => {
         const recorder = this.transcriptRecorders.get(childSessionId);
@@ -1956,6 +2417,24 @@ export class HostRuntime {
         await this.releaseGenerationToolSurfaces(childSessionId);
       },
     });
+    this.subagentRunStore = runStore;
+    // Startup reconciliation is ownership-fenced (the constructor holds the
+    // root lease) and awaited by new subagent admission before any batch can
+    // race ahead of recovered state.
+    this.subagentStartupRecovery = this.reconcilePersistedSubagentSessions(runStore).catch(
+      (error: unknown) => {
+        this.push({
+          type: 'host/log',
+          level: 'error',
+          message: `subagent startup reconciliation failed: ${formatError(error)}`,
+        });
+      },
+    );
+  }
+
+  /** Resolve once ownership-fenced startup reconciliation has settled. */
+  whenSubagentStartupRecoveryReady(): Promise<void> {
+    return this.subagentStartupRecovery ?? Promise.resolve();
   }
 
   private createAgentWorkerSupervisor(): AgentWorkerSupervisor {
@@ -1972,6 +2451,18 @@ export class HostRuntime {
           childSessionId: sessionId,
           event,
         });
+        const invocationActivity = subagentInvocationActivityFromEvent(event);
+        if (childContext.invocationId && invocationActivity) {
+          void this.subagentOrchestrator
+            ?.updateInvocationActivity(childContext.invocationId, invocationActivity)
+            .catch((error: unknown) => {
+              this.push({
+                type: 'host/log',
+                level: 'warn',
+                message: `subagent invocation activity persistence failed: ${formatError(error)}`,
+              });
+            });
+        }
         const recorder = this.transcriptRecorders.get(sessionId);
         if (recorder) {
           void recorder.recordEvent(event).catch((error: unknown) => {
@@ -2015,6 +2506,7 @@ export class HostRuntime {
                 sessionId: frame.context.sessionId,
                 runtimeGenerationId: frame.context.runtimeGenerationId,
                 runId,
+                ...(frame.context.toolCallId ? { toolCallId: frame.context.toolCallId } : {}),
                 toolName: frame.toolName,
                 arguments: (frame.args ?? {}) as Record<string, unknown>,
               },
@@ -2127,6 +2619,12 @@ export class HostRuntime {
         kind: 'subagent',
         subagentStatus: 'running',
         task: input.task.task,
+        ...(input.task.invocationId ? { subagentInvocationId: input.task.invocationId } : {}),
+        subagentTaskId: input.task.id,
+        ...(input.task.parentRunId ? { subagentParentRunId: input.task.parentRunId } : {}),
+        ...(input.task.parentToolCallId
+          ? { subagentParentToolCallId: input.task.parentToolCallId }
+          : {}),
         subagentMode: input.workspaceLease.mode,
         subagentApplyPolicy: input.task.applyPolicy ?? 'none',
         ...(input.task.allowedOutputPaths
@@ -2152,6 +2650,12 @@ export class HostRuntime {
       if (!current.name) current.name = input.task.sessionName ?? `subagent-${input.task.id}`;
       current.subagentStatus = 'running';
       current.task = input.task.task;
+      if (input.task.invocationId) current.subagentInvocationId = input.task.invocationId;
+      current.subagentTaskId = input.task.id;
+      if (input.task.parentRunId) current.subagentParentRunId = input.task.parentRunId;
+      if (input.task.parentToolCallId) {
+        current.subagentParentToolCallId = input.task.parentToolCallId;
+      }
       current.subagentMode = input.workspaceLease.mode;
       current.subagentApplyPolicy = input.task.applyPolicy ?? 'none';
       if (input.task.allowedOutputPaths) {
@@ -2209,6 +2713,51 @@ export class HostRuntime {
     });
   }
 
+  /**
+   * Repair active-looking child shells from durable batch manifests after a
+   * Host restart. Exact child ids win; legacy records without linkage are
+   * matched only when parent + task text identifies one unique child.
+   */
+  private async reconcilePersistedSubagentSessions(
+    runStore: ReturnType<typeof createSubagentRunStore>,
+  ): Promise<void> {
+    const manifests = await runStore.listManifests();
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+
+    for (const manifest of manifests) {
+      const children = await listChildSessions(indexPath, manifest.parentSessionId);
+      const claimedChildIds = new Set<string>();
+
+      for (const task of manifest.tasks) {
+        const storedResult = manifest.results[task.id];
+        const child = selectPersistedSubagentChild(task, storedResult, children, claimedChildIds);
+        if (!child) continue;
+        claimedChildIds.add(child.id);
+
+        const repair = buildPersistedSubagentRepair(manifest, task, storedResult, child);
+        if (!repair) continue;
+        if (repair.recordResult) {
+          await runStore.recordResult(manifest.runId, task.id, repair.result);
+        }
+        const invocation = Object.values(manifest.invocations).find(
+          (candidate) => candidate.taskId === task.id,
+        );
+        if (invocation) {
+          await runStore.recordInvocation(
+            manifest.runId,
+            terminalizePersistedInvocation(invocation, repair.result, new Date().toISOString()),
+          );
+        }
+        await this.persistSubagentTaskResult(manifest.parentSessionId, repair.result);
+      }
+
+      if (manifest.status === 'running') {
+        await runStore.setStatus(manifest.runId, 'failed');
+      }
+    }
+  }
+
   /** Persist an idempotent summary merge marker and notify session-list clients. */
   private async persistSubagentMerge(
     parentSessionId: string,
@@ -2239,6 +2788,67 @@ export class HostRuntime {
   }
 
   /**
+   * Freeze the effective provider and its credential before the orchestrator
+   * allocates a child identity. Task compilation consumes this same in-memory
+   * snapshot and never performs a second keychain read.
+   */
+  private async preflightSubagentTask(
+    task: SubagentTaskSpec,
+  ): Promise<SubagentTaskPreflightContext> {
+    let config: import('@piwin/contracts').PiwinConfig;
+    try {
+      config = await loadPiwinConfig(this.options.piwinRoot);
+    } catch (error) {
+      throw new Error(
+        `subagent-unavailable-fallback-main: provider configuration could not be loaded (${formatError(error)}). ` +
+          'Complete this subtask in the main session.',
+      );
+    }
+
+    const model = task.model ?? resolveDefaultModelRef(config);
+    if (!model) {
+      return { config, resolvedProviderSecrets: [] };
+    }
+    const provider = findEnabledProvider(config, model.providerId);
+    if (!provider) {
+      throw new Error(
+        `subagent-unavailable-fallback-main: provider "${model.providerId}" is unavailable. ` +
+          'Complete this subtask in the main session.',
+      );
+    }
+
+    const resolvedProviderSecrets: Array<{
+      providerId: string;
+      apiKeyRef: string;
+      value: string;
+    }> = [];
+    try {
+      if (provider.apiKeyEnv?.trim()) {
+        const value = process.env[provider.apiKeyEnv.trim()];
+        if (!value) {
+          throw new Error(`environment variable ${provider.apiKeyEnv.trim()} is unset`);
+        }
+      } else if (provider.apiKeyRef?.trim()) {
+        const value = await createSecretResolver().resolveProviderSecret(provider);
+        if (!value.trim()) {
+          throw new Error('resolved provider credential is empty');
+        }
+        resolvedProviderSecrets.push({
+          providerId: provider.id,
+          apiKeyRef: provider.apiKeyRef.trim(),
+          value,
+        });
+      }
+    } catch {
+      throw new Error(
+        `subagent-unavailable-fallback-main: credentials for provider "${provider.id}" are unavailable. ` +
+          'Complete this subtask in the main session.',
+      );
+    }
+    return { config, effectiveModel: model, resolvedProviderSecrets };
+  }
+
+  /**
    * ADR 0030 Phase D-3: compile a child-specific immutable task package.
    *
    * Loads config, compiles a BackendSessionBlueprint for the child session,
@@ -2246,22 +2856,34 @@ export class HostRuntime {
    * is frozen before dispatch — the worker never re-reads Settings or
    * resolves profiles.
    */
+
   private async prepareSubagentTask(
     input: SubagentTaskPreparationInput,
   ): Promise<PreparedSubagentTask> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
-    let config: import('@piwin/contracts').PiwinConfig | undefined;
-    try {
-      config = await loadPiwinConfig(this.options.piwinRoot);
-    } catch {
-      // Config load failure — use defaults. The blueprint compiler will
-      // produce a minimal snapshot.
+    let config = input.preflight?.config;
+    if (!config) {
+      try {
+        config = await loadPiwinConfig(this.options.piwinRoot);
+      } catch {
+        // Config load failure — use defaults. The blueprint compiler will
+        // produce a minimal snapshot.
+      }
     }
+    const effectiveModel = input.task.model ?? input.preflight?.effectiveModel;
 
-    // Resolve the project path for the parent session, falling back to
-    // the general workspace path.
-    const parentProjectPath =
-      this.sessionProjects.get(input.task.parentSessionId) ?? getPiwinGeneralWorkspacePath(rootDir);
+    const parentRecord = await getSessionRecord(
+      getPiwinSessionIndexPath(rootDir),
+      input.task.parentSessionId,
+    );
+    if (!parentRecord) {
+      throw new Error(`subagent parent session not found: ${input.task.parentSessionId}`);
+    }
+    const parentLocation = resolveSubagentParentLocation(
+      parentRecord,
+      input.workspaceLease.mode,
+      getPiwinGeneralWorkspacePath(rootDir),
+    );
 
     // Build the CreateSessionInput for the child session.
     const subagentOptions = {
@@ -2276,9 +2898,9 @@ export class HostRuntime {
         : {}),
     } satisfies import('@piwin/contracts').SubagentSpawnOptions;
     const createInput: import('@piwin/contracts').CreateSessionInput = {
-      scope: { kind: 'project', projectPath: parentProjectPath },
+      scope: parentLocation.scope,
       sessionName: input.task.sessionName ?? `subagent-${input.task.id}`,
-      ...(input.task.model ? { model: input.task.model } : {}),
+      ...(effectiveModel ? { model: effectiveModel } : {}),
       ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
       parentSessionId: input.task.parentSessionId,
       task: input.task.task,
@@ -2286,7 +2908,7 @@ export class HostRuntime {
       cwd: input.workspaceLease.cwd,
       runtimeSnapshot: {
         ...(input.task.profileId ? { profileId: input.task.profileId } : {}),
-        ...(input.task.model ? { model: input.task.model } : {}),
+        ...(effectiveModel ? { model: effectiveModel } : {}),
         ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
         ...(input.task.capabilities ? { capabilities: [...input.task.capabilities] } : {}),
         ...(input.task.skillIds ? { skillIds: [...input.task.skillIds] } : {}),
@@ -2298,7 +2920,7 @@ export class HostRuntime {
     const hostTools = await this.buildSessionHostToolsForSession(
       input.childSessionId,
       input.runtimeGenerationId,
-      input.task.model,
+      effectiveModel,
     );
     const rulesRevision = this.generationPermissionRuleRevisions.get(
       `${input.childSessionId}\u0000${input.runtimeGenerationId}`,
@@ -2315,7 +2937,27 @@ export class HostRuntime {
       sessionId: input.childSessionId,
       runtimeGenerationId: input.runtimeGenerationId,
       allowInlineProviderSecrets: false,
+      allowWorkerProviderSecretBootstrap: true,
+      ...(effectiveModel ? { requiredProviderIds: [effectiveModel.providerId] } : {}),
       ...(config ? { config } : {}),
+      ...(input.preflight
+        ? {
+            secretResolver: {
+              resolveProviderSecret: async (provider) => {
+                const apiKeyRef = provider.apiKeyRef?.trim();
+                const resolved = input.preflight?.resolvedProviderSecrets.find(
+                  (entry) => entry.providerId === provider.id && entry.apiKeyRef === apiKeyRef,
+                );
+                if (!resolved) {
+                  throw new Error(
+                    `Provider "${provider.id}" credential was not captured during preflight`,
+                  );
+                }
+                return resolved.value;
+              },
+            },
+          }
+        : {}),
       mcpConfig: this.getGenerationMcpConfig(input.childSessionId, input.runtimeGenerationId),
       mcpCapabilityBrief,
       hostToolDescriptors: descriptorsFromTools(hostTools),
@@ -2343,6 +2985,7 @@ export class HostRuntime {
         input.childSessionId,
         input.runtimeGenerationId,
         compiled.backendBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
+        compiled.sessionBlueprint.hostToolboxTargetNames,
       )
     ) {
       throw new Error(
@@ -2354,14 +2997,19 @@ export class HostRuntime {
     const preparedPrompt: BackendPreparedPrompt = {
       text: input.task.task,
       runId: input.taskRunId,
-      ...(input.task.model ? { model: input.task.model } : {}),
+      ...(effectiveModel ? { model: effectiveModel } : {}),
       ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
     };
+    const seedMessages = input.task.continuationSessionId
+      ? buildCompactionSeedMessages(
+          await this.loadTranscriptMessages(input.task.continuationSessionId),
+        )
+      : undefined;
 
     // Build the runtime snapshot for the child session.
     const runtimeSnapshot: SubagentRuntimeSnapshot = {
       ...(input.task.profileId ? { profileId: input.task.profileId } : {}),
-      ...(input.task.model ? { model: input.task.model } : {}),
+      ...(effectiveModel ? { model: effectiveModel } : {}),
       ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
       ...(input.task.capabilities ? { capabilities: [...input.task.capabilities] } : {}),
       ...(input.task.skillIds ? { skillIds: [...input.task.skillIds] } : {}),
@@ -2373,11 +3021,36 @@ export class HostRuntime {
       runtimeSnapshot,
       sessionBlueprint: compiled.backendBlueprint,
       preparedPrompt,
+      ...(seedMessages && seedMessages.length > 0 ? { seedMessages } : {}),
       // The compiled provider envelope is frozen before dispatch. The worker
       // task runner constructs model clients from it without reading settings.
       // `SerializableProviderRuntime` is structurally identical to the
       // contracts-level `SubagentProviderEnvelope`, so this is a safe pass.
-      providers: compiled.providers,
+      providers: compiled.providers.map((provider) => {
+        if (provider.auth.kind === 'inline') {
+          throw new Error(
+            `Provider "${provider.providerId}" unexpectedly compiled inline auth for a worker`,
+          );
+        }
+        return {
+          providerId: provider.providerId,
+          protocol: provider.protocol,
+          baseUrl: provider.baseUrl,
+          ...(provider.headers ? { headers: { ...provider.headers } } : {}),
+          models: provider.models.map((model) => ({
+            id: model.id,
+            ...(model.label ? { label: model.label } : {}),
+            ...(model.input ? { input: [...model.input] } : {}),
+            ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+            ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+            ...(model.maxOutputTokens !== undefined
+              ? { maxOutputTokens: model.maxOutputTokens }
+              : {}),
+          })),
+          auth: provider.auth,
+        };
+      }),
+      ...(compiled.providerSecrets ? { providerSecrets: compiled.providerSecrets } : {}),
     };
   }
 
@@ -2388,11 +3061,23 @@ export class HostRuntime {
    */
   private getSubagentSeam(sessionId: string): SubagentRunSeam | undefined {
     if (!this.subagentOrchestrator) return undefined;
+    const activeRunId = this.runExecutionContext.getStore();
+    if (activeRunId && this.runDelegationModes.get(activeRunId) === 'disabled') {
+      return undefined;
+    }
     const orchestrator = this.subagentOrchestrator;
 
     return {
       spawn: async (input) => {
+        // No batch may start until ownership-fenced startup reconciliation
+        // has repaired persisted runs (no replay; projections only).
+        await this.whenSubagentStartupRecoveryReady();
         const parentRunId = this.runExecutionContext.getStore();
+        if (parentRunId && this.runDelegationModes.get(parentRunId) === 'disabled') {
+          throw new Error(
+            'subagent-delegation-disabled: model-facing delegation is disabled for this turn',
+          );
+        }
         const activeScheme = parentRunId
           ? this.runOrchestrationSchemes.get(parentRunId)
           : undefined;
@@ -2447,6 +3132,9 @@ export class HostRuntime {
               {
                 id: randomUUID(),
                 parentSessionId: sessionId,
+                invocationId: input.invocationId,
+                parentRunId: input.parentRunId,
+                ...(input.parentToolCallId ? { parentToolCallId: input.parentToolCallId } : {}),
                 task: input.task,
                 ...(mode ? { isolationOverride: mode } : {}),
                 ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
@@ -2488,6 +3176,9 @@ export class HostRuntime {
             this.subagentTaskResults.set(childSessionId, taskResult);
           }
           if (!childSessionId) {
+            if (taskResult?.error) {
+              throw new Error(taskResult.error);
+            }
             throw new Error(`subagent batch ${result.status} without a child session result`);
           }
           if (!taskResult) {
@@ -2896,6 +3587,270 @@ export class HostRuntime {
     return { ...request, tasks };
   }
 
+  private async continueSubagentChild(
+    orchestrator: SubagentOrchestrator,
+    childSessionId: string,
+    text: string,
+  ): Promise<{ runId: string }> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const child = await getSessionRecord(indexPath, childSessionId);
+    if (!child || child.kind !== 'subagent' || !child.parentSessionId) {
+      throw new Error(`subagent child session not found: ${childSessionId}`);
+    }
+    if (
+      child.subagentStatus === 'running' ||
+      child.subagentLifecycle?.executionStatus === 'queued' ||
+      child.subagentLifecycle?.executionStatus === 'running'
+    ) {
+      throw new Error('subagent is still running; wait for it to finish before continuing');
+    }
+    const runtime = child.subagentRuntime;
+    if (!runtime) {
+      throw new Error('subagent runtime snapshot is unavailable; open a new delegated task');
+    }
+    const parent = await getSessionRecord(indexPath, child.parentSessionId);
+    if (!parent) {
+      throw new Error(`subagent parent session not found: ${child.parentSessionId}`);
+    }
+
+    const mode = child.subagentMode ?? runtime.isolation;
+    const parentScope =
+      parent.scope ??
+      (parent.projectPath
+        ? ({ kind: 'project', projectPath: parent.projectPath } as const)
+        : ({ kind: 'general' } as const));
+    const continuationWorkspaceLease =
+      mode === 'worktree'
+        ? await this.resolveRetainedSubagentWorktreeLease(child)
+        : {
+            mode: 'readonly' as const,
+            cwd: child.workingDirectory ?? runtime.workingDirectory,
+            parentRepoPath:
+              parentScope.kind === 'project'
+                ? parentScope.projectPath
+                : getPiwinGeneralWorkspacePath(rootDir),
+          };
+    const task: SubagentTaskSpec = {
+      id: randomUUID(),
+      parentSessionId: child.parentSessionId,
+      task: text,
+      continuationSessionId: child.id,
+      continuationWorkspaceLease,
+      sessionName: child.name ?? `subagent-${child.id.slice(0, 8)}`,
+      ...(runtime.profileId ? { profileId: runtime.profileId } : {}),
+      ...(runtime.model ? { model: runtime.model } : {}),
+      ...(runtime.thinkingLevel ? { thinkingLevel: runtime.thinkingLevel } : {}),
+      ...(runtime.capabilities ? { capabilities: [...runtime.capabilities] } : {}),
+      ...(runtime.skillIds ? { skillIds: [...runtime.skillIds] } : {}),
+      isolationOverride: mode,
+      applyPolicy: 'none',
+      retainWorktree: mode === 'worktree',
+      ...(child.subagentAllowedOutputPaths
+        ? { allowedOutputPaths: [...child.subagentAllowedOutputPaths] }
+        : {}),
+    };
+    const handle = orchestrator.startBatch({
+      parentSessionId: child.parentSessionId,
+      tasks: [task],
+      maxConcurrency: 1,
+      failurePolicy: 'continue',
+    });
+    void handle.completion.catch((error: unknown) => {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `subagent continuation failed: ${formatError(error)}`,
+      });
+    });
+    return { runId: handle.runId };
+  }
+
+  private async resolveRetainedSubagentWorktreeLease(
+    child: import('@piwin/contracts').SessionIndexRecord,
+  ): Promise<Extract<SubagentWorkspaceLease, { mode: 'worktree' }>> {
+    const integrationStatus = child.subagentLifecycle?.integrationStatus;
+    if (
+      !child.worktreePath ||
+      (integrationStatus !== 'retained' &&
+        integrationStatus !== 'conflict' &&
+        integrationStatus !== 'failed')
+    ) {
+      throw new Error(
+        'subagent worktree is no longer retained; start a new isolated task to continue',
+      );
+    }
+    await access(child.worktreePath).catch(() => {
+      throw new Error('subagent worktree no longer exists; start a new isolated task to continue');
+    });
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const manifests = await createSubagentRunStore({
+      runsDir: join(rootDir, 'subagent-runs'),
+    }).listManifests();
+    const matchingLease = manifests
+      .flatMap((manifest) =>
+        manifest.tasks.flatMap((task) => {
+          const result = manifest.results[task.id];
+          const lease = manifest.leases[task.id];
+          return result?.childSessionId === child.id && lease?.mode === 'worktree' ? [lease] : [];
+        }),
+      )
+      .reverse()
+      .find((lease) => lease.worktreePath === child.worktreePath);
+    if (!matchingLease) {
+      throw new Error(
+        'subagent worktree lease is unavailable; start a new isolated task to continue',
+      );
+    }
+    const insideWorktree = await runGitCommand({
+      cwd: matchingLease.worktreePath,
+      args: ['rev-parse', '--is-inside-work-tree'],
+    });
+    if (insideWorktree.stdout.trim() !== 'true') {
+      throw new Error('subagent worktree is invalid; start a new isolated task to continue');
+    }
+    return matchingLease;
+  }
+
+  private async actOnSubagentWorktree(
+    childSessionId: string,
+    action: 'apply' | 'retain' | 'discard',
+  ): Promise<{ integrationStatus: import('@piwin/contracts').SubagentIntegrationStatus }> {
+    const coordinator = this.subagentIntegrationCoordinator;
+    if (!coordinator) {
+      throw new Error('subagent worktree integration is not available');
+    }
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const child = await getSessionRecord(indexPath, childSessionId);
+    if (!child || child.kind !== 'subagent' || !child.parentSessionId) {
+      throw new Error(`subagent child session not found: ${childSessionId}`);
+    }
+    if (
+      child.subagentStatus === 'running' ||
+      child.subagentLifecycle?.executionStatus === 'queued' ||
+      child.subagentLifecycle?.executionStatus === 'running'
+    ) {
+      throw new Error('subagent is still running; wait for it to finish before handling changes');
+    }
+
+    const lease = await this.resolveRetainedSubagentWorktreeLease(child);
+    const runStore = createSubagentRunStore({ runsDir: join(rootDir, 'subagent-runs') });
+    const manifests = await runStore.listManifests();
+    const retainedTask = manifests
+      .flatMap((manifest) =>
+        manifest.tasks.flatMap((task) => {
+          const result = manifest.results[task.id];
+          const taskLease = manifest.leases[task.id];
+          return result?.childSessionId === childSessionId &&
+            taskLease?.mode === 'worktree' &&
+            taskLease.worktreePath === lease.worktreePath
+            ? [{ manifest, task, result }]
+            : [];
+        }),
+      )
+      .reverse()[0];
+    if (!retainedTask) {
+      throw new Error('subagent worktree result is unavailable; start a new isolated task');
+    }
+
+    let result: SubagentTaskResult;
+    if (action === 'apply') {
+      result = await coordinator.integrate(retainedTask.result, lease);
+    } else if (action === 'discard') {
+      await removeWorktree({
+        projectPath: lease.parentRepoPath,
+        worktreePath: lease.worktreePath,
+        force: true,
+        worktreeBranch: lease.worktreeBranch,
+      });
+      const { worktreePath: _discardedWorktreePath, ...resultWithoutWorktree } =
+        retainedTask.result;
+      result = {
+        ...resultWithoutWorktree,
+        integrationStatus: 'discarded',
+      };
+    } else {
+      await coordinator.retain(lease.worktreePath, 'retained by user');
+      result = { ...retainedTask.result, integrationStatus: 'retained' };
+    }
+
+    await runStore.recordResult(retainedTask.manifest.runId, retainedTask.task.id, result);
+    await this.persistSubagentTaskResult(child.parentSessionId, result);
+    const refreshedManifest = await runStore.loadManifest(retainedTask.manifest.runId);
+    if (refreshedManifest) {
+      const results = Object.values(refreshedManifest.results);
+      const nextStatus = reconcileSubagentBatchStatusAfterWorktreeAction(
+        refreshedManifest.status,
+        results,
+      );
+      if (nextStatus !== refreshedManifest.status) {
+        await runStore.setStatus(refreshedManifest.runId, nextStatus);
+      }
+      const invocation = Object.values(refreshedManifest.invocations).find(
+        (candidate) => candidate.taskId === retainedTask.task.id,
+      );
+      if (invocation) {
+        const updatedInvocation = {
+          ...invocation,
+          status: invocationStatusForResult(result),
+          activity: invocationActivityForResult(result),
+          revision: invocation.revision + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        await runStore.recordInvocation(refreshedManifest.runId, updatedInvocation);
+        this.push({
+          type: 'subagent/invocation-updated',
+          parentSessionId: child.parentSessionId,
+          invocation: updatedInvocation,
+        });
+      }
+      this.push({
+        type: 'subagent/task-updated',
+        runId: refreshedManifest.runId,
+        parentSessionId: child.parentSessionId,
+        result,
+      });
+      this.push({
+        type: 'subagent/batch-updated',
+        runId: refreshedManifest.runId,
+        parentSessionId: child.parentSessionId,
+        result: {
+          runId: refreshedManifest.runId,
+          status: nextStatus,
+          results,
+        },
+      });
+    }
+
+    const updated = await getSessionRecord(indexPath, childSessionId);
+    if (updated) {
+      const worktreeStillExists = await access(lease.worktreePath)
+        .then(() => true)
+        .catch(() => false);
+      if (
+        result.integrationStatus === 'discarded' ||
+        (result.integrationStatus === 'applied' && !worktreeStillExists)
+      ) {
+        delete updated.worktreePath;
+        delete updated.worktreeBranch;
+      }
+      updated.subagentLifecycle = {
+        executionStatus: updated.subagentLifecycle?.executionStatus ?? result.executionStatus,
+        summaryStatus: updated.subagentLifecycle?.summaryStatus ?? result.summaryStatus,
+        integrationStatus: result.integrationStatus,
+      };
+      updated.updatedAt = new Date().toISOString();
+      await upsertSessionRecord(indexPath, updated);
+      this.push({
+        type: 'subagent/updated',
+        parentSessionId: child.parentSessionId,
+        child: indexRecordToSummary(updated),
+      });
+    }
+    return { integrationStatus: result.integrationStatus };
+  }
+
   private getJobController(): JobController {
     if (!this.jobController) {
       throw new Error('Job controller is not available');
@@ -2970,6 +3925,7 @@ export class HostRuntime {
       sessionFilesTouched: this.sessionFilesTouched,
       sessionLastPromptText: this.sessionLastPromptText,
       sideChatSnapshotInjectedVersions: this.sideChatSnapshotInjectedVersions,
+      compactExportOperations: this.compactExportOperations,
       sessionModels: this.sessionModels,
       loadSessionUsage: (sessionId) => this.loadSessionUsage(sessionId),
       sessionAutoCompactionOverrides: this.sessionAutoCompactionOverrides,
@@ -3018,6 +3974,10 @@ export class HostRuntime {
           this.schemeAdmissionGate.clear(runId);
         }
       },
+      setRunDelegationMode: (runId, mode) => {
+        this.runDelegationModes.set(runId, mode);
+      },
+      prepareDelegationRuntime: (sessionId, mode) => this.prepareDelegationRuntime(sessionId, mode),
       getRunOrchestrationScheme: (runId) => this.runOrchestrationSchemes.get(runId),
       listKnownSubagentProfileIds: async () => {
         const config = await loadPiwinConfig(this.options.piwinRoot);
@@ -3035,7 +3995,11 @@ export class HostRuntime {
       },
       getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
       registerForegroundRun: (sessionId, resumeCheckpointId) => {
-        const generationId = this.runtimeController.getStatus(sessionId).generationId;
+        const runtimeStatus = this.runtimeController.getStatus(sessionId);
+        const updatePending =
+          this.runtimeReplacementEngine.hasPending(sessionId) ||
+          runtimeStatus.desiredSettingsRevision !== undefined;
+        const generationId = updatePending ? undefined : runtimeStatus.generationId;
         const parentRunId = this.runExecutionContext.getStore();
         const run = this.runRegistry.createForegroundRun(
           sessionId,
@@ -3176,10 +4140,12 @@ export class HostRuntime {
         const terminalGenerationId = this.runtimeController.getStatus(sessionId).generationId;
         if (terminalGenerationId !== undefined) {
           this.residencyController.markIdle(sessionId, terminalGenerationId);
+          void this.heartbeatRuntimeLease(sessionId).catch(() => undefined);
         }
         // ORCH: drop turn-scoped scheme binding when the run ends.
         this.runOrchestrationSchemes.delete(runId);
         this.schemeAdmissionGate.clear(runId);
+        this.runDelegationModes.delete(runId);
         this.runEventCorrelator.markRunTerminal(sessionId, runId);
         // CE-NAME: auto-name after first completed exchange (fire-and-forget).
         if (outcome === 'completed') {
@@ -3221,11 +4187,24 @@ export class HostRuntime {
       disposeLiveSession: (sessionId, reason) => this.disposeLiveSession(sessionId, reason),
       quarantineSessionRuntime: (sessionId, runId) =>
         this.quarantineSessionRuntime(sessionId, runId),
-      reloadRuntime: (request) =>
-        this.runtimeReplacementEngine.replace(request).then((result) => ({
-          generationId: result.candidate.generationId,
-          settingsRevision: result.candidate.settingsRevision,
-        })),
+      reloadRuntime: (request) => {
+        const status = this.runtimeController.getStatus(request.sessionId);
+        return this.runtimeReplacementEngine
+          .replace({
+            sessionId: request.sessionId,
+            expectedSettingsRevision: request.expectedSettingsRevision,
+            targetSettingsRevision:
+              status.desiredSettingsRevision ?? request.expectedSettingsRevision,
+            ...(status.generationId !== undefined
+              ? { expectedActiveGenerationId: status.generationId }
+              : {}),
+            when: request.when,
+          })
+          .then((result) => ({
+            generationId: result.candidate.generationId,
+            settingsRevision: result.candidate.settingsRevision,
+          }));
+      },
     };
   }
 
@@ -3409,6 +4388,10 @@ export class HostRuntime {
               getBatchProjection: (runId: string) =>
                 subagentOrchestrator.getBatchProjectionAsync(runId),
               cancelBatch: (runId: string) => subagentOrchestrator.cancelBatch(runId),
+              continueChild: (childSessionId: string, text: string) =>
+                this.continueSubagentChild(subagentOrchestrator, childSessionId, text),
+              actOnWorktree: (childSessionId: string, action: 'apply' | 'retain' | 'discard') =>
+                this.actOnSubagentWorktree(childSessionId, action),
             },
           }
         : {}),
@@ -3556,6 +4539,11 @@ export class HostRuntime {
       existing();
     }
     this.sessions.set(session.id, session);
+    if (!this.sessionRuntimeDelegationModes.has(session.id)) {
+      // Direct creates and settings replacements compile outside a foreground
+      // run, so their model-facing delegation surface is normal auto mode.
+      this.sessionRuntimeDelegationModes.set(session.id, 'auto');
+    }
     // projectPath may be '' for General sessions — still bind maps + index.
     if (projectPath !== undefined) {
       this.sessionProjects.set(session.id, projectPath);
@@ -3805,12 +4793,15 @@ export class HostRuntime {
       this.pendingDirectActivations.delete(session.id);
       this.residencyController.commitActivation(session.id, pendingDirectGeneration);
     }
+    const leaseStartedAt = this.runtimeLeaseStartedAt.get(session.id) ?? new Date().toISOString();
+    this.runtimeLeaseStartedAt.set(session.id, leaseStartedAt);
     await registerSessionRuntimeLease({
       rootDir: getPiwinRoot(this.options.piwinRoot),
       sessionId: session.id,
       owner: {
         ownerId: this.runtimeLeaseOwnerId,
         pid: process.pid,
+        startedAt: leaseStartedAt,
       },
     });
 
@@ -4170,8 +5161,43 @@ export class HostRuntime {
     if (suspension) {
       return suspension.then(() => this.activateSessionRuntime(sessionId, runId, signal));
     }
+    const runtimeStatus = this.runtimeController.getStatus(sessionId);
+    const activeGenerationId = runtimeStatus.generationId;
+    const desiredSettingsRevision = runtimeStatus.desiredSettingsRevision;
+    if (this.runtimeReplacementEngine.hasPending(sessionId)) {
+      return this.runtimeReplacementEngine
+        .waitFor(sessionId)
+        .then(() => this.activateSessionRuntime(sessionId, runId, signal));
+    }
+    if (
+      activeGenerationId !== undefined &&
+      desiredSettingsRevision !== undefined &&
+      desiredSettingsRevision !== runtimeStatus.settingsRevision
+    ) {
+      return this.runtimeReplacementEngine
+        .replace({
+          sessionId,
+          targetSettingsRevision: desiredSettingsRevision,
+          expectedActiveGenerationId: activeGenerationId,
+          when: 'after-current-run',
+        })
+        .then(() => this.activateSessionRuntime(sessionId, runId, signal));
+    }
     const existing = this.sessions.get(sessionId);
     if (existing) {
+      if (runId !== undefined) {
+        const run = this.runRegistry.get(runId);
+        const generationId = this.runtimeController.getStatus(sessionId).generationId;
+        if (run?.runtimeGenerationId === undefined && generationId !== undefined) {
+          const attached = this.runRegistry.attachRuntimeGeneration(runId, generationId);
+          if (!attached.ok) {
+            throw new Error(
+              `runtime generation attach failed for ${sessionId}: ${runId} -> ${generationId} (${attached.reason})`,
+            );
+          }
+          this.residencyController.markBusy(sessionId, generationId);
+        }
+      }
       return Promise.resolve(existing);
     }
     const inFlight = this.sessionActivationPromises.get(sessionId);
@@ -4289,6 +5315,7 @@ export class HostRuntime {
       unsubscribe?.();
       this.unsubscribers.delete(sessionId);
       this.sessions.delete(sessionId);
+      this.sessionRuntimeDelegationModes.delete(sessionId);
       this.sessionProjects.delete(sessionId);
       const recorder = this.transcriptRecorders.get(sessionId);
       recorder?.dispose();
@@ -4311,6 +5338,10 @@ export class HostRuntime {
       throw error;
     }
     this.residencyController.commitActivation(sessionId, runtimeGenerationId);
+    this.sessionRuntimeDelegationModes.set(
+      sessionId,
+      runId ? (this.runDelegationModes.get(runId) ?? 'auto') : 'auto',
+    );
     if (runId !== undefined) {
       this.residencyController.markBusy(sessionId, runtimeGenerationId);
     }
@@ -4551,6 +5582,7 @@ export class HostRuntime {
     } catch (error) {
       cleanupErrors.push(error);
     }
+    this.sessionRuntimeDelegationModes.delete(sessionId);
     this.coldStartHistoryBySession.delete(sessionId);
     if (recorder) {
       try {
@@ -4590,6 +5622,21 @@ export class HostRuntime {
 
   private async ensureLiveSession(sessionId: string): Promise<SessionHandle> {
     return this.activateSessionRuntime(sessionId);
+  }
+
+  /**
+   * Tool descriptors are frozen for a runtime generation. Rebuild a warm
+   * generation only when this turn requests a different delegation surface;
+   * cold activation then compiles under the foreground run context.
+   */
+  private async prepareDelegationRuntime(
+    sessionId: string,
+    mode: 'auto' | 'disabled',
+  ): Promise<void> {
+    if (!this.sessions.has(sessionId)) return;
+    const residentMode = this.sessionRuntimeDelegationModes.get(sessionId) ?? 'auto';
+    if (residentMode === mode) return;
+    await this.disposeLiveSession(sessionId, 'manual');
   }
 
   private async recordUsageToLedger(sessionId: string, usage: ContextUsageSnapshot): Promise<void> {
@@ -4733,7 +5780,7 @@ export class HostRuntime {
     | { status: 'archived'; record: SessionIndexRecord }
     | { status: 'busy' | 'missing' | 'already-archived' | 'changed' | 'protected' }
   > {
-    if (this.isSessionLifecycleBusy(input.sessionId)) {
+    if (this.isSessionLifecycleHardBusy(input.sessionId)) {
       return { status: 'busy' };
     }
     if (this.sessionMaintenanceSessions.has(input.sessionId)) {
@@ -4741,7 +5788,7 @@ export class HostRuntime {
     }
     this.sessionMaintenanceSessions.add(input.sessionId);
     try {
-      if (this.isSessionLifecycleBusy(input.sessionId)) {
+      if (this.isSessionLifecycleHardBusy(input.sessionId)) {
         return { status: 'busy' };
       }
       const rootDir = getPiwinRoot(this.options.piwinRoot);
@@ -4749,16 +5796,22 @@ export class HostRuntime {
         rootDir,
         sessionId: input.sessionId,
         operation: async () => {
-          if (
-            this.isSessionLifecycleBusy(input.sessionId) ||
-            (await this.hasForeignRuntimeLease(input.sessionId))
-          ) {
+          if (await this.hasForeignRuntimeLease(input.sessionId)) {
+            return { status: 'busy' } as const;
+          }
+          // Resident-idle sessions are eligible: suspend first so archive never
+          // races a live handle. Busy/protected work stays skipped.
+          const idleSuspend = await this.suspendIdleSessionForLifecycleArchive(input.sessionId);
+          if (!idleSuspend.ok) {
+            return { status: idleSuspend.status } as const;
+          }
+          if (this.isSessionLifecycleHardBusy(input.sessionId)) {
             return { status: 'busy' } as const;
           }
           const leaseResult = await this.transcriptStores.tryWithMaintenanceLease(
             input.sessionId,
             async () => {
-              if (this.isSessionLifecycleBusy(input.sessionId)) {
+              if (this.isSessionLifecycleHardBusy(input.sessionId)) {
                 return { status: 'busy' } as const;
               }
               return archiveSessionRecordIfUnchanged(getPiwinSessionIndexPath(rootDir), input);
@@ -4821,14 +5874,48 @@ export class HostRuntime {
     }
   }
 
-  private isSessionLifecycleBusy(sessionId: string): boolean {
-    return (
-      this.sessions.has(sessionId) ||
-      this.transcriptRecorders.has(sessionId) ||
+  /**
+   * Work that must never be archived mid-flight. Resident-idle is intentionally
+   * excluded so lifecycle apply can suspend then archive cold/idle sessions.
+   */
+  private isSessionLifecycleHardBusy(sessionId: string): boolean {
+    if (
       this.sessionActivationPromises.has(sessionId) ||
       this.sessionSuspensionPromises.has(sessionId) ||
       this.isSessionRuntimeProtected(sessionId)
+    ) {
+      return true;
+    }
+    const residency = this.residencyController.getResidency(sessionId);
+    return (
+      residency === 'resident-busy' || residency === 'activating' || residency === 'suspending'
     );
+  }
+
+  /**
+   * Best-effort idle suspend before durable archive. Cold sessions pass through.
+   * Busy/protected sessions return busy without mutating residency.
+   */
+  private async suspendIdleSessionForLifecycleArchive(
+    sessionId: string,
+  ): Promise<{ ok: true } | { ok: false; status: 'busy' }> {
+    if (!this.sessions.has(sessionId)) {
+      return { ok: true };
+    }
+    if (this.isSessionLifecycleHardBusy(sessionId)) {
+      return { ok: false, status: 'busy' };
+    }
+    const residency = this.residencyController.getResidency(sessionId);
+    if (residency !== 'resident-idle' && residency !== 'cold') {
+      return { ok: false, status: 'busy' };
+    }
+    const generationId = this.runtimeController.getStatus(sessionId).generationId;
+    if (generationId === undefined) {
+      // Inconsistent resident maps without a generation: refuse to archive.
+      return { ok: false, status: 'busy' };
+    }
+    const suspended = await this.suspendSessionRuntime(sessionId, generationId, 'manual');
+    return suspended ? { ok: true } : { ok: false, status: 'busy' };
   }
 
   private hasForeignRuntimeLease(sessionId: string): Promise<boolean> {
@@ -4840,10 +5927,27 @@ export class HostRuntime {
   }
 
   private releaseRuntimeLease(sessionId: string): Promise<void> {
+    this.runtimeLeaseStartedAt.delete(sessionId);
     return releaseSessionRuntimeLease({
       rootDir: getPiwinRoot(this.options.piwinRoot),
       sessionId,
       ownerId: this.runtimeLeaseOwnerId,
+    });
+  }
+
+  private async heartbeatRuntimeLease(sessionId: string): Promise<void> {
+    const startedAt = this.runtimeLeaseStartedAt.get(sessionId);
+    if (startedAt === undefined) {
+      return;
+    }
+    await touchSessionRuntimeLease({
+      rootDir: getPiwinRoot(this.options.piwinRoot),
+      sessionId,
+      owner: {
+        ownerId: this.runtimeLeaseOwnerId,
+        pid: process.pid,
+        startedAt,
+      },
     });
   }
 
@@ -4870,6 +5974,7 @@ export class HostRuntime {
     }
     await replacementCleanup;
     this.sessions.delete(sessionId);
+    this.sessionRuntimeDelegationModes.delete(sessionId);
     const unsub = this.unsubscribers.get(sessionId);
     if (unsub) {
       unsub();
@@ -5098,25 +6203,12 @@ export class HostRuntime {
           // Direct create and cold activation share the same stable-identity
           // backend path. The reservation remains `activating` until bindSession
           // has installed the recorder/subscription and publishes the handle.
-          const session = await this.host.activateSession(
-            sessionId,
-            input,
-            runtimeGenerationId,
-            options,
-          );
-          await registerSessionRuntimeLease({
-            rootDir: getPiwinRoot(this.options.piwinRoot),
-            sessionId,
-            owner: {
-              ownerId: this.runtimeLeaseOwnerId,
-              pid: process.pid,
-            },
-          });
-          return session;
+          // Lease registration waits for bindSession success so a failed bind
+          // cannot leave a foreign Host thinking this session is live.
+          return await this.host.activateSession(sessionId, input, runtimeGenerationId, options);
         } catch (error) {
           this.pendingDirectActivations.delete(sessionId);
           this.residencyController.abortActivation(sessionId, runtimeGenerationId);
-          await this.releaseRuntimeLease(sessionId).catch(() => undefined);
           await this.host.dropSession(sessionId).catch(() => undefined);
           throw error;
         }
@@ -5143,10 +6235,23 @@ export class HostRuntime {
     const prepared = await this.host.prepareSession(sessionId, input, generationId);
     this.preparedRuntimeGenerations.set(`${sessionId}\u0000${generationId}`, prepared);
     if (prepared.settingsRevision !== expectedSettingsRevision) {
-      await this.abortRuntimeGeneration(sessionId, generationId);
       throw new Error('runtime-reload-revision-mismatch');
     }
-    return { generationId, settingsRevision: prepared.settingsRevision };
+    const deploymentId = this.extensionDeploymentIdsBySession.get(sessionId);
+    if (deploymentId !== undefined && prepared.extensionSetRevision !== undefined) {
+      this.runtimeController.setExtensionDeploymentTarget(
+        sessionId,
+        prepared.extensionSetRevision,
+        deploymentId,
+      );
+    }
+    return {
+      generationId,
+      settingsRevision: prepared.settingsRevision,
+      ...(prepared.extensionSetRevision !== undefined
+        ? { extensionSetRevision: prepared.extensionSetRevision }
+        : {}),
+    };
   }
 
   private async disposeRuntimeGeneration(sessionId: string, generationId: string): Promise<void> {
@@ -5221,6 +6326,12 @@ export class HostRuntime {
         undefined,
         candidate.generationId,
       );
+      // Settings replacement compiles outside a foreground run.
+      this.sessionRuntimeDelegationModes.set(sessionId, 'auto');
+      // A replacement backend has no native Pi conversation state. Its first
+      // prompt must reconstruct bounded context from the durable product
+      // transcript exactly once, just like a cold activation.
+      this.coldStartHistoryBySession.set(sessionId, candidate.generationId);
       this.preparedRuntimeGenerations.delete(key);
     } catch (error) {
       if (promoted) {
@@ -5262,6 +6373,9 @@ export class HostRuntime {
 
   private async rollbackRuntimeGeneration(sessionId: string, generationId: string): Promise<void> {
     const key = `${sessionId}\u0000${generationId}`;
+    if (this.coldStartHistoryBySession.get(sessionId) === generationId) {
+      this.coldStartHistoryBySession.delete(sessionId);
+    }
     const prefix = `${sessionId}\u0000`;
     const currentGenerationId = this.runtimeController.getStatus(sessionId).generationId;
     let oldGenerationId =
@@ -5334,6 +6448,9 @@ export class HostRuntime {
 
   private async abortRuntimeGeneration(sessionId: string, generationId: string): Promise<void> {
     const key = `${sessionId}\u0000${generationId}`;
+    if (this.coldStartHistoryBySession.get(sessionId) === generationId) {
+      this.coldStartHistoryBySession.delete(sessionId);
+    }
     this.sessionHostToolPort?.abortPendingGeneration(sessionId, generationId);
     const prepared = this.preparedRuntimeGenerations.get(key);
     this.preparedRuntimeGenerations.delete(key);
@@ -5367,6 +6484,12 @@ export class HostRuntime {
       const generator =
         this.eventEnvelopeGenerators.get(message.sessionId) ?? createEventEnvelopeGenerator();
       this.eventEnvelopeGenerators.set(message.sessionId, generator);
+      const envelope: AgentEventEnvelope = generator.next(readEventRunId(message.event));
+      outgoing = { ...message, envelope };
+    } else if (message.type === 'subagent/stream') {
+      const generator =
+        this.eventEnvelopeGenerators.get(message.childSessionId) ?? createEventEnvelopeGenerator();
+      this.eventEnvelopeGenerators.set(message.childSessionId, generator);
       const envelope: AgentEventEnvelope = generator.next(readEventRunId(message.event));
       outgoing = { ...message, envelope };
     }
@@ -5559,4 +6682,30 @@ function fallbackPetSnapshot(): PetRuntimeSnapshot {
 
 function formatUnknownError(error: unknown): string {
   return formatError(error);
+}
+
+function subagentInvocationActivityFromEvent(
+  event: AgentEvent,
+): SubagentInvocationActivity | undefined {
+  switch (event.type) {
+    case 'message/thinking_delta':
+      return { kind: 'thinking' };
+    case 'message/text_delta':
+      return { kind: 'responding' };
+    case 'tool/start':
+      return {
+        kind: 'tool',
+        toolName: event.toolName,
+        ...(event.presentation?.title ? { title: event.presentation.title } : {}),
+      };
+    case 'tool/update':
+      return undefined;
+    case 'tool/end':
+    case 'permission/resolved':
+      return { kind: 'thinking' };
+    case 'permission/request':
+      return { kind: 'permission', action: event.action };
+    default:
+      return undefined;
+  }
 }

@@ -289,6 +289,14 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
             testId="model-edit-image-generation"
           />
           <FieldCheckbox
+            label={isChinese ? '视频' : 'Video generation'}
+            checked={localDraft.supportsVideoGeneration}
+            onCheckedChange={(checked) =>
+              updateDraft((current) => ({ ...current, supportsVideoGeneration: checked }))
+            }
+            testId="model-edit-video-generation"
+          />
+          <FieldCheckbox
             label={isChinese ? '语音识别（ASR）' : 'Speech recognition (ASR)'}
             checked={localDraft.supportsSpeechToText}
             onCheckedChange={(checked) =>

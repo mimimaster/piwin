@@ -114,6 +114,43 @@ describe('createHostServeDispatcher', () => {
     expect(drainFinished).toBe(true);
   });
 
+  it('keeps waiting for compaction after the ordinary command deadline', async () => {
+    let releaseCompaction: (() => void) | undefined;
+    const compactionGate = new Promise<void>((resolve) => {
+      releaseCompaction = resolve;
+    });
+    const runtime = createMockRuntime({
+      onCommand: async (command) => {
+        await compactionGate;
+        return {
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { ok: true },
+        };
+      },
+    });
+    const sent: HostServerMessage[] = [];
+    const dispatcher = createHostServeDispatcher({
+      runtime: runtime as HostRuntime,
+      send: async (message) => {
+        sent.push(message);
+      },
+      commandTimeoutMs: 10,
+    });
+
+    dispatcher.dispatch({ type: 'session/compact', sessionId: 'session-1' });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(sent).toHaveLength(0);
+
+    if (releaseCompaction === undefined) {
+      throw new Error('compaction gate was not initialized');
+    }
+    releaseCompaction();
+    await dispatcher.drain();
+    expect(sent).toEqual([expect.objectContaining({ command: 'session/compact', success: true })]);
+  });
+
   it('does not accept commands after draining starts', async () => {
     const runtime = createMockRuntime({
       onCommand: async (command) => ({

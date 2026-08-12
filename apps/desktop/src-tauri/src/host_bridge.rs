@@ -744,19 +744,24 @@ pub fn host_request_blocking(
     }
 
     // Unlock while waiting so reader thread can deliver responses.
-    let timeout = Duration::from_millis(timeout_ms.unwrap_or(30_000));
+    // Model-backed operations such as compaction are cancellable through a
+    // separate control command and must not be reported as failed merely
+    // because generation took longer than an acknowledgement timeout. A
+    // caller-provided zero disables this transport deadline; omission keeps
+    // the defensive default for ordinary requests.
+    let timeout = resolve_host_request_timeout(timeout_ms);
     let started = Instant::now();
     loop {
         match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(value) => return Ok(value),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                if started.elapsed() >= timeout {
+                if timeout.is_some_and(|deadline| started.elapsed() >= deadline) {
                     if let Ok(mut pending) = process.pending.lock() {
                         pending.remove(&id);
                     }
                     return Err(format!(
                         "host request timed out after {}ms (id={id})",
-                        timeout.as_millis()
+                        timeout.map_or(0, |deadline| deadline.as_millis())
                     ));
                 }
             }
@@ -766,6 +771,14 @@ pub fn host_request_blocking(
                 ));
             }
         }
+    }
+}
+
+fn resolve_host_request_timeout(timeout_ms: Option<u64>) -> Option<Duration> {
+    match timeout_ms {
+        Some(0) => None,
+        Some(milliseconds) => Some(Duration::from_millis(milliseconds)),
+        None => Some(Duration::from_millis(30_000)),
     }
 }
 
@@ -959,6 +972,19 @@ mod tests {
         assert_eq!(
             host_push_event_name(&serde_json::json!({"type": "event"})),
             Some("host-message")
+        );
+    }
+
+    #[test]
+    fn explicit_zero_disables_the_host_request_transport_deadline() {
+        assert_eq!(resolve_host_request_timeout(Some(0)), None);
+        assert_eq!(
+            resolve_host_request_timeout(None),
+            Some(Duration::from_millis(30_000))
+        );
+        assert_eq!(
+            resolve_host_request_timeout(Some(5_000)),
+            Some(Duration::from_millis(5_000))
         );
     }
 

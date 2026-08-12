@@ -19,6 +19,7 @@ import { createPiSessionEventMapper, type PiSessionEventMapper } from '../event-
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './serializable-blueprint.js';
 import type {
   WorkerEvent,
@@ -32,9 +33,12 @@ import type {
   WorkerExtensionUiResponseFrame,
 } from '../rpc-sdk-worker-protocol.js';
 import { buildWorkerProxyTools } from './worker-proxy-tool-factory.js';
-import { isSerializableBlueprint } from './serializable-blueprint.js';
+import {
+  assertWorkerSafeProviderRuntimes,
+  isSerializableBlueprint,
+} from './serializable-blueprint.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
-import { normalizeAgentEventIds } from '../generation-identity.js';
+import { normalizeAgentEventIds, normalizeGenerationToolCallId } from '../generation-identity.js';
 
 /** Minimal Pi-like session surface the worker runtime needs. */
 export type WorkerPiSessionLike = {
@@ -59,7 +63,7 @@ export type WorkerPiSessionLike = {
 export type CreateWorkerPiSessionInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
-  providers?: SerializableProviderRuntime[];
+  providers?: SerializableWorkerProviderRuntime[];
   seedMessages?: readonly SessionSeedMessage[];
   extensionUi?: ExtensionUiPort;
   /**
@@ -186,6 +190,13 @@ export class WorkerSessionRuntime {
     if (payload.productSessionId !== context.sessionId) {
       throw new Error('session/create frame context does not match blueprint identity');
     }
+    if (payload.providers) {
+      // JSON input is untrusted even though the TypeScript protocol excludes
+      // inline auth. Reject a forged/legacy frame before session creation.
+      assertWorkerSafeProviderRuntimes(
+        payload.providers as unknown as SerializableProviderRuntime[],
+      );
+    }
     // Build proxy tools for the blueprint's Host tool descriptors (WP4).
     // The proxy executor sends a tool-call frame and awaits a tool-result.
     const proxyTools = this.buildProxyTools(payload.blueprint, payload.productSessionId);
@@ -215,9 +226,15 @@ export class WorkerSessionRuntime {
     }
     return buildWorkerProxyTools(
       blueprint,
-      (sid, toolName, args, signal) => {
-        const toolCallId = `${sid}|${toolName}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      (sid, backendToolCallId, toolName, args, signal) => {
         const runtimeSession = this.requireSession(sid);
+        const toolCallId = normalizeGenerationToolCallId(
+          {
+            sessionId: sid,
+            runtimeGenerationId: runtimeSession.context.runtimeGenerationId,
+          },
+          backendToolCallId,
+        );
         const context: WorkerFrameContext = { ...runtimeSession.context, toolCallId };
         if (runtimeSession.activeRunId !== undefined) {
           context.runId = runtimeSession.activeRunId;
@@ -312,8 +329,12 @@ export class WorkerSessionRuntime {
     const session = this.requireSession(payload.sessionId);
     this.assertSessionContext(session, context);
     this.abortPendingToolCalls(session.productSessionId);
-    if (session?.handle.abort) {
-      await session.handle.abort();
+    try {
+      if (session?.handle.abort) {
+        await session.handle.abort();
+      }
+    } finally {
+      this.eventMapper.reset?.();
     }
     this.sendResponse(id, true, {});
   }
@@ -386,6 +407,7 @@ export class WorkerSessionRuntime {
     }
     if (session) {
       this.rejectPendingCallsForDroppedSession(session);
+      this.eventMapper.reset?.();
     }
     this.sendResponse(id, true, {});
   }

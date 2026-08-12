@@ -112,6 +112,15 @@ export function validateProviders(
           });
         }
         if (
+          imageRoute?.apiStyle !== undefined &&
+          !['openai', 'imagen', 'gemini'].includes(imageRoute.apiStyle)
+        ) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].routes.image-generation.apiStyle`,
+            message: 'image generation apiStyle must be one of: openai, imagen, gemini',
+          });
+        }
+        if (
           model.contextWindow !== undefined &&
           (!Number.isSafeInteger(model.contextWindow) || model.contextWindow <= 0)
         ) {

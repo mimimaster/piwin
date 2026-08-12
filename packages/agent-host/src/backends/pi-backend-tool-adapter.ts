@@ -1,9 +1,7 @@
 /** Pi custom-tool translation for exact backend Host tool descriptors. */
 
-import type {
-  HostToolDescriptor,
-  HostToolExecutionPort,
-} from '@piwin/contracts';
+import type { HostToolDescriptor, HostToolExecutionPort } from '@piwin/contracts';
+import { normalizeGenerationToolCallId } from '../generation-identity.js';
 
 export type PiBackendCustomToolDefinition = {
   name: string;
@@ -28,6 +26,20 @@ export type BackendToolExecutionContext = {
   getRunId?: () => string | undefined;
 };
 
+/**
+ * Pi marks a custom tool as failed only when its executor throws. Keep the
+ * Host error code in the message while allowing Pi to emit isError: true.
+ */
+export class PiBackendToolExecutionError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(formatBackendToolExecutionError(code, message));
+    this.name = 'PiBackendToolExecutionError';
+    this.code = code;
+  }
+}
+
 export function toPiBackendCustomTool(
   descriptor: HostToolDescriptor,
   hostToolExecution: HostToolExecutionPort,
@@ -42,28 +54,29 @@ export function toPiBackendCustomTool(
     async execute(toolCallId, params, signal) {
       const runId = context.getRunId?.();
       if (!runId) {
-        return {
-          content: [{ type: 'text', text: 'Tool not available: no active Run identity' }],
-          details: {
-            toolName: descriptor.name,
-            toolCallId,
-            error: 'tool-not-available',
-          },
-        };
+        throw new PiBackendToolExecutionError('tool-not-available', 'no active Run identity');
       }
       const executionResult = await hostToolExecution.execute(
         {
           sessionId: context.sessionId,
           runtimeGenerationId: context.runtimeGenerationId,
           runId,
+          toolCallId: normalizeGenerationToolCallId(
+            {
+              sessionId: context.sessionId,
+              runtimeGenerationId: context.runtimeGenerationId,
+            },
+            toolCallId,
+          ),
           toolName: descriptor.name,
           arguments: params ?? {},
         },
         signal ?? new AbortController().signal,
       );
-      const output = executionResult.ok
-        ? executionResult.output
-        : formatBackendToolExecutionError(executionResult.code, executionResult.message);
+      if (!executionResult.ok) {
+        throw new PiBackendToolExecutionError(executionResult.code, executionResult.message);
+      }
+      const output = executionResult.output;
       const truncated =
         output.length > 120_000 ? `${output.slice(0, 120_000)}\n…[truncated]` : output;
       return {
@@ -72,12 +85,7 @@ export function toPiBackendCustomTool(
           toolName: descriptor.name,
           toolCallId,
           byteSize: truncated.length,
-          ...(executionResult.ok ? executionResult.details ?? {} : executionResult.details ?? {}),
-          ...(executionResult.ok ? {} : { error: executionResult.code }),
-          ...(!executionResult.ok && executionResult.cancelled
-            ? { cancelled: true }
-            : {}),
-          ...(!executionResult.ok && executionResult.retryable ? { retryable: true } : {}),
+          ...(executionResult.details ?? {}),
         },
       };
     },

@@ -3,13 +3,15 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type {
   ApplySettingsInput,
+  ImmediateCapabilityRestriction,
   PiwinConfig,
   SettingsApplyResult,
   SettingsDomain,
+  SettingsDomainImpact,
   SettingsMutation,
   SettingsSnapshot,
 } from '@piwin/contracts';
-import { isImmediateTighteningDomain, PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
+import { PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from '../paths.js';
 import {
   createDefaultPiwinConfig,
@@ -71,9 +73,19 @@ export class SettingsService {
     }
 
     await writeValidatedConfigAtomically(nextConfig, getPiwinConfigPath(this.rootDir));
+    const changedDomains = input.mutations
+      .filter(
+        (mutation, index, mutations) =>
+          mutations.findIndex((candidate) => candidate.domain === mutation.domain) === index &&
+          JSON.stringify(readConfigDomain(currentSnapshot.config, mutation.domain)) !==
+            JSON.stringify(readConfigDomain(nextSnapshot.config, mutation.domain)),
+      )
+      .map((mutation) =>
+        classifySettingsImpact(mutation.domain, currentSnapshot.config, nextSnapshot.config),
+      );
     return {
       snapshot: nextSnapshot,
-      changedDomains: input.mutations.map((mutation) => classifySettingsImpact(mutation.domain)),
+      changedDomains,
     };
   }
 }
@@ -106,7 +118,11 @@ export function applySettingsMutations(
   return normalizePiwinConfig(nextConfig);
 }
 
-function classifySettingsImpact(domain: SettingsDomain) {
+export function classifySettingsImpact(
+  domain: SettingsDomain,
+  previous: PiwinConfig,
+  next: PiwinConfig,
+): SettingsDomainImpact {
   const immediateDomains = new Set<SettingsDomain>([
     'media',
     'artifact',
@@ -120,11 +136,105 @@ function classifySettingsImpact(domain: SettingsDomain) {
     : immediateDomains.has(domain)
       ? 'immediate'
       : 'new-runtime';
+  const immediateRestrictions = findImmediateRestrictions(domain, previous, next);
   return {
     domain,
     timing,
-    securityTightenedImmediately: isImmediateTighteningDomain(domain),
-  } as const;
+    runtimeSchemaChanged: timing === 'new-runtime',
+    immediateRestrictions,
+    securityTightenedImmediately: immediateRestrictions.length > 0,
+  };
+}
+
+function findImmediateRestrictions(
+  domain: SettingsDomain,
+  previous: PiwinConfig,
+  next: PiwinConfig,
+): ImmediateCapabilityRestriction[] {
+  switch (domain) {
+    case 'web': {
+      const restrictions: ImmediateCapabilityRestriction[] = [];
+      if (hasUsableWebSearch(previous.web) && !hasUsableWebSearch(next.web)) {
+        restrictions.push('web-search');
+      }
+      const previousBlockedPrefixes = new Set(previous.web?.fetchBlockedUrlPrefixes ?? []);
+      const nextIntroducesBlockedPrefix = (next.web?.fetchBlockedUrlPrefixes ?? []).some(
+        (prefix) => !previousBlockedPrefixes.has(prefix),
+      );
+      if (nextIntroducesBlockedPrefix) {
+        restrictions.push('web-fetch');
+      }
+      return restrictions;
+    }
+    case 'process':
+      return previous.process?.enabled !== false && next.process?.enabled === false
+        ? ['process']
+        : [];
+    case 'notes':
+      return previous.notes?.enabled !== false && next.notes?.enabled === false
+        ? ['notes-write']
+        : [];
+    case 'flashcards':
+      return previous.flashcards?.enabled !== false && next.flashcards?.enabled === false
+        ? ['flashcards-write']
+        : [];
+    case 'permissions':
+      return permissionModeRank(next.permissions?.mode) >
+        permissionModeRank(previous.permissions?.mode)
+        ? ['permission-policy']
+        : [];
+    case 'subagents': {
+      const previousProfileIds = new Set(
+        previous.subagents?.profiles.map((profile) => profile.id) ?? [],
+      );
+      const nextProfileIds = new Set(next.subagents?.profiles.map((profile) => profile.id) ?? []);
+      for (const profileId of previousProfileIds) {
+        if (!nextProfileIds.has(profileId)) {
+          return ['delegate'];
+        }
+      }
+      return [];
+    }
+    default:
+      return [];
+  }
+}
+
+function hasUsableWebSearch(web: PiwinConfig['web']): boolean {
+  if (!web) return false;
+  const hasExternalSource = web.searchSources.some((source) => source.enabled);
+  const hasNativeSource = web.searchDelegateModel !== undefined;
+  switch (web.searchRoutePolicy) {
+    case 'native-only':
+      return hasNativeSource;
+    case 'external-only':
+      return hasExternalSource;
+    case 'native-first':
+    case 'external-first':
+      return hasNativeSource || hasExternalSource;
+    default:
+      return hasExternalSource || hasNativeSource;
+  }
+}
+
+function permissionModeRank(mode: 'auto' | 'ask-all' | 'bypass' | undefined): number {
+  switch (mode) {
+    case 'bypass':
+      return 0;
+    case 'auto':
+      return 1;
+    case 'ask-all':
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+function readConfigDomain(config: PiwinConfig, domain: SettingsDomain): unknown {
+  // MCP is a separate persisted document and is intentionally absent from
+  // PiwinConfig. Its SettingsDomain exists only for runtime invalidation.
+  if (domain === 'mcp') return undefined;
+  return (config as unknown as Record<string, unknown>)[domain];
 }
 
 async function writeValidatedConfigAtomically(

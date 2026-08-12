@@ -1,8 +1,12 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createSubagentRunStore } from './subagent-run-store.js';
+import {
+  createSubagentRunStore,
+  SubagentRunManifestCorruptError,
+  SubagentRunManifestExistsError,
+} from './subagent-run-store.js';
 import type { SubagentBatchRequest, SubagentTaskSpec } from '@piwin/contracts';
 
 function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
@@ -37,6 +41,58 @@ describe('SubagentRunStore', () => {
     expect(loaded?.runId).toBe('run-1');
   });
 
+  it('lists durable manifests for startup reconciliation', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+    await store.createManifest('run-2', makeBatch([makeTask({ id: 'b' })]));
+    expect((await store.listManifests()).map((manifest) => manifest.runId).sort()).toEqual([
+      'run-1',
+      'run-2',
+    ]);
+  });
+
+  it('persists and lists the latest invocation revision for a parent', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest(
+      'run-1',
+      makeBatch([
+        makeTask({
+          id: 'a',
+          invocationId: 'invocation-1',
+          parentRunId: 'parent-run',
+          parentToolCallId: 'tool-1',
+        }),
+      ]),
+    );
+    const initial = (await store.listInvocations('parent-1'))[0];
+    if (!initial) throw new Error('expected invocation');
+    expect(initial).toMatchObject({
+      id: 'invocation-1',
+      parentToolCallId: 'tool-1',
+      status: 'queued',
+      revision: 1,
+    });
+
+    await store.recordInvocation('run-1', {
+      ...initial,
+      status: 'running',
+      activity: { kind: 'tool', toolName: 'shell', title: 'Run tests' },
+      childSessionId: 'child-1',
+      revision: 2,
+      updatedAt: '2026-08-12T01:00:00.000Z',
+    });
+    await store.recordInvocation('run-1', { ...initial, revision: 1 });
+
+    expect((await store.listInvocations('parent-1'))[0]).toMatchObject({
+      status: 'running',
+      childSessionId: 'child-1',
+      revision: 2,
+      activity: { kind: 'tool', toolName: 'shell', title: 'Run tests' },
+    });
+  });
+
   it('records snapshots, leases, and results', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
     const store = createSubagentRunStore({ runsDir: dir });
@@ -61,6 +117,33 @@ describe('SubagentRunStore', () => {
     expect(loaded?.snapshots.a?.isolation).toBe('readonly');
     expect(loaded?.leases.a?.cwd).toBe('/tmp/project');
     expect(loaded?.results.a?.executionStatus).toBe('completed');
+  });
+
+  it('serializes parallel manifest mutations without losing sibling task results', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]));
+    await Promise.all([
+      store.recordResult('run-1', 'a', {
+        runId: 'run-1',
+        taskId: 'a',
+        executionStatus: 'completed',
+        summaryStatus: 'merged',
+        integrationStatus: 'not-requested',
+      }),
+      store.recordResult('run-1', 'b', {
+        runId: 'run-1',
+        taskId: 'b',
+        executionStatus: 'failed',
+        summaryStatus: 'not-requested',
+        integrationStatus: 'not-requested',
+      }),
+    ]);
+
+    expect(Object.keys((await store.loadManifest('run-1'))?.results ?? {}).sort()).toEqual([
+      'a',
+      'b',
+    ]);
   });
 
   it('sets batch status', async () => {
@@ -157,5 +240,50 @@ describe('SubagentRunStore', () => {
     const store = createSubagentRunStore({ runsDir: dir });
     const loaded = await store.loadManifest('nonexistent');
     expect(loaded).toBeUndefined();
+  });
+
+  it('rejects unsafe run ids before deriving filesystem paths', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+
+    for (const unsafeId of ['../escape', 'a/b', 'a\\b', '..', '', ' run-1 ']) {
+      await expect(store.loadManifest(unsafeId)).rejects.toThrow(/Invalid run id/);
+      await expect(
+        store.createManifest(unsafeId, makeBatch([makeTask({ id: 'a' })])),
+      ).rejects.toThrow(/Invalid run id/);
+      await expect(store.requestCancel(unsafeId)).rejects.toThrow(/Invalid run id/);
+    }
+  });
+
+  it('creates manifests exclusively and reports duplicates', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+    await expect(store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]))).rejects.toThrow(
+      SubagentRunManifestExistsError,
+    );
+  });
+
+  it('surfaces corrupt manifests instead of treating them as missing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+    await writeFile(join(dir, 'run-1.json'), '{truncated-json', 'utf8');
+
+    await expect(store.loadManifest('run-1')).rejects.toThrow(SubagentRunManifestCorruptError);
+    await expect(store.listManifests()).rejects.toThrow(SubagentRunManifestCorruptError);
+  });
+
+  it('persists manifests with owner-only permissions', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+
+    const mode = (await stat(join(dir, 'run-1.json'))).mode & 0o777;
+    expect(mode & 0o077).toBe(0);
+
+    const raw = await readFile(join(dir, 'run-1.json'), 'utf8');
+    expect(JSON.parse(raw).runId).toBe('run-1');
   });
 });

@@ -9,7 +9,12 @@ function baseConfig(): PiwinConfig {
     agentMock: false,
     providers: [],
     media: { maxPasteBytes: 1024, allowedMimeTypes: ['image/png'] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1024 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 1024,
+    },
   };
 }
 
@@ -40,6 +45,35 @@ describe('resolveCapabilityStatuses', () => {
     expect(web?.configured).toBe('off');
     expect(web?.effective).toBe(false);
     expect(web?.note).toContain('No search provider');
+  });
+
+  it('treats a valid model delegate as effective when ordinary sources are off', () => {
+    const config = baseConfig();
+    config.providers = [
+      {
+        id: 'gemini',
+        name: 'Gemini',
+        protocol: 'google-gemini',
+        baseUrl: 'https://example.test',
+        models: [{ id: 'search', capabilities: ['native-web-search'] }],
+      },
+    ];
+    config.web = {
+      ...createDefaultWebConfig(),
+      searchProvider: 'none',
+      searchSources: [],
+      searchDelegateModel: {
+        protocol: 'google-gemini',
+        providerId: 'gemini',
+        modelId: 'search',
+      },
+    };
+
+    const web = resolveCapabilityStatuses({ config, runtimeStatus: liveRuntime() }).find(
+      (item) => item.key === 'webSearch',
+    );
+    expect(web?.configured).toBe('on');
+    expect(web?.effective).toBe(true);
   });
 
   it('stale runtime reports loaded=false for every capability', () => {

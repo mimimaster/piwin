@@ -11,7 +11,10 @@
  */
 
 import type { HostToolDescriptor, ToolResult } from '@piwin/contracts';
-import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
+import {
+  PiBackendToolExecutionError,
+  type PiBackendCustomToolDefinition,
+} from '../backends/pi-backend-tool-adapter.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
 
 /**
@@ -21,6 +24,7 @@ import type { SerializableBlueprint } from './serializable-blueprint.js';
  */
 export type ToolProxyCall = (
   sessionId: string,
+  backendToolCallId: string,
   toolName: string,
   args: Record<string, unknown>,
   signal?: AbortSignal,
@@ -58,7 +62,13 @@ export function buildSingleProxyTool(
     // The parent compiled this schema. Do not infer or widen it in the worker.
     parameters: descriptor.parameters,
     async execute(toolCallId, params, signal) {
-      const result = await proxyCall(productSessionId, descriptor.name, params ?? {}, signal);
+      const result = await proxyCall(
+        productSessionId,
+        toolCallId,
+        descriptor.name,
+        params ?? {},
+        signal,
+      );
       if (result.ok) {
         return {
           content: [{ type: 'text', text: result.output }],
@@ -71,34 +81,7 @@ export function buildSingleProxyTool(
         };
       }
       // Map parent error codes to model-facing text.
-      const errorText = formatProxyError(result.code, result.message);
-      return {
-        content: [{ type: 'text', text: errorText }],
-        details: {
-          toolName: descriptor.name,
-          toolCallId,
-          proxied: true,
-          error: result.code,
-          ...(result.details ?? {}),
-          ...(result.cancelled ? { cancelled: true } : {}),
-          ...(result.retryable ? { retryable: true } : {}),
-        },
-      };
+      throw new PiBackendToolExecutionError(result.code, result.message);
     },
   };
-}
-
-function formatProxyError(code: string, message: string): string {
-  switch (code) {
-    case 'tool-not-available':
-      return `Tool not available: ${message}`;
-    case 'tool-disabled':
-      return `Tool disabled: ${message}`;
-    case 'permission-denied':
-      return `Permission denied: ${message}`;
-    case 'aborted':
-      return `Tool execution aborted`;
-    default:
-      return `Tool error (${code}): ${message}`;
-  }
 }

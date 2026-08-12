@@ -732,31 +732,7 @@ export function IconBrain(props: IconProps): ReactElement {
       <path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4" />
       <path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5" />
       <path d="M17.997 5.125a4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18" />
-    <path d="M6.003 5.125a4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18" />
-  </IconBase>
-  );
-}
-
-/** SF-03: Duplicate conversation — two overlapping panels with a plus. */
-export function IconDuplicateConversation(props: IconProps): ReactElement {
-  return (
-    <IconBase {...props}>
-      <path d="M8 16H6.5A2.5 2.5 0 0 1 4 13.5v-7A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5V8" />
-      <rect x="8" y="8" width="12" height="12" rx="2.5" />
-      <path d="M14 11.5v5M11.5 14h5" />
-    </IconBase>
-  );
-}
-
-/** SF-03: Fork conversation — one trunk splitting into two routes. */
-export function IconForkConversation(props: IconProps): ReactElement {
-  return (
-    <IconBase {...props}>
-      <circle cx="6" cy="5" r="1.5" />
-      <circle cx="18" cy="5" r="1.5" />
-      <circle cx="12" cy="19" r="1.5" />
-      <path d="M12 17.5v-4.25C12 8.7 9.55 5 6 5" />
-      <path d="M12 13.25C12 8.7 14.45 5 18 5" />
+      <path d="M6.003 5.125a4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18" />
     </IconBase>
   );
 }

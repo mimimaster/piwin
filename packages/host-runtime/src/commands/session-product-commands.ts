@@ -42,11 +42,13 @@ import {
 } from '@piwin/session';
 import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
+import { listProjects } from '@piwin/project';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinMediaDir,
   getPiwinRoot,
+  getPiwinProjectsPath,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
 } from '../paths.js';
@@ -335,19 +337,47 @@ export async function handleSessionProductCommand(
       if (!source) {
         return fail(requestId, 'session/duplicate', `Unknown session: ${command.sessionId}`);
       }
-      const createInput: CreateSessionInput = {
-        projectPath: source.projectPath,
-      };
-      if (source.scope) {
-        createInput.scope = source.scope;
+      const targetScope =
+        command.targetScope ??
+        source.scope ??
+        (source.projectPath
+          ? ({ kind: 'project', projectPath: source.projectPath } as const)
+          : ({ kind: 'general' } as const));
+      const targetProjectPath =
+        targetScope.kind === 'project' ? targetScope.projectPath.trim() : '';
+      if (targetScope.kind === 'project' && !targetProjectPath) {
+        return fail(
+          requestId,
+          'session/duplicate',
+          'target project scope requires a non-empty projectPath',
+        );
       }
+      if (command.targetScope?.kind === 'project') {
+        const project = (await listProjects(getPiwinProjectsPath(rootDir))).find(
+          (candidate) => candidate.path === targetProjectPath,
+        );
+        if (!project || project.trust !== 'trusted') {
+          return fail(
+            requestId,
+            'session/duplicate',
+            'target project must be opened and trusted before continuing the session',
+          );
+        }
+      }
+      const createInput: CreateSessionInput = {
+        projectPath: targetProjectPath,
+        scope:
+          targetScope.kind === 'project'
+            ? { kind: 'project', projectPath: targetProjectPath }
+            : { kind: 'general' },
+      };
       if (typeof command.name === 'string' && command.name.trim().length > 0) {
         createInput.sessionName = command.name.trim();
       }
       const created = await context.createSession(createInput);
       try {
         const sourceStore = await context.getTranscriptStore(command.sessionId);
-        const targetStore = await context.getTranscriptStore(created.id, source.projectPath);
+        const targetStore = await context.getTranscriptStore(created.id, targetProjectPath);
         let messageCount = 0;
         let lastMessage: SessionTranscriptMessage | undefined;
         for await (const message of sourceStore.iterateAll(100)) {
@@ -359,8 +389,10 @@ export async function handleSessionProductCommand(
         const displayName =
           typeof command.name === 'string' && command.name.trim().length > 0
             ? command.name.trim()
-            : buildDuplicateSessionName(source.name, source.id);
-        await context.bindSession(created, source.projectPath, displayName, {
+            : command.targetScope
+              ? (source.name ?? `session-${source.id.slice(0, 8)}`)
+              : buildDuplicateSessionName(source.name, source.id);
+        await context.bindSession(created, targetProjectPath, displayName, {
           kind: 'main',
           depth: 0,
         });
@@ -368,9 +400,14 @@ export async function handleSessionProductCommand(
           (await getSessionRecord(indexPath, created.id)) ??
           createSessionRecord({
             id: created.id,
-            projectPath: source.projectPath,
-            ...(source.scope ? { scope: source.scope } : {}),
-            ...(source.workingDirectory ? { workingDirectory: source.workingDirectory } : {}),
+            projectPath: targetProjectPath,
+            scope:
+              targetScope.kind === 'project'
+                ? { kind: 'project', projectPath: targetProjectPath }
+                : { kind: 'general' },
+            ...(targetScope.kind === 'project'
+              ? { workingDirectory: targetProjectPath }
+              : {}),
             name: displayName,
             kind: 'main',
             depth: 0,
@@ -577,6 +614,8 @@ async function appendDerivedMessage(
     ...(message.phaseHistory !== undefined ||
     message.startedAt !== undefined ||
     message.endedAt !== undefined ||
+    message.thinkingStartedAt !== undefined ||
+    message.thinkingEndedAt !== undefined ||
     message.outcome !== undefined ||
     message.terminalMessage !== undefined ||
     message.subagentActivity !== undefined
@@ -585,6 +624,12 @@ async function appendDerivedMessage(
             ...(message.phaseHistory !== undefined ? { phaseHistory: message.phaseHistory } : {}),
             ...(message.startedAt !== undefined ? { startedAt: message.startedAt } : {}),
             ...(message.endedAt !== undefined ? { endedAt: message.endedAt } : {}),
+            ...(message.thinkingStartedAt !== undefined
+              ? { thinkingStartedAt: message.thinkingStartedAt }
+              : {}),
+            ...(message.thinkingEndedAt !== undefined
+              ? { thinkingEndedAt: message.thinkingEndedAt }
+              : {}),
             ...(message.outcome !== undefined ? { outcome: message.outcome } : {}),
             ...(message.terminalMessage !== undefined
               ? { terminalMessage: message.terminalMessage }

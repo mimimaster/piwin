@@ -22,6 +22,7 @@ function renderChip(node: ReactElement): { container: HTMLElement; root: Root } 
 }
 
 const fileItem: PendingContextRefItem = {
+  token: 'chip-token-1',
   key: 'file:/p:src/a.ts::',
   ref: { kind: 'file', projectPath: '/p', relativePath: 'src/a.ts', label: 'src/a.ts' },
   label: 'src/a.ts',

@@ -68,6 +68,33 @@ describe('classifyHostPush', () => {
     });
   });
 
+  it('classifies subagent invocation state as an independently replaceable projection', () => {
+    expect(
+      classifyHostPush({
+        type: 'subagent/invocation-updated',
+        parentSessionId: 'parent-session',
+        invocation: {
+          id: 'invocation-1',
+          parentSessionId: 'parent-session',
+          runId: 'batch-run',
+          parentRunId: 'parent-run',
+          parentToolCallId: 'delegate-tool',
+          taskId: 'task-1',
+          task: 'Review the implementation',
+          status: 'running',
+          activity: { kind: 'thinking' },
+          revision: 3,
+          createdAt: '2026-08-12T00:00:00.000Z',
+          updatedAt: '2026-08-12T00:00:01.000Z',
+        },
+      }),
+    ).toEqual({
+      kind: 'projection',
+      key: ['subagent', 'parent-session', 'invocation', 'invocation-1'],
+      runId: 'parent-run',
+    });
+  });
+
   it('classifies replaceable browser frames and terminal Run barriers', () => {
     const browserFrame: HostPushVariant = {
       type: 'browser/frame',

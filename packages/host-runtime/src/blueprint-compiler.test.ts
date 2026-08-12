@@ -14,6 +14,7 @@ import type { HostToolDescriptor, HostToolRegistration, SessionToolFamily } from
 import { BLUEPRINT_PROTOCOL_VERSION } from '@piwin/agent-host';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
+import { buildHostToolboxDescriptor } from './host-toolbox.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
@@ -84,10 +85,15 @@ function familyAssignments(
 }
 
 describe('compileBlueprintForWorker', () => {
-  it('appends supplied MCP guidance alongside the artifact prompt', async () => {
+  it('appends compact Agent, Artifact, and MCP capability guidance', async () => {
     const gatewayDescriptor: HostToolDescriptor = {
       name: 'mcp_gateway',
       description: 'MCP gateway',
+      parameters: {},
+    };
+    const artifactDescriptor: HostToolDescriptor = {
+      name: 'artifact_instructions',
+      description: 'Artifact instructions',
       parameters: {},
     };
     const mcpCapabilityBrief: McpCapabilityBrief = {
@@ -121,10 +127,13 @@ describe('compileBlueprintForWorker', () => {
         }),
         mcpConfig: { mcpServers: { docs: { command: 'node' } } },
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
-        hostToolDescriptors: [gatewayDescriptor],
+        hostToolDescriptors: [gatewayDescriptor, artifactDescriptor],
         hostToolFamilyIndex: createFamilyIndex(
-          [gatewayDescriptor],
-          familyAssignments([['mcp', ['mcp_gateway']]]),
+          [gatewayDescriptor, artifactDescriptor],
+          familyAssignments([
+            ['mcp', ['mcp_gateway']],
+            ['artifact', ['artifact_instructions']],
+          ]),
         ),
         mcpCapabilityBrief,
       },
@@ -132,11 +141,76 @@ describe('compileBlueprintForWorker', () => {
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt;
     expect(appendSystemPrompt).toBeDefined();
-    expect(appendSystemPrompt).toContain('artifact append sentinel');
+    expect(appendSystemPrompt).toContain('## Default Agent operating contract');
+    expect(appendSystemPrompt).toContain('## Artifact capability');
+    expect(appendSystemPrompt).toContain('A custom Artifact decision policy is configured');
+    expect(appendSystemPrompt).not.toContain('artifact append sentinel');
+    expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(appendSystemPrompt).toContain('## MCP tools (use them proactively)');
     expect(appendSystemPrompt).toContain('`docs`: 1 cached tool(s)');
     expect(appendSystemPrompt).toContain('mcp_gateway');
     expect(result.backendBlueprint.appendSystemPrompt).toBe(appendSystemPrompt);
+  });
+
+  it('does not advertise Artifact instructions without a concrete executor', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [],
+        hostToolFamilyIndex: new Map(),
+      },
+    );
+
+    expect(result.blueprint.appendSystemPrompt).toContain('## Default Agent operating contract');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('## Artifact capability');
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain(
+      'artifact_instructions',
+    );
+  });
+
+  it('compiles one exact toolbox descriptor and a separate target execution allowlist', async () => {
+    const toolboxDescriptor = buildHostToolboxDescriptor(['process_start', 'image_gen']);
+    const processDescriptor = {
+      name: 'process_start',
+      description: 'Start process',
+      parameters: { type: 'object' },
+    };
+    const imageDescriptor = {
+      name: 'image_gen',
+      description: 'Generate image',
+      parameters: { type: 'object' },
+    };
+    const familyDescriptors = [toolboxDescriptor, processDescriptor, imageDescriptor];
+
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [toolboxDescriptor],
+        hostToolFamilyIndex: createFamilyIndex(
+          familyDescriptors,
+          familyAssignments([
+            ['toolbox', ['piwin_toolbox']],
+            ['process', ['process_start']],
+            ['image-generation', ['image_gen']],
+          ]),
+        ),
+      },
+    );
+
+    expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual(['image_gen', 'process_start']);
+    const toolbox = result.blueprint.tools.hostTools.find(
+      (descriptor) => descriptor.name === 'piwin_toolbox',
+    );
+    const properties = toolbox?.parameters.properties as
+      Record<string, { enum?: string[] }> | undefined;
+    expect(properties?.target?.enum).toEqual(['image_gen', 'process_start']);
+    expect(result.blueprint.tools.hostTools.map((descriptor) => descriptor.name)).not.toContain(
+      'process_start',
+    );
   });
 
   it('compiles a real blueprint with protocol version and snapshotId', async () => {
@@ -169,6 +243,42 @@ describe('compileBlueprintForWorker', () => {
     expect(result.blueprint.activeSkillPaths).toEqual(['/tmp/skills/s1']);
     expect(result.blueprint.activeExtensionPaths).toEqual(['/tmp/ext/e1']);
     expect(result.blueprint.activePromptPaths).toEqual(['/tmp/prompts/p1']);
+  });
+
+  it('changes the capability identity when an extension keeps its path but changes content', async () => {
+    const compile = (contentRevision: string) =>
+      compileBlueprintForWorker(
+        { scope: generalScope },
+        {
+          config: createConfig(),
+          discoverResources: async () => ({
+            skillPaths: [],
+            extensionPaths: ['/tmp/ext/e1'],
+            promptPaths: [],
+            catalog: {
+              version: 1,
+              entries: [
+                {
+                  resourceId: 'e1',
+                  kind: 'extension',
+                  name: 'e1',
+                  path: '/tmp/ext/e1',
+                  source: 'user',
+                  contentRevision,
+                },
+              ],
+              diagnostics: [],
+            },
+          }),
+        },
+      );
+
+    const first = await compile('content-1');
+    const second = await compile('content-2');
+    expect(first.sessionBlueprint.capabilitySnapshot.inputs.extensionSetRevision).not.toBe(
+      second.sessionBlueprint.capabilitySnapshot.inputs.extensionSetRevision,
+    );
+    expect(first.blueprint.snapshotId).not.toBe(second.blueprint.snapshotId);
   });
 
   it('builds tool policy with web + shell + filesystem families', async () => {
@@ -503,10 +613,110 @@ describe('compileBlueprintForWorker', () => {
       code: PROVIDER_SECRET_COMPILE_ERROR_CODE,
       providerId: 'custom-1',
       message: expect.stringContaining(
-        'worker mode requires apiKeyEnv or a future secret channel; apiKeyRef secrets cannot cross worker JSONL',
+        'no safe worker secret channel was enabled; apiKeyRef secrets cannot cross worker JSONL',
       ),
     });
     expect(resolveProviderSecret).not.toHaveBeenCalled();
+  });
+
+  it('bootstraps only the selected apiKeyRef provider for worker mode', async () => {
+    const canary = 'selected-provider-canary';
+    const resolveProviderSecret = vi.fn(async (provider: { id: string }) => {
+      if (provider.id !== 'custom-selected') {
+        throw new Error(`unexpected provider resolution: ${provider.id}`);
+      }
+      return canary;
+    });
+    const result = await compileBlueprintForWorker(
+      {
+        scope: generalScope,
+        model: {
+          protocol: 'openai-compatible',
+          providerId: 'custom-selected',
+          modelId: 'review-model',
+        },
+      },
+      {
+        allowWorkerProviderSecretBootstrap: true,
+        config: createConfig({
+          providers: [
+            {
+              id: 'custom-selected',
+              protocol: 'openai-compatible',
+              name: 'Selected custom provider',
+              baseUrl: 'https://selected.example/v1',
+              apiKeyRef: 'keychain:piwin-selected',
+              models: [{ id: 'review-model' }],
+            },
+            {
+              id: 'unrelated-ref-only',
+              protocol: 'openai-compatible',
+              name: 'Unrelated provider',
+              baseUrl: 'https://unrelated.example/v1',
+              apiKeyRef: 'keychain:piwin-unrelated',
+              models: [{ id: 'other-model' }],
+            },
+          ],
+        }),
+        secretResolver: { resolveProviderSecret },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+
+    expect(result.providers).toHaveLength(1);
+    expect(result.providers[0]?.providerId).toBe('custom-selected');
+    expect(result.providers[0]?.auth.kind).toBe('bootstrap');
+    expect(result.providerSecrets).toHaveLength(1);
+    expect(result.providerSecrets?.[0]?.value).toBe(canary);
+    expect(JSON.stringify(result.providers)).not.toContain(canary);
+    expect(resolveProviderSecret).toHaveBeenCalledTimes(1);
+    expect(resolveProviderSecret).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'custom-selected' }),
+    );
+  });
+
+  it('does not propagate a resolver secret through worker bootstrap errors', async () => {
+    const canary = 'resolver-error-secret-canary';
+    let rejection: unknown;
+    try {
+      await compileBlueprintForWorker(
+        {
+          scope: generalScope,
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'custom-selected',
+            modelId: 'review-model',
+          },
+        },
+        {
+          allowWorkerProviderSecretBootstrap: true,
+          config: createConfig({
+            providers: [
+              {
+                id: 'custom-selected',
+                protocol: 'openai-compatible',
+                name: 'Selected custom provider',
+                baseUrl: 'https://selected.example/v1',
+                apiKeyRef: 'keychain:piwin-selected',
+                models: [{ id: 'review-model' }],
+              },
+            ],
+          }),
+          secretResolver: {
+            resolveProviderSecret: async () => {
+              throw new Error(canary);
+            },
+          },
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        },
+      );
+    } catch (error) {
+      rejection = error;
+    }
+
+    const message = rejection instanceof Error ? rejection.message : String(rejection);
+    expect(message).toContain('credentials are unavailable for worker bootstrap');
+    expect(message).not.toContain(canary);
   });
 
   it('allows inline apiKeyRef auth only when explicitly enabled for SDK use', async () => {
@@ -865,7 +1075,7 @@ describe('compileBlueprintForWorker', () => {
       expect(snapshotHostToolNames).not.toContain('web_search');
     });
 
-    it('selects external search and keeps web_search when the native model is controllable and the policy is external-only', async () => {
+    it('selects external search and keeps web_search when the model has native search and the policy is external-only', async () => {
       const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
       const webSearchDescriptor = {
         name: 'web_search',
@@ -890,7 +1100,6 @@ describe('compileBlueprintForWorker', () => {
               {
                 id: 'grok-4.5',
                 capabilities: ['chat', 'native-web-search'],
-                nativeWebSearchMode: 'controllable' as const,
               },
             ],
           },
@@ -922,6 +1131,117 @@ describe('compileBlueprintForWorker', () => {
       );
       expect(blueprintHostToolNames).toContain('web_search');
       expect(snapshotHostToolNames).toContain('web_search');
+    });
+
+    it('keeps web_search available when its exclusive backend is a configured delegate model', async () => {
+      const webSearchDescriptor = {
+        name: 'web_search',
+        description: 'Search the web',
+        parameters: {},
+      };
+      const hostToolDescriptors = [webSearchDescriptor];
+      const hostToolFamilyIndex = createFamilyIndex(
+        hostToolDescriptors,
+        familyAssignments([['web-search', ['web_search']]]),
+      );
+      const web = {
+        ...createDefaultWebConfig(),
+        searchSources: [],
+        searchProvider: 'none' as const,
+        searchRoutePolicy: 'external-first' as const,
+        searchDelegateModel: {
+          protocol: 'google-gemini' as const,
+          providerId: 'gemini',
+          modelId: 'gemini-search',
+        },
+      };
+      const config = createConfig({
+        web,
+        providers: [
+          {
+            id: 'plain',
+            protocol: 'openai-compatible' as const,
+            name: 'Plain chat',
+            baseUrl: 'https://chat.example.test/v1',
+            models: [{ id: 'plain-chat', capabilities: ['chat'] }],
+          },
+          {
+            id: 'gemini',
+            protocol: 'google-gemini' as const,
+            name: 'Gemini',
+            baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+            models: [{ id: 'gemini-search', capabilities: ['native-web-search'] }],
+          },
+        ],
+      });
+
+      const result = await compileBlueprintForWorker(
+        {
+          scope: generalScope,
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'plain',
+            modelId: 'plain-chat',
+          },
+        },
+        {
+          config,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+          hostToolDescriptors,
+          hostToolFamilyIndex,
+        },
+      );
+
+      expect(result.blueprint.searchRoute?.selected).toBe('external');
+      expect(result.blueprint.searchRoute?.readiness.external.hasDelegateModel).toBe(true);
+      expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
+    });
+
+    it('keeps the policy-selected external outlet for side chat', async () => {
+      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
+      const webSearchDescriptor = {
+        name: 'web_search',
+        description: 'Search the web',
+        parameters: {},
+      };
+      const config = createConfig({
+        web,
+        providers: [
+          {
+            id: 'search-provider',
+            protocol: 'openai-compatible' as const,
+            name: 'Search provider',
+            baseUrl: 'https://api.example.test/v1',
+            models: [
+              {
+                id: 'search-model',
+                capabilities: ['chat', 'native-web-search'],
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await compileBlueprintForWorker(
+        {
+          scope: generalScope,
+          sessionKind: 'side-chat',
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'search-provider',
+            modelId: 'search-model',
+          },
+        },
+        {
+          config,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+          hostToolDescriptors: [webSearchDescriptor],
+        },
+      );
+
+      expect(result.blueprint.searchRoute?.selected).toBe('external');
+      expect(result.blueprint.tools.enabledFamilies).toContain('web-search');
+      expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
     });
   });
 });

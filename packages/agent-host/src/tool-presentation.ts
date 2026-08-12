@@ -22,7 +22,7 @@ const MAX_TOOL_OUTPUT_CHARS = 8_000;
 const MAX_SUMMARY_CHARS = 96;
 
 const SECRET_PATTERNS: RegExp[] = [
-  /\b(?:api[_-]?key|token|secret|password|authorization)\s*[:=]\s*['"]?[^\s'"]+/gi,
+  /\b(?:api[_-]?key|token|secret|password|authorization)\b['"]?\s*[:=]\s*['"]?[^\s'"]+/gi,
   /\bBearer\s+[A-Za-z0-9\-._~+/]+=*/gi,
   /\bsk-[A-Za-z0-9]{16,}\b/g,
 ];
@@ -30,6 +30,7 @@ const SECRET_PATTERNS: RegExp[] = [
 export type BuildToolPresentationInput = {
   toolName: string;
   args?: unknown;
+  routedToolName?: string;
   outputText?: string;
   isError?: boolean;
   exitCode?: number | null;
@@ -39,6 +40,13 @@ export type BuildToolPresentationInput = {
 };
 
 /** Internal action family used only for presentation (not a contract field). */
+export type PresentedToolInvocation = {
+  invokedToolName: string;
+  effectiveToolName: string;
+  effectiveArgs?: unknown;
+  routedToolName?: string;
+};
+
 type ToolActionFamily =
   | 'read'
   | 'search'
@@ -51,6 +59,7 @@ type ToolActionFamily =
   | 'mcp'
   | 'image'
   | 'video'
+  | 'subagent'
   | 'other';
 
 /**
@@ -75,8 +84,11 @@ export function classifyToolKind(toolName: string): ToolKind {
     case 'edit':
       return 'filesystem';
     case 'image':
+      return 'image';
     case 'video':
-      return 'other';
+      return 'video';
+    case 'subagent':
+      return 'subagent';
     default: {
       const normalized = toolName.trim().toLowerCase();
       if (normalized === 'process' || normalized.startsWith('process_')) {
@@ -119,6 +131,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value) || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/** Resolve the effective invocation used for presentation without changing execution identity. */
+export function resolvePresentedToolInvocation(
+  toolName: string,
+  args: unknown,
+): PresentedToolInvocation {
+  const unchanged = (): PresentedToolInvocation => ({
+    invokedToolName: toolName,
+    effectiveToolName: toolName,
+    ...(args !== undefined ? { effectiveArgs: args } : {}),
+  });
+  if (toolName.trim().toLowerCase() !== 'piwin_toolbox' || !isPlainRecord(args)) {
+    return unchanged();
+  }
+  const action = typeof args.action === 'string' ? args.action.trim().toLowerCase() : '';
+  const target = typeof args.target === 'string' ? args.target.trim() : '';
+  if (action !== 'call' || target.length === 0 || !isPlainRecord(args.arguments)) {
+    return unchanged();
+  }
+  return {
+    invokedToolName: toolName,
+    effectiveToolName: target,
+    effectiveArgs: args.arguments,
+    routedToolName: target,
+  };
+}
+
 function hasSemanticTruncation(toolName: string, outputText: string): boolean {
   if (resolveActionFamily(toolName) !== 'web-fetch') {
     return false;
@@ -142,6 +188,7 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
   const presentation: ToolPresentation = {
     kind,
     title,
+    ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
   };
 
   const argsPreview = formatArgsPreview(input.args, family);
@@ -228,15 +275,6 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     family !== 'video'
   ) {
     presentation.summary = clipSummary(presentation.inputPreview);
-  } else if (
-    presentation.output?.text &&
-    // image_gen / video_gen return JSON path metadata — never use as the head label.
-    // tool/end often rebuilds presentation without args; falling through here was
-    // overwriting the start-time prompt summary after merge.
-    family !== 'image' &&
-    family !== 'video'
-  ) {
-    presentation.summary = clipSummary(presentation.output.text.replace(/\s+/g, ' ').trim());
   }
 
   if (toolWasCancelled) {
@@ -272,6 +310,7 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
 
   if (n === 'image_gen' || n === 'image_generate' || n.includes('image_gen')) return 'image';
   if (n === 'video_gen' || n === 'video_generate' || n.includes('video_gen')) return 'video';
+  if (n === 'piwin_subagent_run') return 'subagent';
 
   if (
     n === 'write' ||
@@ -342,6 +381,7 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
 }
 
 function humanizeToolTitle(toolName: string, kind: ToolKind): string {
+  if (kind === 'subagent') return 'Subagent';
   if (kind === 'mcp') {
     if (toolName.trim().toLowerCase() === 'mcp_gateway') {
       return 'MCP gateway';
@@ -691,6 +731,14 @@ function extractActionDetails(input: {
       actionVerb = 'Generated video';
       const prompt = extractPrompt(args);
       if (prompt) summary = clipSummary(prompt, 72);
+      break;
+    }
+    case 'subagent': {
+      actionVerb = 'Delegated';
+      const task = readString(record.task);
+      const sessionName = readString(record.sessionName);
+      if (sessionName) summary = clipSummary(sessionName, 72);
+      else if (task) summary = clipSummary(task, 96);
       break;
     }
     default: {

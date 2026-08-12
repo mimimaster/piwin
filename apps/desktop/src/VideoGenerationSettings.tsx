@@ -25,6 +25,7 @@ import {
   buildVideoModelEntry,
   collectVideoModels,
   defaultVideoGenerationApiStyle,
+  isVideoApiStyle,
   defaultVideoGenerationPath,
   mergeVideoModel,
 } from './video-generation-model-config';
@@ -125,7 +126,9 @@ export function VideoGenerationSettings(): ReactElement {
     setEditingKey(`${provider.id}:${model.id}`);
     setSelectedProviderId(provider.id);
     const route = model.routes?.['video-generation'];
-    const apiStyle = route?.apiStyle ?? defaultVideoGenerationApiStyle(provider.protocol);
+    const apiStyle = isVideoApiStyle(route?.apiStyle)
+      ? route.apiStyle
+      : defaultVideoGenerationApiStyle(provider.protocol);
     setAddModelId(model.id);
     setAddApiStyle(apiStyle);
     setAddModelPath(route?.path ?? defaultVideoGenerationPath(apiStyle));

@@ -56,7 +56,7 @@ describe('SessionRuntimeReplacementEngine', () => {
     });
   });
 
-  it('coalesces compatible after-current-run requests and rejects conflicts', async () => {
+  it('coalesces after-current-run requests to the latest target revision', async () => {
     let release: (() => void) | undefined;
     const wait = new Promise<void>((resolve) => {
       release = resolve;
@@ -84,15 +84,15 @@ describe('SessionRuntimeReplacementEngine', () => {
       state: 'rebuilding',
       candidateState: 'rebuilding',
     });
-    await expect(
-      engine.replace({
-        sessionId: 'session-1',
-        expectedSettingsRevision: 'settings-new',
-        when: 'after-current-run',
-      }),
-    ).rejects.toThrow('runtime-reload-revision-conflict');
+    const third = engine.replace({
+      sessionId: 'session-1',
+      expectedSettingsRevision: 'settings-new',
+      when: 'after-current-run',
+    });
+    expect(third).toBe(first);
     release?.();
-    await first;
+    const result = await first;
+    expect(result.candidate.settingsRevision).toBe('settings-new');
   });
 
   it('cancels before commit and leaves the active generation intact', async () => {

@@ -297,10 +297,13 @@ export function createTranscriptRecorder(options: {
           }
           case 'message/text_delta': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             updateMessage(
               event.messageId,
               (message) => ({
-                ...message,
+                ...(event.delta.length > 0
+                  ? finishTranscriptThinking(message, eventAt)
+                  : message),
                 text: message.text + event.delta,
                 status: 'streaming',
               }),
@@ -309,12 +312,28 @@ export function createTranscriptRecorder(options: {
             scheduleFlush();
             break;
           }
-          case 'message/thinking_delta': {
+          case 'message/text_snapshot': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             updateMessage(
               event.messageId,
               (message) => ({
-                ...message,
+                ...(event.text.length > 0 ? finishTranscriptThinking(message, eventAt) : message),
+                text: event.text,
+                status: 'streaming',
+              }),
+              `text_snapshot runId=${event.runId ?? 'none'} textLen=${event.text.length}`,
+            );
+            scheduleFlush();
+            break;
+          }
+          case 'message/thinking_delta': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
+            updateMessage(
+              event.messageId,
+              (message) => ({
+                ...(event.delta.length > 0 ? startTranscriptThinking(message, eventAt) : message),
                 thinking: (message.thinking ?? '') + event.delta,
               }),
               `thinking_delta runId=${event.runId ?? 'none'} deltaLen=${event.delta.length}`,
@@ -337,9 +356,10 @@ export function createTranscriptRecorder(options: {
           }
           case 'message/end': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             updateMessage(
               event.messageId,
-              (message) => ({ ...message, status: 'done' }),
+              (message) => ({ ...finishTranscriptThinking(message, eventAt), status: 'done' }),
               `message_end runId=${event.runId ?? 'none'}`,
             );
             const currentDocument = document;
@@ -366,9 +386,15 @@ export function createTranscriptRecorder(options: {
           }
           case 'tool/start': {
             if (event.runId && quarantinedRunIds.has(event.runId)) break;
-            const assistantId = event.runId
-              ? assistantIdsByRunId.get(event.runId)
-              : lastAssistantId;
+            if (
+              event.responseMessageId !== undefined &&
+              quarantinedMessageIds.has(event.responseMessageId)
+            ) {
+              break;
+            }
+            const assistantId =
+              event.responseMessageId ??
+              (event.runId ? assistantIdsByRunId.get(event.runId) : lastAssistantId);
             if (!assistantId) {
               options.onDiagnostic?.(
                 `tool/start dropped (no assistant target): runId=${event.runId ?? 'none'} ` +
@@ -376,14 +402,16 @@ export function createTranscriptRecorder(options: {
               );
               break;
             }
+            const eventAt = new Date().toISOString();
             updateMessage(assistantId, (message) => ({
-              ...message,
+              ...finishTranscriptThinking(message, eventAt),
               tools: appendToolCard(message.tools, {
                 toolCallId: event.toolCallId,
                 toolName: event.toolName,
                 status: 'running',
                 output: '',
                 ...(event.runId ? { runId: event.runId } : {}),
+                ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
                 ...(event.presentation ? { presentation: event.presentation } : {}),
               }),
             }));
@@ -392,9 +420,15 @@ export function createTranscriptRecorder(options: {
           }
           case 'tool/update': {
             if (event.runId && quarantinedRunIds.has(event.runId)) break;
-            const assistantId = event.runId
-              ? assistantIdsByRunId.get(event.runId)
-              : lastAssistantId;
+            if (
+              event.responseMessageId !== undefined &&
+              quarantinedMessageIds.has(event.responseMessageId)
+            ) {
+              break;
+            }
+            const assistantId =
+              event.responseMessageId ??
+              (event.runId ? assistantIdsByRunId.get(event.runId) : lastAssistantId);
             if (!assistantId) {
               options.onDiagnostic?.(
                 `tool/update dropped (no assistant target): runId=${event.runId ?? 'none'} ` +
@@ -417,6 +451,9 @@ export function createTranscriptRecorder(options: {
                       ...(event.presentation
                         ? { presentation: { ...tool.presentation, ...event.presentation } }
                         : {}),
+                      ...(event.responseMessageId
+                        ? { responseMessageId: event.responseMessageId }
+                        : {}),
                     }
                   : tool,
               ),
@@ -425,9 +462,15 @@ export function createTranscriptRecorder(options: {
           }
           case 'tool/end': {
             if (event.runId && quarantinedRunIds.has(event.runId)) break;
-            const assistantId = event.runId
-              ? assistantIdsByRunId.get(event.runId)
-              : lastAssistantId;
+            if (
+              event.responseMessageId !== undefined &&
+              quarantinedMessageIds.has(event.responseMessageId)
+            ) {
+              break;
+            }
+            const assistantId =
+              event.responseMessageId ??
+              (event.runId ? assistantIdsByRunId.get(event.runId) : lastAssistantId);
             if (!assistantId) {
               options.onDiagnostic?.(
                 `tool/end dropped (no assistant target): runId=${event.runId ?? 'none'} ` +
@@ -465,6 +508,9 @@ export function createTranscriptRecorder(options: {
                     ...tool,
                     status: event.isError ? ('error' as const) : ('done' as const),
                     output: finalOutput,
+                    ...(event.responseMessageId
+                      ? { responseMessageId: event.responseMessageId }
+                      : {}),
                     ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
                   };
                 }),
@@ -473,9 +519,31 @@ export function createTranscriptRecorder(options: {
             await persistDocument();
             break;
           }
+          case 'session/aborted': {
+            const assistantId =
+              event.messageId ??
+              (event.runId !== undefined ? assistantIdsByRunId.get(event.runId) : lastAssistantId);
+            if (
+              assistantId !== undefined &&
+              assistantId !== null &&
+              !quarantinedMessageIds.has(assistantId)
+            ) {
+              const eventAt = new Date().toISOString();
+              updateMessage(assistantId, (message) => ({
+                ...finishTranscriptThinking(message, eventAt),
+                status: message.status === 'streaming' ? 'done' : message.status,
+              }));
+              await persistDocument();
+            }
+            break;
+          }
           case 'error': {
             if (lastAssistantId) {
-              updateMessage(lastAssistantId, (message) => ({ ...message, status: 'error' }));
+              const eventAt = new Date().toISOString();
+              updateMessage(lastAssistantId, (message) => ({
+                ...finishTranscriptThinking(message, eventAt),
+                status: 'error',
+              }));
               await persistDocument();
             }
             break;
@@ -520,6 +588,24 @@ export function createTranscriptRecorder(options: {
       writeQueue = Promise.resolve();
     },
   };
+}
+
+function startTranscriptThinking(
+  message: SessionTranscriptMessage,
+  startedAt: string,
+): SessionTranscriptMessage {
+  if (message.thinkingStartedAt !== undefined) return message;
+  return { ...message, thinkingStartedAt: startedAt };
+}
+
+function finishTranscriptThinking(
+  message: SessionTranscriptMessage,
+  endedAt: string,
+): SessionTranscriptMessage {
+  if (message.thinkingStartedAt === undefined || message.thinkingEndedAt !== undefined) {
+    return message;
+  }
+  return { ...message, thinkingEndedAt: endedAt };
 }
 
 function validateToolOutputLimit(maxToolOutputBytes: number): number {

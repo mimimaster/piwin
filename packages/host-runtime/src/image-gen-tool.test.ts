@@ -341,6 +341,168 @@ describe('callImageEndpoint', () => {
     ).rejects.toThrow(/bad request \[redacted\]/i);
   });
 
+  it('speaks Gemini native :generateContent when apiStyle is gemini', async () => {
+    const provider: GoogleGeminiProviderConfig = {
+      ...geminiProvider,
+      models: [
+        {
+          id: 'gemini-3.1-flash-image',
+          capabilities: ['image-generation'],
+          routes: { 'image-generation': { apiStyle: 'gemini' } },
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        candidates: [
+          {
+            content: {
+              parts: [
+                { text: 'here is the image' },
+                { inlineData: { mimeType: 'image/jpeg', data: base64(JPEG_BYTES) } },
+              ],
+            },
+          },
+          {
+            content: {
+              parts: [{ inlineData: { data: `data:image/png;base64,${base64(PNG_BYTES)}` } }],
+            },
+          },
+        ],
+      }),
+    );
+    const images = await callImageEndpoint(
+      provider,
+      imageModel(provider),
+      { prompt: 'a red apple', n: 2 },
+      'gem-key',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('models/gemini-3.1-flash-image:generateContent');
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body.contents).toEqual([{ role: 'user', parts: [{ text: 'a red apple' }] }]);
+    expect(body.generationConfig).toEqual({
+      responseModalities: ['TEXT', 'IMAGE'],
+      candidateCount: 2,
+    });
+    expect(init.headers).toEqual(expect.objectContaining({ 'x-goog-api-key': 'gem-key' }));
+    // Text-only parts are skipped; inlineData parts (raw base64 + data URL) are kept.
+    expect(images.map((image) => image.mimeType)).toEqual(['image/jpeg', 'image/png']);
+  });
+
+  it('supports apiStyle gemini on an openai-compatible proxy channel', async () => {
+    // e.g. cliproxy: openai-compatible channel + Gemini-native image model.
+    const provider: OpenAiCompatibleProviderConfig = {
+      ...openAiProvider,
+      baseUrl: 'http://127.0.0.1:8317',
+      models: [
+        {
+          id: 'gemini-3.1-flash-image',
+          capabilities: ['image-generation'],
+          routes: {
+            'image-generation': {
+              apiStyle: 'gemini',
+              path: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+            },
+          },
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        candidates: [{ content: { parts: [{ inlineData: { data: base64(WEBP_BYTES) } }] } }],
+      }),
+    );
+    const images = await callImageEndpoint(
+      provider,
+      imageModel(provider),
+      { prompt: 'a cat' },
+      'proxy-key',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://127.0.0.1:8317/v1beta/models/gemini-3.1-flash-image:generateContent');
+    expect(init.headers).toEqual(expect.objectContaining({ authorization: 'Bearer proxy-key' }));
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+    });
+    expect(images[0]?.mimeType).toBe('image/webp');
+  });
+
+  it('supports explicit imagen apiStyle on a google-gemini channel', async () => {
+    const provider: GoogleGeminiProviderConfig = {
+      ...geminiProvider,
+      models: [
+        {
+          id: 'imagen-4.0-generate-001',
+          capabilities: ['image-generation'],
+          routes: { 'image-generation': { apiStyle: 'imagen' } },
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ predictions: [{ bytesBase64Encoded: base64(PNG_BYTES) }] }),
+      );
+    const images = await callImageEndpoint(
+      provider,
+      imageModel(provider),
+      { prompt: 'a dog' },
+      'gem-key',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(':predict');
+    expect(images[0]?.mimeType).toBe('image/png');
+  });
+
+  it('rejects a video-only apiStyle on an image route', async () => {
+    const provider: OpenAiCompatibleProviderConfig = {
+      ...openAiProvider,
+      models: [
+        {
+          ...imageModel(openAiProvider),
+          routes: { 'image-generation': { apiStyle: 'runway-tasks' as never } },
+        },
+      ],
+    };
+    await expect(
+      callImageEndpoint(provider, imageModel(provider), { prompt: 'x' }, 'key'),
+    ).rejects.toThrow(/apiStyle "runway-tasks" is not valid for image generation/i);
+  });
+
+  it('rejects a Gemini native response without any image parts', async () => {
+    const provider: GoogleGeminiProviderConfig = {
+      ...geminiProvider,
+      models: [
+        {
+          id: 'gemini-3.1-flash-image',
+          capabilities: ['image-generation'],
+          routes: { 'image-generation': { apiStyle: 'gemini' } },
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ candidates: [{ content: { parts: [{ text: 'no image' }] } }] }),
+      );
+    await expect(
+      callImageEndpoint(
+        provider,
+        imageModel(provider),
+        { prompt: 'x' },
+        'key',
+        undefined,
+        fetchMock as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow(/provider returned no image data/i);
+  });
+
   it('rejects anthropic-compatible with a clear unsupported error', async () => {
     const anthropic: ModelProviderConfig = {
       id: 'anthropic',

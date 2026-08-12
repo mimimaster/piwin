@@ -42,3 +42,15 @@ apps/desktop/src-tauri/icons-backup-2026-07-31/
 
 # unpadded icon source backup (regeneration intermediate)
 apps/desktop/src-tauri/icons/icon-source-1024.unpadded-backup.png
+
+# Agent tool memory (workbuddy)
+.workbuddy/
+
+# Generated pet spritesheets (regenerable, 48MB)
+packages/pet/generated/
+
+# Stray reference screenshots dropped at repo root
+/284d80c4-d3c7-4618-9f78-2b314d2210ba.png
+/b4bdb4b3-51f4-4307-9df8-90c7192d1ac0.png
+/左侧栏.png
+/右侧栏.png

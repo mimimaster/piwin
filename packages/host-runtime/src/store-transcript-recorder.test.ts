@@ -1,11 +1,112 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { openSessionTranscriptStore } from '@piwin/session';
 import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
 
 describe('createStoreTranscriptRecorder', () => {
+  it('persists the reasoning interval and closes it when tool work starts', async () => {
+    vi.useFakeTimers();
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-thinking-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-thinking',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-thinking',
+    });
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-thinking',
+        role: 'assistant',
+        runId: 'run-thinking',
+      });
+      vi.setSystemTime('2026-08-12T08:00:01.000Z');
+      await recorder.recordEvent({
+        type: 'message/thinking_delta',
+        messageId: 'assistant-thinking',
+        delta: 'reasoning',
+        runId: 'run-thinking',
+      });
+      vi.setSystemTime('2026-08-12T08:00:05.000Z');
+      await recorder.recordEvent({
+        type: 'tool/start',
+        toolCallId: 'tool-thinking',
+        toolName: 'read',
+        runId: 'run-thinking',
+      });
+      vi.setSystemTime('2026-08-12T08:28:28.000Z');
+      await recorder.recordEvent({
+        type: 'message/end',
+        messageId: 'assistant-thinking',
+        runId: 'run-thinking',
+      });
+      await recorder.flush();
+
+      await expect(store.getMessage('assistant-thinking')).resolves.toMatchObject({
+        thinkingStartedAt: '2026-08-12T08:00:01.000Z',
+        thinkingEndedAt: '2026-08-12T08:00:05.000Z',
+      });
+    } finally {
+      recorder.dispose();
+      store.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('closes persisted reasoning when the session is aborted', async () => {
+    vi.useFakeTimers();
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-abort-thinking-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-abort-thinking',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-abort-thinking',
+    });
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-abort-thinking',
+        role: 'assistant',
+        runId: 'run-abort-thinking',
+      });
+      vi.setSystemTime('2026-08-12T08:00:01.000Z');
+      await recorder.recordEvent({
+        type: 'message/thinking_delta',
+        messageId: 'assistant-abort-thinking',
+        delta: 'reasoning',
+        runId: 'run-abort-thinking',
+      });
+      vi.setSystemTime('2026-08-12T08:00:03.000Z');
+      await recorder.recordEvent({
+        type: 'session/aborted',
+        sessionId: 'session-abort-thinking',
+        messageId: 'assistant-abort-thinking',
+        runId: 'run-abort-thinking',
+      });
+      await recorder.flush();
+
+      await expect(store.getMessage('assistant-abort-thinking')).resolves.toMatchObject({
+        status: 'done',
+        thinkingStartedAt: '2026-08-12T08:00:01.000Z',
+        thinkingEndedAt: '2026-08-12T08:00:03.000Z',
+      });
+    } finally {
+      recorder.dispose();
+      store.close();
+      vi.useRealTimers();
+    }
+  });
+
   it('persists only row-level user, assistant, and tool mutations', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-'));
     const store = await openSessionTranscriptStore({
@@ -189,6 +290,189 @@ describe('createStoreTranscriptRecorder', () => {
     store.close();
   });
 
+  it('uses explicit responseMessageId instead of the latest assistant fallback', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-response-id-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-response-id',
+      projectPath: '/project',
+    });
+    await store.markAuthoritative();
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-response-id',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-first',
+      role: 'assistant',
+      runId: 'run-first',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'assistant-first',
+      delta: 'first response',
+      runId: 'run-first',
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-first',
+      runId: 'run-first',
+    });
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-latest',
+      role: 'assistant',
+      runId: 'run-latest',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'assistant-latest',
+      delta: 'latest response',
+      runId: 'run-latest',
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-latest',
+      runId: 'run-latest',
+    });
+
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'tool-first-after-end',
+      toolName: 'read',
+      runId: 'run-first',
+      responseMessageId: 'assistant-first',
+    });
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'tool-first-after-end',
+      isError: false,
+      runId: 'run-first',
+      responseMessageId: 'assistant-first',
+      presentation: { kind: 'filesystem', title: 'Read file', output: { text: 'contents' } },
+    });
+    await recorder.flush();
+
+    expect(await store.getMessage('assistant-first')).toMatchObject({
+      tools: [
+        {
+          toolCallId: 'tool-first-after-end',
+          responseMessageId: 'assistant-first',
+          status: 'done',
+        },
+      ],
+    });
+    expect(await store.getMessage('assistant-latest')).toMatchObject({ tools: [] });
+    recorder.dispose();
+    store.close();
+  });
+
+  it('persists routed generation semantics, prompt metadata, and generated attachments', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-routed-image-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-routed-image',
+      projectPath: '/project',
+    });
+    await store.markAuthoritative();
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-routed-image',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-routed-image',
+      role: 'assistant',
+      runId: 'run-routed-image',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'tool-routed-image',
+      toolName: 'piwin_toolbox',
+      responseMessageId: 'assistant-routed-image',
+      runId: 'run-routed-image',
+      presentation: {
+        kind: 'image',
+        title: 'image_gen',
+        routedToolName: 'image_gen',
+        actionVerb: 'Generated image',
+        summary: 'cinematic wasteland portrait',
+        inputPreview: '{"prompt":"cinematic wasteland portrait"}',
+      },
+    });
+    await recorder.recordEvent({
+      type: 'tool/update',
+      toolCallId: 'tool-routed-image',
+      delta: '{"progress":50}',
+      responseMessageId: 'assistant-routed-image',
+      runId: 'run-routed-image',
+      presentation: {
+        kind: 'image',
+        title: 'image_gen',
+        routedToolName: 'image_gen',
+        actionVerb: 'Generated image',
+        summary: 'cinematic wasteland portrait',
+        inputPreview: '{"prompt":"cinematic wasteland portrait"}',
+        output: { text: '{"progress":50}' },
+      },
+    });
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'tool-routed-image',
+      isError: false,
+      responseMessageId: 'assistant-routed-image',
+      runId: 'run-routed-image',
+      presentation: {
+        kind: 'image',
+        title: 'image_gen',
+        routedToolName: 'image_gen',
+        actionVerb: 'Generated image',
+        summary: 'cinematic wasteland portrait',
+        inputPreview: '{"prompt":"cinematic wasteland portrait"}',
+        output: { text: '{"paths":["/tmp/generated.png"]}' },
+      },
+      attachments: [
+        {
+          id: 'asset-routed-image',
+          kind: 'media',
+          path: '/tmp/generated.png',
+          mimeType: 'image/png',
+          byteSize: 256,
+          source: 'generated',
+        },
+      ],
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-routed-image',
+      runId: 'run-routed-image',
+    });
+    await recorder.flush();
+
+    expect(await store.getMessage('assistant-routed-image')).toMatchObject({
+      attachments: [{ id: 'asset-routed-image', path: '/tmp/generated.png' }],
+      tools: [
+        {
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: '{"paths":["/tmp/generated.png"]}',
+          presentation: {
+            kind: 'image',
+            title: 'image_gen',
+            routedToolName: 'image_gen',
+            summary: 'cinematic wasteland portrait',
+            inputPreview: '{"prompt":"cinematic wasteland portrait"}',
+          },
+        },
+      ],
+    });
+    recorder.dispose();
+    store.close();
+  });
+
   it('quarantines a normalized-id/provenance collision', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-collision-'));
     const store = await openSessionTranscriptStore({
@@ -225,6 +509,51 @@ describe('createStoreTranscriptRecorder', () => {
     expect(await store.count()).toBe(1);
     expect((await store.getMessage('product-original'))?.text).toBe('original');
     expect(diagnostics.some((message) => message.includes('identity collision'))).toBe(true);
+    recorder.dispose();
+    store.close();
+  });
+
+  it('does not attach tools to a quarantined response message', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-tool-quarantine-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-tool-quarantine',
+      projectPath: '/project',
+    });
+    await store.appendMessage({
+      id: 'shared-product-message',
+      runtimeGenerationId: 'generation-old',
+      backendMessageId: 'backend-old',
+      role: 'assistant',
+      text: 'older response',
+      status: 'done',
+      createdAt: '2026-08-09T00:00:00.000Z',
+      tools: [],
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-new',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'shared-product-message',
+      backendMessageId: 'backend-new',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'must-not-attach',
+      toolName: 'read',
+      responseMessageId: 'shared-product-message',
+    });
+    await recorder.flush();
+
+    expect(await store.getMessage('shared-product-message')).toMatchObject({
+      text: 'older response',
+      runtimeGenerationId: 'generation-old',
+      tools: [],
+    });
     recorder.dispose();
     store.close();
   });

@@ -297,6 +297,60 @@
   flex-shrink: 0;
 }
 
+.subagent-session-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  flex-shrink: 0;
+}
+
+.subagent-worktree-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--panel));
+  flex-shrink: 0;
+}
+
+.subagent-worktree-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.subagent-worktree-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subagent-worktree-feedback {
+  grid-column: 1 / -1;
+  font-size: 11px;
+}
+
+.subagent-worktree-feedback.tone-error {
+  color: var(--danger);
+}
+
+.subagent-session-composer .piwin-text-area {
+  min-width: 0;
+}
+
+.subagent-session-composer .piwin-text-area-field {
+  max-height: 128px;
+  resize: vertical;
+}
+
 .subagent-session-footer-status {
   display: inline-flex;
   align-items: center;
@@ -341,6 +395,12 @@
   }
   .subagent-session-actions {
     align-self: flex-end;
+  }
+  .subagent-worktree-actions {
+    grid-template-columns: 1fr;
+  }
+  .subagent-worktree-buttons {
+    flex-wrap: wrap;
   }
 }
 

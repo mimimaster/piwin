@@ -16,6 +16,7 @@ import type {
   HostPush,
 } from '@piwin/contracts';
 import type { SubagentOrchestratorOptions } from './subagent-orchestrator.js';
+import { createDefaultPiwinConfig } from './config-store.js';
 
 const RUNTIME_GENERATION_ID = 'generation-test';
 
@@ -240,7 +241,10 @@ describe('SubagentOrchestrator', () => {
       getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
     });
     const result = await orchestrator.runBatch(
-      makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]),
+      makeBatch([
+        makeTask({ id: 'a', invocationId: 'inv-a', parentToolCallId: 'parent-tool-a' }),
+        makeTask({ id: 'b' }),
+      ]),
     );
     expect(result.status).toBe('completed');
     expect(result.results).toHaveLength(2);
@@ -251,12 +255,150 @@ describe('SubagentOrchestrator', () => {
       (push) => push.type === 'subagent/batch-updated' && push.result.status === 'running',
     );
     expect(runningPush).toBeDefined();
+    const taskAInvocationStatuses = pushes.flatMap((candidate) =>
+      candidate.type === 'subagent/invocation-updated' && candidate.invocation.taskId === 'a'
+        ? [candidate.invocation.status]
+        : [],
+    );
+    expect(taskAInvocationStatuses).toEqual(['queued', 'starting', 'running', 'completed']);
     // Phase F: the compiled provider envelope is forwarded to the runner.
     expect(backend.receivedProviderEnvelopes).toHaveLength(2);
     for (const envelope of backend.receivedProviderEnvelopes) {
       expect(envelope.length).toBeGreaterThan(0);
       expect(envelope[0]?.providerId).toBe('test-provider');
     }
+  });
+
+  it('preflights credentials before allocating a workspace or child identity', async () => {
+    const backend = makeFakeBackend({});
+    let workspaceAcquired = false;
+    let childRegistered = false;
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: {
+        ...backend.workspaceService,
+        async acquire(task) {
+          workspaceAcquired = true;
+          return backend.workspaceService.acquire(task);
+        },
+      },
+      prepareTask: backend.prepareTask,
+      preflightTask: async () => {
+        throw new Error(
+          'subagent-unavailable-fallback-main: credentials for provider "custom-openai" are unavailable',
+        );
+      },
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push: () => {},
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+      registerTaskSession: async () => {
+        childRegistered = true;
+      },
+    });
+
+    const result = await orchestrator.runBatch(makeBatch([makeTask()]));
+
+    expect(result.status).toBe('failed');
+    expect(result.results[0]?.childSessionId).toBeUndefined();
+    expect(result.results[0]?.error).toContain('subagent-unavailable-fallback-main');
+    expect(workspaceAcquired).toBe(false);
+    expect(childRegistered).toBe(false);
+  });
+
+  it('forwards the one-shot preflight snapshot into task preparation', async () => {
+    const backend = makeFakeBackend({});
+    const preflight = {
+      config: createDefaultPiwinConfig(),
+      effectiveModel: {
+        protocol: 'openai-compatible' as const,
+        providerId: 'custom-openai',
+        modelId: 'review-model',
+      },
+      resolvedProviderSecrets: [
+        {
+          providerId: 'custom-openai',
+          apiKeyRef: 'keychain:custom-openai',
+          value: 'single-use-canary',
+        },
+      ],
+    };
+    let receivedPreflight: unknown;
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      preflightTask: async () => preflight,
+      prepareTask: async (input) => {
+        receivedPreflight = input.preflight;
+        return backend.prepareTask(input);
+      },
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push: () => undefined,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const result = await orchestrator.runBatch(makeBatch([makeTask()]));
+
+    expect(result.status).toBe('completed');
+    expect(receivedPreflight).toBe(preflight);
+  });
+
+  it('reuses the child identity and forwards bounded seed history for continuation', async () => {
+    let received: SubagentTaskRunInput | undefined;
+    const taskRunner: SubagentTaskRunner = {
+      capabilities: { processIsolation: true },
+      async runTask(input) {
+        received = input;
+        return {
+          childSessionId: input.childSessionId,
+          executionStatus: 'completed',
+          summaryStatus: 'pending',
+          integrationStatus: 'not-requested',
+          summaryPreview: 'continued',
+        };
+      },
+    };
+    const workspaceLease: SubagentWorkspaceLease = {
+      mode: 'readonly',
+      cwd: '/tmp/existing-child',
+      parentRepoPath: '/tmp/project',
+    };
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner,
+      workspaceService: {
+        async acquire(task) {
+          return task.continuationWorkspaceLease ?? workspaceLease;
+        },
+        async release() {},
+      },
+      prepareTask: async (input) => ({
+        ...makePreparedTask(input),
+        seedMessages: [
+          { role: 'user', text: 'original task', timestamp: 1 },
+          { role: 'assistant', text: 'original answer', timestamp: 2 },
+        ],
+      }),
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push: () => {},
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+
+    const result = await orchestrator.runBatch(
+      makeBatch([
+        makeTask({
+          id: 'continuation-task',
+          continuationSessionId: 'child-existing',
+          continuationWorkspaceLease: workspaceLease,
+          task: 'continue reviewing',
+        }),
+      ]),
+    );
+
+    expect(result.results[0]?.childSessionId).toBe('child-existing');
+    expect(received?.childSessionId).toBe('child-existing');
+    expect(received?.seedMessages).toHaveLength(2);
   });
 
   it('waits for child-session cleanup before completing a task', async () => {
@@ -282,6 +424,44 @@ describe('SubagentOrchestrator', () => {
 
     expect(result.status).toBe('completed');
     expect(cleanupFinished).toBe(true);
+  });
+
+  it('terminalizes an allocated child when task preparation fails', async () => {
+    const backend = makeFakeBackend({});
+    const persistedResults: Array<{
+      parentSessionId: string;
+      result: import('@piwin/contracts').SubagentTaskResult;
+    }> = [];
+    let registeredChildSessionId: string | undefined;
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: async () => {
+        throw new Error('project scope requires a non-empty projectPath');
+      },
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push: () => undefined,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+      registerTaskSession: async ({ childSessionId }) => {
+        registeredChildSessionId = childSessionId;
+      },
+      onTaskResult: async (input) => {
+        persistedResults.push(input);
+      },
+    });
+
+    const result = await orchestrator.runBatch(makeBatch([makeTask({ id: 'prepare-failure' })]));
+
+    expect(result.status).toBe('failed');
+    expect(registeredChildSessionId).toBeDefined();
+    expect(result.results[0]).toMatchObject({
+      childSessionId: registeredChildSessionId,
+      executionStatus: 'failed',
+      error: 'project scope requires a non-empty projectPath',
+    });
+    expect(persistedResults).toHaveLength(1);
+    expect(persistedResults[0]?.result.childSessionId).toBe(registeredChildSessionId);
   });
 
   it('respects maxConcurrency', async () => {

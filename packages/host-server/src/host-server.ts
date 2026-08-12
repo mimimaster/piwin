@@ -124,6 +124,9 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'permission/resolve',
   'media/save',
   'skills/read',
+  'extensions/list',
+  'extensions/set_enabled',
+  'extensions/apply',
 ]);
 
 export class HostServer {
@@ -800,6 +803,22 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
           (Number.isSafeInteger(command.maxBytes) &&
             command.maxBytes >= 1024 &&
             command.maxBytes <= 512 * 1024))
+      );
+    case 'extensions/list':
+      return command.projectPath === undefined;
+    case 'extensions/set_enabled':
+      return command.extensionId.trim().length > 0 && command.extensionId.length <= 256;
+    case 'extensions/apply':
+      return (
+        command.sessionId.trim().length > 0 &&
+        command.sessionId.length <= 256 &&
+        (command.expectedSettingsRevision === undefined ||
+          command.expectedSettingsRevision.length <= 256) &&
+        (command.expectedRegistryRevision === undefined ||
+          command.expectedRegistryRevision.length <= 256) &&
+        (command.targetExtensionSetRevision === undefined ||
+          command.targetExtensionSetRevision.length <= 256) &&
+        (command.deploymentId === undefined || command.deploymentId.length <= 256)
       );
     case 'session/tool-output':
       return (

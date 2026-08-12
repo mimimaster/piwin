@@ -397,6 +397,36 @@ describe('session live control commands', () => {
     expect(activation.signal).toBe(context.getRunSignal(activation.runId));
   });
 
+  it('rebuilds a mismatched warm delegation surface before activating the turn', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createPromptContext(session);
+    const order: string[] = [];
+    context.prepareDelegationRuntime = async (_sessionId, mode) => {
+      order.push(`prepare:${mode}`);
+    };
+    context.setRunDelegationMode = (_runId, mode) => {
+      order.push(`bind:${mode}`);
+    };
+    context.activateSessionRuntime = async () => {
+      order.push('activate');
+      return session;
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'review locally', delegationMode: 'disabled' },
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => expect(order).toContain('activate'));
+    expect(order).toEqual(['prepare:disabled', 'bind:disabled', 'activate']);
+  });
+
   it('cancels preparation and emits one terminal event', async () => {
     const session = createDelayedSessionHandle();
     const promptContext = createPromptContext(session);
@@ -769,7 +799,7 @@ describe('session live control commands', () => {
       expect(boundScheme?.members[0]?.fallback).toBe('main');
     });
 
-    it('injects agent-mode contract model-facing only; transcript keeps user text', async () => {
+    it('injects a compact agent-mode marker model-facing only; transcript keeps user text', async () => {
       const session = createDelayedSessionHandle();
       const promptContext = createPromptContext(session);
       const context = promptContext.context;
@@ -808,7 +838,7 @@ describe('session live control commands', () => {
       expect(recordedPrompts[0]?.text).toBe('fix the login bug');
       expect(recordedPrompts[0]?.text).not.toContain('[piwin-mode:');
       expect(modelFacingText).toContain('fix the login bug');
-      expect(modelFacingText).toContain('Operating contract');
+      expect(modelFacingText).not.toContain('Operating contract');
       expect(modelFacingText.startsWith('[piwin-mode:agent]')).toBe(true);
     });
 
@@ -1077,6 +1107,7 @@ function createControlContext(
     },
     loadSideChatSnapshot: async () => undefined,
     sideChatSnapshotInjectedVersions: new Map(),
+    compactExportOperations: new Map(),
     stopProcessesForSession: async (): Promise<void> => {
       if (cleanupDelayMs > 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, cleanupDelayMs));
@@ -1375,4 +1406,90 @@ describe('session/tool-output snapshot recovery', () => {
     const output = (response.data as { output?: string }).output ?? '';
     expect(Buffer.byteLength(output, 'utf8')).toBeLessThanOrEqual(4096);
   });
+
+  it('does not commit the side-chat version when preparation is cancelled', async () => {
+    const session = createDelayedSessionHandle();
+    const promptContext = createPromptContext(session);
+    const context = promptContext.context;
+    const snapshot: import('@piwin/contracts').SideChatContextSnapshot = {
+      version: 7,
+      capturedAt: '2026-08-12T00:00:00.000Z',
+      sourceSessionId: 'parent-1',
+      conversation: {
+        messageIds: ['source-1'],
+        formattedText: 'inherited context',
+        truncated: false,
+      },
+      workspace: {
+        scope: 'general',
+        workingDirectory: 'general',
+      },
+      refs: [
+        {
+          kind: 'main-message',
+          sourceSessionId: 'main-1',
+          messageId: 'msg-1',
+          label: 'Main',
+        },
+      ],
+    };
+    context.loadSideChatSnapshot = async () => snapshot;
+    let releaseRefLookup: (() => void) | undefined;
+    const refLookupReleased = new Promise<void>((resolve) => {
+      releaseRefLookup = resolve;
+    });
+    context.getTranscriptStore = async () => {
+      await refLookupReleased;
+      return {
+        getMessage: async (messageId: string) =>
+          messageId === 'msg-1'
+            ? {
+                id: 'msg-1',
+                role: 'assistant',
+                text: 'main body',
+                createdAt: '2026-08-12T00:00:00.000Z',
+                status: 'done',
+              }
+            : undefined,
+      } as unknown as import('@piwin/session').SessionTranscriptStore;
+    };
+
+    const promptResponse = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'cancel during side-chat ref resolution' },
+      },
+      undefined,
+      context,
+    );
+    const acceptedData = promptResponse?.success ? promptResponse.data : undefined;
+    const acceptedRunId =
+      acceptedData !== null &&
+      typeof acceptedData === 'object' &&
+      'runId' in acceptedData &&
+      typeof acceptedData.runId === 'string'
+        ? acceptedData.runId
+        : undefined;
+    if (acceptedRunId === undefined) {
+      throw new Error('prompt did not return accepted run data');
+    }
+
+    await handleSessionLiveCommand(
+      {
+        type: 'session/abort',
+        sessionId: session.id,
+        runId: acceptedRunId,
+      },
+      undefined,
+      context,
+    );
+    releaseRefLookup?.();
+    await vi.waitFor(() => {
+      expect(context.getForegroundRun(session.id)).toBeUndefined();
+    });
+
+    expect(context.sideChatSnapshotInjectedVersions.get(session.id)).toBeUndefined();
+  });
+
 });

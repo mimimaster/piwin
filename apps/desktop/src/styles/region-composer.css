@@ -18,8 +18,8 @@
   /* Full stage wrapper; .composer-card-v2 below owns the selected content measure. */
   max-width: none;
   margin: 0;
-  /* The transcript owns the exact 48px clearance above this card. Keeping the
-     dock flush with the viewport also gives jump-to-latest a stable 12px gap. */
+  /* The transcript owns the responsive output-floor clearance above this card.
+     Keeping the dock flush also gives jump-to-latest a stable 12px gap. */
   padding: 0 var(--chat-inline-pad, 24px) 12px;
   box-sizing: border-box;
   border: none !important;
@@ -2917,13 +2917,8 @@ html[data-theme-visual-style='ink-wash'] textarea {
 html[data-theme-visual-style='ink-wash'] .composer-card-v2 {
   position: relative !important;
   overflow: visible !important;
-  background-color: rgba(18, 20, 25, 0.45) !important;
-  background-image:
-    linear-gradient(180deg, rgba(30, 32, 40, 0.48) 0%, rgba(14, 16, 22, 0.55) 100%),
-    url('/ui/ink-wash/card-paper-bg.jpg') !important;
-  background-size: cover, cover !important;
-  background-position: center, center !important;
-  background-blend-mode: soft-light, normal !important;
+  background-color: rgba(20, 22, 28, 0.72) !important;
+  background-image: linear-gradient(180deg, rgba(32, 34, 44, 0.75) 0%, rgba(18, 20, 26, 0.8) 100%) !important;
   backdrop-filter: blur(24px) saturate(135%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
   border-top: 1.5px solid rgba(214, 185, 140, 0.5) !important;

@@ -8,9 +8,19 @@ import type { PromptContextRef } from '@piwin/contracts';
 export const MAX_PENDING_CONTEXT_REFS = 12;
 
 export type PendingContextRefItem = {
+  /** Instance identity for selective send consumption. */
+  token: string;
+  /** Semantic dedupe key (CM §9.3). */
   key: string;
   ref: PromptContextRef;
   label: string;
+};
+
+export type ContextRefSnapshot = {
+  items: Array<{
+    token: string;
+    ref: PromptContextRef;
+  }>;
 };
 
 export type AddContextRefResult =
@@ -94,6 +104,7 @@ export function useComposerContextRefs() {
       return { ok: false, reason: 'cap' };
     }
     const item: PendingContextRefItem = {
+      token: crypto.randomUUID(),
       key,
       ref,
       label: labelForContextRef(ref),
@@ -121,6 +132,40 @@ export function useComposerContextRefs() {
     return pendingContextRefsRef.current.map((item) => item.ref);
   }, []);
 
+  const snapshotContextRefTokens = useCallback((): ContextRefSnapshot => {
+    return {
+      items: pendingContextRefsRef.current.map((item) => ({
+        token: item.token,
+        ref: item.ref,
+      })),
+    };
+  }, []);
+
+  const replaceContextRefs = useCallback((refs: PromptContextRef[]): void => {
+    const next: PendingContextRefItem[] = [];
+    for (const ref of refs) {
+      if (next.length >= MAX_PENDING_CONTEXT_REFS) break;
+      const key = contextRefKey(ref);
+      if (next.some((item) => item.key === key)) continue;
+      next.push({
+        token: crypto.randomUUID(),
+        key,
+        ref,
+        label: labelForContextRef(ref),
+      });
+    }
+    pendingContextRefsRef.current = next;
+    setPendingContextRefs(next);
+  }, []);
+
+  const consumeContextRefSnapshot = useCallback((snapshot: ContextRefSnapshot): void => {
+    if (snapshot.items.length === 0) return;
+    const tokens = new Set(snapshot.items.map((item) => item.token));
+    const next = pendingContextRefsRef.current.filter((item) => !tokens.has(item.token));
+    pendingContextRefsRef.current = next;
+    setPendingContextRefs(next);
+  }, []);
+
   return useMemo(
     () => ({
       pendingContextRefs,
@@ -129,6 +174,9 @@ export function useComposerContextRefs() {
       removeContextRef,
       clearContextRefs,
       snapshotContextRefs,
+      snapshotContextRefTokens,
+      replaceContextRefs,
+      consumeContextRefSnapshot,
     }),
     [
       pendingContextRefs,
@@ -136,6 +184,9 @@ export function useComposerContextRefs() {
       removeContextRef,
       clearContextRefs,
       snapshotContextRefs,
+      snapshotContextRefTokens,
+      replaceContextRefs,
+      consumeContextRefSnapshot,
     ],
   );
 }

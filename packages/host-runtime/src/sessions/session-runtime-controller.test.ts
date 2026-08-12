@@ -1,9 +1,21 @@
-import type { SessionRuntimeStatus } from '@piwin/contracts';
+import type { SessionRuntimeStatus, SettingsDomainImpact } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
 import { SessionRuntimeController } from './session-runtime-controller.js';
 
 function createController(runInFlight = false): SessionRuntimeController {
   return new SessionRuntimeController({ isRunInFlight: () => runInFlight });
+}
+
+function webImpact(
+  immediateRestrictions: SettingsDomainImpact['immediateRestrictions'],
+): SettingsDomainImpact {
+  return {
+    domain: 'web',
+    timing: 'new-runtime',
+    runtimeSchemaChanged: true,
+    immediateRestrictions,
+    securityTightenedImmediately: immediateRestrictions.length > 0,
+  };
 }
 
 describe('SessionRuntimeController', () => {
@@ -52,6 +64,21 @@ describe('SessionRuntimeController', () => {
     controller.attachGeneration('s1', 'gen-1', 'rev-1');
     controller.recordSettingsChange('s1', ['permissions']);
     expect(controller.requiresImmediateTightening('s1')).toBe(true);
+  });
+
+  it('retains a prior restriction across later same-domain saves until replacement', () => {
+    const controller = createController(true);
+    controller.attachGeneration('s1', 'gen-1', 'rev-1');
+    controller.recordSettingsChange('s1', [webImpact(['web-search'])], 'rev-2');
+    controller.recordSettingsChange('s1', [webImpact([])], 'rev-3');
+
+    expect(controller.getStatus('s1')).toMatchObject({
+      desiredSettingsRevision: 'rev-3',
+      immediateRestrictions: ['web-search'],
+    });
+
+    controller.attachGeneration('s1', 'gen-2', 'rev-3');
+    expect(controller.getStatus('s1').immediateRestrictions).toBeUndefined();
   });
 
   it('reload is blocked while a run is in flight', () => {

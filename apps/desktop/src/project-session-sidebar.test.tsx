@@ -437,6 +437,21 @@ it('renders local drafts first with a hollow mark and restores the selected draf
   expect(onResumeDraft).toHaveBeenCalledWith('draft-new');
 });
 
+it('passes the clicked project scope explicitly when starting a project draft', () => {
+  const onOpenProject = vi.fn();
+  const onNewSession = vi.fn();
+  const { container } = renderSidebar({ onOpenProject, onNewSession });
+
+  act(() => {
+    (container.querySelector('.tree-folder-add-btn') as HTMLButtonElement).click();
+  });
+
+  expect(onOpenProject).toHaveBeenCalledWith('/Users/test/project-a');
+  expect(onNewSession).toHaveBeenCalledWith({
+    scope: { kind: 'project', projectPath: '/Users/test/project-a' },
+  });
+});
+
 it('renders a circular indicator for a working session instead of its timestamp', () => {
   const sessions = createMockSessions(1);
   const { container } = renderSidebar({

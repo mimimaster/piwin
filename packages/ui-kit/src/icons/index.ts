@@ -8,6 +8,7 @@ export {
   IconAgent,
   IconArchive,
   IconArrowDown,
+  IconArrowFork,
   IconArrowLeft,
   IconArrowRight,
   IconArrowUp,

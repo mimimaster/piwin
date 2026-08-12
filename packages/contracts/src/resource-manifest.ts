@@ -15,6 +15,8 @@ export type ResourceInstance = {
   description?: string;
   path: string;
   source: ResourceSource;
+  /** Immutable content identity when the Host can determine one. */
+  contentRevision?: string;
   /** Pi-native root marker; undefined for product roots. */
   piNativeRoot?: string;
 };

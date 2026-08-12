@@ -278,6 +278,16 @@ or an explicit tool-surface rebuild.
 Legacy `mcp` rules left in `permissions.json` are silently ignored (optionally
 one diagnostic log entry); they are not migrated, upgraded, or used to block
 or prompt. `mcp.json` remains fully active. See [ADR 0033](./adr/0033-mcp-supervisor-architecture.md)
+
+#### Lazy Host toolbox (ADR 0044)
+
+High-frequency filesystem, shell, web, MCP, planning, delegation, and Artifact
+instruction tools stay directly visible. Low-frequency process, browser,
+notes, flashcards, image, and video schemas are loaded through
+`piwin_toolbox describe` and invoked through `piwin_toolbox call`. The session
+execution port dispatches a call through the target's original registration and
+permission gate; the routing shell cannot widen the compiled generation
+allowlist or bypass target admission. See [ADR 0044](./adr/0044-lazy-host-toolbox.md).
 for lifecycle and config-reload invariants.
 
 #### Project remember (scope extended)
@@ -360,13 +370,26 @@ Configured concurrency greater than one is effective only when the backend
 reports real process isolation. Write tasks use per-child worktrees and
 repository-keyed serialized integration.
 
-Runtime reload is a Host-owned replacement transaction. A candidate Blueprint
-is compiled first, the current generation and all Run descendants are joined,
-the old worker generation is disposed, and the replacement is published only
-after the new backend is active. Failed candidates never replace the active
-generation. Dirty-base parallel writes default to an explicit one-run `ask`
-decision; worktrees are retained on integration conflicts and no automatic
-retry or conflict resolution is performed.
+Subagent presentation follows ADR 0046. Each model delegation owns a durable,
+revisioned `SubagentInvocation` keyed to its parent Run and normalized tool
+call. The parent transcript tool position is the visual anchor; low-frequency
+`subagent/invocation-updated` pushes carry lifecycle/latest activity while the
+ordered child Agent stream carries full conversation content. The run manifest
+is restart truth and repairs stale active-looking child records. The Desktop
+child window reuses normal transcript/tool/permission/file rendering, supports
+same-child terminal follow-up, and exposes explicit worktree
+apply/retain/discard. There is no composer-adjacent current-work dock.
+
+Runtime reload is a Host-owned replacement transaction. Settings persistence
+records the active and desired revisions separately, then resident sessions
+converge automatically with latest-wins semantics. A candidate Blueprint is
+compiled from the desired revision, the old generation and all Run descendants
+are joined, and the generation handoff publishes only one generation for new
+root Runs/tool calls. Failed candidates never replace the active generation;
+Desktop/CLI expose the failed state and retry path. Dirty-base parallel writes
+default to an explicit one-run `ask` decision; worktrees are retained on
+integration conflicts and no automatic retry or conflict resolution is
+performed.
 
 ## 4. Package map
 
@@ -381,6 +404,7 @@ retry or conflict resolution is performed.
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
+| `@piwin/extensions` | Host-owned immutable Pi Extension revisions, registry, and deployment journal |
 | `@piwin/mcp` | Config document, MCP Supervisor/ProcessSlot lifecycle, owned transport, metadata catalog |
 | `@piwin/tools-web` | `web_search`, `web_fetch` providers |
 | `@piwin/git` | Status, diff, commit graph model |
@@ -401,6 +425,7 @@ retry or conflict resolution is performed.
   credentials/                # secrets (prefer OS keychain)
   sessions-index/             # SQLite or JSONL index over Pi sessions
   skills/
+  extensions/                  # immutable revisions, registry.json, deployment records
   mcp.json
   themes/
   pets/
@@ -487,6 +512,9 @@ Optional renderer surfaces follow the same ownership rule:
   opaque and revision-bound, stale cursors restart once at page zero, and a
   cursorless active-session anchor locates an old session directly. The
   legacy complete `session/list` remains only for older shells;
+- a completed-session cue in the sidebar is attention-only: terminal pushes add
+  it for sessions that are no longer active, while the currently visible
+  session never receives a duplicate completion marker;
 - only the active non-terminal right-panel body is mounted; an open terminal
   is the explicit temporary exception while `TerminalDock` owns PTY lifetime;
 - settings, terminal, browser, file-tree, knowledge, document, and other

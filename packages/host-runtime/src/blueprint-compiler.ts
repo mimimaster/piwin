@@ -14,7 +14,6 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { access } from 'node:fs/promises';
 import type {
   CreateSessionInput,
   ModelProviderConfig,
@@ -27,19 +26,20 @@ import type {
   SessionToolFamily,
   SessionToolPolicy,
   ContextPolicy,
-  ContextManifest,
   BackendSessionBlueprint,
   HostToolDescriptor,
   McpConfigDocument,
+  EphemeralProviderSecret,
 } from '@piwin/contracts';
 import { modelSupportsCapability, normalizeResourceId } from '@piwin/contracts';
+import { DEFAULT_AGENT_MODE_SYSTEM_PROMPT } from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
 import { loadPiwinConfig } from './config-store.js';
 import { resolveSessionLocation, resolveAgentCwd } from './session-scope.js';
 import { buildResourceShadowDiagnostics, createPiResourceLoader } from './pi-resource-loader.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
-import { getEnabledProviders } from './provider-helpers.js';
+import { getEnabledProviders, resolveDefaultModelRef } from './provider-helpers.js';
 import {
   compileSessionCapabilitySnapshot,
   type CompileSnapshotInput,
@@ -48,9 +48,7 @@ import {
   projectBlueprintForWorker,
   type SerializableBlueprint,
   type SerializableProviderRuntime,
-  ARTIFACT_RUNTIME_CONTRACT,
 } from '@piwin/agent-host';
-import { resolveArtifactDecisionPrompt } from '@piwin/contracts';
 import { getPiwinRoot } from './paths.js';
 import {
   buildMcpCapabilityBrief,
@@ -58,18 +56,25 @@ import {
   type McpCapabilityBrief,
 } from './mcp-capability-brief.js';
 import type { SessionBlueprint } from './session-blueprint.js';
-import { resolveContextManifest } from './capabilities/context-policy-resolver.js';
 import { resolveResourceActivations } from './capabilities/resource-policy-resolver.js';
 import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
 import {
-  defaultNativeSearchAdapterSupport,
+  findReadyWebSearchDelegate,
   findConfiguredModel,
   formatSearchRouteCapabilityBrief,
+  resolveNativeSearchAdapterSupport,
   resolveSearchRoute,
   shouldExposeExternalWebSearch,
 } from './capabilities/search-route-resolver.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
+import { discoverContextManifest } from './context-manifest-discovery.js';
+import { formatArtifactCapabilityPrompt } from './artifact-instructions-tool.js';
+import {
+  buildHostToolboxDescriptor,
+  HOST_TOOLBOX_NAME,
+  isHostToolboxTargetFamily,
+} from './host-toolbox.js';
 
 export type CompiledBlueprint = {
   /** Host-owned exact decision set; never sent over the worker boundary. */
@@ -78,6 +83,8 @@ export type CompiledBlueprint = {
   blueprint: SerializableBlueprint;
   backendBlueprint: BackendSessionBlueprint;
   providers: SerializableProviderRuntime[];
+  /** Raw provider secrets kept in memory for the isolated worker bootstrap. */
+  providerSecrets?: EphemeralProviderSecret[];
   productSessionId: string;
   settingsRevision?: string;
 };
@@ -92,7 +99,7 @@ export class ProviderSecretCompileError extends Error {
 
   constructor(providerId: string) {
     super(
-      `Provider "${providerId}" uses apiKeyRef, but worker mode requires apiKeyEnv or a future secret channel; apiKeyRef secrets cannot cross worker JSONL.`,
+      `Provider "${providerId}" uses apiKeyRef, but no safe worker secret channel was enabled; apiKeyRef secrets cannot cross worker JSONL.`,
     );
     this.name = 'ProviderSecretCompileError';
     this.providerId = providerId;
@@ -109,6 +116,16 @@ export type CompileBlueprintOptions = {
    * disabled because inline secrets must not cross worker JSONL.
    */
   allowInlineProviderSecrets?: boolean;
+  /**
+   * Resolve apiKeyRef through the one-shot worker bootstrap channel. The raw
+   * secret is returned separately from the JSON-safe provider envelope.
+   */
+  allowWorkerProviderSecretBootstrap?: boolean;
+  /**
+   * Compile only these provider ids. This prevents unrelated configured
+   * providers from failing a session that never selects them.
+   */
+  requiredProviderIds?: readonly string[];
   /** Override config load (tests). */
   config?: PiwinConfig;
   /** Override resource discovery (tests). */
@@ -223,6 +240,7 @@ export async function compileBlueprintForWorker(
   );
   const tools = compiledTools.tools;
   const searchRoute = compiledTools.searchRoute;
+  const hostToolboxTargetNames = compiledTools.hostToolboxTargetNames;
 
   const resourceResolution = resolveResourceActivations({
     catalog: resources.catalog ?? buildFallbackResourceCatalog(resources),
@@ -243,10 +261,15 @@ export async function compileBlueprintForWorker(
   // Build context policy + manifest.
   const contextPolicy: ContextPolicy = {
     allowPiNativeInstructions: true,
-    allowProjectAgentsFiles: location.scope.kind === 'project',
-    allowProjectSystemPrompts: location.scope.kind === 'project',
+    allowProjectAgentsFiles: location.scope.kind === 'project' && projectTrusted,
+    allowProjectSystemPrompts: location.scope.kind === 'project' && projectTrusted,
   };
-  const contextManifest = await discoverContextManifest(location.scope, agentCwd);
+  const contextManifest = await discoverContextManifest({
+    scope: location.scope,
+    workingDirectory: agentCwd,
+    agentDir: join(homedir(), '.pi', 'agent'),
+    policy: contextPolicy,
+  });
 
   // Compute content-based revisions from actual config rather than
   // placeholder 'live' strings. This makes the snapshot id deterministic
@@ -257,6 +280,7 @@ export async function compileBlueprintForWorker(
   const projectRevision = computeProjectRevision(location.scope);
   const mcpRevision = computeMcpRevision(mcpConfig);
   const resourceCatalogRevision = computeResourceRevision(resourceResolution.catalog);
+  const extensionSetRevision = computeExtensionSetRevision(resourceResolution.activeEntries);
 
   const compileInput: CompileSnapshotInput = {
     inputs: {
@@ -265,6 +289,7 @@ export async function compileBlueprintForWorker(
       projectRevision,
       mcpRevision,
       resourceCatalogRevision,
+      extensionSetRevision,
     },
     scope: location.scope,
     workingDirectory: location.workingDirectory,
@@ -282,11 +307,13 @@ export async function compileBlueprintForWorker(
     ? { providerId: input.model.providerId, modelId: input.model.modelId }
     : undefined;
 
-  // Compose artifact system prompt from config (ADR 0029).
-  // The decision prompt is configurable; the runtime contract is fixed.
-  // Only inject when artifacts are enabled — otherwise the heavy path is disabled.
-  const artifactAppendPrompt = config.artifact.enabled
-    ? resolveArtifactDecisionPrompt(config.artifact) + '\n\n' + ARTIFACT_RUNTIME_CONTRACT
+  // Keep only a compact routing hint resident. The full configurable decision
+  // policy + runtime contract is loaded through artifact_instructions on demand.
+  const hasArtifactInstructions = snapshot.tools.hostTools.some(
+    (tool) => tool.name === 'artifact_instructions',
+  );
+  const artifactAppendPrompt = hasArtifactInstructions
+    ? formatArtifactCapabilityPrompt(config.artifact)
     : undefined;
 
   // MCP guidance is part of the model-visible contract only when the compiled
@@ -308,6 +335,7 @@ export async function compileBlueprintForWorker(
   const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
 
   const appendSystemPromptParts = [
+    DEFAULT_AGENT_MODE_SYSTEM_PROMPT,
     artifactAppendPrompt,
     mcpAppendPrompt,
     searchRouteAppendPrompt,
@@ -324,10 +352,17 @@ export async function compileBlueprintForWorker(
   });
 
   // Build provider envelope from live config.
-  const providers = await buildProviderEnvelope(config, {
+  const defaultModel = resolveDefaultModelRef(config);
+  const requiredProviderIds =
+    options.requiredProviderIds ??
+    (input.model ? [input.model.providerId] : defaultModel ? [defaultModel.providerId] : undefined);
+  const providerEnvelope = await buildProviderEnvelope(config, {
     allowInlineProviderSecrets: options.allowInlineProviderSecrets === true,
+    allowWorkerProviderSecretBootstrap: options.allowWorkerProviderSecretBootstrap === true,
+    ...(requiredProviderIds ? { requiredProviderIds } : {}),
     ...(options.secretResolver ? { secretResolver: options.secretResolver } : {}),
   });
+  const providers = providerEnvelope.providers;
 
   const productSessionId = options.sessionId ?? randomUUID();
   const backendBlueprint: BackendSessionBlueprint = {
@@ -349,6 +384,7 @@ export async function compileBlueprintForWorker(
     resourceManifest,
     contextManifest,
     hostToolDescriptors: [...snapshot.tools.hostTools],
+    hostToolboxTargetNames,
     backendBlueprint,
   };
 
@@ -357,6 +393,9 @@ export async function compileBlueprintForWorker(
     blueprint,
     backendBlueprint,
     providers,
+    ...(providerEnvelope.providerSecrets.length > 0
+      ? { providerSecrets: providerEnvelope.providerSecrets }
+      : {}),
     productSessionId,
     ...(settingsRevision ? { settingsRevision } : {}),
   };
@@ -407,67 +446,32 @@ function computeProjectRevision(scope: SessionScope): string {
   return createHash('sha256').update(JSON.stringify(scope)).digest('hex').slice(0, 12);
 }
 
-async function discoverContextManifest(
-  scope: SessionScope,
-  workingDirectory: string,
-): Promise<ContextManifest> {
-  const candidates: Array<{
-    kind: 'agents' | 'claude' | 'system' | 'append-system';
-    source: 'project' | 'pi-native';
-    absolutePath: string;
-  }> = [];
-  const names = [
-    ['AGENTS.md', 'agents'],
-    ['CLAUDE.md', 'claude'],
-    ['SYSTEM.md', 'system'],
-    ['APPEND_SYSTEM.md', 'append-system'],
-  ] as const;
-  if (scope.kind === 'project') {
-    for (const [name, kind] of names) {
-      const absolutePath = join(workingDirectory, name);
-      if (await fileExists(absolutePath)) {
-        candidates.push({ kind, source: 'project', absolutePath });
-      }
-    }
-  }
-  return resolveContextManifest(
-    {
-      allowPiNativeInstructions: false,
-      allowProjectAgentsFiles: scope.kind === 'project',
-      allowProjectSystemPrompts: scope.kind === 'project',
-    },
-    {
-      projectAgentsFiles: candidates.filter(
-        (candidate) => candidate.kind === 'agents' || candidate.kind === 'claude',
-      ),
-      projectSystemPrompts: candidates.filter(
-        (candidate) => candidate.kind === 'system' || candidate.kind === 'append-system',
-      ),
-      piNativeFiles: [],
-    },
-  );
-}
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** Compute a revision from the resource catalog before activation filtering. */
 function computeResourceRevision(catalog: ResourceCatalog): string {
   const payload = JSON.stringify({
     entries: [...catalog.entries].sort((left, right) =>
-      `${left.kind}:${left.resourceId}:${left.path}`.localeCompare(
-        `${right.kind}:${right.resourceId}:${right.path}`,
+      `${left.kind}:${left.resourceId}:${left.path}:${left.contentRevision ?? ''}`.localeCompare(
+        `${right.kind}:${right.resourceId}:${right.path}:${right.contentRevision ?? ''}`,
       ),
     ),
     diagnostics: catalog.diagnostics,
   });
   return createHash('sha256').update(payload).digest('hex').slice(0, 12);
+}
+
+/** Compute the exact active Pi Extension revision set identity. */
+function computeExtensionSetRevision(
+  entries: readonly ResourceCatalog['entries'][number][],
+): string {
+  const payload = entries
+    .filter((entry) => entry.kind === 'extension')
+    .map((entry) => ({
+      resourceId: entry.resourceId,
+      path: entry.path,
+      contentRevision: entry.contentRevision ?? null,
+    }))
+    .sort((left, right) => left.resourceId.localeCompare(right.resourceId));
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 12);
 }
 
 /**
@@ -516,22 +520,34 @@ function compileToolPolicy(
   trusted?: boolean,
   mcpEnabledServerIds: readonly string[] = [],
   hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>,
-): { tools: SessionToolPolicy; searchRoute: import('@piwin/contracts').ResolvedSearchRoute } {
+): {
+  tools: SessionToolPolicy;
+  searchRoute: import('@piwin/contracts').ResolvedSearchRoute;
+  hostToolboxTargetNames: string[];
+} {
   // SIDE §6.1: Side Chat compiles a fixed read-only tool profile. It is a
   // product-level session kind, not a subagent capability ceiling, and can
   // never gain write/execute/planning/delegate tools even under a yolo
   // permission preset.
   if (input.sessionKind === 'side-chat') {
-    const tools = buildSideChatToolPolicy(config, hostToolDescriptors, toolNamesFromComposed);
+    const sideChatTools = buildSideChatToolPolicy(
+      config,
+      hostToolDescriptors,
+      toolNamesFromComposed,
+    );
     const configured = findConfiguredModel(config, input.model);
     const searchRoute = resolveSearchRoute({
       model: configured?.model ?? null,
       web: config.web,
-      adapter: defaultNativeSearchAdapterSupport(),
-      // Side chat keeps external search when web config is on; native is not applied.
+      adapter: resolveNativeSearchAdapterSupport(configured?.provider.protocol),
+      externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
+      // Side chat follows the explicit external-only policy.
       policy: 'external-only',
     });
-    return { tools, searchRoute };
+    const tools = shouldExposeExternalWebSearch(searchRoute)
+      ? sideChatTools
+      : omitExternalWebSearch(sideChatTools);
+    return { tools, searchRoute, hostToolboxTargetNames: [] };
   }
   const capabilityCeiling = input.subagent?.capabilities;
 
@@ -540,7 +556,8 @@ function compileToolPolicy(
   const searchRoute = resolveSearchRoute({
     model: configuredModel?.model ?? null,
     web: resolvedWebConfig ?? config.web,
-    adapter: defaultNativeSearchAdapterSupport(),
+    adapter: resolveNativeSearchAdapterSupport(configuredModel?.provider.protocol),
+    externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
   });
   // External Host web_search is ready only when the resolved route selected it.
   // Native-selected generations must not advertise the competing tool family.
@@ -559,6 +576,7 @@ function compileToolPolicy(
     subagents: 'agent',
     notes: config.notes?.enabled === false ? 'off' : 'agent-read-write',
     flashcards: config.flashcards?.enabled === false ? 'off' : 'agent-create',
+    artifact: config.artifact.enabled,
     availability: {
       webSearchReady,
       webFetchReady,
@@ -607,15 +625,36 @@ function compileToolPolicy(
   const effectiveToolNames = toolNamesFromComposed
     ? familyDerivedToolNames.filter((name) => toolNamesFromComposed.includes(name))
     : familyDerivedToolNames;
+  const hostToolboxTargetNames = hostToolFamilyIndex
+    ? resolvedPolicy.enabledFamilies
+        .filter(isHostToolboxTargetFamily)
+        .flatMap((family) => hostToolFamilyIndex.get(family) ?? [])
+        .sort()
+    : [];
+  const modelHostTools = buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors).map(
+    (descriptor) =>
+      descriptor.name === HOST_TOOLBOX_NAME
+        ? buildHostToolboxDescriptor(hostToolboxTargetNames)
+        : descriptor,
+  );
 
   return {
     tools: {
       enabledFamilies: resolvedPolicy.enabledFamilies,
       piBuiltinToolNames,
-      hostTools: buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors),
+      hostTools: modelHostTools,
       enabledMcpServerIds: [...mcpEnabledServerIds],
     },
     searchRoute,
+    hostToolboxTargetNames,
+  };
+}
+
+function omitExternalWebSearch(policy: SessionToolPolicy): SessionToolPolicy {
+  return {
+    ...policy,
+    enabledFamilies: policy.enabledFamilies.filter((family) => family !== 'web-search'),
+    hostTools: policy.hostTools.filter((tool) => tool.name !== 'web_search'),
   };
 }
 
@@ -696,6 +735,7 @@ function buildResourceManifest(
     ...(entry.description !== undefined ? { description: entry.description } : {}),
     path: entry.path,
     source: entry.source,
+    ...(entry.contentRevision ? { contentRevision: entry.contentRevision } : {}),
     ...(entry.piNativeRoot !== undefined ? { piNativeRoot: entry.piNativeRoot } : {}),
   }));
   return {
@@ -744,108 +784,152 @@ function normalizeDisabledResourceIds(ids: readonly string[]): string[] {
 /**
  * Build SerializableProviderRuntime[] from live config.
  * Env-ref auth is safe for worker mode because only the environment variable
- * name crosses the boundary. Inline auth is an explicit SDK-only escape hatch;
- * worker/RPC compilation fails closed for apiKeyRef-only providers.
+ * name crosses the boundary. Keychain auth either stays inline for the
+ * in-process SDK or is paired with an opaque id for the worker bootstrap.
  */
 async function buildProviderEnvelope(
   config: PiwinConfig,
   options: {
     allowInlineProviderSecrets: boolean;
+    allowWorkerProviderSecretBootstrap: boolean;
+    requiredProviderIds?: readonly string[];
     secretResolver?: Pick<SecretResolver, 'resolveProviderSecret'>;
   },
-): Promise<SerializableProviderRuntime[]> {
-  const resolveProviderSecret = options.allowInlineProviderSecrets
-    ? (options.secretResolver?.resolveProviderSecret ??
-      createSecretResolver().resolveProviderSecret)
-    : undefined;
+): Promise<{
+  providers: SerializableProviderRuntime[];
+  providerSecrets: EphemeralProviderSecret[];
+}> {
+  const resolveProviderSecret =
+    options.allowInlineProviderSecrets || options.allowWorkerProviderSecretBootstrap
+      ? (options.secretResolver?.resolveProviderSecret ??
+        createSecretResolver().resolveProviderSecret)
+      : undefined;
   const envelope: SerializableProviderRuntime[] = [];
+  const providerSecrets: EphemeralProviderSecret[] = [];
 
-  for (const provider of getEnabledProviders(config)) {
-    const runtime = await buildSingleProviderRuntime(
+  for (const provider of selectProvidersForCompilation(config, options.requiredProviderIds)) {
+    const built = await buildSingleProviderRuntime(
       provider,
       options.allowInlineProviderSecrets,
+      options.allowWorkerProviderSecretBootstrap,
       resolveProviderSecret,
     );
-    envelope.push(runtime);
+    envelope.push(built.runtime);
+    if (built.secret) {
+      providerSecrets.push(built.secret);
+    }
   }
 
-  return envelope;
+  return { providers: envelope, providerSecrets };
 }
+
+function selectProvidersForCompilation(
+  config: PiwinConfig,
+  requiredProviderIds: readonly string[] | undefined,
+): ModelProviderConfig[] {
+  const enabledProviders = getEnabledProviders(config);
+  if (requiredProviderIds === undefined) {
+    return enabledProviders;
+  }
+
+  const uniqueIds = [...new Set(requiredProviderIds.map((providerId) => providerId.trim()))].filter(
+    (providerId) => providerId.length > 0,
+  );
+  const providersById = new Map(enabledProviders.map((provider) => [provider.id, provider]));
+  const missingProviderId = uniqueIds.find((providerId) => !providersById.has(providerId));
+  if (missingProviderId) {
+    throw new Error(`Configured provider is unavailable: ${missingProviderId}`);
+  }
+  return uniqueIds.flatMap((providerId) => {
+    const provider = providersById.get(providerId);
+    return provider ? [provider] : [];
+  });
+}
+
+type BuiltProviderRuntime = {
+  runtime: SerializableProviderRuntime;
+  secret?: EphemeralProviderSecret;
+};
 
 async function buildSingleProviderRuntime(
   provider: ModelProviderConfig,
   allowInlineProviderSecrets: boolean,
+  allowWorkerProviderSecretBootstrap: boolean,
   resolveProviderSecret: ((provider: ModelProviderConfig) => Promise<string>) | undefined,
-): Promise<SerializableProviderRuntime> {
-  // apiKeyRef is authoritative for SDK. RPC cannot serialize a resolved
-  // keychain secret, so an explicitly configured env ref remains its safe
-  // worker-side source when both legacy fields are present.
+): Promise<BuiltProviderRuntime> {
+  // SDK compilation may resolve the parent-owned keychain reference inline.
+  // When both legacy fields are present, this keeps the explicit SDK choice
+  // authoritative without changing the worker's serialized envelope.
   if (allowInlineProviderSecrets && provider.apiKeyRef?.trim()) {
     if (!resolveProviderSecret) {
-      throw new Error('Provider secret resolver is unavailable for inline SDK auth');
+      throw new Error('Provider secret resolver is unavailable for provider auth');
     }
-    try {
-      const apiKey = await resolveProviderSecret(provider);
-      if (apiKey) {
-        return {
-          providerId: provider.id,
-          protocol: provider.protocol,
-          baseUrl: provider.baseUrl,
-          ...(provider.headers ? { headers: provider.headers } : {}),
-          models: provider.models
-            .filter((model) => modelSupportsCapability(model, 'chat'))
-            .map((model) => ({
-              id: model.id,
-              ...(model.label ? { label: model.label } : {}),
-              ...(model.input ? { input: [...model.input] } : {}),
-              ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-              ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
-              ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-              ...(model.maxOutputTokens !== undefined
-                ? { maxOutputTokens: model.maxOutputTokens }
-                : {}),
-            })),
-          auth: { kind: 'inline', apiKey },
-        };
-      }
-    } catch {
-      // Keep the provider registered with 'none' auth so the worker
-      // can report a precise unavailable error.
+    const apiKey = await resolveProviderSecret(provider);
+    if (!apiKey) {
+      throw new Error(`Provider ${provider.id}: resolved API key is empty`);
     }
-  }
-
-  // Preserve legacy env-only providers. A config containing both fields has
-  // already been handled above, so a stale env ref cannot override the keychain.
-  if (provider.apiKeyEnv?.trim()) {
     return {
-      providerId: provider.id,
-      protocol: provider.protocol,
-      baseUrl: provider.baseUrl,
-      ...(provider.headers ? { headers: provider.headers } : {}),
-      models: provider.models
-        .filter((model) => modelSupportsCapability(model, 'chat'))
-        .map((model) => ({
-          id: model.id,
-          ...(model.label ? { label: model.label } : {}),
-          ...(model.input ? { input: [...model.input] } : {}),
-          ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-          ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
-          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
-          ...(model.maxOutputTokens !== undefined
-            ? { maxOutputTokens: model.maxOutputTokens }
-            : {}),
-          ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
-          ...(model.nativeWebSearchMode ? { nativeWebSearchMode: model.nativeWebSearchMode } : {}),
-        })),
-      auth: { kind: 'env', envName: provider.apiKeyEnv.trim() },
+      runtime: buildProviderRuntime(provider, { kind: 'inline', apiKey }),
     };
   }
 
+  // Worker compilation prefers env-ref auth: the parent injects the env var
+  // into the worker process environment, so the worker never sees the raw key.
+  if (provider.apiKeyEnv?.trim()) {
+    return {
+      runtime: buildProviderRuntime(provider, {
+        kind: 'env',
+        envName: provider.apiKeyEnv.trim(),
+      }),
+    };
+  }
+
+  // apiKeyRef is parent-owned keychain state. Resolve it only when the caller
+  // explicitly selected either the in-process SDK path or the one-shot worker
+  // bootstrap path; never put the raw value in the provider envelope.
   if (provider.apiKeyRef?.trim()) {
-    throw new ProviderSecretCompileError(provider.id);
+    if (!allowInlineProviderSecrets && !allowWorkerProviderSecretBootstrap) {
+      throw new ProviderSecretCompileError(provider.id);
+    }
+    if (!resolveProviderSecret) {
+      throw new Error('Provider secret resolver is unavailable for provider auth');
+    }
+    let apiKey: string;
+    try {
+      apiKey = await resolveProviderSecret(provider);
+    } catch (error) {
+      if (allowWorkerProviderSecretBootstrap && !allowInlineProviderSecrets) {
+        throw new Error(
+          `Provider "${provider.id}" credentials are unavailable for worker bootstrap`,
+        );
+      }
+      throw error;
+    }
+    if (!apiKey) {
+      throw new Error(`Provider ${provider.id}: resolved API key is empty`);
+    }
+    if (allowWorkerProviderSecretBootstrap && !allowInlineProviderSecrets) {
+      const secretId = `provider-secret-${randomUUID()}`;
+      return {
+        runtime: buildProviderRuntime(provider, { kind: 'bootstrap', secretId }),
+        secret: { secretId, value: apiKey },
+      };
+    }
+    if (allowInlineProviderSecrets) {
+      return {
+        runtime: buildProviderRuntime(provider, { kind: 'inline', apiKey }),
+      };
+    }
   }
 
   // No auth configured — provider may work without API key (e.g. local).
+  return { runtime: buildProviderRuntime(provider, { kind: 'none' }) };
+}
+
+function buildProviderRuntime(
+  provider: ModelProviderConfig,
+  auth: SerializableProviderRuntime['auth'],
+): SerializableProviderRuntime {
   return {
     providerId: provider.id,
     protocol: provider.protocol,
@@ -862,6 +946,6 @@ async function buildSingleProviderRuntime(
         ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
         ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
       })),
-    auth: { kind: 'none' },
+    auth,
   };
 }

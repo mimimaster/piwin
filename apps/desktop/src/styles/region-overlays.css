@@ -369,10 +369,10 @@ input.project-path-input {
 .notification-region {
   position: fixed;
   z-index: var(--layer-toast);
-  top: 12px;
+  bottom: 16px;
   right: 16px;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: 8px;
   width: min(420px, calc(100vw - 32px));
   pointer-events: none;
@@ -796,4 +796,17 @@ input.project-path-input {
   color: var(--text-muted, var(--muted));
   font-size: 10.5px;
   line-height: 1.45;
+}
+
+.continue-session-project-list {
+  display: flex;
+  max-height: 280px;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+  overflow-y: auto;
+}
+
+.continue-session-project-list .piwin-button {
+  justify-content: flex-start;
 }

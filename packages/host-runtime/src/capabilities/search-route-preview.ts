@@ -5,8 +5,9 @@ import type {
   SearchRoutePreviewInput,
 } from '@piwin/contracts';
 import {
-  defaultNativeSearchAdapterSupport,
+  findReadyWebSearchDelegate,
   findConfiguredModel,
+  resolveNativeSearchAdapterSupport,
   resolveSearchRoute,
 } from './search-route-resolver.js';
 
@@ -27,8 +28,10 @@ export function buildSearchRoutePreview(
     web: {
       searchSources: input.searchSources,
       searchRoutePolicy: input.policy,
+      ...(input.searchDelegateModel ? { searchDelegateModel: input.searchDelegateModel } : {}),
     },
-    adapter: defaultNativeSearchAdapterSupport(),
+    adapter: resolveNativeSearchAdapterSupport(configured?.provider.protocol),
+    externalDelegateReady: Boolean(findReadyWebSearchDelegate(config, input.searchDelegateModel)),
   });
 
   return {

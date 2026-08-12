@@ -49,6 +49,33 @@ describe('HostClient', () => {
     });
   });
 
+  it('does not impose an acknowledgement timeout on model-backed compaction', async () => {
+    const compactResponse: HostResponse = {
+      id: 'ui-1',
+      type: 'response',
+      command: 'session/compact',
+      success: true,
+      data: { ok: true },
+    };
+    invokeMock.mockResolvedValue(compactResponse);
+    const client = new HostClient({ transport: 'live' });
+
+    const response = await client.request({
+      type: 'session/compact',
+      sessionId: 'session-1',
+    });
+
+    expect(response).toEqual(compactResponse);
+    expect(invokeMock).toHaveBeenCalledWith('host_request', {
+      command: {
+        id: 'ui-1',
+        type: 'session/compact',
+        sessionId: 'session-1',
+      },
+      timeoutMs: 0,
+    });
+  });
+
   it('shares concurrent live connect calls so host events have one listener each', async () => {
     const unlisten = vi.fn();
     listenMock.mockResolvedValue(unlisten);

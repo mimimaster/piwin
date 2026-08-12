@@ -594,6 +594,7 @@ describe('ChatThread render isolation (E1)', () => {
     const slot = container.querySelector('[data-testid="run-activity-slot"]');
     expect(slot).not.toBeNull();
     expect(slot?.textContent).toContain('Connecting to model…');
+    expect(slot?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
   it('renders the run-activity slot when the optimistic transcript is still empty', () => {
@@ -622,6 +623,7 @@ describe('ChatThread render isolation (E1)', () => {
     const slot = container.querySelector('[data-testid="run-activity-slot"]');
     expect(slot).not.toBeNull();
     expect(slot?.textContent).toContain('Connecting to model…');
+    expect(slot?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
   it('removes run-activity slot when a streaming assistant message arrives', () => {
@@ -730,7 +732,7 @@ describe('ChatThread render isolation (E1)', () => {
     ).toHaveLength(1);
   });
 
-  it('renders one aggregated work timeline for a multi-message run', () => {
+  it('renders every response segment in causal order without a Run summary', () => {
     const userMessage = createUserMessage('u-run-work', 'Create the SVG');
     const firstAssistant: ChatMessageUi = {
       id: 'a-run-first',
@@ -788,28 +790,96 @@ describe('ChatThread render isolation (E1)', () => {
       );
     });
 
-    expect(container.querySelectorAll('[data-testid="turn-work-details"]')).toHaveLength(1);
-    expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
-      'inspect the existing files',
+    expect(container.querySelectorAll('[data-testid="turn-work-details"]')).toHaveLength(3);
+    const firstRow = container.querySelector('#msg-a-run-first');
+    const thinkingRow = container.querySelector('#msg-a-run-thinking-only');
+    const finalRow = container.querySelector('#msg-a-run-final');
+    expect(firstRow?.textContent).toContain('inspect the existing files');
+    expect(firstRow?.textContent).toContain('I will inspect the workspace.');
+    expect(thinkingRow?.textContent).toContain('prepare a new drawing');
+    expect(finalRow?.textContent).toContain('The SVG is ready.');
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
+    expect(container.querySelector('[data-testid="activity-call-chain-summary"]')).toBeNull();
+    expect(container.querySelector('[data-testid="run-inspector-inline"]')).toBeNull();
+    expect(firstRow?.compareDocumentPosition(thinkingRow as Node) ?? 0).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
-      'prepare a new drawing',
+    expect(thinkingRow?.compareDocumentPosition(finalRow as Node) ?? 0).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(container.querySelector('#msg-a-run-thinking-only')).toBeNull();
-    expect(container.querySelector('#msg-a-run-first')).toBeNull();
-    // Work details own the final body row so the call chain sits above the answer.
-    expect(
-      container.querySelector('#msg-a-run-final [data-testid="turn-work-details"]'),
-    ).not.toBeNull();
-    // Two tools still expand as cards; 3+ collapse into history summary.
-    expect(container.querySelectorAll('[data-testid="tool-call-card"]').length).toBeGreaterThan(0);
-    expect(container.textContent).not.toContain('I will inspect the workspace.');
     expect(container.textContent).toContain('The SVG is ready.');
   });
 
-  it('does not mount tool-only intermediate lifecycle rows that inflate the turn', () => {
-    // Reproduces the 400px chat-turn-group blank: many Pi tool steps each leave
-    // an assistant message with tools but no body; only the owner should render.
+  it('keeps an earlier tool container mounted when the next response arrives', () => {
+    const userMessage = createUserMessage('u-inspector-stability', 'Inspect the project');
+    const firstAssistant: ChatMessageUi = {
+      id: 'a-inspector-first',
+      role: 'assistant',
+      text: 'I will inspect the project.',
+      thinking: '',
+      tools: [{ toolCallId: 'tool-inspector-first', toolName: 'read', status: 'done', output: '' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-inspector-stability',
+    };
+    const renderThread = (messages: ChatMessageUi[]): void => {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ChatThread
+              messages={messages}
+              streaming={false}
+              editingMessageId={null}
+              lastUserMessageId={userMessage.id}
+              activeTheme={null}
+              artifactThemeKey={0}
+              workDetailsExpanded="collapsed"
+              onEdit={noop}
+              onCancelEdit={noop}
+              onEditResend={noop}
+              onRetry={noop}
+              onInspectSubagent={undefined}
+              composerCard={composerCard}
+              locale="en"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    };
+
+    renderThread([userMessage, firstAssistant]);
+    const firstToolCard = container.querySelector(
+      '#msg-a-inspector-first [data-testid="tool-call-card"]',
+    );
+    expect(firstToolCard).not.toBeNull();
+
+    const nextAssistant: ChatMessageUi = {
+      id: 'a-inspector-next',
+      role: 'assistant',
+      text: 'The project is ready.',
+      thinking: '',
+      tools: [{ toolCallId: 'tool-inspector-next', toolName: 'write', status: 'done', output: '' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-inspector-stability',
+    };
+    renderThread([userMessage, firstAssistant, nextAssistant]);
+
+    expect(container.querySelector('#msg-a-inspector-first [data-testid="tool-call-card"]')).toBe(
+      firstToolCard,
+    );
+    expect(container.querySelector('[data-testid="run-inspector-inline"]')).toBeNull();
+    expect(
+      firstToolCard?.compareDocumentPosition(
+        container.querySelector('#msg-a-inspector-next') as Node,
+      ) ?? 0,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
+  });
+
+  it('keeps tool-only lifecycle rows as ordered transcript events', () => {
+    // Each Pi tool step is a real event position. Compact cards keep it
+    // scannable without moving those calls into a later response.
     const userMessage = createUserMessage('u-tools-inflate', 'Inspect packaging');
     const owner: ChatMessageUi = {
       id: 'a-owner',
@@ -873,17 +943,13 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     for (let index = 0; index < 15; index += 1) {
-      expect(container.querySelector(`#msg-a-tool-step-${index}`)).toBeNull();
+      expect(container.querySelector(`#msg-a-tool-step-${index}`)).not.toBeNull();
     }
-    // Empty first lifecycle row is dropped; tools hang on the final body row.
-    expect(container.querySelector('#msg-a-owner')).toBeNull();
+    expect(container.querySelector('#msg-a-owner')).not.toBeNull();
     expect(container.querySelector('#msg-a-final-body')).not.toBeNull();
-    expect(
-      container.querySelector('#msg-a-final-body [data-testid="turn-work-details"]'),
-    ).not.toBeNull();
-    // User + final body only (16 tool shells must not remain).
-    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(2);
-    expect(container.querySelector('[data-testid="activity-history-tools"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(18);
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(16);
+    expect(container.querySelector('[data-testid="activity-call-chain"]')).toBeNull();
     expect(container.textContent).toContain('I need to ground the plan');
   });
 
@@ -1214,7 +1280,8 @@ describe('ChatThread render isolation (E1)', () => {
         .querySelector('[data-testid="image-generation-progress"]')
         ?.getAttribute('data-tool-status'),
     ).toBe('error');
-    expect(container.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="activity-call-chain-failure"]')).toBeNull();
 
     renderMessage({
       ...runningMessage,
@@ -1222,6 +1289,91 @@ describe('ChatThread render isolation (E1)', () => {
       tools: [{ ...imageTool, toolCallId: 'video-tool-1', toolName: 'video_gen' }],
     });
     expect(container.querySelector('[data-testid="video-generation-progress"]')).not.toBeNull();
+  });
+
+  it('renders routed generation calls once and keeps non-generation toolbox calls generic', () => {
+    function renderTool(tool: ToolCardUi): void {
+      const message: ChatMessageUi = {
+        id: `message-${tool.toolCallId}`,
+        role: 'assistant',
+        text: '',
+        thinking: '',
+        tools: [tool],
+        attachments: [],
+        status: tool.status === 'running' ? 'streaming' : tool.status,
+      };
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ChatThread
+              messages={[message]}
+              streaming={message.status === 'streaming'}
+              editingMessageId={null}
+              lastUserMessageId={null}
+              activeTheme={null}
+              artifactThemeKey={0}
+              onEdit={noop}
+              onCancelEdit={noop}
+              onEditResend={noop}
+              onRetry={noop}
+              onInspectSubagent={undefined}
+              composerCard={composerCard}
+              locale="en"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    }
+
+    renderTool({
+      toolCallId: 'routed-image',
+      toolName: 'piwin_toolbox',
+      status: 'running',
+      output: '',
+      presentation: {
+        kind: 'image',
+        title: 'image_gen',
+        routedToolName: 'image_gen',
+        actionVerb: 'Generated image',
+        summary: 'a red cube',
+      },
+    });
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+
+    renderTool({
+      toolCallId: 'routed-video',
+      toolName: 'piwin_toolbox',
+      status: 'error',
+      output: 'provider failed',
+      presentation: {
+        kind: 'video',
+        title: 'video_gen',
+        routedToolName: 'video_gen',
+        actionVerb: 'Generated video',
+        error: { category: 'execution', message: 'provider failed' },
+      },
+    });
+    expect(container.querySelector('[data-testid="video-generation-progress"]')).toMatchObject({
+      textContent: expect.stringContaining('Video generation failed'),
+    });
+    expect(container.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+
+    renderTool({
+      toolCallId: 'routed-process',
+      toolName: 'piwin_toolbox',
+      status: 'running',
+      output: '',
+      presentation: {
+        kind: 'process',
+        title: 'process_start',
+        routedToolName: 'process_start',
+        actionVerb: 'process_start',
+      },
+    });
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toBeNull();
+    expect(container.querySelector('[data-testid="video-generation-progress"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
   });
 
   it('renders native citations for live and hydrated assistant messages only', () => {
@@ -1355,6 +1507,67 @@ describe('ChatThread render isolation (E1)', () => {
     expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
       'Reviewing the implementation details.',
     );
+  });
+
+  it('stops the thought timer during tool work and shows the fixed interval at completion', () => {
+    const assistantMessage: ChatMessageUi = {
+      id: 'thinking-timer-a1',
+      role: 'assistant',
+      text: '',
+      thinking: 'Reviewing the implementation details.',
+      thinkingStartedAt: 1_000,
+      thinkingEndedAt: 5_000,
+      tools: [{ toolCallId: 'tool-1', toolName: 'read', status: 'done', output: '' }],
+      attachments: [],
+      status: 'done',
+      runId: 'run-thinking-timer',
+    };
+
+    function renderThread(activeRunId: string | null, endedAt: number | null): void {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[assistantMessage]}
+            streaming={activeRunId !== null}
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            activeRunId={activeRunId}
+            runRecordsById={{
+              'run-thinking-timer': {
+                runId: 'run-thinking-timer',
+                phaseHistory: [{ phase: 'tool-running', at: 6_000 }],
+                startedAt: 500,
+                endedAt,
+                ...(endedAt !== null ? { outcome: 'completed' as const } : {}),
+              },
+            }}
+            showThinking
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    }
+
+    act(() => renderThread('run-thinking-timer', null));
+    let summary = container.querySelector<HTMLElement>(
+      '[data-testid="turn-work-details-summary"]',
+    );
+    expect(summary?.textContent).toContain('正在处理…');
+    expect(summary?.textContent).not.toContain('已思考');
+    expect(container.querySelector('[data-testid="turn-summary-active-animation"]')).toBeNull();
+
+    act(() => renderThread(null, 1_707_000));
+    summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
+    expect(summary?.textContent).toContain('已思考 4 秒');
+    expect(summary?.textContent).not.toContain('1707');
   });
 
   it('uses the compact shared radial animation for active thinking', () => {

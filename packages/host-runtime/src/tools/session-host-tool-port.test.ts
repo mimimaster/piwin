@@ -5,6 +5,7 @@ import {
   createSessionHostToolExecutionPort,
 } from './session-host-tool-port.js';
 import type { HostToolPermissionGate } from './host-tool-execution-router.js';
+import { buildHostToolboxRegistration } from '../host-toolbox.js';
 
 const allowPermission: HostToolPermissionGate = async () => ({ allowed: true });
 
@@ -252,6 +253,93 @@ describe('SessionHostToolExecutionPort', () => {
       ok: false,
       code: 'tool-not-available',
       message: 'tool not in session manifest: process_start',
+    });
+  });
+
+  it('describes and calls a hidden target through its original permission registration', async () => {
+    const direct = makeTool('web_search');
+    const target = makeTool('process_start');
+    target.permissionSpec.readOnly = false;
+    target.permissionSpec.subjectBuilder = () => ({ kind: 'tool', action: 'process:start' });
+    const toolbox = buildHostToolboxRegistration([target]);
+    const admittedNames: string[] = [];
+    const permissionGate: HostToolPermissionGate = async ({ registration }) => {
+      admittedNames.push(registration.descriptor.name);
+      return { allowed: true };
+    };
+    const port = createSessionHostToolExecutionPort({
+      isSessionKnown: () => true,
+      getRuntimeGenerationId: () => 'gen-1',
+    });
+    port.registerActiveGeneration(
+      'session-1',
+      'gen-1',
+      [direct, target, toolbox],
+      permissionGate,
+    );
+    expect(
+      port.restrictGeneration(
+        'session-1',
+        'gen-1',
+        ['web_search', 'piwin_toolbox'],
+        ['process_start'],
+      ),
+    ).toBe(true);
+
+    const describe = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: { action: 'describe', target: 'process_start' },
+      },
+      new AbortController().signal,
+    );
+    expect(describe.ok).toBe(true);
+    if (describe.ok) {
+      expect(describe.output).toContain('process_start tool');
+    }
+    expect(admittedNames).toEqual([]);
+
+    const call = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: {
+          action: 'call',
+          target: 'process_start',
+          arguments: { value: 'hello' },
+        },
+      },
+      new AbortController().signal,
+    );
+    expect(call).toEqual({ ok: true, output: 'process_start:hello' });
+    expect(admittedNames).toEqual(['process_start']);
+  });
+
+  it('rejects a hidden target that was not admitted for the compiled generation', async () => {
+    const target = makeTool('process_start');
+    const toolbox = buildHostToolboxRegistration([target]);
+    const port = makePort({ tools: [target, toolbox] });
+    port.restrictGeneration('session-1', 'gen-1', ['piwin_toolbox'], []);
+
+    const result = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: { action: 'call', target: 'process_start', arguments: {} },
+      },
+      new AbortController().signal,
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: 'tool-not-available',
+      message: 'toolbox target not in session generation: process_start',
     });
   });
 

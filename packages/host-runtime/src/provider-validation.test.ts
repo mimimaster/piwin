@@ -148,6 +148,42 @@ describe('validateProviders', () => {
       ]),
     );
   });
+
+  it('accepts image apiStyle values and rejects video-only or unknown styles', () => {
+    expect(
+      validateProviders([
+        sampleProvider({
+          models: [
+            {
+              id: 'grok-image',
+              capabilities: ['image-generation'],
+              routes: { 'image-generation': { apiStyle: 'openai' } },
+            },
+            {
+              id: 'gemini-image',
+              capabilities: ['image-generation'],
+              routes: { 'image-generation': { apiStyle: 'gemini' } },
+            },
+          ],
+        }),
+      ]),
+    ).toEqual([]);
+
+    const issues = validateProviders([
+      sampleProvider({
+        models: [
+          {
+            id: 'bad',
+            capabilities: ['image-generation'],
+            routes: { 'image-generation': { apiStyle: 'runway-tasks' } },
+          },
+        ],
+      }),
+    ]);
+    expect(issues.map((issue) => issue.path)).toContain(
+      'providers[0].models[0].routes.image-generation.apiStyle',
+    );
+  });
 });
 
 describe('validatePiwinConfig', () => {

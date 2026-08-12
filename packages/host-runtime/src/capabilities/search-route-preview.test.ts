@@ -11,9 +11,7 @@ function configWithModels(): PiwinConfig {
       name: 'Native Provider',
       protocol: 'openai-compatible',
       baseUrl: 'https://provider.example/v1',
-      models: [
-        { id: 'native-chat', capabilities: ['chat', 'native-web-search'] },
-      ],
+      models: [{ id: 'native-chat', capabilities: ['chat', 'native-web-search'] }],
     },
   ];
   config.defaultProviderId = 'native-provider';
@@ -37,18 +35,29 @@ describe('buildSearchRoutePreview', () => {
     expect(JSON.stringify(preview)).not.toContain('apiKey');
   });
 
-  it('reports incompatibility for external-only plus always-on native search', () => {
+  it('follows external-only policy when an external source is ready', () => {
     const config = configWithModels();
-    const model = config.providers[0]?.models[0];
-    if (!model) throw new Error('test model missing');
-    model.nativeWebSearchMode = 'always-on';
-
     const preview = buildSearchRoutePreview(config, {
       policy: 'external-only',
       searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
     });
 
-    expect(preview.route.incompatible).toBe(true);
-    expect(preview.route.selected).toBe('native');
+    expect(preview.route.selected).toBe('external');
+  });
+
+  it('uses a valid draft delegate as external readiness without ordinary sources', () => {
+    const config = configWithModels();
+    const preview = buildSearchRoutePreview(config, {
+      policy: 'external-first',
+      searchSources: [],
+      searchDelegateModel: {
+        protocol: 'openai-compatible',
+        providerId: 'native-provider',
+        modelId: 'native-chat',
+      },
+    });
+
+    expect(preview.route.selected).toBe('external');
+    expect(preview.route.readiness.external.hasDelegateModel).toBe(true);
   });
 });

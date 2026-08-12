@@ -7,6 +7,7 @@ import {
   mergeDiscoveredModels,
   modelSupportsImage,
 } from './model-configuration';
+import { collectVideoModels } from './video-generation-model-config';
 
 describe('model configuration', () => {
   it('round-trips all per-model configuration fields including input/reasoning', () => {
@@ -20,7 +21,7 @@ describe('model configuration', () => {
       thinkingLevels: ['off', 'low', 'medium', 'high'],
       input: ['text', 'image'],
       reasoning: true,
-      capabilities: ['image-generation'],
+      capabilities: ['image-generation', 'video-generation'],
     });
 
     expect(createModelConfigurationEntry(draft)).toEqual({
@@ -33,7 +34,7 @@ describe('model configuration', () => {
       thinkingLevels: ['off', 'low', 'medium', 'high'],
       input: ['text', 'image'],
       reasoning: true,
-      capabilities: ['image-generation'],
+      capabilities: ['image-generation', 'video-generation'],
     });
   });
 
@@ -49,10 +50,10 @@ describe('model configuration', () => {
         thinkingLevels: [],
         supportsImage: false,
         supportsImageGeneration: false,
+        supportsVideoGeneration: false,
         supportsSpeechToText: false,
         supportsTextToSpeech: false,
         supportsNativeWebSearch: false,
-        nativeWebSearchMode: 'controllable',
         reasoning: true,
       }),
     ).toEqual({
@@ -109,10 +110,10 @@ describe('model configuration', () => {
         thinkingLevels: [],
         supportsImage: false,
         supportsImageGeneration: false,
+        supportsVideoGeneration: false,
         supportsSpeechToText: false,
         supportsTextToSpeech: false,
         supportsNativeWebSearch: false,
-        nativeWebSearchMode: 'controllable',
         reasoning: true,
       }),
     ).toBeNull();
@@ -182,17 +183,59 @@ describe('model configuration', () => {
     expect(next?.[0]?.capabilities).toBeUndefined();
   });
 
-  it('preserves video-generation when the shared model editor saves image settings', () => {
+  it('round-trips video-generation from the shared model editor', () => {
+    const model: ModelConfigEntry = {
+      id: 'multimodal-model',
+      capabilities: ['video-generation'],
+    };
     const next = applyModelConfigurationDraft(
-      [{ id: 'multimodal-model', capabilities: ['video-generation'] }],
+      [model],
       'multimodal-model',
       {
-        ...createModelConfigurationDraft({ id: 'multimodal-model' }),
+        ...createModelConfigurationDraft(model),
         supportsImageGeneration: true,
       },
     );
 
-    expect(next?.[0]?.capabilities).toEqual(['video-generation', 'image-generation']);
+    expect(next?.[0]?.capabilities).toEqual(['image-generation', 'video-generation']);
+  });
+
+  it('removes video-generation when the capability is unchecked', () => {
+    const next = applyModelConfigurationDraft(
+      [{ id: 'video-model', capabilities: ['video-generation'] }],
+      'video-model',
+      {
+        ...createModelConfigurationDraft({
+          id: 'video-model',
+          capabilities: ['video-generation'],
+        }),
+        supportsVideoGeneration: false,
+      },
+    );
+
+    expect(next?.[0]?.capabilities).toBeUndefined();
+  });
+
+  it('makes a newly tagged model available to Video settings automatically', () => {
+    const model = createModelConfigurationEntry({
+      ...createModelConfigurationDraft({ id: 'grok-imagine-video' }),
+      supportsVideoGeneration: true,
+    });
+    expect(model).not.toBeNull();
+
+    const rows = collectVideoModels([
+      {
+        id: 'xai',
+        name: 'xAI',
+        protocol: 'openai-compatible',
+        baseUrl: 'https://api.x.ai/v1',
+        models: model ? [model] : [],
+      },
+    ]);
+
+    expect(rows.map(({ provider, model: videoModel }) => [provider.id, videoModel.id])).toEqual([
+      ['xai', 'grok-imagine-video'],
+    ]);
   });
 
   it('imports discovered models with catalog-enriched input fields', () => {
@@ -321,32 +364,32 @@ describe('model configuration', () => {
     expect(draft.thinkingLevels).toEqual(['off', 'high']);
   });
 
-  it('round-trips native web search and its controllability mode', () => {
+  it('round-trips native web search capability', () => {
     const draft = createModelConfigurationDraft({
       id: 'search-model',
       capabilities: ['native-web-search'],
-      nativeWebSearchMode: 'always-on',
     });
 
     expect(draft.supportsNativeWebSearch).toBe(true);
-    expect(draft.nativeWebSearchMode).toBe('always-on');
-    expect(createModelConfigurationEntry(draft)).toMatchObject({
+    expect(createModelConfigurationEntry(draft)).toEqual({
       id: 'search-model',
       capabilities: ['native-web-search'],
-      nativeWebSearchMode: 'always-on',
+      input: ['text'],
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192,
+      reasoning: true,
     });
   });
 
-  it('removes stale native-search metadata when the capability is disabled', () => {
-    const original: ModelConfigEntry = {
+  it('removes stale native-search metadata when saving a model', () => {
+    const original = {
       id: 'search-model',
       capabilities: ['native-web-search', 'video-generation'],
-      nativeWebSearchMode: 'always-on',
       routes: {
-        'native-web-search': { nativeSearchMode: 'always-on' },
         'video-generation': { apiStyle: 'custom' },
       },
-    };
+      nativeWebSearchMode: 'legacy',
+    } as ModelConfigEntry & { nativeWebSearchMode: 'legacy' };
     const draft = createModelConfigurationDraft({
       ...original,
       capabilities: ['video-generation'],
@@ -354,10 +397,10 @@ describe('model configuration', () => {
     draft.supportsNativeWebSearch = false;
 
     const models = applyModelConfigurationDraft([original], original.id, draft);
-    expect(models?.[0]).not.toHaveProperty('nativeWebSearchMode');
     expect(models?.[0]?.capabilities).toEqual(['video-generation']);
     expect(models?.[0]?.routes).toEqual({
       'video-generation': { apiStyle: 'custom' },
     });
+    expect(models?.[0]).not.toHaveProperty('nativeWebSearchMode');
   });
 });

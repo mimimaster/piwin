@@ -25,13 +25,45 @@ const IGNORED_DIR_NAMES = new Set([
 
 export type ResolvePromptContextRefsDeps = {
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
-  /**
-   * Optional: reject file/folder refs whose project root is not a remembered
-   * (registered) project. Without this, a crafted ref could point at any
-   * directory on the host and have its files read into the model prompt.
-   */
+  loadTranscriptMessage?: (
+    sessionId: string,
+    messageId: string,
+  ) => Promise<SessionTranscriptMessage | undefined>;
   isRegisteredProjectRoot?: (projectPath: string) => Promise<boolean>;
+  onDiagnostic?: (message: string) => void;
 };
+
+export function selectFileReferenceRange(
+  content: string,
+  lineStart?: number,
+  lineEnd?: number,
+): string | undefined {
+  if (lineStart === undefined) return content;
+  if (!Number.isSafeInteger(lineStart) || lineStart < 1) return undefined;
+  const effectiveEnd =
+    lineEnd === undefined
+      ? lineStart
+      : !Number.isSafeInteger(lineEnd) || lineEnd < lineStart
+        ? undefined
+        : lineEnd;
+  if (effectiveEnd === undefined) return undefined;
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
+  if (lineStart > lines.length) return undefined;
+  return lines.slice(lineStart - 1, Math.min(effectiveEnd, lines.length)).join('\n');
+}
+
+async function loadReferencedMessage(
+  deps: ResolvePromptContextRefsDeps,
+  sessionId: string,
+  messageId: string,
+): Promise<SessionTranscriptMessage | undefined> {
+  if (deps.loadTranscriptMessage) {
+    return deps.loadTranscriptMessage(sessionId, messageId);
+  }
+  const messages = await deps.loadTranscriptMessages(sessionId);
+  return messages.find((item) => item.id === messageId);
+}
 
 /**
  * Resolve structured context refs into a bounded, labeled context block for the
@@ -46,21 +78,27 @@ export async function resolvePromptContextRefs(
   for (const ref of refs) {
     switch (ref.kind) {
       case 'side-chat-message': {
-        const messages = await deps.loadTranscriptMessages(ref.sideChatSessionId);
-        const message = messages.find((item) => item.id === ref.messageId);
+        const message = await loadReferencedMessage(deps, ref.sideChatSessionId, ref.messageId);
         if (message) {
           blocks.push(
             `[side-chat-reference: ${ref.label}]\n${message.text.trim().slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+          );
+        } else {
+          deps.onDiagnostic?.(
+            `context ref missing: kind=side-chat-message session=${ref.sideChatSessionId} message=${ref.messageId}`,
           );
         }
         break;
       }
       case 'main-message': {
-        const messages = await deps.loadTranscriptMessages(ref.sourceSessionId);
-        const message = messages.find((item) => item.id === ref.messageId);
+        const message = await loadReferencedMessage(deps, ref.sourceSessionId, ref.messageId);
         if (message) {
           blocks.push(
             `[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
+          );
+        } else {
+          deps.onDiagnostic?.(
+            `context ref missing: kind=main-message session=${ref.sourceSessionId} message=${ref.messageId}`,
           );
         }
         break;
@@ -74,11 +112,18 @@ export async function resolvePromptContextRefs(
         }
         const content = await readBoundedFileForRef(ref.projectPath, ref.relativePath);
         if (content !== undefined) {
+          const selected = selectFileReferenceRange(content, ref.lineStart, ref.lineEnd);
+          if (selected === undefined) {
+            deps.onDiagnostic?.(
+              `context ref range invalid: kind=file path=${ref.relativePath} start=${ref.lineStart ?? ''} end=${ref.lineEnd ?? ''}`,
+            );
+            break;
+          }
           const range =
             ref.lineStart !== undefined
               ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
               : '';
-          blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${content}`);
+          blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${selected}`);
         }
         break;
       }

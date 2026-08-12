@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TranscriptScrollPosition } from './transcript-scroll-memory';
-import { TranscriptTurnAnchorController } from './transcript-turn-anchor.js';
+import { computeCurrentResponseMinHeight } from './transcript-response-viewport.js';
 
 const BOTTOM_THRESHOLD_PX = 64;
 /** Treat near-full viewports as non-overflowing to avoid 1px thrash. */
@@ -104,10 +104,8 @@ function readScrollMetrics(element: HTMLElement): {
 export function useTranscriptScroll(options: {
   messageCount: number;
   activitySignal: string;
-  /** Optimistic user message that owns the stable viewport for this turn. */
-  turnAnchorMessageId?: string | null;
-  /** Releases the temporary spacer when the user takes over scrolling. */
-  onTurnAnchorReleased?: () => void;
+  /** A newly submitted turn re-enters follow-tail even after history reading. */
+  liveTurnId?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const followTailRef = useRef(true);
@@ -119,15 +117,16 @@ export function useTranscriptScroll(options: {
   /** True while we own scrollTop writes; soft-blocks followTail clear on onScroll. */
   const programmaticScrollRef = useRef(false);
   const stickFramesRef = useRef<number[]>([]);
-  const turnAnchorReleaseCallbackRef = useRef(options.onTurnAnchorReleased);
-  turnAnchorReleaseCallbackRef.current = options.onTurnAnchorReleased;
+  const previousLiveTurnIdRef = useRef<string | null>(null);
   /** Last observed scroll geometry — distinguishes user scroll from growth. */
   const lastScrollGeometryRef = useRef({ scrollTop: 0, scrollHeight: 0 });
   const [followTail, setFollowTailState] = useState(true);
   const [scrollProgress, setScrollProgress] = useState(1);
   const [scrollRatio, setScrollRatio] = useState(1);
+  const [currentResponseMinHeight, setCurrentResponseMinHeight] = useState(0);
 
   const applyMetrics = useCallback((element: HTMLElement) => {
+    setCurrentResponseMinHeight(computeCurrentResponseMinHeight(element.clientHeight));
     const metrics = readScrollMetrics(element);
     setScrollProgress(metrics.progress);
     setScrollRatio(metrics.ratio);
@@ -165,31 +164,9 @@ export function useTranscriptScroll(options: {
     });
   }, []);
 
-  const turnAnchorControllerRef = useRef<TranscriptTurnAnchorController | null>(null);
-  if (turnAnchorControllerRef.current === null) {
-    turnAnchorControllerRef.current = new TranscriptTurnAnchorController({
-      getContainer: () => containerRef.current,
-      beginProgrammaticScroll,
-      updateMetrics: applyMetrics,
-      recordGeometry: (element) => {
-        lastScrollGeometryRef.current = {
-          scrollTop: element.scrollTop,
-          scrollHeight: element.scrollHeight,
-        };
-      },
-      onRelease: () => turnAnchorReleaseCallbackRef.current?.(),
-    });
-  }
-  const turnAnchorController = turnAnchorControllerRef.current;
-
   const stickToBottomIfFollowing = useCallback(() => {
     const element = containerRef.current;
-    if (
-      !element ||
-      !followTailRef.current ||
-      userDetachedRef.current ||
-      turnAnchorController.isAttached()
-    ) {
+    if (!element || !followTailRef.current || userDetachedRef.current) {
       return;
     }
     beginProgrammaticScroll();
@@ -198,7 +175,8 @@ export function useTranscriptScroll(options: {
       scrollTop: element.scrollTop,
       scrollHeight: element.scrollHeight,
     };
-  }, [beginProgrammaticScroll, turnAnchorController]);
+    applyMetrics(element);
+  }, [applyMetrics, beginProgrammaticScroll]);
 
   /**
    * Stick now and once more on the following frames. Artifact iframe height
@@ -239,7 +217,6 @@ export function useTranscriptScroll(options: {
 
   const jumpToLatest = useCallback(() => {
     const element = containerRef.current;
-    turnAnchorController.release();
     userDetachedRef.current = false;
     setFollowTail(true);
     if (element) {
@@ -251,7 +228,7 @@ export function useTranscriptScroll(options: {
       };
       applyMetrics(element);
     }
-  }, [applyMetrics, beginProgrammaticScroll, setFollowTail, turnAnchorController]);
+  }, [applyMetrics, beginProgrammaticScroll, setFollowTail]);
 
   const handleScroll = useCallback(() => {
     const element = containerRef.current;
@@ -269,15 +246,6 @@ export function useTranscriptScroll(options: {
       scrollTop: element.scrollTop,
       scrollHeight: element.scrollHeight,
     };
-
-    if (turnAnchorController.isAttached()) {
-      if (programmaticScrollRef.current || Math.abs(scrollTopDelta) < 1) {
-        return;
-      }
-      turnAnchorController.release();
-      detachFromTail();
-      return;
-    }
 
     // User clearly scrolled into history — always wins over stick races.
     if (
@@ -322,13 +290,7 @@ export function useTranscriptScroll(options: {
     }
     // Non-near-bottom without a clear upward delta (layout thrash) — leave
     // follow-tail alone only when still following; detach only on real away.
-  }, [
-    cancelScheduledSticks,
-    detachFromTail,
-    setFollowTail,
-    stickToBottomAcrossFrames,
-    turnAnchorController,
-  ]);
+  }, [cancelScheduledSticks, detachFromTail, setFollowTail, stickToBottomAcrossFrames]);
 
   const restorePosition = useCallback(
     (position: TranscriptScrollPosition): void => {
@@ -360,11 +322,6 @@ export function useTranscriptScroll(options: {
     }
 
     const onWheel = (event: WheelEvent): void => {
-      if (turnAnchorController.isAttached()) {
-        turnAnchorController.release();
-        detachFromTail();
-        return;
-      }
       if (!shouldDetachFollowTailFromWheelDelta(event.deltaY)) {
         return;
       }
@@ -377,26 +334,22 @@ export function useTranscriptScroll(options: {
     return () => {
       element.removeEventListener('wheel', onWheel);
     };
-  }, [cancelScheduledSticks, detachFromTail, options.messageCount, turnAnchorController]);
+  }, [cancelScheduledSticks, detachFromTail, options.messageCount]);
 
   useLayoutEffect(() => {
-    const nextAnchorMessageId = options.turnAnchorMessageId ?? null;
-    if (nextAnchorMessageId === null) {
-      turnAnchorController.setMessageId(null);
+    const nextLiveTurnId = options.liveTurnId?.trim() || null;
+    if (nextLiveTurnId === null) {
+      previousLiveTurnIdRef.current = null;
       return;
     }
-    if (turnAnchorController.setMessageId(nextAnchorMessageId)) {
-      userDetachedRef.current = false;
-      followTailRef.current = false;
-      setFollowTailState(false);
+    if (previousLiveTurnIdRef.current === nextLiveTurnId) {
+      return;
     }
-    cancelScheduledSticks();
-    turnAnchorController.anchorAcrossFrames();
-  }, [
-    cancelScheduledSticks,
-    options.turnAnchorMessageId,
-    turnAnchorController,
-  ]);
+    previousLiveTurnIdRef.current = nextLiveTurnId;
+    userDetachedRef.current = false;
+    setFollowTail(true);
+    stickToBottomAcrossFrames();
+  }, [options.liveTurnId, setFollowTail, stickToBottomAcrossFrames]);
 
   // Observe scrollport size and content tree so height changes remeasure even
   // when stick-to-bottom does not emit a scroll event.
@@ -407,9 +360,7 @@ export function useTranscriptScroll(options: {
     }
 
     const remeasureFromResize = () => {
-      if (turnAnchorController.isAttached()) {
-        turnAnchorController.anchorAcrossFrames();
-      } else if (followTailRef.current && !userDetachedRef.current) {
+      if (followTailRef.current && !userDetachedRef.current) {
         stickToBottomAcrossFrames();
       } else {
         measure();
@@ -420,7 +371,6 @@ export function useTranscriptScroll(options: {
       remeasureFromResize();
       return () => {
         cancelScheduledSticks();
-        turnAnchorController.cancel();
       };
     }
 
@@ -457,14 +407,8 @@ export function useTranscriptScroll(options: {
       resizeObserver.disconnect();
       mutationObserver?.disconnect();
       cancelScheduledSticks();
-      turnAnchorController.cancel();
     };
-  }, [
-    cancelScheduledSticks,
-    measure,
-    stickToBottomAcrossFrames,
-    turnAnchorController,
-  ]);
+  }, [cancelScheduledSticks, measure, stickToBottomAcrossFrames]);
 
   // Activity / message growth: stick then remeasure after layout commits.
   useLayoutEffect(() => {
@@ -472,20 +416,12 @@ export function useTranscriptScroll(options: {
     if (!element) {
       return;
     }
-    if (turnAnchorController.isAttached()) {
-      turnAnchorController.anchorAcrossFrames();
-    } else if (followTailRef.current && !userDetachedRef.current) {
+    if (followTailRef.current && !userDetachedRef.current) {
       stickToBottomAcrossFrames();
     } else {
       measure();
     }
-  }, [
-    options.activitySignal,
-    options.messageCount,
-    measure,
-    stickToBottomAcrossFrames,
-    turnAnchorController,
-  ]);
+  }, [options.activitySignal, options.messageCount, measure, stickToBottomAcrossFrames]);
 
   return {
     containerRef,
@@ -500,6 +436,7 @@ export function useTranscriptScroll(options: {
     scrollProgress,
     scrollRatio,
     isOverflowing: isScrollOverflowing(scrollRatio),
+    currentResponseMinHeight,
     measure,
   };
 }

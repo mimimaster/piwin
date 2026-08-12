@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { SearchRoutePreviewData } from '@piwin/contracts';
-import { Notice, StatusBadge } from '@piwin/ui-kit';
+import { StatusBadge } from '@piwin/ui-kit';
 
 export type SearchRouteStatusProps = {
   preview: SearchRoutePreviewData | null;
@@ -22,7 +22,7 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
   const selectedLabel =
     route.selected === 'native'
       ? zh
-        ? '内置搜索'
+        ? '模型内置搜索'
         : 'Provider-native search'
       : route.selected === 'external'
         ? zh
@@ -34,14 +34,14 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
   const fallbackLabel =
     route.fallback === 'native'
       ? zh
-        ? '内置搜索'
+        ? '模型内置搜索'
         : 'native search'
       : route.fallback === 'external'
         ? zh
           ? '外部搜索'
           : 'external search'
         : null;
-  const warning = route.incompatible || route.issues.length > 0;
+  const warning = route.issues.length > 0;
 
   return (
     <div className="search-route-status" data-testid="search-route-status">
@@ -59,13 +59,6 @@ export function SearchRouteStatus(props: SearchRouteStatusProps): ReactElement |
         <div className="muted" data-testid="search-route-fallback">
           {zh ? `不可用时回退：${fallbackLabel}` : `Fallback when unavailable: ${fallbackLabel}`}
         </div>
-      ) : null}
-      {route.incompatible ? (
-        <Notice tone="warning">
-          {zh
-            ? '当前策略与模型的内置搜索开关冲突。'
-            : 'The current policy conflicts with the model’s native-search controls.'}
-        </Notice>
       ) : null}
       {route.issues.length > 0 ? (
         <ul className="muted" data-testid="search-route-issues">

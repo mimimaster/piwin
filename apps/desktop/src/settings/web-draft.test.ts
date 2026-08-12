@@ -17,6 +17,11 @@ const SAMPLE_WEB: WebConfig = {
       apiKeyRef: 'keychain:piwin-web-brave',
     },
   ],
+  searchDelegateModel: {
+    protocol: 'google-gemini',
+    providerId: 'gemini',
+    modelId: 'gemini-search',
+  },
   searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 7000 },
   searchRoutePolicy: 'native-first',
   fetchProvider: 'firecrawl',
@@ -38,11 +43,21 @@ describe('web draft conversion', () => {
     expect(draftToWeb(draft).searchRoutePolicy).toBe('native-only');
   });
 
+  it('round-trips the optional web_search delegate model', () => {
+    const draft = webToDraft(SAMPLE_WEB);
+    expect(draft.searchDelegateModel).toEqual(SAMPLE_WEB.searchDelegateModel);
+    expect(draftToWeb(draft).searchDelegateModel).toEqual(SAMPLE_WEB.searchDelegateModel);
+    delete draft.searchDelegateModel;
+    expect(draftToWeb(draft).searchDelegateModel).toBeUndefined();
+  });
+
   it('uses external-first when loading a legacy Web config without a route policy', () => {
     const legacy: Partial<typeof SAMPLE_WEB> = { ...SAMPLE_WEB };
     delete legacy.searchRoutePolicy;
     expect(webToDraft(legacy as typeof SAMPLE_WEB).searchRoutePolicy).toBe('external-first');
-    expect(draftToWeb(webToDraft(legacy as typeof SAMPLE_WEB)).searchRoutePolicy).toBe('external-first');
+    expect(draftToWeb(webToDraft(legacy as typeof SAMPLE_WEB)).searchRoutePolicy).toBe(
+      'external-first',
+    );
   });
 
   it('renders numbers and prefixes as editable strings', () => {

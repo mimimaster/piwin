@@ -138,12 +138,10 @@ describe('mergeRuleSets', () => {
 });
 
 describe('mergeAgentModeIntoPrompt', () => {
-  it('prefixes agent mode contract and keeps the user body', () => {
+  it('uses a compact marker for the generation-scoped default agent contract', () => {
     const out = mergeAgentModeIntoPrompt('agent', 'hello');
-    expect(out).toContain('[piwin-mode:agent]');
-    expect(out).toContain('piwin-prompt-meta');
-    expect(out).toContain('Operating contract');
-    expect(out).toContain('---\nUser:\nhello');
+    expect(out).toBe('[piwin-mode:agent]\nUser:\nhello');
+    expect(out).not.toContain('Operating contract');
   });
 
   it('prefixes plan mode with non-mutating constraints', () => {

@@ -20,6 +20,10 @@ export function indexRecordToSummary(
     | 'sideChatRelation'
     | 'subagentStatus'
     | 'task'
+    | 'subagentInvocationId'
+    | 'subagentTaskId'
+    | 'subagentParentRunId'
+    | 'subagentParentToolCallId'
     | 'mergedAt'
     | 'mergeMessageId'
     | 'summaryPreview'
@@ -59,6 +63,12 @@ export function indexRecordToSummary(
   if (record.sideChatRelation) summary.sideChatRelation = record.sideChatRelation;
   if (record.subagentStatus) summary.subagentStatus = record.subagentStatus;
   if (record.task) summary.task = record.task;
+  if (record.subagentInvocationId) summary.subagentInvocationId = record.subagentInvocationId;
+  if (record.subagentTaskId) summary.subagentTaskId = record.subagentTaskId;
+  if (record.subagentParentRunId) summary.subagentParentRunId = record.subagentParentRunId;
+  if (record.subagentParentToolCallId) {
+    summary.subagentParentToolCallId = record.subagentParentToolCallId;
+  }
   if (record.mergedAt) summary.mergedAt = record.mergedAt;
   if (record.mergeMessageId) summary.mergeMessageId = record.mergeMessageId;
   if (record.summaryPreview) summary.summaryPreview = record.summaryPreview;

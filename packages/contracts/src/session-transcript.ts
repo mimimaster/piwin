@@ -9,6 +9,7 @@ import type {
   ToolPresentation,
 } from './host.js';
 import type { SearchEvidence } from './web.js';
+import type { PromptContextRef } from './side-chat.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -29,6 +30,8 @@ export type SessionToolCardView = {
   status: 'running' | 'done' | 'error';
   output: string;
   runId?: string;
+  /** Assistant response that emitted this tool when available. */
+  responseMessageId?: string;
   presentation?: ToolPresentation;
 };
 
@@ -55,6 +58,10 @@ export type SessionTranscriptMessage = {
   phaseHistory?: Array<{ phase: SessionRunPhase; at: string; detail?: string }>;
   startedAt?: string;
   endedAt?: string;
+  /** First observed reasoning delta for this Assistant response. */
+  thinkingStartedAt?: string;
+  /** Boundary where this response moved from reasoning to answer/tool work. */
+  thinkingEndedAt?: string;
   outcome?: SessionRunOutcome;
   terminalMessage?: string;
   thinking?: string;
@@ -63,6 +70,13 @@ export type SessionTranscriptMessage = {
   attachments?: MediaAttachmentRef[];
   /** When set, UI renders a SubagentActivityCard instead of plain system text. */
   subagentActivity?: SubagentActivityView;
+  /**
+   * Original structured context references for a user-authored prompt.
+   * Host resolves these only for model-facing preparation; the product
+   * transcript keeps the refs themselves and never rewrites user text with
+   * resolved file or message bodies.
+   */
+  contextRefs?: PromptContextRef[];
   /**
    * Model snapshot used to produce this Assistant message (spec §7.3).
    * Only set for Assistant messages; legacy transcripts may omit it.

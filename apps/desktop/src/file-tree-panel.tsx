@@ -30,13 +30,12 @@ import type {
 import {
   Button,
   EmptyState,
+  FileTypeIcon,
   IconButton,
   Notice,
   Spinner,
-  showUiNotification,
 } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconClose, IconRefresh } from './shell-icons';
-import { FileTypeIcon } from './file-type-icon';
 import { CodePreviewView } from './code-preview-view';
 import { EnhancedMarkdownView } from './EnhancedMarkdownView';
 import {
@@ -57,7 +56,6 @@ import {
 } from './file-tree-model';
 import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory';
 import type { DesktopLocale } from './desktop-locale';
-import { writeTextToSystemClipboard } from './desktop-clipboard';
 import { resolveProjectEntryAbsolutePath } from './file-tree-path';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
 import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
@@ -105,7 +103,6 @@ type FilePreviewState = {
   truncated: boolean;
   isBinary: boolean;
 };
-
 
 /** Markdown / plaintext files render through EnhancedMarkdownView (same path as DocPreview). */
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
@@ -305,9 +302,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
         setRootNodes(restored);
       }
     } else {
-      setError(
-        formatError(dirResult.reason),
-      );
+      setError(formatError(dirResult.reason));
       setRootNodes([]);
     }
     setLoading(false);
@@ -424,28 +419,6 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   function absoluteFor(relativePath: string): string {
     if (!props.projectPath) return relativePath;
     return resolveProjectEntryAbsolutePath(props.projectPath, relativePath);
-  }
-
-  async function copyAbsolutePath(relativePath: string): Promise<void> {
-    const absolutePath = absoluteFor(relativePath);
-    try {
-      await writeTextToSystemClipboard(absolutePath);
-      showUiNotification({
-        tone: 'success',
-        message: locale === 'zh-CN' ? '已复制绝对路径' : 'Absolute path copied',
-        autoClose: 2500,
-      });
-    } catch (copyError) {
-      showUiNotification({
-        tone: 'error',
-        title: locale === 'zh-CN' ? '复制失败' : 'Copy failed',
-        message:
-          locale === 'zh-CN'
-            ? `无法复制绝对路径：${formatError(copyError)}`
-            : `Could not copy absolute path: ${formatError(copyError)}`,
-        autoClose: 5000,
-      });
-    }
   }
 
   const contextMenuDispatchers: ContextMenuDispatchers = {
@@ -650,7 +623,11 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       }
     >
       {isSplitOpen ? (
-        <section className="file-tree-preview" data-testid="file-tree-preview" aria-label="File preview">
+        <section
+          className="file-tree-preview"
+          data-testid="file-tree-preview"
+          aria-label="File preview"
+        >
           <header className="file-tree-preview-header">
             <div className="file-tree-preview-title">
               {previewFileName ? (
@@ -792,10 +769,6 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   onSelectPath={setSelectedPath}
                   onToggle={(path) => void handleToggle(path)}
                   onDragStart={handleDragStart}
-                  onCopyAbsolutePath={(relativePath) => {
-                    void copyAbsolutePath(relativePath);
-                  }}
-                  copyAbsolutePathLabel={locale === 'zh-CN' ? '复制绝对路径' : 'Copy absolute path'}
                   absoluteFor={absoluteFor}
                   contextMenuCaps={contextMenuCaps}
                   contextMenuDispatchers={contextMenuDispatchers}
@@ -832,8 +805,6 @@ function FileTreeNodeView(props: {
   onSelectPath: (path: string) => void;
   onToggle: (path: string) => void;
   onDragStart: (event: DragEvent, relativePath: string) => void;
-  onCopyAbsolutePath: (path: string) => void;
-  copyAbsolutePathLabel: string;
   absoluteFor: (relativePath: string) => string;
   contextMenuCaps: {
     hasProject: boolean;
@@ -925,7 +896,6 @@ function FileTreeNodeView(props: {
       className={`file-tree-node${selected ? ' selected' : ''}`}
     >
       {row}
-
       {node.loading ? (
         <div className="file-tree-nested muted" style={{ paddingLeft: 24 + depth * 14 }}>
           Loading…
@@ -950,8 +920,6 @@ function FileTreeNodeView(props: {
               onSelectPath={props.onSelectPath}
               onToggle={props.onToggle}
               onDragStart={props.onDragStart}
-              onCopyAbsolutePath={props.onCopyAbsolutePath}
-              copyAbsolutePathLabel={props.copyAbsolutePathLabel}
               absoluteFor={props.absoluteFor}
               contextMenuCaps={props.contextMenuCaps}
               contextMenuDispatchers={props.contextMenuDispatchers}

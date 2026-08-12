@@ -8,6 +8,7 @@ import type {
   PermissionDecision,
   PermissionMode,
 } from '@piwin/contracts';
+import { createDefaultWebConfig } from '@piwin/contracts';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { allowNetworkFetchHost, allowNetworkWebSearch, openOrCreateProject } from '@piwin/project';
 import { buildSessionTools } from './session-tools.js';
@@ -54,6 +55,35 @@ async function executeThroughAdmission(
 }
 
 describe('buildSessionTools', () => {
+  it('executes web_search through the configured model delegate port', async () => {
+    const model = {
+      protocol: 'google-gemini' as const,
+      providerId: 'gemini',
+      modelId: 'gemini-search',
+    };
+    const search = vi.fn(async () => [
+      {
+        title: 'Delegated result',
+        url: 'https://example.com/delegated',
+        snippet: 'fresh',
+        source: 'model-delegate',
+      },
+    ]);
+    const { tools } = buildSessionTools({
+      webConfig: { ...createDefaultWebConfig(), searchDelegateModel: model },
+      webSearchDelegate: { model, search },
+    });
+    const tool = tools.find((candidate) => candidate.descriptor.name === 'web_search');
+    if (!tool) throw new Error('web_search missing');
+
+    const result = await tool.execute({ query: 'latest' }, new AbortController().signal, context);
+
+    if (!result.ok) throw new Error(result.message);
+    expect(result.output).toContain('model-delegate:gemini/gemini-search');
+    expect(result.output).toContain('Delegated result');
+    expect(search).toHaveBeenCalledOnce();
+  });
+
   it('returns raw registrations; permission decisions belong to Host admission', async () => {
     const { tools } = buildSessionTools({ webConfig: { searchProvider: 'none' } as never });
     const search = tools.find((tool) => tool.descriptor.name === 'web_search');

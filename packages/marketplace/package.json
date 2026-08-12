@@ -19,7 +19,8 @@
     "lint": "echo \"lint ok (marketplace)\""
   },
   "dependencies": {
-    "@piwin/contracts": "workspace:*"
+    "@piwin/contracts": "workspace:*",
+    "@piwin/extensions": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactElement } from 're
 import { Button, Field } from '@piwin/ui-kit';
 import type {
   DiscoveredModel,
+  ImageGenerationApiStyle,
   ModelConfigEntry,
   ModelProviderConfig,
   ModelRouteConfig,
@@ -35,12 +36,55 @@ export function isImageGenerationModel(model: ModelConfigEntry): boolean {
   return model.routes?.['image-generation'] !== undefined;
 }
 
-/** Protocol-aware default request path (matches host image_gen fallbacks). */
-export function defaultImageGenPath(protocol: ModelProviderConfig['protocol']): string {
-  if (protocol === 'google-gemini') {
-    return '';
+/** Image wire formats selectable per model (matches host image_gen apiStyle). */
+export const IMAGE_API_STYLE_OPTIONS: readonly ImageGenerationApiStyle[] = [
+  'openai',
+  'imagen',
+  'gemini',
+];
+
+export function isImageApiStyle(value: unknown): value is ImageGenerationApiStyle {
+  return IMAGE_API_STYLE_OPTIONS.includes(value as ImageGenerationApiStyle);
+}
+
+/** Protocol default wire format (matches host image_gen fallbacks). */
+export function defaultImageApiStyle(
+  protocol: ModelProviderConfig['protocol'],
+): ImageGenerationApiStyle {
+  return protocol === 'google-gemini' ? 'imagen' : 'openai';
+}
+
+export function imageApiStyleLabel(
+  apiStyle: ImageGenerationApiStyle,
+  locale: 'zh-CN' | 'en',
+): string {
+  switch (apiStyle) {
+    case 'openai':
+      return locale === 'zh-CN'
+        ? 'OpenAI 格式 (images/generations)'
+        : 'OpenAI format (images/generations)';
+    case 'imagen':
+      return locale === 'zh-CN' ? 'Imagen 格式 (:predict)' : 'Imagen format (:predict)';
+    case 'gemini':
+      return locale === 'zh-CN'
+        ? 'Gemini 原生格式 (:generateContent)'
+        : 'Gemini native format (:generateContent)';
   }
-  return '/images/generations';
+}
+
+/** Default request path for a wire format; empty lets the Host fall back. */
+export function defaultImagePathForStyle(
+  apiStyle: ImageGenerationApiStyle,
+  modelId: string,
+): string {
+  switch (apiStyle) {
+    case 'openai':
+      return '/images/generations';
+    case 'imagen':
+      return modelId ? `/models/${modelId}:predict` : '';
+    case 'gemini':
+      return modelId ? `/models/${modelId}:generateContent` : '';
+  }
 }
 
 /** Normalize a custom request path: require leading `/`, reject absolute URLs. */
@@ -109,10 +153,15 @@ function hasUsableImageDefault(config: PiwinConfig): boolean {
   );
 }
 
-function buildImageRoute(path: string, timeoutSeconds: string): ModelRouteConfig {
+function buildImageRoute(
+  path: string,
+  timeoutSeconds: string,
+  apiStyle?: ImageGenerationApiStyle,
+): ModelRouteConfig {
   const normalizedPath = normalizeRequestPath(path);
   const timeout = parseTimeoutSeconds(timeoutSeconds);
   return {
+    ...(apiStyle ? { apiStyle } : {}),
     ...(normalizedPath ? { path: normalizedPath } : {}),
     ...(timeout !== undefined ? { timeoutMs: timeout * 1000 } : {}),
   };
@@ -124,10 +173,11 @@ export function buildImageModelEntry(input: {
   timeoutSeconds: string;
   label: string;
   description: string;
+  apiStyle?: ImageGenerationApiStyle;
 }): ModelConfigEntry {
   const label = input.label.trim();
   const description = input.description.trim();
-  const route = buildImageRoute(input.path, input.timeoutSeconds);
+  const route = buildImageRoute(input.path, input.timeoutSeconds, input.apiStyle);
   return {
     id: input.id.trim(),
     capabilities: ['image-generation'],
@@ -220,6 +270,7 @@ export function ImageGenerationSettings(): ReactElement {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [addModelId, setAddModelId] = useState('');
   const [addModelPath, setAddModelPath] = useState('/images/generations');
+  const [addModelApiStyle, setAddModelApiStyle] = useState<ImageGenerationApiStyle>('openai');
   const [addModelTimeout, setAddModelTimeout] = useState('180');
   const [addModelLabel, setAddModelLabel] = useState('');
   const [addModelDescription, setAddModelDescription] = useState('');
@@ -255,9 +306,9 @@ export function ImageGenerationSettings(): ReactElement {
   const resetAddForm = useCallback(() => {
     setEditingKey(null);
     setAddModelId('');
-    setAddModelPath(
-      selectedProvider ? defaultImageGenPath(selectedProvider.protocol) : '/images/generations',
-    );
+    const style = selectedProvider ? defaultImageApiStyle(selectedProvider.protocol) : 'openai';
+    setAddModelApiStyle(style);
+    setAddModelPath(defaultImagePathForStyle(style, ''));
     setAddModelTimeout('180');
     setAddModelLabel('');
     setAddModelDescription('');
@@ -268,7 +319,19 @@ export function ImageGenerationSettings(): ReactElement {
     if (editingKey) return;
     const provider = allProviders.find((p) => p.id === providerId);
     if (provider) {
-      setAddModelPath(defaultImageGenPath(provider.protocol));
+      const style = defaultImageApiStyle(provider.protocol);
+      setAddModelApiStyle(style);
+      setAddModelPath(defaultImagePathForStyle(style, addModelId));
+    }
+  }
+
+  function handleApiStyleChange(style: ImageGenerationApiStyle): void {
+    const previous = addModelApiStyle;
+    setAddModelApiStyle(style);
+    // Refresh the path when it is empty or still the default of the old style.
+    const previousDefault = defaultImagePathForStyle(previous, addModelId);
+    if (!addModelPath.trim() || addModelPath === previousDefault) {
+      setAddModelPath(defaultImagePathForStyle(style, addModelId));
     }
   }
 
@@ -276,8 +339,12 @@ export function ImageGenerationSettings(): ReactElement {
     setEditingKey(`${provider.id}:${model.id}`);
     setSelectedProviderId(provider.id);
     const route = model.routes?.['image-generation'];
+    const style = isImageApiStyle(route?.apiStyle)
+      ? route.apiStyle
+      : defaultImageApiStyle(provider.protocol);
     setAddModelId(model.id);
-    setAddModelPath(route?.path ?? defaultImageGenPath(provider.protocol));
+    setAddModelApiStyle(style);
+    setAddModelPath(route?.path ?? defaultImagePathForStyle(style, model.id));
     setAddModelTimeout(route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '180');
     setAddModelLabel(model.label ?? '');
     setAddModelDescription(model.tooltipMarkdown ?? '');
@@ -295,6 +362,7 @@ export function ImageGenerationSettings(): ReactElement {
     const updatedModel = buildImageModelEntry({
       id,
       path: addModelPath,
+      apiStyle: addModelApiStyle,
       timeoutSeconds: addModelTimeout,
       label: addModelLabel,
       description: addModelDescription,
@@ -558,6 +626,33 @@ export function ImageGenerationSettings(): ReactElement {
 
               <div className="image-gen-form-row" style={{ marginTop: 12 }}>
                 <Field
+                  label={locale === 'zh-CN' ? 'API 格式' : 'API style'}
+                  description={
+                    locale === 'zh-CN'
+                      ? '请求与响应的数据格式。OpenAI 格式走 images/generations；Imagen 格式走 :predict；Gemini 原生格式走 :generateContent（返回 inlineData 图片）。'
+                      : 'Request/response wire format. OpenAI uses images/generations; Imagen uses :predict; Gemini native uses :generateContent (inlineData images).'
+                  }
+                >
+                  <select
+                    className="mcp-raw-editor"
+                    style={{ height: 'auto', padding: '9px 12px', width: '100%' }}
+                    data-testid="image-add-model-style"
+                    value={addModelApiStyle}
+                    onChange={(event) =>
+                      handleApiStyleChange(event.target.value as ImageGenerationApiStyle)
+                    }
+                  >
+                    {IMAGE_API_STYLE_OPTIONS.map((style) => (
+                      <option key={style} value={style}>
+                        {imageApiStyleLabel(style, locale)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              <div className="image-gen-form-row" style={{ marginTop: 12 }}>
+                <Field
                   label={locale === 'zh-CN' ? '自定义请求路径' : copy.requestPath}
                   description={
                     locale === 'zh-CN'
@@ -692,6 +787,9 @@ export function ImageGenerationSettings(): ReactElement {
                       <strong style={{ color: 'var(--text)' }}>{provider.name}</strong>
                       {' · '}
                       {route?.path ?? '—'}
+                      {isImageApiStyle(route?.apiStyle)
+                        ? ` · ${imageApiStyleLabel(route.apiStyle, locale)}`
+                        : ''}
                       {route?.timeoutMs !== undefined
                         ? ` · ${route.timeoutMs / 1000}${copy.timeoutUnitSeconds}`
                         : ''}

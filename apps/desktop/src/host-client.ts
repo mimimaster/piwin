@@ -25,6 +25,12 @@ export type HostClientOptions = {
 type TransportMode = 'mock' | 'live';
 
 const HOST_REQUEST_ACK_TIMEOUT_MS = 5_000;
+/**
+ * A zero timeout tells the Tauri bridge to wait until the Host responds.
+ * Compaction is a model completion, not an acknowledgement: its explicit
+ * abort command is the bounded control path.
+ */
+const HOST_REQUEST_NO_TIMEOUT_MS = 0;
 const HOST_REQUEST_STATUS_TIMEOUT_MS = 3_000;
 const HOST_REQUEST_QUERY_TIMEOUT_MS = 15_000;
 const HOST_REQUEST_OPERATION_TIMEOUT_MS = 120_000;
@@ -33,9 +39,10 @@ const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
 
 function getHostRequestTimeoutMs(command: HostCommand): number {
   switch (command.type) {
-    case 'session/prompt':
     case 'session/compact':
     case 'session/compact-export':
+      return HOST_REQUEST_NO_TIMEOUT_MS;
+    case 'session/prompt':
     case 'session/abort':
     case 'session/pause':
     case 'session/resume-run':
@@ -56,6 +63,7 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'mcp/stop':
     case 'skills/install':
     case 'extensions/install':
+    case 'extensions/apply':
     case 'plugins/install':
     case 'plugins/uninstall':
     case 'plugins/registry/list':

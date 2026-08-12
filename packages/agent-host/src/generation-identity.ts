@@ -116,9 +116,13 @@ export function normalizeAgentEventIds(
     case 'tool/start':
     case 'tool/update':
     case 'tool/end': {
+      const responseMessageId = event.responseMessageId;
       return {
         ...event,
         toolCallId: normalizeGenerationToolCallId(context, event.toolCallId),
+        ...(responseMessageId !== undefined
+          ? { responseMessageId: normalizeGenerationMessageId(context, responseMessageId) }
+          : {}),
       };
     }
     case 'permission/request': {

@@ -36,6 +36,9 @@ export function createSubagentWorkspaceService(options: SubagentWorkspaceService
   const { projectPath, parallelWritePolicy } = options;
 
   async function acquire(task: SubagentTaskSpec): Promise<SubagentWorkspaceLease> {
+    if (task.continuationWorkspaceLease) {
+      return task.continuationWorkspaceLease;
+    }
     const taskProjectPath = (await options.resolveProjectPath?.(task)) ?? projectPath;
     const mode = task.isolationOverride ?? 'readonly';
 

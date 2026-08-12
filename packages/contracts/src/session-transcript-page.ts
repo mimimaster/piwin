@@ -58,6 +58,7 @@ export type SessionTranscriptPageResult<Message> =
 
 export type SessionTranscriptPageData = SessionTranscriptPageResult<SessionTranscriptMessage>;
 
+/** Direct bounded seek around one durable message id. */
 export type SessionTranscriptWindowQuery = {
   sessionId: string;
   anchorMessageId: string;

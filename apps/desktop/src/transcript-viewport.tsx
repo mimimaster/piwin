@@ -15,8 +15,8 @@
  * Older history loads invisibly when the user is near the top, including when
  * the current page is too short to create a scrollbar.
  */
-import type { ReactElement, ReactNode } from 'react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import type { SessionUserMessageAnchor, SessionUserMessageIndexData } from '@piwin/contracts';
 import { isNearBottom, useTranscriptScroll } from './use-transcript-scroll';
@@ -44,38 +44,22 @@ export type TranscriptViewportProps = {
   historyLoading?: boolean;
   onLoadOlder?: () => Promise<void>;
   locale?: 'zh-CN' | 'en';
-  /** Active optimistic prompt that should own the stable reading viewport. */
-  turnAnchorMessageId?: string | null;
+  /** Newly submitted live turn that should restore follow-tail. */
+  liveTurnId?: string | null;
   children: ReactNode;
 };
 
 export function TranscriptViewport(props: TranscriptViewportProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
-  // Keep the most recent submitted turn anchored after the terminal event so
-  // a short answer does not immediately sink back toward the composer.
-  const [retainedTurnAnchorMessageId, setRetainedTurnAnchorMessageId] = useState<string | null>(
-    props.turnAnchorMessageId ?? null,
-  );
-  const releaseTurnAnchor = useCallback((): void => {
-    setRetainedTurnAnchorMessageId(null);
-  }, []);
   const scroll = useTranscriptScroll({
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
-    turnAnchorMessageId: retainedTurnAnchorMessageId,
-    onTurnAnchorReleased: releaseTurnAnchor,
+    liveTurnId: props.liveTurnId ?? null,
   });
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const loadInFlightRef = useRef(false);
-
-  useLayoutEffect(() => {
-    const nextAnchorMessageId = props.turnAnchorMessageId?.trim();
-    if (nextAnchorMessageId) {
-      setRetainedTurnAnchorMessageId(nextAnchorMessageId);
-    }
-  }, [props.turnAnchorMessageId]);
 
   useLayoutEffect(() => {
     const sessionId = props.sessionId;
@@ -212,12 +196,9 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   }, [maybeAutoLoadOlder, scroll]);
 
   const handleJumpToLatest = useCallback((): void => {
-    releaseTurnAnchor();
     props.onReturnToLatest?.();
-    // Remove the temporary tail spacer before resolving the real transcript
-    // bottom; otherwise the first write would land inside blank reserve space.
-    window.requestAnimationFrame(() => scroll.jumpToLatest());
-  }, [props.onReturnToLatest, releaseTurnAnchor, scroll]);
+    scroll.jumpToLatest();
+  }, [props.onReturnToLatest, scroll]);
 
   const showJumpToLatest = props.historyViewActive === true || scroll.showJumpToLatest;
 
@@ -237,6 +218,11 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           className="chat-stream"
           data-testid="chat-stream"
           ref={scroll.containerRef}
+          style={
+            {
+              '--transcript-current-response-min-height': `${scroll.currentResponseMinHeight}px`,
+            } as CSSProperties
+          }
           onScroll={handleStreamScroll}
           role="log"
           aria-label="Conversation"
@@ -245,14 +231,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           aria-busy={props.activitySignal.includes('streaming')}
         >
           {props.children}
-          {retainedTurnAnchorMessageId ? (
-            <div
-              key={retainedTurnAnchorMessageId}
-              className="transcript-turn-anchor-spacer"
-              data-testid="transcript-turn-anchor-spacer"
-              aria-hidden="true"
-            />
-          ) : null}
         </div>
         {showJumpToLatest ? (
           <button
@@ -265,26 +243,18 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
                 ? locale === 'zh-CN'
                   ? '返回最新消息'
                   : 'Return to latest messages'
-                : retainedTurnAnchorMessageId
-                  ? locale === 'zh-CN'
-                    ? '跟随最新回复'
-                    : 'Follow latest response'
-                  : locale === 'zh-CN'
-                    ? '跳到最新'
-                    : 'Jump to latest'
+                : locale === 'zh-CN'
+                  ? '跳到最新'
+                  : 'Jump to latest'
             }
           >
             {props.historyViewActive
               ? locale === 'zh-CN'
                 ? '返回最新'
                 : 'Back to latest'
-              : retainedTurnAnchorMessageId
-                ? locale === 'zh-CN'
-                  ? '跟随最新'
-                  : 'Follow latest'
-                : locale === 'zh-CN'
-                  ? '跳到最新'
-                  : 'Jump to latest'}
+              : locale === 'zh-CN'
+                ? '跳到最新'
+                : 'Jump to latest'}
           </button>
         ) : null}
         {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}

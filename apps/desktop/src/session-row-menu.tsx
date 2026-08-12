@@ -10,6 +10,7 @@ export type SessionRowMenuAction =
   | 'rename'
   | 'copy-id'
   | 'duplicate'
+  | 'continue-in-project'
   | 'archive'
   | 'unarchive'
   | 'delete'

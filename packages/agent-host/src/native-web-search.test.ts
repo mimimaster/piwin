@@ -1,5 +1,64 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeNativeSearchCitations } from './native-web-search.js';
+import { applyNativeSearchToPayload, normalizeNativeSearchCitations } from './native-web-search.js';
+
+describe('applyNativeSearchToPayload', () => {
+  it('uses Chat Completions web_search_options without a Responses-only tool', () => {
+    const payload = applyNativeSearchToPayload(
+      { model: 'search-model', messages: [] },
+      true,
+      'openai-completions',
+    ) as Record<string, unknown>;
+
+    expect(payload.web_search_options).toEqual({});
+    expect(payload.tools).toBeUndefined();
+  });
+
+  it('uses the @google/genai camelCase search tool shape', () => {
+    const payload = applyNativeSearchToPayload(
+      { model: 'gemini-search', config: { tools: [] } },
+      true,
+      'google-generative-ai',
+    ) as Record<string, unknown>;
+
+    expect(payload.config).toEqual({ tools: [{ googleSearch: {} }] });
+  });
+
+  it('strips nested Google search tools without removing function declarations', () => {
+    const payload = applyNativeSearchToPayload(
+      {
+        model: 'gemini-search',
+        config: {
+          tools: [{ googleSearch: {} }, { functionDeclarations: [{ name: 'web_search' }] }],
+        },
+      },
+      false,
+      'google-generative-ai',
+    ) as Record<string, unknown>;
+
+    expect(payload.config).toEqual({
+      tools: [{ functionDeclarations: [{ name: 'web_search' }] }],
+    });
+  });
+
+  it('strips provider-native tools but preserves the external Host web_search tool', () => {
+    const payload = applyNativeSearchToPayload(
+      {
+        tools: [
+          { type: 'web_search_20250305', name: 'web_search' },
+          { name: 'web_search', description: 'Host tool', input_schema: { type: 'object' } },
+          { type: 'function', function: { name: 'web_search' } },
+        ],
+      },
+      false,
+      'anthropic-messages',
+    ) as Record<string, unknown>;
+
+    expect(payload.tools).toEqual([
+      { name: 'web_search', description: 'Host tool', input_schema: { type: 'object' } },
+      { type: 'function', function: { name: 'web_search' } },
+    ]);
+  });
+});
 
 describe('normalizeNativeSearchCitations', () => {
   it('normalizes OpenAI URL annotations with native provenance', () => {
@@ -29,9 +88,7 @@ describe('normalizeNativeSearchCitations', () => {
   it('normalizes Google grounding metadata', () => {
     const evidence = normalizeNativeSearchCitations({
       groundingMetadata: {
-        groundingChunks: [
-          { web: { uri: 'https://example.com/google', title: 'Google result' } },
-        ],
+        groundingChunks: [{ web: { uri: 'https://example.com/google', title: 'Google result' } }],
       },
     });
 

@@ -172,4 +172,65 @@ describe('AddModelDialog catalog autocomplete', () => {
     expect(scope.querySelector('[data-testid="add-model-catalog-suggestions"]')).toBeNull();
     expect(scope.querySelector('[data-testid="add-model-catalog-searching"]')).toBeNull();
   });
+
+  it('persists native web-search capability while adding', async () => {
+    const onAdd = vi.fn();
+    renderDialog(
+      <AddModelDialog open onOpenChange={() => undefined} existingModelIds={[]} onAdd={onAdd} />,
+    );
+    const scope = document.body;
+    const modelId = resolveInput(scope, 'add-model-id-input');
+    const nativeSearch = scope.querySelector(
+      '[data-testid="add-model-native-web-search"]',
+    ) as HTMLInputElement | null;
+
+    await act(async () => {
+      setInputValue(modelId, 'search-model');
+      nativeSearch?.click();
+    });
+
+    await act(async () => {
+      const submit = scope.querySelector(
+        '[data-testid="add-model-submit"]',
+      ) as HTMLButtonElement | null;
+      submit?.click();
+    });
+
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'search-model',
+        capabilities: ['native-web-search'],
+      }),
+    );
+  });
+
+  it('persists video-generation capability while adding', async () => {
+    const onAdd = vi.fn();
+    renderDialog(
+      <AddModelDialog open onOpenChange={() => undefined} existingModelIds={[]} onAdd={onAdd} />,
+    );
+    const scope = document.body;
+
+    await act(async () => {
+      setInputValue(resolveInput(scope, 'add-model-id-input'), 'grok-imagine-video');
+      const videoGeneration = scope.querySelector(
+        '[data-testid="add-model-video-generation"]',
+      ) as HTMLInputElement | null;
+      videoGeneration?.click();
+    });
+
+    await act(async () => {
+      const submit = scope.querySelector(
+        '[data-testid="add-model-submit"]',
+      ) as HTMLButtonElement | null;
+      submit?.click();
+    });
+
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'grok-imagine-video',
+        capabilities: ['video-generation'],
+      }),
+    );
+  });
 });

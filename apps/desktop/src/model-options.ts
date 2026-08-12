@@ -8,14 +8,18 @@
  * models here would let the user pick a model the session layer then rejects
  * with "Configured model is unavailable: <providerId>/<modelId>".
  *
- * Pure image-generation / video-generation models are excluded by default —
- * they live on dedicated settings pages and are not valid chat session models.
- * Models that also declare `chat` (or omit capabilities, which defaults to chat)
- * remain available.
+ * Chat pickers block only auxiliary-only models: pure image-generation,
+ * video-generation, speech-to-text, and text-to-speech entries live on
+ * dedicated settings pages and are not valid chat session models. Everything
+ * else — plain chat models, native-web-search models (which imply the chat
+ * surface), and hybrids that also declare `chat` — remains available. The
+ * judgment is delegated to contracts' modelSupportsCapability so the picker
+ * can never drift from what agent-host actually accepts for sessions.
  */
 import {
   isModelEnabled,
   isProviderEnabled,
+  modelSupportsCapability,
   type ModelConfigEntry,
   type ModelProviderConfig,
   type ThinkingLevel,
@@ -42,15 +46,14 @@ export type ModelOption = {
 
 /**
  * Whether a model belongs in the composer / sub-agent chat model pickers.
- * `capabilities` omit defaults to `['chat']` (contracts backward compat).
- * Pure image/video generation entries (no `chat`) are filtered out.
+ *
+ * Delegates to contracts' modelSupportsCapability('chat'): omitted or empty
+ * `capabilities` defaults to chat, `native-web-search` implies the chat
+ * surface, and only pure auxiliary models (image/video generation, speech)
+ * are blocked — identical to what agent-host accepts for sessions.
  */
 export function isComposerChatModel(model: ModelConfigEntry): boolean {
-  const capabilities = model.capabilities;
-  if (!capabilities || capabilities.length === 0) {
-    return true;
-  }
-  return capabilities.includes('chat');
+  return modelSupportsCapability(model, 'chat');
 }
 
 export function buildEnabledModelOptions(

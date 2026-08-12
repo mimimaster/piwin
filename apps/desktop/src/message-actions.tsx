@@ -13,7 +13,7 @@ export type MessageActionsProps = {
   showEdit?: boolean;
   onEdit?: (() => void) | undefined;
   disabled?: boolean;
-  onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
+  onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
 };
 
 export function MessageActions(props: MessageActionsProps): ReactElement {

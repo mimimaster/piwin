@@ -3,10 +3,15 @@ import type {
   AgentEventEnvelope,
   AgentMessageRole,
   MediaAttachmentRef,
+  ToolPresentation,
 } from '@piwin/contracts';
 import { mapUsageSnapshot } from './usage-map.js';
 import { normalizeNativeSearchCitations } from './native-web-search.js';
-import { boundToolOutput, buildToolPresentation } from './tool-presentation.js';
+import {
+  boundToolOutput,
+  buildToolPresentation,
+  resolvePresentedToolInvocation,
+} from './tool-presentation.js';
 
 /**
  * Wrapped event with an envelope for idempotent delivery.
@@ -78,6 +83,14 @@ function extractRunId(event: AgentEvent): string | undefined {
 
 export type PiSessionEventMapper = {
   map: (raw: unknown) => WrappedAgentEvent[];
+  /** Clear bounded per-lifecycle state when a session is aborted, ended, or dropped. */
+  reset?: () => void;
+};
+
+type ToolPresentationSeed = {
+  effectiveToolName: string;
+  routedToolName?: string;
+  startPresentation: ToolPresentation;
 };
 
 /**
@@ -89,13 +102,29 @@ export type PiSessionEventMapper = {
  */
 export function createPiSessionEventMapper(): PiSessionEventMapper {
   let activeMessageId: string | null = null;
+  let activeMessageRole: AgentMessageRole | null = null;
+  let lastAssistantMessageId: string | null = null;
   let generatedMessageSequence = 0;
   const toolNamesById = new Map<string, string>();
+  const presentationSeedsByToolId = new Map<string, ToolPresentationSeed>();
+  const responseMessageIdsByToolId = new Map<string, string>();
   const rawToolOutputById = new Map<string, string>();
   const citationUrlsByMessageId = new Map<string, Set<string>>();
   const envelopeGenerator = createEventEnvelopeGenerator();
 
+  const reset = (): void => {
+    activeMessageId = null;
+    activeMessageRole = null;
+    lastAssistantMessageId = null;
+    toolNamesById.clear();
+    presentationSeedsByToolId.clear();
+    responseMessageIdsByToolId.clear();
+    rawToolOutputById.clear();
+    citationUrlsByMessageId.clear();
+  };
+
   return {
+    reset,
     map(raw: unknown): WrappedAgentEvent[] {
       if (!raw || typeof raw !== 'object') {
         return [];
@@ -106,15 +135,37 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
       if (type === 'message_start') {
         const explicitMessageId = readString(record.messageId) ?? readNestedId(record, 'message');
         activeMessageId = explicitMessageId ?? `pi-message-${++generatedMessageSequence}`;
+        activeMessageRole =
+          readRole(record.role) ?? readNestedRole(record, 'message') ?? 'assistant';
       }
 
-      const mappedEvents = mapPiSessionEvent(raw, activeMessageId)
+      const mappedEvents = mapPiSessionEvent(raw, activeMessageId, lastAssistantMessageId)
         .flatMap((event) => filterDuplicateSearchEvidence(event, citationUrlsByMessageId))
         .map((event) => {
           if (event.type === 'tool/start') {
             toolNamesById.set(event.toolCallId, event.toolName);
+            const rawEvent = raw as Record<string, unknown>;
+            const args = rawEvent.args ?? rawEvent.arguments ?? rawEvent.input;
+            const invocation = resolvePresentedToolInvocation(event.toolName, args);
+            const startPresentation = buildToolPresentation({
+              toolName: invocation.effectiveToolName,
+              ...(invocation.effectiveArgs !== undefined ? { args: invocation.effectiveArgs } : {}),
+              ...(invocation.routedToolName !== undefined
+                ? { routedToolName: invocation.routedToolName }
+                : {}),
+            });
+            presentationSeedsByToolId.set(event.toolCallId, {
+              effectiveToolName: invocation.effectiveToolName,
+              ...(invocation.routedToolName !== undefined
+                ? { routedToolName: invocation.routedToolName }
+                : {}),
+              startPresentation,
+            });
+            if (event.responseMessageId !== undefined) {
+              responseMessageIdsByToolId.set(event.toolCallId, event.responseMessageId);
+            }
             rawToolOutputById.set(event.toolCallId, '');
-            return event;
+            return { ...event, presentation: startPresentation };
           }
           if (event.type === 'tool/update') {
             const rawEvent = raw as Record<string, unknown>;
@@ -131,48 +182,135 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
             const boundedOutput = boundToolOutput(fullOutput).text;
             rawToolOutputById.set(event.toolCallId, boundedOutput);
             const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
+            const seed = presentationSeedsByToolId.get(event.toolCallId);
+            const responseMessageId =
+              event.responseMessageId ?? responseMessageIdsByToolId.get(event.toolCallId);
+            if (responseMessageId !== undefined) {
+              responseMessageIdsByToolId.set(event.toolCallId, responseMessageId);
+            }
             return {
               ...event,
-              presentation: buildToolPresentation({
-                toolName,
-                outputText: boundedOutput,
-              }),
+              presentation: mergeSeededToolPresentation(
+                seed?.startPresentation,
+                buildToolPresentation({
+                  toolName: seed?.effectiveToolName ?? toolName,
+                  ...(seed?.routedToolName !== undefined
+                    ? { routedToolName: seed.routedToolName }
+                    : {}),
+                  outputText: boundedOutput,
+                }),
+              ),
+              ...(responseMessageId !== undefined ? { responseMessageId } : {}),
             };
           }
           if (event.type === 'tool/end') {
             const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
+            const seed = presentationSeedsByToolId.get(event.toolCallId);
             const accumulated = rawToolOutputById.get(event.toolCallId) ?? '';
+            const responseMessageId =
+              event.responseMessageId ?? responseMessageIdsByToolId.get(event.toolCallId);
             toolNamesById.delete(event.toolCallId);
+            presentationSeedsByToolId.delete(event.toolCallId);
+            responseMessageIdsByToolId.delete(event.toolCallId);
             rawToolOutputById.delete(event.toolCallId);
             // Pi custom tools often emit only tool_execution_end (no streaming
             // updates). Prefer presentation.output from mapPiSessionEvent; fall
             // back to any accumulated update buffer.
             const existingOutput = event.presentation?.output?.text;
             if (existingOutput && existingOutput.length > 0) {
-              return event;
+              return {
+                ...event,
+                ...(responseMessageId !== undefined ? { responseMessageId } : {}),
+                presentation: mergeSeededToolPresentation(
+                  seed?.startPresentation,
+                  seed
+                    ? buildToolPresentation({
+                        toolName: seed.effectiveToolName,
+                        ...(seed.routedToolName !== undefined
+                          ? { routedToolName: seed.routedToolName }
+                          : {}),
+                        isError: event.isError,
+                        outputText: existingOutput,
+                        ...(event.presentation?.exitCode !== undefined
+                          ? { exitCode: event.presentation.exitCode }
+                          : {}),
+                      })
+                    : event.presentation!,
+                ),
+              };
             }
             if (accumulated.length > 0) {
               return {
                 ...event,
-                presentation: buildToolPresentation({
-                  toolName,
-                  isError: event.isError,
-                  outputText: accumulated,
-                }),
+                ...(responseMessageId !== undefined ? { responseMessageId } : {}),
+                presentation: mergeSeededToolPresentation(
+                  seed?.startPresentation,
+                  buildToolPresentation({
+                    toolName: seed?.effectiveToolName ?? toolName,
+                    ...(seed?.routedToolName !== undefined
+                      ? { routedToolName: seed.routedToolName }
+                      : {}),
+                    isError: event.isError,
+                    outputText: accumulated,
+                  }),
+                ),
               };
             }
+            return {
+              ...event,
+              ...(responseMessageId !== undefined ? { responseMessageId } : {}),
+              ...(event.presentation !== undefined
+                ? {
+                    presentation: mergeSeededToolPresentation(
+                      seed?.startPresentation,
+                      event.presentation,
+                    ),
+                  }
+                : {}),
+            };
           }
           return event;
         });
+      if (type === 'agent_end') {
+        toolNamesById.clear();
+        presentationSeedsByToolId.clear();
+        responseMessageIdsByToolId.clear();
+        rawToolOutputById.clear();
+      }
       if (type === 'message_end') {
         const endedMessage = mappedEvents.find((event) => event.type === 'message/end');
-        if (endedMessage?.type === 'message/end') {
+        const endedMessageRole =
+          readRole(record.role) ?? readNestedRole(record, 'message') ?? activeMessageRole;
+        if (endedMessage?.type === 'message/end' && endedMessageRole === 'assistant') {
+          lastAssistantMessageId = endedMessage.messageId;
           citationUrlsByMessageId.delete(endedMessage.messageId);
         }
         activeMessageId = null;
+        activeMessageRole = null;
       }
       return wrapEvents(mappedEvents, envelopeGenerator);
     },
+  };
+}
+
+function mergeSeededToolPresentation(
+  seed: ToolPresentation | undefined,
+  lifecycle: ToolPresentation,
+): ToolPresentation {
+  if (!seed) {
+    return lifecycle;
+  }
+  return {
+    ...seed,
+    ...lifecycle,
+    kind: seed.kind,
+    title: seed.title,
+    ...(seed.routedToolName !== undefined ? { routedToolName: seed.routedToolName } : {}),
+    ...(seed.summary !== undefined ? { summary: seed.summary } : {}),
+    ...(seed.inputPreview !== undefined ? { inputPreview: seed.inputPreview } : {}),
+    ...(seed.command !== undefined ? { command: seed.command } : {}),
+    ...(seed.targetPaths !== undefined ? { targetPaths: seed.targetPaths } : {}),
+    ...(seed.changedPaths !== undefined ? { changedPaths: seed.changedPaths } : {}),
   };
 }
 
@@ -180,7 +318,11 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
  * Map Pi SDK / RPC-like session events into normalized AgentEvent[].
  * Defensive: unknown shapes return [] (never throw).
  */
-export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null): AgentEvent[] {
+export function mapPiSessionEvent(
+  raw: unknown,
+  activeMessageId?: string | null,
+  lastAssistantMessageId?: string | null,
+): AgentEvent[] {
   if (!raw || typeof raw !== 'object') {
     return [];
   }
@@ -238,11 +380,28 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
       const toolName = readString(event.toolName) ?? readString(event.name) ?? 'unknown';
       const args = event.args ?? event.arguments ?? event.input;
+      const invocation = resolvePresentedToolInvocation(toolName, args);
       const presentation = buildToolPresentation({
-        toolName,
-        ...(args !== undefined ? { args } : {}),
+        toolName: invocation.effectiveToolName,
+        ...(invocation.effectiveArgs !== undefined ? { args: invocation.effectiveArgs } : {}),
+        ...(invocation.routedToolName !== undefined
+          ? { routedToolName: invocation.routedToolName }
+          : {}),
       });
-      return [{ type: 'tool/start', toolCallId, toolName, presentation }];
+      const responseMessageId = resolveResponseMessageId(
+        event,
+        activeMessageId,
+        lastAssistantMessageId,
+      );
+      return [
+        {
+          type: 'tool/start',
+          toolCallId,
+          toolName,
+          ...(responseMessageId !== undefined ? { responseMessageId } : {}),
+          presentation,
+        },
+      ];
     }
     case 'tool_execution_update': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
@@ -253,11 +412,30 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
         extractToolResultText(event.partialResult) ??
         '';
       const delta = boundToolOutput(rawDelta).text;
-      return [{ type: 'tool/update', toolCallId, delta }];
+      const responseMessageId = resolveResponseMessageId(
+        event,
+        activeMessageId,
+        lastAssistantMessageId,
+      );
+      return [
+        {
+          type: 'tool/update',
+          toolCallId,
+          delta,
+          ...(responseMessageId !== undefined ? { responseMessageId } : {}),
+        },
+      ];
     }
     case 'tool_execution_end': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
-      const isError = Boolean(event.isError ?? event.error);
+      const result = asRecord(event.result);
+      // Pi normally puts this flag on the lifecycle event. Keep compatibility
+      // with bridges that retain it on AgentToolResult instead, but let an
+      // explicit top-level false remain authoritative.
+      const isError =
+        typeof event.isError === 'boolean'
+          ? event.isError
+          : Boolean(event.error ?? result?.isError);
       const toolName = readString(event.toolName) ?? readString(event.name) ?? 'unknown';
       // Pi 0.80: tool_execution_end.result is AgentToolResult
       // ({ content: TextContent[], details }), not a plain string. Custom MCP
@@ -277,20 +455,29 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
       // Prefer args when Pi includes them on end so image/video keep prompt
       // summaries; Desktop merge also preserves start-time summary as a backstop.
       const args = event.args ?? event.arguments ?? event.input;
+      const invocation = resolvePresentedToolInvocation(toolName, args);
       const presentation = buildToolPresentation({
-        toolName,
+        toolName: invocation.effectiveToolName,
         isError,
-        ...(args !== undefined ? { args } : {}),
+        ...(invocation.effectiveArgs !== undefined ? { args: invocation.effectiveArgs } : {}),
+        ...(invocation.routedToolName !== undefined
+          ? { routedToolName: invocation.routedToolName }
+          : {}),
         ...(outputText !== undefined ? { outputText } : {}),
         ...(exitCode !== undefined ? { exitCode } : {}),
       });
-      const result = asRecord(event.result);
       const attachments = extractToolResultAttachments(result?.details ?? event.details);
+      const responseMessageId = resolveResponseMessageId(
+        event,
+        activeMessageId,
+        lastAssistantMessageId,
+      );
       return [
         {
           type: 'tool/end',
           toolCallId,
           isError,
+          ...(responseMessageId !== undefined ? { responseMessageId } : {}),
           ...(attachments ? { attachments } : {}),
           presentation,
         },
@@ -520,6 +707,11 @@ function readRole(value: unknown): AgentMessageRole | undefined {
   if (value === 'user' || value === 'assistant' || value === 'system' || value === 'tool') {
     return value;
   }
+  // Pi names tool-result lifecycle messages `toolResult`. They are transport
+  // artifacts, not additional Assistant/model responses.
+  if (value === 'toolResult' || value === 'tool_result') {
+    return 'tool';
+  }
   return undefined;
 }
 
@@ -563,4 +755,20 @@ function readNestedId(event: Record<string, unknown>, key: string): string | und
 function readNestedRole(event: Record<string, unknown>, key: string): AgentMessageRole | undefined {
   const nested = asRecord(event[key]);
   return nested ? readRole(nested.role) : undefined;
+}
+
+function resolveResponseMessageId(
+  event: Record<string, unknown>,
+  activeMessageId: string | null | undefined,
+  lastAssistantMessageId: string | null | undefined,
+): string | undefined {
+  return (
+    readString(event.responseMessageId) ??
+    readString(event.messageId) ??
+    readString(event.assistantMessageId) ??
+    readNestedId(event, 'assistantMessage') ??
+    activeMessageId ??
+    lastAssistantMessageId ??
+    undefined
+  );
 }

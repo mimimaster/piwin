@@ -585,6 +585,68 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('stages a managed extension inactive, then applies it to the live session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-managed-'));
+    const sourceDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-source-'));
+    const sourcePath = join(sourceDir, 'managed.ts');
+    await writeFile(sourcePath, 'export default function managed() {}\n', 'utf8');
+    const pushTypes: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushTypes.push(message.type),
+    });
+
+    const installed = await runtime.handleCommand({
+      type: 'extensions/install',
+      source: { kind: 'local', path: sourcePath },
+    });
+    expect(installed.success).toBe(true);
+    if (!installed.success) throw new Error(installed.error);
+    expect(
+      (installed.data as { configuredEnabled: boolean; contentRevision: string }).configuredEnabled,
+    ).toBe(false);
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/managed-extension-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const enabled = await runtime.handleCommand({
+      type: 'extensions/set_enabled',
+      extensionId: 'managed',
+      enabled: true,
+    });
+    expect(enabled.success).toBe(true);
+    if (!enabled.success) throw new Error(enabled.error);
+    expect((enabled.data as { managed: boolean }).managed).toBe(true);
+
+    const applied = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId,
+      when: 'now',
+    });
+    expect(applied.success).toBe(true);
+    if (!applied.success) throw new Error(applied.error);
+    expect((applied.data as { state: string }).state).toBe('active');
+    expect(pushTypes).toContain('extension/catalog-updated');
+    expect(pushTypes).toContain('extension/deployment-updated');
+
+    const listed = await runtime.handleCommand({ type: 'extensions/list' });
+    expect(listed.success).toBe(true);
+    if (!listed.success) throw new Error(listed.error);
+    const managed = (
+      listed.data as { extensions: Array<{ id: string; enabled: boolean; managed?: boolean }> }
+    ).extensions.find((extension) => extension.id === 'managed');
+    expect(managed).toMatchObject({ id: 'managed', enabled: true, managed: true });
+
+    await runtime.dispose();
+  });
+
   it('git/status returns repository snapshot for this repo', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-git-'));
     const runtime = new HostRuntime({
@@ -2197,6 +2259,63 @@ describe('HostRuntime', () => {
     if (!listed.success) throw new Error(listed.error);
     const sessions = (listed.data as { sessions: Array<{ id: string }> }).sessions;
     expect(sessions.map((item) => item.id).sort()).toEqual([sourceId, data.sessionId].sort());
+
+    await runtime.dispose();
+  });
+
+  it('continues a General session in a project without reclassifying the source', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-continue-project-'));
+    const projectPath = join(rootDir, 'project');
+    await mkdir(projectPath, { recursive: true });
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { scope: { kind: 'general' }, sessionName: 'Mis-scoped history' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sourceId = (created.data as { sessionId: string }).sessionId;
+
+    const continued = await runtime.handleCommand({
+      type: 'session/duplicate',
+      sessionId: sourceId,
+      targetScope: { kind: 'project', projectPath },
+      messageProjection: 'none',
+    });
+    expect(continued.success).toBe(true);
+    if (!continued.success) throw new Error(continued.error);
+    const data = continued.data as {
+      sessionId: string;
+      session: {
+        name?: string;
+        scope: { kind: string; projectPath?: string };
+        workingDirectory: string;
+      };
+    };
+    expect(data.session.name).toBe('Mis-scoped history');
+    expect(data.session.scope).toEqual({ kind: 'project', projectPath });
+    expect(data.session.workingDirectory).toBe(projectPath);
+
+    const generalList = await runtime.handleCommand({
+      type: 'session/list',
+      scope: { kind: 'general' },
+    });
+    const projectList = await runtime.handleCommand({
+      type: 'session/list',
+      scope: { kind: 'project', projectPath },
+    });
+    expect(generalList.success).toBe(true);
+    expect(projectList.success).toBe(true);
+    if (!generalList.success || !projectList.success) throw new Error('session list failed');
+    expect(
+      (generalList.data as { sessions: Array<{ id: string }> }).sessions.map((item) => item.id),
+    ).toContain(sourceId);
+    expect(
+      (projectList.data as { sessions: Array<{ id: string }> }).sessions.map((item) => item.id),
+    ).toContain(data.sessionId);
 
     await runtime.dispose();
   });

@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitDiffSummary, HostResponse } from '@piwin/contracts';
+import { FileTypeIcon } from '@piwin/ui-kit';
 import type { ToolCardUi } from './chat-reducer';
 import {
   collectMessageChangedFiles,
@@ -12,7 +13,7 @@ import {
   type MessageChangedFile,
   type MessageChangedFileStat,
 } from './collect-message-changed-files';
-import { IconChevronDown, IconFile, IconFileDiff, IconMore } from './shell-icons';
+import { IconChevronDown, IconFileDiff, IconMore } from './shell-icons';
 
 export type FilesChangedBarRequest = (command: {
   type: 'git/diff-summary';
@@ -113,84 +114,7 @@ function formatCountLabel(count: number, isZh: boolean): string {
 }
 
 export function FileExtBadge({ path }: { path: string }): ReactElement {
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-
-  if (ext === 'tsx' || ext === 'jsx') {
-    return (
-      <span className="file-ext-badge ext-react" title={ext.toUpperCase()}>
-        <svg viewBox="0 0 100 100" width="13" height="13" fill="currentColor">
-          <circle cx="50" cy="50" r="10" />
-          <ellipse
-            cx="50"
-            cy="50"
-            rx="40"
-            ry="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="7"
-          />
-          <ellipse
-            cx="50"
-            cy="50"
-            rx="40"
-            ry="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="7"
-            transform="rotate(60 50 50)"
-          />
-          <ellipse
-            cx="50"
-            cy="50"
-            rx="40"
-            ry="16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="7"
-            transform="rotate(120 50 50)"
-          />
-        </svg>
-      </span>
-    );
-  }
-  if (ext === 'ts') {
-    return <span className="file-ext-badge ext-ts">TS</span>;
-  }
-  if (ext === 'js' || ext === 'mjs' || ext === 'cjs') {
-    return <span className="file-ext-badge ext-js">JS</span>;
-  }
-  if (ext === 'css' || ext === 'scss' || ext === 'less') {
-    return <span className="file-ext-badge ext-css">{`{ }`}</span>;
-  }
-  if (ext === 'json') {
-    return <span className="file-ext-badge ext-json">{`{ }`}</span>;
-  }
-  if (ext === 'md') {
-    return <span className="file-ext-badge ext-md">MD</span>;
-  }
-  if (ext === 'py') {
-    return <span className="file-ext-badge ext-py">PY</span>;
-  }
-  if (ext === 'rs') {
-    return <span className="file-ext-badge ext-rs">RS</span>;
-  }
-  if (ext === 'svg') {
-    return <span className="file-ext-badge ext-svg">SVG</span>;
-  }
-  if (ext === 'html' || ext === 'htm') {
-    return <span className="file-ext-badge ext-html">HTML</span>;
-  }
-  if (ext === 'sh' || ext === 'zsh' || ext === 'bash') {
-    return <span className="file-ext-badge ext-sh">SH</span>;
-  }
-  if (ext === 'yaml' || ext === 'yml') {
-    return <span className="file-ext-badge ext-yaml">YML</span>;
-  }
-  if (ext.length >= 1 && ext.length <= 4) {
-    return <span className="file-ext-badge ext-generic">{ext.toUpperCase()}</span>;
-  }
-
-  return <IconFile className="files-changed-bar-row-icon" />;
+  return <FileTypeIcon filePathOrExt={path} className="files-changed-bar-row-icon" />;
 }
 
 export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | null {
@@ -222,7 +146,10 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
       .then((response) => {
         if (cancelled) return;
         const gitMatched = response.success
-          ? matchChangedFileStats(files, (response.data as { summary: GitDiffSummary }).summary.files)
+          ? matchChangedFileStats(
+              files,
+              (response.data as { summary: GitDiffSummary }).summary.files,
+            )
           : null;
         const finalStats = deriveFallbackStatsForTools(props.tools, files, gitMatched);
         setStats({

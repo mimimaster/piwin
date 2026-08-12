@@ -5,6 +5,7 @@ import {
   classifyToolKind,
   formatPathsSummary,
   redactToolText,
+  resolvePresentedToolInvocation,
 } from './tool-presentation.js';
 
 describe('classifyToolKind', () => {
@@ -17,7 +18,8 @@ describe('classifyToolKind', () => {
     expect(classifyToolKind('web_search')).toBe('web');
     expect(classifyToolKind('web_fetch')).toBe('web');
     expect(classifyToolKind('mcp__server__tool')).toBe('mcp');
-    expect(classifyToolKind('image_gen')).toBe('other');
+    expect(classifyToolKind('image_gen')).toBe('image');
+    expect(classifyToolKind('piwin_subagent_run')).toBe('subagent');
     expect(classifyToolKind('mystery_tool')).toBe('other');
     // Must not treat a random name containing "file" as filesystem.
     expect(classifyToolKind('profile_loader')).toBe('other');
@@ -32,7 +34,54 @@ describe('formatPathsSummary', () => {
   });
 });
 
+describe('resolvePresentedToolInvocation', () => {
+  it('unwraps valid toolbox calls for presentation only', () => {
+    expect(
+      resolvePresentedToolInvocation('piwin_toolbox', {
+        action: 'call',
+        target: 'image_gen',
+        arguments: { prompt: 'a red cube', api_key: 'sk-abcdefghijklmnopqrstuvwxyz' },
+      }),
+    ).toEqual({
+      invokedToolName: 'piwin_toolbox',
+      effectiveToolName: 'image_gen',
+      effectiveArgs: { prompt: 'a red cube', api_key: 'sk-abcdefghijklmnopqrstuvwxyz' },
+      routedToolName: 'image_gen',
+    });
+  });
+
+  it('leaves describe and malformed toolbox calls unchanged', () => {
+    const describeArgs = { action: 'describe', target: 'image_gen' };
+    expect(resolvePresentedToolInvocation('piwin_toolbox', describeArgs)).toEqual({
+      invokedToolName: 'piwin_toolbox',
+      effectiveToolName: 'piwin_toolbox',
+      effectiveArgs: describeArgs,
+    });
+    expect(
+      resolvePresentedToolInvocation('piwin_toolbox', {
+        action: 'call',
+        target: 'image_gen',
+        arguments: [],
+      }).routedToolName,
+    ).toBeUndefined();
+  });
+});
+
 describe('buildToolPresentation', () => {
+  it('builds a typed delegation presentation from the task', () => {
+    expect(
+      buildToolPresentation({
+        toolName: 'piwin_subagent_run',
+        args: { task: 'Explore project structure', role: 'explorer' },
+      }),
+    ).toMatchObject({
+      kind: 'subagent',
+      title: 'Subagent',
+      actionVerb: 'Delegated',
+      summary: 'Explore project structure',
+    });
+  });
+
   it('builds shell presentation with command and exit code', () => {
     const presentation = buildToolPresentation({
       toolName: 'bash',
@@ -197,6 +246,61 @@ describe('buildToolPresentation', () => {
     expect(presentation.summary).toBe('a red cube on a table');
   });
 
+  it('presents routed toolbox image/video calls from inner arguments', () => {
+    const imageInvocation = resolvePresentedToolInvocation('piwin_toolbox', {
+      action: 'call',
+      target: 'image_gen',
+      arguments: { prompt: 'a wasteland portrait', token: 'top-secret' },
+    });
+    const image = buildToolPresentation({
+      toolName: imageInvocation.effectiveToolName,
+      args: imageInvocation.effectiveArgs,
+      ...(imageInvocation.routedToolName !== undefined
+        ? { routedToolName: imageInvocation.routedToolName }
+        : {}),
+    });
+    expect(image).toMatchObject({
+      kind: 'image',
+      title: 'image_gen',
+      routedToolName: 'image_gen',
+      summary: 'a wasteland portrait',
+    });
+    expect(image.inputPreview).toContain('[redacted]');
+    expect(image.inputPreview).not.toContain('piwin_toolbox');
+
+    const videoInvocation = resolvePresentedToolInvocation('piwin_toolbox', {
+      action: 'call',
+      target: 'video_gen',
+      arguments: { prompt: 'a paper boat crossing a river' },
+    });
+    expect(
+      buildToolPresentation({
+        toolName: videoInvocation.effectiveToolName,
+        args: videoInvocation.effectiveArgs,
+        ...(videoInvocation.routedToolName !== undefined
+          ? { routedToolName: videoInvocation.routedToolName }
+          : {}),
+      }),
+    ).toMatchObject({ kind: 'video', routedToolName: 'video_gen' });
+  });
+
+  it('records unknown routed targets but keeps other semantics', () => {
+    const invocation = resolvePresentedToolInvocation('piwin_toolbox', {
+      action: 'call',
+      target: 'custom_low_frequency_tool',
+      arguments: { value: 1 },
+    });
+    expect(
+      buildToolPresentation({
+        toolName: invocation.effectiveToolName,
+        args: invocation.effectiveArgs,
+        ...(invocation.routedToolName !== undefined
+          ? { routedToolName: invocation.routedToolName }
+          : {}),
+      }),
+    ).toMatchObject({ kind: 'other', routedToolName: 'custom_low_frequency_tool' });
+  });
+
   it('does not use image_gen paths JSON as summary when args are missing', () => {
     const presentation = buildToolPresentation({
       toolName: 'image_gen',
@@ -215,6 +319,17 @@ describe('buildToolPresentation', () => {
     expect(presentation.output?.text).toContain('paths');
   });
 
+  it('never promotes raw tool output into the transcript row title', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'bash',
+      outputText: 'total 216\ndrwxr-xr-x 7 user staff 224 Aug 11 19:55 .',
+    });
+
+    expect(presentation.actionVerb).toBe('Ran command');
+    expect(presentation.summary).toBeUndefined();
+    expect(presentation.output?.text).toContain('total 216');
+  });
+
   it('keeps image_gen prompt summary when both args and paths output are present', () => {
     const presentation = buildToolPresentation({
       toolName: 'image_gen',
@@ -229,7 +344,7 @@ describe('buildToolPresentation', () => {
   });
 
   it('presents video_gen with prompt summary', () => {
-    expect(classifyToolKind('video_gen')).toBe('other');
+    expect(classifyToolKind('video_gen')).toBe('video');
     const presentation = buildToolPresentation({
       toolName: 'video_gen',
       args: { prompt: 'a paper boat crossing a river' },

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ExecutionRunRecord } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
 
@@ -15,6 +15,72 @@ function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): Ex
 }
 
 describe('chatUiReducer', () => {
+  it('records the reasoning interval and closes it when tool work begins', () => {
+    const now = vi.spyOn(Date, 'now');
+    try {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: { type: 'message/start', messageId: 'thinking-a1', role: 'assistant', runId: 'run-1' },
+      });
+
+      now.mockReturnValue(1_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'message/thinking_delta',
+          messageId: 'thinking-a1',
+          delta: 'Inspecting',
+          runId: 'run-1',
+        },
+      });
+      now.mockReturnValue(2_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'message/thinking_delta',
+          messageId: 'thinking-a1',
+          delta: ' files',
+          runId: 'run-1',
+        },
+      });
+      now.mockReturnValue(5_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'tool/start',
+          toolCallId: 'tool-1',
+          toolName: 'read',
+          responseMessageId: 'thinking-a1',
+          runId: 'run-1',
+        },
+      });
+
+      expect(state.messages[0]?.thinkingStartedAt).toBe(1_000);
+      expect(state.messages[0]?.thinkingEndedAt).toBe(5_000);
+
+      now.mockReturnValue(9_000);
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'message/text_delta',
+          messageId: 'thinking-a1',
+          delta: 'Done',
+          runId: 'run-1',
+        },
+      });
+      expect(state.messages[0]?.thinkingEndedAt).toBe(5_000);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('accumulates assistant text deltas', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -41,6 +107,7 @@ describe('chatUiReducer', () => {
     expect(state.messages).toHaveLength(1);
     expect(state.messages[0]?.text).toBe('hi there');
     expect(state.streaming).toBe(false);
+    expect(state.completedAttentionSessionIds).toEqual({});
   });
 
   it('projects live native search evidence onto the assistant message', () => {
@@ -181,11 +248,11 @@ describe('chatUiReducer', () => {
     });
 
     expect(state.workingSessionIds).toEqual({});
-    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+    expect(state.completedAttentionSessionIds).toEqual({});
     expect(state.streaming).toBe(false);
   });
 
-  it('marks completion when a terminal-shaped run update precedes the terminal push', () => {
+  it('does not mark the active session when a terminal-shaped run update precedes the terminal push', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'complete this' });
@@ -199,7 +266,7 @@ describe('chatUiReducer', () => {
         terminalCode: 'completed',
       }),
     });
-    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+    expect(state.completedAttentionSessionIds).toEqual({});
 
     state = chatUiReducer(state, {
       type: 'run/terminal',
@@ -209,7 +276,7 @@ describe('chatUiReducer', () => {
         terminalCode: 'completed',
       }),
     });
-    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+    expect(state.completedAttentionSessionIds).toEqual({});
   });
 
   it('clears a background working marker when its terminal push arrives after a session switch', () => {
@@ -240,6 +307,7 @@ describe('chatUiReducer', () => {
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'finish this' });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
     state = chatUiReducer(state, {
       type: 'run/terminal',
       run: makeRun('run-1', {
@@ -250,8 +318,6 @@ describe('chatUiReducer', () => {
     });
     expect(state.completedAttentionSessionIds).toEqual({ s1: true });
 
-    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
-    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     expect(state.completedAttentionSessionIds).toEqual({});
   });
@@ -261,6 +327,7 @@ describe('chatUiReducer', () => {
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'finish this' });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
     state = chatUiReducer(state, {
       type: 'run/terminal',
       run: makeRun('run-1', {
@@ -269,7 +336,6 @@ describe('chatUiReducer', () => {
         terminalCode: 'completed',
       }),
     });
-    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
     expect(state.completedAttentionSessionIds).toEqual({ s1: true });
 
     state = chatUiReducer(state, { type: 'session/attention-dismiss', sessionId: 's1' });
@@ -1068,6 +1134,26 @@ describe('chatUiReducer', () => {
     ]);
     expect(userMessage?.text).toBe('hello');
     expect(assistantMessage?.text).toBe('raw assistant reply with [piwin-mode:agent] mention');
+  });
+
+  it('hydrates persisted reasoning boundaries for a fixed thought duration', () => {
+    const [assistantMessage] = mapTranscriptMessagesToUi([
+      {
+        id: 'a-thinking',
+        role: 'assistant',
+        text: 'answer',
+        thinking: 'reasoning',
+        createdAt: '2026-08-12T08:00:00.000Z',
+        status: 'done',
+        thinkingStartedAt: '2026-08-12T08:00:01.000Z',
+        thinkingEndedAt: '2026-08-12T08:00:05.000Z',
+      },
+    ]);
+
+    expect(assistantMessage).toMatchObject({
+      thinkingStartedAt: Date.parse('2026-08-12T08:00:01.000Z'),
+      thinkingEndedAt: Date.parse('2026-08-12T08:00:05.000Z'),
+    });
   });
 
   it('bounds both canonical and structured tool output during transcript hydrate', () => {
@@ -1941,13 +2027,21 @@ describe('chatUiReducer', () => {
             createdAt: new Date().toISOString(),
           },
         ],
+        contextUsage: {
+          sessionId: 'g1',
+          tokensUsed: 8_276,
+          updatedAt: '2026-08-11T10:21:36.342Z',
+          source: 'assistant-usage',
+        },
       });
       expect(state.activeSessionId).toBe('g1');
       expect(state.messages).toHaveLength(1);
+      expect(state.contextUsage?.tokensUsed).toBe(8_276);
 
       // session/clear-active is the "New session" (draft mode) action.
       state = chatUiReducer(state, { type: 'session/clear-active' });
       expect(state.activeSessionId).toBe(null);
+      expect(state.contextUsage).toBeNull();
       expect(state.messages).toEqual([]);
       expect(state.outline).toEqual([]);
       expect(state.activeSessionArchived).toBe(false);
@@ -2499,6 +2593,20 @@ describe('chatUiReducer subagent hydration', () => {
     parentSessionId,
     kind: 'subagent' as const,
   });
+  const invocation = (id: string, revision: number) => ({
+    id,
+    parentSessionId: 'parent-1',
+    runId: 'batch-1',
+    parentRunId: 'parent-run',
+    parentToolCallId: `tool-${id}`,
+    taskId: `task-${id}`,
+    task: 'same task text',
+    status: 'running' as const,
+    activity: { kind: 'thinking' as const },
+    revision,
+    createdAt: '2026-08-12T00:00:00.000Z',
+    updatedAt: '2026-08-12T00:00:00.000Z',
+  });
 
   it('hydrates children only for the active parent session', () => {
     let state = createInitialChatUiState();
@@ -2540,6 +2648,25 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.subagentChildren['child-2']?.id).toBe('child-2');
   });
 
+  it('hydrates independent invocations and ignores stale revisions', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+    state = chatUiReducer(state, {
+      type: 'subagent/invocations-hydrate',
+      parentSessionId: 'parent-1',
+      invocations: [invocation('one', 2), invocation('two', 1)],
+    });
+    state = chatUiReducer(state, {
+      type: 'subagent/invocation-updated',
+      parentSessionId: 'parent-1',
+      invocation: { ...invocation('one', 1), status: 'failed' },
+    });
+
+    expect(state.subagentInvocations.one?.revision).toBe(2);
+    expect(state.subagentInvocations.one?.status).toBe('running');
+    expect(state.subagentInvocations.two?.parentToolCallId).toBe('tool-two');
+  });
+
   it('ignores subagent/updated pushes for a non-active parent', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
@@ -2566,11 +2693,17 @@ describe('chatUiReducer subagent hydration', () => {
       childSessionId: 'child-1',
       event: { type: 'message/start', messageId: 'm1', role: 'assistant' },
     });
+    state = chatUiReducer(state, {
+      type: 'subagent/invocations-hydrate',
+      parentSessionId: 'parent-1',
+      invocations: [invocation('one', 1)],
+    });
     expect(Object.keys(state.subagentStreams)).toHaveLength(1);
 
     state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-2' });
     expect(Object.keys(state.subagentChildren)).toHaveLength(0);
     expect(Object.keys(state.subagentStreams)).toHaveLength(0);
+    expect(Object.keys(state.subagentInvocations)).toHaveLength(0);
   });
 
   it('uses clientMessageId for optimistic user bubbles and rolls them back', () => {

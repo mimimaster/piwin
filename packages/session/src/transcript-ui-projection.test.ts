@@ -21,6 +21,7 @@ describe('projectTranscriptMessagesForUi', () => {
             presentation: {
               kind: 'shell',
               title: 'bash',
+              routedToolName: 'image_gen',
               actionVerb: 'Ran command',
               command: 'ls',
               summary: 'ls',
@@ -36,6 +37,7 @@ describe('projectTranscriptMessagesForUi', () => {
     const tool = slim[0]?.tools?.[0];
     expect(tool?.output).toBe('');
     expect(tool?.presentation?.command).toBe('ls');
+    expect(tool?.presentation?.routedToolName).toBe('image_gen');
     expect(tool?.presentation?.changedPaths).toEqual(['a.ts']);
     expect(tool?.presentation?.output).toBeUndefined();
     expect(slim[0]?.thinking).toBe('plan');

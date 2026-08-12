@@ -96,7 +96,7 @@ export function SubagentProfilesPage(): ReactElement {
     : {
         title: 'Orchestration schemes',
         pageDescription:
-          'Give the main agent a roster of named subagent roles. You define roles and duties (optional model); the main agent decides who to call. Pick a scheme in Composer; None means no injection.',
+          'Give the main agent a roster of named subagent roles. You define roles and duties (optional model); the main agent decides who to call. Pick a scheme in Composer; Freehand means no scheme injection while delegation remains available.',
         noModels: 'No models configured. Add a provider under Models first.',
         schemesTitle: 'Schemes',
         schemesDescription:

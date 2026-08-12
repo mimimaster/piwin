@@ -8,6 +8,7 @@ import {
   type ExtensionSummary,
   type ExtensionsConfig,
 } from '@piwin/contracts';
+import { createExtensionRevisionStore } from '@piwin/extensions';
 import { getPiwinExtensionsDir } from './paths.js';
 
 export type ScanExtensionsOptions = {
@@ -20,12 +21,34 @@ export type ScanExtensionsOptions = {
  * List extension entry modules for UI/CLI without executing them.
  * Layout mirrors Pi: flat .ts files and package index.ts directories.
  */
-export async function scanExtensions(
-  options: ScanExtensionsOptions,
-): Promise<ExtensionSummary[]> {
+export async function scanExtensions(options: ScanExtensionsOptions): Promise<ExtensionSummary[]> {
   const config = options.extensionsConfig ?? createDefaultExtensionsConfig();
   const disabled = new Set(config.disabledIds.map((id) => id.toLowerCase()));
   const results: ExtensionSummary[] = [];
+  const managedIds = new Set<string>();
+  const managedRecords = await createExtensionRevisionStore(options.piwinRoot).listRecords();
+  for (const record of managedRecords) {
+    const selected =
+      record.revisions.find((revision) => revision.contentRevision === record.selectedRevision) ??
+      [...record.revisions]
+        .filter((revision) => revision.state === 'installed')
+        .sort((left, right) => right.installedAt.localeCompare(left.installedAt))[0];
+    if (!selected) continue;
+    managedIds.add(record.id);
+    results.push({
+      id: record.id,
+      name: record.name,
+      description: record.description,
+      source: 'user',
+      path: selected.entryPath,
+      enabled: record.configuredEnabled && selected.state === 'installed',
+      managed: true,
+      contentRevision: selected.contentRevision,
+      ...(selected.version ? { version: selected.version } : {}),
+      configuredEnabled: record.configuredEnabled,
+      ...(record.selectedRevision ? { selectedRevision: record.selectedRevision } : {}),
+    });
+  }
   const roots: Array<{ path: string; source: ExtensionSource }> = [
     { path: getPiwinExtensionsDir(options.piwinRoot), source: 'user' },
   ];
@@ -43,8 +66,14 @@ export async function scanExtensions(
 
   for (const rootEntry of roots) {
     for (const extension of await scanExtensionRoot(rootEntry.path, rootEntry.source)) {
+      // A managed user revision is authoritative for its id. Project/mapped
+      // resources remain visible so precedence diagnostics can explain a
+      // collision instead of silently deleting project intent.
+      if (extension.source === 'user' && managedIds.has(extension.id)) {
+        continue;
+      }
       const enabled = !disabled.has(extension.id.toLowerCase());
-      results.push({ ...extension, enabled });
+      results.push({ ...extension, enabled, configuredEnabled: enabled });
     }
   }
 
@@ -65,7 +94,7 @@ export function collectExtensionEntryPaths(options: {
   const disabled = new Set((options.disabledIds ?? []).map((id) => id.toLowerCase()));
   const paths: string[] = [];
   for (const extension of options.discovered) {
-    if (disabled.has(extension.id.toLowerCase())) {
+    if (!extension.enabled || (!extension.managed && disabled.has(extension.id.toLowerCase()))) {
       continue;
     }
     paths.push(extension.path);
@@ -140,12 +169,7 @@ async function tryReadExtensionEntry(
       const indexPath = join(absolutePath, 'index.ts');
       try {
         if ((await stat(indexPath)).isFile()) {
-          return buildExtensionSummary(
-            indexPath,
-            basename(absolutePath),
-            source,
-            absolutePath,
-          );
+          return buildExtensionSummary(indexPath, basename(absolutePath), source, absolutePath);
         }
       } catch {
         return null;
@@ -179,6 +203,7 @@ async function buildExtensionSummary(
     source: resolvedSource,
     path: pathForLoader,
     enabled: true,
+    configuredEnabled: true,
   };
 }
 

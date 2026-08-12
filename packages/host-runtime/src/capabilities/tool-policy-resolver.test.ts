@@ -13,6 +13,7 @@ function baseExposure(overrides: Partial<ToolExposureInput> = {}): ToolExposureI
     subagents: 'off',
     notes: 'off',
     flashcards: 'off',
+    artifact: false,
     availability: {
       webSearchReady: true,
       webFetchReady: true,
@@ -122,6 +123,21 @@ describe('resolveToolPolicy', () => {
     const agent = resolveToolPolicy(baseExposure({ flashcards: 'agent-create' }));
     expect(agent.enabledFamilies).toContain('flashcards-write');
     expect(agent.enabledFamilies).toContain('flashcards-read');
+  });
+
+  it('Artifact instructions are main-session only', () => {
+    const unavailable = resolveToolPolicy(baseExposure({ artifact: true }));
+    expect(unavailable.enabledFamilies).toContain('artifact');
+
+    const available = resolveToolPolicy(
+      baseExposure({ artifact: true, availableFamilies: new Set(['artifact']) }),
+    );
+    expect(available.enabledFamilies).toContain('artifact');
+
+    const subagent = resolveToolPolicy(
+      baseExposure({ artifact: true, capabilities: ['read'], availableFamilies: new Set(['artifact']) }),
+    );
+    expect(subagent.enabledFamilies).not.toContain('artifact');
   });
 
   it('image generation requires master and a valid model', () => {

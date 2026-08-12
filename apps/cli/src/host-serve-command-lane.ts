@@ -30,6 +30,7 @@ const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
   'skills/set_enabled',
   'extensions/install',
   'extensions/set_enabled',
+  'extensions/apply',
   'prompts/set_enabled',
   'theme/set-active',
   'theme/install-local',

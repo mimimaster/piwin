@@ -1,19 +1,28 @@
 /**
- * Read-only subagent session transcript. Renders persisted history followed
+ * Subagent session transcript. Renders persisted history followed
  * by one live tail (deduplicated upstream by the pure session projection).
  * Owns auto-follow scrolling and per-message presentation only — no session
  * controls, composer, or lifecycle interpretation.
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import type { ChatMessageUi, SubagentStreamState, SubagentStreamTool } from './chat-reducer';
+import type { ChatMessageUi, SubagentStreamState } from './chat-reducer';
 import { MarkdownView } from './MarkdownView';
 import { Button } from '@piwin/ui-kit';
+import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
+import type { ArtifactActionMessage } from '@piwin/artifact';
 import { IconChevronDown } from './shell-icons';
-import {
-  behaviorTextClass,
-  getBehaviorActivitySpec,
-  resolveToolBehaviorId,
-} from './behavior-activity.js';
+import { TurnWorkDetails } from './turn-work-details';
+import { CitationCards } from './CitationCards';
+import { MessageAttachments } from './message-attachments';
+import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
+import { ImageGenerationProgress } from './image-generation-progress';
+import { VideoGenerationProgress } from './video-generation-progress';
+import { resolveGenerationToolKind, type GenerationToolKind } from './generation-tool-kind';
+import { PermissionBar } from './permission-bar';
+import { SystemMessageContent } from './system-message-content';
+import type { DocumentOpenInput } from './tool-call-card';
+import type { DiffCardRequest } from './diff-card';
+import type { ArtifactCanvasTarget } from './artifact-canvas-model';
 
 export type SubagentSessionTranscriptProps = {
   historicalMessages: ChatMessageUi[];
@@ -24,79 +33,151 @@ export type SubagentSessionTranscriptProps = {
   locale: 'zh-CN' | 'en';
   /** Whether persisted and live child-session thinking should be rendered. */
   showThinking?: boolean;
+  childSessionId?: string;
+  projectPath?: string | null;
+  request?: DiffCardRequest;
+  filesChangedRequest?: FilesChangedBarRequest;
+  onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDocument?: (input: DocumentOpenInput) => void;
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
+  artifactPreviewEnabled?: boolean;
+  artifactMaxBytes?: number;
+  onPermission?: (
+    prompt: import('./chat-reducer').PermissionPromptUi,
+    decision: PermissionDecision,
+    rememberScope?: PermissionRememberScope,
+  ) => void;
 };
 
 const SCROLL_FOLLOW_THRESHOLD_PX = 80;
-
-function SubagentToolRow({ tool }: { tool: SubagentStreamTool }): ReactElement {
-  const behaviorId = resolveToolBehaviorId({ kind: 'unknown', toolName: tool.toolName });
-  const behaviorSpec = getBehaviorActivitySpec(behaviorId);
-  const isRunning = tool.status === 'running';
-  return (
-    <div
-      className="subagent-inspector-tool"
-      data-status={tool.status}
-      data-activity-id={behaviorId}
-      data-activity-animation={behaviorSpec.animation}
-      data-tool-status={isRunning ? 'running' : tool.status}
-    >
-      <span className="subagent-inspector-tool-header">
-        <span
-          className={`subagent-inspector-tool-status status-${tool.status}`}
-          aria-hidden="true"
-        />
-        <code
-          className={`subagent-inspector-tool-name ${
-            tool.status === 'error' ? 'behavior-error' : behaviorTextClass(behaviorId, isRunning)
-          }`}
-        >
-          {tool.toolName}
-        </code>
-      </span>
-      {tool.output.length > 0 ? (
-        <pre className="subagent-inspector-tool-output">{tool.output.slice(-2048)}</pre>
-      ) : null}
-    </div>
-  );
-}
 
 function SubagentInspectorAssistant({
   message,
   streaming,
   locale,
   showThinking,
+  permissionPrompt,
+  childSessionId,
+  projectPath,
+  request,
+  filesChangedRequest,
+  onOpenFile,
+  onOpenDocument,
+  onArtifactAction,
+  onOpenArtifactCanvas,
+  artifactPreviewEnabled,
+  artifactMaxBytes,
 }: {
   message: ChatMessageUi;
   streaming: boolean;
   locale: 'zh-CN' | 'en';
   showThinking: boolean;
+  permissionPrompt?: import('./chat-reducer').PermissionPromptUi | null;
+  childSessionId?: string;
+  projectPath?: string | null;
+  request?: DiffCardRequest;
+  filesChangedRequest?: FilesChangedBarRequest;
+  onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDocument?: (input: DocumentOpenInput) => void;
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
+  artifactPreviewEnabled?: boolean;
+  artifactMaxBytes?: number;
 }): ReactElement {
-  const isChinese = locale === 'zh-CN';
-  const hasThinking = showThinking && message.thinking.trim().length > 0;
-  const hasTools = message.tools.length > 0;
+  const imageGenerationStatus = getGenerationStatus(message, 'image');
+  const videoGenerationStatus = getGenerationStatus(message, 'video');
   return (
     <div className="subagent-inspector-message role-assistant" data-streaming={streaming}>
-      {hasThinking ? (
-        <details className="subagent-inspector-thinking">
-          <summary>{isChinese ? '思考过程' : 'Thinking'}</summary>
-          <pre className="subagent-inspector-thinking-text">{message.thinking}</pre>
-        </details>
+      <TurnWorkDetails
+        message={message}
+        runRecordsById={{}}
+        activeRunId={streaming ? message.runId ?? null : null}
+        permissionPrompt={permissionPrompt ?? null}
+        workDetailsExpanded="always"
+        toolDensity="comfortable"
+        showThinking={showThinking}
+        locale={locale}
+        {...(projectPath !== undefined ? { projectPath } : {})}
+        {...(request ? { request } : {})}
+        {...(onOpenFile ? { onOpenFile } : {})}
+        {...(onOpenDocument ? { onOpenDocument } : {})}
+      >
+        {message.text.length > 0 ? (
+          <MarkdownView
+            text={message.text}
+            renderingPhase={streaming ? 'streaming' : 'completed'}
+            showStreamingCaret={streaming && message.text.trim().length > 0}
+            locale={locale}
+            {...(artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+            {...(artifactMaxBytes !== undefined ? { artifactMaxBytes } : {})}
+            {...(onArtifactAction ? { onArtifactAction } : {})}
+            {...(childSessionId
+              ? { artifactOrigin: { sessionId: childSessionId, messageId: message.id } }
+              : {})}
+            {...(onOpenArtifactCanvas ? { onOpenArtifactCanvas } : {})}
+            {...(onOpenDocument ? { onOpenDocument } : {})}
+          />
+        ) : null}
+        {message.searchEvidence ? <CitationCards evidence={message.searchEvidence} /> : null}
+      </TurnWorkDetails>
+      {imageGenerationStatus ? (
+        <ImageGenerationProgress locale={locale} status={imageGenerationStatus} />
       ) : null}
-      {hasTools ? (
-        <div className="subagent-inspector-tools">
-          {message.tools.map((tool) => (
-            <SubagentToolRow key={tool.toolCallId} tool={tool} />
-          ))}
-        </div>
+      {videoGenerationStatus ? (
+        <VideoGenerationProgress locale={locale} status={videoGenerationStatus} />
       ) : null}
-      <MarkdownView
-        text={message.text}
-        renderingPhase={streaming ? 'streaming' : 'completed'}
-        showStreamingCaret={streaming && message.text.trim().length > 0}
-        artifactPreviewEnabled={false}
-      />
+      <MessageAttachments attachments={message.attachments} />
+      {message.tools.length > 0 ? (
+        <FilesChangedBar
+          tools={message.tools}
+          {...(projectPath !== undefined ? { projectPath } : {})}
+          {...(filesChangedRequest ? { request: filesChangedRequest } : {})}
+          locale={locale}
+        />
+      ) : null}
     </div>
   );
+}
+
+function getGenerationStatus(
+  message: ChatMessageUi,
+  generationKind: GenerationToolKind,
+): import('./chat-reducer').ToolCardUi['status'] | null {
+  const tools = message.tools.filter(
+    (tool) => resolveGenerationToolKind(tool) === generationKind,
+  );
+  if (tools.length === 0) return null;
+  if (tools.some((tool) => tool.status === 'running')) return 'running';
+  if (tools.some((tool) => tool.status === 'error')) return 'error';
+  return 'done';
+}
+
+function streamToAssistantMessage(stream: SubagentStreamState): ChatMessageUi {
+  return {
+    id: stream.currentMessageId ?? `subagent-live-${stream.childSessionId}`,
+    role: 'assistant',
+    text: stream.text,
+    thinking: stream.thinking,
+    tools: stream.tools.map((tool) => ({
+      toolCallId: tool.toolCallId,
+      toolName: tool.toolName,
+      status: tool.status,
+      output: tool.output,
+      ...(tool.outputRetainedBytes !== undefined
+        ? { outputRetainedBytes: tool.outputRetainedBytes }
+        : {}),
+      ...(tool.outputTruncated !== undefined
+        ? { outputTruncated: tool.outputTruncated }
+        : {}),
+      ...(tool.presentation ? { presentation: tool.presentation } : {}),
+      ...(tool.runId ? { runId: tool.runId } : {}),
+      ...(tool.responseMessageId ? { responseMessageId: tool.responseMessageId } : {}),
+    })),
+    attachments: stream.attachments ?? [],
+    status: stream.streaming ? 'streaming' : 'done',
+    ...(stream.searchEvidence ? { searchEvidence: stream.searchEvidence } : {}),
+  };
 }
 
 export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps): ReactElement {
@@ -163,8 +244,12 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
     props.stream !== null &&
     (props.stream.text.length > 0 ||
       (showThinking && props.stream.thinking.length > 0) ||
-      props.stream.tools.length > 0);
+      props.stream.tools.length > 0 ||
+      (props.stream.attachments?.length ?? 0) > 0 ||
+      props.stream.searchEvidence !== undefined);
+
   const isEmpty = props.historicalMessages.length === 0 && !hasLiveContent;
+  const livePermissionPrompt = props.stream?.permissionPrompt ?? null;
 
   return (
     <div className="subagent-inspector-scroll" ref={scrollRef} onScroll={handleScroll}>
@@ -177,6 +262,7 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
               streaming={false}
               locale={locale}
               showThinking={showThinking}
+              {...sharedAssistantProps(props)}
             />
           );
         }
@@ -185,59 +271,47 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
             <div key={message.id} className="subagent-inspector-message role-user">
               <span className="subagent-inspector-user-label">{isChinese ? '任务' : 'Task'}</span>
               <div className="subagent-inspector-user-text">{message.text}</div>
+              <MessageAttachments attachments={message.attachments} />
             </div>
           );
         }
         return (
           <div key={message.id} className="subagent-inspector-message role-system muted">
-            {message.text}
+            <SystemMessageContent
+              text={message.text}
+              {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+              {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+            />
           </div>
         );
       })}
 
-      {props.stream !== null &&
-        (() => {
-          const stream = props.stream;
-          const isLive = stream.streaming;
-          const hasContent =
-            stream.text.length > 0 ||
-            (showThinking && stream.thinking.length > 0) ||
-            stream.tools.length > 0;
-          if (!hasContent) {
-            return null;
+      {props.stream !== null && hasLiveContent ? (
+        <div
+          className="subagent-inspector-live"
+          data-live={props.stream.streaming}
+          data-tool-status={props.stream.streaming ? 'running' : 'done'}
+        >
+          <SubagentInspectorAssistant
+            message={streamToAssistantMessage(props.stream)}
+            streaming={props.stream.streaming}
+            locale={locale}
+            showThinking={showThinking}
+            permissionPrompt={props.stream.permissionPrompt ?? null}
+            {...sharedAssistantProps(props)}
+          />
+        </div>
+      ) : null}
+
+      {livePermissionPrompt && props.onPermission ? (
+        <PermissionBar
+          prompt={livePermissionPrompt}
+          projectPath={props.projectPath ?? null}
+          onPermission={(decision, rememberScope) =>
+            props.onPermission?.(livePermissionPrompt, decision, rememberScope)
           }
-          return (
-            <div
-              className="subagent-inspector-live"
-              data-live={isLive}
-              data-activity-id="subagent.inspector.live"
-              data-activity-animation={getBehaviorActivitySpec('subagent.inspector.live').animation}
-              data-tool-status={isLive ? 'running' : 'done'}
-            >
-              {showThinking && stream.thinking.length > 0 ? (
-                <details className="subagent-inspector-thinking" open>
-                  <summary>{isChinese ? '思考过程' : 'Thinking'}</summary>
-                  <pre className="subagent-inspector-thinking-text">{stream.thinking}</pre>
-                </details>
-              ) : null}
-              {stream.tools.length > 0 ? (
-                <div className="subagent-inspector-tools">
-                  {stream.tools.map((tool) => (
-                    <SubagentToolRow key={tool.toolCallId} tool={tool} />
-                  ))}
-                </div>
-              ) : null}
-              {stream.text.length > 0 ? (
-                <MarkdownView
-                  text={stream.text}
-                  renderingPhase={isLive ? 'streaming' : 'completed'}
-                  showStreamingCaret={isLive}
-                  artifactPreviewEnabled={false}
-                />
-              ) : null}
-            </div>
-          );
-        })()}
+        />
+      ) : null}
 
       {isEmpty && !props.loading && props.error === null ? (
         <div className="subagent-inspector-state">{isChinese ? '尚无输出' : 'No output yet'}</div>
@@ -256,4 +330,19 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
       ) : null}
     </div>
   );
+}
+
+function sharedAssistantProps(props: SubagentSessionTranscriptProps) {
+  return {
+    ...(props.childSessionId ? { childSessionId: props.childSessionId } : {}),
+    ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
+    ...(props.request ? { request: props.request } : {}),
+    ...(props.filesChangedRequest ? { filesChangedRequest: props.filesChangedRequest } : {}),
+    ...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {}),
+    ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
+    ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
+    ...(props.onOpenArtifactCanvas ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas } : {}),
+    ...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true as const } : {}),
+    ...(props.artifactMaxBytes !== undefined ? { artifactMaxBytes: props.artifactMaxBytes } : {}),
+  };
 }

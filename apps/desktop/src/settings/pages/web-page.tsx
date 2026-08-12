@@ -5,6 +5,10 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   DEFAULT_SEARCH_ROUTE_POLICY,
+  isModelEnabled,
+  isProviderEnabled,
+  modelSupportsCapability,
+  type ModelRef,
   type SearchRoutePolicy,
   type SearchRoutePreviewData,
   type SearchRoutePreviewInput,
@@ -16,6 +20,7 @@ import {
   Field,
   Notice,
   SegmentedControl,
+  Select,
   Switch,
   TextArea,
   TextInput,
@@ -81,6 +86,18 @@ const FETCH_PROVIDER_OPTIONS = [
   },
 ];
 
+type SearchDelegateOption = {
+  key: string;
+  label: string;
+  ref: ModelRef;
+};
+
+function modelRefKey(model: ModelRef | undefined): string {
+  return model
+    ? [model.protocol, model.providerId, model.modelId].map(encodeURIComponent).join('/')
+    : '';
+}
+
 export function WebPage(): ReactElement {
   const { locale, translator } = useDesktopLocale();
   const {
@@ -110,8 +127,32 @@ export function WebPage(): ReactElement {
     return {
       policy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
       searchSources: web.searchSources,
+      ...(web.searchDelegateModel ? { searchDelegateModel: web.searchDelegateModel } : {}),
     };
   }, [webDraft]);
+  const searchDelegateOptions = useMemo<SearchDelegateOption[]>(() => {
+    return (config?.providers ?? []).filter(isProviderEnabled).flatMap((provider) =>
+      provider.models
+        .filter(
+          (model) =>
+            isModelEnabled(model) &&
+            modelSupportsCapability(model, 'chat') &&
+            modelSupportsCapability(model, 'native-web-search'),
+        )
+        .map((model) => {
+          const ref: ModelRef = {
+            protocol: provider.protocol,
+            providerId: provider.id,
+            modelId: model.id,
+          };
+          return {
+            key: modelRefKey(ref),
+            label: `${provider.name} · ${model.label?.trim() || model.id}`,
+            ref,
+          };
+        }),
+    );
+  }, [config?.providers]);
 
   useEffect(() => {
     let disposed = false;
@@ -257,6 +298,16 @@ export function WebPage(): ReactElement {
     setSaveStatus(saved ? 'saved' : 'error');
   };
 
+  const selectSearchDelegate = (key: string): void => {
+    const selected = searchDelegateOptions.find((option) => option.key === key);
+    if (selected) {
+      setWebDraft({ ...webDraft, searchDelegateModel: selected.ref });
+      return;
+    }
+    const { searchDelegateModel: _removed, ...withoutDelegate } = webDraft;
+    setWebDraft(withoutDelegate);
+  };
+
   const testSearchConnection = async (
     sourceId: string,
     kind: 'brave' | 'tavily',
@@ -296,6 +347,58 @@ export function WebPage(): ReactElement {
 
         {webToolsTab === 'search' ? (
           <div className="web-tools-panel" data-testid="web-tools-search-panel">
+            <Field
+              label={zh ? 'web_search 委托模型' : 'web_search delegate model'}
+              description={
+                zh
+                  ? '可选：只显示已启用且标记“模型内置搜索”的模型。选择后，web_search 会调用该模型的内置搜索。'
+                  : 'Optional: only enabled models tagged Native search are listed. When selected, web_search uses that model’s provider-native search.'
+              }
+              className="web-search-route-field"
+            >
+              <Select
+                value={modelRefKey(webDraft.searchDelegateModel)}
+                onChange={(event) => selectSearchDelegate(event.currentTarget.value)}
+                testId="web-search-delegate-model"
+                data={[
+                  {
+                    value: '',
+                    label: zh
+                      ? '不委托（使用下方搜索源）'
+                      : 'No delegation (use search sources below)',
+                  },
+                  ...(webDraft.searchDelegateModel &&
+                  !searchDelegateOptions.some(
+                    (option) => option.key === modelRefKey(webDraft.searchDelegateModel),
+                  )
+                    ? [
+                        {
+                          value: modelRefKey(webDraft.searchDelegateModel),
+                          label: zh ? '当前委托模型不可用' : 'Current delegate is unavailable',
+                          disabled: true,
+                        },
+                      ]
+                    : []),
+                  ...searchDelegateOptions.map((option) => ({
+                    value: option.key,
+                    label: option.label,
+                  })),
+                ]}
+              />
+            </Field>
+            {webDraft.searchDelegateModel ? (
+              <Notice tone="info" testId="web-search-delegate-active">
+                {zh
+                  ? '委托启用时，web_search 只调用所选模型；下方普通搜索源会保留配置，但不会同时请求。'
+                  : 'While delegation is enabled, web_search calls only the selected model. Ordinary sources below remain configured but are not queried.'}
+              </Notice>
+            ) : searchDelegateOptions.length === 0 ? (
+              <Notice tone="warning" testId="web-search-delegate-empty">
+                {zh
+                  ? '暂无可委托模型。请先在模型配置中给支持内置搜索的模型勾选“模型内置搜索”。'
+                  : 'No delegate model is available. Tag a provider model with Native search first.'}
+              </Notice>
+            ) : null}
             <div className="web-source-list" data-testid="web-search-sources">
               {SOURCE_KIND_OPTIONS.map((option) => {
                 const selected = isKindEnabled(option.id);
@@ -630,7 +733,9 @@ export function WebPage(): ReactElement {
                       : ''}
             </div>
             <div className="web-tools-effective-scope">
-              {zh ? '保存后对新会话生效' : 'Changes apply to new sessions'}
+              {zh
+                ? '当前轮次完成后自动应用；无需重启应用'
+                : 'Applied automatically after the current Run; no app restart required'}
             </div>
           </div>
           <Button variant="primary" disabled={saving} onClick={() => void saveAllWebSettings()}>

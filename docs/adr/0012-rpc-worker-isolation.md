@@ -42,12 +42,22 @@ created:
 
 - `apiKeyEnv` is represented as an environment-variable reference. The raw
   value is not included in the provider envelope.
-- `apiKeyRef` is parent-owned keychain state and has no worker JSONL secret
-  channel. RPC/worker compilation therefore fails closed instead of resolving
-  the key and serializing inline auth.
+- `apiKeyRef` is parent-owned keychain state. RPC/worker compilation resolves
+  only the selected provider and sends its raw value through a bounded,
+  one-shot file-descriptor-3 bootstrap pipe. The JSONL provider envelope
+  carries only an opaque `secretId`; the raw value never enters JSONL,
+  argv/env, a blueprint, logs, or durable state. The worker validates and
+  drops the bootstrap map after provider registration.
 - In-process SDK compilation may explicitly opt into inline auth for the
   backend call. That opt-in is not valid for RPC and must never cross worker
-  JSONL. A future secret channel can replace this restriction.
+  JSONL. The worker protocol uses a distinct auth type that cannot represent
+  inline credentials, and both the parent RPC backend and worker request edge
+  reject forged/legacy inline envelopes at runtime. Worker bootstrap values
+  are bounded to 64 KiB total and 16 KiB per value, and are generation-scoped.
+
+Provider compilation is least-scope: a fixed session/subagent model compiles
+only its effective provider. An unrelated enabled provider with a keychain
+reference cannot block that session.
 
 ## Non-goals for this ADR
 

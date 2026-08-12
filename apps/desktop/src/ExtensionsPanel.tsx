@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ExtensionSummary,
   ExtensionsInstallData,
@@ -6,21 +6,36 @@ import type {
   HostResponse,
   InstallSource,
 } from '@piwin/contracts';
-import { Button, Collapse, Notice, SegmentedControl, Spinner, Switch, TextInput } from '@piwin/ui-kit';
+import {
+  Button,
+  Collapse,
+  Notice,
+  SegmentedControl,
+  Spinner,
+  Switch,
+  TextInput,
+} from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
 export type ExtensionsPanelProps = {
   projectPath: string | null;
+  sessionId?: string | null;
   request: (command: {
     type:
       | 'extensions/list'
       | 'extensions/set_enabled'
+      | 'extensions/apply'
       | 'extensions/ensure-bundled'
       | 'extensions/install';
     projectPath?: string;
     extensionId?: string;
     enabled?: boolean;
+    sessionId?: string;
+    when?: 'now' | 'after-current-run' | 'new-sessions-only';
+    expectedSettingsRevision?: string;
+    expectedRegistryRevision?: string;
+    deploymentId?: string;
     source?: InstallSource;
     name?: string;
   }) => Promise<HostResponse>;
@@ -43,16 +58,25 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   const [installing, setInstalling] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
 
+  const requestExtensions = props.request;
+  const projectPath = props.projectPath;
+  const loadRequestSequenceRef = useRef(0);
+
   const loadExtensions = useCallback(async () => {
+    const requestSequence = loadRequestSequenceRef.current + 1;
+    loadRequestSequenceRef.current = requestSequence;
     setLoading(true);
     setError(null);
     const command: { type: 'extensions/list'; projectPath?: string } = {
       type: 'extensions/list',
     };
-    if (props.projectPath) {
-      command.projectPath = props.projectPath;
+    if (projectPath) {
+      command.projectPath = projectPath;
     }
-    const response = await props.request(command);
+    const response = await requestExtensions(command);
+    if (requestSequence !== loadRequestSequenceRef.current) {
+      return;
+    }
     setLoading(false);
     if (!response.success) {
       setError(response.error);
@@ -60,7 +84,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
     }
     const data = response.data as ExtensionsListData;
     setExtensions(data.extensions ?? []);
-  }, [props]);
+  }, [projectPath, requestExtensions]);
 
   useEffect(() => {
     void loadExtensions();
@@ -91,8 +115,31 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo(isChinese ? `已${extension.enabled ? '关闭' : '开启'}扩展：${extension.name}` : `${extension.enabled ? 'Disabled' : 'Enabled'} extension: ${extension.name}`);
-    setExtensions((prev) => prev.map((e) => (e.id === extension.id ? { ...e, enabled: !e.enabled } : e)));
+    setInfo(
+      isChinese
+        ? `已${extension.enabled ? '关闭' : '开启'}扩展：${extension.name}`
+        : `${extension.enabled ? 'Disabled' : 'Enabled'} extension: ${extension.name}`,
+    );
+    setExtensions((prev) =>
+      prev.map((e) => (e.id === extension.id ? { ...e, enabled: !e.enabled } : e)),
+    );
+    if (props.sessionId) {
+      const applyResponse = await props.request({
+        type: 'extensions/apply',
+        sessionId: props.sessionId,
+        when: 'after-current-run',
+      });
+      if (!applyResponse.success) {
+        setError(applyResponse.error);
+        void loadExtensions();
+        return;
+      }
+      setInfo(
+        isChinese
+          ? `已在当前 Run 结束后应用扩展：${extension.name}`
+          : `Extension will apply after the current run: ${extension.name}`,
+      );
+    }
   }
 
   async function handleInstallLocal() {
@@ -111,7 +158,9 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       return;
     }
     const data = response.data as ExtensionsInstallData;
-    setInfo(isChinese ? `已安装扩展到：${data.targetPath}` : `Installed extension to: ${data.targetPath}`);
+    setInfo(
+      isChinese ? `已安装扩展到：${data.targetPath}` : `Installed extension to: ${data.targetPath}`,
+    );
     setInstallPath('');
     setInstallName('');
     void loadExtensions();
@@ -133,7 +182,11 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       return;
     }
     const data = response.data as ExtensionsInstallData;
-    setInfo(isChinese ? `已从 Git 安装扩展到：${data.targetPath}` : `Installed extension from Git to: ${data.targetPath}`);
+    setInfo(
+      isChinese
+        ? `已从 Git 安装扩展到：${data.targetPath}`
+        : `Installed extension from Git to: ${data.targetPath}`,
+    );
     setInstallGitUrl('');
     setInstallName('');
     void loadExtensions();
@@ -141,11 +194,17 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
 
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
-      <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
+      <div
+        className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
+      >
         {props.variant !== 'inline' ? (
           <PageTitle
             title={isChinese ? 'Pi 扩展' : 'Pi Extensions'}
-            description={isChinese ? '扩展 Agent 的核心能力，支持本地模块加载。' : 'Extend core agent capabilities with local module loading.'}
+            description={
+              isChinese
+                ? '扩展 Agent 的核心能力，支持本地模块加载。'
+                : 'Extend core agent capabilities with local module loading.'
+            }
             trailing={
               <span className="muted" style={{ fontSize: '12.5px' }}>
                 {visible.length}/{extensions.length} {isChinese ? '已安装' : 'installed'}
@@ -163,12 +222,17 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
             data-testid="extensions-filter"
             aria-label={isChinese ? '搜索扩展' : 'Search extensions'}
           />
-          <Button size="compact" variant="ghost" onClick={() => void loadExtensions()} data-testid="extensions-refresh">
+          <Button
+            size="compact"
+            variant="ghost"
+            onClick={() => void loadExtensions()}
+            data-testid="extensions-refresh"
+          >
             {isChinese ? '刷新' : 'Refresh'}
           </Button>
         </div>
 
-        {(error || info) ? (
+        {error || info ? (
           <div className="ui-feedback-host" aria-live="polite" style={{ marginBottom: 16 }}>
             {error ? <Notice tone="error">{error}</Notice> : null}
             {info ? <Notice tone="info">{info}</Notice> : null}
@@ -176,11 +240,19 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
         ) : null}
 
         {loading ? (
-          <div style={{ padding: '32px', textAlign: 'center' }}><Spinner /></div>
+          <div style={{ padding: '32px', textAlign: 'center' }}>
+            <Spinner />
+          </div>
         ) : visible.length === 0 ? (
           <div className="ext-empty-state" style={{ textAlign: 'center', padding: '40px 20px' }}>
             <p className="muted" style={{ fontSize: '14px', margin: 0 }}>
-              {filter ? (isChinese ? '没有匹配的扩展' : 'No matching extensions') : (isChinese ? '未安装任何扩展' : 'No extensions installed')}
+              {filter
+                ? isChinese
+                  ? '没有匹配的扩展'
+                  : 'No matching extensions'
+                : isChinese
+                  ? '未安装任何扩展'
+                  : 'No extensions installed'}
             </p>
           </div>
         ) : (
@@ -191,7 +263,9 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   <div className="ext-list-title">
                     <strong>{extension.name}</strong>
                     <span className="pill muted">{extension.source}</span>
-                    {extension.enabled ? <span className="pill ok">{isChinese ? '已启用' : 'on'}</span> : null}
+                    {extension.enabled ? (
+                      <span className="pill ok">{isChinese ? '已启用' : 'on'}</span>
+                    ) : null}
                   </div>
                   <div className="muted ext-desc">{extension.description}</div>
                 </div>
@@ -206,7 +280,10 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
           </ul>
         )}
 
-        <div className="settings-section" style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--line-soft)' }}>
+        <div
+          className="settings-section"
+          style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--line-soft)' }}
+        >
           <button
             type="button"
             className="settings-collapsible-trigger"
@@ -217,7 +294,11 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
             <div className="settings-card-heading" style={{ marginBottom: 0 }}>
               <div>
                 <h4>{isChinese ? '手动安装' : 'Install Manually'}</h4>
-                <p>{isChinese ? '从本地路径或 Git 仓库安装新的 Pi 扩展。' : 'Install a new Pi extension from a local path or Git repository.'}</p>
+                <p>
+                  {isChinese
+                    ? '从本地路径或 Git 仓库安装新的 Pi 扩展。'
+                    : 'Install a new Pi extension from a local path or Git repository.'}
+                </p>
               </div>
             </div>
             <svg
@@ -261,7 +342,9 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                       : 'Local path…'
                     : 'https://github.com/…'
                 }
-                aria-label={installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'}
+                aria-label={
+                  installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'
+                }
                 data-testid="extensions-install-source"
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') {
@@ -272,7 +355,9 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
               />
               <Button
                 disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
-                onClick={() => (installKind === 'local' ? handleInstallLocal() : handleInstallGit())}
+                onClick={() =>
+                  installKind === 'local' ? handleInstallLocal() : handleInstallGit()
+                }
                 data-testid="extensions-install-submit"
               >
                 {isChinese ? '安装' : 'Install'}

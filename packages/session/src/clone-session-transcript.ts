@@ -81,10 +81,20 @@ export function cloneTranscriptMessage(
   if (message.attachments) {
     next.attachments = message.attachments.map((attachment) => ({ ...attachment }));
   }
+  if (message.contextRefs) {
+    next.contextRefs = message.contextRefs.map((ref) => {
+      if (ref.kind === 'diff' && ref.relativePaths) {
+        return { ...ref, relativePaths: [...ref.relativePaths] };
+      }
+      return { ...ref };
+    });
+  }
   if (message.runId) next.runId = message.runId;
   if (message.phaseHistory) next.phaseHistory = message.phaseHistory.map((entry) => ({ ...entry }));
   if (message.startedAt) next.startedAt = message.startedAt;
   if (message.endedAt) next.endedAt = message.endedAt;
+  if (message.thinkingStartedAt) next.thinkingStartedAt = message.thinkingStartedAt;
+  if (message.thinkingEndedAt) next.thinkingEndedAt = message.thinkingEndedAt;
   if (message.outcome) next.outcome = message.outcome;
   if (message.terminalMessage) next.terminalMessage = message.terminalMessage;
   if (message.model) next.model = message.model;

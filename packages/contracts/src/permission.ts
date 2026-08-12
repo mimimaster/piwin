@@ -46,6 +46,27 @@ export type SandboxProfileName = 'read-only' | 'workspace' | 'none';
  */
 export type AgentModeId = 'agent' | 'plan' | 'ask';
 
+const DEFAULT_AGENT_MODE_RULES = [
+  "Success: satisfy the user's stated goal with the smallest correct change; leave clear evidence of what was verified.",
+  'If success criteria, technical choices, or constraints are ambiguous in a way that changes the outcome, state the real options and ask — especially for stack/architecture decisions.',
+  'Stop: do not expand scope, invent requirements, or keep working past a blocker; surface conflicts instead of thrashing.',
+  'Verify: do not claim done, fixed, or passing without checks run in this environment when the claim depends on them.',
+  'Safety and permissions are enforced by the host; follow tool results and denials rather than restating policy.',
+  'Prefer outcomes and evidence over process narration.',
+] as const;
+
+/**
+ * Generation-scoped default Agent contract. A compact per-turn marker selects
+ * this contract without copying the same rules into every user message.
+ */
+export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
+  '[piwin-prompt-meta kind="mode:agent-default" version="3" applies="generation"]',
+  '## Default Agent operating contract',
+  'Apply this contract when the latest user message has `[piwin-mode:agent]` or no mode marker.',
+  'A turn-scoped Plan or Ask contract in the latest user message overrides this default for that turn.',
+  ...DEFAULT_AGENT_MODE_RULES,
+].join('\n');
+
 /**
  * Operating contracts injected ahead of model-facing user text for each
  * agent collaboration mode. Host-only: transcript / session naming must keep
@@ -55,12 +76,7 @@ export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> 
   agent: [
     '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
     'Operating contract for this turn:',
-    "Success: satisfy the user's stated goal with the smallest correct change; leave clear evidence of what was verified.",
-    'If success criteria, technical choices, or constraints are ambiguous in a way that changes the outcome, state the real options and ask — especially for stack/architecture decisions.',
-    'Stop: do not expand scope, invent requirements, or keep working past a blocker; surface conflicts instead of thrashing.',
-    'Verify: do not claim done, fixed, or passing without checks run in this environment when the claim depends on them.',
-    'Safety and permissions are enforced by the host; follow tool results and denials rather than restating policy.',
-    'Prefer outcomes and evidence over process narration.',
+    ...DEFAULT_AGENT_MODE_RULES,
   ].join('\n'),
   plan: [
     '[piwin-prompt-meta kind="mode:plan" version="3" applies="plan-mode"]',
@@ -96,8 +112,11 @@ export function mergeAgentModeIntoPrompt(
   userFacingText: string,
 ): string {
   const mode = normalizeAgentModeId(modeId);
-  const preamble = AGENT_MODE_SYSTEM_PREAMBLES[mode];
   const body = userFacingText.trim();
+  if (mode === 'agent') {
+    return body ? `[piwin-mode:agent]\nUser:\n${body}` : '[piwin-mode:agent]';
+  }
+  const preamble = AGENT_MODE_SYSTEM_PREAMBLES[mode];
   if (!preamble) {
     return body;
   }

@@ -10,7 +10,7 @@
  *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
 import type { ReactElement, ReactNode } from 'react';
-import { Button, IconButton } from '@piwin/ui-kit';
+import { Button, IconButton, IconGit } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
@@ -19,7 +19,6 @@ import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import {
   IconChevronLeft,
   IconChevronRight,
-  IconForkConversation,
   IconMoon,
   IconPanelLeft,
   IconPanelRight,
@@ -139,7 +138,12 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       data-tauri-drag-region
       onMouseDown={handleNativeWindowDragMouseDown}
     >
-      <div className="context-bar-leading" data-no-window-drag role="group" aria-label={titlebarCopy.shellNavigation}>
+      <div
+        className="context-bar-leading"
+        data-no-window-drag
+        role="group"
+        aria-label={titlebarCopy.shellNavigation}
+      >
         {props.onToggleSessions && !props.sessionsExpanded ? (
           <IconButton
             className="context-bar-sessions-toggle"
@@ -231,7 +235,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             }
             onClick={props.onReturnToRoot}
           >
-            <IconForkConversation width={12} height={12} />
+            <IconGit width={12} height={12} stroke={1.8} />
             <span>
               {props.origin.kind === 'fork'
                 ? isChinese
@@ -246,7 +250,8 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       </div>
 
       <div
-        className="context-bar-status" data-no-window-drag
+        className="context-bar-status"
+        data-no-window-drag
         data-testid="run-status-strip"
         data-kind={runState.kind}
         role="status"
@@ -311,35 +316,40 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       />
 
       {!workPanelOpen ? (
-        <div className="context-bar-controls" data-no-window-drag role="toolbar" aria-label={titlebarCopy.tools}>
-        {props.onToggleAppearance ? (
-          <IconButton
-            className="context-bar-theme-toggle"
-            data-testid="titlebar-theme-toggle"
-            label={themeToggleLabel}
-            title={themeToggleLabel}
-            aria-pressed={props.appearanceMode === 'dark'}
-            onClick={() => props.onToggleAppearance?.()}
-          >
-            {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
-          </IconButton>
-        ) : null}
+        <div
+          className="context-bar-controls"
+          data-no-window-drag
+          role="toolbar"
+          aria-label={titlebarCopy.tools}
+        >
+          {props.onToggleAppearance ? (
+            <IconButton
+              className="context-bar-theme-toggle"
+              data-testid="titlebar-theme-toggle"
+              label={themeToggleLabel}
+              title={themeToggleLabel}
+              aria-pressed={props.appearanceMode === 'dark'}
+              onClick={() => props.onToggleAppearance?.()}
+            >
+              {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
+            </IconButton>
+          ) : null}
 
-        {props.onToggleWorkPanel && !props.isConversationSession ? (
-          <IconButton
-            className={
-              workPanelOpen ? 'context-bar-inspector-btn active' : 'context-bar-inspector-btn'
-            }
-            data-testid="right-panel-open-btn"
-            label={workPanelLabel}
-            title={workPanelLabel}
-            aria-pressed={workPanelOpen}
-            aria-expanded={workPanelOpen}
-            onClick={() => props.onToggleWorkPanel?.()}
-          >
-            <IconPanelRight />
-          </IconButton>
-        ) : null}
+          {props.onToggleWorkPanel && !props.isConversationSession ? (
+            <IconButton
+              className={
+                workPanelOpen ? 'context-bar-inspector-btn active' : 'context-bar-inspector-btn'
+              }
+              data-testid="right-panel-open-btn"
+              label={workPanelLabel}
+              title={workPanelLabel}
+              aria-pressed={workPanelOpen}
+              aria-expanded={workPanelOpen}
+              onClick={() => props.onToggleWorkPanel?.()}
+            >
+              <IconPanelRight />
+            </IconButton>
+          ) : null}
         </div>
       ) : null}
     </header>

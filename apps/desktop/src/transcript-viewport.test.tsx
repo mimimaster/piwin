@@ -11,11 +11,7 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-function TranscriptGeometry(props: {
-  scrollHeight: number;
-  anchorMessageId?: string;
-  anchorDocumentTop?: number;
-}): ReactElement {
+function TranscriptGeometry(props: { scrollHeight: number }): ReactElement {
   const markerRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const scrollElement = markerRef.current?.closest('.chat-stream');
@@ -28,21 +24,9 @@ function TranscriptGeometry(props: {
     });
     scrollElement.getBoundingClientRect = () =>
       ({ top: 0, bottom: 200, left: 0, right: 800, width: 800, height: 200 }) as DOMRect;
-    if (markerRef.current && props.anchorDocumentTop !== undefined) {
-      const anchorDocumentTop = props.anchorDocumentTop;
-      markerRef.current.getBoundingClientRect = () =>
-        ({
-          top: anchorDocumentTop - scrollElement.scrollTop,
-          bottom: anchorDocumentTop - scrollElement.scrollTop + 48,
-          left: 0,
-          right: 800,
-          width: 800,
-          height: 48,
-        }) as DOMRect;
-    }
-  }, [props.anchorDocumentTop, props.scrollHeight]);
+  }, [props.scrollHeight]);
   return (
-    <div ref={markerRef} id={props.anchorMessageId ? `msg-${props.anchorMessageId}` : undefined}>
+    <div ref={markerRef} className="chat-turn-group is-current-response">
       Transcript content
     </div>
   );
@@ -72,10 +56,9 @@ describe('TranscriptViewport session scroll recovery', () => {
       scrollHeight?: number;
       canLoadOlder?: boolean;
       onLoadOlder?: () => Promise<void>;
-      turnAnchorMessageId?: string;
-      anchorDocumentTop?: number;
       historyViewActive?: boolean;
       onReturnToLatest?: () => void;
+      liveTurnId?: string;
     } = {},
   ): Promise<void> {
     await act(async () => {
@@ -90,19 +73,11 @@ describe('TranscriptViewport session scroll recovery', () => {
             locale="en"
             canLoadOlder={options.canLoadOlder === true}
             historyViewActive={options.historyViewActive === true}
-            turnAnchorMessageId={options.turnAnchorMessageId ?? null}
+            liveTurnId={options.liveTurnId ?? null}
             {...(options.onLoadOlder ? { onLoadOlder: options.onLoadOlder } : {})}
             {...(options.onReturnToLatest ? { onReturnToLatest: options.onReturnToLatest } : {})}
           >
-            <TranscriptGeometry
-              scrollHeight={options.scrollHeight ?? 1_000}
-              {...(options.turnAnchorMessageId
-                ? { anchorMessageId: options.turnAnchorMessageId }
-                : {})}
-              {...(options.anchorDocumentTop !== undefined
-                ? { anchorDocumentTop: options.anchorDocumentTop }
-                : {})}
-            />
+            <TranscriptGeometry scrollHeight={options.scrollHeight ?? 1_000} />
           </TranscriptViewport>
         </PiwinUiProvider>,
       );
@@ -193,29 +168,28 @@ describe('TranscriptViewport session scroll recovery', () => {
     expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
 
-  it('keeps a newly submitted prompt at a stable reading offset while activity grows', async () => {
-    await renderSession('anchored-session', {
+  it('gives the current response a minimum viewport and follows its growing floor', async () => {
+    await renderSession('response-viewport-session', {
       activitySignal: 'streaming-0',
       scrollHeight: 1_400,
-      turnAnchorMessageId: 'prompt-1',
-      anchorDocumentTop: 920,
+      liveTurnId: 'prompt-1',
     });
     const scrollElement = container.querySelector<HTMLDivElement>('.chat-stream');
     if (!scrollElement) throw new Error('Expected transcript scroll element');
 
-    expect(scrollElement.scrollTop).toBe(892);
-    expect(container.querySelector('[data-testid="transcript-turn-anchor-spacer"]')).not.toBeNull();
+    expect(scrollElement.style.getPropertyValue('--transcript-current-response-min-height')).toBe(
+      '150px',
+    );
+    expect(scrollElement.scrollTop).toBe(1_400);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
 
-    await renderSession('anchored-session', {
+    await renderSession('response-viewport-session', {
       activitySignal: 'streaming-1',
       scrollHeight: 2_000,
-      turnAnchorMessageId: 'prompt-1',
-      anchorDocumentTop: 920,
+      liveTurnId: 'prompt-1',
     });
-    expect(scrollElement.scrollTop).toBe(892);
-    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')?.textContent).toContain(
-      'Follow latest',
-    );
+    expect(scrollElement.scrollTop).toBe(2_000);
+    expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).toBeNull();
   });
 
   it('keeps a return-to-latest control visible for a bounded history view', async () => {

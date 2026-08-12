@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — implemented (2026-08-10)
+Accepted — production request path repaired (2026-08-11)
 
 ## Context
 
@@ -22,7 +22,7 @@ video generation.
 
 ### 1. Distinguish model-native search from the external tool family
 
-Add `native-web-search` to `ModelCapability`. The UI label is **内置搜索**,
+Add `native-web-search` to `ModelCapability`. The UI label is **模型内置搜索**,
 not the ambiguous **搜索**. The existing `web-search` session tool family and
 its public `web_search` tool continue to mean piwin's external search service.
 
@@ -30,8 +30,7 @@ A capability tag is a declaration, not executable routing. Native search is
 ready only when all of the following are true:
 
 - the selected chat model is enabled and tagged `native-web-search`;
-- the active Pi SDK/RPC adapter can express native search for that provider;
-- the provider-native feature is controllable for the request.
+- the active Pi SDK/RPC adapter can express native search for that provider.
 
 If an adapter cannot support the provider's native mechanism, the Host reports
 the capability as unavailable instead of pretending the label enabled it.
@@ -68,13 +67,9 @@ The resolved generation exposes one logical outlet:
 
 - Native selected: omit the external Host `web_search` tool and enable only the
   provider-native mechanism in `agent-host`.
-- External selected: disable controllable provider-native search and register
-  only the Host `web_search` tool.
+- External selected: omit provider-native search fields and register only the
+  Host `web_search` tool.
 - Neither ready: expose neither and report the configuration issue.
-
-Models whose search is always on and cannot be disabled must be represented as
-such in model metadata. `external-only` is invalid for those models; Settings
-must warn instead of claiming exclusivity.
 
 ### 3. Keep the decision at product and adapter boundaries
 
@@ -113,11 +108,14 @@ its default-model dropdown.
 
 - Model editor capability badges: Chat, Vision input, Image generation, Video
   generation, Speech, and Native search as applicable.
-- The Native search control explains that it is provider-backed and mutually
-  exclusive with external `web_search` for one generation.
+- Manual model creation exposes the same Native search capability as the
+  existing-model editor; users do not need an add-then-edit workaround.
+- The Native search capability control explains that it is provider-backed;
+  `searchRoutePolicy` remains the only switch and selects one outlet per
+  generation.
 - Web Settings adds **搜索路由** with the four policy choices and a live preview
   for the current default chat model: selected backend, fallback, and any
-  incompatibility.
+  readiness issues.
 - Video Settings lists automatically recognized models first, suggested models
   second, and still allows manual model configuration.
 
@@ -142,11 +140,19 @@ provider stream, inject provider-native search request fields, and preserve the
 normal Pi session loop without forking Pi.
 
 Both current backends construct provider registrations inside `agent-host`, so
-the same wrapper can be applied by the SDK and RPC paths. Request enablement is
-therefore executable with the existing dependency boundary. Normalized native
-citation metadata still requires provider-specific response parsing or an
-upstream Pi event extension; lack of citation normalization must not be
-reported as full native-search readiness.
+the same wrapper is applied by the SDK and RPC paths. The wrapper must receive
+Pi's real protocol `streamSimple`; a test-only injected stream is not sufficient
+evidence that production registration is wired. `agent-host` resolves Pi's lazy
+OpenAI Completions, Anthropic Messages, and Google Generative AI streams and
+wraps those exact implementations.
+
+Normalized native citation metadata still requires provider-specific response
+parsing or an upstream Pi event extension. Pi 0.80.10 does not retain OpenAI
+annotations, Anthropic web-search result/citation blocks, or Google grounding
+metadata in its normalized assistant-message event shape. The product therefore
+reports `citationSupported: false` while request shaping remains available; the
+existing normalizer/persistence/UI path is ready for metadata once the adapter
+can actually receive it.
 
 ## Implementation slices
 
@@ -164,13 +170,64 @@ reported as full native-search readiness.
 | Search-route resolver and Host preview | `packages/host-runtime/src/capabilities/search-route-resolver.ts`, `packages/host-runtime/src/capabilities/search-route-preview.ts` | Implemented |
 | Host tool composition and capability snapshot | `packages/host-runtime/src/blueprint-compiler.ts`, `packages/host-runtime/src/capabilities/session-capability-resolver.ts` | Implemented |
 | SDK/RPC provider registration wrappers | `packages/agent-host/src/pi-model-runtime.ts`, `packages/agent-host/src/rpc/worker-pi-session-factory.ts` | Implemented |
-| Native web-search request shaping + citation normalization | `packages/agent-host/src/native-web-search.ts` | Implemented |
-| Native search evidence events | `packages/agent-host/src/event-map.ts`, `packages/contracts/src/host.ts`, `packages/session/src/transcript-store.ts`, `packages/host-runtime/src/store-transcript-recorder.ts` | Implemented |
+| Native web-search request shaping | `packages/agent-host/src/native-web-search.ts`, `packages/agent-host/src/pi-native-search-stream.ts` | Implemented; production SDK/RPC stream composition repaired 2026-08-11 |
+| Native citation normalization | `packages/agent-host/src/native-web-search.ts` | Parser implemented; upstream Pi response metadata unavailable, reported honestly as unsupported |
+| Native search evidence events | `packages/agent-host/src/event-map.ts`, `packages/contracts/src/host.ts`, `packages/session/src/transcript-store.ts`, `packages/host-runtime/src/store-transcript-recorder.ts` | Implemented; awaits adapter-visible provider metadata |
+| Host `web_search` model delegation | `packages/agent-host/src/native-model-web-search.ts`, `packages/tools-web/src/model-search-delegate.ts`, `packages/host-runtime/src/model-web-search-delegate.ts` | Implemented 2026-08-11 |
 | Desktop native citation rendering | `apps/desktop/src/CitationCards.tsx`, `apps/desktop/src/chat-reducer.ts`, `apps/desktop/src/chat-thread.tsx` | Implemented |
 | Web Settings policy and live status | `apps/desktop/src/settings/pages/web-page.tsx`, `apps/desktop/src/settings/search-route-status.tsx`, `apps/desktop/src/settings/web-draft.ts` | Implemented |
-| Model editor native-search badge | `apps/desktop/src/model-edit-inline.tsx`, `apps/desktop/src/ModelWorkbench.tsx`, `apps/desktop/src/provider-row.tsx` | Implemented |
+| Model editor/add native-search badge | `apps/desktop/src/AddModelDialog.tsx`, `apps/desktop/src/model-edit-inline.tsx`, `apps/desktop/src/ModelWorkbench.tsx`, `apps/desktop/src/provider-row.tsx` | Implemented |
 | Video model discovery and settings | `packages/contracts/src/model-catalog.ts`, `packages/host-runtime/src/provider-model-discovery.ts`, `packages/host-runtime/src/provider-model-capabilities.ts`, `apps/desktop/src/video-model-suggest.tsx`, `apps/desktop/src/video-model-discovery.ts`, `apps/desktop/src/VideoGenerationSettings.tsx` | Implemented |
 
 Video runtime execution remains governed by [ADR 0034](0034-video-generation.md). ADR 0043 adds discovery, enrichment, and settings UI only; the `video-generation` capability, `routes['video-generation']`, and the existing `video_gen` adapter surface are unchanged.
 
 Heuristic video-generation suggestions (reason `heuristic`) are transient and are not persisted until the user explicitly selects the model and submits the form. This preserves the distinction between a provider/registry-recognized video model and a name-only match that could otherwise misidentify a video-understanding model as a video generator.
+
+## 2026-08-11 production-wiring repair
+
+The initial implementation's request-shaping unit tests injected a fake base
+`streamSimple`. Production registration passed no stream, causing the wrapper to
+return `undefined`; Host routing could hide external `web_search` without
+actually enabling provider-native search. The repair:
+
+- resolves Pi's real lazy protocol stream inside `@piwin/agent-host` for both
+  SDK and RPC registrations;
+- adds regression coverage for the production call shape without a test stream;
+- preserves Host function tools named `web_search` when removing provider-native
+  tool entries;
+- uses `web_search_options` for OpenAI Chat Completions and
+  `config.tools[].googleSearch` for the `@google/genai` request object;
+- derives request support from the selected provider protocol and does not claim
+  citation support Pi cannot currently deliver; and
+- makes Side Chat and regular sessions follow the selected search policy
+  without a model-level override.
+
+## 2026-08-11 Host `web_search` model delegation
+
+Web Settings may store an optional `WebConfig.searchDelegateModel` referring to
+one enabled configured model tagged `native-web-search`. This is distinct from
+the active chat model's native route: the active model still calls the
+Host-owned `web_search` tool, and Host delegates that tool call to the selected
+search model through provider-native request shaping.
+
+The delegated model is the exclusive external backend while configured. Saved
+DuckDuckGo, Brave, Tavily, and CLI sources remain intact but are not invoked.
+If the reference becomes stale, disabled, untagged, or unsupported, route
+resolution fails closed instead of silently spending against another source.
+The selector therefore lists only enabled, adapter-supported configured models
+carrying the capability tag and surfaces invalid saved references explicitly.
+
+Dependency ownership remains one-way:
+
+- `@piwin/contracts` owns the optional `ModelRef` and readiness shape;
+- `@piwin/tools-web` owns the narrow delegate port and strict `SearchHit[]`
+  response parser;
+- `@piwin/host-runtime` validates the configured reference, resolves the
+  Host-owned provider secret lazily, and composes the tool backend; and
+- `@piwin/agent-host` alone imports Pi and performs the provider-native model
+  completion.
+
+The implementation does not infer the capability from model names or persist
+provider credentials in Web config. A live smoke test used the configured
+`custom-openai/gemini-3.6-flash-high` endpoint with an in-memory capability tag
+and returned parseable official-source hits without mutating user config.

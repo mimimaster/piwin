@@ -166,6 +166,89 @@ describe('mapPiSessionEvent', () => {
     });
   });
 
+  it('keeps tool events attached to the Assistant response after message_end', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+
+    unwrap({ type: 'message_start', messageId: 'assistant-step-1', role: 'assistant' });
+    unwrap({ type: 'message_end', messageId: 'assistant-step-1' });
+
+    expect(
+      unwrap({
+        type: 'tool_execution_start',
+        toolCallId: 'tool-after-end',
+        toolName: 'bash',
+        args: { command: 'pwd' },
+      }),
+    ).toMatchObject([{ type: 'tool/start', responseMessageId: 'assistant-step-1' }]);
+    expect(
+      unwrap({
+        type: 'tool_execution_update',
+        toolCallId: 'tool-after-end',
+        delta: '/workspace',
+      }),
+    ).toMatchObject([{ type: 'tool/update', responseMessageId: 'assistant-step-1' }]);
+    expect(
+      unwrap({
+        type: 'tool_execution_end',
+        toolCallId: 'tool-after-end',
+        toolName: 'bash',
+        isError: false,
+        output: '/workspace',
+      }),
+    ).toMatchObject([{ type: 'tool/end', responseMessageId: 'assistant-step-1' }]);
+  });
+
+  it('keeps sequential tools on one Assistant response across tool-result lifecycles', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+
+    const assistantStart = unwrap({
+      type: 'message_start',
+      message: { role: 'assistant' },
+    });
+    const assistantMessageId =
+      assistantStart[0]?.type === 'message/start' ? assistantStart[0].messageId : undefined;
+    expect(assistantMessageId).toMatch(/^pi-message-/);
+    unwrap({ type: 'message_end', message: { role: 'assistant' } });
+
+    expect(
+      unwrap({
+        type: 'tool_execution_start',
+        toolCallId: 'tool-sequential-1',
+        toolName: 'read',
+        args: { path: 'first.ts' },
+      }),
+    ).toMatchObject([{ type: 'tool/start', responseMessageId: assistantMessageId }]);
+    unwrap({
+      type: 'tool_execution_end',
+      toolCallId: 'tool-sequential-1',
+      toolName: 'read',
+      result: { content: [] },
+      isError: false,
+    });
+
+    expect(
+      unwrap({
+        type: 'message_start',
+        message: { role: 'toolResult', toolCallId: 'tool-sequential-1' },
+      }),
+    ).toMatchObject([{ type: 'message/start', role: 'tool' }]);
+    unwrap({
+      type: 'message_end',
+      message: { role: 'toolResult', toolCallId: 'tool-sequential-1' },
+    });
+
+    expect(
+      unwrap({
+        type: 'tool_execution_start',
+        toolCallId: 'tool-sequential-2',
+        toolName: 'read',
+        args: { path: 'second.ts' },
+      }),
+    ).toMatchObject([{ type: 'tool/start', responseMessageId: assistantMessageId }]);
+  });
+
   it('maps tool start and end', () => {
     const startEvents = mapPiSessionEvent({
       type: 'tool_execution_start',
@@ -204,6 +287,160 @@ describe('mapPiSessionEvent', () => {
         output: { text: 'hi' },
       },
     });
+  });
+
+  it('maps routed toolbox starts from the effective target without rewriting toolName', () => {
+    const events = mapPiSessionEvent({
+      type: 'tool_execution_start',
+      toolCallId: 'call-routed-image',
+      toolName: 'piwin_toolbox',
+      args: {
+        action: 'call',
+        target: 'image_gen',
+        arguments: { prompt: 'cinematic wasteland portrait' },
+      },
+    });
+    expect(events[0]).toMatchObject({
+      type: 'tool/start',
+      toolName: 'piwin_toolbox',
+      presentation: {
+        kind: 'image',
+        title: 'image_gen',
+        routedToolName: 'image_gen',
+        summary: 'cinematic wasteland portrait',
+      },
+    });
+  });
+
+  it('keeps routed semantics and prompt summary through update and end', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    const start = unwrap({
+      type: 'tool_execution_start',
+      toolCallId: 'call-routed-lifecycle',
+      toolName: 'piwin_toolbox',
+      args: {
+        action: 'call',
+        target: 'image_gen',
+        arguments: { prompt: 'a red cube on a table' },
+      },
+    })[0];
+    const update = unwrap({
+      type: 'tool_execution_update',
+      toolCallId: 'call-routed-lifecycle',
+      delta: '{"progress":50}',
+    })[0];
+    const end = unwrap({
+      type: 'tool_execution_end',
+      toolCallId: 'call-routed-lifecycle',
+      toolName: 'piwin_toolbox',
+      isError: false,
+      result: {
+        content: [{ type: 'text', text: '{"paths":["/tmp/image.png"]}' }],
+        details: {
+          attachments: [
+            {
+              id: 'asset-routed',
+              kind: 'media',
+              path: '/tmp/image.png',
+              mimeType: 'image/png',
+              byteSize: 128,
+              source: 'generated',
+            },
+          ],
+        },
+      },
+    })[0];
+
+    for (const event of [start, update, end]) {
+      expect(event).toMatchObject({
+        presentation: {
+          kind: 'image',
+          title: 'image_gen',
+          routedToolName: 'image_gen',
+          summary: 'a red cube on a table',
+          inputPreview: expect.stringContaining('red cube'),
+        },
+      });
+    }
+    expect(end).toMatchObject({
+      type: 'tool/end',
+      attachments: [{ id: 'asset-routed', path: '/tmp/image.png' }],
+      presentation: { output: { text: '{"paths":["/tmp/image.png"]}' } },
+    });
+  });
+
+  it('preserves routed failure semantics when the terminal event has no output', () => {
+    const mapper = createPiSessionEventMapper();
+    mapper.map({
+      type: 'tool_execution_start',
+      toolCallId: 'call-routed-empty-error',
+      toolName: 'piwin_toolbox',
+      args: {
+        action: 'call',
+        target: 'video_gen',
+        arguments: { prompt: 'a paper boat crossing a river' },
+      },
+    });
+    const [end] = mapper
+      .map({
+        type: 'tool_execution_end',
+        toolCallId: 'call-routed-empty-error',
+        toolName: 'piwin_toolbox',
+        isError: true,
+      })
+      .map((wrapped) => wrapped.event);
+    expect(end).toMatchObject({
+      type: 'tool/end',
+      isError: true,
+      presentation: {
+        kind: 'video',
+        title: 'video_gen',
+        routedToolName: 'video_gen',
+        summary: 'a paper boat crossing a river',
+      },
+    });
+  });
+
+  it('does not classify describe or malformed toolbox inputs as generation', () => {
+    for (const args of [
+      { action: 'describe', target: 'image_gen' },
+      { action: 'call', target: 'image_gen', arguments: [] },
+      { action: 'call', target: '', arguments: {} },
+    ]) {
+      expect(
+        mapPiSessionEvent({
+          type: 'tool_execution_start',
+          toolCallId: JSON.stringify(args),
+          toolName: 'piwin_toolbox',
+          args,
+        })[0],
+      ).toMatchObject({
+        toolName: 'piwin_toolbox',
+        presentation: { kind: 'other', title: 'piwin_toolbox' },
+      });
+    }
+  });
+
+  it('reset drops incomplete presentation seeds', () => {
+    const mapper = createPiSessionEventMapper();
+    mapper.map({
+      type: 'tool_execution_start',
+      toolCallId: 'call-before-reset',
+      toolName: 'piwin_toolbox',
+      args: { action: 'call', target: 'video_gen', arguments: { prompt: 'before reset' } },
+    });
+    mapper.reset?.();
+    const [end] = mapper
+      .map({
+        type: 'tool_execution_end',
+        toolCallId: 'call-before-reset',
+        toolName: 'piwin_toolbox',
+        isError: true,
+        output: 'aborted',
+      })
+      .map((wrapped) => wrapped.event);
+    expect(end).toMatchObject({ presentation: { kind: 'other', title: 'piwin_toolbox' } });
   });
 
   it('extracts text from Pi AgentToolResult on tool_execution_end', () => {
@@ -276,6 +513,66 @@ describe('mapPiSessionEvent', () => {
     expect(
       (endEvents[0] as { presentation?: { summary?: string } }).presentation?.summary,
     ).toBeUndefined();
+  });
+
+  it('maps generated video attachments for the conversation preview', () => {
+    const [endEvent] = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call-video-1',
+      toolName: 'video_gen',
+      isError: false,
+      result: {
+        content: [{ type: 'text', text: '{"mimeType":"video/mp4"}' }],
+        details: {
+          attachments: [
+            {
+              id: 'video-asset-1',
+              kind: 'media',
+              path: '/Users/me/.piwin/media/session-1/video.mp4',
+              mimeType: 'video/mp4',
+              byteSize: 2048,
+              source: 'generated',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(endEvent).toMatchObject({
+      type: 'tool/end',
+      isError: false,
+      attachments: [
+        {
+          id: 'video-asset-1',
+          mimeType: 'video/mp4',
+          source: 'generated',
+        },
+      ],
+    });
+  });
+
+  it('accepts a nested AgentToolResult error flag when the bridge omits the top-level flag', () => {
+    const [endEvent] = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call-video-400',
+      toolName: 'video_gen',
+      result: {
+        content: [
+          { type: 'text', text: 'Tool error (execution-failed): provider returned HTTP 400' },
+        ],
+        details: {},
+        isError: true,
+      },
+    });
+
+    expect(endEvent).toMatchObject({
+      type: 'tool/end',
+      isError: true,
+      presentation: {
+        kind: 'video',
+        error: { category: 'execution' },
+      },
+    });
   });
 
   it('keeps image_gen prompt summary on tool_execution_end when args are present', () => {

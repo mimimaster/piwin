@@ -14,6 +14,7 @@
 import type {
   HostToolExecutionContext,
   HostToolRegistration,
+  ImmediateCapabilityRestriction,
   PermissionRiskKind,
   SessionToolFamily,
   SettingsDomain,
@@ -65,6 +66,35 @@ export function isToolBlockedByTightening(
   }
 }
 
+/** Decide whether one exact revoked capability blocks a tool registration. */
+export function isToolBlockedByRestriction(
+  restriction: ImmediateCapabilityRestriction,
+  registration: HostToolRegistration,
+): boolean {
+  const spec = registration.permissionSpec;
+  if (spec.readOnly === true && restriction !== 'permission-policy') {
+    return false;
+  }
+  switch (restriction) {
+    case 'web-search':
+      return registration.family === 'web-search';
+    case 'web-fetch':
+      return registration.family === 'web-fetch';
+    case 'browser-network':
+      return registration.family === 'browser';
+    case 'process':
+      return registration.family === 'process' || spec.risk === 'command';
+    case 'notes-write':
+      return registration.family === 'notes-write';
+    case 'flashcards-write':
+      return registration.family === 'flashcards-write';
+    case 'delegate':
+      return registration.family === 'delegate';
+    case 'permission-policy':
+      return spec.readOnly !== true;
+  }
+}
+
 export type ImmediateSafetyGateState = {
   /** Domains that changed since the active generation was created. */
   pendingDomains: readonly SettingsDomain[];
@@ -73,6 +103,10 @@ export type ImmediateSafetyGateState = {
 export type BuildImmediateSafetyPredicateOptions = {
   /** Read the live pending tightening domains for a session. */
   getPendingDomains: (sessionId: string) => readonly SettingsDomain[];
+  /** Read exact capability restrictions for a session, when available. */
+  getPendingRestrictions?: (
+    sessionId: string,
+  ) => readonly ImmediateCapabilityRestriction[];
 };
 
 /**
@@ -84,6 +118,18 @@ export function createImmediateSafetyPredicate(
   options: BuildImmediateSafetyPredicateOptions,
 ): ToolDisablePredicate {
   return (registration, _args, context: HostToolExecutionContext) => {
+    const pendingRestrictions = options.getPendingRestrictions?.(context.sessionId);
+    if (pendingRestrictions !== undefined) {
+      for (const restriction of pendingRestrictions) {
+        if (isToolBlockedByRestriction(restriction, registration)) {
+          return {
+            domain: restriction,
+            message: `${restriction} capability is disabled until the runtime generation is rebuilt`,
+          };
+        }
+      }
+      return null;
+    }
     const pendingDomains = options.getPendingDomains(context.sessionId);
     for (const domain of pendingDomains) {
       if (!isImmediateTighteningDomain(domain)) {

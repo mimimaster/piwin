@@ -5,6 +5,7 @@ import { ProviderIcon } from './provider-icons';
 import { PageTitle } from './settings/page-title';
 import {
   defaultVideoGenerationApiStyle,
+  isVideoApiStyle,
   type VideoModelRow,
   videoApiStyleLabel,
 } from './video-generation-model-config';
@@ -40,7 +41,9 @@ export function VideoGenerationModelList(props: VideoGenerationModelListProps) {
               config.videoGeneration?.defaultModel?.modelId === model.id &&
               config.videoGeneration?.defaultModel?.providerId === provider.id;
             const isEditing = editingKey === `${provider.id}:${model.id}`;
-            const apiStyle = route?.apiStyle ?? defaultVideoGenerationApiStyle(provider.protocol);
+            const apiStyle = isVideoApiStyle(route?.apiStyle)
+              ? route.apiStyle
+              : defaultVideoGenerationApiStyle(provider.protocol);
             return (
               <li
                 key={`${provider.id}:${model.id}`}

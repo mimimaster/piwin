@@ -93,7 +93,7 @@ export type SearchBackendReadiness = {
   ready: boolean;
   /** Model carries the `native-web-search` capability and is enabled. */
   modelTagged?: boolean;
-  /** Active Pi adapter can express enable/disable for this provider. */
+  /** Active Pi adapter can shape provider-native search fields for this provider. */
   adapterRequestSupported?: boolean;
   /**
    * Whether native citation/grounding metadata can be normalized into product
@@ -101,10 +101,10 @@ export type SearchBackendReadiness = {
    * must not be reported as full native-search readiness in the UI.
    */
   adapterCitationSupported?: boolean;
-  /** Provider search is always on and cannot be disabled. */
-  alwaysOn?: boolean;
   /** At least one external search source is enabled. */
   hasEnabledSources?: boolean;
+  /** A configured native-search model is ready to back Host `web_search`. */
+  hasDelegateModel?: boolean;
   reasons: string[];
 };
 
@@ -127,19 +127,15 @@ export type ResolvedSearchRoute = {
    */
   fallback: SearchBackend | null;
   readiness: SearchRouteReadiness;
-  /** Human-readable issues (missing sources, always-on conflict, …). */
+  /** Human-readable issues (missing sources, unavailable adapters, …). */
   issues: string[];
-  /**
-   * True when the configured policy cannot be honored (e.g. `external-only`
-   * on an always-on native-search model). Settings must warn instead of
-   * claiming exclusivity.
-   */
-  incompatible: boolean;
 };
 
 export type SearchRoutePreviewInput = {
   policy: SearchRoutePolicy;
   searchSources: WebSearchSource[];
+  /** Draft Host `web_search` delegate; validated against configured models by Host. */
+  searchDelegateModel?: ModelRef;
 };
 
 export type SearchRoutePreviewData = {
@@ -257,6 +253,13 @@ export type WebConfig = {
    * When omitted on load, host migrates from {@link searchProvider}.
    */
   searchSources: WebSearchSource[];
+  /**
+   * Optional configured model used as the exclusive backend for Host
+   * `web_search`. The model must be enabled and tagged `native-web-search`.
+   * Ordinary search sources remain configured but are not called while this
+   * delegate is selected.
+   */
+  searchDelegateModel?: ModelRef;
   /** Merge / run strategy for multi-source search. */
   searchStrategy: WebSearchStrategy;
   /**

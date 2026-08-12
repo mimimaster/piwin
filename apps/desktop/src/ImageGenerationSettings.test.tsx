@@ -261,6 +261,62 @@ describe('ImageGenerationSettings', () => {
     });
   });
 
+  it('adds an image model with a Gemini-native apiStyle and path', async () => {
+    const config = makeConfig();
+    const saved: PiwinConfig[] = [];
+    const saveConfig = vi.fn(async (next: PiwinConfig) => {
+      saved.push(next);
+      return true;
+    });
+    ({ root, container } = renderSettings(config, saveConfig));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const submit = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="image-add-model-submit"]',
+    );
+    expect(submit).not.toBeNull();
+
+    const styleSelect = container!.querySelector<HTMLSelectElement>(
+      '[data-testid="image-add-model-style"]',
+    );
+    expect(styleSelect).not.toBeNull();
+
+    act(() => {
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="image-model-suggest-input"]'),
+        'gemini-3.1-flash-image',
+      );
+      // Switching the wire format refreshes the default path.
+      styleSelect!.value = 'gemini';
+      styleSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-path"]'),
+        '/v1beta/models/gemini-3.1-flash-image:generateContent',
+      );
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-timeout"]'),
+        '180',
+      );
+    });
+    await act(async () => {
+      submit?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(saved.length).toBeGreaterThan(0);
+    const added = saved[saved.length - 1]?.providers[0]?.models.find(
+      (model) => model.id === 'gemini-3.1-flash-image',
+    );
+    expect(added).toBeDefined();
+    expect(added?.routes?.['image-generation']).toEqual({
+      apiStyle: 'gemini',
+      path: '/v1beta/models/gemini-3.1-flash-image:generateContent',
+      timeoutMs: 180000,
+    });
+  });
+
   it('sets the default image model when set-default is clicked', async () => {
     const config = makeConfig();
     const saved: PiwinConfig[] = [];

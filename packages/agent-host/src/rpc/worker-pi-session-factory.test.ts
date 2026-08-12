@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModelProviderConfig, ResolvedSearchRoute } from '@piwin/contracts';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './serializable-blueprint.js';
 import {
   buildWorkerProviderRegistration,
@@ -13,6 +17,12 @@ import {
 import { buildPiProviderRegistration } from '../pi-model-runtime.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
 import type { NativeSearchStreamSimple } from '../native-web-search.js';
+
+const temporaryRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(temporaryRoots.splice(0).map((path) => rm(path, { recursive: true })));
+});
 
 const blueprint: SerializableBlueprint = {
   protocolVersion: 1,
@@ -79,10 +89,25 @@ describe('createBlueprintResourceLoader', () => {
     expect(call).toMatchObject({
       cwd: '/tmp/work',
       agentDir: '/tmp/agent',
+      noContextFiles: true,
+      noSkills: true,
+      noExtensions: true,
+      noPromptTemplates: true,
+      noThemes: true,
       additionalSkillPaths: ['/tmp/skills-a', '/tmp/skills-b'],
       additionalExtensionPaths: ['/tmp/ext-a'],
       additionalPromptTemplatePaths: ['/tmp/prompt-a'],
+      systemPrompt: '',
+      appendSystemPrompt: [],
     });
+    const agentsFilesOverride = call.agentsFilesOverride as
+      | ((base: { agentsFiles: Array<{ path: string; content: string }> }) => {
+          agentsFiles: Array<{ path: string; content: string }>;
+        })
+      | undefined;
+    expect(
+      agentsFilesOverride?.({ agentsFiles: [{ path: '/hidden', content: 'hidden' }] }),
+    ).toEqual({ agentsFiles: [] });
   });
 
   it('preserves empty extension/prompt path arrays exactly', async () => {
@@ -100,9 +125,129 @@ describe('createBlueprintResourceLoader', () => {
     expect(call.additionalExtensionPaths).toEqual([]);
     expect(call.additionalPromptTemplatePaths).toEqual([]);
   });
+
+  it('injects only files from the compiled context manifest', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-worker-context-'));
+    temporaryRoots.push(root);
+    const contextDirectory = join(root, 'context');
+    await mkdir(contextDirectory, { recursive: true });
+    const agentsPath = join(contextDirectory, 'AGENTS.md');
+    const systemPath = join(contextDirectory, 'SYSTEM.md');
+    const appendPath = join(contextDirectory, 'APPEND_SYSTEM.md');
+    await writeFile(agentsPath, 'compiled agents', 'utf8');
+    await writeFile(systemPath, 'compiled system', 'utf8');
+    await writeFile(appendPath, 'compiled append', 'utf8');
+
+    const piModule = createMockPiModule({});
+    await createBlueprintResourceLoader(
+      {
+        ...blueprint,
+        contextManifest: {
+          agentsFiles: [{ kind: 'agents', source: 'project', absolutePath: agentsPath }],
+          systemPrompt: { kind: 'system', source: 'project', absolutePath: systemPath },
+          appendSystemPrompt: {
+            kind: 'append-system',
+            source: 'project',
+            absolutePath: appendPath,
+          },
+        },
+        appendSystemPrompt: 'product append',
+      },
+      '/tmp/agent',
+      piModule,
+    );
+
+    const LoaderCtor = piModule.DefaultResourceLoader as unknown as {
+      mock: { calls: unknown[][] };
+    };
+    const call = LoaderCtor.mock.calls[0]?.[0] as Record<string, unknown>;
+    const agentsFilesOverride = call.agentsFilesOverride as () => {
+      agentsFiles: Array<{ path: string; content: string }>;
+    };
+    const systemPromptOverride = call.systemPromptOverride as () => string | undefined;
+    const appendSystemPromptOverride = call.appendSystemPromptOverride as () => string[];
+
+    expect(agentsFilesOverride()).toEqual({
+      agentsFiles: [{ path: agentsPath, content: 'compiled agents' }],
+    });
+    expect(systemPromptOverride()).toBe('compiled system');
+    expect(appendSystemPromptOverride()).toEqual(['compiled append', 'product append']);
+  });
+
+  it('fails session construction when a compiled context file disappears', async () => {
+    const piModule = createMockPiModule({});
+    await expect(
+      createBlueprintResourceLoader(
+        {
+          ...blueprint,
+          contextManifest: {
+            agentsFiles: [
+              { kind: 'agents', source: 'project', absolutePath: '/missing/AGENTS.md' },
+            ],
+          },
+        },
+        '/tmp/agent',
+        piModule,
+      ),
+    ).rejects.toMatchObject({ name: 'CompiledContextFileReadError' });
+  });
+
+  it('blocks implicit context discovery in the pinned Pi resource loader', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-real-resource-loader-'));
+    temporaryRoots.push(root);
+    const workingDirectory = join(root, 'work');
+    const agentDir = join(root, 'agent');
+    await mkdir(join(workingDirectory, '.pi'), { recursive: true });
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(join(workingDirectory, 'AGENTS.md'), 'hidden project agents', 'utf8');
+    await writeFile(join(agentDir, 'AGENTS.md'), 'hidden global agents', 'utf8');
+    await writeFile(join(workingDirectory, '.pi', 'SYSTEM.md'), 'hidden project system', 'utf8');
+    await writeFile(join(agentDir, 'SYSTEM.md'), 'hidden global system', 'utf8');
+
+    const piModule = (await import('@earendil-works/pi-coding-agent')) as Record<string, unknown>;
+    const loader = (await createBlueprintResourceLoader(
+      {
+        ...blueprint,
+        workingDirectory,
+        activeSkillPaths: [],
+        activeExtensionPaths: [],
+        activePromptPaths: [],
+      },
+      agentDir,
+      piModule,
+    )) as {
+      getAgentsFiles: () => { agentsFiles: Array<{ path: string; content: string }> };
+      getSystemPrompt: () => string | undefined;
+      getAppendSystemPrompt: () => string[];
+    };
+
+    expect(loader.getAgentsFiles()).toEqual({ agentsFiles: [] });
+    expect(loader.getSystemPrompt()).toBeUndefined();
+    expect(loader.getAppendSystemPrompt()).toEqual([]);
+  });
 });
 
 describe('buildWorkerProviderRegistration', () => {
+  it('applies the DeepSeek OpenAI compat rule in the RPC worker', () => {
+    const provider: SerializableWorkerProviderRuntime = {
+      providerId: 'local-gateway',
+      protocol: 'openai-compatible',
+      baseUrl: 'http://127.0.0.1:8317/v1',
+      models: [{ id: 'deepseek-v4-flash', reasoning: true }],
+      auth: { kind: 'none' },
+    };
+
+    const registration = buildWorkerProviderRegistration(provider, undefined);
+
+    expect(registration.models[0]?.compat).toEqual({
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      maxTokensField: 'max_tokens',
+      requiresReasoningContentOnAssistantMessages: true,
+      thinkingFormat: 'deepseek',
+    });
+  });
+
   it('maps the serializable envelope to a Pi provider registration', () => {
     const provider: SerializableProviderRuntime = {
       providerId: 'prov-1',
@@ -158,19 +303,76 @@ describe('buildWorkerProviderRegistration', () => {
     expect(registration.apiKey).toBeUndefined();
     expect(registration.authHeader).toBe(false);
   });
+
+  it('resolves bootstrap auth only from the in-memory secret map', () => {
+    const provider: SerializableWorkerProviderRuntime = {
+      providerId: 'prov-bootstrap',
+      protocol: 'openai-compatible',
+      baseUrl: 'https://api.example.com/v1',
+      models: [{ id: 'review-model' }],
+      auth: { kind: 'bootstrap', secretId: 'secret-1' },
+    };
+    const modelRuntime: PiModelRuntime = {
+      registerProvider: vi.fn(),
+      getModel: vi.fn(() => undefined),
+      refresh: vi.fn(async () => undefined),
+    };
+
+    registerWorkerProviders(modelRuntime, [provider], undefined, new Map([['secret-1', 'canary']]));
+
+    expect(modelRuntime.registerProvider).toHaveBeenCalledWith(
+      'prov-bootstrap',
+      expect.objectContaining({ apiKey: 'canary', authHeader: true }),
+    );
+    expect(() => registerWorkerProviders(modelRuntime, [provider])).toThrow(
+      /bootstrap secret is unavailable/,
+    );
+    expect(() =>
+      registerWorkerProviders(
+        modelRuntime,
+        [{ ...provider, auth: { kind: 'none' as const } }],
+        undefined,
+        new Map([['unused', 'canary']]),
+      ),
+    ).toThrow(/unreferenced entry/);
+  });
+
+  it('installs the real Pi stream wrapper for the SDK/RPC production call shape', () => {
+    const provider: SerializableProviderRuntime = {
+      providerId: 'native-provider',
+      protocol: 'google-gemini',
+      baseUrl: 'https://generativelanguage.googleapis.com',
+      models: [{ id: 'gemini-search', capabilities: ['chat', 'native-web-search'] }],
+      auth: { kind: 'none' },
+    };
+    const searchRoute: ResolvedSearchRoute = {
+      policy: 'native-first',
+      selected: 'native',
+      fallback: null,
+      readiness: {
+        native: { ready: true, reasons: [] },
+        external: { ready: false, reasons: [] },
+      },
+      issues: [],
+    };
+
+    const registration = buildWorkerProviderRegistration(provider, undefined, searchRoute);
+
+    expect(registration.streamSimple).toBeTypeOf('function');
+  });
 });
 
 describe('registerWorkerProviders', () => {
   it('registers each provider from the envelope into the model runtime', () => {
     const registerProvider = vi.fn();
     const modelRuntime = { registerProvider } as unknown as PiModelRuntime;
-    const providers: SerializableProviderRuntime[] = [
+    const providers: SerializableWorkerProviderRuntime[] = [
       {
         providerId: 'p1',
         protocol: 'anthropic-compatible',
         baseUrl: 'https://api.anthropic.com',
         models: [{ id: 'claude-3' }],
-        auth: { kind: 'inline', apiKey: 'key-1' },
+        auth: { kind: 'none' },
       },
       {
         providerId: 'p2',
@@ -384,14 +586,16 @@ describe('buildWorkerProviderRegistration native search streamSimple', () => {
         external: { ready: true, reasons: [] },
       },
       issues: [],
-      incompatible: false,
     };
   }
 
-  function baseStreamSimple(): { stream: NativeSearchStreamSimple; payloads: unknown[] } {
+  function baseStreamSimple(initialPayload?: Record<string, unknown>): {
+    stream: NativeSearchStreamSimple;
+    payloads: unknown[];
+  } {
     const payloads: unknown[] = [];
     const stream: NativeSearchStreamSimple = async (model, _context, options) => {
-      const payload: Record<string, unknown> = {
+      const payload: Record<string, unknown> = initialPayload ?? {
         model: 'test-model',
         messages: [],
         tools: [{ type: 'function' }, { type: 'web_search_preview' }],
@@ -419,7 +623,6 @@ describe('buildWorkerProviderRegistration native search streamSimple', () => {
         {
           id: 'grok-4.5',
           capabilities: ['chat', 'native-web-search'],
-          nativeWebSearchMode: 'controllable',
         },
       ],
       auth: { kind: 'none' },
@@ -441,7 +644,6 @@ describe('buildWorkerProviderRegistration native search streamSimple', () => {
         {
           id: 'grok-4.5',
           capabilities: ['chat', 'native-web-search'],
-          nativeWebSearchMode: 'controllable',
         },
       ],
     };
@@ -452,7 +654,11 @@ describe('buildWorkerProviderRegistration native search streamSimple', () => {
   }
 
   it('injects native search fields when the route is native', async () => {
-    const base = baseStreamSimple();
+    const base = baseStreamSimple({
+      model: 'test-model',
+      messages: [],
+      tools: [{ type: 'function' }],
+    });
     const registration = createWorkerProvider(route('native'), base);
 
     const result = await registration.streamSimple?.(
@@ -464,7 +670,7 @@ describe('buildWorkerProviderRegistration native search streamSimple', () => {
     const record = result as Record<string, unknown>;
     expect(record).toHaveProperty('web_search_options');
     const tools = Array.isArray(record.tools) ? record.tools : [];
-    expect(tools).toEqual(
+    expect(tools).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ type: 'web_search_preview' })]),
     );
   });

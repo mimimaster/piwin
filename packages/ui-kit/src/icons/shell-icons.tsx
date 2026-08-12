@@ -8,6 +8,7 @@ import {
   IconArchiveOff as TablerArchiveOff,
   IconArrowBackUp as TablerArrowBackUp,
   IconArrowDown as TablerArrowDown,
+  IconArrowFork as TablerArrowFork,
   IconArrowLeft as TablerArrowLeft,
   IconArrowNarrowLeft as TablerArrowNarrowLeft,
   IconArrowNarrowRight as TablerArrowNarrowRight,
@@ -96,6 +97,7 @@ export const IconExtension = TablerLayoutDashboard;
 export const IconSkill = TablerRobot;
 export { IconMcp };
 export const IconGit = TablerGitBranch;
+export const IconArrowFork = TablerArrowFork;
 export const IconPet = TablerHeart;
 export const IconListTree = TablerList;
 export const IconUsers = TablerUsers;

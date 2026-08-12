@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
+import { DropdownMenu, DropdownMenuItem, FileTypeIcon, IconButton } from '@piwin/ui-kit';
 import {
   IconBook,
   IconChat,
@@ -11,7 +11,6 @@ import {
   IconMenuList,
   IconMore,
 } from './shell-icons';
-import { FileTypeIcon } from './file-type-icon';
 import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownView';
 import { CodePreviewView } from './code-preview-view';
 import type { DesktopLocale } from './desktop-locale';

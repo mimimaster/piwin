@@ -58,6 +58,20 @@ describe('behavior activity registry', () => {
       resolveToolBehaviorId({ kind: 'shell', toolName: 'pnpm build', actionVerb: 'Ran command' }),
     ).toBe('build');
     expect(
+      resolveToolBehaviorId({
+        kind: 'image',
+        toolName: 'piwin_toolbox',
+        actionVerb: 'Generated image',
+      }),
+    ).toBe('image');
+    expect(
+      resolveToolBehaviorId({
+        kind: 'video',
+        toolName: 'piwin_toolbox',
+        actionVerb: 'Generated video',
+      }),
+    ).toBe('video');
+    expect(
       resolveToolBehaviorId({ kind: 'other', toolName: 'custom_tool', actionVerb: 'Custom tool' }),
     ).toBe('tool.other');
   });

@@ -19,6 +19,7 @@ import type {
   SessionUserMessageIndexData,
   SubagentActivityView,
   SubagentBatchProjection,
+  SubagentInvocation,
   SubagentTaskResult,
   ToolPresentation,
   WalkthroughArtifact,
@@ -76,6 +77,8 @@ export type ToolCardUi = {
   presentation?: ToolPresentation;
   /** Owning run when host provided run identity. */
   runId?: string;
+  /** Assistant response that emitted this tool when host provided proof. */
+  responseMessageId?: string;
 };
 
 export type ChatMessageUi = {
@@ -86,6 +89,10 @@ export type ChatMessageUi = {
   tools: ToolCardUi[];
   attachments: PromptAttachment[];
   status: 'streaming' | 'done' | 'error';
+  /** First observed reasoning delta timestamp for this response. */
+  thinkingStartedAt?: number;
+  /** Boundary where this response moved from reasoning to work/answer. */
+  thinkingEndedAt?: number;
   searchEvidence?: SearchEvidence;
   createdAt?: string;
   /** Run that produced this assistant message when host provided run identity. */
@@ -108,6 +115,9 @@ export type SubagentStreamTool = {
   output: string;
   outputRetainedBytes?: number;
   outputTruncated?: boolean;
+  presentation?: ToolPresentation;
+  runId?: string;
+  responseMessageId?: string;
 };
 
 export type SubagentStreamState = {
@@ -118,10 +128,14 @@ export type SubagentStreamState = {
   thinking: string;
   /** Tool calls observed in the child session. */
   tools: SubagentStreamTool[];
+  attachments?: PromptAttachment[];
+  searchEvidence?: SearchEvidence;
   /** Whether the child session is currently streaming. */
   streaming: boolean;
   /** Last message id seen from the child (for delta accumulation). */
   currentMessageId: string | null;
+  /** Live child permission gate shown inside the child-session window. */
+  permissionPrompt?: PermissionPromptUi | null;
 };
 
 /** C2: per-run historical record for turn-local work presentation. */
@@ -292,6 +306,8 @@ export type ChatUiState = {
   subagentStreams: Record<string, SubagentStreamState>;
   /** Latest child session summaries keyed by childSessionId (live list sync). */
   subagentChildren: Record<string, SessionSummary>;
+  /** Durable parent-tool invocation projections keyed by invocation id. */
+  subagentInvocations: Record<string, SubagentInvocation>;
   /** CE-SUB-ORCH: batch results keyed by runId (parallel subagent visibility). */
   subagentBatches: Record<string, SubagentBatchProjection>;
   /** CE-SUB-ORCH: latest per-task results keyed by `${runId}:${taskId}`. */
@@ -425,13 +441,24 @@ export type ChatUiAction =
       parentSessionId: string;
       childSessionId: string;
       event: AgentEvent;
+      envelope?: AgentEventEnvelope;
     }
   | { type: 'subagent/clear-stream'; childSessionId: string }
   | { type: 'subagent/updated'; parentSessionId: string; child: SessionSummary }
   | {
+      type: 'subagent/invocation-updated';
+      parentSessionId: string;
+      invocation: SubagentInvocation;
+    }
+  | {
       type: 'subagent/children-hydrate';
       parentSessionId: string;
       children: SessionSummary[];
+    }
+  | {
+      type: 'subagent/invocations-hydrate';
+      parentSessionId: string;
+      invocations: SubagentInvocation[];
     }
   | {
       type: 'subagent/batch-updated';
@@ -498,6 +525,7 @@ export function createInitialChatUiState(): ChatUiState {
     runRecordsById: {},
     subagentStreams: {},
     subagentChildren: {},
+    subagentInvocations: {},
     subagentBatches: {},
     subagentTaskResults: {},
     walkthroughsByMessageId: {},
@@ -536,6 +564,7 @@ export function mapTranscriptMessagesToUi(
         outputRetainedBytes: output.retainedBytes,
         outputTruncated: output.truncated,
         ...(tool.runId ? { runId: tool.runId } : {}),
+        ...(tool.responseMessageId ? { responseMessageId: tool.responseMessageId } : {}),
         ...(tool.presentation
           ? { presentation: projectBoundedToolPresentation(tool.presentation, output) }
           : {}),
@@ -551,6 +580,12 @@ export function mapTranscriptMessagesToUi(
     ...(message.searchEvidence ? { searchEvidence: message.searchEvidence } : {}),
     ...(message.createdAt ? { createdAt: message.createdAt } : {}),
     ...(message.runId ? { runId: message.runId } : {}),
+    ...(message.thinkingStartedAt !== undefined
+      ? { thinkingStartedAt: parseEventTime(message.thinkingStartedAt) }
+      : {}),
+    ...(message.thinkingEndedAt !== undefined
+      ? { thinkingEndedAt: parseEventTime(message.thinkingEndedAt) }
+      : {}),
     ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
   }));
 }
@@ -728,6 +763,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // scope must not surface another session's children or live streams.
         subagentStreams: {},
         subagentChildren: {},
+        subagentInvocations: {},
       };
     case 'project/clear':
       return {
@@ -758,6 +794,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         walkthroughsByMessageId: {},
         subagentStreams: {},
         subagentChildren: {},
+        subagentInvocations: {},
       };
     case 'project/trust-dialog':
       return { ...state, trustDialogOpen: action.open };
@@ -808,10 +845,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       // 3) else → empty
       // Stream events stay ignored while awaitingTranscript is true.
       const keepPreviousWhileLoading =
-        !warmHit &&
-        awaitingTranscript &&
-        switchingAway &&
-        state.messages.length > 0;
+        !warmHit && awaitingTranscript && switchingAway && state.messages.length > 0;
 
       return {
         ...state,
@@ -846,11 +880,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
         activeSkill: preserveOptimisticDraftSend ? state.activeSkill : null,
-        outline: warmHit
-          ? warmHit.outline
-          : keepPreviousWhileLoading
-            ? state.outline
-            : [],
+        outline: warmHit ? warmHit.outline : keepPreviousWhileLoading ? state.outline : [],
         activeSessionArchived: false,
         awaitingTranscript,
         runTerminal: { kind: 'none' },
@@ -878,6 +908,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // session hydrates its own children on resume.
         subagentStreams: {},
         subagentChildren: {},
+        subagentInvocations: {},
         workingSessionIds: preserveOptimisticDraftSend
           ? { ...state.workingSessionIds, [action.sessionId]: true }
           : state.workingSessionIds,
@@ -1357,6 +1388,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return {
         ...state,
         activeSessionId: null,
+        // New Agent is only a client-side draft until the first send creates
+        // a Host session. Usage belongs to the previous active session and
+        // must not leak into the uncreated draft.
+        contextUsage: null,
         messages: [],
         transcriptWindow: null,
         historyView: null,
@@ -1669,7 +1704,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       if (state.activeSessionId !== action.parentSessionId) {
         return state;
       }
-      return applySubagentStreamEvent(state, action.childSessionId, action.event);
+      if (action.envelope && isEnvelopeStale(state, action.envelope)) {
+        return state;
+      }
+      const acceptedState = action.envelope ? recordEnvelope(state, action.envelope) : state;
+      return applySubagentStreamEvent(acceptedState, action.childSessionId, action.event);
     }
     case 'subagent/updated': {
       // Cross-session guard: child lifecycle pushes for a non-active parent
@@ -1680,6 +1719,22 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const child = action.child;
       const nextChildren = { ...state.subagentChildren, [child.id]: child };
       return { ...state, subagentChildren: nextChildren };
+    }
+    case 'subagent/invocation-updated': {
+      if (state.activeSessionId !== action.parentSessionId) {
+        return state;
+      }
+      const current = state.subagentInvocations[action.invocation.id];
+      if (current && current.revision >= action.invocation.revision) {
+        return state;
+      }
+      return {
+        ...state,
+        subagentInvocations: {
+          ...state.subagentInvocations,
+          [action.invocation.id]: action.invocation,
+        },
+      };
     }
     case 'subagent/children-hydrate': {
       // Hydrate upserts only children of the active parent; summaries for
@@ -1692,6 +1747,19 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         nextChildren[child.id] = child;
       }
       return { ...state, subagentChildren: nextChildren };
+    }
+    case 'subagent/invocations-hydrate': {
+      if (state.activeSessionId !== action.parentSessionId) {
+        return state;
+      }
+      const nextInvocations = { ...state.subagentInvocations };
+      for (const invocation of action.invocations) {
+        const current = nextInvocations[invocation.id];
+        if (!current || current.revision < invocation.revision) {
+          nextInvocations[invocation.id] = invocation;
+        }
+      }
+      return { ...state, subagentInvocations: nextInvocations };
     }
     case 'subagent/batch-updated': {
       if (state.activeSessionId !== action.parentSessionId) return state;
@@ -1779,19 +1847,23 @@ function applySubagentStreamEvent(
     text: '',
     thinking: '',
     tools: [],
+    attachments: [],
     streaming: false,
     currentMessageId: null,
+    permissionPrompt: null,
   };
 
   switch (event.type) {
     case 'message/start': {
       if (event.role !== 'assistant') return state;
+      const { searchEvidence: _previousSearchEvidence, ...streamWithoutSearchEvidence } = existing;
       const updated: SubagentStreamState = {
-        ...existing,
+        ...streamWithoutSearchEvidence,
         streaming: true,
         currentMessageId: event.messageId,
         text: '',
         thinking: '',
+        attachments: [],
       };
       return {
         ...state,
@@ -1841,6 +1913,18 @@ function applySubagentStreamEvent(
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
       };
     }
+    case 'message/search_evidence': {
+      const updated: SubagentStreamState = {
+        ...existing,
+        searchEvidence: existing.searchEvidence
+          ? mergeSearchEvidence(existing.searchEvidence, event.evidence)
+          : event.evidence,
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
     case 'tool/start': {
       const tools = [...existing.tools];
       const existingIdx = tools.findIndex((t) => t.toolCallId === event.toolCallId);
@@ -1851,6 +1935,11 @@ function applySubagentStreamEvent(
         output: '',
         outputRetainedBytes: 0,
         outputTruncated: false,
+        ...(event.presentation ? { presentation: event.presentation } : {}),
+        ...(event.runId ? { runId: event.runId } : {}),
+        ...(event.responseMessageId
+          ? { responseMessageId: event.responseMessageId }
+          : {}),
       };
       if (existingIdx >= 0) {
         tools[existingIdx] = tool;
@@ -1874,6 +1963,11 @@ function applySubagentStreamEvent(
           output: output.text,
           outputRetainedBytes: output.retainedBytes,
           outputTruncated: output.truncated,
+          ...(event.presentation ? { presentation: event.presentation } : {}),
+          ...(event.runId ? { runId: event.runId } : {}),
+          ...(event.responseMessageId
+            ? { responseMessageId: event.responseMessageId }
+            : {}),
         };
       });
       const updated: SubagentStreamState = { ...existing, tools };
@@ -1885,10 +1979,24 @@ function applySubagentStreamEvent(
     case 'tool/end': {
       const tools = existing.tools.map((t) =>
         t.toolCallId === event.toolCallId
-          ? { ...t, status: (event.isError ? 'error' : 'done') as 'done' | 'error' }
+          ? {
+              ...t,
+              status: (event.isError ? 'error' : 'done') as 'done' | 'error',
+              ...(event.presentation ? { presentation: event.presentation } : {}),
+              ...(event.runId ? { runId: event.runId } : {}),
+              ...(event.responseMessageId
+                ? { responseMessageId: event.responseMessageId }
+                : {}),
+            }
           : t,
       );
-      const updated: SubagentStreamState = { ...existing, tools };
+      const attachments = [...(existing.attachments ?? [])];
+      for (const attachment of event.attachments ?? []) {
+        if (!attachments.some((candidate) => candidate.id === attachment.id)) {
+          attachments.push(attachment);
+        }
+      }
+      const updated: SubagentStreamState = { ...existing, tools, attachments };
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
@@ -1896,7 +2004,37 @@ function applySubagentStreamEvent(
     }
     case 'session/aborted':
     case 'session/ended': {
-      const updated: SubagentStreamState = { ...existing, streaming: false };
+      const updated: SubagentStreamState = {
+        ...existing,
+        streaming: false,
+        permissionPrompt: null,
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'permission/request': {
+      const updated: SubagentStreamState = {
+        ...existing,
+        permissionPrompt: {
+          requestId: event.requestId,
+          sessionId: childSessionId,
+          ...(event.runId ? { runId: event.runId } : {}),
+          action: event.action,
+          detail: event.detail,
+          defaultDecision: event.defaultDecision,
+          ...(event.context ? { context: event.context } : {}),
+        },
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'permission/resolved': {
+      if (existing.permissionPrompt?.requestId !== event.requestId) return state;
+      const updated: SubagentStreamState = { ...existing, permissionPrompt: null };
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
@@ -2054,11 +2192,15 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         // start was lost or belongs to an older subscription.
         return state;
       }
-      return updateMessage(state, event.messageId, (message) => ({
-        ...message,
-        text: message.text + event.delta,
-        status: 'streaming',
-      }));
+      return updateMessage(state, event.messageId, (message) => {
+        const nextMessage =
+          event.delta.length > 0 ? finishMessageThinking(message, Date.now()) : message;
+        return {
+          ...nextMessage,
+          text: message.text + event.delta,
+          status: 'streaming',
+        };
+      });
     /** C1: complete text snapshot replaces, not appends. */
     case 'message/text_snapshot':
       if (isStaleOptionalRunEvent(state, event.runId)) {
@@ -2067,11 +2209,15 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (!state.messages.some((message) => message.id === event.messageId)) {
         return state;
       }
-      return updateMessage(state, event.messageId, (message) => ({
-        ...message,
-        text: event.text,
-        status: message.status,
-      }));
+      return updateMessage(state, event.messageId, (message) => {
+        const nextMessage =
+          event.text.length > 0 ? finishMessageThinking(message, Date.now()) : message;
+        return {
+          ...nextMessage,
+          text: event.text,
+          status: message.status,
+        };
+      });
     case 'message/thinking_delta':
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -2079,10 +2225,14 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (!state.messages.some((message) => message.id === event.messageId)) {
         return state;
       }
-      return updateMessage(state, event.messageId, (message) => ({
-        ...message,
-        thinking: message.thinking + event.delta,
-      }));
+      return updateMessage(state, event.messageId, (message) => {
+        const nextMessage =
+          event.delta.length > 0 ? startMessageThinking(message, Date.now()) : message;
+        return {
+          ...nextMessage,
+          thinking: message.thinking + event.delta,
+        };
+      });
     case 'message/search_evidence': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -2100,7 +2250,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         return state;
       }
       const next = updateMessage(state, event.messageId, (message) => ({
-        ...message,
+        ...finishMessageThinking(message, Date.now()),
         status: 'done',
       }));
       // Pi can emit assistant lifecycle entries that contain no reasoning,
@@ -2139,13 +2289,12 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         activeSkill: null,
         runTerminal: hasRunningTool ? next.runTerminal : { kind: 'complete', at: Date.now() },
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
-        completedAttentionSessionIds:
-          hasRunningTool || state.activeSessionId === null
-            ? state.completedAttentionSessionIds
-            : {
-                ...state.completedAttentionSessionIds,
-                [state.activeSessionId]: true,
-              },
+        // Legacy events without a runId are accepted only for the active
+        // session, whose completed response is already visible in the window.
+        completedAttentionSessionIds: removeSessionIdMarker(
+          state.completedAttentionSessionIds,
+          state.activeSessionId,
+        ),
       });
     }
     case 'session/aborted': {
@@ -2153,12 +2302,23 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         return state;
       }
       const messageId = event.messageId;
+      const thinkingEndedAt = Date.now();
       const nextMessages = messageId
         ? state.messages.map((message) =>
-            message.id === messageId ? { ...message, status: 'done' as const } : message,
+            message.id === messageId
+              ? {
+                  ...finishMessageThinking(message, thinkingEndedAt),
+                  status: 'done' as const,
+                }
+              : message,
           )
         : state.messages.map((message) =>
-            message.status === 'streaming' ? { ...message, status: 'done' as const } : message,
+            message.status === 'streaming'
+              ? {
+                  ...finishMessageThinking(message, thinkingEndedAt),
+                  status: 'done' as const,
+                }
+              : message,
           );
       return enforceBoundedTranscriptWindow({
         ...state,
@@ -2179,14 +2339,18 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
-      const ownerMessage = findAssistantMessageForToolStart(state, event.runId);
+      const ownerMessage = findAssistantMessageForToolStart(
+        state,
+        event.runId,
+        event.responseMessageId,
+      );
       if (!ownerMessage) {
         return state;
       }
       return updateMessage(state, ownerMessage.id, (message) => {
         const output = createBoundedToolOutput(event.presentation?.output?.text ?? '');
         return {
-          ...message,
+          ...finishMessageThinking(message, Date.now()),
           tools: [
             ...message.tools,
             {
@@ -2202,6 +2366,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
                   }
                 : {}),
               ...(event.runId ? { runId: event.runId } : {}),
+              ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
             },
           ],
         };
@@ -2211,49 +2376,63 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
-      return updateOwnedTool(state, event.toolCallId, event.runId, (tool) => {
-        const output =
-          event.presentation?.output?.text !== undefined
-            ? createBoundedToolOutput(event.presentation.output.text)
-            : appendBoundedToolOutput(tool, event.delta);
-        const mergedPresentation = event.presentation
-          ? mergeToolPresentation(tool.presentation, event.presentation)
-          : tool.presentation;
-        return {
-          ...tool,
-          output: output.text,
-          outputRetainedBytes: output.retainedBytes,
-          outputTruncated: output.truncated,
-          ...(mergedPresentation
-            ? { presentation: projectBoundedToolPresentation(mergedPresentation, output) }
-            : {}),
-        };
-      });
-    case 'tool/end':
-      if (isStaleOptionalRunEvent(state, event.runId)) {
-        return state;
-      }
-      {
-        const updatedState = updateOwnedTool(state, event.toolCallId, event.runId, (tool) => {
+      return updateOwnedTool(
+        state,
+        event.toolCallId,
+        event.runId,
+        event.responseMessageId,
+        (tool) => {
+          const output =
+            event.presentation?.output?.text !== undefined
+              ? createBoundedToolOutput(event.presentation.output.text)
+              : appendBoundedToolOutput(tool, event.delta);
           const mergedPresentation = event.presentation
             ? mergeToolPresentation(tool.presentation, event.presentation)
             : tool.presentation;
-          const displayOutput =
-            mergedPresentation?.output?.text !== undefined
-              ? mergedPresentation.output.text
-              : tool.output;
-          const output = createBoundedToolOutput(displayOutput);
           return {
             ...tool,
-            status: event.isError ? 'error' : 'done',
             output: output.text,
             outputRetainedBytes: output.retainedBytes,
             outputTruncated: output.truncated,
             ...(mergedPresentation
               ? { presentation: projectBoundedToolPresentation(mergedPresentation, output) }
               : {}),
+            ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
           };
-        });
+        },
+      );
+    case 'tool/end':
+      if (isStaleOptionalRunEvent(state, event.runId)) {
+        return state;
+      }
+      {
+        const updatedState = updateOwnedTool(
+          state,
+          event.toolCallId,
+          event.runId,
+          event.responseMessageId,
+          (tool) => {
+            const mergedPresentation = event.presentation
+              ? mergeToolPresentation(tool.presentation, event.presentation)
+              : tool.presentation;
+            const displayOutput =
+              mergedPresentation?.output?.text !== undefined
+                ? mergedPresentation.output.text
+                : tool.output;
+            const output = createBoundedToolOutput(displayOutput);
+            return {
+              ...tool,
+              status: event.isError ? 'error' : 'done',
+              output: output.text,
+              outputRetainedBytes: output.retainedBytes,
+              outputTruncated: output.truncated,
+              ...(event.responseMessageId ? { responseMessageId: event.responseMessageId } : {}),
+              ...(mergedPresentation
+                ? { presentation: projectBoundedToolPresentation(mergedPresentation, output) }
+                : {}),
+            };
+          },
+        );
         if (!event.attachments || event.attachments.length === 0) {
           return updatedState;
         }
@@ -2261,6 +2440,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           updatedState,
           event.toolCallId,
           event.runId,
+          event.responseMessageId,
           event.attachments,
         );
       }
@@ -2511,9 +2691,10 @@ function applyRunRecord(
     workingSessionIds: removeWorkingSessionId(state.workingSessionIds, run.sessionId),
     // Host implementations may publish a terminal-shaped `run/updated`
     // immediately before `run/terminal`; derive the sidebar cue here so both
-    // delivery forms have identical completion behavior.
+    // delivery forms have identical completion behavior. The active session
+    // is already visible, so only a background session needs the cue.
     completedAttentionSessionIds:
-      outcome === 'completed' || outcome === 'failed'
+      (outcome === 'completed' || outcome === 'failed') && state.activeSessionId !== run.sessionId
         ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
         : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId),
   };
@@ -2616,6 +2797,23 @@ function updateMessage(
   };
 }
 
+function startMessageThinking(message: ChatMessageUi, startedAt: number): ChatMessageUi {
+  if (message.thinkingStartedAt !== undefined) {
+    return message;
+  }
+  return { ...message, thinkingStartedAt: startedAt };
+}
+
+function finishMessageThinking(message: ChatMessageUi, endedAt: number): ChatMessageUi {
+  if (message.thinkingStartedAt === undefined || message.thinkingEndedAt !== undefined) {
+    return message;
+  }
+  return {
+    ...message,
+    thinkingEndedAt: Math.max(message.thinkingStartedAt, endedAt),
+  };
+}
+
 /**
  * Prefer the assistant message that owns this run; fall back only for legacy
  * events without runId to the latest assistant bubble still streaming/open.
@@ -2623,7 +2821,13 @@ function updateMessage(
 function findAssistantMessageForToolStart(
   state: ChatUiState,
   runId: string | undefined,
+  responseMessageId: string | undefined,
 ): ChatMessageUi | undefined {
+  if (responseMessageId !== undefined) {
+    return state.messages.find(
+      (message) => message.role === 'assistant' && message.id === responseMessageId,
+    );
+  }
   if (runId !== undefined) {
     const byRun = [...state.messages]
       .reverse()
@@ -2653,11 +2857,15 @@ function updateOwnedTool(
   state: ChatUiState,
   toolCallId: string,
   runId: string | undefined,
+  responseMessageId: string | undefined,
   updater: (tool: ToolCardUi) => ToolCardUi,
 ): ChatUiState {
   let matched = false;
   const nextMessages = state.messages.map((message) => {
     if (matched) {
+      return message;
+    }
+    if (responseMessageId !== undefined && message.id !== responseMessageId) {
       return message;
     }
     const toolIndex = message.tools.findIndex((tool) => {
@@ -2700,11 +2908,15 @@ function appendGeneratedAttachmentsToToolOwner(
   state: ChatUiState,
   toolCallId: string,
   runId: string | undefined,
+  responseMessageId: string | undefined,
   attachments: readonly MediaAttachmentRef[],
 ): ChatUiState {
   let matched = false;
   const nextMessages = state.messages.map((message) => {
     if (matched) {
+      return message;
+    }
+    if (responseMessageId !== undefined && message.id !== responseMessageId) {
       return message;
     }
     const toolMatches = message.tools.some(

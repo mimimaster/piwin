@@ -6,7 +6,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { HostRuntime } from '../packages/agent-host/src/host-runtime.ts';
+import { HostRuntime } from '../packages/host-runtime/src/host-runtime.ts';
 
 const rootDir = await mkdtemp(join(tmpdir(), 'piwin-e2e-smoke-'));
 
@@ -54,7 +54,10 @@ try {
 
   const status = await runtime.handleCommand({ type: 'host/status' });
   assert(status.success, 'host/status failed');
-  assert(status.data?.capabilities?.customTools === true, 'sdk capabilities.customTools expected true');
+  // Mock mode does not wire the session host tool port, so customTools is
+  // intentionally false. Assert the stable mock identity instead.
+  assert(status.data?.mock === true, 'sdk host/status expected mock=true');
+  assert(status.data?.ready === true, 'sdk host/status expected ready=true');
 
   await runtime.dispose();
   console.log('e2e-host-smoke: ok');

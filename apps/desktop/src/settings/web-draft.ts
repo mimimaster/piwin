@@ -4,6 +4,7 @@
  */
 import {
   DEFAULT_SEARCH_ROUTE_POLICY,
+  type ModelRef,
   type SearchRoutePolicy,
   type WebConfig,
   type WebSearchSource,
@@ -25,6 +26,7 @@ export type DraftSearchSource = {
 
 export type DraftWeb = {
   searchSources: DraftSearchSource[];
+  searchDelegateModel?: ModelRef;
   searchRoutePolicy: SearchRoutePolicy;
   perSourceTimeoutMs: string;
   searchMaxResults: string;
@@ -40,6 +42,7 @@ export type DraftWeb = {
 export function webToDraft(web: WebConfig): DraftWeb {
   return {
     searchSources: web.searchSources.map(sourceToDraft),
+    ...(web.searchDelegateModel ? { searchDelegateModel: web.searchDelegateModel } : {}),
     searchRoutePolicy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
     perSourceTimeoutMs: String(web.searchStrategy.perSourceTimeoutMs),
     searchMaxResults: String(web.searchMaxResults),
@@ -79,6 +82,7 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
     searchTimeoutMs:
       Number.isFinite(searchTimeoutMs) && searchTimeoutMs > 0 ? Math.floor(searchTimeoutMs) : 15000,
     searchSources,
+    ...(draft.searchDelegateModel ? { searchDelegateModel: draft.searchDelegateModel } : {}),
     searchStrategy: {
       // Multi-source search is always parallel (aggregate + URL dedupe).
       mode: 'parallel',

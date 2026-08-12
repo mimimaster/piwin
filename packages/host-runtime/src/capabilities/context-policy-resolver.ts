@@ -27,17 +27,34 @@ export function resolveContextManifest(
   candidates: ContextCandidatesInput,
 ): ContextManifest {
   const agentsFiles: ResolvedContextFile[] = [];
+  if (policy.allowPiNativeInstructions) {
+    agentsFiles.push(
+      ...candidates.piNativeFiles.filter(
+        (file) => file.kind === 'agents' || file.kind === 'claude',
+      ),
+    );
+  }
   if (policy.allowProjectAgentsFiles) {
     agentsFiles.push(...candidates.projectAgentsFiles);
   }
-  if (policy.allowPiNativeInstructions) {
-    agentsFiles.push(...candidates.piNativeFiles);
-  }
 
-  const systemPrompts = policy.allowProjectSystemPrompts ? candidates.projectSystemPrompts : [];
+  const projectSystemPrompts = policy.allowProjectSystemPrompts
+    ? candidates.projectSystemPrompts
+    : [];
+  const piNativeSystemPrompts = policy.allowPiNativeInstructions
+    ? candidates.piNativeFiles.filter(
+        (file) => file.kind === 'system' || file.kind === 'append-system',
+      )
+    : [];
 
-  const systemPrompt = systemPrompts.find((file) => file.kind === 'system');
-  const appendSystemPrompt = systemPrompts.find((file) => file.kind === 'append-system');
+  // Match Pi precedence: a trusted project system prompt wins; otherwise the
+  // explicit Pi-native global prompt is the fallback.
+  const systemPrompt =
+    projectSystemPrompts.find((file) => file.kind === 'system') ??
+    piNativeSystemPrompts.find((file) => file.kind === 'system');
+  const appendSystemPrompt =
+    projectSystemPrompts.find((file) => file.kind === 'append-system') ??
+    piNativeSystemPrompts.find((file) => file.kind === 'append-system');
 
   const manifest: ContextManifest = { agentsFiles };
   if (systemPrompt) {

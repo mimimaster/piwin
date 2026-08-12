@@ -20,7 +20,7 @@ import type {
 } from '@piwin/contracts';
 import type {
   SerializableBlueprint,
-  SerializableProviderRuntime,
+  SerializableWorkerProviderRuntime,
 } from './rpc/serializable-blueprint.js';
 
 /** Worker request methods. */
@@ -110,6 +110,7 @@ export type WorkerHelloFrame = {
     steer: true;
     followUp: true;
     preparedPrompt: true;
+    providerSecretBootstrap?: true;
   };
 };
 
@@ -190,7 +191,7 @@ export type WorkerRequestPayload =
       /** Blueprint-first product path (Phase 7). */
       productSessionId: string;
       blueprint: SerializableBlueprint;
-      providers?: SerializableProviderRuntime[];
+      providers?: SerializableWorkerProviderRuntime[];
       seedMessages?: readonly SessionSeedMessage[];
     }
   | {

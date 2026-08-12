@@ -158,6 +158,15 @@ export function createStoreTranscriptRecorder(options: {
     if (event.runId !== undefined && quarantinedRunIds.has(event.runId)) {
       return undefined;
     }
+    // The adapter can prove the exact Assistant response even after that
+    // response has ended. Prefer this stable identity over mutable
+    // last-assistant/run maps so tool cards never drift into a later turn.
+    if (event.responseMessageId !== undefined) {
+      if (quarantinedMessageIds.has(event.responseMessageId)) {
+        return undefined;
+      }
+      return event.responseMessageId;
+    }
     return event.runId === undefined
       ? (lastAssistantId ?? undefined)
       : assistantIdsByRunId.get(event.runId);
@@ -173,6 +182,10 @@ export function createStoreTranscriptRecorder(options: {
       const attachments = input.attachments?.filter(
         (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
       );
+      const contextRefs =
+        input.contextRefs && input.contextRefs.length > 0
+          ? input.contextRefs.map((ref) => ({ ...ref }))
+          : undefined;
       const result = await options.store.appendMessage({
         id: userId,
         runtimeGenerationId: USER_AUTHORED_GENERATION,
@@ -182,6 +195,7 @@ export function createStoreTranscriptRecorder(options: {
         status: 'done',
         createdAt: new Date().toISOString(),
         ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
+        ...(contextRefs !== undefined ? { contextRefs } : {}),
       });
       if (!result.ok) {
         options.onDiagnostic?.(`user transcript identity collision: messageId=${userId}`);
@@ -253,9 +267,16 @@ export function createStoreTranscriptRecorder(options: {
           }
           case 'message/text_delta': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             await mutateActive(
               event.messageId,
-              (message) => ({ ...message, text: message.text + event.delta, status: 'streaming' }),
+              (message) => ({
+                ...(event.delta.length > 0
+                  ? finishTranscriptThinking(message, eventAt)
+                  : message),
+                text: message.text + event.delta,
+                status: 'streaming',
+              }),
               `text_delta runId=${event.runId ?? 'none'}`,
             );
             scheduleFlush();
@@ -263,9 +284,14 @@ export function createStoreTranscriptRecorder(options: {
           }
           case 'message/text_snapshot': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             await mutateActive(
               event.messageId,
-              (message) => ({ ...message, text: event.text, status: 'streaming' }),
+              (message) => ({
+                ...(event.text.length > 0 ? finishTranscriptThinking(message, eventAt) : message),
+                text: event.text,
+                status: 'streaming',
+              }),
               `text_snapshot runId=${event.runId ?? 'none'}`,
             );
             scheduleFlush();
@@ -273,9 +299,13 @@ export function createStoreTranscriptRecorder(options: {
           }
           case 'message/thinking_delta': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             await mutateActive(
               event.messageId,
-              (message) => ({ ...message, thinking: (message.thinking ?? '') + event.delta }),
+              (message) => ({
+                ...(event.delta.length > 0 ? startTranscriptThinking(message, eventAt) : message),
+                thinking: (message.thinking ?? '') + event.delta,
+              }),
               `thinking_delta runId=${event.runId ?? 'none'}`,
             );
             scheduleFlush();
@@ -296,9 +326,10 @@ export function createStoreTranscriptRecorder(options: {
           }
           case 'message/end': {
             if (quarantinedMessageIds.has(event.messageId)) break;
+            const eventAt = new Date().toISOString();
             const completed = await mutateActive(
               event.messageId,
-              (message) => ({ ...message, status: 'done' }),
+              (message) => ({ ...finishTranscriptThinking(message, eventAt), status: 'done' }),
               `message_end runId=${event.runId ?? 'none'}`,
             );
             if (completed === undefined) break;
@@ -324,16 +355,20 @@ export function createStoreTranscriptRecorder(options: {
               break;
             }
             pendingEmptyMessageIds.delete(assistantId);
+            const eventAt = new Date().toISOString();
             await mutateActive(
               assistantId,
               (message) => ({
-                ...message,
+                ...finishTranscriptThinking(message, eventAt),
                 tools: appendToolCard(message.tools, {
                   toolCallId: event.toolCallId,
                   toolName: event.toolName,
                   status: 'running',
                   output: '',
                   ...(event.runId !== undefined ? { runId: event.runId } : {}),
+                  ...(event.responseMessageId !== undefined
+                    ? { responseMessageId: event.responseMessageId }
+                    : {}),
                   ...(event.presentation !== undefined ? { presentation: event.presentation } : {}),
                 }),
               }),
@@ -359,6 +394,9 @@ export function createStoreTranscriptRecorder(options: {
                           appendBoundedToolOutput(tool.output, event.delta, maxToolOutputBytes),
                         ...(event.presentation !== undefined
                           ? { presentation: { ...tool.presentation, ...event.presentation } }
+                          : {}),
+                        ...(event.responseMessageId !== undefined
+                          ? { responseMessageId: event.responseMessageId }
                           : {}),
                       }
                     : tool,
@@ -394,6 +432,30 @@ export function createStoreTranscriptRecorder(options: {
             activeMessages.delete(assistantId);
             break;
           }
+          case 'session/aborted': {
+            const assistantId =
+              event.messageId ??
+              (event.runId !== undefined ? assistantIdsByRunId.get(event.runId) : lastAssistantId);
+            if (
+              assistantId !== undefined &&
+              assistantId !== null &&
+              !quarantinedMessageIds.has(assistantId)
+            ) {
+              const eventAt = new Date().toISOString();
+              await mutateActive(
+                assistantId,
+                (message) => ({
+                  ...finishTranscriptThinking(message, eventAt),
+                  status: message.status === 'streaming' ? 'done' : message.status,
+                }),
+                'session/aborted',
+                true,
+              );
+              await flushNow();
+              activeMessages.delete(assistantId);
+            }
+            break;
+          }
           case 'session/ended': {
             await prunePendingEmptyMessages();
             activeMessages.clear();
@@ -403,9 +465,10 @@ export function createStoreTranscriptRecorder(options: {
           }
           case 'error': {
             if (lastAssistantId !== null) {
+              const eventAt = new Date().toISOString();
               await mutateActive(
                 lastAssistantId,
-                (message) => ({ ...message, status: 'error' }),
+                (message) => ({ ...finishTranscriptThinking(message, eventAt), status: 'error' }),
                 'error',
               );
               await flushNow();
@@ -461,6 +524,12 @@ function messagePatch(message: SessionTranscriptMessage): TranscriptStoreMessage
       ...(message.phaseHistory !== undefined ? { phaseHistory: message.phaseHistory } : {}),
       ...(message.startedAt !== undefined ? { startedAt: message.startedAt } : {}),
       ...(message.endedAt !== undefined ? { endedAt: message.endedAt } : {}),
+      ...(message.thinkingStartedAt !== undefined
+        ? { thinkingStartedAt: message.thinkingStartedAt }
+        : {}),
+      ...(message.thinkingEndedAt !== undefined
+        ? { thinkingEndedAt: message.thinkingEndedAt }
+        : {}),
       ...(message.outcome !== undefined ? { outcome: message.outcome } : {}),
       ...(message.terminalMessage !== undefined
         ? { terminalMessage: message.terminalMessage }
@@ -471,6 +540,24 @@ function messagePatch(message: SessionTranscriptMessage): TranscriptStoreMessage
       ...(message.searchEvidence !== undefined ? { searchEvidence: message.searchEvidence } : {}),
     },
   };
+}
+
+function startTranscriptThinking(
+  message: SessionTranscriptMessage,
+  startedAt: string,
+): SessionTranscriptMessage {
+  if (message.thinkingStartedAt !== undefined) return message;
+  return { ...message, thinkingStartedAt: startedAt };
+}
+
+function finishTranscriptThinking(
+  message: SessionTranscriptMessage,
+  endedAt: string,
+): SessionTranscriptMessage {
+  if (message.thinkingStartedAt === undefined || message.thinkingEndedAt !== undefined) {
+    return message;
+  }
+  return { ...message, thinkingEndedAt: endedAt };
 }
 
 function finalizeTool(
@@ -490,6 +577,9 @@ function finalizeTool(
     ...tool,
     status: event.isError ? 'error' : 'done',
     output: truncateUtf8(output, maxToolOutputBytes),
+    ...(event.responseMessageId !== undefined
+      ? { responseMessageId: event.responseMessageId }
+      : {}),
     ...(presentation !== undefined ? { presentation } : {}),
   };
 }

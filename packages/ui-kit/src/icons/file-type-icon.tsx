@@ -8,9 +8,9 @@ import {
   IconBrandPython,
   IconBrandReact,
   IconBrandRust,
-  IconBrandTypescript,
   IconFileText,
   IconFolder,
+  IconHash,
   IconMarkdown,
   IconPhoto,
   IconTerminal2,
@@ -135,7 +135,7 @@ export function FileTypeIcon({ filePathOrExt, className = '' }: FileTypeIconProp
     case 'react':
       return <IconBrandReact {...sharedProps} />;
     case 'typescript':
-      return <IconBrandTypescript {...sharedProps} />;
+      return <IconHash {...sharedProps} />;
     case 'javascript':
       return <IconBrandJavascript {...sharedProps} />;
     case 'python':

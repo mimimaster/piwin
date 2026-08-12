@@ -13,6 +13,7 @@
  * preventing nested subagent spawning through the retired direct lifecycle
  * path.
  */
+import { randomUUID } from 'node:crypto';
 import type {
   HostToolExecutionContext,
   HostToolRegistration,
@@ -31,6 +32,9 @@ export type SubagentRunSeam = {
   /** Spawn a child subagent session and wait for it to finish. */
   spawn: (input: {
     parentSessionId: string;
+    invocationId: string;
+    parentRunId: string;
+    parentToolCallId?: string;
     task: string;
     mode?: SubagentIsolationMode;
     applyPolicy?: SubagentApplyPolicy;
@@ -216,6 +220,9 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       try {
         spawnResult = await options.seam.spawn({
           parentSessionId: options.sessionId,
+          invocationId: randomUUID(),
+          parentRunId: context.runId,
+          ...(context.toolCallId ? { parentToolCallId: context.toolCallId } : {}),
           task,
           ...(mode ? { mode } : {}),
           ...(sessionName ? { sessionName } : {}),
@@ -243,6 +250,15 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
             code: 'subagent-unavailable',
             message,
             details: { runId: context.runId, ...(role ? { role } : {}) },
+            retryable: false,
+          };
+        }
+        if (message.includes('subagent-delegation-disabled:')) {
+          return {
+            ok: false,
+            code: 'subagent-delegation-disabled',
+            message,
+            details: { runId: context.runId },
             retryable: false,
           };
         }

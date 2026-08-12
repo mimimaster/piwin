@@ -26,6 +26,8 @@ import {
 import { createMockSessionHandle } from './mock-session.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import { loadPromptImages } from './prompt-images.js';
+import { loadPiwinConfig } from './config-store.js';
+import { createSettingsSnapshot } from './settings/settings-service.js';
 
 export type ProductAgentHostToolRegistrationMode = 'active' | 'pending';
 
@@ -34,13 +36,19 @@ export type PreparedProductSession = {
   sessionId: string;
   runtimeGenerationId: string;
   settingsRevision: string;
+  extensionSetRevision?: string;
   registrationMode: ProductAgentHostToolRegistrationMode;
 };
 
 type ProductAgentHostCommonOptions = {
   mode: 'sdk' | 'rpc';
   piwinRoot?: string;
-  onGenerationCreated?: (sessionId: string, generationId: string, settingsRevision: string) => void;
+  onGenerationCreated?: (
+    sessionId: string,
+    generationId: string,
+    settingsRevision: string,
+    extensionSetRevision?: string,
+  ) => void;
   onGenerationDetached?: (sessionId: string) => void | Promise<void>;
   /**
    * Resolve whether a project path is trusted. When provided, the compiler
@@ -76,6 +84,7 @@ type ProductAgentHostCommonOptions = {
     sessionId: string,
     runtimeGenerationId: string,
     toolNames: readonly string[],
+    toolboxTargetNames: readonly string[],
   ) => void;
 };
 
@@ -92,6 +101,7 @@ export type ProductAgentHostOptions =
         sessionId: string,
         runtimeGenerationId: string,
         toolNames: readonly string[],
+        toolboxTargetNames: readonly string[],
       ) => void;
       /**
        * Build concrete Host tool descriptors for a session. Called before
@@ -201,6 +211,7 @@ export class ProductAgentHost implements AgentHost {
         prepared.sessionId,
         prepared.runtimeGenerationId,
         prepared.settingsRevision,
+        prepared.extensionSetRevision,
       );
     }
     return prepared.session;
@@ -281,11 +292,14 @@ export class ProductAgentHost implements AgentHost {
         sessionId,
         ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
       });
+      const settingsRevision = this.options.piwinRoot
+        ? createSettingsSnapshot(await loadPiwinConfig(this.options.piwinRoot)).revision
+        : 'live';
       return {
         session,
         sessionId,
         runtimeGenerationId,
-        settingsRevision: 'live',
+        settingsRevision,
         registrationMode,
       };
     }
@@ -343,17 +357,20 @@ export class ProductAgentHost implements AgentHost {
         // backend. RPC provider envelopes are serialized over worker JSONL and
         // therefore fail closed in the compiler.
         allowInlineProviderSecrets: this.options.mode === 'sdk',
+        allowWorkerProviderSecretBootstrap: this.options.mode === 'rpc',
         ...(this.options.trustResolver ? { trustResolver: this.options.trustResolver } : {}),
       });
       this.options.restrictToolSurface(
         sessionId,
         runtimeGenerationId,
         compiled.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
+        compiled.sessionBlueprint.hostToolboxTargetNames,
       );
 
       const backendHandle = await this.backend.createSession({
         blueprint: compiled.sessionBlueprint.backendBlueprint,
         providers: compiled.providers,
+        ...(compiled.providerSecrets ? { providerSecrets: compiled.providerSecrets } : {}),
         hostToolExecution,
         ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
       });
@@ -365,6 +382,12 @@ export class ProductAgentHost implements AgentHost {
         settingsRevision:
           compiled.settingsRevision ??
           compiled.sessionBlueprint.capabilitySnapshot.inputs.settingsRevision,
+        ...(compiled.sessionBlueprint.capabilitySnapshot.inputs.extensionSetRevision !== undefined
+          ? {
+              extensionSetRevision:
+                compiled.sessionBlueprint.capabilitySnapshot.inputs.extensionSetRevision,
+            }
+          : {}),
         registrationMode,
       };
     } catch (error) {

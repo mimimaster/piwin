@@ -213,6 +213,29 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('round-trips assistant reasoning boundaries through metadata_json', async () => {
+    const { store } = await openStore('thinking-boundaries');
+    await store.appendMessage({
+      ...messageInput({
+        id: 'piw-m-thinking',
+        runtimeGenerationId: 'gen-thinking',
+        backendMessageId: 'backend-thinking',
+      }),
+      thinking: 'reasoning',
+      metadata: {
+        thinkingStartedAt: '2026-08-12T08:00:01.000Z',
+        thinkingEndedAt: '2026-08-12T08:00:05.000Z',
+      },
+    });
+
+    await expect(store.getMessage('piw-m-thinking')).resolves.toMatchObject({
+      thinking: 'reasoning',
+      thinkingStartedAt: '2026-08-12T08:00:01.000Z',
+      thinkingEndedAt: '2026-08-12T08:00:05.000Z',
+    });
+    store.close();
+  });
+
   it('keeps cross-generation tool-call cards attached to their own assistant rows', async () => {
     const { store } = await openStore('tools');
     await store.appendMessage(
@@ -851,4 +874,60 @@ describe('SessionTranscriptStore', () => {
     expect(await store.getActivePauseCheckpoint()).toBeUndefined();
     store.close();
   });
+
+  it('persists and reopens user contextRefs without rewriting user text', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-context-refs-'));
+    const dbPath = join(rootDir, 'transcript.sqlite3');
+    const sessionId = 'session-context-refs';
+    const store = await openSessionTranscriptStore({
+      dbPath,
+      sessionId,
+      projectPath: '/tmp/project',
+    });
+    const refs = [
+      {
+        kind: 'file' as const,
+        projectPath: '/tmp/project',
+        relativePath: 'src/a.ts',
+        lineStart: 2,
+        lineEnd: 4,
+        label: 'a.ts',
+      },
+      {
+        kind: 'error' as const,
+        title: 'TS2322',
+        detail: 'Type string is not assignable',
+        label: 'err',
+      },
+    ];
+    await store.appendMessage({
+      id: 'user-1',
+      runtimeGenerationId: USER_AUTHORED_GENERATION,
+      backendMessageId: 'user-1',
+      role: 'user',
+      text: 'please fix this',
+      status: 'done',
+      createdAt: '2026-08-12T00:00:00.000Z',
+      contextRefs: refs,
+    });
+    const loaded = await store.getMessage('user-1');
+    expect(loaded).toMatchObject({ text: 'please fix this', contextRefs: refs });
+    const history = await store.buildHistoryWindow({ maxMessages: 10, maxChars: 10_000 });
+    expect(history).toEqual([
+      expect.objectContaining({ role: 'user', text: 'please fix this', contextRefs: refs }),
+    ]);
+    store.close();
+
+    const reopened = await openSessionTranscriptStore({
+      dbPath,
+      sessionId,
+      projectPath: '/tmp/project',
+    });
+    await expect(reopened.getMessage('user-1')).resolves.toMatchObject({
+      text: 'please fix this',
+      contextRefs: refs,
+    });
+    reopened.close();
+  });
+
 });

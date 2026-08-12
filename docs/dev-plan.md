@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Active — M2 done; Host Server/multi-client target added; see todo-deferred |
-| Date | 2026-08-09 |
+| Date | 2026-08-12 |
 | Based on | `docs/prd.md` v0.2, locked product decisions |
 | Repo | `~/Projects/piwin` |
 
@@ -139,12 +139,28 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 
 **Completed slice (ADR 0043):** Native model search routing and video model discovery.
 - Web Settings exposes the search route policy and a live route preview.
-- Model editor supports the `native-web-search` capability and badge.
-- Host Runtime resolves exactly one search backend per generation; native selected omits `web_search`, external selected disables provider-native fields.
-- Native citations are normalized in `@piwin/agent-host`, emitted as `message/search_evidence`, persisted in the transcript, and rendered in Desktop.
+- Model add/edit supports the `native-web-search` capability and badge.
+- Host Runtime resolves exactly one search backend per generation; native
+  selected omits `web_search`, external selected omits provider-native fields.
+- SDK/RPC production registrations wrap Pi's real lazy provider stream so the
+  selected native route changes the outbound request, not only the blueprint.
+- Native citation parsing, `message/search_evidence`, transcript persistence,
+  and Desktop rendering are present, but Pi 0.80.10 does not expose provider
+  grounding metadata to the adapter; Settings reports citation support as
+  unavailable instead of claiming full readiness.
+- Web Settings can select a separate configured `native-web-search` model as
+  the exclusive backend for the Host `web_search` tool. Host keeps credentials
+  private, ignores ordinary sources while delegated, and fails closed for a
+  stale or unsupported selection.
 - Video Settings discovers provider video models, separates recognized and suggested models, and prefills the route.
 - Verification: `pnpm typecheck && pnpm test && pnpm test:architecture && pnpm --filter @piwin/desktop build`.
-  - Latest run: typecheck, `test:architecture`, Desktop build, and all touched package tests pass. Full `pnpm test` reports 5 unrelated pre-existing Desktop failures in `renderer-resource-boundaries.test.ts` and `resolve-document-content.test.ts`.
+  - Latest run (2026-08-11): typecheck, architecture boundaries, Desktop build,
+    and all native/delegated search target suites pass. The latest full
+    `pnpm test` run completed all 1,179 Desktop assertions but exited non-zero
+    because `MarkdownView.test.tsx` left three React scheduler callbacks after
+    environment teardown (`window is not defined`); this is outside the search
+    slice. A separate Plan Run cancellation timing failure from the preceding
+    run passed immediately when rerun in isolation.
 - See `docs/adr/0043-native-model-search-routing.md` for the architecture decision.
 
 ---
@@ -301,6 +317,17 @@ Update this file when:
 ---
 
 ## 9. Implemented slices (post-M2)
+
+### Inline subagent conversation blocks (2026-08-12) ✅
+
+ADR 0046 is implemented: model delegations render at their causal parent tool
+position, invocation lifecycle is revisioned and durable, stale children are
+reconciled after Host restart, and the child window shares the normal
+transcript/tool/permission/file presentation. Terminal children support
+same-session follow-up and explicit worktree apply/retain/discard. The old
+composer Working dock was removed. Project-row creation carries explicit scope;
+historical mis-scoped sessions can be copied safely with **Continue in
+project…** instead of being silently rewritten.
 
 ### CLI structured model-selection (2026-08-01) ✅
 

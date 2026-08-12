@@ -72,7 +72,7 @@ describe('SubagentSessionTranscript thinking visibility', () => {
       renderTranscript({ root, showThinking: false });
     });
 
-    expect(container.querySelectorAll('.subagent-inspector-thinking')).toHaveLength(0);
+    expect(container.querySelectorAll('.turn-thinking')).toHaveLength(0);
     expect(container.textContent).toContain(historicalMessages[0]?.text);
     expect(container.textContent).toContain(liveStream.text);
 
@@ -80,8 +80,51 @@ describe('SubagentSessionTranscript thinking visibility', () => {
       renderTranscript({ root, showThinking: true });
     });
 
-    expect(container.querySelectorAll('.subagent-inspector-thinking')).toHaveLength(2);
+    expect(container.querySelectorAll('.turn-thinking')).toHaveLength(2);
     expect(container.textContent).toContain(historicalMessages[0]?.thinking);
     expect(container.textContent).toContain(liveStream.thinking);
+  });
+
+  it('uses the standard tool-call renderer for live child work', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ root, container });
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SubagentSessionTranscript
+            historicalMessages={[]}
+            stream={{
+              ...liveStream,
+              thinking: '',
+              tools: [
+                {
+                  toolCallId: 'child-tool-1',
+                  toolName: 'bash',
+                  status: 'running',
+                  output: 'running tests',
+                  presentation: {
+                    kind: 'shell',
+                    title: 'Bash',
+                    actionVerb: 'Ran command',
+                    command: 'pnpm test',
+                    output: { text: 'running tests' },
+                  },
+                },
+              ],
+            }}
+            loading={false}
+            error={null}
+            onRetry={() => undefined}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="tool-call-card"]')).not.toBeNull();
+    expect(container.textContent).toContain('pnpm test');
   });
 });
