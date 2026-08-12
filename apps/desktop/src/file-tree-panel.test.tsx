@@ -368,7 +368,7 @@ describe('FileTreePanel', () => {
       };
     });
 
-    renderPanel({ request });
+    renderPanel({ request, onAddContextRef: vi.fn() });
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -389,8 +389,8 @@ describe('FileTreePanel', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(readmeRow?.closest('.file-tree-node')?.className).toContain('selected');
-    const copyItem = queryByTestId('file-tree-copy-path-README.md');
+    // CM catalog menu: Copy Absolute Path lives on the catalog item id.
+    const copyItem = queryByTestId('context-menu-copy-absolute-path');
     expect(copyItem).toBeTruthy();
 
     await act(async () => {

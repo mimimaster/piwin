@@ -56,9 +56,30 @@ test.describe('context-menu surfaces (vite + host mock)', () => {
     await expect(chip).toContainText('README.md');
   });
 
-  test('selection-explain: preview select -> Explain -> prompt/stream starts', async ({
+  test('message-menu: right-click an assistant bubble offers the message surface menu', async ({
     page,
   }) => {
+    await page.goto('/');
+    await waitForHostReady(page);
+    await openTrustedSession(page, '/tmp/piwin-e2e-cm-message');
+
+    // Send a prompt so the mock host produces an assistant bubble.
+    await page.getByTestId('composer-input').fill('hello');
+    await page.keyboard.press('Enter');
+    await expect(
+      page.locator('[data-testid="message-bubble"][data-role="assistant"]', {
+        hasText: 'piwin desktop mock reply',
+      }),
+    ).toBeVisible();
+
+    // Right-click the assistant bubble -> message surface catalog menu.
+    const assistantBubble = page.locator('[data-testid="message-bubble"][data-role="assistant"]');
+    await assistantBubble.click({ button: 'right' });
+    await expect(page.getByTestId('context-menu-copy')).toBeVisible();
+    await expect(page.getByTestId('context-menu-add-to-chat')).toBeVisible();
+  });
+
+  test('selection-explain: preview select -> Explain -> prompt/stream starts', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-cm-selection');
