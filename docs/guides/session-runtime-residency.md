@@ -1,5 +1,9 @@
 # Session runtime residency (ADR 0040)
 
+Runtime **cold** is not storage offload. A runtime-cold session still has its
+transcript and media on the Host. Moving those files to an external pack is
+ADR 0044 — see [`session-cold-storage.md`](./session-cold-storage.md).
+
 ## What Host owns
 
 - Cold / activating / resident-idle / resident-busy / suspending state machine

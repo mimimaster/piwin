@@ -122,6 +122,35 @@ export function formatStatus(status: SessionColdStorageStatus): string {
   ].join('\n');
 }
 
+/** Read-only doctor block. Does not mutate journals. */
+export function formatDoctorColdStorageLines(status: SessionColdStorageStatus): string[] {
+  const lines = [
+    `- enabled: ${status.config.enabled}`,
+    `- packOutputDir: ${status.config.packOutputDir ?? '(unset)'}`,
+    `- packOutputDirValid: ${status.packOutputDirValid}`,
+    `- residual transactions: ${status.residualTransactions.length}`,
+  ];
+  for (const transaction of status.residualTransactions) {
+    lines.push(
+      `  · ${transaction.transactionId} session=${transaction.sessionId} kind=${transaction.kind} phase=${transaction.phase}`,
+    );
+  }
+  lines.push(
+    `- missing packs: ${status.missingPackSessionIds.join(', ') || '(none)'}`,
+  );
+  if (status.residualTransactions.length > 0 || status.missingPackSessionIds.length > 0) {
+    lines.push(
+      '  · run `piwin session cold reconcile` to recover journals and recheck packs',
+    );
+  }
+  if (status.missingPackSessionIds.length > 0) {
+    lines.push(
+      '  · restore a missing pack with `piwin session cold restore <sessionId> --pack <host-path>`',
+    );
+  }
+  return lines;
+}
+
 export function formatPlan(plan: SessionColdStoragePlan): string {
   const lines = [
     `plan ${plan.planId}`,
