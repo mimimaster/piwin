@@ -10,11 +10,22 @@ import {
   isThinkingLevel,
   validateWalkthroughConfig,
 } from '@piwin/contracts';
+import { findReadyWebSearchDelegate } from './capabilities/search-route-resolver.js';
 
 export type ProviderValidationIssue = {
   path: string;
   message: string;
+  /**
+   * Warnings describe a degradable-but-legal config (e.g. a stale web_search
+   * delegate reference); saves still proceed. Errors block the save.
+   */
+  severity?: 'error' | 'warning';
 };
+
+/** Issues that must reject a config write. Warnings are informational only. */
+export function isBlockingValidationIssue(issue: ProviderValidationIssue): boolean {
+  return issue.severity !== 'warning';
+}
 
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const RAW_KEY_PATTERN = /^(sk-|sk-ant-|sk-proj-|api-)[A-Za-z0-9_\-]{8,}$/i;
@@ -296,6 +307,19 @@ export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssu
   const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
   for (const issue of validateWalkthroughConfig(walkthrough)) {
     issues.push({ path: issue.path, message: issue.message });
+  }
+  // A configured web_search delegate must still be resolvable to a real,
+  // enabled, native-web-search-capable model. This is a warning, not an error:
+  // disabling a provider that backs the delegate in the same save is a legal
+  // edit — the Web page just degrades to external sources until the user
+  // updates the reference.
+  if (config.web?.searchDelegateModel && findReadyWebSearchDelegate(config) === undefined) {
+    issues.push({
+      path: 'web.searchDelegateModel',
+      message:
+        'web_search delegate model is missing, disabled, or not native-web-search capable',
+      severity: 'warning',
+    });
   }
   return issues;
 }

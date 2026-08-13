@@ -19,6 +19,8 @@ import {
   normalizePiwinConfig,
 } from '../config-store.js';
 import { sanitizeProvidersForSave, validatePiwinConfig } from '../provider-validation.js';
+import { isBlockingValidationIssue } from '../provider-validation.js';
+import { findReadyWebSearchDelegate } from '../capabilities/search-route-resolver.js';
 
 export class SettingsRevisionConflictError extends Error {
   readonly name = 'SettingsRevisionConflictError';
@@ -154,7 +156,7 @@ function findImmediateRestrictions(
   switch (domain) {
     case 'web': {
       const restrictions: ImmediateCapabilityRestriction[] = [];
-      if (hasUsableWebSearch(previous.web) && !hasUsableWebSearch(next.web)) {
+      if (hasUsableWebSearch(previous) && !hasUsableWebSearch(next)) {
         restrictions.push('web-search');
       }
       const previousBlockedPrefixes = new Set(previous.web?.fetchBlockedUrlPrefixes ?? []);
@@ -200,10 +202,21 @@ function findImmediateRestrictions(
   }
 }
 
-function hasUsableWebSearch(web: PiwinConfig['web']): boolean {
+/**
+ * Whether the config can actually route web search for a generation.
+ *
+ * Native readiness reuses the production resolver (`findReadyWebSearchDelegate`):
+ * the delegate reference only counts when its provider exists and is enabled,
+ * the model exists, is enabled, is tagged `native-web-search`, the protocol
+ * matches, and the active adapter can express the native search request. A
+ * stale reference to a deleted/disabled model must not keep reporting web
+ * search as usable (false negative on immediate restriction).
+ */
+function hasUsableWebSearch(config: PiwinConfig): boolean {
+  const web = config.web;
   if (!web) return false;
-  const hasExternalSource = web.searchSources.some((source) => source.enabled);
-  const hasNativeSource = web.searchDelegateModel !== undefined;
+  const hasExternalSource = (web.searchSources ?? []).some((source) => source.enabled);
+  const hasNativeSource = findReadyWebSearchDelegate(config) !== undefined;
   switch (web.searchRoutePolicy) {
     case 'native-only':
       return hasNativeSource;
@@ -241,7 +254,7 @@ async function writeValidatedConfigAtomically(
   config: PiwinConfig,
   configPath: string,
 ): Promise<void> {
-  const issues = validatePiwinConfig(config);
+  const issues = validatePiwinConfig(config).filter(isBlockingValidationIssue);
   if (issues.length > 0) {
     throw new Error(
       `Invalid providers: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`,
