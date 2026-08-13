@@ -754,6 +754,126 @@ describe('HostServer', () => {
     await server.stop();
   });
 
+  it('denies remote extension activation by default (ADR 0047 §12)', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-ext-deny-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-ext-deny-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    // Activation causes Host code execution: default-deny for remote clients.
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'ext-enable-denied',
+        command: {
+          type: 'extensions/set_enabled',
+          id: 'ext-enable-denied',
+          extensionId: 'demo',
+          enabled: true,
+        },
+      }),
+    );
+    const enableDenied = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'ext-enable-denied',
+    );
+    expect(enableDenied).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'ext-apply-denied',
+        command: {
+          type: 'extensions/apply',
+          id: 'ext-apply-denied',
+          sessionId: 'session-1',
+          when: 'now',
+        },
+      }),
+    );
+    const applyDenied = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'ext-apply-denied',
+    );
+    expect(applyDenied).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+
+    // Observation stays allowed: all clients may read the shared registry.
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'ext-list-allowed',
+        command: { type: 'extensions/list', id: 'ext-list-allowed' },
+      }),
+    );
+    const listAllowed = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'ext-list-allowed',
+    );
+    expect(listAllowed).toMatchObject({ type: 'response' });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('allows remote extension activation only with the explicit opt-in', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({
+      runtime,
+      port: 0,
+      instanceId: 'host-ext-optin-test',
+      allowRemoteExtensionActivation: true,
+    });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-ext-optin-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'ext-enable-allowed',
+        command: {
+          type: 'extensions/set_enabled',
+          id: 'ext-enable-allowed',
+          extensionId: 'demo',
+          enabled: true,
+        },
+      }),
+    );
+    const enableAllowed = await inbox.waitFor(
+      (message) =>
+        (message.type === 'response' || message.type === 'error') &&
+        message.requestId === 'ext-enable-allowed',
+    );
+    expect(enableAllowed).toMatchObject({ type: 'response' });
+
+    socket.close();
+    await server.stop();
+  });
+
   it('rejects an Origin outside the configured loopback allowlist', async () => {
     const runtime = new FakeRuntime();
     const server = new HostServer({

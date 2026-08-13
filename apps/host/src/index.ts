@@ -7,6 +7,9 @@ const mock = process.env.PIWIN_MOCK === '1';
 const host = process.env.PIWIN_HOST_BIND ?? '127.0.0.1';
 const port = parsePort(process.env.PIWIN_HOST_PORT) ?? 8787;
 const authToken = process.env.PIWIN_HOST_TOKEN;
+// ADR 0047 §12: remote extension activation executes code on this Host and
+// stays denied unless the operator opts in explicitly.
+const allowRemoteExtensionActivation = process.env.PIWIN_HOST_ALLOW_EXTENSION_ACTIVATION === '1';
 
 const runtime = new HostRuntime({
   mode,
@@ -19,6 +22,7 @@ const server = new HostServer({
   host,
   port,
   ...(authToken === undefined ? {} : { authToken }),
+  allowRemoteExtensionActivation,
   onError: (error) => console.error(`[piwin-host] ${error.message}`),
 });
 

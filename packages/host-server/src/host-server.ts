@@ -54,6 +54,13 @@ export type HostServerOptions = {
   authToken?: string;
   /** Browser Origin allowlist; absent Origin remains valid for CLI/Node clients. */
   allowedOrigins?: readonly string[];
+  /**
+   * ADR 0047 §12: extension activation executes code on the Host, so remote
+   * `extensions/set_enabled` / `extensions/apply` stay denied unless the
+   * operator opts in explicitly. Observation (`extensions/list`) is always
+   * allowed. Remote install stays denied unconditionally.
+   */
+  allowRemoteExtensionActivation?: boolean;
   maxReplay?: number;
   maxClientQueueItems?: number;
   maxClientQueueBytes?: number;
@@ -125,9 +132,17 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'media/save',
   'skills/read',
   'extensions/list',
+]);
+
+/**
+ * Commands that activate extension code on the Host. Excluded from the
+ * default allowlist (ADR 0047 §12) and enabled only through the explicit
+ * `allowRemoteExtensionActivation` operator opt-in.
+ */
+const EXTENSION_ACTIVATION_COMMANDS: readonly HostCommand['type'][] = [
   'extensions/set_enabled',
   'extensions/apply',
-]);
+];
 
 export class HostServer {
   private readonly runtime: HostRuntimePort;
@@ -137,6 +152,7 @@ export class HostServer {
   private readonly instanceId: string;
   private readonly authToken: string | undefined;
   private readonly allowedOrigins: ReadonlySet<string> | undefined;
+  private readonly allowedCommands: ReadonlySet<HostCommand['type']>;
   private readonly capabilities: RemoteCapabilitySummary;
   private readonly connections = new Set<ClientConnection>();
   private readonly idempotencyCache = new Map<string, CachedResponse>();
@@ -157,6 +173,10 @@ export class HostServer {
     this.authToken = options.authToken;
     this.allowedOrigins =
       options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
+    this.allowedCommands =
+      options.allowRemoteExtensionActivation === true
+        ? new Set([...DEFAULT_ALLOWED_COMMANDS, ...EXTENSION_ACTIVATION_COMMANDS])
+        : DEFAULT_ALLOWED_COMMANDS;
     this.capabilities = createRemoteCapabilities();
     this.onError = options.onError ?? (() => undefined);
     this.egressHub = new HostEgressHub({
@@ -398,7 +418,7 @@ export class HostServer {
     connection: ClientConnection,
     frame: Extract<HostWireMessage, { type: 'command' }>,
   ): Promise<void> {
-    if (!DEFAULT_ALLOWED_COMMANDS.has(frame.command.type) || !isSafeRemoteCommand(frame.command)) {
+    if (!this.allowedCommands.has(frame.command.type) || !isSafeRemoteCommand(frame.command)) {
       this.sendError(
         connection,
         'command-not-allowed',
