@@ -1,6 +1,7 @@
 import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it, vi } from 'vitest';
 import type { HostPush, HostRuntimeResourcesData, MediaSaveData } from '@piwin/contracts';
 import { buildSettingsDomainMutations } from '@piwin/contracts';
@@ -15,8 +16,13 @@ import {
   getPiwinGeneralWorkspacePath,
   getPiwinProjectsPath,
   getPiwinSessionIndexPath,
+  getPiwinSessionTranscriptDatabasePath,
 } from './paths.js';
-import { getSessionRecord, listSessionsForProject } from '@piwin/session';
+import {
+  getSessionRecord,
+  listSessionsForProject,
+  openSessionTranscriptStore,
+} from '@piwin/session';
 
 describe('HostRuntime', () => {
   it('ADR 0027: fans out pushes to multiple sinks and isolates sink errors', async () => {
@@ -1350,25 +1356,9 @@ describe('HostRuntime', () => {
     await runtimeB.dispose();
   });
 
-  it('cold prompt activates one runtime and injects bounded history exactly once', async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cold-prompt-'));
-    const runtimeA = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
-    const created = await runtimeA.handleCommand({
-      type: 'session/create',
-      input: { projectPath: '/tmp/history-project', sessionName: 'history-demo' },
-    });
-    expect(created.success).toBe(true);
-    if (!created.success) throw new Error(created.error);
-    const sessionId = (created.data as { sessionId: string }).sessionId;
-
-    const firstPrompt = await runtimeA.handleCommand({
-      type: 'session/prompt',
-      sessionId,
-      input: { text: 'first question' },
-    });
-    expect(firstPrompt.success).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    await runtimeA.dispose();
+  it('cold prompt with native copies replays context without text history injection', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cold-replay-'));
+    const sessionId = await seedColdPromptSession(rootDir);
 
     const runtimeB = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
     const resumed = await runtimeB.handleCommand({ type: 'session/resume', sessionId });
@@ -1376,33 +1366,42 @@ describe('HostRuntime', () => {
     if (!resumed.success) throw new Error(resumed.error);
     expect((resumed.data as { live: boolean }).live).toBe(false);
 
-    // Poll transcript messages until the mock stream + recorder persist settle.
-    const readMessages = async (): Promise<Array<{ role: string; text: string }>> => {
-      const response = await runtimeB.handleCommand({ type: 'session/messages', sessionId });
-      expect(response.success).toBe(true);
-      if (!response.success) throw new Error(response.error);
-      return (response.data as { messages: Array<{ role: string; text: string }> }).messages;
-    };
-    const assistantCount = (messages: Array<{ role: string; text: string }>): number =>
-      messages.filter((message) => message.role === 'assistant').length;
-    const waitForAssistant = async (
-      expectedCount: number,
-      predicate: (text: string) => boolean,
-    ): Promise<string> => {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        const messages = await readMessages();
-        const assistantRows = messages.filter((message) => message.role === 'assistant');
-        const lastAssistantText = assistantRows.at(-1)?.text;
-        if (assistantRows.length >= expectedCount && lastAssistantText !== undefined) {
-          if (predicate(lastAssistantText)) {
-            return lastAssistantText;
-          }
-        }
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-      throw new Error('timed out waiting for assistant transcript message');
-    };
-    const assistantCountAfterResume = assistantCount(await readMessages());
+    const helper = coldPromptHelpers(runtimeB, sessionId);
+    const assistantCountAfterResume = helper.assistantCount(await helper.readMessages());
+
+    // Native copies exist, so cold activation replays them into the backend
+    // and the text-injection marker must never appear.
+    const coldPrompt = await runtimeB.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'second question' },
+    });
+    expect(coldPrompt.success).toBe(true);
+    const coldAssistantText = await helper.waitForAssistant(
+      assistantCountAfterResume + 1,
+      (text) => text.length > 0,
+    );
+    expect(coldAssistantText).not.toContain('[piwin-product-history]');
+    await runtimeB.dispose();
+  });
+
+  it('cold prompt injects bounded text history once when native copies are absent', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cold-prompt-'));
+    const sessionId = await seedColdPromptSession(rootDir);
+
+    // Simulate a pre-S1 legacy transcript: rows exist, native copies do not.
+    const legacyDb = new DatabaseSync(getPiwinSessionTranscriptDatabasePath(rootDir, sessionId));
+    legacyDb.exec('DELETE FROM native_entry;');
+    legacyDb.close();
+
+    const runtimeB = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const resumed = await runtimeB.handleCommand({ type: 'session/resume', sessionId });
+    expect(resumed.success).toBe(true);
+    if (!resumed.success) throw new Error(resumed.error);
+    expect((resumed.data as { live: boolean }).live).toBe(false);
+
+    const helper = coldPromptHelpers(runtimeB, sessionId);
+    const assistantCountAfterResume = helper.assistantCount(await helper.readMessages());
 
     // First turn on the reconstructed generation receives product history once.
     const coldPrompt = await runtimeB.handleCommand({
@@ -1411,23 +1410,22 @@ describe('HostRuntime', () => {
       input: { text: 'second question' },
     });
     expect(coldPrompt.success).toBe(true);
-    const coldAssistantText = await waitForAssistant(
-      assistantCountAfterResume + 1,
-      (text) => text !== undefined && text.includes('[piwin-product-history]'),
+    const coldAssistantText = await helper.waitForAssistant(assistantCountAfterResume + 1, (text) =>
+      text.includes('[piwin-product-history]'),
     );
     expect(coldAssistantText).toContain('[piwin-product-history]');
 
     // Second turn reuses the backend's own context; history is not duplicated.
-    const assistantCountAfterCold = assistantCount(await readMessages());
+    const assistantCountAfterCold = helper.assistantCount(await helper.readMessages());
     const secondPrompt = await runtimeB.handleCommand({
       type: 'session/prompt',
       sessionId,
       input: { text: 'third question' },
     });
     expect(secondPrompt.success).toBe(true);
-    const secondAssistantText = await waitForAssistant(
+    const secondAssistantText = await helper.waitForAssistant(
       assistantCountAfterCold + 1,
-      (text) => text !== undefined && text.length > 0,
+      (text) => text.length > 0,
     );
     expect(secondAssistantText).not.toContain('[piwin-product-history]');
     await runtimeB.dispose();
@@ -2979,6 +2977,66 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('persists native context copies host-side and never pushes them to clients', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-native-context-'));
+    const pushedEventTypes: string[] = [];
+    let messageEndCount = 0;
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'event') {
+          pushedEventTypes.push(message.event.type);
+          if (message.event.type === 'message/end') {
+            messageEndCount += 1;
+          }
+        }
+      },
+    });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { scope: { kind: 'general' } },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'native copy check' },
+    });
+    expect(prompted.success).toBe(true);
+    // Mock emits message/end for the user echo and the assistant reply.
+    for (let attempt = 0; attempt < 250; attempt += 1) {
+      if (messageEndCount >= 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(messageEndCount).toBeGreaterThanOrEqual(2);
+    // Native persistence is fire-and-forget behind the push; let it settle.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await runtime.dispose();
+
+    expect(pushedEventTypes).not.toContain('message/native_context');
+
+    const store = await openSessionTranscriptStore({
+      dbPath: getPiwinSessionTranscriptDatabasePath(rootDir, sessionId),
+      sessionId,
+      projectPath: '',
+    });
+    const assistantRow = await store.lastMessageByRole('assistant');
+    expect(assistantRow).toBeDefined();
+    if (!assistantRow) throw new Error('missing assistant row');
+    const entries = await store.readNativeEntries(assistantRow.id);
+    expect(entries.length).toBeGreaterThan(0);
+    const firstEntry = entries[0];
+    if (!firstEntry) throw new Error('missing native entry');
+    expect(JSON.parse(firstEntry.payload)).toMatchObject({ role: 'assistant' });
+    store.close();
+  });
+
   it('creates general sessions without project open/trust and isolates lists', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-general-'));
     const textDeltas: string[] = [];
@@ -3092,6 +3150,96 @@ describe('HostRuntime', () => {
     }
   });
 });
+
+/**
+ * Build a session with one completed mock turn whose assistant row carries a
+ * persisted native context copy, then release all runtimes so a later
+ * HostRuntime must cold-activate it.
+ */
+async function seedColdPromptSession(rootDir: string): Promise<string> {
+  const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+  const created = await runtime.handleCommand({
+    type: 'session/create',
+    input: { projectPath: '/tmp/history-project', sessionName: 'history-demo' },
+  });
+  expect(created.success).toBe(true);
+  if (!created.success) throw new Error(created.error);
+  const sessionId = (created.data as { sessionId: string }).sessionId;
+
+  const firstPrompt = await runtime.handleCommand({
+    type: 'session/prompt',
+    sessionId,
+    input: { text: 'first question' },
+  });
+  expect(firstPrompt.success).toBe(true);
+
+  // Wait for the assistant row and its native copy to be durable before the
+  // runtime is disposed; the native write is fire-and-forget behind the push.
+  const store = await openSessionTranscriptStore({
+    dbPath: getPiwinSessionTranscriptDatabasePath(rootDir, sessionId),
+    sessionId,
+    projectPath: '/tmp/history-project',
+  });
+  try {
+    let seeded = false;
+    for (let attempt = 0; attempt < 250; attempt += 1) {
+      const assistantRow = await store.lastMessageByRole('assistant');
+      if (assistantRow?.status === 'done') {
+        const entries = await store.readNativeEntries(assistantRow.id);
+        if (entries.length > 0) {
+          seeded = true;
+          break;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    if (!seeded) throw new Error('native copy never persisted for the seed turn');
+  } finally {
+    store.close();
+  }
+  await runtime.dispose();
+  return sessionId;
+}
+
+/** Transcript polling helpers bound to one runtime + session. */
+function coldPromptHelpers(
+  runtime: HostRuntime,
+  sessionId: string,
+): {
+  readMessages: () => Promise<Array<{ role: string; text: string }>>;
+  assistantCount: (messages: Array<{ role: string; text: string }>) => number;
+  waitForAssistant: (
+    expectedCount: number,
+    predicate: (text: string) => boolean,
+  ) => Promise<string>;
+} {
+  const readMessages = async (): Promise<Array<{ role: string; text: string }>> => {
+    const response = await runtime.handleCommand({ type: 'session/messages', sessionId });
+    expect(response.success).toBe(true);
+    if (!response.success) throw new Error(response.error);
+    return (response.data as { messages: Array<{ role: string; text: string }> }).messages;
+  };
+  const assistantCount = (messages: Array<{ role: string; text: string }>): number =>
+    messages.filter((message) => message.role === 'assistant').length;
+  const waitForAssistant = async (
+    expectedCount: number,
+    predicate: (text: string) => boolean,
+  ): Promise<string> => {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const messages = await readMessages();
+      const assistantRows = messages.filter((message) => message.role === 'assistant');
+      const lastAssistantText = assistantRows.at(-1)?.text;
+      if (assistantRows.length >= expectedCount && lastAssistantText !== undefined) {
+        if (predicate(lastAssistantText)) {
+          return lastAssistantText;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error('timed out waiting for assistant transcript message');
+  };
+  return { readMessages, assistantCount, waitForAssistant };
+}
 
 async function waitForPushType(pushes: string[], type: string): Promise<void> {
   const deadline = Date.now() + 1_000;

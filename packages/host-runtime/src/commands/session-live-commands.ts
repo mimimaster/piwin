@@ -262,6 +262,8 @@ export type SessionLiveContext = {
     sessionId: string,
     runId?: string,
     signal?: AbortSignal,
+    /** Current prompt's user row id, excluded from the native replay seed. */
+    excludeSeedMessageId?: string,
   ) => Promise<SessionHandle>;
   /** Clear the one-shot product-history injection for a reconstructed runtime. */
   markProductHistoryInjected: (sessionId: string) => void;
@@ -1679,6 +1681,7 @@ export async function handleSessionLiveCommand(
             command.sessionId,
             run.runId,
             context.getRunSignal(run.runId),
+            promptInput.clientMessageId,
           );
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeAbortedRun(context, command.sessionId, run.runId);

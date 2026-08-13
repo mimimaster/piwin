@@ -383,6 +383,7 @@ export async function handleSessionProductCommand(
         for await (const message of sourceStore.iterateAll(100)) {
           const cloned = cloneTranscriptMessage(message);
           await appendDerivedMessage(targetStore, cloned);
+          await copyNativeEntries(sourceStore, targetStore, message.id, cloned.id);
           messageCount += 1;
           lastMessage = cloned;
         }
@@ -493,6 +494,7 @@ export async function handleSessionProductCommand(
             });
           }
           await appendDerivedMessage(targetStore, cloned);
+          await copyNativeEntries(sourceStore, targetStore, message.id, cloned.id);
           messageCount += 1;
           lastMessage = cloned;
           if (message.id === command.messageId) {
@@ -644,4 +646,23 @@ async function appendDerivedMessage(
   if (!result.ok) {
     throw new Error(`Derived transcript identity collision: ${message.id}`);
   }
+}
+
+/**
+ * Carry native context copies (spec: session-conversation-tree §4.2) onto the
+ * derived row so fork/duplicate targets can cold-activate with full-fidelity
+ * replay instead of text-only seeds.
+ */
+async function copyNativeEntries(
+  sourceStore: SessionTranscriptStore,
+  targetStore: SessionTranscriptStore,
+  sourceMessageId: string,
+  targetMessageId: string,
+): Promise<void> {
+  const entries = await sourceStore.readNativeEntries(sourceMessageId);
+  if (entries.length === 0) return;
+  await targetStore.appendNativeEntries(
+    targetMessageId,
+    entries.map((entry, index) => ({ ordinal: index, entry })),
+  );
 }

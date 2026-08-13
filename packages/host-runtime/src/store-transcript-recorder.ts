@@ -14,6 +14,8 @@ import type { TranscriptRecorder } from './transcript-recorder.js';
 const DEFAULT_FLUSH_INTERVAL_MS = 250;
 const DEFAULT_MAX_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
+/** Bound for the per-message native ordinal counters kept in memory. */
+const MAX_NATIVE_ORDINALS_TRACKED = 512;
 
 /**
  * SQLite-backed recorder that retains only active assistant rows. Completed
@@ -33,6 +35,7 @@ export function createStoreTranscriptRecorder(options: {
   const dirtyMessageIds = new Set<string>();
   const pendingEmptyMessageIds = new Set<string>();
   const assistantIdsByRunId = new Map<string, string>();
+  const nativeOrdinalsByMessageId = new Map<string, number>();
   const quarantinedMessageIds = new Set<string>();
   const quarantinedRunIds = new Set<string>();
   const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
@@ -150,6 +153,21 @@ export function createStoreTranscriptRecorder(options: {
       }
       if (lastAssistantId === messageId) lastAssistantId = null;
     }
+  }
+
+  function nextNativeOrdinal(messageId: string): number {
+    const next = nativeOrdinalsByMessageId.get(messageId) ?? 0;
+    nativeOrdinalsByMessageId.delete(messageId);
+    nativeOrdinalsByMessageId.set(messageId, next + 1);
+    if (nativeOrdinalsByMessageId.size > MAX_NATIVE_ORDINALS_TRACKED) {
+      // Evict the least-recently-used counter. A late entry for an evicted
+      // message restarts at 0 and is dropped by the store's unique constraint.
+      const oldest = nativeOrdinalsByMessageId.keys().next().value;
+      if (oldest !== undefined) {
+        nativeOrdinalsByMessageId.delete(oldest);
+      }
+    }
+    return next;
   }
 
   function assistantTarget(
@@ -346,6 +364,24 @@ export function createStoreTranscriptRecorder(options: {
             }
             await flushNow();
             activeMessages.delete(event.messageId);
+            break;
+          }
+          case 'message/native_context': {
+            // Opaque native copies (spec: session-conversation-tree §4.2).
+            // toolResult copies attach to the assistant row that issued the
+            // tool call so replay reconstructs provider-valid ordering.
+            const targetId =
+              event.role === 'assistant'
+                ? event.messageId
+                : (event.responseMessageId ?? lastAssistantId ?? undefined);
+            if (targetId === undefined || quarantinedMessageIds.has(targetId)) {
+              options.onDiagnostic?.(
+                `native_context dropped: messageId=${event.messageId} role=${event.role}`,
+              );
+              break;
+            }
+            const ordinal = nextNativeOrdinal(targetId);
+            await options.store.appendNativeEntries(targetId, [{ ordinal, entry: event.entry }]);
             break;
           }
           case 'tool/start': {

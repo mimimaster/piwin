@@ -114,6 +114,23 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
       }
 
       emit({ type: 'message/end', messageId: assistantMessageId });
+      // Mirror the real backend's native context copy so mock mode exercises
+      // the host-internal persistence path and the client egress filter.
+      const nativePayload = JSON.stringify({
+        role: 'assistant',
+        content: [{ type: 'text', text: assembled }],
+        timestamp: Date.now(),
+      });
+      emit({
+        type: 'message/native_context',
+        messageId: assistantMessageId,
+        role: 'assistant',
+        entry: {
+          format: 'pi-message-v1',
+          payload: nativePayload,
+          byteLength: Buffer.byteLength(nativePayload, 'utf8'),
+        },
+      });
       const usage = estimateMockUsage(
         sessionId,
         userText,

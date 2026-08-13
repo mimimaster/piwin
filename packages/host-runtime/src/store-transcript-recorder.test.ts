@@ -6,6 +6,97 @@ import { openSessionTranscriptStore } from '@piwin/session';
 import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
 
 describe('createStoreTranscriptRecorder', () => {
+  it('persists native context entries onto the owning assistant row', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-native-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-native',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-native',
+    });
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-native',
+        role: 'assistant',
+      });
+      await recorder.recordEvent({
+        type: 'message/text_delta',
+        messageId: 'assistant-native',
+        delta: 'running a tool',
+      });
+      await recorder.recordEvent({
+        type: 'message/end',
+        messageId: 'assistant-native',
+      });
+      await recorder.recordEvent({
+        type: 'message/native_context',
+        messageId: 'assistant-native',
+        role: 'assistant',
+        entry: {
+          format: 'pi-message-v1',
+          payload: '{"role":"assistant"}',
+          byteLength: 20,
+        },
+      });
+      // toolResult copies attach to the owning assistant row after its end.
+      await recorder.recordEvent({
+        type: 'message/native_context',
+        messageId: 'tool-result-native',
+        role: 'toolResult',
+        responseMessageId: 'assistant-native',
+        entry: {
+          format: 'pi-message-v1',
+          payload: '{"role":"toolResult"}',
+          byteLength: 21,
+        },
+      });
+      await recorder.flush();
+
+      const entries = await store.readNativeEntries('assistant-native');
+      expect(
+        entries.map((entry) => (JSON.parse(entry.payload) as { role: string }).role),
+      ).toEqual(['assistant', 'toolResult']);
+    } finally {
+      recorder.dispose();
+      store.close();
+    }
+  });
+
+  it('drops native context for quarantined or unknown targets', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-native-drop-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-native-drop',
+      projectPath: '/project',
+    });
+    const diagnostics: string[] = [];
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-native-drop',
+      onDiagnostic: (message) => diagnostics.push(message),
+    });
+
+    try {
+      // toolResult with no owning assistant anywhere: dropped with diagnostic.
+      await recorder.recordEvent({
+        type: 'message/native_context',
+        messageId: 'orphan-tool-result',
+        role: 'toolResult',
+        entry: { format: 'pi-message-v1', payload: '{}', byteLength: 2 },
+      });
+      await recorder.flush();
+      expect(diagnostics.some((line) => line.includes('native_context dropped'))).toBe(true);
+    } finally {
+      recorder.dispose();
+      store.close();
+    }
+  });
+
   it('persists the reasoning interval and closes it when tool work starts', async () => {
     vi.useFakeTimers();
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-thinking-'));
