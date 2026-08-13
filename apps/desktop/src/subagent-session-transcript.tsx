@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { ChatMessageUi, SubagentStreamState } from './chat-reducer';
+import { subagentSegmentToUiMessage } from './subagent-session-projection';
 import { MarkdownView } from './MarkdownView';
 import { Button } from '@piwin/ui-kit';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
@@ -154,30 +155,17 @@ function getGenerationStatus(
 }
 
 function streamToAssistantMessage(stream: SubagentStreamState): ChatMessageUi {
-  return {
-    id: stream.currentMessageId ?? `subagent-live-${stream.childSessionId}`,
-    role: 'assistant',
-    text: stream.text,
-    thinking: stream.thinking,
-    tools: stream.tools.map((tool) => ({
-      toolCallId: tool.toolCallId,
-      toolName: tool.toolName,
-      status: tool.status,
-      output: tool.output,
-      ...(tool.outputRetainedBytes !== undefined
-        ? { outputRetainedBytes: tool.outputRetainedBytes }
-        : {}),
-      ...(tool.outputTruncated !== undefined
-        ? { outputTruncated: tool.outputTruncated }
-        : {}),
-      ...(tool.presentation ? { presentation: tool.presentation } : {}),
-      ...(tool.runId ? { runId: tool.runId } : {}),
-      ...(tool.responseMessageId ? { responseMessageId: tool.responseMessageId } : {}),
-    })),
-    attachments: stream.attachments ?? [],
-    status: stream.streaming ? 'streaming' : 'done',
-    ...(stream.searchEvidence ? { searchEvidence: stream.searchEvidence } : {}),
-  };
+  return subagentSegmentToUiMessage(
+    {
+      messageId: stream.currentMessageId ?? `subagent-live-${stream.childSessionId}`,
+      text: stream.text,
+      thinking: stream.thinking,
+      tools: [...stream.tools],
+      ...(stream.attachments ? { attachments: stream.attachments } : {}),
+      ...(stream.searchEvidence ? { searchEvidence: stream.searchEvidence } : {}),
+    },
+    stream.streaming ? 'streaming' : 'done',
+  );
 }
 
 export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps): ReactElement {

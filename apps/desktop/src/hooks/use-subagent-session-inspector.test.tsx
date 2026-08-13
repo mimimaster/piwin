@@ -75,6 +75,8 @@ function makeChild(summary: Partial<SessionSummary> & { id: string }): SessionSu
 function makeStream(overrides: Partial<SubagentStreamState>): SubagentStreamState {
   return {
     childSessionId: 'child-1',
+    completedSegments: [],
+    completionRevision: 0,
     text: '',
     thinking: '',
     tools: [],
@@ -82,6 +84,10 @@ function makeStream(overrides: Partial<SubagentStreamState>): SubagentStreamStat
     currentMessageId: 'assistant-1',
     ...overrides,
   };
+}
+
+function makeSegment(messageId: string, text: string) {
+  return { messageId, text, thinking: '', tools: [] };
 }
 
 function renderInspector(options: {
@@ -348,6 +354,160 @@ describe('useSubagentSessionInspector', () => {
       'final answer',
     ]);
     expect(harness.capture().liveTail).toBeNull();
+    dispose(harness.root, harness.container);
+  });
+
+  it('refreshes history for every completed message while the dialog stays open', async () => {
+    const { hostClient, calls } = createDeferredHostClient();
+    let liveStream: SubagentStreamState | undefined = undefined;
+    const harness = renderInspector({
+      hostClient,
+      streamFor: (childSessionId) => (childSessionId === 'child-1' ? liveStream : undefined),
+    });
+
+    act(() => {
+      harness.capture().openInspector({
+        childSessionId: 'child-1',
+        displayName: 'One',
+        taskSummary: 'Task',
+      });
+    });
+    const openCall = calls[0];
+    await act(async () => {
+      if (openCall) {
+        resolveWith(openCall, [makeMessage('user-1', 'task prompt')]);
+      }
+      await Promise.resolve();
+    });
+
+    // First message completes → one refresh.
+    liveStream = makeStream({
+      streaming: false,
+      currentMessageId: null,
+      completedSegments: [makeSegment('m1', 'first answer')],
+      completionRevision: 1,
+    });
+    harness.rerender();
+    expect(calls).toHaveLength(2);
+    await act(async () => {
+      const refresh = calls[1];
+      if (refresh) {
+        resolveWith(refresh, [
+          makeMessage('user-1', 'task prompt'),
+          makeMessage('m1', 'first answer'),
+        ]);
+      }
+      await Promise.resolve();
+    });
+
+    // Second message streams: no refresh while live.
+    liveStream = makeStream({
+      streaming: true,
+      currentMessageId: 'm2',
+      text: 'second in flight',
+      completedSegments: [makeSegment('m1', 'first answer')],
+      completionRevision: 1,
+    });
+    harness.rerender();
+    expect(calls).toHaveLength(2);
+
+    // Second message completes → the dialog must refresh again, not once per child.
+    liveStream = makeStream({
+      streaming: false,
+      currentMessageId: null,
+      completedSegments: [makeSegment('m1', 'first answer'), makeSegment('m2', 'second answer')],
+      completionRevision: 2,
+    });
+    harness.rerender();
+    expect(calls).toHaveLength(3);
+    await act(async () => {
+      const refresh = calls[2];
+      if (refresh) {
+        resolveWith(refresh, [
+          makeMessage('user-1', 'task prompt'),
+          makeMessage('m1', 'first answer'),
+          makeMessage('m2', 'second answer'),
+        ]);
+      }
+      await Promise.resolve();
+    });
+
+    expect(harness.capture().messages.map((message) => message.text)).toEqual([
+      'task prompt',
+      'first answer',
+      'second answer',
+    ]);
+    expect(harness.capture().liveTail).toBeNull();
+    dispose(harness.root, harness.container);
+  });
+
+  it('still refreshes history after 30 completed segments', async () => {
+    const { hostClient, calls } = createDeferredHostClient();
+    let liveStream: SubagentStreamState | undefined = undefined;
+    const harness = renderInspector({
+      hostClient,
+      streamFor: (childSessionId) => (childSessionId === 'child-1' ? liveStream : undefined),
+    });
+
+    act(() => {
+      harness.capture().openInspector({
+        childSessionId: 'child-1',
+        displayName: 'One',
+        taskSummary: 'Task',
+      });
+    });
+    const openCall = calls[0];
+    await act(async () => {
+      if (openCall) {
+        resolveWith(openCall, [makeMessage('user-1', 'task prompt')]);
+      }
+      await Promise.resolve();
+    });
+
+    const thirtySegments = Array.from({ length: 30 }, (_, index) =>
+      makeSegment(`m${index + 1}`, `answer ${index + 1}`),
+    );
+    liveStream = makeStream({
+      streaming: false,
+      currentMessageId: null,
+      completedSegments: thirtySegments,
+      completionRevision: 30,
+    });
+    harness.rerender();
+    expect(calls).toHaveLength(2);
+    await act(async () => {
+      const refresh = calls[1];
+      if (refresh) {
+        resolveWith(refresh, [
+          makeMessage('user-1', 'task prompt'),
+          ...thirtySegments.map((segment) => makeMessage(segment.messageId, segment.text)),
+        ]);
+      }
+      await Promise.resolve();
+    });
+
+    liveStream = makeStream({
+      streaming: false,
+      currentMessageId: null,
+      completedSegments: [...thirtySegments.slice(1), makeSegment('m31', 'answer 31')],
+      completionRevision: 31,
+    });
+    harness.rerender();
+    expect(calls).toHaveLength(3);
+
+    liveStream = makeStream({
+      streaming: false,
+      currentMessageId: null,
+      completedSegments: [
+        ...thirtySegments.slice(2),
+        makeSegment('m31', 'answer 31'),
+        makeSegment('m32', 'answer 32'),
+      ],
+      completionRevision: 32,
+    });
+    harness.rerender();
+    expect(calls).toHaveLength(4);
+
     dispose(harness.root, harness.container);
   });
 

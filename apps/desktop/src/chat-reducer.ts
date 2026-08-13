@@ -120,13 +120,47 @@ export type SubagentStreamTool = {
   responseMessageId?: string;
 };
 
+/**
+ * One completed assistant message from the child session, kept in the live
+ * stream state until persisted history absorbs it (deduped by messageId).
+ */
+export type SubagentStreamSegment = {
+  /** Real child-session message id (dedupe key against persisted history). */
+  messageId: string;
+  text: string;
+  thinking: string;
+  tools: SubagentStreamTool[];
+  attachments?: PromptAttachment[];
+  searchEvidence?: SearchEvidence;
+};
+
+/**
+ * Upper bound for retained completed segments. History refreshes absorb
+ * segments continuously; the cap only guards pathological children that emit
+ * hundreds of messages while the window stays open.
+ */
+export const MAX_SUBAGENT_STREAM_SEGMENTS = 30;
+
 export type SubagentStreamState = {
   childSessionId: string;
-  /** Accumulated assistant text deltas from the child session. */
+  /**
+   * Completed assistant messages (causal order) that persisted history has
+   * not caught up with yet. Without these, every message except the last
+   * would vanish from an open child-session window (flat tails only ever
+   * showed the current message).
+   */
+  completedSegments: SubagentStreamSegment[];
+  /**
+   * Monotonic count of finished assistant messages. Inspector history
+   * refresh keys off this instead of `completedSegments.length` so a child
+   * that exceeds the retained-segment cap still triggers a refresh.
+   */
+  completionRevision: number;
+  /** Accumulated assistant text deltas of the current live message. */
   text: string;
-  /** Accumulated thinking deltas from the child session. */
+  /** Accumulated thinking deltas of the current live message. */
   thinking: string;
-  /** Tool calls observed in the child session. */
+  /** Tool calls attributed to the current live message. */
   tools: SubagentStreamTool[];
   attachments?: PromptAttachment[];
   searchEvidence?: SearchEvidence;
@@ -1920,6 +1954,129 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
  * Apply a child session AgentEvent to the inline subagent stream state.
  * Accumulates text/thinking deltas and tool lifecycle for live expand UX.
  */
+/**
+ * Move the current live message of a stream into `completedSegments`.
+ * No-op when the current message is empty or has no identity.
+ */
+function finishCurrentSubagentSegment(stream: SubagentStreamState): SubagentStreamState {
+  if (stream.currentMessageId === null) {
+    return stream;
+  }
+  const segment: SubagentStreamSegment = {
+    messageId: stream.currentMessageId,
+    text: stream.text,
+    thinking: stream.thinking,
+    tools: stream.tools,
+    ...(stream.attachments && stream.attachments.length > 0
+      ? { attachments: stream.attachments }
+      : {}),
+    ...(stream.searchEvidence ? { searchEvidence: stream.searchEvidence } : {}),
+  };
+  const { searchEvidence: _droppedEvidence, ...streamWithoutEvidence } = stream;
+  return {
+    ...streamWithoutEvidence,
+    completedSegments: [...stream.completedSegments, segment].slice(
+      -MAX_SUBAGENT_STREAM_SEGMENTS,
+    ),
+    completionRevision: stream.completionRevision + 1,
+    text: '',
+    thinking: '',
+    tools: [],
+    attachments: [],
+  };
+}
+
+/**
+ * Attach a tool patch to the completed segment owning `responseMessageId`.
+ * Returns null when no completed segment owns that message.
+ */
+function patchCompletedSegmentTool(
+  stream: SubagentStreamState,
+  responseMessageId: string,
+  patch: (tools: SubagentStreamTool[]) => SubagentStreamTool[],
+): SubagentStreamState | null {
+  const index = stream.completedSegments.findIndex(
+    (segment) => segment.messageId === responseMessageId,
+  );
+  if (index < 0) {
+    return null;
+  }
+  const segment = stream.completedSegments[index];
+  if (!segment) {
+    return null;
+  }
+  const completedSegments = [...stream.completedSegments];
+  completedSegments[index] = { ...segment, tools: patch(segment.tools) };
+  return { ...stream, completedSegments };
+}
+
+function mergeAttachmentsById(
+  current: readonly PromptAttachment[] | undefined,
+  incoming: readonly PromptAttachment[],
+): PromptAttachment[] {
+  const merged = [...(current ?? [])];
+  for (const attachment of incoming) {
+    if (!merged.some((candidate) => candidate.id === attachment.id)) {
+      merged.push(attachment);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Attach tool-produced media to the message that owns `toolCallId`, matching
+ * where `patchSubagentToolWherever` placed the tool itself.
+ */
+function mergeSubagentToolAttachments(
+  stream: SubagentStreamState,
+  toolCallId: string,
+  attachments: readonly PromptAttachment[],
+): SubagentStreamState {
+  if (attachments.length === 0) {
+    return stream;
+  }
+  if (!stream.tools.some((tool) => tool.toolCallId === toolCallId)) {
+    for (let index = stream.completedSegments.length - 1; index >= 0; index -= 1) {
+      const segment = stream.completedSegments[index];
+      if (segment && segment.tools.some((tool) => tool.toolCallId === toolCallId)) {
+        const completedSegments = [...stream.completedSegments];
+        completedSegments[index] = {
+          ...segment,
+          attachments: mergeAttachmentsById(segment.attachments, attachments),
+        };
+        return { ...stream, completedSegments };
+      }
+    }
+  }
+  return { ...stream, attachments: mergeAttachmentsById(stream.attachments, attachments) };
+}
+
+/**
+ * Apply a tool patch wherever the toolCallId currently lives: the live
+ * message first, then completed segments (newest first). Tools finish after
+ * their owning message ends, so updates routinely target retained segments.
+ */
+function patchSubagentToolWherever(
+  stream: SubagentStreamState,
+  toolCallId: string,
+  patch: (tools: SubagentStreamTool[]) => SubagentStreamTool[],
+): SubagentStreamState {
+  if (stream.tools.some((tool) => tool.toolCallId === toolCallId)) {
+    return { ...stream, tools: patch(stream.tools) };
+  }
+  for (let index = stream.completedSegments.length - 1; index >= 0; index -= 1) {
+    const segment = stream.completedSegments[index];
+    if (segment && segment.tools.some((tool) => tool.toolCallId === toolCallId)) {
+      const completedSegments = [...stream.completedSegments];
+      completedSegments[index] = { ...segment, tools: patch(segment.tools) };
+      return { ...stream, completedSegments };
+    }
+  }
+  // Unknown toolCallId: patch the live tools (per-tool maps are no-ops there,
+  // matching the previous silent-skip behavior).
+  return { ...stream, tools: patch(stream.tools) };
+}
+
 function applySubagentStreamEvent(
   state: ChatUiState,
   childSessionId: string,
@@ -1927,6 +2084,8 @@ function applySubagentStreamEvent(
 ): ChatUiState {
   const existing = state.subagentStreams[childSessionId] ?? {
     childSessionId,
+    completedSegments: [],
+    completionRevision: 0,
     text: '',
     thinking: '',
     tools: [],
@@ -1939,13 +2098,16 @@ function applySubagentStreamEvent(
   switch (event.type) {
     case 'message/start': {
       if (event.role !== 'assistant') return state;
-      const { searchEvidence: _previousSearchEvidence, ...streamWithoutSearchEvidence } = existing;
+      // Defensive: a missing message/end must not drop the previous message.
+      const settled = finishCurrentSubagentSegment(existing);
+      const { searchEvidence: _previousSearchEvidence, ...streamWithoutSearchEvidence } = settled;
       const updated: SubagentStreamState = {
         ...streamWithoutSearchEvidence,
         streaming: true,
         currentMessageId: event.messageId,
         text: '',
         thinking: '',
+        tools: [],
         attachments: [],
       };
       return {
@@ -1987,9 +2149,13 @@ function applySubagentStreamEvent(
       };
     }
     case 'message/end': {
+      // The finished message becomes a retained segment so later messages of
+      // the same child cannot erase it from an open child-session window.
+      const settled = finishCurrentSubagentSegment(existing);
       const updated: SubagentStreamState = {
-        ...existing,
+        ...settled,
         streaming: false,
+        currentMessageId: null,
       };
       return {
         ...state,
@@ -2009,8 +2175,6 @@ function applySubagentStreamEvent(
       };
     }
     case 'tool/start': {
-      const tools = [...existing.tools];
-      const existingIdx = tools.findIndex((t) => t.toolCallId === event.toolCallId);
       const tool: SubagentStreamTool = {
         toolCallId: event.toolCallId,
         toolName: event.toolName,
@@ -2024,6 +2188,28 @@ function applySubagentStreamEvent(
           ? { responseMessageId: event.responseMessageId }
           : {}),
       };
+      // Causal order delivers a message's tools after its message/end. When
+      // the owning response is already a completed segment, the tool belongs
+      // there — not on the next live message.
+      if (event.responseMessageId && event.responseMessageId !== existing.currentMessageId) {
+        const patched = patchCompletedSegmentTool(existing, event.responseMessageId, (tools) => {
+          const index = tools.findIndex((t) => t.toolCallId === event.toolCallId);
+          if (index >= 0) {
+            const next = [...tools];
+            next[index] = tool;
+            return next;
+          }
+          return [...tools, tool];
+        });
+        if (patched) {
+          return {
+            ...state,
+            subagentStreams: { ...state.subagentStreams, [childSessionId]: patched },
+          };
+        }
+      }
+      const tools = [...existing.tools];
+      const existingIdx = tools.findIndex((t) => t.toolCallId === event.toolCallId);
       if (existingIdx >= 0) {
         tools[existingIdx] = tool;
       } else {
@@ -2036,50 +2222,54 @@ function applySubagentStreamEvent(
       };
     }
     case 'tool/update': {
-      const tools = existing.tools.map((tool) => {
-        if (tool.toolCallId !== event.toolCallId) {
-          return tool;
-        }
-        const output = appendBoundedToolOutput(tool, event.delta);
-        return {
-          ...tool,
-          output: output.text,
-          outputRetainedBytes: output.retainedBytes,
-          outputTruncated: output.truncated,
-          ...(event.presentation ? { presentation: event.presentation } : {}),
-          ...(event.runId ? { runId: event.runId } : {}),
-          ...(event.responseMessageId
-            ? { responseMessageId: event.responseMessageId }
-            : {}),
-        };
-      });
-      const updated: SubagentStreamState = { ...existing, tools };
+      const applyUpdate = (tools: SubagentStreamTool[]): SubagentStreamTool[] =>
+        tools.map((tool) => {
+          if (tool.toolCallId !== event.toolCallId) {
+            return tool;
+          }
+          const output = appendBoundedToolOutput(tool, event.delta);
+          return {
+            ...tool,
+            output: output.text,
+            outputRetainedBytes: output.retainedBytes,
+            outputTruncated: output.truncated,
+            ...(event.presentation ? { presentation: event.presentation } : {}),
+            ...(event.runId ? { runId: event.runId } : {}),
+            ...(event.responseMessageId
+              ? { responseMessageId: event.responseMessageId }
+              : {}),
+          };
+        });
+      const updated = patchSubagentToolWherever(existing, event.toolCallId, applyUpdate);
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
       };
     }
     case 'tool/end': {
-      const tools = existing.tools.map((t) =>
-        t.toolCallId === event.toolCallId
-          ? {
-              ...t,
-              status: (event.isError ? 'error' : 'done') as 'done' | 'error',
-              ...(event.presentation ? { presentation: event.presentation } : {}),
-              ...(event.runId ? { runId: event.runId } : {}),
-              ...(event.responseMessageId
-                ? { responseMessageId: event.responseMessageId }
-                : {}),
-            }
-          : t,
+      const applyEnd = (tools: SubagentStreamTool[]): SubagentStreamTool[] =>
+        tools.map((t) =>
+          t.toolCallId === event.toolCallId
+            ? {
+                ...t,
+                status: (event.isError ? 'error' : 'done') as 'done' | 'error',
+                ...(event.presentation ? { presentation: event.presentation } : {}),
+                ...(event.runId ? { runId: event.runId } : {}),
+                ...(event.responseMessageId
+                  ? { responseMessageId: event.responseMessageId }
+                  : {}),
+              }
+            : t,
+        );
+      const withTools = patchSubagentToolWherever(existing, event.toolCallId, applyEnd);
+      // Tool output lands on whichever message owns the call. For a finished
+      // message that is a completed segment, so attachments must follow the
+      // tool there — the live buffer is cleared by the next message/start.
+      const updated = mergeSubagentToolAttachments(
+        withTools,
+        event.toolCallId,
+        event.attachments ?? [],
       );
-      const attachments = [...(existing.attachments ?? [])];
-      for (const attachment of event.attachments ?? []) {
-        if (!attachments.some((candidate) => candidate.id === attachment.id)) {
-          attachments.push(attachment);
-        }
-      }
-      const updated: SubagentStreamState = { ...existing, tools, attachments };
       return {
         ...state,
         subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },

@@ -111,6 +111,8 @@ describe('TurnToolGroup causal tool sequence', () => {
             subagentStreams={{
               'child-1': {
                 childSessionId: 'child-1',
+                completedSegments: [],
+                completionRevision: 0,
                 text: '',
                 thinking: '',
                 streaming: true,

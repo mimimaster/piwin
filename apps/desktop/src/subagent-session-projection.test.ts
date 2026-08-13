@@ -18,6 +18,8 @@ function makeMessage(
 function makeStream(overrides: Partial<SubagentStreamState>): SubagentStreamState {
   return {
     childSessionId: 'child-1',
+    completedSegments: [],
+    completionRevision: 0,
     text: '',
     thinking: '',
     tools: [],
@@ -90,6 +92,52 @@ describe('reconcileSubagentTranscript', () => {
     const view = reconcileSubagentTranscript({ historicalMessages: history, stream });
     expect(view.historicalMessages.map((message) => message.id)).toEqual(['user-1']);
     expect(view.liveTail).toBe(stream);
+  });
+
+  it('renders completed segments between history and the live tail (multi-message child)', () => {
+    const history = [
+      makeMessage({ id: 'user-1', role: 'user', text: 'Fix the bug' }),
+      makeMessage({ id: 'm1', text: 'first answer' }),
+    ];
+    const stream = makeStream({
+      completedSegments: [
+        // Already persisted → history stays the source of truth.
+        { messageId: 'm1', text: 'first answer', thinking: '', tools: [] },
+        // Not yet persisted → must stay visible instead of vanishing.
+        {
+          messageId: 'm2',
+          text: 'second answer',
+          thinking: '',
+          tools: [
+            { toolCallId: 't1', toolName: 'read_file', status: 'done', output: 'file body' },
+          ],
+        },
+      ],
+      currentMessageId: 'm3',
+      text: 'third in flight',
+      streaming: true,
+    });
+    const view = reconcileSubagentTranscript({ historicalMessages: history, stream });
+    expect(view.historicalMessages.map((message) => message.id)).toEqual(['user-1', 'm1', 'm2']);
+    const second = view.historicalMessages.find((message) => message.id === 'm2');
+    expect(second?.text).toBe('second answer');
+    expect(second?.status).toBe('done');
+    expect(second?.tools.map((tool) => tool.toolCallId)).toEqual(['t1']);
+    expect(view.liveTail).toBe(stream);
+  });
+
+  it('keeps unpersisted completed segments visible after the stream ends', () => {
+    const history = [makeMessage({ id: 'user-1', role: 'user', text: 'Fix the bug' })];
+    const stream = makeStream({
+      completedSegments: [{ messageId: 'm2', text: 'final answer', thinking: '', tools: [] }],
+      currentMessageId: null,
+      text: '',
+      streaming: false,
+    });
+    const view = reconcileSubagentTranscript({ historicalMessages: history, stream });
+    expect(view.historicalMessages.map((message) => message.id)).toEqual(['user-1', 'm2']);
+    // The current message is empty → nothing left for a live tail to show.
+    expect(view.liveTail).toBeNull();
   });
 
   it('keeps historical tools and attachments', () => {
