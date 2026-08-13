@@ -147,7 +147,7 @@ export type CreateSessionOptions = {
 
 - [x] **Step 4: 测试转绿** `pnpm --filter @piwin/contracts test`
 - [x] **Step 5: 全仓 typecheck** `pnpm typecheck`（确认无实现者破坏）
-- [ ] **Step 6: Commit（需用户授权）** `git add packages/contracts/src/{session-seed.ts,host.ts,ipc.test.ts,index.ts} && git commit -m "feat(contracts): native context entry + replay seed mode"`
+- [x] **Step 6: Commit（需用户授权）** `git add packages/contracts/src/{session-seed.ts,host.ts,ipc.test.ts,index.ts} && git commit -m "feat(contracts): native context entry + replay seed mode"`
 
 ---
 
@@ -263,7 +263,7 @@ async readNativeEntries(messageId) {
   - 注意：native_entry 不参与 legacy digest（`digestDatabaseRows` 不变）。
 
 - [x] **Step 4: 测试转绿** `pnpm --filter @piwin/session test -- transcript-store`
-- [ ] **Step 5: Commit（需用户授权）** 涉及两文件。
+- [x] **Step 5: Commit（需用户授权）** 涉及两文件。
 
 ---
 
@@ -411,7 +411,7 @@ function seedChars(seed: SessionSeedMessage): number {
 `export type { ReplaySeedSourceRow } from './build-replay-seed.js';`
 
 - [x] **Step 4: 测试转绿** `pnpm --filter @piwin/session test -- build-replay-seed`
-- [ ] **Step 5: Commit（需用户授权）**
+- [x] **Step 5: Commit（需用户授权）**
 
 ---
 
@@ -545,7 +545,7 @@ function buildNativeContextEvent(
 
 - [x] **Step 4: 测试转绿**（含既有 event-map / generation-identity 用例回归）
   `pnpm --filter @piwin/agent-host test -- event-map generation-identity`
-- [ ] **Step 5: Commit（需用户授权）**
+- [x] **Step 5: Commit（需用户授权）**
 
 ---
 
@@ -656,7 +656,7 @@ function parseNativeEntries(
   其余文件为 `seedMode?: 'compaction' | 'replay'` 字段透传 + 两处应用分支（见上）。
   `worker-task-runner.ts` 142 行处补 `seedMode: 'compaction'` 显式保留现行为。
 - [x] **Step 4: 测试转绿 + 包内回归** `pnpm --filter @piwin/agent-host test`
-- [ ] **Step 5: Commit（需用户授权）**
+- [x] **Step 5: Commit（需用户授权）**
 
 ---
 
@@ -701,7 +701,7 @@ it('persists native context entries onto the owning assistant row', async () => 
 - [x] **Step 2: 跑测试失败** `pnpm --filter @piwin/host-runtime test -- store-transcript-recorder`
 - [x] **Step 3: 实现**（case 放在 `message/end` case 之前）
 - [x] **Step 4: 测试转绿**
-- [ ] **Step 5: Commit（需用户授权）**
+- [x] **Step 5: Commit（需用户授权）**
 
 ---### Task 7: host-runtime — 冷激活 native seed、文本回落与 egress 过滤
 
@@ -768,7 +768,7 @@ const created = await options.createLiveSession(
 ```
 
 - [x] **Step 4: 测试转绿 + 包内回归** `pnpm --filter @piwin/host-runtime test`
-- [ ] **Step 5: Commit（需用户授权）**
+- [x] **Step 5: Commit（需用户授权）**
 
 ---
 
@@ -801,7 +801,7 @@ if (nativeEntries.length > 0) {
 - [x] **Step 2: 跑测试失败** `pnpm --filter @piwin/host-runtime test -- session-transcript-derived-ops`
 - [x] **Step 3: 实现**
 - [x] **Step 4: 测试转绿**
-- [ ] **Step 5: Commit（需用户授权）**
+- [x] **Step 5: Commit（需用户授权）**
 
 ---
 
@@ -818,7 +818,7 @@ if (nativeEntries.length > 0) {
 - [x] 更新 `docs/specs/session-conversation-tree.md`：S1 状态改
   `Implemented (S1) — <commit/日期>`；若实现与 spec 有偏差，在 spec §4 内以
   "Implementation note" 标注。
-- [ ] Commit（需用户授权）文档变更。
+- [x] Commit（需用户授权）文档变更。
 
 ## 执行结果（2026-08-13）
 
@@ -846,7 +846,7 @@ T1–T9 实现与测试全部完成；全仓 `pnpm typecheck` 与 `pnpm test` �
 5. **既有测试语义更新**：原"cold prompt injects bounded history exactly once"
    拆为两条——有 native 副本走重放（断言无 `[piwin-product-history]` 标记）、
    删除 native_entry 模拟 legacy 会话仍走文本注入 exactly-once。
-6. 手工冒烟（真实 Pi 后端三场景）与分任务 commit 待用户授权后执行。
+6. 已按包分 5 个提交入库（contracts / session / agent-host / host-runtime / docs，2026-08-13）。手工冒烟（真实 Pi 后端三场景）仍待做。
 
 ## Self-Review 结论
 
