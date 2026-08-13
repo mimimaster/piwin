@@ -8,11 +8,11 @@ describe('shared shell icons', () => {
     const markup = renderToStaticMarkup(createElement(IconChat));
 
     expect(markup).toContain('viewBox="0 0 24 24"');
-    expect(markup).toContain('width="24"');
-    expect(markup).toContain('height="24"');
+    expect(markup).toContain('width="1em"');
+    expect(markup).toContain('height="1em"');
     expect(markup).toContain('stroke="currentColor"');
-    expect(markup).toContain('stroke-width="2"');
-    expect(markup).toContain('class="tabler-icon');
+    expect(markup).toContain('stroke-width="1.6"');
+    expect(markup).toContain('class="tabler-icon"');
   });
 
   it('allows callers to override dimensions and presentation attributes', () => {
@@ -31,12 +31,12 @@ describe('shared shell icons', () => {
     expect(markup).toContain('stroke-width="2"');
   });
 
-  it('preserves filled icons instead of converting them to white outlines', () => {
+  it('preserves filled shape attributes for filled/solid icons', () => {
     const stopMarkup = renderToStaticMarkup(createElement(IconStop));
     const mcpMarkup = renderToStaticMarkup(createElement(IconMcp));
 
-    expect(stopMarkup).toContain('stroke="currentColor"');
-    expect(mcpMarkup).toContain('fill="currentColor"');
-    expect(mcpMarkup).toContain('stroke="none"');
+    expect(stopMarkup).toContain('fill="currentColor"');
+    expect(stopMarkup).toContain('stroke="none"');
+    expect(mcpMarkup).toContain('circle cx="12" cy="12"');
   });
 });

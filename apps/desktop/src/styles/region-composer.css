@@ -1456,9 +1456,9 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   position: relative;
   display: grid;
   place-items: center;
-  min-width: 28px;
+  min-width: 24px;
   width: auto;
-  height: 28px;
+  height: 24px;
   flex-shrink: 0;
 }
 
@@ -1478,8 +1478,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-send-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 50%;
@@ -1495,8 +1495,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 }
 
 .composer-v2-send-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 
 .composer-v2-send-btn:hover:not(:disabled) {
@@ -1519,12 +1519,12 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--text, #ffffff) 14%, var(--composer, #1c1c21));
+  background: color-mix(in srgb, var(--text, #ffffff) 10%, var(--composer, #1c1c21));
   color: var(--danger, #ef4444);
   cursor: pointer;
   animation: composerActionBtnPopIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -1550,8 +1550,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-stop-btn svg {
   position: relative;
   z-index: 1;
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   transition: transform 180ms ease;
 }
 

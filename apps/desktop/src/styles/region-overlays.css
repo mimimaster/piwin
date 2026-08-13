@@ -373,8 +373,10 @@ input.project-path-input {
   right: 16px;
   display: flex;
   flex-direction: column-reverse;
+  align-items: flex-end;
   gap: 8px;
-  width: min(420px, calc(100vw - 32px));
+  width: auto;
+  max-width: min(420px, calc(100vw - 32px));
   pointer-events: none;
 }
 
@@ -469,11 +471,13 @@ input.project-path-input {
 .notification-toast {
   pointer-events: auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   position: relative;
-  padding: 10px 12px 10px 38px;
-  border-radius: 9px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 12px 8px 36px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface-raised);
   box-shadow: var(--shadow-overlay);
@@ -506,14 +510,15 @@ input.project-path-input {
 .notification-toast.level-success::before,
 .notification-toast.level-info::before {
   position: absolute;
-  top: 10px;
-  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 10px;
   display: grid;
   place-items: center;
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 750;
   line-height: 1;
 }
@@ -543,13 +548,24 @@ input.project-path-input {
 }
 
 .notification-dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
-  padding: 0 2px;
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0.7;
+  transition: opacity 120ms ease;
+}
+
+.notification-dismiss:hover {
+  opacity: 1;
+  color: var(--text);
 }
 
 @keyframes notification-toast-enter {

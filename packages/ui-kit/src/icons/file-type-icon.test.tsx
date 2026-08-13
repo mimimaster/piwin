@@ -12,17 +12,18 @@ describe('FileTypeIcon', () => {
     expect(resolveFileTypeInfo('assets/').kind).toBe('folder');
   });
 
-  it('preserves TypeScript brand colors', () => {
+  it('preserves TypeScript brand colors and clean text badge without background tile', () => {
     const markup = renderToStaticMarkup(
       createElement(FileTypeIcon, { filePathOrExt: 'source.ts' }),
     );
 
-    expect(markup).toContain('stroke="#3178c6"');
+    expect(markup).toContain('fill="#5B9DE8"');
     expect(markup).toContain('file-icon-ts');
-    expect(markup).toContain('d="M5 9l14 0"');
+    expect(markup).toContain('>TS<');
+    expect(markup).not.toContain('<rect');
   });
 
-  it('preserves semantic colors for non-brand file types', () => {
+  it('preserves semantic colors for non-brand file types without background tiles', () => {
     const markdownMarkup = renderToStaticMarkup(
       createElement(FileTypeIcon, { filePathOrExt: 'README.md' }),
     );
@@ -30,7 +31,9 @@ describe('FileTypeIcon', () => {
       createElement(FileTypeIcon, { filePathOrExt: 'preview.webp' }),
     );
 
-    expect(markdownMarkup).toContain('stroke="#34d399"');
-    expect(imageMarkup).toContain('stroke="#e879f9"');
+    expect(markdownMarkup).toContain('stroke="#8FBFB0"');
+    expect(markdownMarkup).not.toContain('<rect');
+    expect(imageMarkup).toContain('stroke="#C687B6"');
+    expect(imageMarkup).not.toContain('<rect');
   });
 });

@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>piwin · 图标重设计提案 v1</title>
+<style>
+  :root{
+    --bg:#131110; --panel:#1B1815; --panel2:#211D19; --line:#2A251F; --line2:#38312a;
+    --text:#EDE6DA; --muted:#9C9184; --faint:#6E6558;
+    --accent:#D89A4A; --jade:#8FBFB0; --success:#7FBF8E; --danger:#E07862; --warn:#E0A94F;
+    --demo:28px;
+  }
+  body.light{
+    --bg:#F7F3EC; --panel:#FFFFFF; --panel2:#F1EBE1; --line:#E4DDD1; --line2:#D5CCBC;
+    --text:#2A241C; --muted:#8A7F6F; --faint:#B0A493;
+    --accent:#B87A2E; --jade:#5E9285; --success:#4E9663; --danger:#C25B44; --warn:#B0801F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI",sans-serif;
+    font-size:14px; line-height:1.6;
+    transition:background .25s ease,color .25s ease;
+  }
+  .mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+
+  /* ── header ── */
+  header{
+    position:sticky; top:0; z-index:10;
+    background:color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
+    padding:14px 28px;
+    display:flex; align-items:center; gap:20px; flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:baseline;gap:10px}
+  .brand h1{font-size:17px;font-weight:650;letter-spacing:-.02em}
+  .brand .cursor-blk{
+    display:inline-block;width:8px;height:15px;border-radius:2.5px;
+    background:var(--jade); transform:translateY(2px);
+    animation:ablink 1.06s steps(2,jump-none) infinite;
+  }
+  .brand .sub{font-size:12px;color:var(--muted)}
+  .controls{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .ctl{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .ctl input[type=range]{width:110px;accent-color:var(--accent)}
+  .ctl input[type=checkbox]{accent-color:var(--accent)}
+  button.tbtn{
+    background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:5px 12px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:6px;
+  }
+  button.tbtn:hover{border-color:var(--line2)}
+  input.search{
+    background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:5px 12px;font-size:12.5px;width:170px;outline:none;
+  }
+  input.search:focus{border-color:var(--accent)}
+
+  /* ── layout ── */
+  main{max-width:1240px;margin:0 auto;padding:36px 28px 90px}
+  section{margin-bottom:58px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .sec-head .eyebrow{font-size:11px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  .sec-head h2{font-size:19px;font-weight:650;letter-spacing:-.01em}
+  .sec-head .count{font-size:11.5px;color:var(--faint)}
+  .sec-desc{color:var(--muted);font-size:13px;max-width:760px;margin-bottom:20px}
+
+  /* ── intro ── */
+  .intro-grid{display:grid;grid-template-columns:300px 1fr;gap:16px;margin-top:22px}
+  @media(max-width:900px){.intro-grid{grid-template-columns:1fr}}
+  .spec-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .grid-stage{
+    width:192px;height:192px;margin:0 auto;border-radius:14px;position:relative;
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:8px 8px;
+    background-position:-0.5px -0.5px;
+    border:1px solid var(--line2);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .grid-stage svg{width:192px;height:192px;color:var(--text)}
+  .grid-cap{text-align:center;font-size:11.5px;color:var(--faint);margin-top:12px}
+  .spec-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px 26px}
+  .spec-item h3{font-size:13px;font-weight:650;margin-bottom:3px;display:flex;align-items:center;gap:7px}
+  .spec-item h3 .dot{width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .spec-item p{font-size:12.5px;color:var(--muted)}
+  .sig-row{display:flex;align-items:center;gap:18px;margin-top:18px;padding-top:16px;border-top:1px dashed var(--line)}
+  .sig-row svg{width:30px;height:30px;color:var(--text);flex:none}
+  .sig-row .note{font-size:12.5px;color:var(--muted)}
+  .sig-row .note b{color:var(--jade);font-weight:600}
+
+  /* ── icon cards ── */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+  .card{
+    position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:18px 12px 12px;display:flex;flex-direction:column;align-items:center;gap:0;
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .card:hover{border-color:var(--line2);transform:translateY(-1px)}
+  .card.hide{display:none}
+  .stage{height:64px;display:flex;align-items:center;justify-content:center}
+  .stage svg{width:var(--demo);height:var(--demo);color:var(--text);transition:width .1s,height .1s}
+  .old-chip{
+    position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:4px;
+    color:var(--faint);opacity:.75;
+  }
+  .old-chip:hover{opacity:1;color:var(--muted)}
+  .old-chip svg{width:15px;height:15px}
+  .old-chip .tag{font-size:9px;letter-spacing:.08em;border:1px solid var(--line);border-radius:4px;padding:0 3px;line-height:1.5}
+  .meta{width:100%;display:flex;align-items:center;gap:7px;border-top:1px solid var(--line);padding-top:9px;margin-top:8px}
+  .meta svg{width:16px;height:16px;color:var(--muted);flex:none}
+  .meta .nm{font-size:11px;color:var(--text);font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta .zh{font-size:10.5px;color:var(--faint);margin-left:auto;flex:none}
+
+  /* ── file type ── */
+  .ft-wrap{display:grid;grid-template-columns:1fr 380px;gap:22px;align-items:start}
+  @media(max-width:980px){.ft-wrap{grid-template-columns:1fr}}
+  .tree-demo{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .tree-demo .th{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line);font-size:11px;color:var(--faint)}
+  .tree-demo .th div{padding:8px 14px;letter-spacing:.1em}
+  .tree-demo .th div+div{border-left:1px solid var(--line)}
+  .tree-body{display:grid;grid-template-columns:1fr 1fr}
+  .tree-col{padding:10px 6px}
+  .tree-col+.tree-col{border-left:1px solid var(--line)}
+  .trow{display:flex;align-items:center;gap:7px;padding:3px 9px;border-radius:6px;font-size:12.5px;color:var(--text)}
+  .trow:hover{background:var(--panel2)}
+  .trow svg{width:16px;height:16px;flex:none}
+  .trow .fn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trow.indent{padding-left:26px}
+
+  /* ── run 状态 ── */
+  .run-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+  .run-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 12px 12px;display:flex;flex-direction:column;align-items:center}
+  .run-card .stage svg{width:34px;height:34px}
+  .run-card .old-chip svg{width:18px;height:18px}
+  .c-accent{color:var(--accent)} .c-jade{color:var(--jade)} .c-success{color:var(--success)}
+  .c-danger{color:var(--danger)} .c-warn{color:var(--warn)} .c-muted{color:var(--muted)}
+
+  /* ── footer 备注 ── */
+  .notes{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .notes h3{font-size:14px;margin-bottom:10px}
+  .notes ul{margin-left:18px;color:var(--muted);font-size:13px}
+  .notes li{margin-bottom:6px}
+  .notes b{color:var(--text);font-weight:600}
+  .notes .q{color:var(--accent)}
+
+  /* ── 动画 ── */
+  @keyframes ablink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  @keyframes aspin{to{transform:rotate(360deg)}}
+  @keyframes abreathe{50%{opacity:.35;transform:scale(.86)}}
+  @keyframes adash{to{stroke-dashoffset:-11.2}}
+  @keyframes adraw{0%{stroke-dashoffset:12}55%,100%{stroke-dashoffset:0}}
+  @keyframes asqueezeT{50%{transform:translateY(1.7px)}}
+  @keyframes asqueezeB{50%{transform:translateY(-1.7px)}}
+  .a-blink{animation:ablink 1.06s steps(2,jump-none) infinite}
+  .a-spin{animation:aspin 1s linear infinite;transform-origin:12px 12px}
+  .a-spin-slow{animation:aspin 7s linear infinite;transform-origin:12px 12px}
+  .a-breathe{animation:abreathe 2.2s ease-in-out infinite;transform-origin:12px 12px}
+  .a-breathe-d{animation:abreathe 2.2s ease-in-out 1.1s infinite;transform-origin:12px 12px}
+  .a-dash{animation:adash 1.3s linear infinite}
+  .a-draw{stroke-dasharray:12;animation:adraw 1.9s ease-in-out infinite}
+  .a-sqt{animation:asqueezeT 1.7s ease-in-out infinite}
+  .a-sqb{animation:asqueezeB 1.7s ease-in-out infinite}
+  body.noanim svg *{animation:none !important}
+  @media (prefers-reduced-motion:reduce){svg *{animation:none !important}}
+
+  .old-run{--accent:#3b82f6;--content-secondary:#94a3b8;--canvas:transparent}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>piwin 图标重设计</h1><span class="cursor-blk"></span>
+    <span class="sub mono">proposal v1 · 2026-08-13 · 仅预览，未接入产品</span>
+  </div>
+  <div class="controls">
+    <label class="ctl">尺寸 <input id="size" type="range" min="20" max="44" value="28"> <span id="sizeVal" class="mono">28px</span></label>
+    <label class="ctl"><input id="anim" type="checkbox" checked> 动画</label>
+    <input id="q" class="search" type="search" placeholder="筛选图标名…">
+    <button id="theme" class="tbtn"><span id="themeIcon"></span><span id="themeLabel">亮色</span></button>
+  </div>
+</header>
+
+<main>
+
+<!-- ═══ 设计语言 ═══ -->
+<section id="lang">
+  <div class="sec-head"><span class="eyebrow">Design Language</span><h2>设计语言</h2></div>
+  <p class="sec-desc">
+    现状是三套图标并存：桌面端手绘描边、ui-kit 引入的 Tabler 成品（笔画 2.0、风格更圆钝）、以及 Run 状态的多彩渐变图标。
+    本提案将全部收敛为一套自绘系统 —— 更轻、更一致，并带一处来自品牌标的记忆点。
+  </p>
+  <div class="intro-grid">
+    <div class="spec-card">
+      <div class="grid-stage" id="gridStage"></div>
+      <div class="grid-cap mono">terminal · 24×24 grid · stroke 1.6</div>
+    </div>
+    <div class="spec-card">
+      <div class="spec-list">
+        <div class="spec-item"><h3><span class="dot"></span>24×24 网格，1.6 笔画</h3><p>与产品 CSS（16px 渲染、stroke-width 1.6）完全对齐；圆角端点与拐角，关键点落在 0.25 网格上。</p></div>
+        <div class="spec-item"><h3><span class="dot"></span>双层次单色</h3><p>主笔画 + 45% 透明辅助层（折角、经线、键帽等次要信息），比纯描边多一层精致感，仍随主题色继承。</p></div>
+        <div class="spec-item"><h3><span class="dot"></span>统一几何词汇</h3><p>同一个文档形、同一个窗口圆角（rx 2.4–3）、同一个圆（r 8.25）、同一副 chevron，在所有图标间复用。</p></div>
+        <div class="spec-item"><h3><span class="dot"></span>克制的语义色</h3><p>图标本体一律 currentColor；只有文件标识与 Run 状态携带产品语义色板（暖金 / 青瓷 / 琥珀 / 绯红）。</p></div>
+      </div>
+      <div class="sig-row">
+        <span id="sigIcons" style="display:flex;gap:14px"></span>
+        <span class="note"><b>签名元素「光标块」</b> —— 取自品牌标里 P 旁边的青瓷插入点。只出现在 terminal、agent、canvas、working 这几个身份图标上，其余图标保持安静。</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 核心图标各组由 JS 渲染 -->
+<div id="coreSections"></div>
+
+<!-- ═══ 文件标识 ═══ -->
+<section id="filetypes">
+  <div class="sec-head"><span class="eyebrow">File Badges</span><h2>文件标识</h2><span class="count" id="ftCount"></span></div>
+  <p class="sec-desc">
+    现版直接使用 Tabler 的品牌 logo（React 原子、Python 双蛇、HTML5 盾…），形状密度参差、色值取自 Tailwind 且饱和度不一。
+    新方案改为<b style="color:var(--text)">统一圆角色块（tile）+ 字标 / 符号</b>：语言用两三字母，JSON / HTML / Shell / 图片用更直觉的符号；
+    色板整体压到同一亮度带，与产品暖色调协调。文件夹与未知文件保持描边形态，用于区分「容器 / 叶子」层级。
+  </p>
+  <div class="ft-wrap">
+    <div class="grid" id="ftGrid"></div>
+    <div class="tree-demo">
+      <div class="th mono"><div>现状 CURRENT</div><div>提案 PROPOSED</div></div>
+      <div class="tree-body">
+        <div class="tree-col" id="treeOld"></div>
+        <div class="tree-col" id="treeNew"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ Run 状态 ═══ -->
+<section id="run">
+  <div class="sec-head"><span class="eyebrow">Run Activity</span><h2>Run 状态图标</h2><span class="count" id="runCount"></span></div>
+  <p class="sec-desc">
+    现版每个状态一套渐变 + 多色叠加（右上角小图），信息密度高但很吵。新方案回到单色几何：
+    形状表达状态、语义色表达结果（金＝进行中，琥珀＝等待授权，绿＝完成，绯红＝失败），动效只保留一处最小循环。
+    working 状态复用签名光标块。动作类小图标（terminal / edit / search / web / subagent）为纯 currentColor，跟随所在行的文字颜色。
+  </p>
+  <div class="run-grid" id="runGrid"></div>
+</section>
+
+<!-- ═══ 备注 ═══ -->
+<section>
+  <div class="sec-head"><span class="eyebrow">Notes</span><h2>范围与落地说明</h2></div>
+  <div class="notes">
+    <h3>本提案覆盖</h3>
+    <ul>
+      <li><b>90 个语义图标</b> → 替换 <span class="mono">packages/ui-kit/src/icons/shell-icons.tsx</span>（Tabler 映射）与 <span class="mono">apps/desktop/src/shell-icons.tsx</span>（手绘版），两套合并为一套，公开名称保持不变。</li>
+      <li><b>14 个文件标识</b> → 替换 <span class="mono">packages/ui-kit/src/icons/file-type-icon.tsx</span> 的 Tabler 品牌图标与旧色板。</li>
+      <li><b>15 个 Run 状态图标</b> → 替换 <span class="mono">apps/desktop/src/RunActivitySvgIcons.tsx</span> 的渐变风格。</li>
+    </ul>
+    <h3 style="margin-top:16px">不动的部分</h3>
+    <ul>
+      <li>应用 logo / 品牌标（docs 里的 brand-mark 与 Tauri 应用图标）—— 按要求排除。</li>
+      <li>Provider 厂商标（OpenAI、Anthropic 等，来自 modelicons）—— 第三方商标，不宜重绘。</li>
+      <li>MCP 官方链环标已按新笔画重绘为「协议节点」形（见开发与系统组）；若你希望保留官方 mark 以维持社区辨识度，落地时可以只保留旧版，这一点<span class="q">待你拍板</span>。</li>
+    </ul>
+    <h3 style="margin-top:16px">待确认</h3>
+    <ul>
+      <li><span class="q">Q1</span> 文件标识的「tile 字标」方向是否 OK？备选是无底色纯字母（更轻）或全符号系统（更抽象）。</li>
+      <li><span class="q">Q2</span> 签名光标块的出现范围（目前 4 处）要不要收紧 / 放宽？</li>
+      <li><span class="q">Q3</span> Run 动作类图标是否需要保留分类色（现为跟随文字色）？</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* ───────────────────────── 工具 ───────────────────────── */
+const NS = 'http://www.w3.org/2000/svg';
+function svgNew(inner, cls){
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${cls?`class="${cls}"`:''} aria-hidden="true">${inner}</svg>`;
+}
+function svgOld(entry){
+  const sw = entry.os ?? 2;
+  const fillMode = !!entry.of;
+  return `<svg viewBox="0 0 24 24" fill="${fillMode?'currentColor':'none'}" stroke="${fillMode?'none':'currentColor'}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${entry.o}</svg>`;
+}
+
+/* ───────────────────────── 核心图标数据 ─────────────────────────
+   n = 新设计 (24 grid / stroke1.6)   o = 现版 (desktop 手绘或 Tabler)   os = 现版笔画  of = 现版为填充型 */
+const GROUPS = [
+  {id:'g1', en:'Chrome & Navigation', zh:'窗口与导航'},
+  {id:'g2', en:'Conversation & Input', zh:'会话与输入'},
+  {id:'g3', en:'Files & Knowledge', zh:'文件与知识'},
+  {id:'g4', en:'Dev & System', zh:'开发与系统'},
+  {id:'g5', en:'Actions & Feedback', zh:'动作与反馈'},
+  {id:'g6', en:'Identity & Theme', zh:'身份与主题'},
+  {id:'g7', en:'Arrows', zh:'箭头'},
+];
+
+const CORE = [
+/* ── G1 窗口与导航 ── */
+{g:'g1', id:'panel-left', zh:'左侧栏',
+ n:'<rect x="3.25" y="4.5" width="17.5" height="15" rx="3"/><path d="M9.75 4.5v15"/><path d="M6.1 8.25h1.3M6.1 11.25h1.3" opacity=".45"/>',
+ o:'<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/>', os:1.6},
+{g:'g1', id:'panel-right', zh:'右侧栏',
+ n:'<rect x="3.25" y="4.5" width="17.5" height="15" rx="3"/><path d="M14.25 4.5v15"/><path d="M16.6 8.25h1.3M16.6 11.25h1.3" opacity=".45"/>',
+ o:'<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M15 4v16"/>', os:1.6},
+{g:'g1', id:'close', zh:'关闭',
+ n:'<path d="M6.75 6.75l10.5 10.5M17.25 6.75l-10.5 10.5"/>',
+ o:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', os:1.6},
+{g:'g1', id:'back', zh:'返回',
+ n:'<path d="M19.25 12H4.75"/><path d="M10.5 6.25 4.75 12l5.75 5.75"/>',
+ o:'<path d="m14 5-7 7 7 7"/><path d="M7 12h12"/>', os:1.6},
+{g:'g1', id:'chevron-left', zh:'折角·左',
+ n:'<path d="M14.5 6.5 9 12l5.5 5.5"/>',
+ o:'<path d="M14 6l-6 6 6 6"/>', os:1.6},
+{g:'g1', id:'chevron-right', zh:'折角·右',
+ n:'<path d="M9.5 6.5 15 12l-5.5 5.5"/>',
+ o:'<path d="M10 6l6 6-6 6"/>', os:1.6},
+{g:'g1', id:'chevron-up', zh:'折角·上',
+ n:'<path d="M6.5 14.75 12 9.25l5.5 5.5"/>',
+ o:'<path d="M6.5 14.5l5.5-5.5 5.5 5.5"/>', os:1.6},
+{g:'g1', id:'chevron-down', zh:'折角·下',
+ n:'<path d="M6.5 9.25 12 14.75l5.5-5.5"/>',
+ o:'<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>', os:1.6},
+{g:'g1', id:'more', zh:'更多',
+ n:'<circle cx="5.75" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="18.25" cy="12" r="1.35" fill="currentColor" stroke="none"/>',
+ o:'<circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none"/>', os:1.6},
+{g:'g1', id:'more-vertical', zh:'更多·竖',
+ n:'<circle cx="12" cy="5.75" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none"/><circle cx="12" cy="18.25" r="1.35" fill="currentColor" stroke="none"/>',
+ o:'<circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none"/>', os:1.6},
+{g:'g1', id:'menu-list', zh:'列表',
+ n:'<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
+ o:'<path d="M4 6h16M4 12h16M4 18h16"/>', os:1.6},
+{g:'g1', id:'expand', zh:'展开',
+ n:'<path d="M14.75 4.75h4.5v4.5"/><path d="M9.25 19.25h-4.5v-4.5"/><path d="M19.25 4.75 13.5 10.5"/><path d="M4.75 19.25l5.75-5.75"/>',
+ o:'<path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>', os:1.6},
+{g:'g1', id:'compress', zh:'收拢',
+ n:'<path d="M14.5 4.75v4.75h4.75"/><path d="M9.5 19.25v-4.75H4.75"/><path d="M19.6 4.4 14.5 9.5"/><path d="M4.4 19.6 9.5 14.5"/>',
+ o:'<path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4M9 9h6v6H9z"/>', os:1.6},
+{g:'g1', id:'search', zh:'搜索',
+ n:'<circle cx="10.9" cy="10.9" r="6.15"/><path d="M15.4 15.4l4.1 4.1"/><path d="M8 8.6a3.7 3.7 0 0 1 2.6-1.4" opacity=".45"/>',
+ o:'<circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/>', os:1.6},
+{g:'g1', id:'plus', zh:'新建',
+ n:'<path d="M12 5.25v13.5M5.25 12h13.5"/>',
+ o:'<path d="M12 5v14M5 12h14"/>', os:1.6},
+{g:'g1', id:'refresh', zh:'刷新',
+ n:'<path d="M4.75 9.25a8 8 0 0 1 13.9-2.2l1.6 1.7"/><path d="M20.25 4.5v4.25H16"/><path d="M19.25 14.75a8 8 0 0 1-13.9 2.2l-1.6-1.7"/><path d="M3.75 19.5v-4.25H8"/>',
+ o:'<path d="M19 8a7 7 0 0 0-12.2-2L5 8"/><path d="M5 4v4h4M5 16a7 7 0 0 0 12.2 2L19 16"/><path d="M19 20v-4h-4"/>', os:1.6},
+{g:'g1', id:'settings', zh:'设置',
+ n:'<path d="M4.5 8.25h15M4.5 15.75h15"/><circle cx="9.75" cy="8.25" r="1.9" fill="currentColor" stroke="none"/><circle cx="14.25" cy="15.75" r="1.9" fill="currentColor" stroke="none"/>',
+ o:'<path d="M4 7.5h16M4 16.5h16"/><circle cx="9.5" cy="7.5" r="2.4" fill="var(--bg)" stroke="currentColor"/><circle cx="15" cy="16.5" r="2.4" fill="var(--bg)" stroke="currentColor"/>', os:1.6},
+{g:'g1', id:'sliders', zh:'筛选',
+ n:'<path d="M4.75 7h14.5M7.75 12h8.5M10.75 17h2.5"/>',
+ o:'<path d="M4 6h16M7.5 12h9M10.5 18h3"/>', os:1.8},
+
+/* ── G2 会话与输入 ── */
+{g:'g2', id:'chat', zh:'会话',
+ n:'<path d="M7.5 4.75h9a2.75 2.75 0 0 1 2.75 2.75v5a2.75 2.75 0 0 1-2.75 2.75H11l-3.75 3.4v-3.4h.25A2.75 2.75 0 0 1 4.75 12.5v-5A2.75 2.75 0 0 1 7.5 4.75Z"/>',
+ o:'<path d="M6 5h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6l-4 3v-3H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/>', os:1.6},
+{g:'g2', id:'side-chat', zh:'侧栏会话',
+ n:'<path d="M7.25 4.75h7a2.5 2.5 0 0 1 2.5 2.5v3.5a2.5 2.5 0 0 1-2.5 2.5h-3.3l-3.2 2.9v-2.9h-.5a2.5 2.5 0 0 1-2.5-2.5v-3.5a2.5 2.5 0 0 1 2.5-2.5Z"/><path d="M19.25 9.25v3.4a4.6 4.6 0 0 1-4.6 4.6h-3.3l-2.5 2.25" opacity=".45"/>',
+ o:'<rect x="3" y="4" width="14" height="12" rx="1.5"/><path d="M7 16v4l4-4h7a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 18 5H7a1.5 1.5 0 0 0-1.5 1.5v9c0 .8.7 1.5 1.5 1.5Z"/>', os:1.6},
+{g:'g2', id:'comment-plus', zh:'新增评论',
+ n:'<path d="M7.5 4.75h9a2.75 2.75 0 0 1 2.75 2.75v5a2.75 2.75 0 0 1-2.75 2.75H11l-3.75 3.4v-3.4h.25A2.75 2.75 0 0 1 4.75 12.5v-5A2.75 2.75 0 0 1 7.5 4.75Z"/><path d="M12 7.5v5M9.5 10h5"/>',
+ o:'<path d="M20 14a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M9 9.5h6M12 6.5v6"/>', os:1.8},
+{g:'g2', id:'comment-outline', zh:'评论',
+ n:'<path d="M7.5 4.75h9a2.75 2.75 0 0 1 2.75 2.75v5a2.75 2.75 0 0 1-2.75 2.75H11l-3.75 3.4v-3.4h.25A2.75 2.75 0 0 1 4.75 12.5v-5A2.75 2.75 0 0 1 7.5 4.75Z"/><circle cx="8.9" cy="10" r="1.05" fill="currentColor" stroke="none"/><circle cx="12" cy="10" r="1.05" fill="currentColor" stroke="none"/><circle cx="15.1" cy="10" r="1.05" fill="currentColor" stroke="none"/>',
+ o:'<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/><circle cx="9" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="11.5" r="1" fill="currentColor" stroke="none"/>', os:2},
+{g:'g2', id:'comment-filled', zh:'评论·实心',
+ n:'<path d="M7.5 4.75h9a2.75 2.75 0 0 1 2.75 2.75v5a2.75 2.75 0 0 1-2.75 2.75H11l-3.75 3.4v-3.4h.25A2.75 2.75 0 0 1 4.75 12.5v-5A2.75 2.75 0 0 1 7.5 4.75Z" fill="currentColor"/>',
+ o:'<path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>', of:true},
+{g:'g2', id:'comment-action', zh:'行内评论',
+ n:'<rect x="4.25" y="4.75" width="15.5" height="12.5" rx="2.6"/><path d="M8.25 9.25h7.5M8.25 12.5h4.25"/><path d="M9.5 17.25v2.9l3.4-2.9"/>',
+ o:'<rect x="4" y="4" width="16" height="14" rx="2.5"/><path d="M8 9h8M8 12.5h5"/><path d="M9 18v2.5L12.5 18"/>', os:1.9},
+{g:'g2', id:'send', zh:'发送',
+ n:'<path d="M12 19.25V5.25"/><path d="M5.9 11.35 12 5.25l6.1 6.1"/>',
+ o:'<path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/>', os:1.6},
+{g:'g2', id:'paper-plane', zh:'纸飞机',
+ n:'<path d="M19.75 4.25 4.5 10.9l6.35 2.25L13.1 19.5Z"/><path d="M19.75 4.25 10.85 13.15" opacity=".45"/>',
+ o:'<path d="M4.2 11.8 19.5 4.5 12.2 19.8l-1.7-6.3-6.3-1.7Z"/><path d="M10.5 13.5 19.5 4.5"/>', os:1.7},
+{g:'g2', id:'send-filled', zh:'发送·实心',
+ n:'<path d="M19.75 4.25 4.5 10.9l6.35 2.25L13.1 19.5Z" fill="currentColor"/><path d="M19.75 4.25 10.85 13.15" stroke="var(--bg)" stroke-width="1.3"/>',
+ o:'<path d="M10 14l11-11"/><path d="M21 3l-6.5 18a.55.55 0 0 1-1 0l-3.5-7l-7-3.5a.55.55 0 0 1 0-1l18-6.5"/>', os:2},
+{g:'g2', id:'paperclip', zh:'附件',
+ n:'<path d="M16.25 6.25 8.4 14.25a2.1 2.1 0 0 0 3 2.95l7.85-8a4.2 4.2 0 0 0-6-5.9L5.4 11.4a6.3 6.3 0 0 0 8.9 8.9l5.45-5.55"/>',
+ o:'<path d="m9 8 6 6a3 3 0 0 1-4.2 4.2l-6.6-6.6a4.5 4.5 0 0 1 6.4-6.4l7.4 7.4a2 2 0 0 1-2.8 2.8L9 9"/>', os:1.6},
+{g:'g2', id:'mic', zh:'语音输入',
+ n:'<rect x="9" y="3.75" width="6" height="10.5" rx="3"/><path d="M5.75 11.5a6.25 6.25 0 0 0 12.5 0"/><path d="M12 17.75v2.5"/>',
+ o:'<rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/>', os:1.6},
+{g:'g2', id:'stop', zh:'停止',
+ n:'<rect x="7.25" y="7.25" width="9.5" height="9.5" rx="2.4" fill="currentColor" stroke="none"/>',
+ o:'<rect x="5.5" y="5.5" width="13" height="13" rx="3" fill="currentColor" stroke="none"/>', os:1.6},
+{g:'g2', id:'pause', zh:'暂停',
+ n:'<path d="M9.25 6.75v10.5M14.75 6.75v10.5"/>',
+ o:'<path d="M8 5v14M16 5v14"/>', os:1.6},
+{g:'g2', id:'spark', zh:'灵感',
+ n:'<path d="M11 7.4c.5 3.1 2.1 4.7 5.2 5.2-3.1.5-4.7 2.1-5.2 5.2-.5-3.1-2.1-4.7-5.2-5.2 3.1-.5 4.7-2.1 5.2-5.2Z"/><path d="M17.9 3.9c.25 1.55 1.05 2.35 2.6 2.6-1.55.25-2.35 1.05-2.6 2.6-.25-1.55-1.05-2.35-2.6-2.6 1.55-.25 2.35-1.05 2.6-2.6Z" opacity=".45"/>',
+ o:'<path d="M12 3c.5 3.5 2.5 5.5 6 6-3.5.5-5.5 2.5-6 6-.5-3.5-2.5-5.5-6-6 3.5-.5 5.5-2.5 6-6Z"/><path d="M5 3c.3 1.5 1.2 2.4 2.7 2.7-1.5.3-2.4 1.2-2.7 2.7-.3-1.5-1.2-2.4-2.7-2.7 1.5-.3 2.4-1.2 2.7-2.7Z"/>', os:1.6},
+{g:'g2', id:'brain', zh:'模型思考',
+ n:'<rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.5"/><path d="M9.5 4.5v1.75M14.5 4.5v1.75M9.5 17.75v1.75M14.5 17.75v1.75M4.5 9.5h1.75M4.5 14.5h1.75M17.75 9.5h1.75M17.75 14.5h1.75" opacity=".45"/><path d="M12 8.85c.32 1.85 1.33 2.86 3.18 3.18-1.85.32-2.86 1.33-3.18 3.18-.32-1.85-1.33-2.86-3.18-3.18 1.85-.32 2.86-1.33 3.18-3.18Z"/>',
+ o:'<path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18"/>', os:1.6},
+{g:'g2', id:'agent', zh:'Agent',
+ n:'<path d="M12 3.6c.62 3.9 2.66 5.94 6.56 6.56-3.9.62-5.94 2.66-6.56 6.56-.62-3.9-2.66-5.94-6.56-6.56 3.9-.62 5.94-2.66 6.56-6.56Z"/><rect x="10.5" y="18.4" width="3" height="2.6" rx=".8" fill="currentColor" stroke="none"/>',
+ o:'<path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/>', os:1.6},
+
+/* ── G3 文件与知识 ── */
+{g:'g3', id:'folder', zh:'文件夹',
+ n:'<path d="M3.75 6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h6.18c1.2 0 2.15.96 2.15 2.15v8.35c0 1.2-.96 2.15-2.15 2.15H5.9c-1.2 0-2.15-.96-2.15-2.15Z"/>',
+ o:'<path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-11Z"/>', os:1.6},
+{g:'g3', id:'folder-open', zh:'文件夹·打开',
+ n:'<path d="M3.75 16V6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h5.43c1.19 0 2.15.96 2.15 2.15v1.15" opacity=".45"/><path d="M6.35 10h11.5a1.9 1.9 0 0 1 1.85 2.33l-1.15 4.9a1.9 1.9 0 0 1-1.85 1.47H5.15c-.8 0-1.43-.68-1.36-1.48l.68-5.48A1.9 1.9 0 0 1 6.35 10Z"/>',
+ o:'<path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v1.5"/><path d="M3 19l2.2-8a1.5 1.5 0 0 1 1.45-1h13.7a1.5 1.5 0 0 1 1.45 1.9l-2 7.1A1.5 1.5 0 0 1 18.3 20H4.5A1.5 1.5 0 0 1 3 19Z"/>', os:1.6},
+{g:'g3', id:'folder-plus', zh:'新建文件夹',
+ n:'<path d="M12.4 19.35H5.9c-1.2 0-2.15-.96-2.15-2.15V6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h6.18c1.2 0 2.15.96 2.15 2.15v3.4"/><path d="M17.25 14.5v5.5M14.5 17.25H20"/>',
+ o:'<path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h4l2 2h7A1.5 1.5 0 0 1 20 8.5v3"/><path d="M4 11v6.5A1.5 1.5 0 0 0 5.5 19H12"/><path d="M16 16v5M13.5 18.5h5"/>', os:1.6},
+{g:'g3', id:'file', zh:'文件',
+ n:'<path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z"/><path d="M13.6 3.75V8.1h4.35" opacity=".45"/>',
+ o:'<path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5"/>', os:1.6},
+{g:'g3', id:'file-diff', zh:'文件·改动',
+ n:'<path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z"/><path d="M13.6 3.75V8.1h4.35" opacity=".45"/><path d="M12 10.9v4.6M9.7 13.2h4.6"/>',
+ o:'<path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5"/><path d="M9 12.5h6"/><path d="M12 9.5v6"/>', os:1.6},
+{g:'g3', id:'document', zh:'文档',
+ n:'<path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z"/><path d="M13.6 3.75V8.1h4.35" opacity=".45"/><path d="M9.4 12.75h5.2M9.4 16h3.4"/>',
+ o:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>', os:1.6},
+{g:'g3', id:'note', zh:'便签',
+ n:'<path d="M19.25 13.1V7.15c0-1.33-1.07-2.4-2.4-2.4H7.15c-1.33 0-2.4 1.07-2.4 2.4v9.7c0 1.33 1.07 2.4 2.4 2.4h5.95Z"/><path d="M13.1 19.25v-3.75c0-1.33 1.07-2.4 2.4-2.4h3.75" opacity=".45"/><path d="M8.4 9.4h7.2M8.4 12.65h3.7"/>',
+ o:'<path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5M9 12.5h6M9 16h4"/>', os:1.6},
+{g:'g3', id:'book', zh:'知识库',
+ n:'<path d="M12 6.4C10.55 5.1 8.6 4.55 5.5 4.55c-.4 0-.75.33-.75.74v11.9c0 .41.34.74.75.74 3.1 0 5.05.56 6.5 1.85 1.45-1.3 3.4-1.85 6.5-1.85.4 0 .75-.33.75-.74V5.3c0-.41-.34-.74-.75-.74-3.1 0-5.05.56-6.5 1.85Z"/><path d="M12 6.4v12.6" opacity=".45"/>',
+ o:'<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5v-13Z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5v-13Z"/><path d="M12 4v16"/>', os:1.6},
+{g:'g3', id:'cards', zh:'卡片组',
+ n:'<rect x="4.5" y="7.1" width="12.4" height="12.4" rx="2.25"/><path d="M8.9 4.5h8.35c1.24 0 2.25 1 2.25 2.25v8.35" opacity=".45"/>',
+ o:'<rect x="4" y="7" width="11.5" height="12.5" rx="1.5"/><path d="M8.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v9.5"/>', os:1.6},
+{g:'g3', id:'canvas', zh:'画布 / Artifact',
+ n:'<rect x="3.75" y="4.5" width="16.5" height="15" rx="2.6"/><path d="M12 8.5c.4 2.3 1.6 3.5 3.9 3.9-2.3.4-3.5 1.6-3.9 3.9-.4-2.3-1.6-3.5-3.9-3.9 2.3-.4 3.5-1.6 3.9-3.9Z"/>',
+ o:'<rect x="3.5" y="3.5" width="14" height="14" rx="2"/><path d="M17.5 6.5l3-3"/><path d="M16 8l1.5-1.5"/><path d="M7 17l3-3 2.5 2.5"/>', os:1.6},
+{g:'g3', id:'image', zh:'图片',
+ n:'<rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2.6"/><circle cx="9.1" cy="9.5" r="1.5" fill="currentColor" stroke="none" opacity=".45"/><path d="M4.6 17.75l4.5-4.5a1.55 1.55 0 0 1 2.2 0l5.2 5.2"/><path d="M14.6 15.9l1.4-1.4a1.55 1.55 0 0 1 2.2 0l2 2" opacity=".45"/>',
+ o:'<path d="M15 8h.01"/><path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-12a3 3 0 0 1-3-3v-12"/><path d="M3 16l5-5c.928-.893 2.072-.893 3 0l5 5"/><path d="M14 14l1-1c.928-.893 2.072-.893 3 0l3 3"/>', os:2},
+{g:'g3', id:'list-tree', zh:'树形列表',
+ n:'<path d="M4.75 5.9h14.5"/><path d="M10 12h9.25M10 18.1h9.25"/><path d="M6.6 8.4v7.45c0 1.25 1 2.25 2.25 2.25M6.6 12h2.3" opacity=".45"/>',
+ o:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>', os:1.6},
+
+/* ── G4 开发与系统 ── */
+{g:'g4', id:'terminal', zh:'终端',
+ n:'<rect x="3.25" y="4.75" width="17.5" height="14.5" rx="2.75"/><path d="M7.1 9.25l3.1 2.75-3.1 2.75"/><rect x="12.9" y="13.15" width="3.9" height="1.9" rx=".95" fill="currentColor" stroke="none"/>',
+ o:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/>', os:1.6},
+{g:'g4', id:'git', zh:'Git 分支',
+ n:'<circle cx="6.25" cy="6" r="2.1"/><circle cx="6.25" cy="18" r="2.1"/><circle cx="17.75" cy="8" r="2.1"/><path d="M6.25 8.1v7.8"/><path d="M17.75 10.1c0 4.35-5.35 4.3-8.9 6.5" opacity=".45"/>',
+ o:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 8.2v7.6"/><path d="M17.9 9.2c-.4 4.2-6.6 3.1-9.5 6.3"/>', os:1.6},
+{g:'g4', id:'arrow-fork', zh:'分叉',
+ n:'<path d="M12 20.25v-6.7"/><path d="M12 13.55 6.7 8.25M12 13.55l5.3-5.3"/><path d="M6.7 11.15V8.25h2.9M17.3 11.15V8.25h-2.9"/>',
+ o:'<path d="M16 3h5v5"/><path d="M8 3h-5v5"/><path d="M21 3l-7.536 7.536a5 5 0 0 0-1.464 3.534v6.93"/><path d="M3 3l7.536 7.536a5 5 0 0 1 1.464 3.534v.93"/>', os:2},
+{g:'g4', id:'session-tree', zh:'会话树',
+ n:'<circle cx="6.4" cy="5.75" r="1.9"/><circle cx="17.6" cy="12" r="1.9"/><circle cx="17.6" cy="18.25" r="1.9"/><path d="M8.3 5.75H10a3.25 3.25 0 0 1 3.25 3.25v6.8c0 1.35 1.1 2.45 2.45 2.45"/><path d="M13.25 12h2.45"/>',
+ o:'<circle cx="6" cy="5" r="1.5"/><circle cx="18" cy="10" r="1.5"/><circle cx="18" cy="19" r="1.5"/><path d="M7.5 5h2A3.5 3.5 0 0 1 13 8.5v7A3.5 3.5 0 0 0 16.5 19"/><path d="M13 10h3.5"/>', os:1.6},
+{g:'g4', id:'browser', zh:'浏览器',
+ n:'<circle cx="12" cy="12" r="8.25"/><path d="M3.75 12h16.5"/><path d="M12 3.75c2.55 2.2 3.85 4.95 3.85 8.25S14.55 18.05 12 20.25c-2.55-2.2-3.85-4.95-3.85-8.25S9.45 5.95 12 3.75Z" opacity=".45"/>',
+ o:'<circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="8.5" ry="3.2"/><path d="M12 3.5v17"/>', os:1.6},
+{g:'g4', id:'mcp', zh:'MCP',
+ n:'<circle cx="12" cy="12" r="2.25"/><path d="M12 9.75V6.4M13.95 13.1l2.9 1.7M10.05 13.1l-2.9 1.7"/><circle cx="12" cy="4.9" r="1.5" opacity=".45"/><circle cx="18.15" cy="15.55" r="1.5" opacity=".45"/><circle cx="5.85" cy="15.55" r="1.5" opacity=".45"/>',
+ o:'<path d="M15.688 2.343a2.588 2.588 0 0 0-3.61 0l-9.626 9.44a.863.863 0 0 1-1.203 0 .823.823 0 0 1 0-1.18l9.626-9.44a4.313 4.313 0 0 1 6.016 0 4.116 4.116 0 0 1 1.204 3.54 4.3 4.3 0 0 1 3.609 1.18l.05.05a4.115 4.115 0 0 1 0 5.9l-8.706 8.537a.274.274 0 0 0 0 .393l1.788 1.754a.823.823 0 0 1 0 1.18.863.863 0 0 1-1.203 0l-1.788-1.753a1.92 1.92 0 0 1 0-2.754l8.706-8.538a2.47 2.47 0 0 0 0-3.54l-.05-.049a2.588 2.588 0 0 0-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 0 1-1.204 0 .823.823 0 0 1 0-1.18l7.273-7.133a2.47 2.47 0 0 0-.003-3.537z"/><path d="M14.485 4.703a.823.823 0 0 0 0-1.18.863.863 0 0 0-1.204 0l-7.119 6.982a4.115 4.115 0 0 0 0 5.9 4.314 4.314 0 0 0 6.016 0l7.12-6.982a.823.823 0 0 0 0-1.18.863.863 0 0 0-1.204 0l-7.119 6.982a2.588 2.588 0 0 1-3.61 0 2.47 2.47 0 0 1 0-3.54l7.12-6.982z"/>', of:true},
+{g:'g4', id:'plug', zh:'连接器',
+ n:'<path d="M9.4 3.75V7.4M14.6 3.75V7.4"/><path d="M6.9 7.4h10.2v2.5a5.1 5.1 0 0 1-10.2 0Z"/><path d="M12 15v5.25"/>',
+ o:'<path d="M7 4v8a5 5 0 0 0 10 0V4"/><path d="M4 4v7a8 8 0 0 0 16 0V4M7 20h10"/>', os:1.6},
+{g:'g4', id:'extension', zh:'扩展',
+ n:'<path d="M5.75 9.25a1.5 1.5 0 0 1 1.5-1.5H9.9V7.6a2.1 2.1 0 0 1 4.2 0v.15h2.65a1.5 1.5 0 0 1 1.5 1.5v2.65h.15a2.1 2.1 0 0 1 0 4.2h-.15v2.65a1.5 1.5 0 0 1-1.5 1.5H7.25a1.5 1.5 0 0 1-1.5-1.5Z"/>',
+ o:'<path d="M8 4h3v3h2V4h3v5h-3v2h3v5h-3v3h-2v-3H8v-5h3V9H8V4Z"/><path d="M4 9h4v2H4V9Zm12 0h4v2h-4V9ZM4 14h4v2H4v-2Zm12 0h4v2h-4v-2Z"/>', os:1.6},
+{g:'g4', id:'skill', zh:'技能',
+ n:'<path d="M13.4 3.75 6.25 12.8h4.4l-1.05 7.45 7.15-9.05h-4.4Z"/>',
+ o:'<path d="M13 2.5L4.5 12.5H11.5L10.5 21.5L19.5 11.5H12.5L13 2.5Z"/>', os:1.6},
+{g:'g4', id:'activity', zh:'活动',
+ n:'<path d="M3.75 12h3.35l2.4-5.7 4.05 11.4 2.35-5.7h4.35"/>',
+ o:'<path d="M3.5 12h4l2.5-6 4 12 2.5-6h4"/>', os:1.6},
+{g:'g4', id:'chart-bar', zh:'统计',
+ n:'<rect x="5.15" y="13.4" width="3.2" height="5.85" rx="1.1"/><rect x="10.4" y="7.6" width="3.2" height="11.65" rx="1.1"/><rect x="15.65" y="10.5" width="3.2" height="8.75" rx="1.1"/>',
+ o:'<path d="M3 13a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1l0-6"/><path d="M15 9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1l0-10"/><path d="M9 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1l0-14"/><path d="M4 20h14"/>', os:2},
+{g:'g4', id:'laptop', zh:'本机',
+ n:'<rect x="4.75" y="5" width="14.5" height="11" rx="1.9"/><path d="M2.9 18.25h18.2"/><path d="M8.6 8.5l2 1.9-2 1.9" opacity=".45"/>',
+ o:'<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 18h20"/><path d="M9 18h6"/>', os:1.6},
+{g:'g4', id:'cloud', zh:'远程 Host',
+ n:'<path d="M7.1 17.9h9.6a3.9 3.9 0 0 0 .5-7.77 5.3 5.3 0 0 0-10.3-1.45A3.85 3.85 0 0 0 7.1 17.9Z"/>',
+ o:'<path d="M7.5 18h9.2a3.8 3.8 0 0 0 .4-7.6 5 5 0 0 0-9.6-1.4A3.6 3.6 0 0 0 7.5 18Z"/>', os:1.6},
+{g:'g4', id:'keyboard', zh:'快捷键',
+ n:'<rect x="3.25" y="6.75" width="17.5" height="10.5" rx="2.4"/><path d="M6.6 10.15h.05M10.2 10.15h.05M13.8 10.15h.05M17.4 10.15h.05M6.6 13.85h.05M17.4 13.85h.05" opacity=".45"/><path d="M9.7 13.85h4.6"/>',
+ o:'<path d="M2 8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-16a2 2 0 0 1-2-2l0-8"/><path d="M6 10l0 .01"/><path d="M10 10l0 .01"/><path d="M14 10l0 .01"/><path d="M18 10l0 .01"/><path d="M6 14l0 .01"/><path d="M18 14l0 .01"/><path d="M10 14l4 .01"/>', os:2},
+
+/* ── G5 动作与反馈 ── */
+{g:'g5', id:'check', zh:'确认',
+ n:'<path d="M4.9 12.9l4.95 4.7L19.1 7.3"/>',
+ o:'<path d="M20 6L9 17l-5-5"/>', os:1.6},
+{g:'g5', id:'check-circle', zh:'成功',
+ n:'<circle cx="12" cy="12" r="8.25"/><path d="M8.4 12.35l2.55 2.55 4.65-4.9"/>',
+ o:'<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0"/><path d="M9 12l2 2l4-4"/>', os:2},
+{g:'g5', id:'alert-circle', zh:'错误',
+ n:'<circle cx="12" cy="12" r="8.25"/><path d="M9.55 9.55l4.9 4.9M14.45 9.55l-4.9 4.9"/>',
+ o:'<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0"/><path d="M10 10l4 4m0-4l-4 4"/>', os:2},
+{g:'g5', id:'copy', zh:'复制',
+ n:'<rect x="8.75" y="8.75" width="11" height="11" rx="2.25"/><path d="M5.4 15.25c-.63 0-1.15-.51-1.15-1.15V5.4c0-.63.51-1.15 1.15-1.15h8.7c.63 0 1.15.51 1.15 1.15" opacity=".45"/>',
+ o:'<rect x="8" y="8" width="10" height="11" rx="1.5"/><path d="M16 8V6.5A1.5 1.5 0 0 0 14.5 5h-8A1.5 1.5 0 0 0 5 6.5v8A1.5 1.5 0 0 0 6.5 16H8"/>', os:1.6},
+{g:'g5', id:'edit', zh:'编辑',
+ n:'<path d="M16.9 3.95a2.25 2.25 0 0 1 3.15 3.15L8.6 18.55l-4.35 1.2 1.2-4.35Z"/><path d="M14.9 5.95l3.15 3.15" opacity=".45"/>',
+ o:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>', os:1.6},
+{g:'g5', id:'trash', zh:'删除',
+ n:'<path d="M4.75 7.25h14.5"/><path d="M9.75 7.25V6c0-.7.55-1.25 1.25-1.25h2c.7 0 1.25.55 1.25 1.25v1.25"/><path d="M6.75 7.25l.65 10.9a2.1 2.1 0 0 0 2.1 1.98h4.99a2.1 2.1 0 0 0 2.1-1.98l.66-10.9"/><path d="M10.25 11.25v5M13.75 11.25v5" opacity=".45"/>',
+ o:'<path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.8h5.4a2 2 0 0 0 2-1.8l.8-12"/><path d="M10 11v6M14 11v6"/>', os:1.6},
+{g:'g5', id:'archive', zh:'归档',
+ n:'<rect x="3.75" y="4.75" width="16.5" height="4.25" rx="1.4"/><path d="M5.75 9v8.1c0 1.19.96 2.15 2.15 2.15h8.2c1.19 0 2.15-.96 2.15-2.15V9"/><path d="M12 12v4.4M9.9 14.35 12 16.4l2.1-2.05"/>',
+ o:'<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M12 10v4.5M9.5 12.5l2.5 2.5 2.5-2.5"/>', os:1.6},
+{g:'g5', id:'unarchive', zh:'取消归档',
+ n:'<rect x="3.75" y="4.75" width="16.5" height="4.25" rx="1.4"/><path d="M5.75 9v8.1c0 1.19.96 2.15 2.15 2.15h8.2c1.19 0 2.15-.96 2.15-2.15V9"/><path d="M12 16.4V12M9.9 14.05 12 12l2.1 2.05"/>',
+ o:'<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M12 16.5V12M9.5 13.5 12 11l2.5 2.5"/>', os:1.6},
+{g:'g5', id:'revert', zh:'撤销',
+ n:'<path d="M8.9 5.6 4.5 10l4.4 4.4"/><path d="M4.5 10h9.4a5.35 5.35 0 0 1 0 10.7H10.4"/>',
+ o:'<path d="M9 15L4 10l5-5"/><path d="M4 10h11a4 4 0 1 1 0 8h-4"/>', os:1.6},
+{g:'g5', id:'link', zh:'链接',
+ n:'<path d="M10.4 7.15l1.7-1.7a4.35 4.35 0 0 1 6.15 6.15l-1.7 1.7"/><path d="M13.6 16.85l-1.7 1.7a4.35 4.35 0 0 1-6.15-6.15l1.7-1.7"/><path d="M9.4 14.6l5.2-5.2"/>',
+ o:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>', os:1.6},
+{g:'g5', id:'download', zh:'下载',
+ n:'<path d="M4.75 15.4v2.35c0 1.1.9 2 2 2h10.5c1.1 0 2-.9 2-2V15.4"/><path d="M12 4.25v10.1M7.9 10.5l4.1 4.1 4.1-4.1"/>',
+ o:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>', os:1.6},
+{g:'g5', id:'pin', zh:'置顶',
+ n:'<path d="M9.65 4.75h4.7l-.55 5.2 3 2.8H7.2l3-2.8Z"/><path d="M12 12.75v6.5"/>',
+ o:'<path d="M9.5 4.5h5l-.7 5.4 3.2 3.1H7l3.2-3.1z"/><path d="M12 13v6.5"/>', os:1.6},
+{g:'g5', id:'star', zh:'收藏',
+ n:'<path d="M12 4.75l2.1 4.3 4.75.7-3.45 3.35.8 4.75L12 15.6l-4.2 2.25.8-4.75-3.45-3.35 4.75-.7Z"/>',
+ o:'<path d="m12 4.5 1.9 3.9 4.3.6-3.1 3 0.7 4.3L12 14.5l-3.8 2 0.7-4.3-3.1-3 4.3-.6z"/>', os:1.6},
+{g:'g5', id:'warn', zh:'警告',
+ n:'<path d="M10.2 4.9a2.05 2.05 0 0 1 3.6 0l6.5 11.25a2.05 2.05 0 0 1-1.8 3.1H5.5a2.05 2.05 0 0 1-1.8-3.1Z"/><path d="M12 9.4v4.1"/><path d="M12 16.4h.01"/>',
+ o:'<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/>', os:1.6},
+{g:'g5', id:'eye', zh:'显示',
+ n:'<path d="M3.75 12c2.3-3.85 5.05-5.8 8.25-5.8s5.95 1.95 8.25 5.8c-2.3 3.85-5.05 5.8-8.25 5.8S6.05 15.85 3.75 12Z"/><circle cx="12" cy="12" r="2.4"/>',
+ o:'<path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0-4 0"/><path d="M21 12c-2.4 4-5.4 6-9 6c-3.6 0-6.6-2-9-6c2.4-4 5.4-6 9-6c3.6 0 6.6 2 9 6"/>', os:2},
+{g:'g5', id:'eye-off', zh:'隐藏',
+ n:'<path d="M3.75 12c2.3-3.85 5.05-5.8 8.25-5.8s5.95 1.95 8.25 5.8c-2.3 3.85-5.05 5.8-8.25 5.8S6.05 15.85 3.75 12Z" opacity=".45"/><circle cx="12" cy="12" r="2.4" opacity=".45"/><path d="M4.75 4.75l14.5 14.5"/>',
+ o:'<path d="M10.585 10.587a2 2 0 0 0 2.829 2.828"/><path d="M16.681 16.673a8.717 8.717 0 0 1-4.681 1.327c-3.6 0-6.6-2-9-6c1.272-2.12 2.712-3.678 4.32-4.674m2.86-1.146a9.055 9.055 0 0 1 1.82-.18c3.6 0 6.6 2 9 6c-.666 1.11-1.379 2.067-2.138 2.87"/><path d="M3 3l18 18"/>', os:2},
+
+/* ── G6 身份与主题 ── */
+{g:'g6', id:'user', zh:'用户',
+ n:'<circle cx="12" cy="7.9" r="3.4"/><path d="M5.5 19.5c.4-3.4 3.1-5.4 6.5-5.4s6.1 2 6.5 5.4"/>',
+ o:'<path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0-8 0"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>', os:2},
+{g:'g6', id:'users', zh:'多人 / 子代理',
+ n:'<circle cx="9.25" cy="8.4" r="3.1"/><path d="M3.75 19.25c.35-3.1 2.6-4.9 5.5-4.9s5.15 1.8 5.5 4.9"/><path d="M15.1 5.9a3.1 3.1 0 0 1 0 5M17.1 14.6c1.8.55 3 1.9 3.35 4.05" opacity=".45"/>',
+ o:'<circle cx="9" cy="8" r="3"/><path d="M3 19c0-2.8 2.7-5 6-5s6 2.2 6 5"/><circle cx="17" cy="9" r="2.2"/><path d="M16 19c0-1.8 1.3-3.3 3-4"/>', os:1.6},
+{g:'g6', id:'pet', zh:'宠物',
+ n:'<path d="M12 19.1c-2.75-1.4-4.5-3.1-4.5-5.05 0-1.5 1.15-2.55 2.5-2.55.75 0 1.45.3 2 .85.55-.55 1.25-.85 2-.85 1.35 0 2.5 1.05 2.5 2.55 0 1.95-1.75 3.65-4.5 5.05Z"/><circle cx="6.6" cy="8.4" r="1.55" fill="currentColor" stroke="none" opacity=".45"/><circle cx="12" cy="6.6" r="1.55" fill="currentColor" stroke="none" opacity=".45"/><circle cx="17.4" cy="8.4" r="1.55" fill="currentColor" stroke="none" opacity=".45"/>',
+ o:'<circle cx="12" cy="13" r="5"/><circle cx="7" cy="8" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="17" cy="8" r="1.6"/>', os:1.6},
+{g:'g6', id:'heart', zh:'喜欢',
+ n:'<path d="M12 19.25c-4.4-2.85-7.25-5.6-7.25-8.9A4.05 4.05 0 0 1 12 7.8a4.05 4.05 0 0 1 7.25 2.55c0 3.3-2.85 6.05-7.25 8.9Z"/>',
+ o:'<path d="M19.5 12.572l-7.5 7.428l-7.5-7.428a5 5 0 1 1 7.5-6.566a5 5 0 1 1 7.5 6.572"/>', os:2},
+{g:'g6', id:'shield', zh:'权限',
+ n:'<path d="M12 3.9c2.3 1.45 4.55 2.2 6.9 2.35v5.4c0 4.25-2.75 7.2-6.9 8.8-4.15-1.6-6.9-4.55-6.9-8.8v-5.4C7.45 6.1 9.7 5.35 12 3.9Z"/><path d="M9.4 11.9l1.85 1.85 3.35-3.45" opacity=".45"/>',
+ o:'<path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3"/>', os:2},
+{g:'g6', id:'power', zh:'电源',
+ n:'<path d="M12 4.25v7.25"/><path d="M8.35 6.55a6.9 6.9 0 1 0 7.3 0"/>',
+ o:'<path d="M7 6a7.75 7.75 0 1 0 10 0"/><path d="M12 4l0 8"/>', os:2},
+{g:'g6', id:'moon', zh:'暗色主题',
+ n:'<path d="M11.7 3.75a6.75 6.75 0 0 0 8.55 8.55A8.4 8.4 0 1 1 11.7 3.75Z"/><path d="M17.25 4.75c.2 1.2.85 1.85 2.05 2.05-1.2.2-1.85.85-2.05 2.05-.2-1.2-.85-1.85-2.05-2.05 1.2-.2 1.85-.85 2.05-2.05Z" opacity=".45"/>',
+ o:'<path d="M19 14.5A7.5 7.5 0 1 1 9.5 5 6 6 0 0 0 19 14.5Z"/>', os:1.6},
+{g:'g6', id:'sun', zh:'亮色主题',
+ n:'<circle cx="12" cy="12" r="3.9"/><path d="M12 3.5v2.1M12 18.4v2.1M3.5 12h2.1M18.4 12h2.1M5.99 5.99l1.49 1.49M16.52 16.52l1.49 1.49M18.01 5.99l-1.49 1.49M7.48 16.52l-1.49 1.49"/>',
+ o:'<circle cx="12" cy="12" r="4"/><path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1.1 1.1M17.3 17.3l1.1 1.1M18.4 5.6l-1.1 1.1M6.7 17.3l-1.1 1.1"/>', os:1.6},
+
+/* ── G7 箭头 ── */
+{g:'g7', id:'arrow-up', zh:'上',
+ n:'<path d="M12 19.25V4.75M5.85 10.9 12 4.75l6.15 6.15"/>',
+ o:'<path d="M12 19V5M5 12l7-7 7 7"/>', os:1.6},
+{g:'g7', id:'arrow-down', zh:'下',
+ n:'<path d="M12 4.75v14.5M5.85 13.1 12 19.25l6.15-6.15"/>',
+ o:'<path d="M12 5l0 14"/><path d="M18 13l-6 6"/><path d="M6 13l6 6"/>', os:2},
+{g:'g7', id:'arrow-left', zh:'左',
+ n:'<path d="M19.25 12H4.75M10.9 5.85 4.75 12l6.15 6.15"/>',
+ o:'<path d="M5 12l14 0"/><path d="M5 12l6 6"/><path d="M5 12l6-6"/>', os:2},
+{g:'g7', id:'arrow-right', zh:'右',
+ n:'<path d="M4.75 12h14.5M13.1 5.85 19.25 12l-6.15 6.15"/>',
+ o:'<path d="M5 12l14 0"/><path d="M13 18l6-6"/><path d="M13 6l6 6"/>', os:2},
+{g:'g7', id:'narrow-right', zh:'窄·右',
+ n:'<path d="M4.75 12h14.5M14.4 7.15 19.25 12l-4.85 4.85"/>',
+ o:'<path d="M5 12l14 0"/><path d="M15 16l4-4"/><path d="M15 8l4 4"/>', os:2},
+{g:'g7', id:'narrow-left', zh:'窄·左',
+ n:'<path d="M19.25 12H4.75M9.6 7.15 4.75 12l4.85 4.85"/>',
+ o:'<path d="M5 12h14"/><path d="M9 16l-4-4"/><path d="M9 8l-4 4"/>', os:2},
+];
+
+/* ───────────────────────── 文件标识 ─────────────────────────
+   tile + 字标 / 符号；folder 与 generic 保持描边形态 */
+const FT_COLORS = {
+  tsx:'#52C0D4', ts:'#5B9DE8', js:'#E0BE55', py:'#7A8FE0', json:'#D9A648',
+  css:'#BC8BE0', md:'#8FBFB0', html:'#E0855C', rs:'#D68F6C', go:'#5FC4CC',
+  sh:'#7FC487', img:'#C687B6', dir:'#D8B078', file:'#98A0A8',
+};
+const FT_OLD_COLORS = {
+  tsx:'#38bdf8', ts:'#3178c6', js:'#facc15', py:'#3776ab', json:'#fbbf24',
+  css:'#f472b6', md:'#34d399', html:'#fb923c', rs:'#f97316', go:'#22d3ee',
+  sh:'#4ade80', img:'#e879f9', dir:'#60a5fa', file:'#94a3b8',
+};
+const MONO_STACK = "'SF Mono',ui-monospace,Menlo,Consolas,monospace";
+
+function tile(color){
+  return `<rect x="3.5" y="3.5" width="17" height="17" rx="4.5" fill="${color}" opacity=".15" stroke="none"/>`;
+}
+function letterMark(color, txt, size){
+  return tile(color) + `<text x="12" y="12.35" text-anchor="middle" dominant-baseline="central" font-family="${MONO_STACK}" font-weight="700" font-size="${size}" fill="${color}" stroke="none">${txt}</text>`;
+}
+function ftNew(kind){
+  const c = FT_COLORS[kind];
+  switch(kind){
+    case 'ts':  return letterMark(c,'TS',7.4);
+    case 'tsx': return letterMark(c,'TSX',5.9);
+    case 'js':  return letterMark(c,'JS',7.4);
+    case 'py':  return letterMark(c,'PY',7.4);
+    case 'rs':  return letterMark(c,'RS',7.4);
+    case 'go':  return letterMark(c,'GO',7.4);
+    case 'css': return letterMark(c,'CSS',5.9);
+    case 'md':  return tile(c) + `<text x="9.7" y="12.35" text-anchor="middle" dominant-baseline="central" font-family="${MONO_STACK}" font-weight="700" font-size="7.4" fill="${c}" stroke="none">M</text><path d="M15.4 9.3v4.3M13.6 11.9l1.8 1.9 1.8-1.9" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'json':return tile(c) + `<path d="M9.6 7.2c-1.2 0-1.8.62-1.8 1.8v1.5c0 .92-.5 1.53-1.45 1.75.95.22 1.45.83 1.45 1.75v1.5c0 1.18.6 1.8 1.8 1.8M14.4 7.2c1.2 0 1.8.62 1.8 1.8v1.5c0 .92.5 1.53 1.45 1.75-.95.22-1.45.83-1.45 1.75v1.5c0 1.18-.6 1.8-1.8 1.8" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'html':return tile(c) + `<path d="M9.3 8.7 6.3 12l3 3.3M14.7 8.7l3 3.3-3 3.3M13.1 7.5l-2.2 9" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'sh':  return tile(c) + `<path d="M7.2 8.5l3.4 3.5-3.4 3.5M12.8 15.5h4.2" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'img': return tile(c) + `<circle cx="9.4" cy="9.4" r="1.3" fill="${c}" stroke="none"/><path d="M6.1 16.8l3.1-3.1a1.2 1.2 0 0 1 1.7 0l3.9 3.9M13.4 15.4l1.2-1.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6" stroke="${c}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'dir': return `<path d="M3.75 6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h6.18c1.2 0 2.15.96 2.15 2.15v8.35c0 1.2-.96 2.15-2.15 2.15H5.9c-1.2 0-2.15-.96-2.15-2.15Z" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case 'file':return `<path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.6 3.75V8.1h4.35" stroke="${c}" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>`;
+  }
+}
+const FT_OLD_INNER = {
+  tsx:'<path d="M6.306 8.711c-2.602.723-4.306 1.926-4.306 3.289c0 2.21 4.477 4 10 4c.773 0 1.526-.035 2.248-.102"/><path d="M17.692 15.289c2.603-.722 4.308-1.926 4.308-3.289c0-2.21-4.477-4-10-4c-.773 0-1.526.035-2.25.102"/><path d="M6.305 15.287c-.676 2.615-.485 4.693.695 5.373c1.913 1.105 5.703-1.877 8.464-6.66c.387-.67.733-1.339 1.036-2"/><path d="M17.694 8.716c.677-2.616.487-4.696-.694-5.376c-1.913-1.105-5.703 1.877-8.464 6.66c-.387.67-.733 1.34-1.037 2"/><path d="M12 5.424c-1.925-1.892-3.82-2.766-5-2.084c-1.913 1.104-1.226 5.877 1.536 10.66c.386.67.793 1.304 1.212 1.896"/><path d="M12 18.574c1.926 1.893 3.821 2.768 5 2.086c1.913-1.104 1.226-5.877-1.536-10.66c-.375-.65-.78-1.283-1.212-1.897"/><path d="M11.5 12.866a1 1 0 1 0 1-1.732a1 1 0 0 0-1 1.732"/>',
+  ts:'<path d="M5 9l14 0"/><path d="M5 15l14 0"/><path d="M11 4l-4 16"/><path d="M17 4l-4 16"/>',
+  js:'<path d="M20 4l-2 14.5l-6 2l-6-2l-2-14.5l16 0"/><path d="M7.5 8h3v8l-2-1"/><path d="M16.5 8h-2.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h1.423a.5.5 0 0 1 .495.57l-.418 2.93l-2 .5"/>',
+  py:'<path d="M12 9h-7a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h3"/><path d="M12 15h7a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-3"/><path d="M8 9v-4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4"/><path d="M11 6l0 .01"/><path d="M13 18l0 .01"/>',
+  json:'<path d="M7 4a2 2 0 0 0-2 2v3a2 3 0 0 1-2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2"/><path d="M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0-2 3v3a2 2 0 0 1-2 2"/>',
+  css:'<path d="M20 4l-2 14.5l-6 2l-6-2l-2-14.5l16 0"/><path d="M8.5 8h7l-4.5 4h4l-.5 3.5l-2.5.75l-2.5-.75l-.1-.5"/>',
+  md:'<path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2v-10"/><path d="M7 15v-6l2 2l2-2v6"/><path d="M14 13l2 2l2-2m-2 2v-6"/>',
+  html:'<path d="M20 4l-2 14.5l-6 2l-6-2l-2-14.5l16 0"/><path d="M15.5 8h-7l.5 4h6l-.5 3.5l-2.5.75l-2.5-.75l-.1-.5"/>',
+  rs:'<path d="M10.139 3.463c.473-1.95 3.249-1.95 3.722 0a1.916 1.916 0 0 0 2.859 1.185c1.714-1.045 3.678.918 2.633 2.633a1.916 1.916 0 0 0 1.184 2.858c1.95.473 1.95 3.249 0 3.722a1.916 1.916 0 0 0-1.185 2.859c1.045 1.714-.918 3.678-2.633 2.633a1.916 1.916 0 0 0-2.858 1.184c-.473 1.95-3.249 1.95-3.722 0a1.916 1.916 0 0 0-2.859-1.185c-1.714 1.045-3.678-.918-2.633-2.633a1.916 1.916 0 0 0-1.184-2.858c-1.95-.473-1.95-3.249 0-3.722a1.916 1.916 0 0 0 1.185-2.859c-1.045-1.714.918-3.678 2.633-2.633a1.914 1.914 0 0 0 2.858-1.184"/><path d="M8 12h6a2 2 0 1 0 0-4h-6v8v-4"/><path d="M19 16h-2a2 2 0 0 1-2-2a2 2 0 0 0-2-2h-1"/><path d="M9 8h-4"/><path d="M5 16h4"/>',
+  go:'<path d="M15.695 14.305c1.061 1.06 2.953.888 4.226-.384c1.272-1.273 1.444-3.165.384-4.226c-1.061-1.06-2.953-.888-4.226.384c-1.272 1.273-1.444 3.165-.384 4.226"/><path d="M12.68 9.233c-1.084-.497-2.545-.191-3.591.846c-1.284 1.273-1.457 3.165-.388 4.226c1.07 1.06 2.978.888 4.261-.384a3.669 3.669 0 0 0 1.038-1.921h-2.427"/><path d="M5.5 15h-1.5"/><path d="M6 9h-2"/><path d="M5 12h-3"/>',
+  sh:'<path d="M8 9l3 3l-3 3"/><path d="M13 15l3 0"/><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2l0-12"/>',
+  img:'<path d="M15 8h.01"/><path d="M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-12a3 3 0 0 1-3-3v-12"/><path d="M3 16l5-5c.928-.893 2.072-.893 3 0l5 5"/><path d="M14 14l1-1c.928-.893 2.072-.893 3 0l3 3"/>',
+  dir:'<path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2"/>',
+  file:'<path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1-2-2v-14a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2"/><path d="M9 9l1 0"/><path d="M9 13l6 0"/><path d="M9 17l6 0"/>',
+};
+function ftOldSvg(kind, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${FT_OLD_COLORS[kind]}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${FT_OLD_INNER[kind]}</svg>`;
+}
+function ftNewSvg(kind, size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none">${ftNew(kind)}</svg>`;
+}
+const FT_LIST = [
+  {k:'tsx',  nm:'.tsx / .jsx',  zh:'React'},
+  {k:'ts',   nm:'.ts',          zh:'TypeScript'},
+  {k:'js',   nm:'.js',          zh:'JavaScript'},
+  {k:'py',   nm:'.py',          zh:'Python'},
+  {k:'json', nm:'.json / .yaml',zh:'配置'},
+  {k:'css',  nm:'.css / .scss', zh:'样式'},
+  {k:'md',   nm:'.md',          zh:'Markdown'},
+  {k:'html', nm:'.html / .svg', zh:'HTML'},
+  {k:'rs',   nm:'.rs',          zh:'Rust'},
+  {k:'go',   nm:'.go',          zh:'Go'},
+  {k:'sh',   nm:'.sh',          zh:'Shell'},
+  {k:'img',  nm:'.png / .jpg',  zh:'图片'},
+  {k:'dir',  nm:'目录',          zh:'Folder'},
+  {k:'file', nm:'其他文件',      zh:'Generic'},
+];
+
+/* ───────────────────────── Run 状态 ───────────────────────── */
+const RUN = [
+{id:'idle', zh:'待机', color:'c-muted',
+ n:'<circle cx="12" cy="12" r="8.25" stroke-dasharray="2.6 3.4" opacity=".45" class="a-spin-slow"/><circle cx="12" cy="12" r="2.7" fill="currentColor" stroke="none" class="a-breathe"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><radialGradient id="idle-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.45"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/></radialGradient><linearGradient id="idle-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#a855f7"/></linearGradient></defs><circle cx="16" cy="16" r="14" fill="url(#idle-glow)"/><circle cx="16" cy="16" r="12" stroke="url(#idle-grad)" stroke-width="1.5" stroke-dasharray="4 4"/><circle cx="16" cy="16" r="7" stroke="url(#idle-grad)" stroke-width="1" stroke-opacity="0.7" stroke-dasharray="6 6"/><circle cx="16" cy="16" r="3.5" fill="#60a5fa"/><circle cx="16" cy="16" r="1.5" fill="#ffffff"/></svg>`},
+{id:'connecting-model', zh:'连接模型', color:'c-accent',
+ n:'<circle cx="12" cy="12" r="8.25" opacity=".18"/><path d="M12 3.75A8.25 8.25 0 0 1 20.25 12" class="a-spin"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" class="a-breathe"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><radialGradient id="conn-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.4"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/></radialGradient><linearGradient id="conn-arc" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs><circle cx="16" cy="16" r="14" fill="url(#conn-glow)"/><circle cx="16" cy="16" r="12" stroke="#3b82f6" stroke-opacity="0.25" stroke-width="1.5" stroke-dasharray="4 4"/><circle cx="16" cy="16" r="9" stroke="url(#conn-arc)" stroke-width="2" stroke-linecap="round" stroke-dasharray="24 16"/><circle cx="16" cy="16" r="3.5" fill="#3b82f6"/><circle cx="16" cy="16" r="1.5" fill="#ffffff"/></svg>`},
+{id:'waiting-first-token', zh:'等待首个 token', color:'c-accent',
+ n:'<path d="M12 4.4c.55 3.5 2.4 5.35 5.9 5.9-3.5.55-5.35 2.4-5.9 5.9-.55-3.5-2.4-5.35-5.9-5.9 3.5-.55 5.35-2.4 5.9-5.9Z" class="a-breathe"/><path d="M18.4 15.4c.25 1.55 1.05 2.35 2.6 2.6-1.55.25-2.35 1.05-2.6 2.6-.25-1.55-1.05-2.35-2.6-2.6 1.55-.25 2.35-1.05 2.6-2.6Z" opacity=".45" class="a-breathe-d"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><radialGradient id="token-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#a855f7" stop-opacity="0.5"/><stop offset="100%" stop-color="#a855f7" stop-opacity="0"/></radialGradient></defs><circle cx="16" cy="16" r="14" fill="url(#token-glow)"/><g><path d="M16 4V8M16 24V28M4 16H8M24 16H28" stroke="#c084fc" stroke-width="2" stroke-linecap="round"/><path d="M7.5 7.5L10.3 10.3M21.7 21.7L24.5 24.5M7.5 24.5L10.3 21.7M21.7 10.3L24.5 7.5" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round" stroke-opacity="0.7"/></g><circle cx="16" cy="16" r="4" fill="#c084fc"/><circle cx="16" cy="16" r="2" fill="#ffffff"/></svg>`},
+{id:'planning', zh:'规划中', color:'c-accent',
+ n:'<circle cx="5.9" cy="18.1" r="1.9"/><circle cx="18.1" cy="5.9" r="1.9"/><path d="M7.6 16.75c2.8-2.15 6-7.35 8.8-9.5" stroke-dasharray="2.6 3" class="a-dash"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="plan-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient></defs><rect x="4" y="4" width="24" height="24" rx="5" stroke="url(#plan-grad)" stroke-width="1.5" stroke-opacity="0.3"/><path d="M16 4V28M4 16H28" stroke="url(#plan-grad)" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/><circle cx="16" cy="16" r="8" stroke="url(#plan-grad)" stroke-width="1.5" stroke-dasharray="18 12"/><path d="M16 10L19 16L16 22L13 16Z" fill="url(#plan-grad)"/><circle cx="16" cy="16" r="2" fill="#ffffff"/></svg>`},
+{id:'working', zh:'执行中 · 签名', color:'c-accent',
+ n:'<rect x="3.25" y="4.75" width="17.5" height="14.5" rx="2.75"/><path d="M7.1 9.25l3.1 2.75-3.1 2.75"/><rect x="12.9" y="13.15" width="3.9" height="1.9" rx=".95" fill="currentColor" stroke="none" class="a-blink"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="work-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#10b981"/><stop offset="50%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient></defs><circle cx="16" cy="16" r="13" stroke="url(#work-grad)" stroke-width="2" stroke-linecap="round" stroke-dasharray="22 10 8 10"/><circle cx="16" cy="16" r="8" stroke="url(#work-grad)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="12 12" stroke-opacity="0.75"/><circle cx="16" cy="16" r="3.5" fill="#10b981"/><path d="M14.5 13.5L12 16L14.5 18.5M17.5 13.5L20 16L17.5 18.5" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`},
+{id:'waiting-permission', zh:'等待授权', color:'c-warn',
+ n:'<path d="M12 3.9c2.3 1.45 4.55 2.2 6.9 2.35v5.4c0 4.25-2.75 7.2-6.9 8.8-4.15-1.6-6.9-4.55-6.9-8.8v-5.4C7.45 6.1 9.7 5.35 12 3.9Z" class="a-breathe"/><path d="M12 8.9v4.2M12 16.1h.01"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><radialGradient id="perm-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f59e0b" stop-opacity="0.45"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/></radialGradient></defs><circle cx="16" cy="16" r="14" fill="url(#perm-glow)"/><path d="M16 4L26 8V15C26 21.5 21.7 26.5 16 28C10.3 26.5 6 21.5 6 15V8L16 4Z" stroke="#f59e0b" stroke-width="2" stroke-linejoin="round" fill="#f59e0b" fill-opacity="0.15"/><path d="M16 11V17M16 21H16.01" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/></svg>`},
+{id:'compacting', zh:'压缩上下文', color:'c-jade',
+ n:'<g class="a-sqt"><path d="M12 4.25v4.5M9.9 6.6l2.1 2.15 2.1-2.15"/></g><g class="a-sqb"><path d="M12 19.75v-4.5M9.9 17.4l2.1-2.15 2.1 2.15"/></g><path d="M5.4 12h13.2" opacity=".45"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="comp-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#ec4899"/></linearGradient></defs><rect x="5" y="5" width="22" height="22" rx="4" stroke="url(#comp-grad)" stroke-width="1.5" stroke-opacity="0.3"/><path d="M7 11L16 16L25 11M7 21L16 16L25 21" stroke="url(#comp-grad)" stroke-width="1.5" stroke-linecap="round"/><path d="M12 8L16 16L20 8M12 24L16 16L20 24" stroke="url(#comp-grad)" stroke-width="1" stroke-opacity="0.6"/><circle cx="16" cy="16" r="3" fill="#ec4899"/></svg>`},
+{id:'complete', zh:'完成', color:'c-success',
+ n:'<circle cx="12" cy="12" r="8.25"/><path d="M8.4 12.4l2.5 2.5 4.7-4.9" class="a-draw"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#10b981" stroke-width="2.5" fill="#10b981" fill-opacity="0.12"/><path d="M9.5 16.5L14 21L22.5 11" stroke="#10b981" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`},
+{id:'failed', zh:'失败', color:'c-danger',
+ n:'<circle cx="12" cy="12" r="8.25"/><path d="M9.55 9.55l4.9 4.9M14.45 9.55l-4.9 4.9"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#ef4444" stroke-width="2.5" fill="#ef4444" fill-opacity="0.12"/><path d="M11 11L21 21M21 11L11 21" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/></svg>`},
+{id:'stopped', zh:'已停止', color:'c-muted',
+ n:'<circle cx="12" cy="12" r="8.25" stroke-dasharray="3 3.3" opacity=".6"/><rect x="9" y="9" width="6" height="6" rx="1.4" fill="currentColor" stroke="none"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 4"/><rect x="11" y="11" width="10" height="10" rx="2" fill="#94a3b8"/></svg>`},
+{id:'action-terminal', zh:'动作 · 终端', color:'',
+ n:'<path d="M5.75 5.9l6.4 6.1-6.4 6.1"/><rect x="13.9" y="16.2" width="4.6" height="2" rx="1" fill="currentColor" stroke="none" class="a-blink"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="term-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><rect x="4" y="6" width="24" height="20" rx="4" fill="rgba(6,78,59,0.4)" stroke="url(#term-grad)" stroke-width="1.5"/><path d="M8 12L12 15L8 18" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="14" y1="18" x2="22" y2="18" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="16" r="13" stroke="rgba(16,185,129,0.3)" stroke-width="1" stroke-dasharray="3 3"/></svg>`},
+{id:'action-edit', zh:'动作 · 编辑', color:'',
+ n:'<path d="M12.9 4.25H7.6c-1.1 0-2 .9-2 2v11.5c0 1.1.9 2 2 2h3.4"/><path d="M12.9 4.25V8.4h4.15" opacity=".45"/><path d="M17.7 11.9a1.9 1.9 0 0 1 2.7 2.7l-5.15 5.15-3.35.65.65-3.35Z"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="edit-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><rect x="6" y="5" width="20" height="22" rx="3" fill="rgba(6,78,59,0.4)" stroke="url(#edit-grad)" stroke-width="1.5"/><line x1="10" y1="10" x2="22" y2="10" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="14" x2="18" y2="14" stroke="#6ee7b7" stroke-width="1.5" stroke-linecap="round"/><line x1="10" y1="18" x2="21" y2="18" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/><path d="M19 22L24 17L26 19L21 24L19 24Z" fill="#10b981" stroke="#ffffff" stroke-width="1"/></svg>`},
+{id:'action-search', zh:'动作 · 搜索', color:'',
+ n:'<circle cx="10.9" cy="10.9" r="6.15"/><path d="M15.4 15.4l4.1 4.1"/><circle cx="10.9" cy="10.9" r="2.1" fill="currentColor" stroke="none" opacity=".45" class="a-breathe"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="search-grad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#06b6d4"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient></defs><circle cx="14" cy="14" r="8" stroke="url(#search-grad)" stroke-width="2"/><line x1="20" y1="20" x2="26" y2="26" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round"/><line x1="6" y1="14" x2="22" y2="14" stroke="#67e8f9" stroke-width="1.5" stroke-opacity="0.8" stroke-dasharray="6 14"/><circle cx="14" cy="14" r="3" fill="#06b6d4"/></svg>`},
+{id:'action-web', zh:'动作 · Web', color:'',
+ n:'<circle cx="12" cy="12" r="8.25"/><path d="M3.75 12h16.5"/><path d="M12 3.75c2.55 2.2 3.85 4.95 3.85 8.25S14.55 18.05 12 20.25c-2.55-2.2-3.85-4.95-3.85-8.25S9.45 5.95 12 3.75Z" opacity=".45"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="12" stroke="#3b82f6" stroke-width="1.5" stroke-opacity="0.4"/><ellipse cx="16" cy="16" rx="12" ry="5" stroke="#60a5fa" stroke-width="1.5"/><line x1="4" y1="16" x2="28" y2="16" stroke="#3b82f6" stroke-width="1.5"/><circle cx="16" cy="16" r="4" fill="#60a5fa"/></svg>`},
+{id:'action-subagent', zh:'动作 · 子代理', color:'',
+ n:'<circle cx="12" cy="6.4" r="2.4"/><circle cx="6.6" cy="17.6" r="2.15" opacity=".7"/><circle cx="17.4" cy="17.6" r="2.15" opacity=".7"/><path d="M10.9 8.55 7.6 15.7M13.1 8.55l3.3 7.15" opacity=".45"/>',
+ o:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="10" r="4" fill="#a855f7"/><circle cx="9" cy="22" r="3.5" fill="#8b5cf6"/><circle cx="23" cy="22" r="3.5" fill="#c084fc"/><path d="M14 13L10.5 19M18 13L21.5 19M12.5 22H19.5" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="3 3"/></svg>`},
+];
+
+/* ───────────────────────── 渲染 ───────────────────────── */
+const coreRoot = document.getElementById('coreSections');
+GROUPS.forEach(gr => {
+  const items = CORE.filter(c => c.g === gr.id);
+  if (!items.length) return;
+  const sec = document.createElement('section');
+  sec.innerHTML = `
+    <div class="sec-head"><span class="eyebrow">${gr.en}</span><h2>${gr.zh}</h2><span class="count">${items.length} 枚</span></div>
+    <div class="grid">${items.map(cardHtml).join('')}</div>`;
+  coreRoot.appendChild(sec);
+});
+function cardHtml(it){
+  return `<div class="card" data-key="${it.id} ${it.zh}">
+    <div class="old-chip" title="现版">${svgOld(it)}<span class="tag">旧</span></div>
+    <div class="stage">${svgNew(it.n)}</div>
+    <div class="meta">${svgNew(it.n)}<span class="nm mono">${it.id}</span><span class="zh">${it.zh}</span></div>
+  </div>`;
+}
+
+/* 文件标识 */
+document.getElementById('ftCount').textContent = FT_LIST.length + ' 类';
+document.getElementById('ftGrid').innerHTML = FT_LIST.map(f => `
+  <div class="card" data-key="${f.k} ${f.zh} ${f.nm}">
+    <div class="old-chip" title="现版">${ftOldSvg(f.k, 15)}<span class="tag">旧</span></div>
+    <div class="stage"><span style="width:var(--demo);height:var(--demo);display:inline-flex">${ftNewSvg(f.k,'100%')}</span></div>
+    <div class="meta">${ftNewSvg(f.k,16)}<span class="nm mono">${f.nm}</span><span class="zh">${f.zh}</span></div>
+  </div>`).join('');
+
+const TREE = [
+  {k:'dir', n:'src', indent:false},
+  {k:'tsx', n:'App.tsx', indent:true},
+  {k:'ts',  n:'chat-reducer.ts', indent:true},
+  {k:'js',  n:'legacy.js', indent:true},
+  {k:'css', n:'styles.css', indent:true},
+  {k:'py',  n:'prompt.py', indent:false},
+  {k:'json',n:'config.json', indent:false},
+  {k:'md',  n:'README.md', indent:false},
+  {k:'html',n:'index.html', indent:false},
+  {k:'rs',  n:'main.rs', indent:false},
+  {k:'go',  n:'server.go', indent:false},
+  {k:'sh',  n:'deploy.sh', indent:false},
+  {k:'img', n:'logo.png', indent:false},
+  {k:'file',n:'LICENSE', indent:false},
+];
+document.getElementById('treeOld').innerHTML = TREE.map(t =>
+  `<div class="trow${t.indent?' indent':''}">${ftOldSvg(t.k,16)}<span class="fn">${t.n}</span></div>`).join('');
+document.getElementById('treeNew').innerHTML = TREE.map(t =>
+  `<div class="trow${t.indent?' indent':''}">${ftNewSvg(t.k,16)}<span class="fn">${t.n}</span></div>`).join('');
+
+/* Run 状态 */
+document.getElementById('runCount').textContent = RUN.length + ' 态';
+document.getElementById('runGrid').innerHTML = RUN.map(r => `
+  <div class="run-card card" data-key="${r.id} ${r.zh}">
+    <div class="old-chip old-run" title="现版">${r.o}<span class="tag">旧</span></div>
+    <div class="stage ${r.color}">${svgNew(r.n)}</div>
+    <div class="meta"><span class="${r.color}" style="display:inline-flex;width:16px;height:16px">${svgNew(r.n)}</span><span class="nm mono">${r.id}</span><span class="zh">${r.zh}</span></div>
+  </div>`).join('');
+
+/* 设计语言演示 */
+const term = CORE.find(c => c.id === 'terminal');
+document.getElementById('gridStage').innerHTML = svgNew(term.n);
+const sig = ['terminal','agent','canvas'].map(id => CORE.find(c => c.id === id));
+document.getElementById('sigIcons').innerHTML = sig.map(s => svgNew(s.n)).join('');
+
+/* ───────────────────────── 控件 ───────────────────────── */
+const sizeInput = document.getElementById('size');
+sizeInput.addEventListener('input', () => {
+  document.documentElement.style.setProperty('--demo', sizeInput.value + 'px');
+  document.getElementById('sizeVal').textContent = sizeInput.value + 'px';
+});
+document.getElementById('anim').addEventListener('change', e => {
+  document.body.classList.toggle('noanim', !e.target.checked);
+});
+const themeBtn = document.getElementById('theme');
+const sunIcon = CORE.find(c => c.id === 'sun'), moonIcon = CORE.find(c => c.id === 'moon');
+function paintThemeBtn(){
+  const light = document.body.classList.contains('light');
+  document.getElementById('themeIcon').innerHTML =
+    `<span style="display:inline-flex;width:15px;height:15px">${svgNew(light ? moonIcon.n : sunIcon.n)}</span>`;
+  document.getElementById('themeLabel').textContent = light ? '暗色' : '亮色';
+}
+themeBtn.addEventListener('click', () => { document.body.classList.toggle('light'); paintThemeBtn(); });
+paintThemeBtn();
+document.getElementById('q').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.card').forEach(c => {
+    c.classList.toggle('hide', !!q && !c.dataset.key.toLowerCase().includes(q));
+  });
+});
+</script>
+</body>
+</html>
