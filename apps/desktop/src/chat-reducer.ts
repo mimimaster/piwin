@@ -36,8 +36,13 @@ import {
   createBoundedTextAccumulator,
   type BoundedTextAccumulator,
 } from './bounded-text-accumulator';
-import { GENERAL_SESSION_PAGE_SIZE, PROJECT_SESSION_PAGE_SIZE } from './session-sidebar-page';
-import { SESSION_LIST_WINDOW_MAX_PAGES } from './session-list-page-state';
+import {
+  adjustSessionListScopeTotal,
+  createSessionListScopeState,
+  getSessionListScopeMeta,
+  setSessionListScopeMeta,
+  type SessionListScopeState,
+} from './session-list-scope';
 import {
   measureTranscriptCacheBytes,
   prependBoundedTranscriptPage,
@@ -53,8 +58,6 @@ import {
 
 const MAX_RETAINED_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
-const GENERAL_SESSION_WINDOW_MAX_ITEMS = GENERAL_SESSION_PAGE_SIZE * SESSION_LIST_WINDOW_MAX_PAGES;
-const PROJECT_SESSION_WINDOW_MAX_ITEMS = PROJECT_SESSION_PAGE_SIZE * SESSION_LIST_WINDOW_MAX_PAGES;
 const TOOL_OUTPUT_RETENTION_OPTIONS = {
   maximumBytes: MAX_RETAINED_TOOL_OUTPUT_BYTES,
   truncationMarker: TOOL_OUTPUT_TRUNCATION_MARKER,
@@ -246,8 +249,8 @@ export type ChatUiState = {
   generalSessions: SessionListItemUi[];
   /** Per-project session lists for the sidebar folder tree (see above). */
   projectSessionsByPath: Record<string, SessionListItemUi[]>;
-  /** True after Desktop migrates list ownership to bounded Host pages. */
-  sessionListsWindowed: boolean;
+  /** Host projection metadata per hydrated scope. */
+  sessionListScopes: SessionListScopeState;
   activeSessionId: string | null;
   messages: ChatMessageUi[];
   /**
@@ -396,9 +399,11 @@ export type ChatUiAction =
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
   | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
   | {
-      type: 'session/hydrate-page';
+      type: 'session/hydrate-scope';
       scope: SessionScope;
       sessions: SessionListItemUi[];
+      totalCount: number;
+      truncated: boolean;
       fillActiveList?: boolean;
     }
   | {
@@ -542,7 +547,7 @@ export function createInitialChatUiState(): ChatUiState {
      *  from `sessions` (the active scope's list) so any number of project
      *  folders can stay open with their own conversations visible. */
     projectSessionsByPath: {},
-    sessionListsWindowed: false,
+    sessionListScopes: createSessionListScopeState(),
     activeSessionId: null,
     messages: [],
     warmSessionCache: createEmptyWarmSessionCache(),
@@ -785,6 +790,35 @@ function refreshActiveSessionMetadata(
         ? null
         : state.activeSessionMetadata,
   };
+}
+
+function dedupeSessionsById(sessions: SessionListItemUi[]): SessionListItemUi[] {
+  const seen = new Set<string>();
+  const unique: SessionListItemUi[] = [];
+  for (const session of sessions) {
+    if (seen.has(session.id)) {
+      continue;
+    }
+    seen.add(session.id);
+    unique.push(session);
+  }
+  return unique;
+}
+
+function sessionListContainsId(list: readonly SessionListItemUi[], sessionId: string): boolean {
+  return list.some((session) => session.id === sessionId);
+}
+
+function owningScopeFromLists(state: ChatUiState, sessionId: string): SessionScope | null {
+  if (sessionListContainsId(state.generalSessions, sessionId)) {
+    return { kind: 'general' };
+  }
+  for (const [projectPath, list] of Object.entries(state.projectSessionsByPath)) {
+    if (sessionListContainsId(list, sessionId)) {
+      return { kind: 'project', projectPath };
+    }
+  }
+  return null;
 }
 
 function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiState {
@@ -1163,33 +1197,41 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       // Sidebar policy: placeholder / empty names never enter the list. The
       // session can still be active (composer) until the first text title lands.
       const listable = !isPlaceholderSessionName(action.name);
-      const unboundedSessionsForPath = listable
-        ? [newSession, ...state.sessions.filter((item) => item.id !== action.sessionId)]
+      const alreadyKnown =
+        projectPath != null
+          ? sessionListContainsId(state.projectSessionsByPath[projectPath] ?? [], action.sessionId)
+          : sessionListContainsId(state.generalSessions, action.sessionId);
+      const nextSessionsForPath = listable
+        ? dedupeSessionsById([
+            newSession,
+            ...state.sessions.filter((item) => item.id !== action.sessionId),
+          ])
         : state.sessions.filter((item) => item.id !== action.sessionId);
-      const activePageLimit =
-        state.activeScope.kind === 'general'
-          ? GENERAL_SESSION_WINDOW_MAX_ITEMS
-          : PROJECT_SESSION_WINDOW_MAX_ITEMS;
-      const nextSessionsForPath = state.sessionListsWindowed
-        ? unboundedSessionsForPath.slice(0, activePageLimit)
-        : unboundedSessionsForPath;
       const nextGeneralSessions = listable
-        ? [newSession, ...state.generalSessions.filter((item) => item.id !== action.sessionId)]
+        ? dedupeSessionsById([
+            newSession,
+            ...state.generalSessions.filter((item) => item.id !== action.sessionId),
+          ])
         : state.generalSessions.filter((item) => item.id !== action.sessionId);
+      const owningScope: SessionScope =
+        projectPath != null ? { kind: 'project', projectPath } : { kind: 'general' };
+      const nextSessionListScopes =
+        listable && !alreadyKnown
+          ? adjustSessionListScopeTotal(state.sessionListScopes, owningScope, 1)
+          : state.sessionListScopes;
       return {
         ...state,
         sessions: nextSessionsForPath,
         generalSessions:
           state.activeScope.kind === 'general' && listable
-            ? state.sessionListsWindowed
-              ? nextGeneralSessions.slice(0, GENERAL_SESSION_WINDOW_MAX_ITEMS)
-              : nextGeneralSessions
+            ? nextGeneralSessions
             : state.generalSessions.filter((item) => item.id !== action.sessionId),
         // Mirror the new row into the folder tree for the active project.
         projectSessionsByPath:
           projectPath != null && listable
             ? { ...state.projectSessionsByPath, [projectPath]: nextSessionsForPath }
             : state.projectSessionsByPath,
+        sessionListScopes: nextSessionListScopes,
         activeSessionId: action.sessionId,
         messages: [],
         transcriptWindow: null,
@@ -1228,18 +1270,29 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           : null,
       };
     }
-    case 'session/hydrate-page': {
-      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+    case 'session/hydrate-scope': {
+      const listable = dedupeSessionsById(
+        action.sessions.filter((session) => !isPlaceholderSessionName(session.name)),
+      );
+      const meta = {
+        totalCount: action.totalCount,
+        truncated: action.truncated,
+      };
+      const nextSessionListScopes = setSessionListScopeMeta(
+        state.sessionListScopes,
+        action.scope,
+        meta,
+      );
       if (action.scope.kind === 'general') {
         return {
           ...state,
-          sessionListsWindowed: true,
+          sessionListScopes: nextSessionListScopes,
           generalSessions: listable,
           ...(state.activeScope.kind === 'general'
             ? {
                 sessions: listable,
-                // Page navigation must not deselect the active transcript when
-                // the user intentionally moves to another index page.
+                // Hydration must not deselect the active transcript when the
+                // bounded projection does not contain that row.
                 activeSessionId: state.activeSessionId,
               }
             : {}),
@@ -1251,7 +1304,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           state.activeScope.projectPath === action.scope.projectPath);
       return {
         ...state,
-        sessionListsWindowed: true,
+        sessionListScopes: nextSessionListScopes,
         projectSessionsByPath: {
           ...state.projectSessionsByPath,
           [action.scope.projectPath]: listable,
@@ -1357,28 +1410,22 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       const upsertIntoList = (
         list: SessionListItemUi[],
         shouldOwn: boolean,
-        pageLimit: number,
       ): SessionListItemUi[] => {
         let next = list.map((session) =>
           session.id === action.session.id ? { ...session, ...action.session } : session,
         );
         if (shouldOwn && listable) {
           if (!next.some((session) => session.id === action.session.id)) {
-            const canInsert =
-              !state.sessionListsWindowed || state.activeSessionId === action.session.id;
-            if (canInsert) {
-              next.unshift({
-                ...action.session,
-                id: action.session.id,
-                name: action.session.name ?? mergedForCheck.name,
-              });
-            }
+            next.unshift({
+              ...action.session,
+              id: action.session.id,
+              name: action.session.name ?? mergedForCheck.name,
+            });
           }
         } else if (!shouldOwn || !listable) {
           next = next.filter((session) => session.id !== action.session.id);
         }
-        const sorted = sortPinnedThenUpdated(next);
-        return state.sessionListsWindowed ? sorted.slice(0, pageLimit) : sorted;
+        return sortPinnedThenUpdated(dedupeSessionsById(next));
       };
 
       // Active list only receives inserts for sessions that belong to the
@@ -1390,20 +1437,34 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           : owningProjectPath != null &&
             state.activeScope.kind === 'project' &&
             state.activeScope.projectPath === owningProjectPath;
-      const activePageLimit =
-        state.activeScope.kind === 'general'
-          ? GENERAL_SESSION_WINDOW_MAX_ITEMS
-          : PROJECT_SESSION_WINDOW_MAX_ITEMS;
-      const nextSessions = upsertIntoList(state.sessions, activeListOwnsSession, activePageLimit);
-      const nextGeneral = upsertIntoList(
-        state.generalSessions,
-        belongsToGeneral,
-        GENERAL_SESSION_WINDOW_MAX_ITEMS,
-      );
+      const nextSessions = upsertIntoList(state.sessions, activeListOwnsSession);
+      const nextGeneral = upsertIntoList(state.generalSessions, belongsToGeneral);
+
+      const owningScope: SessionScope | null =
+        owningProjectPath != null
+          ? { kind: 'project', projectPath: owningProjectPath }
+          : belongsToGeneral
+            ? { kind: 'general' }
+            : null;
+      const alreadyResident =
+        knownInGeneral ||
+        knownProjectPath !== undefined ||
+        sessionListContainsId(state.sessions, action.session.id);
+      const scopeMeta =
+        owningScope === null ? null : getSessionListScopeMeta(state.sessionListScopes, owningScope);
+      const admitWithoutCounting =
+        !alreadyResident &&
+        listable &&
+        state.activeSessionId === action.session.id &&
+        scopeMeta?.truncated === true;
+      let nextSessionListScopes = state.sessionListScopes;
+      if (owningScope !== null && listable && !alreadyResident && !admitWithoutCounting) {
+        nextSessionListScopes = adjustSessionListScopeTotal(nextSessionListScopes, owningScope, 1);
+      }
 
       if (owningProjectPath != null) {
         const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
-        const nextOwned = upsertIntoList(owned, true, PROJECT_SESSION_WINDOW_MAX_ITEMS);
+        const nextOwned = upsertIntoList(owned, true);
         // Drop the same id from any other project folders so a re-homed
         // session cannot appear under two project trees at once.
         const nextProjectSessionsByPath: Record<string, SessionListItemUi[]> = {
@@ -1425,9 +1486,15 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           sessions: nextSessions,
           generalSessions: nextGeneral,
           projectSessionsByPath: nextProjectSessionsByPath,
+          sessionListScopes: nextSessionListScopes,
         };
       }
-      return { ...state, sessions: nextSessions, generalSessions: nextGeneral };
+      return {
+        ...state,
+        sessions: nextSessions,
+        generalSessions: nextGeneral,
+        sessionListScopes: nextSessionListScopes,
+      };
     }
     case 'session/remove': {
       const nextSessions = state.sessions.filter((session) => session.id !== action.sessionId);
@@ -1440,12 +1507,18 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           list.filter((session) => session.id !== action.sessionId),
         ]),
       );
+      const removedScope = owningScopeFromLists(state, action.sessionId);
+      const nextSessionListScopes =
+        removedScope === null
+          ? state.sessionListScopes
+          : adjustSessionListScopeTotal(state.sessionListScopes, removedScope, -1);
       const activeRemoved = state.activeSessionId === action.sessionId;
       return {
         ...state,
         sessions: nextSessions,
         generalSessions: nextGeneralSessions,
         projectSessionsByPath: nextProjectSessionsByPath,
+        sessionListScopes: nextSessionListScopes,
         warmSessionCache: removeWarmSessionSnapshot(state.warmSessionCache, action.sessionId),
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,

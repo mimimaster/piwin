@@ -92,41 +92,24 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
   return { container, root };
 }
 
-describe('ProjectSessionSidebar bounded lazy session windows', () => {
-  it('mounts at most six legacy project sessions without page controls', () => {
+describe('ProjectSessionSidebar resident session lists', () => {
+  it('renders the full resident project list without disclosure or lazy controls', () => {
     const sessions = createMockSessions(13);
     const { container } = renderSidebar({
       filteredSessions: sessions,
     });
 
     const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
-    expect(sessionItems.length).toBe(6);
+    expect(sessionItems.length).toBe(13);
+    expect(container.textContent).toContain('Session Item 13');
     expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
     expect(container.querySelector('.session-page-row')).toBeNull();
-    expect(container.querySelector('[data-testid="see-all-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="see-all-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
+    expect(container.querySelector('[data-testid="load-more-project-sessions"]')).toBeNull();
   });
 
-  it('combines the six-row preview with a bounded See all expansion', () => {
-    const sessions = createMockSessions(25);
-    const { container } = renderSidebar({ filteredSessions: sessions });
-
-    const disclosure = container.querySelector('[data-testid="see-all-btn"]');
-    expect(disclosure?.textContent).toContain('See all (25)');
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(6);
-
-    act(() => {
-      (disclosure as HTMLButtonElement).click();
-    });
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(18);
-    expect(disclosure?.textContent).toContain('Show less');
-
-    act(() => {
-      (disclosure as HTMLButtonElement).click();
-    });
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(6);
-  });
-
-  it('displays all project sessions when count is within the page budget', () => {
+  it('displays a small project list without page controls', () => {
     const sessions = createMockSessions(5);
     const { container } = renderSidebar({
       filteredSessions: sessions,
@@ -134,95 +117,6 @@ describe('ProjectSessionSidebar bounded lazy session windows', () => {
 
     const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
     expect(sessionItems.length).toBe(5);
-    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
-  });
-
-  it('does not reveal a complete legacy array when no Host cursor is available', () => {
-    const sessions = createMockSessions(13);
-    const { container } = renderSidebar({
-      filteredSessions: sessions,
-    });
-
-    expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(6);
-    expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(6);
-    expect(container.textContent).not.toContain('Session Item 7');
-    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
-  });
-
-  it('enables Host cursor boundaries only after See all and resets on Show less', async () => {
-    const onSessionPageChange = vi.fn(async () => undefined);
-    const onSessionWindowReset = vi.fn();
-    const sessions = createMockSessions(4);
-    const { container } = renderSidebar({
-      filteredSessions: sessions,
-      sessionListWindows: {
-        general: null,
-        projects: {
-          '/Users/test/project-a': {
-            pages: [
-              {
-                page: {
-                  revision: 'revision',
-                  pageIndex: 166,
-                  pageCount: 168,
-                  totalCount: 1_003,
-                  previousCursor: 'previous-cursor',
-                  nextCursor: 'next-cursor',
-                },
-                items: sessions,
-                retainedBytes: 1_024,
-              },
-            ],
-          },
-        },
-      },
-      onSessionPageChange,
-      onSessionWindowReset,
-    });
-
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(4);
-    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
-    expect(container.querySelector('[data-testid="session-lazy-previous"]')).toBeNull();
-    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
-    expect(onSessionPageChange).not.toHaveBeenCalled();
-
-    const disclosure = container.querySelector('[data-testid="see-all-btn"]');
-    await act(async () => {
-      (disclosure as HTMLButtonElement).click();
-      await Promise.resolve();
-    });
-    expect(container.querySelector('[data-testid="session-lazy-previous"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="session-lazy-next"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="load-more-project-sessions"]')).not.toBeNull();
-    // See all eagerly requests the next Host page so the list is not stuck
-    // on the first six rows waiting for a zero-height intersection sentinel.
-    expect(onSessionPageChange).toHaveBeenCalledWith(
-      { kind: 'project', projectPath: '/Users/test/project-a' },
-      'next-cursor',
-      'next',
-    );
-
-    await act(async () => {
-      (disclosure as HTMLButtonElement).click();
-      await Promise.resolve();
-    });
-    expect(onSessionWindowReset).toHaveBeenCalledWith({
-      kind: 'project',
-      projectPath: '/Users/test/project-a',
-    });
-    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
-    expect(container.querySelector('[data-testid="load-more-project-sessions"]')).toBeNull();
-  });
-
-  it('selects an old active session page without expanding a 1,003-row project', () => {
-    const sessions = createMockSessions(1_003);
-    const { container } = renderSidebar({
-      filteredSessions: sessions,
-      activeSessionId: 'session-999',
-    });
-
-    expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(6);
-    expect(container.textContent).toContain('Session Item 999');
     expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
   });
 
@@ -337,17 +231,17 @@ describe('ProjectSessionSidebar bounded lazy session windows', () => {
     expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
   });
 
-  it('keeps Conversations in a six-row preview until See all', () => {
+  it('renders the full Conversations list without See all', () => {
     const { container } = renderSidebar({
-      generalSessions: createMockSessions(112),
+      generalSessions: createMockSessions(12),
     });
 
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(6);
-    expect(container.querySelector('[data-testid="see-all-general-btn"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(12);
+    expect(container.querySelector('[data-testid="see-all-general-btn"]')).toBeNull();
     expect(container.querySelector('[data-testid="general-session-pager"]')).toBeNull();
   });
 
-  it('keeps legacy project and General fallbacks independently bounded', () => {
+  it('keeps project and General lists independently owned', () => {
     const projects = createMockProjects(2);
     const { container } = renderSidebar({
       recentProjects: projects,
@@ -358,7 +252,7 @@ describe('ProjectSessionSidebar bounded lazy session windows', () => {
       generalSessions: createMockSessions(8),
     });
 
-    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(12);
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(16);
     expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
     expect(container.querySelector('[data-testid="general-session-pager"]')).toBeNull();
   });
