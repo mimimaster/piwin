@@ -374,6 +374,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     blueprint: SerializableBlueprint;
     providers?: SerializableWorkerProviderRuntime[];
     seedMessages?: readonly SessionSeedMessage[];
+    seedMode?: 'compaction' | 'replay';
   }): Promise<{ sessionId: string }>;
   async createSession(input: unknown): Promise<{ sessionId: string }> {
     const response = await this.request(

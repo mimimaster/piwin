@@ -55,6 +55,8 @@ export type WorkerPiSessionFactoryInput = {
   /** Opaque bootstrap ids resolved inside the worker, never from JSONL. */
   bootstrapSecrets?: ReadonlyMap<string, string>;
   seedMessages?: readonly SessionSeedMessage[];
+  /** `compaction` (default) forces whole-history compaction; `replay` keeps seeds intact. */
+  seedMode?: 'compaction' | 'replay';
   extensionUi?: ExtensionUiPort;
   /** Proxy tools to register as Pi customTools (WP4). */
   proxyTools?: PiBackendCustomToolDefinition[];
@@ -341,9 +343,13 @@ export function createWorkerPiSessionFactory(
         blueprint.workingDirectory,
         input.seedMessages,
       );
-      sessionOptions.settingsManager = createSeededPiSettingsManager(
-        piModule as Record<string, unknown>,
-      );
+      if (input.seedMode !== 'replay') {
+        // Compaction/subagent snapshots want Pi to compact the whole seeded
+        // history; full-fidelity replay must keep it intact.
+        sessionOptions.settingsManager = createSeededPiSettingsManager(
+          piModule as Record<string, unknown>,
+        );
+      }
     }
 
     // Inject proxy tools as Pi customTools (WP4). The worker does NOT

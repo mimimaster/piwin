@@ -1,9 +1,14 @@
 /** Build an in-memory Pi SessionManager from product transcript text. */
 
 import type { Api, AssistantMessage, UserMessage } from '@earendil-works/pi-ai';
-import type { SessionSeedMessage } from '@piwin/contracts';
+import type { NativeContextEntry, SessionSeedMessage } from '@piwin/contracts';
 
-type SeedablePiMessage = UserMessage | AssistantMessage;
+/**
+ * Pi `appendMessage` accepts the full native Message union (assistant,
+ * toolResult, …). Replayed native copies are parsed JSON of exactly those
+ * shapes; the record form covers roles this module does not synthesize.
+ */
+type SeedablePiMessage = UserMessage | AssistantMessage | Record<string, unknown>;
 
 type SeededSessionManager = {
   appendMessage(message: SeedablePiMessage): string;
@@ -34,11 +39,49 @@ export function createSeededPiSessionManager(
 
   const manager = sessionManager.inMemory(cwd);
   for (const message of seedMessages) {
+    const nativeMessages = parseNativeEntries(message.native);
+    if (nativeMessages !== undefined) {
+      // Full-fidelity replay (spec: session-conversation-tree §4.4): the
+      // native copies already contain tool calls, tool results, and thinking.
+      for (const nativeMessage of nativeMessages) {
+        manager.appendMessage(nativeMessage);
+      }
+      continue;
+    }
     const text = message.text.trim();
     if (!text) continue;
     manager.appendMessage(toPiMessage(message, text));
   }
   return manager;
+}
+
+/**
+ * Parse one seed's native entries. Any truncated or unparsable entry makes
+ * the whole seed fall back to its text form — a partial native replay would
+ * desynchronize tool-call/tool-result pairing inside the Pi context.
+ */
+function parseNativeEntries(
+  entries: readonly NativeContextEntry[] | undefined,
+): Record<string, unknown>[] | undefined {
+  if (entries === undefined || entries.length === 0) {
+    return undefined;
+  }
+  const parsed: Record<string, unknown>[] = [];
+  for (const entry of entries) {
+    if (entry.truncated === true || entry.payload.length === 0) {
+      return undefined;
+    }
+    try {
+      const value = JSON.parse(entry.payload) as unknown;
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return undefined;
+      }
+      parsed.push(value as Record<string, unknown>);
+    } catch {
+      return undefined;
+    }
+  }
+  return parsed;
 }
 
 /**

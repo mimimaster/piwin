@@ -105,7 +105,11 @@ export async function createBackendSdkSession(
       capabilitySnapshot.workingDirectory,
       input.seedMessages,
     );
-    sessionOptions.settingsManager = createSeededPiSettingsManager(piModule);
+    if (input.seedMode !== 'replay') {
+      // Compaction/subagent snapshots want Pi to compact the whole seeded
+      // history; full-fidelity replay must keep it intact.
+      sessionOptions.settingsManager = createSeededPiSettingsManager(piModule);
+    }
   }
 
   if (input.blueprint.model) {

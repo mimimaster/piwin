@@ -60,6 +60,11 @@ export type CreateBackendSessionInput = {
   extensionUi?: ExtensionUiPort;
   /** Optional non-persisted history for an ephemeral session. */
   seedMessages?: readonly SessionSeedMessage[];
+  /**
+   * `compaction` (default) keeps the aggressive keep-recent compaction
+   * override; `replay` seeds full-fidelity history without forcing compaction.
+   */
+  seedMode?: 'compaction' | 'replay';
 };
 
 /**
