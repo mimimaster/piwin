@@ -268,7 +268,7 @@
 }
 
 [data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon,
-[data-activity-animation='artifact-sheen'][data-tool-status='running'] .artifact-preparing-icon {
+[data-activity-animation='gate-pulse'][data-tool-status='running'] {
   animation: behavior-icon-sheen var(--behavior-icon-wave-duration) linear infinite;
 }
 
@@ -511,7 +511,6 @@
   [data-activity-animation='pulse-block'][data-tool-status='running'] .tool-call-kind-icon,
   [data-activity-animation='diff-in'][data-tool-status='running'] .tool-call-kind-icon,
   [data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon,
-  [data-activity-animation='artifact-sheen'][data-tool-status='running'] .artifact-preparing-icon,
   [data-activity-animation='gate-pulse'][data-tool-status='running'],
   [data-activity-animation='pulse-block'][data-tool-status='running'] .tool-status-dot,
   [data-activity-animation='gate-pulse'][data-tool-status='running'] .tool-status-dot,

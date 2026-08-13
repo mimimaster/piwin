@@ -13,11 +13,7 @@ import {
 } from './constants.js';
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
-import type {
-  ArtifactIframePolicy,
-  ArtifactSurface,
-  ArtifactThemeVariables,
-} from './types.js';
+import type { ArtifactIframePolicy, ArtifactSurface, ArtifactThemeVariables } from './types.js';
 
 export function buildStrictArtifactCsp(policy: ArtifactIframePolicy): string {
   return [
@@ -47,10 +43,7 @@ function escapeCssValue(value: string): string {
   return value.replace(/[;{}]/g, '').trim();
 }
 
-function buildResponsiveCss(
-  theme: ArtifactThemeVariables,
-  surface: ArtifactSurface,
-): string {
+function buildResponsiveCss(theme: ArtifactThemeVariables, surface: ArtifactSurface): string {
   const variables = Object.entries(theme)
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
@@ -540,6 +533,25 @@ ${streamUpdateBootstrap}
     ready();
     scheduleMeasureLadder('normal');
   });
+  // Late-loading media (async image decode, dynamically added <img>/<svg>)
+  // does not mutate the DOM, so the MutationObserver misses it. A spiked
+  // final-trim measurement taken before the media arrives would otherwise
+  // shrink the frame and stay locked there, cropping the lower part of the
+  // rendered image. 'load' does not bubble — capture it at the document.
+  document.addEventListener(
+    'load',
+    function (event) {
+      var target = event.target;
+      if (
+        target &&
+        typeof target.tagName === 'string' &&
+        (target.tagName === 'IMG' || target.tagName === 'SVG' || target.tagName === 'VIDEO')
+      ) {
+        scheduleMeasureLadder('normal');
+      }
+    },
+    true
+  );
   window.addEventListener('resize', scheduleMeasure, true);
   window.addEventListener('click', function () { scheduleMeasureLadder('interaction'); }, true);
   window.addEventListener('input', function () { scheduleMeasureLadder('interaction'); }, true);

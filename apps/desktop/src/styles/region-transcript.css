@@ -3499,75 +3499,12 @@ html[data-theme-mode='light'] .permission-detail {
   max-width: 100%;
 }
 
-.artifact-frame.preparing,
-.artifact-frame-waiting {
-  background: transparent;
-  min-height: 80px;
+.artifact-frame.blocked {
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 8px;
 }
 
-.artifact-frame.preparing {
-  display: grid;
-  min-height: 104px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
-  border-radius: 12px;
-  background:
-    radial-gradient(
-      circle at 18% 10%,
-      color-mix(in srgb, var(--accent) 12%, transparent),
-      transparent 48%
-    ),
-    color-mix(in srgb, var(--card) 82%, transparent);
-}
-
-.artifact-preparing-content {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 18px 20px;
-}
-
-.artifact-preparing-icon {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  flex: none;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-  color: var(--accent);
-}
-
-.artifact-preparing-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.artifact-preparing-copy {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.artifact-preparing-copy strong {
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.artifact-preparing-copy > span {
-  color: var(--muted);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-
+/* Sheen shared by the recycled "paused to save memory" placeholder. */
 .artifact-preparing-sheen {
   position: absolute;
   inset: 0;
@@ -3590,15 +3527,9 @@ html[data-theme-mode='light'] .permission-detail {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .artifact-preparing-sheen,
-  .artifact-preparing-icon {
+  .artifact-preparing-sheen {
     animation: none !important;
   }
-}
-
-.artifact-frame.blocked {
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-  border-radius: 8px;
 }
 
 .artifact-frame-actions {
@@ -3756,44 +3687,6 @@ html[data-theme-mode='light'] .permission-detail {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-}
-
-/* Loading shell while init-queue / srcdoc paint — never leave a blank park. */
-.artifact-iframe-loading {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--line));
-  border-radius: 12px;
-  background:
-    radial-gradient(
-      circle at 18% 10%,
-      color-mix(in srgb, var(--accent) 10%, transparent),
-      transparent 48%
-    ),
-    color-mix(in srgb, var(--card) 88%, transparent);
-  pointer-events: none;
-}
-
-.artifact-iframe-loading-copy {
-  position: relative;
-  z-index: 1;
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 500;
-}
-
-.artifact-iframe.is-pending-paint {
-  pointer-events: none;
-}
-
-.artifact-iframe.is-painted {
-  transition: opacity 160ms ease;
 }
 
 .artifact-iframe {

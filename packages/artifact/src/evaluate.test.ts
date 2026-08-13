@@ -57,7 +57,10 @@ describe('evaluateCodeFence', () => {
       mode: 'stream-preview',
       htmlUiModeEnabled: true,
     });
-    // May be preparing if structure not streamable enough, or render
+    // Parser promotion for native html fences requires a class/id on the root
+    // div; with neither present this stays an ordinary code fence. When it is
+    // promoted, stream-preview must never emit a preparing state.
+    expect(['render', 'code']).toContain(decision.kind);
     if (decision.kind === 'render') {
       expect(decision.mode).toBe('stream-preview');
       expect(decision.srcdoc).not.toContain('<script');
@@ -66,9 +69,32 @@ describe('evaluateCodeFence', () => {
       expect(decision.srcdoc).toContain('piwin-artifact:stream-update');
       expect(decision.srcdoc).toContain('name="piwin-artifact-channel" content="stream"');
       expect(decision.srcdoc).not.toContain('content="stream-stream"');
-    } else {
-      expect(['preparing', 'blocked', 'code']).toContain(decision.kind);
     }
+  });
+
+  it('mounts a render frame immediately for not-yet-streamable sources (no preparing state)', () => {
+    // A streaming fence that has no stable structure yet must still mount the
+    // live frame (empty/partial body) so UI blocks draw progressively instead
+    // of showing a waiting state.
+    const emptyDecision = evaluateCodeFence({
+      language: 'artifact-html',
+      source: '',
+      id: 'empty-stream',
+      mode: 'stream-preview',
+    });
+    expect(emptyDecision.kind).toBe('render');
+    if (emptyDecision.kind === 'render') {
+      expect(emptyDecision.mode).toBe('stream-preview');
+      expect(emptyDecision.srcdoc).toContain('piwin-artifact:stream-update');
+    }
+
+    const styleOnlyDecision = evaluateCodeFence({
+      language: 'artifact-html',
+      source: '<style>.card { color: red; }</style>',
+      id: 'style-only-stream',
+      mode: 'stream-preview',
+    });
+    expect(styleOnlyDecision.kind).toBe('render');
   });
 
   it('renders an incomplete SVG as a safe stream snapshot', () => {

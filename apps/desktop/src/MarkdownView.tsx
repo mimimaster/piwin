@@ -25,17 +25,10 @@ import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './s
 import { fileNameFromPath, PathChip } from './path-chip';
 import { ArtifactFrame } from './ArtifactFrame';
 import { ArtifactCanvasLauncher } from './artifact-canvas-launcher';
-import {
-  createArtifactCanvasTarget,
-  type ArtifactCanvasTarget,
-} from './artifact-canvas-model';
+import { createArtifactCanvasTarget, type ArtifactCanvasTarget } from './artifact-canvas-model';
 import { isFlashcardArtifactSource } from './flashcard-artifact';
 import { MermaidBlock } from './MermaidBlock';
-import {
-  isMathFenceLanguage,
-  isMermaidFenceLanguage,
-  renderKatex,
-} from './markdown-math';
+import { isMathFenceLanguage, isMermaidFenceLanguage, renderKatex } from './markdown-math';
 import { parseUnifiedDiff } from './diff-view';
 import { computeDiffLineNumbers } from './diff-line-numbers';
 import { CollapsibleContentBlock } from './collapsible-content-block';
@@ -125,7 +118,7 @@ type MarkdownViewProps = {
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence when heavy path runs. */
   artifactMaxBytes?: number;
-  /** Locale for Artifact preparing feedback. */
+  /** Locale for Artifact frame copy (recycled preview placeholder). */
   locale?: 'zh-CN' | 'en';
   /** Callback when user clicks a markdown document link or plan document chip. */
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
@@ -279,9 +272,7 @@ function renderMarkdownChildren(
   if (typeof children === 'string') return renderMarkdownText(children, onOpenDocument);
   if (!Array.isArray(children)) return children;
   return children.map((child, index) =>
-    typeof child === 'string'
-      ? renderMarkdownText(child, onOpenDocument, `text-${index}`)
-      : child,
+    typeof child === 'string' ? renderMarkdownText(child, onOpenDocument, `text-${index}`) : child,
   );
 }
 
@@ -321,7 +312,8 @@ function createStreamdownComponents(optionsRef: {
     </p>
   );
 
-  const renderHeading = (level: number) =>
+  const renderHeading =
+    (level: number) =>
     ({
       children,
       node: _node,
@@ -337,11 +329,7 @@ function createStreamdownComponents(optionsRef: {
     };
 
   const renderList = (
-    {
-      children,
-      node: _node,
-      className,
-    }: StreamdownElementProps<'ul'>,
+    { children, node: _node, className }: StreamdownElementProps<'ul'>,
     ordered: boolean,
   ): ReactElement => {
     const ListTag = ordered ? 'ol' : 'ul';
@@ -368,7 +356,9 @@ function createStreamdownComponents(optionsRef: {
     if (dataBlock === undefined) {
       const inlineValue = plainTextFromReactNode(children);
       const isMarkdownPath =
-        (inlineValue.includes('/') || inlineValue.includes('\\') || inlineValue.startsWith('file://')) &&
+        (inlineValue.includes('/') ||
+          inlineValue.includes('\\') ||
+          inlineValue.startsWith('file://')) &&
         inlineValue.trim().endsWith('.md');
       if (isMarkdownPath && options.onOpenDocument) {
         return (
@@ -499,7 +489,8 @@ function createStreamdownComponents(optionsRef: {
     style,
     ...props
   }: StreamdownElementProps<'th'>): ReactElement => {
-    const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
+    const textAlign =
+      align === 'left' || align === 'center' || align === 'right' ? align : undefined;
     return (
       <th {...props} style={textAlign ? { ...style, textAlign } : style}>
         {renderMarkdownChildren(children, optionsRef.current.onOpenDocument)}
@@ -514,7 +505,8 @@ function createStreamdownComponents(optionsRef: {
     style,
     ...props
   }: StreamdownElementProps<'td'>): ReactElement => {
-    const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
+    const textAlign =
+      align === 'left' || align === 'center' || align === 'right' ? align : undefined;
     return (
       <td {...props} style={textAlign ? { ...style, textAlign } : style}>
         {renderMarkdownChildren(children, optionsRef.current.onOpenDocument)}
@@ -527,7 +519,7 @@ function createStreamdownComponents(optionsRef: {
     node: _node,
     className,
     ...props
-  }: StreamdownElementProps<'blockquote'>): ReactElement => (
+  }: StreamdownElementProps<'blockquote'>): ReactElement =>
     (() => {
       const calloutMatch = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.exec(
         plainTextFromReactNode(children),
@@ -551,8 +543,7 @@ function createStreamdownComponents(optionsRef: {
           {children}
         </blockquote>
       );
-    })()
-  );
+    })();
 
   const renderImage = ({
     node: _node,
@@ -561,15 +552,7 @@ function createStreamdownComponents(optionsRef: {
     ...props
   }: StreamdownElementProps<'img'>): ReactElement => {
     if (!src) return <span className="md-image-fallback">{alt || 'Image unavailable'}</span>;
-    return (
-      <img
-        {...props}
-        src={src}
-        alt={alt ?? ''}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-      />
-    );
+    return <img {...props} src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />;
   };
 
   const renderInput = ({
@@ -606,9 +589,11 @@ function createStreamdownComponents(optionsRef: {
     td: renderTableDataCell,
     code: renderCode,
     pre: ({ children, node: _node }: StreamdownElementProps<'pre'>) =>
-      isValidElement<StreamdownCodeProps>(children)
-        ? cloneElement(children, { 'data-block': 'true' })
-        : <>{children}</>,
+      isValidElement<StreamdownCodeProps>(children) ? (
+        cloneElement(children, { 'data-block': 'true' })
+      ) : (
+        <>{children}</>
+      ),
     a: renderAnchor,
     img: renderImage,
     input: renderInput,
@@ -757,11 +742,7 @@ export function MarkdownView({
     [artifactOrigin?.sessionId, artifactOrigin?.messageId],
   );
 
-  const streamdownText = normalizeStreamingArtifactFences(
-    text,
-    streamdownHtmlUiMode,
-    !streamMode,
-  );
+  const streamdownText = normalizeStreamingArtifactFences(text, streamdownHtmlUiMode, !streamMode);
   const shouldShowStreamingCaret = streamMode && showStreamingCaret && text.trim().length > 0;
   // Streamdown treats a trailing blank line as a separate streaming block.
   // That would put the caret on an otherwise empty line, so remove only the
@@ -857,7 +838,6 @@ export function MarkdownView({
       {streamdownTextForRender}
     </Streamdown>
   );
-
 }
 
 function CodeFenceView(props: {
@@ -889,11 +869,6 @@ function CodeFenceView(props: {
     stickyFenceIdRef.current = `${origin}-artifact-${props.fenceIndex}`;
   }
   const stickyFenceId = stickyFenceIdRef.current;
-  // Keep the last successful stream-preview decision so a brief preparing glitch
-  // does not unmount ArtifactFrame (that unmount is a guaranteed white flash).
-  const lastStreamRenderRef = useRef<Extract<ArtifactPreviewDecision, { kind: 'render' }> | null>(
-    null,
-  );
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
     props.renderingPhase === 'explicit-artifact-review' || !artifactCodeFirst,
   );
@@ -943,28 +918,16 @@ function CodeFenceView(props: {
   const decisionLanguage = decision.kind === 'code' ? decision.language : undefined;
   const isShell = isShellLanguage(props.language || decisionLanguage);
 
-  if (streamMode && decision.kind === 'render') {
-    lastStreamRenderRef.current = decision;
-  }
-  if (!streamMode) {
-    lastStreamRenderRef.current = null;
-  }
-
   if (streamMode) {
-    // Hold last successful render so preparing glitches never unmount the iframe.
-    const frameDecision =
-      decision.kind === 'render'
-        ? decision
-        : lastStreamRenderRef.current && decision.kind !== 'blocked'
-          ? lastStreamRenderRef.current
-          : null;
-
+    // No separate waiting state: evaluate mounts the render frame as soon as
+    // the fence parses (possibly with an empty body) and stream snapshots
+    // draw the UI block by block.
     if (
       props.artifactPreviewEnabled &&
       artifactPreviewOpen &&
       !artifactCodeFirst &&
       !isCanvasArtifact &&
-      frameDecision
+      decision.kind === 'render'
     ) {
       return (
         <div
@@ -977,7 +940,7 @@ function CodeFenceView(props: {
               // Same key in stream and completed branches; theme changes remain a
               // deliberate document boundary, token growth and `done` do not.
               key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
-              decision={frameDecision}
+              decision={decision}
               initPriority={props.initPriority}
               locale={props.locale}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
@@ -996,23 +959,6 @@ function CodeFenceView(props: {
             </Button>
           </div>
         </div>
-      );
-    }
-
-    // Before first streamable snapshot: fixed preparing shell (no iframe yet).
-    if (
-      props.artifactPreviewEnabled &&
-      artifactPreviewOpen &&
-      !artifactCodeFirst &&
-      !isCanvasArtifact &&
-      decision.kind === 'preparing'
-    ) {
-      return (
-        <ArtifactFrame
-          decision={decision}
-          initPriority={props.initPriority}
-          locale={props.locale}
-        />
       );
     }
 
@@ -1077,7 +1023,7 @@ function CodeFenceView(props: {
     return <FlashcardPreviewCard {...flashcardProps} />;
   }
 
-  if (decision.kind === 'render' || decision.kind === 'blocked' || decision.kind === 'preparing') {
+  if (decision.kind === 'render' || decision.kind === 'blocked') {
     // When capability is off, evaluate returned `code` for native html (because
     // htmlUiModeEnabled=false). Explicit artifact-* descriptors still parse,
     // but we must NOT offer the heavy path. Render as ordinary code using the
@@ -1256,14 +1202,14 @@ function CodeFenceView(props: {
             </span>
           ) : null}
           <span className="md-code-lang muted">
-            {decision.language || (isShell ? 'bash' : 'code')}
+            {props.language || (isShell ? 'bash' : 'code')}
           </span>
         </div>
-        <CopyCodeButton text={decision.source} />
+        <CopyCodeButton text={props.source} />
       </div>
       <CodeBodyWithLineNumbers
-        source={decision.source}
-        language={decision.language ?? props.language}
+        source={props.source}
+        language={props.language}
         highlightEnabled={!streamMode}
       />
     </div>
@@ -1327,7 +1273,7 @@ function FlashcardPreviewCard(props: {
   const decision = evaluateCodeFence(evaluateOptions);
   return (
     <div className="artifact-with-source artifact-with-source--preview">
-      {decision.kind === 'render' || decision.kind === 'preparing' ? (
+      {decision.kind === 'render' ? (
         <>
           <div className="artifact-preview-surface">
             <ArtifactFrame

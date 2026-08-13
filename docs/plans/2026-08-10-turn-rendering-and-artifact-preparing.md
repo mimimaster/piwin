@@ -39,3 +39,32 @@ preparing text until the first safe stream-preview snapshot exists.
 - Incomplete SVG/HTML stream preview shows an animated preparing state; reduced
   motion disables the animation; the iframe still mounts only after a safe
   render decision.
+
+## Follow-up (2026-08-13): preparing/loading states removed
+
+User feedback: the animated "preparing" intermediate state and the in-frame
+loading shell felt like a regression against the original progressive streaming
+render, and a transcript re-render (e.g. clicking the composer) reset painted
+frames back to the waiting shell while collapsing their height.
+
+Reversal:
+
+- `evaluateArtifactDescriptor` no longer returns `preparing` in
+  `stream-preview` mode. Empty / not-yet-streamable sources mount the live
+  iframe immediately (empty or sanitized body) and stream snapshots draw the UI
+  block by block. Real blocks (size, external resources) are unchanged.
+- `ArtifactFrame` no longer renders the preparing shell or the loading overlay;
+  the iframe paints immediately after the init grant (no opacity gating).
+- The height-reset `useLayoutEffect` now keys on the stable `documentKey`
+  (srcdoc identity) instead of the per-render `decision` object, so equivalent
+  re-renders no longer reset height/status. Streaming SVG still seeds from the
+  viewBox estimate on every snapshot (grow-only).
+- The sandboxed height bridge re-measures when late-loading media (`img`,
+  `video`, nested `svg`) fires `load`, so a mid-load "trim" measurement can no
+  longer lock a cropped frame.
+- The live-host budget / recycled "paused to save memory" placeholder is kept
+  (it is the actual memory optimization), only the waiting animations were
+  removed.
+
+The `preparing` decision kind remains in `@piwin/artifact` types for API
+stability but is no longer emitted by the evaluation pipeline.

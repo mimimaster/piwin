@@ -36,7 +36,6 @@ import {
 import { useArtifactHeightSignal } from './artifact-height-signal';
 import { useTranscriptScrollPort } from './transcript-scroll-port';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
-import { IconSpark } from './shell-icons';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
@@ -51,10 +50,7 @@ const ARTIFACT_BRIDGE_RESIZE_THROTTLE_MS = 120;
 const ARTIFACT_BRIDGE_HEIGHT_EPSILON_PX = 2;
 
 export type ArtifactFrameProps = {
-  decision: Extract<
-    ArtifactPreviewDecision,
-    { kind: 'render' } | { kind: 'blocked' } | { kind: 'preparing' }
-  >;
+  decision: Extract<ArtifactPreviewDecision, { kind: 'render' } | { kind: 'blocked' }>;
   /** Higher = sooner init when many artifacts mount (history). */
   initPriority?: number;
   /** Presentation surface: inline (chat) or canvas (side panel). */
@@ -76,30 +72,13 @@ export type ArtifactFrameProps = {
    * keep this for tests and any remaining in-frame action hosts.
    */
   extraHeaderAction?: ReactElement;
-  /** Localized preparing copy for chat and settings surfaces. */
+  /** Localized copy (recycled preview placeholder). */
   locale?: 'zh-CN' | 'en';
 };
 
 /** User-facing content label for an artifact descriptor type. */
 function getArtifactContentLabel(type: 'html' | 'svg'): string {
   return type === 'svg' ? 'SVG' : 'HTML UI';
-}
-
-function getArtifactPreparingCopy(
-  type: 'html' | 'svg',
-  locale: 'zh-CN' | 'en',
-): { title: string; detail: string } {
-  const isSvg = type === 'svg';
-  if (locale === 'zh-CN') {
-    return {
-      title: isSvg ? '正在生成 SVG' : '正在生成界面',
-      detail: '首个可安全渲染的内容准备好后会自动显示',
-    };
-  }
-  return {
-    title: isSvg ? 'Generating SVG' : 'Rendering interface',
-    detail: 'The first safe preview will appear automatically',
-  };
 }
 
 function postArtifactStreamUpdate(
@@ -149,9 +128,7 @@ function estimateFallbackHeightFromDecision(
     return null;
   }
   const source =
-    decision.mode === 'stream-preview'
-      ? decision.renderSource
-      : decision.descriptor.source;
+    decision.mode === 'stream-preview' ? decision.renderSource : decision.descriptor.source;
   if (!source || source.trim().length === 0) {
     return null;
   }
@@ -204,35 +181,6 @@ export function ArtifactFrame({
     );
   }
 
-  if (decision.kind === 'preparing') {
-    const preparingCopy = getArtifactPreparingCopy(decision.descriptor.type, locale);
-    return (
-      <div
-        data-testid="artifact-frame"
-        data-activity-id="artifact"
-        data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
-        data-tool-status="running"
-        className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}
-        role="status"
-        aria-live="polite"
-      >
-        {extraHeaderAction ? (
-          <div className="artifact-frame-actions">{extraHeaderAction}</div>
-        ) : null}
-        <div className="artifact-preparing-content">
-          <span className="artifact-preparing-icon" aria-hidden="true">
-            <IconSpark />
-          </span>
-          <span className="artifact-preparing-copy">
-            <strong>{preparingCopy.title}</strong>
-            <span>{preparingCopy.detail}</span>
-          </span>
-          <span className="artifact-preparing-sheen" aria-hidden="true" />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ArtifactRenderFrame
       // One id owns the stream and completed lifecycle; mode is state, not identity.
@@ -279,6 +227,10 @@ function ArtifactRenderFrame(props: {
   const latestUpdateIsFinalRef = useRef(decision.mode !== 'stream-preview');
   const latestDescriptorSourceRef = useRef(decision.descriptor.source);
   latestDescriptorSourceRef.current = decision.descriptor.source;
+  // Latest decision for effects that must not re-run on every parent re-render
+  // (evaluateCodeFence builds a fresh but equivalent object each render).
+  const latestDecisionRef = useRef(decision);
+  latestDecisionRef.current = decision;
   const lastFinalSourceRef = useRef<string | null>(null);
   const [granted, setGranted] = useState(false);
   /**
@@ -293,7 +245,6 @@ function ArtifactRenderFrame(props: {
   const [statusLabel, setStatusLabel] = useState<'loading' | 'ready' | 'timeout' | 'streaming'>(
     decision.mode === 'stream-preview' ? 'streaming' : 'loading',
   );
-  const [paintedDocumentKey, setPaintedDocumentKey] = useState<string | null>(null);
   const frameRootRef = useRef<HTMLDivElement | null>(null);
   const floorRef = useRef(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const heightRef = useRef(INITIAL_ARTIFACT_IFRAME_HEIGHT);
@@ -473,7 +424,6 @@ function ArtifactRenderFrame(props: {
   useEffect(() => {
     if (!hostIframe) {
       setGranted(false);
-      setPaintedDocumentKey(null);
       cancelArtifactInit(channelId);
       releaseArtifactInit(channelId);
       return;
@@ -481,7 +431,6 @@ function ArtifactRenderFrame(props: {
 
     let cancelled = false;
     setGranted(false);
-    setPaintedDocumentKey(null);
     slotReleasedRef.current = false;
     streamPostedOnceRef.current = false;
     lastStreamPostAtRef.current = 0;
@@ -652,7 +601,6 @@ function ArtifactRenderFrame(props: {
         }
         applyHeight(immediate);
         setStatusLabel(decision.mode === 'stream-preview' ? 'streaming' : 'ready');
-        setPaintedDocumentKey(documentKey);
         // Stream-preview must stay grow-only (`protected`). Opening final-trim
         // while tokens still arrive lets measured height shrink between
         // snapshots — very visible flicker for SVG canvases and HTML cards.
@@ -674,7 +622,6 @@ function ArtifactRenderFrame(props: {
     readyTimeout = window.setTimeout(() => {
       if (phaseRef.current === 'protected') {
         setStatusLabel('timeout');
-        setPaintedDocumentKey(documentKey);
         // Bridge silent (common in packaged Tauri when WindowProxy identity
         // diverges): still expand SVG frames from viewBox so art is not a strip.
         if (heightRef.current <= INITIAL_ARTIFACT_IFRAME_HEIGHT + 8) {
@@ -725,51 +672,44 @@ function ArtifactRenderFrame(props: {
   ]);
 
   // Reset height only when the iframe *document identity* changes (not every
-  // parent re-render with a freshly-built but equivalent srcdoc string).
-  // SVG seeds from viewBox so packaged Tauri without a working bridge is not
-  // stuck at the 80px initial strip.
+  // parent re-render with a freshly-built but equivalent srcdoc string — that
+  // used to collapse a painted artifact back to the seed height and re-show
+  // the loading shell on any transcript interaction, e.g. clicking the
+  // composer). SVG seeds from viewBox so packaged Tauri without a working
+  // bridge is not stuck at the 80px initial strip.
   useLayoutEffect(() => {
+    const latest = latestDecisionRef.current;
     const stageWidth =
       frameRootRef.current?.getBoundingClientRect().width ??
       (typeof window !== 'undefined' ? Math.min(window.innerWidth - 120, 780) : 640);
     const svgSeed =
-      presentation !== 'canvas' ? estimateFallbackHeightFromDecision(decision, stageWidth) : null;
-    const seedHeight = Math.max(INITIAL_ARTIFACT_IFRAME_HEIGHT, svgSeed ?? INITIAL_ARTIFACT_IFRAME_HEIGHT);
+      presentation !== 'canvas' ? estimateFallbackHeightFromDecision(latest, stageWidth) : null;
+    const seedHeight = Math.max(
+      INITIAL_ARTIFACT_IFRAME_HEIGHT,
+      svgSeed ?? INITIAL_ARTIFACT_IFRAME_HEIGHT,
+    );
 
-    if (usesStreamLifecycle && decision.mode === 'stream-preview') {
+    if (usesStreamLifecycle) {
+      // Stream lifecycle keeps the same document forever: seed once from the
+      // current SVG geometry, then let the height bridge grow the stage.
+      // Preserve the visible frame and measured height through the final
+      // in-place body commit (final ready/trim messages may still adjust).
       floorRef.current = Math.max(floorRef.current, seedHeight);
       if (svgSeed !== null && svgSeed > heightRef.current) {
         heightRef.current = svgSeed;
         setHeight(svgSeed);
-      } else {
-        floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
       }
       setContentOverflowing(false);
       phaseRef.current = 'protected';
       setPhase('protected');
-      setStatusLabel('streaming');
-      slotReleasedRef.current = false;
-      streamPostedOnceRef.current = false;
-      lastStreamPostAtRef.current = 0;
+      setStatusLabel(latest.mode === 'stream-preview' ? 'streaming' : 'loading');
       if (settleTimerRef.current) {
         clearTimeout(settleTimerRef.current);
         settleTimerRef.current = null;
       }
       return;
     }
-    if (usesStreamLifecycle) {
-      // Preserve the visible frame and its measured height while the final body
-      // is committed. The final ready/trim messages may then shrink cleanly.
-      setContentOverflowing(false);
-      phaseRef.current = 'protected';
-      setPhase('protected');
-      setStatusLabel('loading');
-      if (settleTimerRef.current) {
-        clearTimeout(settleTimerRef.current);
-        settleTimerRef.current = null;
-      }
-      return;
-    }
+
     heightRef.current = seedHeight;
     floorRef.current = seedHeight;
     setHeight(seedHeight);
@@ -782,15 +722,35 @@ function ArtifactRenderFrame(props: {
       clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
     }
-    setPaintedDocumentKey(null);
-  }, [decision, documentKey, presentation, usesStreamLifecycle]);
+  }, [documentKey, presentation, usesStreamLifecycle]);
+
+  // Streaming SVG seed: as a viewBox streams in, grow the stage from the
+  // intrinsic aspect estimate before the height bridge reports, so the first
+  // paint is never an 80px strip. Only grows — never resets a painted frame.
+  useLayoutEffect(() => {
+    if (
+      !usesStreamLifecycle ||
+      presentation === 'canvas' ||
+      decision.mode !== 'stream-preview' ||
+      decision.descriptor.type !== 'svg'
+    ) {
+      return;
+    }
+    const stageWidth =
+      frameRootRef.current?.getBoundingClientRect().width ??
+      (typeof window !== 'undefined' ? Math.min(window.innerWidth - 120, 780) : 640);
+    const svgSeed = estimateFallbackHeightFromDecision(decision, stageWidth);
+    if (svgSeed !== null) {
+      floorRef.current = Math.max(floorRef.current, svgSeed);
+      if (svgSeed > heightRef.current) {
+        heightRef.current = svgSeed;
+        setHeight(svgSeed);
+      }
+    }
+  }, [decision, presentation, usesStreamLifecycle]);
 
   const isCanvas = presentation === 'canvas';
   const hasExtraHeaderAction = extraHeaderAction !== undefined;
-  const isPainted = paintedDocumentKey === documentKey;
-  // Never leave a parked viewport on a pure blank: show sheen until the
-  // bridge marks ready (or timeout paints). Recycled off-screen uses a shell.
-  const showLoadingShell = hostIframe && !isPainted;
   return (
     <div
       ref={frameRootRef}
@@ -798,9 +758,9 @@ function ArtifactRenderFrame(props: {
       data-activity-id="artifact"
       data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
       data-tool-status={statusLabel === 'ready' ? 'done' : 'running'}
-      data-artifact-host={hostIframe ? (isPainted ? 'live' : 'loading') : 'recycled'}
+      data-artifact-host={hostIframe ? 'live' : 'recycled'}
       data-content-overflowing={contentOverflowing ? 'true' : undefined}
-      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${hasExtraHeaderAction ? ' has-artifact-action' : ''}${hostIframe ? '' : ' is-recycled'}${showLoadingShell ? ' is-loading' : ''}`}
+      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${hasExtraHeaderAction ? ' has-artifact-action' : ''}${hostIframe ? '' : ' is-recycled'}`}
     >
       {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
       {!hostIframe ? (
@@ -844,26 +804,10 @@ function ArtifactRenderFrame(props: {
                 }
           }
         >
-          {showLoadingShell ? (
-            <div
-              className="artifact-iframe-loading"
-              data-testid="artifact-iframe-loading"
-              role="status"
-              aria-live="polite"
-            >
-              <span className="artifact-preparing-icon" aria-hidden="true">
-                <IconSpark />
-              </span>
-              <span className="artifact-iframe-loading-copy">
-                {locale === 'zh-CN' ? '正在加载预览…' : 'Loading preview…'}
-              </span>
-              <span className="artifact-preparing-sheen" aria-hidden="true" />
-            </div>
-          ) : null}
           {granted ? (
             <iframe
               ref={iframeRef as RefObject<HTMLIFrameElement>}
-              className={`artifact-iframe${isPainted ? ' is-painted' : ' is-pending-paint'}`}
+              className="artifact-iframe"
               title={decision.descriptor.title}
               srcDoc={iframeSrcdoc}
               sandbox="allow-scripts"
@@ -881,12 +825,6 @@ function ArtifactRenderFrame(props: {
                   );
                   streamPostedOnceRef.current = true;
                   lastStreamPostAtRef.current = Date.now();
-                } else {
-                  // Interactive remounts: reveal as soon as the document loads so
-                  // a parked viewport never sits on a hidden iframe waiting for
-                  // the bridge postMessage (ready still refines height).
-                  setPaintedDocumentKey(documentKey);
-                  setStatusLabel((prev) => (prev === 'ready' ? prev : 'loading'));
                 }
               }}
               style={
@@ -897,7 +835,6 @@ function ArtifactRenderFrame(props: {
                       maxHeight: '100%',
                       width: '100%',
                       border: 0,
-                      opacity: isPainted ? 1 : 0,
                     }
                   : {
                       minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
@@ -905,7 +842,6 @@ function ArtifactRenderFrame(props: {
                       maxHeight: '100%',
                       width: '100%',
                       border: 0,
-                      opacity: isPainted ? 1 : 0,
                     }
               }
             />
