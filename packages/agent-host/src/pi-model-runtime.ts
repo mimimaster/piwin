@@ -74,6 +74,8 @@ export type PiModelRegistration = {
   headers?: Record<string, string>;
   /** Product capability tags retained for native-search request shaping. */
   capabilities?: ModelCapability[];
+  /** Declared native-search request-shaping mechanism (ADR 0043). */
+  nativeSearchAdapter?: import('@piwin/contracts').NativeSearchAdapterKind;
 };
 
 export type PiProviderRegistration = {
@@ -153,6 +155,9 @@ export function buildPiProviderRegistration(
       if (model.capabilities?.length) {
         registration.capabilities = [...model.capabilities];
       }
+      if (model.nativeSearchAdapter) {
+        registration.nativeSearchAdapter = model.nativeSearchAdapter;
+      }
       return registration;
     });
 
@@ -173,6 +178,7 @@ export function buildPiProviderRegistration(
   const nativeFlags: NativeSearchModelFlags[] = models.map((model) => ({
     id: model.id,
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
+    ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
   }));
   if (providerNeedsNativeSearchWrapper(nativeFlags, options.searchRoute)) {
     const wrapped = wrapStreamSimpleForNativeSearch(options.streamSimple, {

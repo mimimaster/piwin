@@ -30,7 +30,10 @@ export function buildSearchRoutePreview(
       searchRoutePolicy: input.policy,
       ...(input.searchDelegateModel ? { searchDelegateModel: input.searchDelegateModel } : {}),
     },
-    adapter: resolveNativeSearchAdapterSupport(configured?.provider.protocol),
+    adapter: resolveNativeSearchAdapterSupport(
+      configured?.provider.protocol,
+      configured?.model.nativeSearchAdapter,
+    ),
     externalDelegateReady: Boolean(findReadyWebSearchDelegate(config, input.searchDelegateModel)),
   });
 

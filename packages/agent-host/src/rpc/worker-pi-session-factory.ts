@@ -253,6 +253,7 @@ export function buildWorkerProviderRegistration(
       maxTokens: model.maxOutputTokens ?? 8_192,
       ...(provider.headers ? { headers: provider.headers } : {}),
       ...(model.capabilities ? { capabilities: [...model.capabilities] } : {}),
+      ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
     };
   });
   const registration: ReturnType<typeof buildPiProviderRegistration> = {
@@ -271,6 +272,7 @@ export function buildWorkerProviderRegistration(
   const nativeFlags = models.map((model) => ({
     id: model.id,
     ...(model.capabilities ? { capabilities: model.capabilities } : {}),
+    ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
   }));
   if (providerNeedsNativeSearchWrapper(nativeFlags, searchRoute)) {
     const wrapped = wrapStreamSimpleForNativeSearch(streamSimple, {

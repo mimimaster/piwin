@@ -46,6 +46,13 @@ type SettingsServiceOptions = {
  */
 export class SettingsService {
   private readonly rootDir: string;
+  /**
+   * Process-local mutation mutex. The CLI dispatcher already serializes
+   * `settings/apply`, but the service must not silently lose updates when two
+   * writers (panels, tests, future transports) race the same base revision:
+   * the read-modify-write cycle is atomic only within this chain.
+   */
+  private mutationChain: Promise<unknown> = Promise.resolve();
 
   constructor(options: SettingsServiceOptions = {}) {
     this.rootDir = getPiwinRoot(options.piwinRoot);
@@ -56,7 +63,18 @@ export class SettingsService {
     return createSettingsSnapshot(config);
   }
 
-  async apply(input: ApplySettingsInput): Promise<SettingsApplyResult> {
+  apply(input: ApplySettingsInput): Promise<SettingsApplyResult> {
+    return this.runSerialized(() => this.applyMutation(input));
+  }
+
+  private runSerialized<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mutationChain.then(operation, operation);
+    // A failed mutation must never wedge the chain; later applies still run.
+    this.mutationChain = result.catch(() => undefined);
+    return result;
+  }
+
+  private async applyMutation(input: ApplySettingsInput): Promise<SettingsApplyResult> {
     const currentSnapshot = await this.getSnapshot();
     if (
       input.expectedRevision !== undefined &&

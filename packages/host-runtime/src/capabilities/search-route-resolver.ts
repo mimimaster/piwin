@@ -10,6 +10,7 @@ import type {
   ModelConfigEntry,
   ModelProviderConfig,
   ModelRef,
+  NativeSearchAdapterKind,
   PiwinConfig,
   ResolvedSearchRoute,
   SearchBackend,
@@ -242,7 +243,10 @@ export function findReadyWebSearchDelegate(
     configured.provider.protocol !== modelRef.protocol ||
     !isModelEnabled(configured.model) ||
     !modelSupportsCapability(configured.model, 'native-web-search') ||
-    !resolveNativeSearchAdapterSupport(configured.provider.protocol).requestSupported
+    !resolveNativeSearchAdapterSupport(
+      configured.provider.protocol,
+      configured.model.nativeSearchAdapter,
+    ).requestSupported
   ) {
     return undefined;
   }
@@ -256,20 +260,54 @@ export function findReadyWebSearchDelegate(
   };
 }
 
-/** Resolve native-search support for the selected product provider protocol. */
+/**
+ * Resolve native-search support for a model. The model's declared request
+ * shaping (nativeSearchAdapter) must actually be expressible for its
+ * provider protocol; a protocol match alone is not evidence that a vendor
+ * gateway accepts the generic native-search fields.
+ */
 export function resolveNativeSearchAdapterSupport(
   protocol: ModelProviderConfig['protocol'] | undefined,
+  nativeSearchAdapter?: NativeSearchAdapterKind,
 ): NativeSearchAdapterSupport {
   return {
+    // Legacy configs omit the declaration; fall back to the protocol's
+    // canonical shaping so existing setups keep working. Declared kinds are
+    // checked strictly (vendor-specific shapes are never generically safe).
     requestSupported:
-      protocol === 'openai-compatible' ||
-      protocol === 'anthropic-compatible' ||
-      protocol === 'google-gemini',
+      nativeSearchAdapter === undefined
+        ? protocol === 'openai-compatible' ||
+          protocol === 'anthropic-compatible' ||
+          protocol === 'google-gemini'
+        : isAdapterExpressibleForProtocol(protocol, nativeSearchAdapter),
     // Pi 0.80.10 does not preserve provider annotations/grounding metadata in
     // its normalized AssistantMessage events. Keep this false until the
     // adapter receives those response fields; request shaping still works.
     citationSupported: false,
   };
+}
+
+/**
+ * Whether the request-shaping layer can express a declared native-search
+ * mechanism for a provider protocol.
+ */
+export function isAdapterExpressibleForProtocol(
+  protocol: ModelProviderConfig['protocol'] | undefined,
+  nativeSearchAdapter: NativeSearchAdapterKind,
+): boolean {
+  switch (nativeSearchAdapter) {
+    case 'openai-web-search-options':
+    case 'openai-responses-tool':
+      return protocol === 'openai-compatible';
+    case 'anthropic-web-search-tool':
+      return protocol === 'anthropic-compatible';
+    case 'google-search-tool':
+      return protocol === 'google-gemini';
+    case 'vendor-specific':
+      // Custom header/extra_body/tool shapes need a dedicated adapter; never
+      // guess them from the transport protocol.
+      return false;
+  }
 }
 
 /**

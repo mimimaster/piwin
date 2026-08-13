@@ -28,6 +28,28 @@ export type ModelCapability =
   | 'native-web-search';
 
 /**
+ * Request-shaping mechanism for provider-native web search. The value is
+ * deliberately separate from both the model capability tag and the transport
+ * protocol: `native-web-search` declares that the model CAN search natively;
+ * `nativeSearchAdapter` declares HOW the provider wants that search expressed
+ * on the wire.
+ *
+ * - `openai-web-search-options` — chat/completions `web_search_options` field.
+ * - `openai-responses-tool`       — Responses API `tools: [{type: web_search_preview}]`.
+ * - `anthropic-web-search-tool`   — Anthropic `web_search_20250305` tool entry.
+ * - `google-search-tool`          — Gemini `googleSearch` tool in `config.tools`.
+ * - `vendor-specific`             — custom header/extra_body/tool shape that the
+ *   generic adapter cannot express; native readiness must be reported as
+ *   unsupported until a dedicated adapter exists.
+ */
+export type NativeSearchAdapterKind =
+  | 'openai-web-search-options'
+  | 'openai-responses-tool'
+  | 'anthropic-web-search-tool'
+  | 'google-search-tool'
+  | 'vendor-specific';
+
+/**
  * Provider wire formats used by the asynchronous video-generation adapters.
  * The value is deliberately separate from the provider protocol: vendors such
  * as Runway, Luma, and MiniMax do not share the OpenAI-compatible response
@@ -104,6 +126,14 @@ export type ModelConfigEntry = {
   thinkingLevels?: readonly ThinkingLevel[];
   /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
   capabilities?: ModelCapability[];
+  /**
+   * Wire mechanism the provider expects for native web search (ADR 0043).
+   * Declares how the request must be shaped, independently of the transport
+   * protocol: an openai-compatible gateway can still require a vendor header
+   * or tool shape that the generic adapter cannot express. When omitted,
+   * Host falls back to the protocol's canonical shaping for compatibility.
+   */
+  nativeSearchAdapter?: NativeSearchAdapterKind;
   /** Per-capability route overrides (path, timeout). */
   routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
   /**

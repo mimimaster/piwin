@@ -416,6 +416,7 @@ function computeConfigRevision(config: PiwinConfig): string {
           id: model.id,
           reasoning: model.reasoning,
           thinkingLevels: model.thinkingLevels,
+          nativeSearchAdapter: model.nativeSearchAdapter,
         })),
       })) ?? [],
     permissions: config.permissions,
@@ -539,7 +540,10 @@ function compileToolPolicy(
     const searchRoute = resolveSearchRoute({
       model: configured?.model ?? null,
       web: config.web,
-      adapter: resolveNativeSearchAdapterSupport(configured?.provider.protocol),
+      adapter: resolveNativeSearchAdapterSupport(
+        configured?.provider.protocol,
+        configured?.model.nativeSearchAdapter,
+      ),
       externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
       // Side chat follows the explicit external-only policy.
       policy: 'external-only',
@@ -945,6 +949,7 @@ function buildProviderRuntime(
         ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
         ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
         ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
+        ...(model.nativeSearchAdapter ? { nativeSearchAdapter: model.nativeSearchAdapter } : {}),
       })),
     auth,
   };

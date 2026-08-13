@@ -8,6 +8,7 @@
 
 import type {
   ModelCapability,
+  NativeSearchAdapterKind,
   ResolvedSearchRoute,
   SearchCitation,
   SearchEvidence,
@@ -17,6 +18,8 @@ import { modelSupportsCapability } from '@piwin/contracts';
 export type NativeSearchModelFlags = {
   id: string;
   capabilities?: readonly ModelCapability[];
+  /** Declared request-shaping mechanism; takes precedence over api sniffing. */
+  nativeSearchAdapter?: NativeSearchAdapterKind;
 };
 
 export type NativeSearchStreamOptions = {
@@ -76,7 +79,11 @@ export function resolveNativeSearchEnabledForModel(
 /**
  * Inject or strip provider-native web search fields on an outbound payload.
  *
- * Supported shapes (best-effort, provider-specific):
+ * A declared {@link NativeSearchAdapterKind} selects the wire mechanism
+ * explicitly (a protocol match alone does not prove a vendor gateway accepts
+ * the generic fields); without one, the legacy `modelApi` sniffing applies.
+ *
+ * Supported shapes:
  * - OpenAI-compatible: `web_search_options` / `tools: [{ type: 'web_search*' }]`
  * - Anthropic: tools entry `web_search` / `web_search_20250305`
  * - Google: `config.tools: [{ googleSearch: {} }]`
@@ -85,6 +92,7 @@ export function applyNativeSearchToPayload(
   payload: unknown,
   enabled: boolean,
   modelApi?: string,
+  nativeSearchAdapter?: NativeSearchAdapterKind,
 ): unknown {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return payload;
@@ -93,14 +101,35 @@ export function applyNativeSearchToPayload(
   const api = (modelApi ?? '').toLowerCase();
 
   if (enabled) {
-    if (api.includes('anthropic')) {
-      ensureAnthropicWebSearchTool(record);
-    } else if (api.includes('google')) {
-      ensureGoogleSearchTool(record);
-    } else if (api.includes('responses')) {
-      ensureOpenAiResponsesWebSearchTool(record);
-    } else {
-      ensureOpenAiCompletionsWebSearch(record);
+    switch (nativeSearchAdapter) {
+      case 'openai-web-search-options':
+        ensureOpenAiCompletionsWebSearch(record);
+        break;
+      case 'openai-responses-tool':
+        ensureOpenAiResponsesWebSearchTool(record);
+        break;
+      case 'anthropic-web-search-tool':
+        ensureAnthropicWebSearchTool(record);
+        break;
+      case 'google-search-tool':
+        ensureGoogleSearchTool(record);
+        break;
+      case 'vendor-specific':
+        // The generic adapter cannot express this vendor's mechanism; the
+        // route resolver already reports native search as unsupported for
+        // such models. Never guess a wire shape here.
+        break;
+      case undefined:
+        if (api.includes('anthropic')) {
+          ensureAnthropicWebSearchTool(record);
+        } else if (api.includes('google')) {
+          ensureGoogleSearchTool(record);
+        } else if (api.includes('responses')) {
+          ensureOpenAiResponsesWebSearchTool(record);
+        } else {
+          ensureOpenAiCompletionsWebSearch(record);
+        }
+        break;
     }
     return record;
   }
@@ -229,6 +258,7 @@ export function wrapStreamSimpleForNativeSearch(
           payload,
           enabled,
           modelApi ?? payloadModel?.api,
+          flags?.nativeSearchAdapter,
         );
         if (previousOnPayload) {
           const replaced = await previousOnPayload(nextPayload, payloadModel);

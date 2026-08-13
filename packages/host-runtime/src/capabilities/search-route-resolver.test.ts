@@ -224,4 +224,87 @@ describe('findReadyWebSearchDelegate', () => {
     model.enabled = false;
     expect(findReadyWebSearchDelegate(config)).toBeUndefined();
   });
+
+  it('rejects a delegate whose declared adapter the protocol cannot express', () => {
+    const delegate = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'vendor',
+      modelId: 'vendor-search',
+    };
+    const config = {
+      providers: [
+        {
+          id: 'vendor',
+          name: 'Vendor',
+          protocol: 'openai-compatible' as const,
+          baseUrl: 'https://vendor.example.test',
+          models: [
+            nativeModel({
+              id: 'vendor-search',
+              nativeSearchAdapter: 'vendor-specific' as const,
+            }),
+          ],
+        },
+      ],
+      web: { searchDelegateModel: delegate },
+    };
+
+    expect(findReadyWebSearchDelegate(config)).toBeUndefined();
+  });
+});
+
+describe('resolveNativeSearchAdapterSupport (adapter decoupling)', () => {
+  it('falls back to the protocol when no adapter is declared (legacy configs)', () => {
+    expect(resolveNativeSearchAdapterSupport('openai-compatible', undefined).requestSupported).toBe(
+      true,
+    );
+    expect(
+      resolveNativeSearchAdapterSupport('anthropic-compatible', undefined).requestSupported,
+    ).toBe(true);
+    expect(resolveNativeSearchAdapterSupport('google-gemini', undefined).requestSupported).toBe(
+      true,
+    );
+    expect(resolveNativeSearchAdapterSupport(undefined, undefined).requestSupported).toBe(false);
+  });
+
+  it('accepts only declared adapters that match the protocol', () => {
+    expect(
+      resolveNativeSearchAdapterSupport('openai-compatible', 'openai-web-search-options')
+        .requestSupported,
+    ).toBe(true);
+    expect(
+      resolveNativeSearchAdapterSupport('openai-compatible', 'openai-responses-tool')
+        .requestSupported,
+    ).toBe(true);
+    expect(
+      resolveNativeSearchAdapterSupport('anthropic-compatible', 'anthropic-web-search-tool')
+        .requestSupported,
+    ).toBe(true);
+    expect(
+      resolveNativeSearchAdapterSupport('google-gemini', 'google-search-tool').requestSupported,
+    ).toBe(true);
+
+    // A chat/completions-compatible gateway is not evidence that it accepts
+    // Anthropic or Google native search shapes.
+    expect(
+      resolveNativeSearchAdapterSupport('openai-compatible', 'anthropic-web-search-tool')
+        .requestSupported,
+    ).toBe(false);
+    expect(
+      resolveNativeSearchAdapterSupport('google-gemini', 'openai-web-search-options')
+        .requestSupported,
+    ).toBe(false);
+    expect(
+      resolveNativeSearchAdapterSupport('anthropic-compatible', 'google-search-tool')
+        .requestSupported,
+    ).toBe(false);
+  });
+
+  it('never guesses a vendor-specific mechanism from the protocol', () => {
+    for (const protocol of ['openai-compatible', 'anthropic-compatible', 'google-gemini'] as const) {
+      expect(
+        resolveNativeSearchAdapterSupport(protocol, 'vendor-specific').requestSupported,
+      ).toBe(false);
+    }
+  });
 });

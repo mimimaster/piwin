@@ -256,14 +256,15 @@ describe('SettingsService', () => {
     await expect(staleApply).rejects.toBeInstanceOf(SettingsRevisionConflictError);
   });
 
-  it('prevents a stale panel from overwriting a newer revision (concurrent overwrite guard)', async () => {
+  it('rejects a concurrent stale write instead of silently overwriting (true concurrency)', async () => {
     const service = new SettingsService({ piwinRoot });
     const first = await service.getSnapshot();
     const webBefore = first.config.web?.searchProvider;
 
-    // Simulate two writers with the same base revision: only the first may
-    // succeed; the second must conflict instead of silently re-enabling.
-    const firstWrite = await service.apply({
+    // Both writers fire from the same base revision WITHOUT awaiting the
+    // first. The in-process mutation chain serializes them; the loser must
+    // conflict instead of silently overwriting the winner's domain.
+    const firstWrite = service.apply({
       expectedRevision: first.revision,
       mutations: [mutation('permissions', { mode: 'auto', preset: 'auto' })],
     });
@@ -271,7 +272,18 @@ describe('SettingsService', () => {
       expectedRevision: first.revision,
       mutations: [mutation('web', { searchProvider: 'duckduckgo', searchSources: [] })],
     });
-    await expect(secondWrite).rejects.toBeInstanceOf(SettingsRevisionConflictError);
+    const results = await Promise.allSettled([firstWrite, secondWrite]);
+
+    const fulfilled = results.filter(
+      (result): result is PromiseFulfilledResult<Awaited<ReturnType<SettingsService['apply']>>> =>
+        result.status === 'fulfilled',
+    );
+    const rejected = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(SettingsRevisionConflictError);
 
     const finalConfig = (await service.getSnapshot()).config;
     expect(finalConfig.permissions?.mode).toBe('auto');
