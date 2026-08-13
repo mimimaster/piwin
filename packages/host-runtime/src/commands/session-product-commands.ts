@@ -31,13 +31,13 @@ import {
   createSessionIndexPage,
   SessionIndexCursorError,
   pinSessionRecord,
+  projectSessionIndex,
   renameSessionRecord,
   searchSessions,
   setSessionAutoName,
   unarchiveSessionRecord,
   unpinSessionRecord,
   upsertSessionRecord,
-  filterListableSessions,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@piwin/session';
@@ -161,13 +161,30 @@ export async function handleSessionProductCommand(
         ...(command.scope ? { scope: command.scope } : {}),
         ...(command.projectPath ? { projectPath: command.projectPath } : {}),
       });
+      const includeArchived = command.includeArchived === true;
       const indexed = await listSessionsForProject(indexPath, filter, {
-        includeArchived: command.includeArchived === true,
+        includeArchived,
       });
       const repaired = await repairIndexedNames(indexed);
-      // Sidebar policy: never list sessions that still lack a real display name.
-      const sessions = filterListableSessions(repaired).map((item) => indexRecordToSummary(item));
-      return ok(requestId, 'session/list', { sessions });
+      try {
+        // Listability, order, and truncation belong to @piwin/session.
+        // Map to SessionSummary only after the projection selected the final set.
+        const projection = projectSessionIndex(repaired, {
+          includeArchived,
+          order: command.order ?? 'updated',
+          ...(command.maxItems === undefined ? {} : { maxItems: command.maxItems }),
+        });
+        return ok(requestId, 'session/list', {
+          sessions: projection.sessions.map((item) => indexRecordToSummary(item)),
+          totalCount: projection.totalCount,
+          truncated: projection.truncated,
+        });
+      } catch (error) {
+        if (error instanceof RangeError) {
+          return fail(requestId, 'session/list', error.message);
+        }
+        throw error;
+      }
     }
     case 'session/list-page': {
       const indexed = await listSessionsForProject(indexPath, command.query.scope, {
