@@ -1062,7 +1062,7 @@ export type ExtensionsInstallData = {
 export type ExtensionsApplyData = {
   sessionId: string;
   deploymentId: string;
-  state: 'active' | 'pending' | 'new-sessions-only';
+  state: 'active' | 'pending' | 'waiting-current-run' | 'new-sessions-only';
   when: 'now' | 'after-current-run' | 'new-sessions-only';
   registryRevision: string;
   generationId?: string;

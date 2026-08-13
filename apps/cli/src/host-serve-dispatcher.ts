@@ -33,6 +33,15 @@ function commandTimeoutMs(command: HostCommand, defaultTimeoutMs: number): numbe
       // available for session/compact-abort, so a wall-clock dispatcher
       // deadline would only detach the response from work that keeps running.
       return undefined;
+    case 'extensions/apply':
+      // `when: 'after-current-run'` waits for the live run to drain before the
+      // runtime replacement commits. The Host quick-ACKs that state as a
+      // durable deployment and reports completion via
+      // `extension/deployment-updated`; a dispatcher deadline would report a
+      // false failure while the serialized apply keeps running in the
+      // background. The `when: 'now'` path is the remaining long tail, so keep
+      // the whole command unbounded like session/compact.
+      return undefined;
     default:
       return defaultTimeoutMs;
   }

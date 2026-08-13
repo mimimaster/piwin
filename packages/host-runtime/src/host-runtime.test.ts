@@ -647,6 +647,137 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('extensions/apply quick-ACKs waiting-current-run and completes after the run ends', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-wait-'));
+    const sourceDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-wait-src-'));
+    const sourcePath = join(sourceDir, 'wait-ext.ts');
+    await writeFile(sourcePath, 'export default function waitExt() {}\n', 'utf8');
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      testFixture: 'hang-until-abort',
+      onPush: (message) => pushes.push(message),
+    });
+
+    const installed = await runtime.handleCommand({
+      type: 'extensions/install',
+      source: { kind: 'local', path: sourcePath },
+    });
+    expect(installed.success).toBe(true);
+    if (!installed.success) throw new Error(installed.error);
+    const enabled = await runtime.handleCommand({
+      type: 'extensions/set_enabled',
+      extensionId: 'wait-ext',
+      enabled: true,
+    });
+    expect(enabled.success).toBe(true);
+    if (!enabled.success) throw new Error(enabled.error);
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/wait-ext-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'start a long run' },
+    });
+    expect(prompted.success).toBe(true);
+    if (!prompted.success) throw new Error(prompted.error);
+    const runId = (prompted.data as { runId: string }).runId;
+
+    // The hanging fixture run keeps the session live. Its generation carries
+    // the config-derived settings revision; Desktop passes the same value when
+    // the revision is known, and Host resolves it from the live status.
+    const { loadPiwinConfig } = await import('./config-store.js');
+    const { createSettingsSnapshot } = await import('./settings/settings-service.js');
+    const expectedSettingsRevision = createSettingsSnapshot(
+      await loadPiwinConfig(rootDir),
+    ).revision;
+
+    // The run is still in flight; the apply must return immediately with a
+    // durable waiting state instead of hanging on the 45s dispatcher deadline.
+    const applyStartedAt = Date.now();
+    const applied = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId,
+      when: 'after-current-run',
+      expectedSettingsRevision,
+      deploymentId: 'wait-deployment-1',
+    });
+    expect(
+      applied.success,
+      applied.type === 'response' && !applied.success ? applied.error : undefined,
+    ).toBe(true);
+    if (!applied.success) throw new Error(applied.error);
+    expect(applied.data).toMatchObject({
+      deploymentId: 'wait-deployment-1',
+      state: 'waiting-current-run',
+    });
+    expect(Date.now() - applyStartedAt).toBeLessThan(10_000);
+
+    // Re-ACK the same deployment id instead of starting a conflicting apply.
+    const reApplied = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId,
+      when: 'after-current-run',
+      expectedSettingsRevision,
+      deploymentId: 'wait-deployment-1',
+    });
+    expect(reApplied.success).toBe(true);
+    if (!reApplied.success) throw new Error(reApplied.error);
+    expect((reApplied.data as { state: string }).state).toBe('waiting-current-run');
+
+    // A different deployment while one is in flight must conflict explicitly
+    // (durable mutation serialization), not overlap in the background.
+    const conflicting = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId,
+      when: 'after-current-run',
+      expectedSettingsRevision,
+      deploymentId: 'wait-deployment-2',
+    });
+    expect(conflicting.success).toBe(false);
+    expect(conflicting.type === 'response' && !conflicting.success ? conflicting.error : '').toMatch(
+      /extension-deployment-in-progress/,
+    );
+
+    // Ending the run lets the background continuation finish and publish a
+    // terminal deployment phase through the existing deployment push. The
+    // hang-until-abort fixture never admits the session to the residency
+    // controller, so the replacement itself can end in a clean failed
+    // deployment here — the invariant under test is that the background
+    // lifecycle reaches a *terminal* durable state instead of silently dying.
+    const aborted = await runtime.handleCommand({ type: 'session/abort', sessionId, runId });
+    expect(aborted.success).toBe(true);
+
+    const terminalPhases = new Set(['active', 'failed', 'rolled-back', 'restart-required']);
+    let terminalPush: HostPush | undefined;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      terminalPush = pushes.find(
+        (push) =>
+          push.type === 'extension/deployment-updated' &&
+          push.deployment.deploymentId === 'wait-deployment-1' &&
+          terminalPhases.has(push.deployment.phase),
+      );
+      if (terminalPush) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(terminalPush).toBeDefined();
+    if (terminalPush?.type !== 'extension/deployment-updated') {
+      throw new Error('expected a deployment push');
+    }
+    expect(terminalPhases.has(terminalPush.deployment.phase)).toBe(true);
+
+    await runtime.dispose();
+  });
+
   it('git/status returns repository snapshot for this repo', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-git-'));
     const runtime = new HostRuntime({
