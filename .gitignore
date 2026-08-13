@@ -46,6 +46,9 @@ apps/desktop/src-tauri/icons/icon-source-1024.unpadded-backup.png
 # Agent tool memory (workbuddy)
 .workbuddy/
 
+# Isolated git worktrees
+.worktrees/
+
 # Generated pet spritesheets (regenerable, 48MB)
 packages/pet/generated/
 
