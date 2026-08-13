@@ -17,7 +17,7 @@ import type { WebElementPickResult } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
 import type { SpeechTranscribeInput } from './speech.js';
-import type { SessionListPageQuery } from './session-list-page.js';
+import type { SessionListOrder, SessionListPageQuery } from './session-list-page.js';
 import type {
   SessionMessageProjection,
   SessionTranscriptPageQuery,
@@ -169,6 +169,16 @@ export type HostCommand =
       scope?: import('./host.js').SessionScope;
       /** When true, include archived sessions (default: active only). */
       includeArchived?: boolean;
+      /**
+       * Host-side global ordering of the filtered projection.
+       * Truncation is applied after ordering. Omitted keeps the existing Host default.
+       */
+      order?: SessionListOrder;
+      /**
+       * Transport bound on the returned `sessions` array.
+       * Omitted preserves the existing unbounded complete list.
+       */
+      maxItems?: number;
     }
   | {
       id?: string;
@@ -989,6 +999,16 @@ export type SessionCompactionSettingsData = {
 
 export type SessionListData = {
   sessions: SessionSummary[];
+  /**
+   * Size of the filtered, ordered Host projection before truncation.
+   * Older Hosts may omit this field; clients fall back to `sessions.length`.
+   */
+  totalCount?: number;
+  /**
+   * True when `sessions.length < totalCount`.
+   * Older Hosts may omit this field; clients fall back to `false`.
+   */
+  truncated?: boolean;
 };
 
 /** Alias for CE-SHARE-01 export response payload. */
