@@ -22,6 +22,14 @@ export const COMPOSER_IMAGE_JPEG_QUALITY = 0.82;
 /** Local composer chip lifecycle for media attachments. */
 export type PendingAttachmentUploadStatus = 'queued' | 'ready' | 'saving' | 'error';
 
+/**
+ * Phase 0 failure taxonomy (plan 2026-08-11 §7): `policy` is a Host-side
+ * rejection (size/MIME/security), `connection` is a transport failure that
+ * usually recovers with a retry, `local` is a client-side prepare/encode
+ * failure. Phase 1 replaces this with contracts `AttachmentFailureCode`.
+ */
+export type PendingAttachmentErrorKind = 'policy' | 'connection' | 'local';
+
 export type PendingComposerAttachment = {
   localId: string;
   attachment: PromptAttachment;
@@ -39,7 +47,14 @@ export type PendingComposerAttachment = {
   uploadStatus?: PendingAttachmentUploadStatus;
   /** Present when `uploadStatus` is `error`. */
   uploadError?: string;
+  /** Present when `uploadStatus` is `error`; drives the failure hint copy. */
+  uploadErrorKind?: PendingAttachmentErrorKind;
 };
+
+/** True when the chip is a media attachment whose save failed. */
+export function isFailedMediaAttachment(item: PendingComposerAttachment): boolean {
+  return item.attachment.kind === 'media' && item.uploadStatus === 'error';
+}
 
 /** True when the chip can be included in session/prompt. */
 export function isPendingAttachmentReady(item: PendingComposerAttachment): boolean {

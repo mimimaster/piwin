@@ -22,7 +22,7 @@ import type {
   ProjectRecord,
   PromptAttachment,
 } from '@piwin/contracts';
-import { IconButton } from '@piwin/ui-kit';
+import { Button, Dialog, IconButton } from '@piwin/ui-kit';
 import {
   ComposerPlusMenu,
   type ComposerMcpOption,
@@ -33,7 +33,7 @@ import type { PendingContextRefItem } from './hooks/use-composer-context-refs';
 import { getAgentMode, type AgentModeId } from './agent-mode';
 import { MediaPreview } from './MediaPreview';
 import { WebElementChip } from './WebElementChip';
-import type { PendingComposerAttachment } from './media-utils';
+import { isFailedMediaAttachment, type PendingComposerAttachment } from './media-utils';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
@@ -49,6 +49,7 @@ import {
   IconMic,
 
   IconPlus,
+  IconRefresh,
   IconSend,
   IconStop,
 } from './shell-icons';
@@ -123,6 +124,10 @@ export type ComposerDockProps = {
   onRemoveAttachment: (localId: string) => void;
   /** One-tap retry after a failed media/save. */
   onRetryAttachment?: (localId: string) => void;
+  /** Phase 0 send confirmation: re-queue every failed chip before sending. */
+  onRetryFailedAttachments?: () => void;
+  /** Phase 0 send confirmation: drop every failed chip and send the rest. */
+  onDiscardFailedAttachments?: () => void;
   /** CM: structured context ref chips (file/selection/folder/…). */
   pendingContextRefs?: PendingContextRefItem[];
   onRemoveContextRef?: (key: string) => void;
@@ -248,12 +253,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     : props.composer.trim().length > 0 ||
       props.pendingAttachments.length > 0 ||
       (props.pendingContextRefs?.length ?? 0) > 0;
-  const hasFailedAttachment = props.pendingAttachments.some(
-    (item) => item.attachment.kind === 'media' && item.uploadStatus === 'error',
-  );
-  // Saving chips do not block send — handleSend awaits in-flight saves.
-  // Only hard-failed chips need user action (retry or remove).
-  const attachmentsBlockingSend = hasFailedAttachment;
+  const failedAttachments = props.pendingAttachments.filter(isFailedMediaAttachment);
+  // Phase 0 (ADR 0045 Decision 4): failed chips never disable Send. Send with
+  // failures present routes through a retry / send-rest / back confirmation;
+  // when failures are the only content the action button becomes Retry.
+  const hasSendableContentBesidesFailures =
+    props.composer.trim().length > 0 ||
+    props.pendingAttachments.some((item) => !isFailedMediaAttachment(item)) ||
+    (props.pendingContextRefs?.length ?? 0) > 0;
+  const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
   const canQueueStreamingText =
     props.composer.trim().length > 0 && props.pendingAttachments.length === 0;
   const selectedModel = props.modelOptions.find(
@@ -299,6 +307,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   // Modal Editor State
   const [modalEditorOpen, setModalEditorOpen] = useState(false);
+
+  // Phase 0: retry / send-rest / back confirmation for failed attachments.
+  const [attachmentFailureDialogOpen, setAttachmentFailureDialogOpen] = useState(false);
 
   // Prompt History Navigation State (last PROMPT_HISTORY_MAX entries)
   const [historyStack, setHistoryStack] = useState<string[]>(() => loadPromptHistoryFromStorage());
@@ -524,6 +535,16 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setAtMenuForcedClosed(true);
   }
 
+  function proceedSend(): void {
+    const trimmed = props.composer.trim();
+    if (trimmed) {
+      pushHistoryEntry(trimmed);
+    }
+    setHistoryMenuOpen(false);
+    draftBeforeHistoryRef.current = '';
+    props.onSend();
+  }
+
   function triggerSend(): void {
     if (isExtensionUiActive) {
       // Extension UI path is text-only and does not use media attachments.
@@ -538,16 +559,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
       return;
     }
-    if (attachmentsBlockingSend) {
+    if (failedAttachments.length > 0) {
+      // Failed chips are the only content: the action is a plain retry — the
+      // send path re-runs the deferred saves for the re-queued chips.
+      if (onlyFailedAttachments) {
+        props.onRetryFailedAttachments?.();
+        proceedSend();
+        return;
+      }
+      setAttachmentFailureDialogOpen(true);
       return;
     }
-    const trimmed = props.composer.trim();
-    if (trimmed) {
-      pushHistoryEntry(trimmed);
-    }
-    setHistoryMenuOpen(false);
-    draftBeforeHistoryRef.current = '';
-    props.onSend();
+    proceedSend();
   }
 
   function triggerSteer(): void {
@@ -756,7 +779,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     // 4. ⌘Enter force send (bypasses IME protection)
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
-      if (hasContent && !attachmentsBlockingSend) {
+      if (hasContent) {
         if (isStreamingRun) {
           if (canQueueStreamingText) {
             triggerSteer();
@@ -779,7 +802,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (hasContent && !attachmentsBlockingSend) {
+      if (hasContent) {
         if (isStreamingRun) {
           if (canQueueStreamingText) {
             triggerFollowUp();
@@ -939,35 +962,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 <WebElementChip attachment={item.attachment} compact />
               ) : (
                 <>
+                  {/* Phase 0: failures never cover the thumbnail — the reason
+                      and actions live in the failure rows under this list. */}
                   <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
                   {item.uploadStatus === 'saving' ? (
                     <span
                       className="composer-v2-attachment-status"
                       data-testid="composer-attachment-saving"
                     >
-                      {isGifAttachment(item.attachment) ? 'Preparing first frame…' : 'Preparing…'}
+                      {isGifAttachment(item.attachment)
+                        ? copy.attachmentPreparingGif
+                        : copy.attachmentPreparing}
                     </span>
-                  ) : null}
-                  {item.uploadStatus === 'error' ? (
-                    props.onRetryAttachment ? (
-                      <button
-                        type="button"
-                        className="composer-v2-attachment-status is-error is-action"
-                        data-testid="composer-attachment-error"
-                        title={item.uploadError ?? 'Failed to save attachment — click to retry'}
-                        onClick={() => props.onRetryAttachment?.(item.localId)}
-                      >
-                        Retry
-                      </button>
-                    ) : (
-                      <span
-                        className="composer-v2-attachment-status is-error"
-                        data-testid="composer-attachment-error"
-                        title={item.uploadError ?? 'Failed to save attachment'}
-                      >
-                        Failed
-                      </span>
-                    )
                   ) : null}
                 </>
               )}
@@ -979,6 +985,53 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               >
                 <IconClose width={12} height={12} />
               </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Failed attachment rows: reason as plain text + retry/remove actions
+          outside the chip, so the thumbnail stays visible (Phase 0). */}
+      {failedAttachments.length > 0 ? (
+        <div className="composer-v2-attachment-failures" role="alert">
+          {failedAttachments.map((item) => (
+            <div
+              key={item.localId}
+              className="composer-v2-attachment-failure"
+              data-testid="composer-attachment-failure"
+            >
+              <span className="composer-v2-attachment-failure-label">
+                {copy.attachmentFailedLabel}
+                {item.attachment.kind === 'media' && item.attachment.name
+                  ? ` · ${item.attachment.name}`
+                  : ''}
+              </span>
+              <span className="composer-v2-attachment-failure-reason">
+                {item.uploadErrorKind === 'connection'
+                  ? `${copy.attachmentFailureConnectionHint} — `
+                  : ''}
+                {item.uploadError ?? ''}
+              </span>
+              <span className="composer-v2-attachment-failure-actions">
+                {props.onRetryAttachment ? (
+                  <button
+                    type="button"
+                    className="composer-v2-attachment-failure-action"
+                    data-testid="composer-attachment-failure-retry"
+                    onClick={() => props.onRetryAttachment?.(item.localId)}
+                  >
+                    {copy.attachmentRetry}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="composer-v2-attachment-failure-action"
+                  data-testid="composer-attachment-failure-remove"
+                  onClick={() => props.onRemoveAttachment(item.localId)}
+                >
+                  {copy.attachmentRemove}
+                </button>
+              </span>
             </div>
           ))}
         </div>
@@ -1229,12 +1282,23 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               ) : (
                 renderStreamingActions()
               )
+            ) : onlyFailedAttachments ? (
+              <button
+                type="button"
+                className="composer-v2-send-btn is-retry"
+                data-testid="send-btn"
+                onClick={triggerSend}
+                aria-label={copy.attachmentRetryOnly}
+                title={copy.attachmentRetryOnly}
+              >
+                <IconRefresh />
+              </button>
             ) : (
               <button
                 type="button"
                 className="composer-v2-send-btn"
                 data-testid="send-btn"
-                disabled={!hasContent || attachmentsBlockingSend}
+                disabled={!hasContent}
                 onClick={triggerSend}
                 aria-label={copy.send}
                 title={copy.sendShortcut}
@@ -1256,6 +1320,49 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         }}
         onClose={() => setModalEditorOpen(false)}
       />
+
+      {/* Phase 0: retry / send-rest / back confirmation for failed saves. */}
+      <Dialog
+        label={copy.attachmentFailureDialogTitle}
+        open={attachmentFailureDialogOpen}
+        onOpenChange={setAttachmentFailureDialogOpen}
+        testId="composer-attachment-failure-dialog"
+      >
+        <h3>{copy.attachmentFailureDialogTitle}</h3>
+        <div className="ui-confirm-description muted">
+          {copy.attachmentFailureDialogBody(failedAttachments.length)}
+        </div>
+        <div className="modal-actions">
+          <Button
+            data-testid="attachment-failure-cancel"
+            onClick={() => setAttachmentFailureDialogOpen(false)}
+          >
+            {copy.attachmentFailureBack}
+          </Button>
+          <Button
+            data-testid="attachment-failure-send-rest"
+            onClick={() => {
+              setAttachmentFailureDialogOpen(false);
+              props.onDiscardFailedAttachments?.();
+              proceedSend();
+            }}
+          >
+            {copy.attachmentFailureSendRest}
+          </Button>
+          <Button
+            variant="primary"
+            data-testid="attachment-failure-retry-send"
+            autoFocus
+            onClick={() => {
+              setAttachmentFailureDialogOpen(false);
+              props.onRetryFailedAttachments?.();
+              proceedSend();
+            }}
+          >
+            {copy.attachmentFailureRetrySend}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }

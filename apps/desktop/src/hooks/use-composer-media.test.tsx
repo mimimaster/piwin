@@ -691,3 +691,155 @@ describe('useComposerMedia session transitions', () => {
   });
 
 });
+
+describe('useComposerMedia failed attachment policy (Phase 0)', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+
+  afterEach(() => {
+    if (root) {
+      act(() => root?.unmount());
+    }
+    container?.remove();
+    root = null;
+    container = null;
+  });
+
+  type FailedSendHarness = {
+    latest: () => ComposerMediaResult;
+    dispatch: ReturnType<typeof vi.fn>;
+    requestCalls: () => string[];
+    promptInputs: () => Array<{ attachments?: Array<{ kind: string }> }>;
+    setMediaSaveBehavior: (behavior: 'reject' | 'throw' | 'succeed') => void;
+  };
+
+  /** Renders the hook bound to an active session and produces one failed chip. */
+  async function setupWithFailedChip(): Promise<FailedSendHarness> {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    let mediaSaveBehavior: 'reject' | 'throw' | 'succeed' = 'reject';
+    const calls: string[] = [];
+    const promptInputs: Array<{ attachments?: Array<{ kind: string }> }> = [];
+    const hostClient = {
+      request: vi.fn(async (command: { type: string; input?: unknown }) => {
+        calls.push(command.type);
+        if (command.type === 'media/save') {
+          if (mediaSaveBehavior === 'throw') {
+            throw new Error('socket closed');
+          }
+          if (mediaSaveBehavior === 'reject') {
+            return {
+              type: 'response',
+              command: 'media/save',
+              success: false,
+              error: 'too-large',
+            };
+          }
+          return createSavedMediaResponse('media/save');
+        }
+        if (command.type === 'session/prompt') {
+          promptInputs.push(command.input as { attachments?: Array<{ kind: string }> });
+        }
+        return createSavedMediaResponse(command.type);
+      }),
+    } as unknown as HostClient;
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: { ...createInitialChatUiState(), activeSessionId: 'session-1' },
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+
+    act(() => latest().setComposer('keep this text'));
+    pasteImage(latest);
+    await act(async () => {
+      await latest().handleSend();
+    });
+    expect(latest().pendingAttachments[0]?.uploadStatus).toBe('error');
+
+    return {
+      latest,
+      dispatch,
+      requestCalls: () => calls,
+      promptInputs: () => promptInputs,
+      setMediaSaveBehavior: (behavior) => {
+        mediaSaveBehavior = behavior;
+      },
+    };
+  }
+
+  it('never silently drops a failed chip: send stays blocked until the user decides', async () => {
+    const harness = await setupWithFailedChip();
+    harness.dispatch.mockClear();
+
+    await act(async () => {
+      await harness.latest().handleSend();
+    });
+
+    // No prompt was sent, the text and the failed chip are both still here.
+    expect(harness.requestCalls().filter((type) => type === 'session/prompt')).toHaveLength(0);
+    expect(harness.latest().composer).toBe('keep this text');
+    expect(harness.latest().pendingAttachments).toHaveLength(1);
+    expect(harness.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error' }),
+    );
+  });
+
+  it('discardFailedAttachments removes failed chips synchronously for a same-tick send', async () => {
+    const harness = await setupWithFailedChip();
+
+    await act(async () => {
+      harness.latest().discardFailedAttachments();
+      await harness.latest().handleSend();
+    });
+
+    expect(harness.latest().pendingAttachments).toEqual([]);
+    expect(harness.latest().composer).toBe('');
+    expect(harness.promptInputs()).toHaveLength(1);
+    expect(harness.promptInputs()[0]?.attachments).toBeUndefined();
+  });
+
+  it('retryFailedAttachments re-queues failed chips synchronously for a same-tick send', async () => {
+    const harness = await setupWithFailedChip();
+    harness.setMediaSaveBehavior('succeed');
+
+    await act(async () => {
+      harness.latest().retryFailedAttachments();
+      await harness.latest().handleSend();
+    });
+
+    expect(harness.requestCalls().filter((type) => type === 'media/save')).toHaveLength(2);
+    expect(harness.promptInputs()).toHaveLength(1);
+    expect(harness.promptInputs()[0]?.attachments).toEqual([
+      expect.objectContaining({ kind: 'media' }),
+    ]);
+    expect(harness.latest().pendingAttachments).toEqual([]);
+  });
+
+  it('tags Host-rejected saves as policy and transport failures as connection', async () => {
+    const harness = await setupWithFailedChip();
+    expect(harness.latest().pendingAttachments[0]?.uploadErrorKind).toBe('policy');
+
+    harness.setMediaSaveBehavior('throw');
+    await act(async () => {
+      harness.latest().retryFailedAttachments();
+      await harness.latest().handleSend();
+    });
+
+    expect(harness.latest().pendingAttachments[0]?.uploadStatus).toBe('error');
+    expect(harness.latest().pendingAttachments[0]?.uploadErrorKind).toBe('connection');
+  });
+});

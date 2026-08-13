@@ -48,6 +48,27 @@ const baseProps: ComposerDockProps = {
   contextUsage: null,
 };
 
+function failedAttachment(
+  localId: string,
+  uploadError: string,
+): import('./media-utils').PendingComposerAttachment {
+  return {
+    localId,
+    previewUrl: 'blob:test',
+    uploadStatus: 'error',
+    uploadError,
+    attachment: {
+      id: `asset-${localId}`,
+      kind: 'media',
+      path: `pending://${localId}`,
+      mimeType: 'image/png',
+      name: 'screenshot.png',
+      byteSize: 100,
+      source: 'paste',
+    },
+  };
+}
+
 function renderDock(
   node: ReactElement,
   locale: DesktopLocale = 'en',
@@ -535,52 +556,184 @@ describe('ComposerDock host status', () => {
     expect(handleSend).toHaveBeenCalledTimes(1);
   });
 
-  it('disables send and offers Retry when a media attachment failed to save', () => {
+  it('keeps send enabled with a failed attachment and shows the reason outside the chip', () => {
     const handleSend = vi.fn();
     const handleRetry = vi.fn();
+    const handleRemove = vi.fn();
     const rendered = renderDock(
       <ComposerDock
         {...baseProps}
         composer="look at this"
         onSend={handleSend}
         onRetryAttachment={handleRetry}
-        pendingAttachments={[
-          {
-            localId: 'local-error',
-            previewUrl: 'blob:test',
-            uploadStatus: 'error',
-            uploadError: 'media too large',
-            attachment: {
-              id: 'a-error',
-              kind: 'media',
-              path: 'pending://local-error',
-              mimeType: 'image/png',
-              byteSize: 100,
-              source: 'paste',
-            },
-          },
-        ]}
+        onRemoveAttachment={handleRemove}
+        pendingAttachments={[failedAttachment('local-error', 'media too large')]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    // Phase 0: a failed attachment must not disable Send (ADR 0045 Decision 4).
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(sendBtn?.disabled).toBe(false);
+    // No Retry overlay covering the thumbnail anymore.
+    expect(container.querySelector('[data-testid="composer-attachment-error"]')).toBeNull();
+
+    // The failure reason is plain visible text outside the chip, with actions.
+    const failureRow = container.querySelector('[data-testid="composer-attachment-failure"]');
+    expect(failureRow).not.toBeNull();
+    expect(failureRow?.textContent).toContain('media too large');
+
+    act(() => {
+      failureRow
+        ?.querySelector<HTMLButtonElement>('[data-testid="composer-attachment-failure-retry"]')
+        ?.click();
+    });
+    expect(handleRetry).toHaveBeenCalledWith('local-error');
+
+    act(() => {
+      failureRow
+        ?.querySelector<HTMLButtonElement>('[data-testid="composer-attachment-failure-remove"]')
+        ?.click();
+    });
+    expect(handleRemove).toHaveBeenCalledWith('local-error');
+  });
+
+  it('confirms retry / send-rest / back before sending with failed attachments', () => {
+    const handleSend = vi.fn();
+    const discardFailed = vi.fn();
+    const retryFailed = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="look at this"
+        onSend={handleSend}
+        onRetryFailedAttachments={retryFailed}
+        onDiscardFailedAttachments={discardFailed}
+        pendingAttachments={[failedAttachment('local-error', 'media too large')]}
       />,
     );
     root = rendered.root;
     container = rendered.container;
 
     const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
-    expect(sendBtn?.disabled).toBe(true);
-    const errorChip = container.querySelector('[data-testid="composer-attachment-error"]');
-    expect(errorChip).not.toBeNull();
-    expect(errorChip?.getAttribute('title')).toContain('media too large');
-    expect(errorChip?.textContent).toContain('Retry');
+    act(() => {
+      sendBtn?.click();
+    });
+    // Send is intercepted by the three-way confirmation.
+    expect(handleSend).not.toHaveBeenCalled();
+    const dialog = document.querySelector('[data-testid="composer-attachment-failure-dialog"]');
+    expect(dialog).not.toBeNull();
+
+    // "Send without them" discards failed chips, then sends.
+    act(() => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="attachment-failure-send-rest"]')
+        ?.click();
+    });
+    expect(discardFailed).toHaveBeenCalledTimes(1);
+    expect(handleSend).toHaveBeenCalledTimes(1);
+    expect(
+      document.querySelector('[data-testid="composer-attachment-failure-dialog"]'),
+    ).toBeNull();
+  });
+
+  it('retries failed attachments from the send confirmation before sending', () => {
+    const handleSend = vi.fn();
+    const retryFailed = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="look at this"
+        onSend={handleSend}
+        onRetryFailedAttachments={retryFailed}
+        onDiscardFailedAttachments={vi.fn()}
+        pendingAttachments={[failedAttachment('local-error', 'media too large')]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
 
     act(() => {
-      (errorChip as HTMLButtonElement).click();
+      container?.querySelector<HTMLButtonElement>('[data-testid="send-btn"]')?.click();
     });
-    expect(handleRetry).toHaveBeenCalledWith('local-error');
+    act(() => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="attachment-failure-retry-send"]')
+        ?.click();
+    });
+    expect(retryFailed).toHaveBeenCalledTimes(1);
+    expect(handleSend).toHaveBeenCalledTimes(1);
+
+    // "Back" leaves everything untouched.
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="send-btn"]')?.click();
+    });
+    act(() => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="attachment-failure-cancel"]')
+        ?.click();
+    });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+    expect(
+      document.querySelector('[data-testid="composer-attachment-failure-dialog"]'),
+    ).toBeNull();
+  });
+
+  it('puts initial confirmation focus on retry so Enter does not discard attachments', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="look at this"
+        onSend={vi.fn()}
+        onRetryFailedAttachments={vi.fn()}
+        onDiscardFailedAttachments={vi.fn()}
+        pendingAttachments={[failedAttachment('local-error', 'media too large')]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      container?.querySelector<HTMLButtonElement>('[data-testid="send-btn"]')?.click();
+    });
+    const retry = document.querySelector<HTMLButtonElement>(
+      '[data-testid="attachment-failure-retry-send"]',
+    );
+    expect(retry).not.toBeNull();
+    expect(retry?.hasAttribute('autoFocus') || document.activeElement === retry).toBe(true);
+  });
+
+  it('turns the main action into Retry when only failed attachments remain', () => {
+    const handleSend = vi.fn();
+    const retryFailed = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer=""
+        onSend={handleSend}
+        onRetryFailedAttachments={retryFailed}
+        onDiscardFailedAttachments={vi.fn()}
+        pendingAttachments={[failedAttachment('local-error', 'media too large')]}
+      />,
+      'zh-CN',
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(sendBtn?.disabled).toBe(false);
+    expect(sendBtn?.getAttribute('aria-label')).toBe('重试附件');
 
     act(() => {
       sendBtn?.click();
     });
-    expect(handleSend).not.toHaveBeenCalled();
+    // No dialog needed: retry everything, then send retries the save.
+    expect(
+      document.querySelector('[data-testid="composer-attachment-failure-dialog"]'),
+    ).toBeNull();
+    expect(retryFailed).toHaveBeenCalledTimes(1);
+    expect(handleSend).toHaveBeenCalledTimes(1);
   });
 
   it('localizes Composer controls and placeholders for Simplified Chinese', () => {
