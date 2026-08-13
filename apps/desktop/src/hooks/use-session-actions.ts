@@ -6,8 +6,8 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
+  SessionListData,
   SessionListOrder,
-  SessionListPageQuery,
   SessionScope,
   SessionSummary,
   SessionTranscriptMessage,
@@ -37,18 +37,9 @@ import { resolveSessionOutline } from '../transcript-outline';
 import { canUseThinkingLevel } from '../model-thinking-policy';
 import { chooseSessionExportPath } from '../session-export-dialog';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
-import { GENERAL_SESSION_PAGE_SIZE, PROJECT_SESSION_PAGE_SIZE } from '../session-sidebar-page';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
-import {
-  createSessionListWindowsState,
-  flattenSessionListWindow,
-  getSessionListWindow,
-  mergeSessionListWindowPage,
-  type SessionListPageMergeMode,
-  type SessionListWindowsState,
-  sessionScopeKey,
-} from '../session-list-page-state';
-import { requestSessionListPage } from '../session-list-page-request';
+import { DESKTOP_SESSION_LIST_MAX_ITEMS } from '../session-list-policy';
+import { sessionScopeKey } from '../session-scope-key';
 import { requestSessionTranscriptPage } from '../session-transcript-page-request';
 
 export type ModelOption = {
@@ -136,13 +127,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   // Multiple event handlers can ask for the first session before React has
   // committed activeSessionId. Share one create request per selected scope.
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
-  const sessionPageRequestGenerations = useRef(new Map<string, number>());
+  const sessionListRequestGenerations = useRef(new Map<string, number>());
   const transcriptHistoryRequestSessionId = useRef<string | null>(null);
   const historySeekRequestGeneration = useRef(0);
-  const sessionListWindowsRef = useRef<SessionListWindowsState<SessionListItemUi>>(
-    createSessionListWindowsState(),
-  );
-  const [sessionListWindows, setSessionListWindows] = useState(sessionListWindowsRef.current);
   const [transcriptHistoryLoading, setTranscriptHistoryLoading] = useState(false);
 
   const loadUserMessageIndex = useCallback(
@@ -239,12 +226,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       projectPathOrScope?: string | { kind: 'general' } | { kind: 'project'; projectPath: string },
       options?: {
         includeArchived?: boolean;
-        cursor?: string;
         order?: SessionListOrder;
-        /** Merge an adjacent cursor page into the bounded lazy window. */
-        merge?: SessionListPageMergeMode;
-        /** Locate an older active session without walking every preceding page. */
-        anchorSessionId?: string;
         /**
          * When true, an explicit project list also fills the active `sessions`
          * array. Needed after `project/set` in the same tick: the hydrate
@@ -263,47 +245,34 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             ? { kind: 'project', projectPath: projectPathOrScope }
             : state.activeScope;
       const scopeKey = sessionScopeKey(scope);
-      const requestGeneration = (sessionPageRequestGenerations.current.get(scopeKey) ?? 0) + 1;
-      sessionPageRequestGenerations.current.set(scopeKey, requestGeneration);
-      const query: SessionListPageQuery = {
+      const requestGeneration = (sessionListRequestGenerations.current.get(scopeKey) ?? 0) + 1;
+      sessionListRequestGenerations.current.set(scopeKey, requestGeneration);
+      const listed = await hostClient.request({
+        type: 'session/list',
         scope,
-        lifecycle: includeArchived ? 'archived' : 'active',
+        includeArchived,
         order: options?.order ?? sessionListOrder,
-        limit: scope.kind === 'general' ? GENERAL_SESSION_PAGE_SIZE : PROJECT_SESSION_PAGE_SIZE,
-        ...(options?.cursor ? { cursor: options.cursor } : {}),
-        ...(options?.cursor === undefined && options?.anchorSessionId
-          ? { anchorSessionId: options.anchorSessionId }
-          : {}),
-      };
-      const listed = await requestSessionListPage((command) => hostClient.request(command), query);
+        maxItems: DESKTOP_SESSION_LIST_MAX_ITEMS,
+      });
       if (!listed.success) {
-        if (sessionPageRequestGenerations.current.get(scopeKey) === requestGeneration) {
+        if (sessionListRequestGenerations.current.get(scopeKey) === requestGeneration) {
           dispatch({ type: 'error', message: `Could not load sessions: ${listed.error}` });
         }
         return [];
       }
-      const data = listed.data;
+      const data = listed.data as SessionListData;
       const summaries = data.sessions;
       const sessions = mapSummariesToListItems(summaries);
       // Host already filters unnamed sessions; keep a client-side guard so a
       // stale push cannot reintroduce `session-<id>` rows into the sidebar.
       const named = sessions.filter((session) => sessionHasListName(session));
-      if (sessionPageRequestGenerations.current.get(scopeKey) === requestGeneration) {
-        const nextWindows = mergeSessionListWindowPage(
-          sessionListWindowsRef.current,
-          scope,
-          { page: data.page, items: named },
-          options?.merge,
-        );
-        sessionListWindowsRef.current = nextWindows;
-        setSessionListWindows(nextWindows);
-        const retainedWindow = getSessionListWindow(nextWindows, scope);
-        const retainedSessions =
-          retainedWindow === null ? named : flattenSessionListWindow(retainedWindow);
+      if (sessionListRequestGenerations.current.get(scopeKey) === requestGeneration) {
         dispatch({
-          type: 'session/hydrate-page',
+          type: 'session/hydrate-scope',
           scope,
-          sessions: retainedSessions,
+          sessions: named,
+          totalCount: data.totalCount ?? summaries.length,
+          truncated: data.truncated ?? false,
           ...(options?.fillActiveList === true ? { fillActiveList: true } : {}),
         });
       }
@@ -315,9 +284,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const handleResumeSession = useCallback(
     async (
       sessionId: string,
-      context?: { scope?: SessionScope; pageAnchored?: boolean },
+      context?: { scope?: SessionScope },
     ): Promise<void> => {
-      let pageAnchoredToSession = context?.pageAnchored === true;
       const effectiveActiveScope = context?.scope ?? state.activeScope;
       const targetScopeHint = context?.scope ?? resolveSessionScopeHint?.(sessionId);
       // Project ownership wins when a session is dual-listed (the bug that
@@ -374,9 +342,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({ type: 'project/set', path: openedPath, trusted });
         await hydrateSessions(openedPath, {
           fillActiveList: true,
-          anchorSessionId: sessionId,
         });
-        pageAnchoredToSession = true;
         void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       }
       if (knownGeneral && !knownProjectPath && effectiveActiveScope.kind === 'project') {
@@ -385,10 +351,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           { kind: 'general' },
           {
             includeArchived: showArchivedSessions,
-            anchorSessionId: sessionId,
           },
         );
-        pageAnchoredToSession = true;
       }
 
       dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
@@ -464,9 +428,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             await hydrateSessions(openedPath, {
               fillActiveList: true,
               includeArchived: showArchivedSessions,
-              anchorSessionId: sessionId,
             });
-            pageAnchoredToSession = true;
             void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
             dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
           }
@@ -483,23 +445,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           { kind: 'general' },
           {
             includeArchived: showArchivedSessions,
-            anchorSessionId: sessionId,
           },
         );
-        pageAnchoredToSession = true;
         dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
-      }
-      if (!pageAnchoredToSession && existingListItem === undefined) {
-        const authoritativeScope: SessionScope =
-          data.scope ??
-          (resumedProjectPath
-            ? { kind: 'project', projectPath: resumedProjectPath }
-            : { kind: 'general' });
-        await hydrateSessions(authoritativeScope, {
-          includeArchived: showArchivedSessions,
-          fillActiveList: true,
-          anchorSessionId: sessionId,
-        });
       }
       // Re-assert ownership with host scope so dual-listed rows collapse to
       // the correct sidebar section (project vs Conversations).
@@ -820,7 +768,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       // Hydrate sessions for opened project. Do not force-switch session when simply opening/expanding a folder.
       const sessions = await hydrateSessions(openedPath, {
         fillActiveList: true,
-        ...(resumeSessionId ? { anchorSessionId: resumeSessionId } : {}),
       });
       // Also hydrate general sessions in the background so the Conversations
       // sidebar section stays populated while a project is active.
@@ -828,13 +775,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (resumeSessionId) {
         await handleResumeSession(resumeSessionId, {
           scope: { kind: 'project', projectPath: openedPath },
-          pageAnchored: true,
         });
       } else if (options?.switchSession) {
         if (sessions[0]) {
           await handleResumeSession(sessions[0].id, {
             scope: { kind: 'project', projectPath: openedPath },
-            pageAnchored: true,
           });
         } else if (trusted) {
           await ensureSession({ projectPath: openedPath, alreadyTrusted: true });
@@ -1005,8 +950,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleTogglePin = useCallback(
     async (sessionId: string, currentlyPinned: boolean): Promise<void> => {
-      const sessionScope =
-        resolveSessionScopeHint?.(sessionId) ?? resolveKnownSessionScope(state, sessionId);
       const response = await hostClient.request({
         type: currentlyPinned ? 'session/unpin' : 'session/pin',
         sessionId,
@@ -1043,18 +986,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         nextSession.isPinned = false;
       }
       dispatch({ type: 'session/update', session: nextSession });
-      await hydrateSessions(sessionScope, {
-        includeArchived: showArchivedSessions,
-        anchorSessionId: sessionId,
-      });
     },
-    [dispatch, hostClient, hydrateSessions, resolveSessionScopeHint, showArchivedSessions, state],
+    [dispatch, hostClient, state],
   );
 
   const handleRenameSession = useCallback(
     async (sessionId: string, name: string): Promise<void> => {
-      const sessionScope =
-        resolveSessionScopeHint?.(sessionId) ?? resolveKnownSessionScope(state, sessionId);
       const response = await hostClient.request({
         type: 'session/rename',
         sessionId,
@@ -1074,20 +1011,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         });
       }
       dispatchNotification(pushSuccess(`Renamed to “${data.name ?? name.trim()}”`));
-      await hydrateSessions(sessionScope, {
-        includeArchived: showArchivedSessions,
-        anchorSessionId: sessionId,
-      });
     },
-    [
-      dispatch,
-      dispatchNotification,
-      hostClient,
-      hydrateSessions,
-      resolveSessionScopeHint,
-      showArchivedSessions,
-      state,
-    ],
+    [dispatch, dispatchNotification, hostClient],
   );
 
   const handleArchiveSession = useCallback(
@@ -1103,7 +1028,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (showArchivedSessions) {
         await hydrateSessions(sessionScope, {
           includeArchived: true,
-          anchorSessionId: sessionId,
         });
       } else {
         const wasActive = state.activeSessionId === sessionId;
@@ -1142,7 +1066,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatchNotification(pushSuccess('Agent restored'));
       await hydrateSessions(sessionScope, {
         includeArchived: showArchivedSessions,
-        ...(!showArchivedSessions ? { anchorSessionId: sessionId } : {}),
       });
     },
     [
@@ -1158,8 +1081,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const confirmDeleteSession = useCallback(
     async (sessionId: string): Promise<boolean> => {
-      const sessionScope =
-        resolveSessionScopeHint?.(sessionId) ?? resolveKnownSessionScope(state, sessionId);
       const response = await hostClient.request({ type: 'session/delete', sessionId });
       if (!response.success) {
         dispatch({ type: 'error', message: response.error });
@@ -1172,18 +1093,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({ type: 'session/clear-active' });
       }
       dispatchNotification(pushSuccess('Agent deleted permanently'));
-      await hydrateSessions(sessionScope, { includeArchived: showArchivedSessions });
       return true;
     },
-    [
-      dispatch,
-      dispatchNotification,
-      hostClient,
-      hydrateSessions,
-      resolveSessionScopeHint,
-      showArchivedSessions,
-      state,
-    ],
+    [dispatch, dispatchNotification, hostClient, state],
   );
 
   /** Request path kept for menu handlers that still need an entry point. */
@@ -1756,7 +1668,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   return {
     hydrateSessions,
-    sessionListWindows,
     transcriptHistoryLoading,
     loadUserMessageIndex,
     handleJumpToHistoryAnchor,

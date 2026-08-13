@@ -126,7 +126,7 @@ import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { resolveThinkingLevelForModel } from './model-thinking-policy';
 import { buildEnabledModelOptions } from './model-options';
-import { sessionScopeKey } from './session-list-page-state';
+import { sessionScopeKey } from './session-scope-key';
 
 import {
   ArtifactHeightSignalProvider,
@@ -1336,7 +1336,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   );
   const {
     hydrateSessions,
-    sessionListWindows,
     transcriptHistoryLoading,
     loadUserMessageIndex,
     handleJumpToHistoryAnchor,
@@ -1405,28 +1404,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     state.userMessageIndex,
     state.userMessageIndexEpoch,
   ]);
-
-  const handleSessionPageChange = useCallback(
-    async (scope: SessionScope, cursor: string, direction: 'previous' | 'next'): Promise<void> => {
-      await hydrateSessions(scope, {
-        includeArchived: showArchivedSessions,
-        order: sessionListOrder,
-        cursor,
-        merge: direction === 'previous' ? 'prepend' : 'append',
-      });
-    },
-    [hydrateSessions, sessionListOrder, showArchivedSessions],
-  );
-
-  const handleSessionWindowReset = useCallback(
-    async (scope: SessionScope): Promise<void> => {
-      await hydrateSessions(scope, {
-        includeArchived: showArchivedSessions,
-        order: sessionListOrder,
-      });
-    },
-    [hydrateSessions, sessionListOrder, showArchivedSessions],
-  );
 
   const handleSessionListOrderChange = useCallback(
     (order: SessionListOrder): void => {
@@ -1506,7 +1483,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
     // Do not depend on hydrateSessions: it intentionally captures current UI
     // state and changes identity after every reducer update. Depending on it
-    // here creates a session/list-page request loop that starves prompt requests.
+    // here creates a session/list request loop that starves prompt requests.
     // General is refreshed explicitly on scope selection and archive toggles.
     // hydrateSessions is intentionally omitted; its identity changes with UI state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3187,11 +3164,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 filteredSessions={filteredSessions}
                 generalSessions={filteredGeneralSessions}
                 projectSessionsByPath={state.projectSessionsByPath}
-                sessionListWindows={sessionListWindows}
                 sessionListOrder={sessionListOrder}
                 onSessionListOrderChange={handleSessionListOrderChange}
-                onSessionPageChange={handleSessionPageChange}
-                onSessionWindowReset={handleSessionWindowReset}
                 sessionGroups={sessionGroups}
                 activeSessionId={state.activeSessionId}
                 sessionSearch={sessionSearch}

@@ -1793,48 +1793,88 @@ describe('chatUiReducer', () => {
   });
 
   describe('generalSessions (Conversations sidebar section)', () => {
-    it('bounded page hydration replaces one scope without deselecting its active transcript', () => {
+    it('hydrates general and project scopes independently without deselecting an out-of-bound active row', () => {
       let state = createInitialChatUiState();
       state = chatUiReducer(state, { type: 'session/set', sessionId: 'older-active' });
       state = chatUiReducer(state, {
-        type: 'session/hydrate-page',
+        type: 'session/hydrate-scope',
         scope: { kind: 'general' },
         sessions: Array.from({ length: 12 }, (_, index) => ({
           id: `page-${index}`,
           name: `Page ${index}`,
         })),
+        totalCount: 12,
+        truncated: false,
+      });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-scope',
+        scope: { kind: 'project', projectPath: '/proj' },
+        sessions: [{ id: 'p1', name: 'Project one' }],
+        totalCount: 1,
+        truncated: false,
       });
 
-      expect(state.sessionListsWindowed).toBe(true);
+      expect(state.sessionListScopes.general).toEqual({ totalCount: 12, truncated: false });
+      expect(state.sessionListScopes.projects['/proj']).toEqual({ totalCount: 1, truncated: false });
       expect(state.sessions).toHaveLength(12);
       expect(state.generalSessions).toHaveLength(12);
+      expect(state.projectSessionsByPath['/proj']).toHaveLength(1);
       expect(state.activeSessionId).toBe('older-active');
     });
 
-    it('keeps lazy-window list updates bounded and ignores unknown background inserts', () => {
+    it('admits a local upsert outside the bounded set without double-counting', () => {
       let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'outside' });
       state = chatUiReducer(state, {
-        type: 'session/hydrate-page',
+        type: 'session/hydrate-scope',
         scope: { kind: 'general' },
-        // Three retained General pages at twelve rows each.
-        sessions: Array.from({ length: 36 }, (_, index) => ({
+        sessions: Array.from({ length: 40 }, (_, index) => ({
           id: `page-${index}`,
           name: `Page ${index}`,
         })),
+        totalCount: 2005,
+        truncated: true,
       });
       state = chatUiReducer(state, {
         type: 'session/update',
-        session: { id: 'background', name: 'Background', scope: { kind: 'general' } },
+        session: { id: 'outside', name: 'Outside bound', scope: { kind: 'general' } },
       });
-      expect(state.generalSessions.some((session) => session.id === 'background')).toBe(false);
+      expect(state.generalSessions.some((session) => session.id === 'outside')).toBe(true);
+      expect(state.generalSessions).toHaveLength(41);
+      expect(state.sessionListScopes.general?.totalCount).toBe(2005);
+    });
 
-      state = chatUiReducer(state, { type: 'session/set', sessionId: 'new-active' });
+    it('add and delete adjust total count once, and never rettruncate lists to 18/36', () => {
+      let state = createInitialChatUiState();
       state = chatUiReducer(state, {
-        type: 'session/update',
-        session: { id: 'new-active', name: 'New active', scope: { kind: 'general' } },
+        type: 'session/hydrate-scope',
+        scope: { kind: 'general' },
+        sessions: Array.from({ length: 40 }, (_, index) => ({
+          id: `page-${index}`,
+          name: `Page ${index}`,
+        })),
+        totalCount: 40,
+        truncated: false,
       });
-      expect(state.generalSessions).toHaveLength(36);
-      expect(state.generalSessions[0]?.id).toBe('new-active');
+      state = chatUiReducer(state, { type: 'session/add', sessionId: 'new-row', name: 'Brand new' });
+      expect(state.generalSessions).toHaveLength(41);
+      expect(state.sessionListScopes.general?.totalCount).toBe(41);
+      state = chatUiReducer(state, { type: 'session/add', sessionId: 'new-row', name: 'Brand new' });
+      expect(state.sessionListScopes.general?.totalCount).toBe(41);
+      state = chatUiReducer(state, { type: 'session/remove', sessionId: 'new-row' });
+      expect(state.generalSessions).toHaveLength(40);
+      expect(state.sessionListScopes.general?.totalCount).toBe(40);
+    });
+
+    it('keeps placeholder sessions unlistable', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/add',
+        sessionId: 'draft',
+        name: 'session-placeholder',
+      });
+      expect(state.generalSessions.some((session) => session.id === 'draft')).toBe(false);
+      expect(state.activeSessionId).toBe('draft');
     });
 
     it('session/hydrate-general populates generalSessions without clearing project sessions', () => {
@@ -3138,11 +3178,13 @@ describe('chatUiReducer subagent hydration', () => {
     state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-a' });
     expect(state.activeSessionMetadata).toMatchObject({ id: 'session-a', name: 'Named session A' });
 
-    // Sidebar paging replaces the retained page without the active row.
+    // A later hydrate may omit the active row; metadata must stay selected.
     state = chatUiReducer(state, {
-      type: 'session/hydrate-page',
+      type: 'session/hydrate-scope',
       scope: { kind: 'project', projectPath: '/p' },
       sessions: [{ id: 'session-zzz', name: 'Other' }],
+      totalCount: 80,
+      truncated: true,
       fillActiveList: true,
     });
     expect(state.sessions.some((item) => item.id === 'session-a')).toBe(false);

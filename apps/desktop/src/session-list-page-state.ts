@@ -37,9 +37,7 @@ export function createSessionListWindowsState<
   return { general: null, projects: {} };
 }
 
-export function sessionScopeKey(scope: SessionScope): string {
-  return scope.kind === 'general' ? 'general' : `project:${scope.projectPath}`;
-}
+export { sessionScopeKey } from './session-scope-key';
 
 export function getSessionListWindow<T extends { id: string }>(
   state: SessionListWindowsState<T>,
