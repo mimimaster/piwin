@@ -38,6 +38,7 @@ import { canUseThinkingLevel } from '../model-thinking-policy';
 import { chooseSessionExportPath } from '../session-export-dialog';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { GENERAL_SESSION_PAGE_SIZE, PROJECT_SESSION_PAGE_SIZE } from '../session-sidebar-page';
+import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
 import {
   createSessionListWindowsState,
   flattenSessionListWindow,
@@ -1196,8 +1197,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const handleDuplicateSession = useCallback(
     async (sessionId: string): Promise<void> => {
       if (
-        state.transcriptOwnerSessionId !== null &&
-        state.transcriptOwnerSessionId !== state.activeSessionId
+        transcriptOwnerBlocksDangerousAction({
+          transcriptOwnerSessionId: state.transcriptOwnerSessionId,
+          activeSessionId: state.activeSessionId,
+        })
       ) {
         dispatchNotification(
           pushError('Transcript is still loading for this session — try again in a moment.'),
@@ -1264,8 +1267,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const handleForkSession = useCallback(
     async (sessionId: string, messageId: string): Promise<void> => {
       if (
-        state.transcriptOwnerSessionId !== null &&
-        state.transcriptOwnerSessionId !== state.activeSessionId
+        transcriptOwnerBlocksDangerousAction({
+          transcriptOwnerSessionId: state.transcriptOwnerSessionId,
+          activeSessionId: state.activeSessionId,
+        })
       ) {
         dispatchNotification(
           pushError('Transcript is still loading for this session — try again in a moment.'),
@@ -1515,8 +1520,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         return;
       }
       if (
-        state.transcriptOwnerSessionId !== null &&
-        state.transcriptOwnerSessionId !== state.activeSessionId
+        transcriptOwnerBlocksDangerousAction({
+          transcriptOwnerSessionId: state.transcriptOwnerSessionId,
+          activeSessionId: state.activeSessionId,
+        })
       ) {
         dispatchNotification(
           pushError('Transcript is still loading for this session — try again in a moment.'),

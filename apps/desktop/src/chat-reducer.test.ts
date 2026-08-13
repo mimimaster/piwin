@@ -2888,6 +2888,84 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.transcriptOwnerSessionId).toBe('session-b');
   });
 
+  it('clears transcript ownership on every path that clears the active session', () => {
+    // A stale owner on an empty transcript makes the duplicate/fork/retry
+    // guards in use-session-actions reject sidebar actions with a misleading
+    // "still loading" error until some session is opened.
+    const stateWithOwner = () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-a' });
+      state = chatUiReducer(state, {
+        type: 'session/load-messages',
+        sessionId: 'session-a',
+        messages: [
+          {
+            id: 'a-1',
+            role: 'user',
+            text: 'from A',
+            createdAt: '2026-08-12T00:00:00.000Z',
+            status: 'done',
+          },
+        ],
+      });
+      expect(state.transcriptOwnerSessionId).toBe('session-a');
+      return state;
+    };
+
+    const afterScopeSwitch = chatUiReducer(stateWithOwner(), {
+      type: 'scope/set',
+      scope: { kind: 'project', projectPath: '/p' },
+    });
+    expect(afterScopeSwitch.activeSessionId).toBeNull();
+    expect(afterScopeSwitch.transcriptOwnerSessionId).toBeNull();
+
+    const afterProjectSet = chatUiReducer(stateWithOwner(), {
+      type: 'project/set',
+      path: '/p',
+      trusted: true,
+    });
+    expect(afterProjectSet.activeSessionId).toBeNull();
+    expect(afterProjectSet.transcriptOwnerSessionId).toBeNull();
+
+    let projectState = chatUiReducer(stateWithOwner(), {
+      type: 'scope/set',
+      scope: { kind: 'project', projectPath: '/p' },
+    });
+    projectState = chatUiReducer(projectState, { type: 'session/set', sessionId: 'session-p' });
+    projectState = chatUiReducer(projectState, {
+      type: 'session/load-messages',
+      sessionId: 'session-p',
+      messages: [
+        {
+          id: 'p-1',
+          role: 'user',
+          text: 'from P',
+          createdAt: '2026-08-12T00:02:00.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    expect(projectState.transcriptOwnerSessionId).toBe('session-p');
+    const afterProjectClear = chatUiReducer(projectState, { type: 'project/clear' });
+    expect(afterProjectClear.activeSessionId).toBeNull();
+    expect(afterProjectClear.transcriptOwnerSessionId).toBeNull();
+
+    const afterActiveRemoved = chatUiReducer(stateWithOwner(), {
+      type: 'session/remove',
+      sessionId: 'session-a',
+    });
+    expect(afterActiveRemoved.activeSessionId).toBeNull();
+    expect(afterActiveRemoved.transcriptOwnerSessionId).toBeNull();
+
+    // Removing a *different* session must keep the painted transcript's owner.
+    const afterOtherRemoved = chatUiReducer(stateWithOwner(), {
+      type: 'session/remove',
+      sessionId: 'session-other',
+    });
+    expect(afterOtherRemoved.activeSessionId).toBe('session-a');
+    expect(afterOtherRemoved.transcriptOwnerSessionId).toBe('session-a');
+  });
+
 
   it('keeps active session metadata across sidebar paging', () => {
     let state = createInitialChatUiState();
