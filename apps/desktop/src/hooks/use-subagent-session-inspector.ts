@@ -66,8 +66,8 @@ export function useSubagentSessionInspector(
   /** Monotonic guard so a slow `session/messages` response cannot land after
    *  the user opened another child or closed the dialog. */
   const requestSeqRef = useRef(0);
-  /** Child for which the terminal refresh already ran (per selection). */
-  const terminalRefreshedForRef = useRef<string | null>(null);
+  /** Last `${childId}#${completionRevision}` state absorbed into history. */
+  const historyRefreshKeyRef = useRef<string | null>(null);
   /** Tracks which child the retained history belongs to. */
   const loadedChildIdRef = useRef<string | null>(null);
 
@@ -111,7 +111,7 @@ export function useSubagentSessionInspector(
   const openInspector = useCallback(
     (next: SubagentInspectorSelection): void => {
       requestSeqRef.current += 1;
-      terminalRefreshedForRef.current = null;
+      historyRefreshKeyRef.current = null;
       const switchingChild = loadedChildIdRef.current !== next.childSessionId;
       setSelection(next);
       // Keep the previous transcript when re-opening the same child so the
@@ -140,7 +140,7 @@ export function useSubagentSessionInspector(
       return;
     }
     requestSeqRef.current += 1;
-    terminalRefreshedForRef.current = null;
+    historyRefreshKeyRef.current = null;
     void loadMessages(childSessionId, requestSeqRef.current);
   }, [childSessionId, loadMessages]);
 
@@ -153,18 +153,23 @@ export function useSubagentSessionInspector(
     onOpenFullSessionRef.current(targetSessionId);
   }, [childSessionId, closeInspector]);
 
-  // Replace the live tail with persisted final content exactly once per
-  // selection after the stream transitions to terminal. The hook keeps the
-  // last loaded view visible while refreshing so the dialog never flashes
-  // empty; closing during the refresh is protected by the request seq.
+  // Absorb finished live content into persisted history: refresh once per
+  // completed message (and once for a terminal stream that never finished a
+  // message, e.g. an abort). The hook keeps the last loaded view visible
+  // while refreshing so the dialog never flashes empty; closing during the
+  // refresh is protected by the request seq.
   useEffect(() => {
     if (childSessionId === null || stream === null) {
       return;
     }
-    if (stream.streaming || terminalRefreshedForRef.current === childSessionId) {
+    if (stream.streaming && stream.completedSegments.length === 0) {
       return;
     }
-    terminalRefreshedForRef.current = childSessionId;
+    const refreshKey = `${childSessionId}#${stream.completionRevision}`;
+    if (historyRefreshKeyRef.current === refreshKey) {
+      return;
+    }
+    historyRefreshKeyRef.current = refreshKey;
     requestSeqRef.current += 1;
     void loadMessages(childSessionId, requestSeqRef.current);
   }, [childSessionId, stream, loadMessages]);

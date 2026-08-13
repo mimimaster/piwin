@@ -27,6 +27,8 @@ const historicalMessages: ChatMessageUi[] = [
 
 const liveStream: SubagentStreamState = {
   childSessionId: 'child-session-1',
+  completedSegments: [],
+  completionRevision: 0,
   text: 'The child agent is preparing the next step.',
   thinking: 'Reviewing the live child session state.',
   tools: [],

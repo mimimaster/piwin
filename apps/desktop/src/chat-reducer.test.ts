@@ -2326,6 +2326,166 @@ describe('chatUiReducer', () => {
       expect(Object.keys(state.subagentChildren)).toHaveLength(1);
     });
 
+    it('retains completed assistant messages as segments across message boundaries', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+      const send = (event: import('@piwin/contracts').AgentEvent): void => {
+        state = chatUiReducer(state, {
+          type: 'subagent/stream',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          event,
+        });
+      };
+      send({ type: 'message/start', messageId: 'm1', role: 'assistant' });
+      send({ type: 'message/text_delta', messageId: 'm1', delta: 'first answer' });
+      send({ type: 'message/end', messageId: 'm1' });
+      // Causal order: the tool invoked by m1 starts after m1's message/end.
+      send({ type: 'tool/start', toolCallId: 't1', toolName: 'read_file', responseMessageId: 'm1' });
+      send({ type: 'tool/end', toolCallId: 't1', isError: false, responseMessageId: 'm1' });
+      send({ type: 'message/start', messageId: 'm2', role: 'assistant' });
+      send({ type: 'message/text_delta', messageId: 'm2', delta: 'second answer' });
+      send({ type: 'message/end', messageId: 'm2' });
+      send({ type: 'message/start', messageId: 'm3', role: 'assistant' });
+      send({ type: 'message/text_delta', messageId: 'm3', delta: 'third in flight' });
+
+      const stream = state.subagentStreams['child-1'];
+      expect(stream).toBeDefined();
+      if (!stream) throw new Error('missing stream');
+      // Middle messages must survive while the child window stays open.
+      expect(stream.completedSegments.map((segment) => segment.messageId)).toEqual(['m1', 'm2']);
+      expect(stream.completedSegments[0]?.text).toBe('first answer');
+      // The late tool call attaches to its owning segment, not the live tail.
+      expect(stream.completedSegments[0]?.tools.map((tool) => tool.toolCallId)).toEqual(['t1']);
+      expect(stream.completedSegments[0]?.tools[0]?.status).toBe('done');
+      expect(stream.completedSegments[1]?.text).toBe('second answer');
+      expect(stream.text).toBe('third in flight');
+      expect(stream.currentMessageId).toBe('m3');
+      expect(stream.tools).toHaveLength(0);
+    });
+
+    it('retains a tool-only assistant shell so late tools are not wiped by the next message', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+      const send = (event: import('@piwin/contracts').AgentEvent): void => {
+        state = chatUiReducer(state, {
+          type: 'subagent/stream',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          event,
+        });
+      };
+      send({ type: 'message/start', messageId: 'm1', role: 'assistant' });
+      send({ type: 'message/end', messageId: 'm1' });
+      send({ type: 'tool/start', toolCallId: 't1', toolName: 'read_file', responseMessageId: 'm1' });
+      send({ type: 'tool/update', toolCallId: 't1', delta: 'file contents', responseMessageId: 'm1' });
+      send({ type: 'tool/end', toolCallId: 't1', isError: false, responseMessageId: 'm1' });
+      send({ type: 'message/start', messageId: 'm2', role: 'assistant' });
+      send({ type: 'message/text_delta', messageId: 'm2', delta: 'after the tool' });
+
+      const stream = state.subagentStreams['child-1'];
+      if (!stream) throw new Error('missing stream');
+      expect(stream.completedSegments.map((segment) => segment.messageId)).toEqual(['m1']);
+      expect(stream.completedSegments[0]?.text).toBe('');
+      expect(stream.completedSegments[0]?.tools.map((tool) => tool.toolCallId)).toEqual(['t1']);
+      expect(stream.completedSegments[0]?.tools[0]?.status).toBe('done');
+      expect(stream.completedSegments[0]?.tools[0]?.output).toContain('file contents');
+      expect(stream.currentMessageId).toBe('m2');
+      expect(stream.text).toBe('after the tool');
+      expect(stream.tools).toHaveLength(0);
+    });
+
+    it('attaches late tool outputs to the segment that owns the tool call', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+      const send = (event: import('@piwin/contracts').AgentEvent): void => {
+        state = chatUiReducer(state, {
+          type: 'subagent/stream',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          event,
+        });
+      };
+      send({ type: 'message/start', messageId: 'm1', role: 'assistant' });
+      send({ type: 'message/end', messageId: 'm1' });
+      send({ type: 'tool/start', toolCallId: 't1', toolName: 'image_gen', responseMessageId: 'm1' });
+      send({
+        type: 'tool/end',
+        toolCallId: 't1',
+        isError: false,
+        responseMessageId: 'm1',
+        attachments: [
+          {
+            id: 'att-1',
+            kind: 'media',
+            path: '/media/generated.png',
+            mimeType: 'image/png',
+            byteSize: 1024,
+            source: 'generated',
+          },
+        ],
+      });
+      send({ type: 'message/start', messageId: 'm2', role: 'assistant' });
+      send({ type: 'message/text_delta', messageId: 'm2', delta: 'described the image' });
+
+      const stream = state.subagentStreams['child-1'];
+      if (!stream) throw new Error('missing stream');
+      // The generated media belongs to the message that ran the tool; the live
+      // buffer is cleared by the next message/start.
+      expect(stream.completedSegments[0]?.attachments?.map((item) => item.id)).toEqual(['att-1']);
+      expect(stream.attachments ?? []).toHaveLength(0);
+    });
+
+    it('keeps completionRevision increasing after the retained-segment cap', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+      const send = (event: import('@piwin/contracts').AgentEvent): void => {
+        state = chatUiReducer(state, {
+          type: 'subagent/stream',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          event,
+        });
+      };
+      for (let index = 1; index <= 32; index += 1) {
+        const messageId = `m${index}`;
+        send({ type: 'message/start', messageId, role: 'assistant' });
+        send({ type: 'message/text_delta', messageId, delta: `answer ${index}` });
+        send({ type: 'message/end', messageId });
+      }
+
+      const stream = state.subagentStreams['child-1'];
+      if (!stream) throw new Error('missing stream');
+      expect(stream.completedSegments).toHaveLength(30);
+      expect(stream.completedSegments[0]?.messageId).toBe('m3');
+      expect(stream.completedSegments[29]?.messageId).toBe('m32');
+      expect(stream.completionRevision).toBe(32);
+    });
+
+    it('keeps an aborted partial message as the terminal live tail', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+      const send = (event: import('@piwin/contracts').AgentEvent): void => {
+        state = chatUiReducer(state, {
+          type: 'subagent/stream',
+          parentSessionId: 'parent-1',
+          childSessionId: 'child-1',
+          event,
+        });
+      };
+      send({ type: 'message/start', messageId: 'm1', role: 'assistant' });
+      send({ type: 'message/text_delta', messageId: 'm1', delta: 'partial before abort' });
+      send({ type: 'session/aborted', sessionId: 'child-1' });
+
+      const stream = state.subagentStreams['child-1'];
+      if (!stream) throw new Error('missing stream');
+      expect(stream.streaming).toBe(false);
+      // No message/end: the partial text stays visible as the terminal tail
+      // until a history refresh (or clear-stream) replaces it.
+      expect(stream.text).toBe('partial before abort');
+      expect(stream.completedSegments).toEqual([]);
+    });
+
     it('clear-stream removes only the targeted child stream', () => {
       let state = createInitialChatUiState();
       state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });

@@ -25,6 +25,8 @@ function makeChild(overrides: Partial<SessionSummary> & { id: string }): Session
 function makeStream(overrides: Partial<SubagentStreamState>): SubagentStreamState {
   return {
     childSessionId: 'child-1',
+    completedSegments: [],
+    completionRevision: 0,
     text: '',
     thinking: '',
     tools: [],
