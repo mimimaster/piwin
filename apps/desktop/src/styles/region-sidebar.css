@@ -439,26 +439,6 @@
   font-size: 12px;
 }
 
-/* Progressive blur-fade at the bottom edge of the scrollable tree so the
-   overflowing list tail dissolves into the sidebar instead of being cut. */
-.sidebar-folder-tree::after {
-  content: '';
-  position: sticky;
-  bottom: -1px;
-  z-index: 1;
-  flex: none;
-  height: 32px;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    color-mix(in srgb, var(--sidebar) 70%, transparent)
-  );
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-}
 
 .tree-header-row {
   margin-bottom: 2px;
@@ -1249,26 +1229,6 @@ html[data-theme-mode='light'] .repository-row.active > svg {
   background: var(--sidebar);
 }
 
-/* Thin blur fade where the session list meets the footer (knowledge / settings). */
-.sidebar-footer::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  height: 18px;
-  pointer-events: none;
-  z-index: 1;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    color-mix(in srgb, var(--sidebar) 72%, transparent) 100%
-  );
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
-}
 
 .sidebar-footer-button {
   display: flex;

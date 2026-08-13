@@ -222,6 +222,26 @@ test.describe('responsive viewport smoke', () => {
     await expect(page.getByTestId('settings-panel')).toHaveCount(0);
   });
 
+  test('compact closed sidebar keeps its toggle clear of macOS traffic lights', async ({ page }) => {
+    await page.setViewportSize({ width: 980, height: 760 });
+    await page.goto('/');
+
+    const shell = page.getByTestId('app-shell');
+    await expect(shell).toBeVisible();
+    await expect(shell).toHaveAttribute('data-layout', 'compact');
+    await expect(shell).not.toHaveClass(/nav-open/);
+
+    // With the compact drawer closed, the stage titleband occupies the native
+    // traffic-light row. Keep its leading controls outside that reserved area.
+    await expect
+      .poll(() =>
+        page
+          .getByTestId('workspace-context-header')
+          .evaluate((node) => Number.parseFloat(getComputedStyle(node).paddingLeft)),
+      )
+      .toBeGreaterThanOrEqual(78);
+  });
+
   test('800x700 mutual overlays stay reachable', async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 700 });
     await page.goto('/');
