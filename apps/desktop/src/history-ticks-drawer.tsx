@@ -98,6 +98,8 @@ type HistoryTickMessage = {
 /** Gap between the peak wave tip and the preview bubble. Keep small so the
  *  tooltip reads as attached to the tick rail rather than floating mid-stage. */
 const COLLAPSED_BUBBLE_OFFSET_PX = 8;
+/** How long a cold-anchor jump retries before falling back to plain DOM scroll. */
+const HISTORY_JUMP_RETRY_WINDOW_MS = 2_000;
 const COLLAPSED_BUBBLE_MAX_HALF_HEIGHT_PX = 120;
 const COLLAPSED_BUBBLE_VIEWPORT_PADDING_PX = 12;
 
@@ -289,9 +291,22 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
       if (anchor && onJumpToAnchor) {
         const jump = async (): Promise<void> => {
           await onJumpToAnchor(anchor);
-          window.requestAnimationFrame(() => {
-            scrollTranscriptToMessage(messageId);
-          });
+          // The virtualized scroller re-registers only after the seek window
+          // commits and the turn list rebuilds its index. Retry across frames
+          // until the scroller accepts the message; fall back to DOM after the
+          // deadline (non-virtualized view).
+          const deadline = performance.now() + HISTORY_JUMP_RETRY_WINDOW_MS;
+          const attemptScroll = (): void => {
+            if (transcriptScrollPort?.scrollToMessage(messageId)) {
+              return;
+            }
+            if (performance.now() > deadline) {
+              scrollTranscriptToMessage(messageId);
+              return;
+            }
+            window.requestAnimationFrame(attemptScroll);
+          };
+          window.requestAnimationFrame(attemptScroll);
         };
         void jump().catch((error: unknown) => {
           console.error('history anchor jump failed', error);
