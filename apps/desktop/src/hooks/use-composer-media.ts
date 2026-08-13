@@ -28,6 +28,7 @@ import {
   resolveAttachmentContentKind,
   resolveAttachmentMimeType,
   type PendingComposerAttachment,
+  type PendingAttachmentUploadStatus,
 } from '../media-utils.js';
 import { type AgentModeId } from '../agent-mode';
 import {
@@ -133,12 +134,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
    * Prevents late IPC from updating or re-adding chips the user already dismissed.
    */
   const cancelledAttachmentIdsRef = useRef(new Set<string>());
-  /**
-   * In-flight media/save work keyed by localId. Send awaits these so the user
-   * never has to "wait a moment and click again".
-   */
-  const uploadPromisesRef = useRef(new Map<string, Promise<void>>());
-  /** Original File retained for one-tap retry after a failed save. */
+  /** Original File retained until Send (and one-tap retry after a failed save). */
   const sourceFilesRef = useRef(
     new Map<string, { file: File; source: 'paste' | 'drop' | 'file-picker' }>(),
   );
@@ -190,9 +186,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   // draft, but the text is being sent — this flag tells the effect to skip.
   const skipDraftSaveRef = useRef(false);
   /**
-   * Draft → live session for the *current* draft work (image paste/drop/picker
-   * needs a session id for media/save). Keep the typed text; do not treat this
-   * as "user switched to another session".
+   * Safety net for the null → session transition during Send: media/save is
+   * deferred until Send, and `skipDraftSaveRef` is set before the session is
+   * ensured, so `decideDraftTransition` already short-circuits. Kept so a
+   * session activation triggered inside `resolveSessionIdForComposer` can
+   * never take the "user switched sessions" clear path.
    */
   const preserveComposerOnSessionActivationRef = useRef(false);
   const prevActiveSessionIdRef = useRef<string | null>(args.state.activeSessionId);
@@ -515,7 +513,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
 
   const revokePending = useCallback((localId: string): void => {
     cancelledAttachmentIdsRef.current.add(localId);
-    uploadPromisesRef.current.delete(localId);
     sourceFilesRef.current.delete(localId);
     mediaSaveResultsRef.current.delete(localId);
     setPendingAttachments((current) => {
@@ -532,7 +529,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     setPendingAttachments((current) => {
       for (const item of current) {
         cancelledAttachmentIdsRef.current.add(item.localId);
-        uploadPromisesRef.current.delete(item.localId);
         sourceFilesRef.current.delete(item.localId);
         mediaSaveResultsRef.current.delete(item.localId);
         URL.revokeObjectURL(item.previewUrl);
@@ -564,9 +560,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     }
     // We only reach this point from draft mode (activeSessionId was null).
     // Creating the session activates it in the reducer, which normally runs
-    // the draft-exit effect and clears the composer. Media paste/drop/picker
-    // runs under the same draft, so tell the effect to keep the typed text.
-    // handleSend sets skipDraftSaveRef first, so the send path still clears.
+    // the draft-exit effect and clears the composer. handleSend sets
+    // skipDraftSaveRef first, so the send path still clears.
     const sessionId = isGeneral
       ? await args.ensureSession({ scope: { kind: 'general' } })
       : await args.ensureSession({
@@ -581,15 +576,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   }, [args]);
 
   /**
-   * Attach a supported file with an immediate local preview, then save to the
-   * media store in the background. Paste/drop must not wait on IPC.
+   * Save one attachment to the Host media store for an already-resolved
+   * session. Called from the Send path only — paste/drop never reaches here,
+   * so attaching an image can no longer create a session (ADR 0045).
    */
   const runMediaSave = useCallback(
-    async (
-      localId: string,
-      file: File,
-      source: 'paste' | 'drop' | 'file-picker',
-    ): Promise<void> => {
+    async (params: {
+      localId: string;
+      file: File;
+      source: 'paste' | 'drop' | 'file-picker';
+      sessionId: string;
+    }): Promise<void> => {
+      const { localId, file, source, sessionId } = params;
       const markError = (message: string): void => {
         if (cancelledAttachmentIdsRef.current.has(localId)) {
           return;
@@ -664,15 +662,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       );
 
       try {
-        const sessionId = await resolveSessionIdForComposer();
-        if (!sessionId || cancelledAttachmentIdsRef.current.has(localId)) {
-          if (!cancelledAttachmentIdsRef.current.has(localId)) {
-            removeLocalChip();
-          }
-          return;
-        }
-
-        // Yield so the optimistic chip can paint before compress/encode/IPC.
+        // Yield so the "Preparing…" chip state can paint before compress/encode/IPC.
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 0);
         });
@@ -754,7 +744,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         markError(message);
       }
     },
-    [args, resolveSessionIdForComposer],
+    [args],
   );
 
   const enqueueAttachmentFile = useCallback(
@@ -782,39 +772,33 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           source,
         };
         // Paint the chip immediately so paste never waits on encode/IPC.
+        // ADR 0045 compatibility path: the File + blob preview stay in the
+        // draft until Send; no Host session or media/save happens here.
         setPendingAttachments((current) => [
           ...current,
           {
             localId,
             attachment: placeholderAttachment,
             previewUrl,
-            uploadStatus: 'saving',
+            uploadStatus: 'queued',
           },
         ]);
       } else {
+        // Retry: drop the failed terminal state back to queued. The save runs
+        // on the next Send, not immediately.
         setPendingAttachments((current) =>
           current.map((item) =>
             item.localId === localId
               ? (() => {
                   const { uploadError: _ignored, ...rest } = item;
-                  return { ...rest, uploadStatus: 'saving' as const };
+                  return { ...rest, uploadStatus: 'queued' as const };
                 })()
               : item,
           ),
         );
       }
-
-      const savePromise = runMediaSave(localId, file, source).finally(() => {
-        // Keep the entry until send waiters have observed terminal state via React state.
-        // Only drop if this promise is still the active one for localId.
-        const current = uploadPromisesRef.current.get(localId);
-        if (current === savePromise) {
-          uploadPromisesRef.current.delete(localId);
-        }
-      });
-      uploadPromisesRef.current.set(localId, savePromise);
     },
-    [runMediaSave],
+    [],
   );
 
   const retryPendingAttachment = useCallback(
@@ -833,22 +817,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   );
 
   /**
-   * Wait until every attachment chip is ready (or failed/removed).
-   * Used by Send so the user can press Enter immediately after paste/drop.
+   * Merge terminal save results into the chip list so Send never depends on
+   * React having flushed setState after an awaited save.
    */
-  const waitForPendingMediaSaves = useCallback(async (): Promise<{
-    ready: PendingComposerAttachment[];
-    failed: PendingComposerAttachment[];
-  }> => {
-    const outstanding = [...uploadPromisesRef.current.values()];
-    if (outstanding.length > 0) {
-      await Promise.allSettled(outstanding);
-    }
-
-    const latest = pendingAttachmentsRef.current;
-    // Merge terminal results from the save map so we do not depend on React
-    // having flushed setState before Send continues.
-    const merged = latest.map((item) => {
+  const readResolvedComposerChips = useCallback((): PendingComposerAttachment[] => {
+    const merged = pendingAttachmentsRef.current.map((item) => {
       if (item.attachment.kind !== 'media') {
         return item;
       }
@@ -873,14 +846,84 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     // Keep React state in sync with the merge used for send.
     pendingAttachmentsRef.current = merged;
     setPendingAttachments(merged);
-
-    return {
-      ready: merged.filter(isPendingAttachmentReady),
-      failed: merged.filter(
-        (item) => item.attachment.kind === 'media' && item.uploadStatus === 'error',
-      ),
-    };
+    return merged;
   }, []);
+
+  const markAttachmentUploadStatus = useCallback(
+    (localIds: string[], status: PendingAttachmentUploadStatus): void => {
+      const targetIds = new Set(localIds);
+      setPendingAttachments((current) => {
+        const next = current.map((item) =>
+          targetIds.has(item.localId) && item.attachment.kind === 'media'
+            ? { ...item, uploadStatus: status }
+            : item,
+        );
+        pendingAttachmentsRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
+  /**
+   * Run `media/save` for chips whose File is still local (queued after paste,
+   * or reset by Retry). Chips that are already `ready` from an earlier
+   * successful save are reused and never re-uploaded.
+   */
+  const saveDeferredMediaChips = useCallback(
+    async (sessionId: string, chips: PendingComposerAttachment[]): Promise<void> => {
+      await Promise.all(
+        chips.map(async (chip) => {
+          if (chip.attachment.kind !== 'media') {
+            return;
+          }
+          if (isPendingAttachmentReady(chip)) {
+            return;
+          }
+          const source = sourceFilesRef.current.get(chip.localId);
+          if (!source) {
+            // Chip survived a draft round-trip without its File (e.g. restored
+            // from a stale snapshot). Never send a placeholder path.
+            const message = 'Attachment is no longer available — remove it and attach it again.';
+            mediaSaveResultsRef.current.set(chip.localId, { ok: false, error: message });
+            setPendingAttachments((current) =>
+              current.map((item) =>
+                item.localId === chip.localId
+                  ? { ...item, uploadStatus: 'error' as const, uploadError: message }
+                  : item,
+              ),
+            );
+            return;
+          }
+          await runMediaSave({
+            localId: chip.localId,
+            file: source.file,
+            source: source.source,
+            sessionId,
+          });
+        }),
+      );
+    },
+    [runMediaSave],
+  );
+
+  /**
+   * Release the local resources of sent attachments. Called only after
+   * `session/prompt` ACKs, so a failed prompt can restore the chips intact.
+   */
+  const disposeComposerAttachments = useCallback(
+    (attachments: PendingComposerAttachment[]): void => {
+      for (const item of attachments) {
+        cancelledAttachmentIdsRef.current.add(item.localId);
+        sourceFilesRef.current.delete(item.localId);
+        mediaSaveResultsRef.current.delete(item.localId);
+        if (item.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      }
+    },
+    [],
+  );
 
   const handleComposerPaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>): void => {
@@ -902,7 +945,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         return;
       }
       event.preventDefault();
-      // Fire-and-forget: each file paints a chip immediately, then saves async.
+      // Each file paints a local chip immediately; media/save is deferred to Send.
       for (const file of files) {
         enqueueAttachmentFile(file, 'paste');
       }
@@ -1159,16 +1202,28 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         ...(params.skill ? { skill: params.skill } : {}),
       });
       setComposer('');
-      clearPendingAttachments();
+      // Hide chips without releasing them: File, blob URL and save results
+      // survive until the session/prompt ACK. On failure the snapshot is
+      // restored; on ACK disposeComposerAttachments releases everything.
+      pendingAttachmentsRef.current = [];
+      setPendingAttachments([]);
       return clientMessageId;
     },
-    [args, clearPendingAttachments],
+    [args],
   );
 
   const rollbackOptimisticUserSend = useCallback(
-    (clientMessageId: string, restoreText: string): void => {
+    (
+      clientMessageId: string,
+      restoreText: string,
+      restoreAttachments?: PendingComposerAttachment[],
+    ): void => {
       args.dispatch({ type: 'user/send-rollback', clientMessageId });
       setComposer(restoreText);
+      if (restoreAttachments && restoreAttachments.length > 0) {
+        pendingAttachmentsRef.current = [...restoreAttachments];
+        setPendingAttachments([...restoreAttachments]);
+      }
     },
     [args],
   );
@@ -1193,40 +1248,93 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         args.dispatch({ type: 'run/terminal-dismiss' });
       }
 
-      // Only wait on media when something is actually in flight. Pure text
-      // must paint in the same turn as Enter (no microtask hop before bubble).
-      let attachments: PromptAttachment[] = pendingAttachmentsRef.current
-        .filter(isPendingAttachmentReady)
-        .map((item) => item.attachment);
-      const hasPendingMediaWork =
-        uploadPromisesRef.current.size > 0 ||
-        pendingAttachmentsRef.current.some(
-          (item) => item.attachment.kind === 'media' && item.uploadStatus === 'saving',
-        );
-      if (hasPendingMediaWork) {
-        // Best UX: user may hit Enter right after paste. Wait for background
-        // saves instead of bouncing with "try again".
-        const { ready: waitedReady, failed: waitedFailed } = await waitForPendingMediaSaves();
-        if (waitedFailed.length > 0) {
-          args.dispatch({
-            type: 'error',
-            message:
-              waitedFailed.length === 1
-                ? 'One attachment failed to save — tap Retry on the chip, or remove it.'
-                : `${waitedFailed.length} attachments failed to save — tap Retry or remove them.`,
-          });
-          return;
-        }
-        const readyItems =
-          waitedReady.length > 0
-            ? waitedReady
-            : pendingAttachmentsRef.current.filter(isPendingAttachmentReady);
-        attachments = readyItems.map((item) => item.attachment);
-      }
       const promptRefsSnapshot = args.getPendingContextRefTokens?.() ?? null;
       const contextRefs = promptRefsSnapshot
         ? promptRefsSnapshot.items.map((item) => item.ref)
         : (args.getPendingContextRefs?.() ?? []);
+
+      // ADR 0045 compatibility path: pastes are queued locally and only reach
+      // `media/save` here, after Send resolves the destination session. The
+      // bubble must carry real Host attachment refs, so deferred saves run
+      // before the optimistic paint. Error chips stay visible for Retry.
+      const deferredChips = [...pendingAttachmentsRef.current].filter(
+        (item) =>
+          item.attachment.kind === 'media' &&
+          !isPendingAttachmentReady(item) &&
+          item.uploadStatus !== 'error',
+      );
+
+      const wasInDraftMode = !args.state.activeSessionId;
+      const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
+
+      // Sync gates before paint so we never flash a bubble that cannot send.
+      // The check itself stays synchronous so a plain trusted send still paints
+      // in the same turn as Enter; only a missing workspace awaits the picker.
+      const checkSendGates = (): { ok: true } | { ok: false; awaitWorkspacePicker?: true } => {
+        if (!isGeneral) {
+          if (!args.state.projectPath) {
+            return { ok: false, awaitWorkspacePicker: true };
+          }
+          if (!args.state.projectTrusted) {
+            args.dispatch({ type: 'project/trust-dialog', open: true });
+            return { ok: false };
+          }
+        }
+        return { ok: true };
+      };
+
+      let deferredSessionId: string | null = null;
+      if (deferredChips.length > 0) {
+        const gates = checkSendGates();
+        if (!gates.ok) {
+          if (gates.awaitWorkspacePicker) {
+            await args.onNeedWorkspace?.();
+          }
+          return;
+        }
+        // Sending consumes the local draft row, if this composer was resumed
+        // from one. The newly created Host session will replace it in the list.
+        removeCurrentDraft();
+        if (wasInDraftMode) {
+          skipDraftSaveRef.current = true;
+          draftTextRef.current = '';
+        }
+        markAttachmentUploadStatus(
+          deferredChips.map((item) => item.localId),
+          'saving',
+        );
+        const sessionId = await resolveSessionIdForComposer();
+        if (!sessionId) {
+          if (wasInDraftMode) {
+            skipDraftSaveRef.current = false;
+          }
+          // Nothing painted yet: text stays, unsaved chips return to queued.
+          markAttachmentUploadStatus(
+            deferredChips.map((item) => item.localId),
+            'queued',
+          );
+          return;
+        }
+        deferredSessionId = sessionId;
+        await saveDeferredMediaChips(sessionId, deferredChips);
+        const failed = readResolvedComposerChips().filter(isFailedMediaAttachment);
+        if (failed.length > 0) {
+          args.dispatch({
+            type: 'error',
+            message:
+              failed.length === 1
+                ? 'One attachment failed to save — tap Retry on the chip, or remove it.'
+                : `${failed.length} attachments failed to save — tap Retry or remove them.`,
+          });
+          return;
+        }
+      }
+
+      // Include ready chips only; error chips stay visible for an explicit
+      // Retry and are never silently dropped into the prompt.
+      let attachments: PromptAttachment[] = readResolvedComposerChips()
+        .filter(isPendingAttachmentReady)
+        .map((item) => item.attachment);
       if (!text && attachments.length === 0 && contextRefs.length === 0) {
         return;
       }
@@ -1253,15 +1361,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
       }
 
-      // Sync gates before paint so we never flash a bubble that cannot send.
-      const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
-      if (!isGeneral) {
-        if (!args.state.projectPath) {
-          await args.onNeedWorkspace?.();
-          return;
-        }
-        if (!args.state.projectTrusted) {
-          args.dispatch({ type: 'project/trust-dialog', open: true });
+      if (deferredChips.length === 0) {
+        const gates = checkSendGates();
+        if (!gates.ok) {
+          if (gates.awaitWorkspacePicker) {
+            await args.onNeedWorkspace?.();
+          }
           return;
         }
       }
@@ -1324,14 +1429,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
 
       // Paint-first: clear composer and show the user bubble before any IPC.
-      // Session create / prompt ACK stay off the critical input path.
-      const wasInDraftMode = !args.state.activeSessionId;
-      // Sending consumes the local draft row, if this composer was resumed
-      // from one. The newly created Host session will replace it in the list.
-      removeCurrentDraft();
-      if (wasInDraftMode) {
-        skipDraftSaveRef.current = true;
-        draftTextRef.current = '';
+      // Session create / prompt ACK stay off the critical input path. A send
+      // with deferred media already ensured the session above.
+      if (deferredSessionId === null) {
+        // Sending consumes the local draft row, if this composer was resumed
+        // from one. The newly created Host session will replace it in the list.
+        removeCurrentDraft();
+        if (wasInDraftMode) {
+          skipDraftSaveRef.current = true;
+          draftTextRef.current = '';
+        }
       }
 
       let clientMessageId: string | null = null;
@@ -1368,24 +1475,27 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
       }
 
+      // Chips exactly as painted (deferred saves already resolved to ready).
+      // Kept alive until ACK so a failed prompt can restore them intact.
+      const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
       clientMessageId = paintOptimisticUserSend({
         text,
         displayText,
         attachments: promptAttachments,
         ...(skillActivity ? { skill: skillActivity } : {}),
       });
-      // paintOptimisticUserSend clears attachment chips; workspace refs belong
+      // paintOptimisticUserSend hides attachment chips; workspace refs belong
       // to this same prompt and must survive until the Host request is built.
       pendingContextRefsRef.current = promptContextRefs;
 
       promptSubmissionInProgress.current = true;
       try {
-        const sessionId = await resolveSessionIdForComposer();
+        const sessionId = deferredSessionId ?? (await resolveSessionIdForComposer());
         if (!sessionId) {
           if (wasInDraftMode) {
             skipDraftSaveRef.current = false;
           }
-          rollbackOptimisticUserSend(clientMessageId, text);
+          rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
           return;
         }
 
@@ -1403,11 +1513,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           input,
         });
         if (!response.success) {
-          rollbackOptimisticUserSend(clientMessageId, text);
+          rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
           args.dispatch({ type: 'error', message: response.error });
           return;
         }
 
+        // ACK: the prompt now owns the attachments. Only here may the local
+        // File, blob preview and save results be released (ADR 0045 recovery).
+        disposeComposerAttachments(paintSnapshotAttachments);
         pendingContextRefsRef.current = [];
 
         applyAcceptedRun(response.data);
@@ -1437,7 +1550,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
       } catch (error) {
         if (clientMessageId) {
-          rollbackOptimisticUserSend(clientMessageId, text);
+          rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
         }
         args.dispatch({ type: 'error', message: formatError(error) });
       } finally {
@@ -1450,11 +1563,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       buildPromptRequestInput,
       clearPendingAttachments,
       composer,
+      disposeComposerAttachments,
+      markAttachmentUploadStatus,
       paintOptimisticUserSend,
+      readResolvedComposerChips,
       removeCurrentDraft,
       resolveSessionIdForComposer,
       rollbackOptimisticUserSend,
-      waitForPendingMediaSaves,
+      saveDeferredMediaChips,
     ],
   );
 
@@ -1697,4 +1813,8 @@ function isImagePromptAttachment(attachment: PromptAttachment): boolean {
       (attachment.contentKind === undefined &&
         attachment.mimeType.trim().toLowerCase().startsWith('image/')))
   );
+}
+
+function isFailedMediaAttachment(item: PendingComposerAttachment): boolean {
+  return item.attachment.kind === 'media' && item.uploadStatus === 'error';
 }

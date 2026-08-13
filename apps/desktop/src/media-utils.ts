@@ -20,7 +20,7 @@ export const COMPOSER_IMAGE_TARGET_MAX_BYTES = 1_200_000;
 export const COMPOSER_IMAGE_JPEG_QUALITY = 0.82;
 
 /** Local composer chip lifecycle for media attachments. */
-export type PendingAttachmentUploadStatus = 'ready' | 'saving' | 'error';
+export type PendingAttachmentUploadStatus = 'queued' | 'ready' | 'saving' | 'error';
 
 export type PendingComposerAttachment = {
   localId: string;
@@ -31,8 +31,10 @@ export type PendingComposerAttachment = {
    */
   previewUrl: string;
   /**
-   * Media paste/drop/file-picker save lifecycle.
-   * Web-element chips are always treated as ready.
+   * Media paste/drop/file-picker save lifecycle (ADR 0045 compatibility path).
+   * Pastes start `queued` — the File and blob preview stay local until Send
+   * creates the destination session and runs `media/save` (`saving`), ending
+   * in `ready` or `error`. Web-element chips are always treated as ready.
    */
   uploadStatus?: PendingAttachmentUploadStatus;
   /** Present when `uploadStatus` is `error`. */

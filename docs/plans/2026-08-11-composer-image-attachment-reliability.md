@@ -8,6 +8,13 @@
 | 架构决定 | [ADR 0045](../adr/0045-draft-scoped-media-upload-and-recovery.md) |
 | 相关 | ADR 0005、ADR 0037、ADR 0041、`2026-08-09-file-attachment-support-recommendation.md` |
 
+> 实施进度（2026-08-13）：ADR 0045「Compatibility and migration」路径已落地 —
+> 粘贴/拖入只创建本地 chip（`queued`），`media/save` 推迟到 Send 且先于
+> `session/prompt`；发送失败时文本 + ready chip 完整恢复，仅在 prompt ACK 后释放
+> File/blob URL。upload-ticket 二进制上传仍属后续工作（Phase 2）。
+> 测试覆盖：paste 不创建 session、失败恢复 + 重试复用已保存附件、保存失败不发气泡。
+> （见 `apps/desktop/src/hooks/use-composer-media.test.tsx`）
+
 ## 1. 要解决的不是一个 Retry 按钮
 
 当前截图里的 `Retry` 表示图片没有成功保存到 Host 媒体目录。它不是模型重试，
