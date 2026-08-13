@@ -13,7 +13,78 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+// Image encode/decode paths are DOM-canvas based; keep the deferred-save tests
+// deterministic by stubbing only the binary preparation helpers.
+vi.mock('../media-utils.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media-utils.js')>();
+  return {
+    ...actual,
+    prepareComposerAttachmentForSave: vi.fn(
+      async (file: File, mimeType: string, contentKind: string) => ({
+        blob: file,
+        mimeType,
+        byteSize: file.size,
+        compressed: false,
+        contentKind,
+      }),
+    ),
+    fileToBase64: vi.fn(async () => 'iVBORw0KGgo='),
+  };
+});
+
 type ComposerMediaResult = ReturnType<typeof useComposerMedia>;
+
+function createPngFile(): File {
+  return new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'screenshot.png', {
+    type: 'image/png',
+  });
+}
+
+function pasteImage(latest: () => ComposerMediaResult): File {
+  const image = createPngFile();
+  const preventDefault = vi.fn();
+  act(() =>
+    latest().handleComposerPaste({
+      clipboardData: {
+        items: [{ kind: 'file', getAsFile: () => image }],
+      },
+      preventDefault,
+    } as unknown as Parameters<ComposerMediaResult['handleComposerPaste']>[0]),
+  );
+  expect(preventDefault).toHaveBeenCalledOnce();
+  return image;
+}
+
+function createSavedMediaResponse(commandType: string) {
+  if (commandType === 'media/save') {
+    return {
+      type: 'response' as const,
+      command: commandType,
+      success: true,
+      data: {
+        asset: {
+          id: 'asset-1',
+          sessionId: 'session-1',
+          absolutePath: '/Users/test/.piwin/media/session-1/screenshot.png',
+          mimeType: 'image/png',
+          name: 'screenshot.png',
+          contentKind: 'image',
+          byteSize: 4,
+          createdAt: '2026-08-12T00:00:00.000Z',
+        },
+      },
+    };
+  }
+  if (commandType === 'session/prompt') {
+    return {
+      type: 'response' as const,
+      command: commandType,
+      success: true,
+      data: { runId: 'run-1', acceptedAt: '2026-08-12T00:00:00.000Z' },
+    };
+  }
+  return { type: 'response' as const, command: commandType, success: true, data: {} };
+}
 
 describe('useComposerMedia session transitions', () => {
   let root: Root | null = null;
@@ -227,6 +298,10 @@ describe('useComposerMedia session transitions', () => {
     const hostClient = {
       request: vi.fn(),
     } as unknown as HostClient;
+    // Production wiring passes ensureSession; the deferred path must not call
+    // it until Send. The old test omitted it, which made a paste-time
+    // session creation invisible.
+    const ensureSession = vi.fn().mockResolvedValue('session-1');
     const dispatch = vi.fn();
     let captured: ComposerMediaResult | undefined;
 
@@ -243,6 +318,7 @@ describe('useComposerMedia session transitions', () => {
         state: props.state,
         dispatch,
         agentMode: 'agent',
+        ensureSession,
       });
       return null;
     }
@@ -257,22 +333,12 @@ describe('useComposerMedia session transitions', () => {
     };
     act(() => root?.render(<Harness state={newAgentState} />));
 
-    const image = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'screenshot.png', {
-      type: 'image/png',
-    });
-    const preventDefault = vi.fn();
-    act(() =>
-      latest().handleComposerPaste({
-        clipboardData: {
-          items: [{ kind: 'file', getAsFile: () => image }],
-        },
-        preventDefault,
-      } as unknown as Parameters<ComposerMediaResult['handleComposerPaste']>[0]),
-    );
+    pasteImage(latest);
 
-    expect(preventDefault).toHaveBeenCalledOnce();
     expect(latest().pendingAttachments).toHaveLength(1);
+    expect(latest().pendingAttachments[0]?.uploadStatus).toBe('queued');
     expect(hostClient.request).not.toHaveBeenCalled();
+    expect(ensureSession).not.toHaveBeenCalled();
 
     act(() => root?.render(<Harness state={existingSessionState} />));
 
@@ -289,7 +355,9 @@ describe('useComposerMedia session transitions', () => {
       kind: 'media',
       name: 'screenshot.png',
     });
+    expect(latest().pendingAttachments[0]?.uploadStatus).toBe('queued');
     expect(hostClient.request).not.toHaveBeenCalled();
+    expect(ensureSession).not.toHaveBeenCalled();
   });
 
   it('uses the clicked project scope for the first Host session request', async () => {
@@ -417,6 +485,7 @@ describe('useComposerMedia session transitions', () => {
     const promptCalls = requestMock.mock.calls.filter(
       (call) => call[0]?.type === 'session/prompt',
     );
+    expect(requestMock).toHaveBeenCalledOnce();
     expect(promptCalls).toHaveLength(1);
     const input = (promptCalls[0]?.[0] as Extract<
       Parameters<typeof requestMock>[0],
@@ -426,6 +495,199 @@ describe('useComposerMedia session transitions', () => {
       expect.objectContaining({ title: 'Original' }),
     ]);
     expect(input?.contextRefs).not.toEqual([expect.objectContaining({ title: 'Changed' })]);
+  });
+
+  it('runs media/save only at Send, after the session is resolved', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const requestCalls: string[] = [];
+    const hostClient = {
+      request: vi.fn(async (command: { type: string }) => {
+        requestCalls.push(command.type);
+        return createSavedMediaResponse(command.type);
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('session-1');
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: null,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+
+    pasteImage(latest);
+
+    // Paste alone must not touch the Host: no session, no media/save.
+    expect(requestCalls).toEqual([]);
+    expect(ensureSession).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await latest().handleSend();
+    });
+
+    // Session first, then media/save, then session/prompt.
+    expect(ensureSession).toHaveBeenCalledOnce();
+    expect(requestCalls).toEqual(['media/save', 'session/prompt']);
+    expect(latest().composer).toBe('');
+    expect(latest().pendingAttachments).toEqual([]);
+  });
+
+  it('restores text and attachment chip when session/prompt fails; retry reuses the saved attachment', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    let failPrompt = true;
+    let mediaSaveCalls = 0;
+    const hostClient = {
+      request: vi.fn(async (command: { type: string }) => {
+        if (command.type === 'media/save') {
+          mediaSaveCalls += 1;
+          return createSavedMediaResponse('media/save');
+        }
+        if (command.type === 'session/prompt') {
+          if (failPrompt) {
+            return {
+              type: 'response',
+              command: 'session/prompt',
+              success: false,
+              error: 'provider unavailable',
+            };
+          }
+          return createSavedMediaResponse('session/prompt');
+        }
+        return createSavedMediaResponse(command.type);
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('session-1');
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: null,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+
+    act(() => latest().setComposer('hello image'));
+    pasteImage(latest);
+
+    await act(async () => {
+      await latest().handleSend();
+    });
+
+    // Prompt failed: text AND the saved chip must come back for Retry.
+    expect(latest().composer).toBe('hello image');
+    expect(latest().pendingAttachments).toHaveLength(1);
+    expect(latest().pendingAttachments[0]?.uploadStatus).toBe('ready');
+    expect(mediaSaveCalls).toBe(1);
+
+    // Retry succeeds and reuses the already-saved attachment (no re-upload).
+    failPrompt = false;
+    await act(async () => {
+      await latest().handleSend();
+    });
+
+    expect(latest().composer).toBe('');
+    expect(latest().pendingAttachments).toEqual([]);
+    expect(mediaSaveCalls).toBe(1);
+    const requestMock = vi.mocked(hostClient.request);
+    const promptCalls = requestMock.mock.calls.filter(
+      (call) => call[0]?.type === 'session/prompt',
+    );
+    expect(promptCalls).toHaveLength(2);
+    const secondInput = (promptCalls[1]?.[0] as {
+      type: 'session/prompt';
+      input: { attachments?: Array<{ kind: string }> };
+    })?.input;
+    expect(secondInput?.attachments).toEqual([expect.objectContaining({ kind: 'media' })]);
+  });
+
+  it('aborts before painting when a deferred media save fails and keeps the draft text', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const requestCalls: string[] = [];
+    const hostClient = {
+      request: vi.fn(async (command: { type: string }) => {
+        requestCalls.push(command.type);
+        if (command.type === 'media/save') {
+          return {
+            type: 'response',
+            command: 'media/save',
+            success: false,
+            error: 'too-large',
+          };
+        }
+        return createSavedMediaResponse(command.type);
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('session-1');
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: null,
+    };
+    act(() => root?.render(<Harness state={state} />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+
+    act(() => latest().setComposer('keep this text'));
+    pasteImage(latest);
+
+    await act(async () => {
+      await latest().handleSend();
+    });
+
+    // Save failed: no optimistic bubble, no session/prompt, chip shows Retry.
+    expect(requestCalls).toEqual(['media/save']);
+    expect(latest().composer).toBe('keep this text');
+    expect(latest().pendingAttachments).toHaveLength(1);
+    expect(latest().pendingAttachments[0]?.uploadStatus).toBe('error');
   });
 
 });
