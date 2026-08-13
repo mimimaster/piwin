@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEventEnvelope } from './host.js';
 import type { HostCommand, HostPush } from './ipc.js';
 import { toMediaAttachmentRef } from './ipc.js';
+import type { CreateSessionOptions, SessionSeedMessage } from './session-seed.js';
 
 describe('ipc types', () => {
   it('allows constructing command and push shapes', () => {
@@ -104,6 +105,40 @@ describe('ipc types', () => {
     };
     expect(abortedPush.type).toBe('event');
     expect(abortedPush.event.type).toBe('session/aborted');
+  });
+
+  it('accepts message/native_context event and native seed shapes', () => {
+    const push: HostPush = {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/native_context',
+        messageId: 'm1',
+        role: 'assistant',
+        entry: { format: 'pi-message-v1', payload: '{"role":"assistant"}', byteLength: 20 },
+      },
+    };
+    expect(push.event.type).toBe('message/native_context');
+    const toolResultEvent: HostPush = {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/native_context',
+        messageId: 'tr1',
+        role: 'toolResult',
+        responseMessageId: 'm1',
+        entry: { format: 'pi-message-v1', payload: '', byteLength: 400000, truncated: true },
+      },
+    };
+    expect(toolResultEvent.event.type).toBe('message/native_context');
+    const seed: SessionSeedMessage = {
+      role: 'assistant',
+      text: 'hi',
+      timestamp: 1,
+      native: [{ format: 'pi-message-v1', payload: '{}', byteLength: 2, truncated: true }],
+    };
+    const options: CreateSessionOptions = { seedMessages: [seed], seedMode: 'replay' };
+    expect(options.seedMode).toBe('replay');
   });
 
   it('accepts usage/update AgentEvent and job/started HostPush shapes', () => {
