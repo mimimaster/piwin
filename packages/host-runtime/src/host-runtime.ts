@@ -168,6 +168,7 @@ import {
   buildCompactionSeedMessages,
   type SessionTranscriptStore,
 } from '@piwin/session';
+import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
 import type {
   ContextUsageSnapshot,
   SessionPlan,
@@ -4228,8 +4229,8 @@ export class HostRuntime {
       needsProductHistoryInjection: (sessionId) =>
         this.pendingColdStartGenerationId(sessionId) !== undefined,
       ensureLiveSession: (sessionId) => this.ensureLiveSession(sessionId),
-      activateSessionRuntime: (sessionId, runId, signal) =>
-        this.activateSessionRuntime(sessionId, runId, signal),
+      activateSessionRuntime: (sessionId, runId, signal, excludeSeedMessageId) =>
+        this.activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId),
       markProductHistoryInjected: (sessionId) => {
         this.coldStartHistoryBySession.delete(sessionId);
       },
@@ -4946,6 +4947,23 @@ export class HostRuntime {
         // from reaching push, hooks, usage, or transcript recording.
         return;
       }
+      if (correlatedEvent.type === 'message/native_context') {
+        // Native context copies are host-internal (spec: session-conversation-tree
+        // §4.3): persist through the recorder, never push to clients, hooks,
+        // usage, naming, or the pet reducer.
+        const nativeRecorder = this.transcriptRecorders.get(session.id);
+        if (nativeRecorder) {
+          void nativeRecorder.recordEvent(correlatedEvent).catch((error: unknown) => {
+            const message = formatError(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `native context write failed: ${message}`,
+            });
+          });
+        }
+        return;
+      }
       // Attach logical documentTargets for Doc Preview without rewriting
       // targetPaths (actual tool evidence stays intact).
       const projectPathForTargets = this.sessionProjects.get(session.id) ?? projectPath ?? null;
@@ -5428,13 +5446,16 @@ export class HostRuntime {
     sessionId: string,
     runId?: string,
     signal?: AbortSignal,
+    excludeSeedMessageId?: string,
   ): Promise<SessionHandle> {
     if (this.sessionMaintenanceSessions.has(sessionId)) {
       return Promise.reject(new Error(`Session is under lifecycle maintenance: ${sessionId}`));
     }
     const suspension = this.sessionSuspensionPromises.get(sessionId);
     if (suspension) {
-      return suspension.then(() => this.activateSessionRuntime(sessionId, runId, signal));
+      return suspension.then(() =>
+        this.activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId),
+      );
     }
     const runtimeStatus = this.runtimeController.getStatus(sessionId);
     const activeGenerationId = runtimeStatus.generationId;
@@ -5442,7 +5463,7 @@ export class HostRuntime {
     if (this.runtimeReplacementEngine.hasPending(sessionId)) {
       return this.runtimeReplacementEngine
         .waitFor(sessionId)
-        .then(() => this.activateSessionRuntime(sessionId, runId, signal));
+        .then(() => this.activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId));
     }
     if (
       activeGenerationId !== undefined &&
@@ -5456,7 +5477,7 @@ export class HostRuntime {
           expectedActiveGenerationId: activeGenerationId,
           when: 'after-current-run',
         })
-        .then(() => this.activateSessionRuntime(sessionId, runId, signal));
+        .then(() => this.activateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId));
     }
     const existing = this.sessions.get(sessionId);
     if (existing) {
@@ -5493,7 +5514,7 @@ export class HostRuntime {
         ) {
           throw new Error(`Session is active in another Host: ${sessionId}`);
         }
-        return this.doActivateSessionRuntime(sessionId, runId, signal);
+        return this.doActivateSessionRuntime(sessionId, runId, signal, excludeSeedMessageId);
       },
     }).finally(() => {
       this.sessionActivationPromises.delete(sessionId);
@@ -5506,6 +5527,7 @@ export class HostRuntime {
     sessionId: string,
     runId?: string,
     signal?: AbortSignal,
+    excludeSeedMessageId?: string,
   ): Promise<SessionHandle> {
     // 1. validate the durable session record before allocating any runtime.
     const rootDir = getPiwinRoot(this.options.piwinRoot);
@@ -5544,6 +5566,20 @@ export class HostRuntime {
       }
       throw new Error(`activation aborted: ${admission.message}`);
     }
+    // Native replay seed (spec: session-conversation-tree §4.4): when the
+    // durable transcript owns native context copies, reconstruct the model
+    // context with full fidelity instead of the text-injection prompt prefix.
+    let replaySeedOptions: CreateSessionOptions | undefined;
+    try {
+      const store = await this.getTranscriptStore(sessionId);
+      replaySeedOptions = await buildColdActivationSeedOptions(store, excludeSeedMessageId);
+    } catch (error) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `native replay seed build failed for ${sessionId}: ${formatError(error)}`,
+      });
+    }
     let handle: SessionHandle;
     try {
       // 3. create and commit a generation for the same product session id.
@@ -5554,6 +5590,7 @@ export class HostRuntime {
           ...(record.name ? { sessionName: record.name } : {}),
         },
         runtimeGenerationId,
+        replaySeedOptions ?? {},
       );
       if (runId !== undefined) {
         const attached = this.runRegistry.attachRuntimeGeneration(runId, runtimeGenerationId);
@@ -5620,9 +5657,13 @@ export class HostRuntime {
     if (runId !== undefined) {
       this.residencyController.markBusy(sessionId, runtimeGenerationId);
     }
-    // A reconstructed backend owns no native Pi context: the first prompt must
-    // inject bounded product history exactly once for this generation.
-    this.coldStartHistoryBySession.set(sessionId, runtimeGenerationId);
+    if (replaySeedOptions === undefined) {
+      // A reconstructed backend owns no native Pi context: the first prompt
+      // must inject bounded product history exactly once for this generation.
+      this.coldStartHistoryBySession.set(sessionId, runtimeGenerationId);
+    }
+    // With a native replay seed the backend already owns full-fidelity
+    // history, so the text-injection marker must stay unset.
     return handle;
   }
 

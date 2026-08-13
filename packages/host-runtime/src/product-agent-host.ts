@@ -373,6 +373,7 @@ export class ProductAgentHost implements AgentHost {
         ...(compiled.providerSecrets ? { providerSecrets: compiled.providerSecrets } : {}),
         hostToolExecution,
         ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
+        ...(options.seedMode ? { seedMode: options.seedMode } : {}),
       });
       const session = createProductSessionHandle(backendHandle, this.options.getCurrentRunId);
       return {
