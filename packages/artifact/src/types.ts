@@ -24,9 +24,6 @@ export type ArtifactRenderPhase =
 
 export type ArtifactRenderMode = 'interactive' | 'stream-preview';
 
-export type ArtifactHeightPhase = 'protected' | 'final-trim' | 'interactive';
-export type ArtifactHeightMeasurementMode = 'normal' | 'interaction' | 'trim';
-
 export type ArtifactSecurityBlockReason =
   'blocked-empty' | 'blocked-too-large' | 'blocked-external-resource';
 
@@ -142,7 +139,6 @@ export type ArtifactBridgeMessage = {
   type: ArtifactBridgeMessageType;
   channelId: string;
   height: number;
-  mode: ArtifactHeightMeasurementMode;
 };
 
 /** Whitelisted user-intent action from artifact UI (untrusted origin). */

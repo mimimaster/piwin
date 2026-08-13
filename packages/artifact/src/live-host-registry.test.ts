@@ -9,7 +9,6 @@ import {
   releaseArtifactLiveHost,
   requestArtifactLiveHost,
   resetArtifactLiveHostRegistryForTests,
-  touchArtifactLiveHost,
 } from './live-host-registry.js';
 
 describe('artifact live host registry', () => {
@@ -157,38 +156,6 @@ describe('artifact live host registry', () => {
     expect(result.admitted).toBe(true);
     expect(getLiveArtifactHostIdsForTests()).toContain('click');
     expect(getLiveArtifactHostIdsForTests()).not.toContain('low');
-  });
-
-  it('touch updates priority used for later eviction', () => {
-    const evicted: string[] = [];
-    claimArtifactLiveHost({
-      id: 'a',
-      priority: 10,
-      evict: () => {
-        evicted.push('a');
-      },
-    });
-    claimArtifactLiveHost({
-      id: 'b',
-      priority: 10,
-      evict: () => {
-        evicted.push('b');
-      },
-    });
-    touchArtifactLiveHost('a', { priority: 1 });
-    for (let index = 2; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
-      claimArtifactLiveHost({
-        id: `pad-${index}`,
-        priority: 50,
-        evict: () => undefined,
-      });
-    }
-    claimArtifactLiveHost({
-      id: 'c',
-      priority: 100,
-      evict: () => undefined,
-    });
-    expect(evicted).toContain('a');
   });
 
   it('release frees a slot for the next claim', () => {

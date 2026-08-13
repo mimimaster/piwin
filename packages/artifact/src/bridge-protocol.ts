@@ -10,14 +10,7 @@ import {
 import type {
   ArtifactActionMessage,
   ArtifactBridgeMessage,
-  ArtifactHeightMeasurementMode,
 } from './types.js';
-
-const VALID_MODES = new Set<ArtifactHeightMeasurementMode>([
-  'normal',
-  'interaction',
-  'trim',
-]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -47,20 +40,10 @@ export function parseArtifactBridgeMessage(data: unknown): ArtifactBridgeMessage
     return null;
   }
 
-  const rawMode = data['mode'];
-  let mode: ArtifactHeightMeasurementMode = 'normal';
-  if (rawMode !== undefined) {
-    if (typeof rawMode !== 'string' || !VALID_MODES.has(rawMode as ArtifactHeightMeasurementMode)) {
-      return null;
-    }
-    mode = rawMode as ArtifactHeightMeasurementMode;
-  }
-
   return {
     type,
     channelId,
     height: Math.max(0, Math.ceil(rawHeight)),
-    mode,
   };
 }
 

@@ -232,7 +232,9 @@ Port strategy from local `~/Projects/openwebui_m` (do not invent a new unsafe re
 
 Security baseline (from openwebui_m v1.1):
 
-- sandboxed iframe + strict CSP default
+- completed inert HTML/SVG uses sanitized Shadow DOM natural flow; JavaScript,
+  embeds/external references, Canvas, and streaming content use a sandboxed
+  iframe + strict CSP
 - block external CDN by default
 - max size (e.g. 100KB configurable)
 - ready timeout

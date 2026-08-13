@@ -7,22 +7,14 @@ export {
   NATIVE_SVG_ARTIFACT_LANGUAGES,
   DEFAULT_MAX_ARTIFACT_BYTES,
   MIN_ARTIFACT_IFRAME_HEIGHT,
-  INITIAL_ARTIFACT_IFRAME_HEIGHT,
-  MAX_ARTIFACT_IFRAME_HEIGHT,
-  MAX_ARTIFACT_EXPANDED_HEIGHT,
+  ARTIFACT_BOOTSTRAP_HEIGHT,
+  ARTIFACT_FALLBACK_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   ARTIFACT_READY_TIMEOUT_MS,
   MAX_CONCURRENT_ARTIFACT_INITS,
-  ARTIFACT_VIEWPORT_RECYCLE_TTL_MS,
-  ARTIFACT_VIEWPORT_ROOT_MARGIN,
-  ARTIFACT_LIVE_PRIORITY_OFFSCREEN,
-  ARTIFACT_LIVE_PRIORITY_NEAR,
   ARTIFACT_LIVE_PRIORITY_VISIBLE,
   ARTIFACT_LIVE_PRIORITY_STREAM,
   ARTIFACT_LIVE_PRIORITY_CANVAS,
-  ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
-  ARTIFACT_FINAL_TRIM_SETTLE_MS,
-  ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
@@ -36,8 +28,6 @@ export type {
   ArtifactStatus,
   ArtifactRenderPhase,
   ArtifactRenderMode,
-  ArtifactHeightPhase,
-  ArtifactHeightMeasurementMode,
   ArtifactSecurityBlockReason,
   ExternalArtifactResourceKind,
   ExternalArtifactResource,
@@ -107,22 +97,15 @@ export {
   parseArtifactActionMessage,
 } from './bridge-protocol.js';
 
-export {
-  normalizeArtifactHeight,
-  clampArtifactHeight,
-  resolveImmediateArtifactHeight,
-  resolveInteractiveArtifactShrink,
-} from './height-policy.js';
-export type {
-  ResolveImmediateArtifactHeightInput,
-  ResolveInteractiveArtifactShrinkInput,
-  ResolveInteractiveArtifactShrinkResult,
-} from './height-policy.js';
+export { normalizeArtifactHeight, clampArtifactHeight } from './height-policy.js';
 
-export {
-  parseSvgFenceIntrinsicSize,
-  estimateSvgFenceHeight,
-} from './svg-intrinsic-size.js';
+export { resolveArtifactRenderTarget } from './render-route.js';
+export type {
+  ArtifactRenderTarget,
+  ResolveArtifactRenderTargetInput,
+} from './render-route.js';
+
+export { parseSvgFenceIntrinsicSize, estimateSvgFenceHeight } from './svg-intrinsic-size.js';
 export type { EstimateSvgFenceHeightInput } from './svg-intrinsic-size.js';
 
 export {
@@ -135,21 +118,9 @@ export {
 } from './init-queue.js';
 
 export {
-  resolveArtifactViewportHostIntent,
-  isRectNearRoot,
-  parseRootMarginYPx,
-} from './viewport-lifecycle.js';
-export type {
-  ArtifactViewportHostIntent,
-  ResolveArtifactViewportHostIntentInput,
-  RectLike,
-} from './viewport-lifecycle.js';
-
-export {
   MAX_LIVE_ARTIFACT_IFRAMES,
   claimArtifactLiveHost,
   requestArtifactLiveHost,
-  touchArtifactLiveHost,
   releaseArtifactLiveHost,
   getLiveArtifactHostCount,
   getWaitingArtifactHostCount,

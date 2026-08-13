@@ -28,6 +28,11 @@ prompt. Before emitting HTML or SVG, the model calls the read-only
 and the canonical runtime contract together. The tool is advertised only when
 its concrete executor is present in the compiled generation surface.
 
+The full contract is returned at most once for each Runtime generation and Run.
+A repeated call in the same Run succeeds with only a compact reminder to reuse
+the previously loaded result, preventing duplicate policy text from polluting
+the model context. A later Run may load the contract again.
+
 This preserves the exact policy at the point where it matters without charging
 every ordinary Markdown turn for the full Artifact protocol. Custom decision
 prompts are also returned by the tool rather than copied into every generation.
@@ -59,9 +64,13 @@ export type ArtifactSurface = 'inline' | 'canvas';
 
 ### 2. Inline is the default and flows with the transcript
 
-Inline remains the default surface. Its iframe follows the measured component
-height, while the transcript remains the only vertical scroll owner. Inline
-does not create a nested 900px scrollport or require Expand/Collapse chrome.
+Inline remains the default surface. Completed inert HTML/SVG renders in a
+sanitized Shadow DOM and follows parent-document flow. Content that requires
+JavaScript, an embedded browsing context, an external reference, or the
+unfinished streaming lifecycle stays in a sandbox iframe whose one observed
+height stream follows the component. The transcript remains the only vertical
+scroll owner. Inline does not create a nested 900px scrollport or require
+Expand/Collapse chrome.
 
 Tall content alone is **not** a reason to enter Canvas. Width is still a
 semantic generation decision rather than a runtime measurement: content that
@@ -111,7 +120,8 @@ Shell facts the model must design against:
 - Assistant Markdown is capped by `--chat-max`, currently 760 CSS px.
 - The right-panel viewport clamp preserves a 360 px stage budget; after chat
   side padding, the practical Inline content floor is about **320 CSS px**.
-- Inline uses the chat-stage width and grows to measured content height.
+- Inline uses the chat-stage width. Static content grows naturally; sandboxed
+  content grows to its observed content height.
 - A **16384 px defensive ceiling** limits forged or runaway iframe resize
   messages; it is a security/resource guard, not a normal layout scrollport.
 
@@ -136,8 +146,10 @@ Runtime guarantees:
 - The Inline root becomes a size container (`container-type: inline-size`).
 - Common direct children, media, form controls, grids, and flex descendants
   are prevented from widening the root where safe.
-- Inline html/body overflow is hidden; measured content height is applied to
-  the iframe so the transcript owns vertical scrolling.
+- Static Inline content is sanitized into a CSS-isolated Shadow DOM and needs
+  no measurement. Sandboxed Inline html/body overflow is hidden; observed
+  content height is applied to the iframe so the transcript owns vertical
+  scrolling.
 - Inline has no document-level horizontal scrollbar. Canvas retains its own
   horizontal and vertical scrollport.
 - Size diagnostics never change the declared surface.

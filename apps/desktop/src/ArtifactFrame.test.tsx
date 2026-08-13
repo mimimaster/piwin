@@ -12,6 +12,11 @@ import {
 import { Button, PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ArtifactFrame } from './ArtifactFrame.js';
+import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
+
+vi.mock('./artifact-native-bridge.js', () => ({
+  subscribeNativeArtifactBridge: vi.fn(async () => () => undefined),
+}));
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -28,7 +33,7 @@ function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render'
       rawLanguage: 'artifact-html',
       alias: 'artifact-html',
       surface: 'inline',
-      source: '<div class="diagram">wide content</div>',
+      source: '<div class="diagram">wide content</div><script>window.ready = true</script>',
     },
     security: {
       canRender: true,
@@ -36,8 +41,10 @@ function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render'
       byteSize: 42,
       externalResources: [],
     },
-    srcdoc: '<!DOCTYPE html><html><body><div class="diagram">wide content</div></body></html>',
-    renderSource: '<div class="diagram">wide content</div>',
+    srcdoc:
+      '<!DOCTYPE html><html><body><div class="diagram">wide content</div><script>window.ready = true</script></body></html>',
+    renderSource:
+      '<div class="diagram">wide content</div><script>window.ready = true</script>',
     csp: "default-src 'none'",
     themeRepairs: [],
     layoutRepairs: [],
@@ -100,6 +107,8 @@ describe('ArtifactFrame chrome', () => {
     instances = [];
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
+    vi.mocked(subscribeNativeArtifactBridge).mockReset();
+    vi.mocked(subscribeNativeArtifactBridge).mockResolvedValue(() => undefined);
   });
 
   afterEach(() => {
@@ -111,6 +120,7 @@ describe('ArtifactFrame chrome', () => {
     }
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
@@ -171,19 +181,12 @@ describe('ArtifactFrame chrome', () => {
         new MessageEvent('message', {
           source: iframe?.contentWindow ?? null,
           data: {
-            type: 'piwin-artifact:resize',
+            type: 'piwin-artifact:ready',
             channelId: decision.descriptor.id,
             height: 1_480,
-            mode: 'normal',
           },
         }),
       );
-    });
-
-    // Non-ready resizes are rAF + 120ms coalesced (owi bridge throttle).
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-      await new Promise((resolve) => setTimeout(resolve, 140));
     });
 
     // Measured height lives on the stage (iframe fills 100% of the stage).
@@ -215,18 +218,12 @@ describe('ArtifactFrame chrome', () => {
           // Deliberately wrong / foreign source — mimics WindowProxy mismatch.
           source: window,
           data: {
-            type: 'piwin-artifact:resize',
+            type: 'piwin-artifact:ready',
             channelId: decision.descriptor.id,
             height: 920,
-            mode: 'normal',
           },
         }),
       );
-    });
-
-    await act(async () => {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-      await new Promise((resolve) => setTimeout(resolve, 140));
     });
 
     const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
@@ -237,6 +234,7 @@ describe('ArtifactFrame chrome', () => {
     const base = makeRenderDecision();
     const decision: Extract<ArtifactPreviewDecision, { kind: 'render' }> = {
       ...base,
+      mode: 'stream-preview',
       descriptor: {
         ...base.descriptor,
         id: 'svg-seed-1',
@@ -247,6 +245,8 @@ describe('ArtifactFrame chrome', () => {
           '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
       },
       renderSource:
+        '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
+      streamSource:
         '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
       srcdoc: '<!DOCTYPE html><html><body><svg viewBox="0 0 800 400"></svg></body></html>',
     };
@@ -263,7 +263,22 @@ describe('ArtifactFrame chrome', () => {
     expect(heightPx).toBeGreaterThan(120);
   });
 
-  it('reuses one stream iframe and posts body snapshots instead of replacing srcdoc', async () => {
+  it('uses an opaque data document instead of the broken packaged srcdoc path', async () => {
+    const { container, root } = renderFrame();
+    instances.push({ container, root });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe?.getAttribute('srcdoc')).toBeNull();
+    expect(iframe?.getAttribute('src')).toMatch(/^data:text\/html;charset=utf-8;base64,/);
+    expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
+  });
+
+  it('keeps one iframe and pushes throttled DOM snapshots while output is streaming', async () => {
     const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>initial stream</html>');
     const { container, root } = renderFrame(initial);
     instances.push({ container, root });
@@ -275,9 +290,8 @@ describe('ArtifactFrame chrome', () => {
 
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(iframe).not.toBeNull();
-    const contentWindow = iframe?.contentWindow;
-    expect(contentWindow).not.toBeNull();
-    const postMessage = vi.spyOn(contentWindow as Window, 'postMessage');
+    const initialDocumentUrl = iframe?.getAttribute('src');
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
     const next = makeStreamDecision(
       '<div><p>Hello</p><section>Next</section></div>',
       '<html>replacement must not mount</html>',
@@ -291,26 +305,24 @@ describe('ArtifactFrame chrome', () => {
       );
     });
 
-    // First stream snapshot is immediate; subsequent ones throttle at 300ms.
-    // A near-immediate follow-up still posts once the throttle window opens.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 320));
     });
 
     const updatedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(updatedIframe).toBe(iframe);
-    expect(updatedIframe?.getAttribute('srcdoc')).toBe('<html>initial stream</html>');
+    expect(updatedIframe?.getAttribute('src')).toBe(initialDocumentUrl);
     expect(postMessage).toHaveBeenCalledWith(
       {
         type: 'piwin-artifact:stream-update',
         channelId: 'artifact-test-1',
-        source: next.streamSource,
+        source: next.renderSource,
       },
       '*',
     );
   });
 
-  it('commits the final source inside the existing stream iframe without replacing srcdoc', async () => {
+  it('commits final DOM in place and does not replace the stream document', async () => {
     const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>stable stream shell</html>');
     const { container, root } = renderFrame(initial);
     instances.push({ container, root });
@@ -322,6 +334,7 @@ describe('ArtifactFrame chrome', () => {
 
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(iframe).not.toBeNull();
+    const initialDocumentUrl = iframe?.getAttribute('src');
     const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
     const finalSource =
       '<div><p>Hello</p><button>Done</button></div><script>window.done=true</script>';
@@ -348,7 +361,7 @@ describe('ArtifactFrame chrome', () => {
 
     const completedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
     expect(completedIframe).toBe(iframe);
-    expect(completedIframe?.getAttribute('srcdoc')).toBe('<html>stable stream shell</html>');
+    expect(completedIframe?.getAttribute('src')).toBe(initialDocumentUrl);
     expect(postMessage).toHaveBeenCalledWith(
       {
         type: 'piwin-artifact:stream-update',
@@ -358,51 +371,118 @@ describe('ArtifactFrame chrome', () => {
       },
       '*',
     );
+
+    postMessage.mockClear();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame decision={{ ...finalDecision }} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 320));
+    });
+    expect(postMessage).not.toHaveBeenCalled();
   });
 
-  it('keeps stream-preview height grow-only after the first ready (no final-trim shrink)', async () => {
-    const decision = makeStreamDecision('<svg viewBox="0 0 10 10"></svg>', '<html>stream</html>');
+  it('applies every valid observed height through streaming and completion', async () => {
+    const initial = makeStreamDecision('<div>Growing</div>', '<html>stream shell</html>');
+    const { container, root } = renderFrame(initial);
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const dispatchHeight = (
+      type: 'piwin-artifact:ready' | 'piwin-artifact:resize',
+      height: number,
+    ): void => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe?.contentWindow ?? null,
+          data: { type, channelId: 'artifact-test-1', height },
+        }),
+      );
+    };
+
+    act(() => dispatchHeight('piwin-artifact:resize', 360));
+    act(() => dispatchHeight('piwin-artifact:resize', 180));
+    const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
+    expect(stage?.style.height).toBe('180px');
+
+    const finalDecision = makeRenderDecision();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame decision={finalDecision} />
+        </PiwinUiProvider>,
+      );
+    });
+    act(() => dispatchHeight('piwin-artifact:resize', 900));
+    expect(stage?.style.height).toBe('900px');
+    act(() => dispatchHeight('piwin-artifact:ready', 420));
+    expect(stage?.style.height).toBe('420px');
+  });
+
+  it('applies heights returned through WKWebView native frame messages', async () => {
+    let nativeHandler: ((payload: unknown) => void) | null = null;
+    vi.mocked(subscribeNativeArtifactBridge).mockImplementation(async (handler) => {
+      nativeHandler = handler;
+      return () => undefined;
+    });
+
+    const decision = makeRenderDecision();
     const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(subscribeNativeArtifactBridge).toHaveBeenCalledWith(expect.any(Function));
+
+    act(() => {
+      const handler = nativeHandler as ((payload: unknown) => void) | null;
+      handler?.({
+        type: 'piwin-artifact:ready',
+        channelId: decision.descriptor.id,
+        height: 684,
+      });
+    });
+
+    const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
+    expect(stage?.style.height).toBe('684px');
+  });
+
+  it('keeps the iframe visible in a bounded fallback viewport when height transport times out', async () => {
+    vi.useFakeTimers();
+    const { container, root } = renderFrame();
     instances.push({ container, root });
 
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await Promise.resolve();
+      await Promise.resolve();
     });
-
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
-    expect(iframe).not.toBeNull();
-
     act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          source: iframe?.contentWindow ?? null,
-          data: {
-            type: 'piwin-artifact:ready',
-            channelId: 'artifact-test-1',
-            height: 240,
-          },
-        }),
-      );
+      iframe?.dispatchEvent(new Event('load'));
+      vi.advanceTimersByTime(5_000);
     });
-    const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
-    expect(stage?.style.height).toBe('240px');
 
-    // A later smaller measure must not shrink the stream frame (would flicker).
-    act(() => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          source: iframe?.contentWindow ?? null,
-          data: {
-            type: 'piwin-artifact:resize',
-            channelId: 'artifact-test-1',
-            height: 120,
-            mode: 'normal',
-          },
-        }),
-      );
-    });
-    expect(stage?.style.height).toBe('240px');
+    expect(container.querySelector('[data-testid="artifact-bridge-failure"]')).toBeNull();
+    const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
+    expect(stage?.style.display).not.toBe('none');
+    expect(stage?.style.height).toBe('640px');
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="artifact-frame"]')
+        ?.getAttribute('data-artifact-height-status'),
+    ).toBe('fallback');
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-tool-status'),
+    ).toBe('done');
   });
 
   it('applies the canvas presentation class without expand chrome', async () => {
@@ -595,7 +675,9 @@ describe('ArtifactFrame chrome', () => {
     expect(container.querySelector('iframe.artifact-iframe')).toBeNull();
 
     // Free a slot then click load — should admit and mount iframe path.
-    releaseArtifactLiveHost('force-fill-0');
+    act(() => {
+      releaseArtifactLiveHost('force-fill-0');
+    });
     const loadBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-load-preview"]',
     );

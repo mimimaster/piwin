@@ -8,6 +8,9 @@ const DEFAULT_AUTOMATIC_HINT =
   'Use an Artifact when dense, structured, visual, or interactive content is materially easier to use than Markdown.';
 const DEFAULT_EXPLICIT_HINT =
   'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
+const MAX_TRACKED_INSTRUCTION_RUNS = 256;
+const ALREADY_LOADED_OUTPUT =
+  'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
 
 /** Compact always-on routing hint; the full contract is loaded through the tool. */
 export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string | undefined {
@@ -24,17 +27,19 @@ export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string |
     '[piwin-prompt-meta kind="artifact:capability" version="4" applies="generation"]',
     '## Artifact capability',
     configuredDecision,
-    'Before emitting an HTML or SVG Artifact, call `artifact_instructions` and follow the returned output contract.',
+    'Before emitting an HTML or SVG Artifact, call `artifact_instructions` at most once per run and reuse its successful result.',
     'Use ordinary Markdown when an Artifact does not materially improve the result.',
   ].join('\n');
 }
 
 export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolRegistration {
+  const loadedRuns = new Set<string>();
+
   return {
     descriptor: {
       name: 'artifact_instructions',
       description:
-        'Load the full configured Artifact decision policy and HTML/SVG output contract. Call only when the response should contain an Artifact.',
+        'Load the full configured Artifact decision policy and HTML/SVG output contract. Call at most once per run, only when the response should contain an Artifact.',
       parameters: {
         type: 'object',
         properties: {},
@@ -48,7 +53,20 @@ export function buildArtifactInstructionsTool(config: ArtifactConfig): HostToolR
       rememberable: false,
       readOnly: true,
     },
-    async execute() {
+    async execute(_args, _signal, context) {
+      const runKey = `${context.sessionId}\u0000${context.runtimeGenerationId}\u0000${context.runId}`;
+      if (loadedRuns.has(runKey)) {
+        return { ok: true, output: ALREADY_LOADED_OUTPUT };
+      }
+
+      loadedRuns.add(runKey);
+      if (loadedRuns.size > MAX_TRACKED_INSTRUCTION_RUNS) {
+        const oldestRunKey = loadedRuns.values().next().value;
+        if (oldestRunKey !== undefined) {
+          loadedRuns.delete(oldestRunKey);
+        }
+      }
+
       return {
         ok: true,
         output: `${resolveArtifactDecisionPrompt(config)}\n\n${ARTIFACT_RUNTIME_CONTRACT}`,

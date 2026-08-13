@@ -9,7 +9,6 @@ import {
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
-  ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
 } from './constants.js';
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
@@ -286,12 +285,8 @@ export function buildArtifactBridgeBootstrapScript(
   const serializedChannelId = JSON.stringify(channelId);
   const readyType = JSON.stringify(ARTIFACT_BRIDGE_READY_TYPE);
   const resizeType = JSON.stringify(ARTIFACT_BRIDGE_RESIZE_TYPE);
-  const ladder = JSON.stringify([...ARTIFACT_HEIGHT_MEASURE_LADDER_MS]);
   const streamUpdateBootstrap = enableStreamUpdates
     ? `
-  // Streaming previews receive sanitized snapshots from the parent. Reconcile
-  // nodes in place so text grows and complete UI blocks appear without
-  // reloading the iframe or replacing the whole Artifact tree.
   var streamUpdateType = ${JSON.stringify(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE)};
   var syncAttributes = function (current, next) {
     Array.prototype.slice.call(current.attributes).forEach(function (attribute) {
@@ -324,11 +319,8 @@ export function buildArtifactBridgeBootstrapScript(
     while (nextChild) {
       var followingCurrentChild = currentChild ? currentChild.nextSibling : null;
       var followingNextChild = nextChild.nextSibling;
-      if (currentChild) {
-        syncNode(currentChild, nextChild);
-      } else {
-        currentParent.appendChild(nextChild.cloneNode(true));
-      }
+      if (currentChild) syncNode(currentChild, nextChild);
+      else currentParent.appendChild(nextChild.cloneNode(true));
       currentChild = followingCurrentChild;
       nextChild = followingNextChild;
     }
@@ -338,7 +330,6 @@ export function buildArtifactBridgeBootstrapScript(
       removableChild.remove();
     }
   };
-  var appliedFinalSource = null;
   var activateFinalScripts = function (root) {
     Array.prototype.slice.call(root.querySelectorAll('script')).forEach(function (current) {
       var replacement = document.createElement('script');
@@ -349,45 +340,34 @@ export function buildArtifactBridgeBootstrapScript(
       current.replaceWith(replacement);
     });
   };
-  var applyStreamSnapshot = function (source, final) {
-    var root = document.querySelector('.piwin-artifact-root');
-    if (!root) return;
-    if (final && appliedFinalSource === source) {
-      ready();
-      return;
-    }
-    var template = document.createElement('template');
-    template.innerHTML = source;
-    syncChildren(root, template.content);
-    if (final) {
-      appliedFinalSource = source;
-      activateFinalScripts(root);
-      // Dynamically activated scripts must observe the same lifecycle events
-      // they receive during a normal final srcdoc load.
-      setTimeout(function () {
-        document.dispatchEvent(new Event('DOMContentLoaded'));
-        window.dispatchEvent(new Event('load'));
-        ready();
-        scheduleMeasureLadder('trim');
-      }, 0);
-      return;
-    }
-    scheduleMeasure();
-  };
-  window.addEventListener('message', function (event) {
+  var onStreamUpdate = function (event) {
     var data = event.data;
-    // channelId + type bind the stream. Do NOT require event.source === parent:
-    // packaged Tauri (custom protocol + sandbox without allow-same-origin) can
-    // report a non-identical WindowProxy for the same parent, which would drop
-    // every snapshot and leave a blank preview while dev (http://127.0.0.1) works.
     if (
       !data ||
       data.type !== streamUpdateType ||
       data.channelId !== channelId ||
       typeof data.source !== 'string'
     ) return;
-    applyStreamSnapshot(data.source, data.final === true);
-  });`
+    var root = document.querySelector('.piwin-artifact-root');
+    if (!root) return;
+    var template = document.createElement('template');
+    template.innerHTML = data.source;
+    syncChildren(root, template.content);
+    if (data.final === true) {
+      // The final snapshot ends DOM streaming. Height observation remains
+      // active because interactive scripts may change normal-flow size later.
+      window.removeEventListener('message', onStreamUpdate);
+      activateFinalScripts(root);
+      setTimeout(function () {
+        document.dispatchEvent(new Event('DOMContentLoaded'));
+        window.dispatchEvent(new Event('load'));
+        scheduleHeight();
+      }, 0);
+      return;
+    }
+    scheduleHeight();
+  };
+  window.addEventListener('message', onStreamUpdate);`
     : '';
 
   return `
@@ -396,9 +376,18 @@ export function buildArtifactBridgeBootstrapScript(
   var channelId = ${serializedChannelId};
   var readyType = ${readyType};
   var resizeType = ${resizeType};
-  var measureLadder = ${ladder};
   var post = function (type, payload) {
-    parent.postMessage(Object.assign({ type: type, channelId: channelId }, payload || {}), '*');
+    var message = Object.assign({ type: type, channelId: channelId }, payload || {});
+    var nativeHandler =
+      window.webkit &&
+      window.webkit.messageHandlers &&
+      window.webkit.messageHandlers.piwinArtifact;
+    if (nativeHandler) {
+      nativeHandler.postMessage(JSON.stringify(message));
+      return;
+    }
+    // Browser/dev fallback; packaged WKWebView uses its frame-scoped handler.
+    parent.postMessage(message, '*');
   };
   // Whitelisted action channel for interactive artifacts (e.g. flashcards).
   // Model HTML calls window.piwinArtifact.postAction(name, payload); the
@@ -408,163 +397,55 @@ export function buildArtifactBridgeBootstrapScript(
   window.piwinArtifact = {
     postAction: function (action, payload) {
       if (allowedActions.indexOf(action) === -1) return false;
-      parent.postMessage(
-        { type: actionType, channelId: channelId, action: action, payload: payload || {} },
-        '*'
-      );
+      post(actionType, { action: action, payload: payload || {} });
       return true;
     }
   };
-${streamUpdateBootstrap}
   var readHeight = function (height) {
     return Math.max(0, Math.ceil(height || 0));
   };
-  var isVisibleElement = function (element) {
-    if (!element || !element.getBoundingClientRect) return false;
-    var style = window.getComputedStyle(element);
-    if (style.display === 'none' || style.visibility === 'hidden') return false;
-    return true;
-  };
-  var readElementBottom = function (element) {
+  var readBoxHeight = function (element) {
+    if (!element || !element.getBoundingClientRect) return 0;
     var rect = element.getBoundingClientRect();
-    var elementTop = rect.top + window.scrollY;
-    var elementBottom = Number.isFinite(rect.bottom)
-      ? rect.bottom + window.scrollY
-      : elementTop + (rect.height || 0);
-    var style = window.getComputedStyle(element);
-    // Keep visible overflow measurable, but let ancestor clipping prevent
-    // scroll containers from inflating the iframe.
-    if (style.overflowY === 'visible') {
-      elementBottom = Math.max(elementBottom, elementTop + (element.scrollHeight || 0));
-    }
-    return Math.max(elementBottom, elementTop + (element.offsetHeight || 0));
+    return Math.max(rect.height || 0, element.offsetHeight || 0, element.scrollHeight || 0);
   };
-  var clipToAncestorBounds = function (element, bottom) {
-    var ancestor = element.parentElement;
-    while (ancestor) {
-      var style = window.getComputedStyle(ancestor);
-      // html/body are the document's own scroll containers. Their viewport
-      // bottom must not clip the content-height measurement; the parent
-      // iframe height policy provides the visible frame limit, while the
-      // document root keeps the remaining content reachable by scrolling.
-      var isDocumentScrollContainer =
-        ancestor === document.body || ancestor === document.documentElement;
-      if (!isDocumentScrollContainer && style.overflowY !== 'visible') {
-        var rect = ancestor.getBoundingClientRect();
-        if (Number.isFinite(rect.bottom)) {
-          bottom = Math.min(bottom, rect.bottom + window.scrollY);
-        }
-      }
-      ancestor = ancestor.parentElement;
-    }
-    return bottom;
-  };
-  var readVisibleElementBottom = function (element) {
-    if (!element || !isVisibleElement(element)) return 0;
-    return clipToAncestorBounds(element, readElementBottom(element));
-  };
-  var readRenderedBoxHeight = function (element) {
-    if (!element || !isVisibleElement(element)) return 0;
-    var rect = element.getBoundingClientRect();
-    var elementTop = rect.top + window.scrollY;
-    return Math.max(0, readVisibleElementBottom(element) - elementTop);
-  };
-  var readVisibleBoundsHeight = function (root) {
-    if (!root || !root.querySelectorAll) return 0;
-    var rootRect = root.getBoundingClientRect();
-    var rootTop = rootRect.top + window.scrollY;
-    var bottom = rootTop + readRenderedBoxHeight(root);
-    root.querySelectorAll('*').forEach(function (element) {
-      var elementBottom = readVisibleElementBottom(element);
-      if (Number.isFinite(elementBottom)) bottom = Math.max(bottom, elementBottom);
-    });
-    return Math.max(0, bottom - rootTop);
-  };
-  var readBootstrapContentHeight = function () {
+  var readContentHeight = function () {
     var root = document.querySelector('.piwin-artifact-root');
-    var body = document.body;
-    var documentElement = document.documentElement;
-    if (root) {
-      return Math.max(readRenderedBoxHeight(root), readVisibleBoundsHeight(root));
+    if (root) return readBoxHeight(root);
+    return Math.max(readBoxHeight(document.body), readBoxHeight(document.documentElement));
+  };
+  var readyPosted = false;
+  var lastReportedHeight = -1;
+  var heightFrame = null;
+  var reportHeight = function () {
+    heightFrame = null;
+    var height = readHeight(readContentHeight());
+    if (height === lastReportedHeight) return;
+    lastReportedHeight = height;
+    post(readyPosted ? resizeType : readyType, {
+      height: height
+    });
+    readyPosted = true;
+  };
+  var scheduleHeight = function () {
+    if (heightFrame !== null) return;
+    heightFrame = requestAnimationFrame(reportHeight);
+  };
+  var startHeightObserver = function () {
+    var root = document.querySelector('.piwin-artifact-root');
+    if ('ResizeObserver' in window) {
+      var observer = new ResizeObserver(scheduleHeight);
+      if (root) observer.observe(root);
+      else if (document.body) observer.observe(document.body);
     }
-    return Math.max(
-      readRenderedBoxHeight(body),
-      readVisibleBoundsHeight(body),
-      readRenderedBoxHeight(documentElement)
-    );
+    scheduleHeight();
   };
-  var measure = function (mode) {
-    post(resizeType, {
-      height: readHeight(readBootstrapContentHeight()),
-      mode: mode || 'normal'
-    });
-  };
-  var ready = function () {
-    post(readyType, { height: readHeight(readBootstrapContentHeight()) });
-    measure('normal');
-  };
-  var scheduleMeasure = function () {
-    requestAnimationFrame(function () { measure('normal'); });
-  };
-  var scheduleMeasureLadder = function (mode) {
-    measureLadder.forEach(function (delay) {
-      setTimeout(function () { measure(mode || 'normal'); }, delay);
-    });
-  };
-  var mutationObserverInstalled = false;
-  var installMutationObserver = function () {
-    if (mutationObserverInstalled || !document.body || !('MutationObserver' in window)) return;
-    mutationObserverInstalled = true;
-    new MutationObserver(scheduleMeasure).observe(document.body, {
-      attributes: true,
-      childList: true,
-      characterData: true,
-      subtree: true
-    });
-  };
-
-  window.addEventListener('DOMContentLoaded', function () {
-    installMutationObserver();
-    ready();
-    scheduleMeasureLadder('normal');
-  });
-  window.addEventListener('load', function () {
-    installMutationObserver();
-    ready();
-    scheduleMeasureLadder('normal');
-  });
-  // Late-loading media (async image decode, dynamically added <img>/<svg>)
-  // does not mutate the DOM, so the MutationObserver misses it. A spiked
-  // final-trim measurement taken before the media arrives would otherwise
-  // shrink the frame and stay locked there, cropping the lower part of the
-  // rendered image. 'load' does not bubble — capture it at the document.
-  document.addEventListener(
-    'load',
-    function (event) {
-      var target = event.target;
-      if (
-        target &&
-        typeof target.tagName === 'string' &&
-        (target.tagName === 'IMG' || target.tagName === 'SVG' || target.tagName === 'VIDEO')
-      ) {
-        scheduleMeasureLadder('normal');
-      }
-    },
-    true
-  );
-  window.addEventListener('resize', scheduleMeasure, true);
-  window.addEventListener('click', function () { scheduleMeasureLadder('interaction'); }, true);
-  window.addEventListener('input', function () { scheduleMeasureLadder('interaction'); }, true);
-  window.addEventListener('change', function () { scheduleMeasureLadder('interaction'); }, true);
-  window.addEventListener('toggle', function () { scheduleMeasureLadder('interaction'); }, true);
-  window.addEventListener('transitionend', function () { scheduleMeasureLadder('interaction'); }, true);
-  window.addEventListener('animationend', function () { scheduleMeasureLadder('interaction'); }, true);
-
-  requestAnimationFrame(function () {
-    installMutationObserver();
-    ready();
-    scheduleMeasureLadder('normal');
-  });
+${streamUpdateBootstrap}
+  if (document.readyState === 'complete') {
+    startHeightObserver();
+  } else {
+    window.addEventListener('load', startHeightObserver, { once: true });
+  }
 })();
 </script>`;
 }
@@ -578,7 +459,7 @@ export type BuildHtmlArtifactSrcdocInput = {
   surface?: ArtifactSurface;
   /** When false, omit height bridge (stream-preview can still include it). Default true. */
   includeBridge?: boolean;
-  /** Accept sanitized parent snapshots without replacing srcdoc. Default false. */
+  /** Accept sanitized parent snapshots without replacing the iframe document. */
   enableStreamUpdates?: boolean;
 };
 

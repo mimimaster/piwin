@@ -96,7 +96,7 @@
 |----|------|--------------|-----------|
 | D-ART-01..04 | ~~Streaming / height / init / theme-repair~~ | Done in P2 polish | done |
 | D-ART-05 | Lazy eviction / virtualize off-screen artifacts | measure after A2; owi LazyArtifactBlock | later |
-| D-ART-06 | ~~Expand height >900 with toggle~~ | **Done 2026-07-20** — `MAX_ARTIFACT_EXPANDED_HEIGHT=2200` + Expand/Collapse | done |
+| D-ART-06 | ~~Inline Artifact natural height~~ | **Superseded 2026-08-13** — Inline follows measured content up to the 16384px defensive ceiling; the old 900/2200px Expand path was removed | done |
 | D-ART-07 | Runtime external-embed reporter script inside iframe | pre-render security enough for v1 | later |
 | D-ART-08 | Hard theme-incompatible block mode | soft repair preferred | later |
 | D-ART-09 | Side panel / fullscreen Artifact workspace (PRD AR-07) | opt-in preview shipped 2026-07-30; workspace is separate UX | later |

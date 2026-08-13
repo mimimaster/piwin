@@ -704,7 +704,8 @@ function CodeBodyWithLineNumbers({
 
 /**
  * Markdown renderer with optional HTML Artifact previews, KaTeX, and Mermaid.
- * Model HTML never runs in the parent document — only via sandboxed ArtifactFrame.
+ * Inert model HTML is sanitized into an isolated Shadow DOM; executable or
+ * externally-referenced content stays inside sandboxed ArtifactFrame.
  * Math/Mermaid failures soft-degrade (show source); they must not crash the shell.
  */
 export function MarkdownView({
@@ -894,10 +895,8 @@ function CodeFenceView(props: {
     return <MathView tex={props.source} display />;
   }
 
-  // Live stream-preview (required product path): owi keeps one ArtifactBlock +
-  // stable id and throttles body updates. piwin freezes srcdoc and pushes body
-  // via postMessage — quieter than owi's srcdoc rewrite — as long as the frame
-  // never remounts.
+  // Keep one document during streaming and reconcile throttled token snapshots
+  // in place. Completion commits one final snapshot, then stops the stream.
   const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
     language: props.fenceInfo,
     source: props.source,
@@ -943,6 +942,7 @@ function CodeFenceView(props: {
               decision={decision}
               initPriority={props.initPriority}
               locale={props.locale}
+              {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
             />
           </div>
@@ -1133,6 +1133,7 @@ function CodeFenceView(props: {
                 decision={decision}
                 initPriority={props.initPriority}
                 locale={props.locale}
+                {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
                 {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
               />
             </div>
@@ -1280,6 +1281,7 @@ function FlashcardPreviewCard(props: {
               key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
               decision={decision}
               initPriority={props.initPriority}
+              {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
             />
           </div>
