@@ -144,6 +144,8 @@ export type DesktopCopy = {
     removeQueuedMessage: string;
     stop: string;
     stopping: string;
+    stopJob: string;
+    viewJobLogsTitle: (label: string) => string;
     pause: string;
     pausing: string;
     continueRun: string;
@@ -618,6 +620,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       removeQueuedMessage: '移除后续消息',
       stop: '停止',
       stopping: '正在停止…',
+      stopJob: '停止程序',
+      viewJobLogsTitle: (label) => `查看「${label}」日志`,
       pause: '暂停',
       pausing: '正在暂停…',
       continueRun: '继续运行',
@@ -863,6 +867,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       removeQueuedMessage: 'Remove queued message',
       stop: 'Stop',
       stopping: 'Stopping…',
+      stopJob: 'Stop program',
+      viewJobLogsTitle: (label) => `View logs for ${label}`,
       pause: 'Pause',
       pausing: 'Pausing…',
       continueRun: 'Continue run',

@@ -3311,3 +3311,120 @@ html[data-theme-visual-style='ink-wash'] .thinking-effort-model-provider-badge {
   color: rgba(214, 185, 140, 0.55) !important;
   font-weight: 600 !important;
 }
+
+/* ── ActiveJobsStrip: 输入框上方“正在控制的程序”动态条 ─────────────── */
+.composer-active-jobs-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding: 0 4px;
+  min-height: 0;
+  z-index: 2;
+}
+
+.composer-active-job {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  background: var(--surface, rgba(255, 255, 255, 0.04));
+  overflow: hidden;
+}
+
+.composer-active-job-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 4px 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text, #ffffff);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.composer-active-job-main:hover {
+  background: color-mix(in srgb, var(--text, #ffffff) 6%, transparent);
+}
+
+.composer-active-job-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--muted, rgba(255, 255, 255, 0.6));
+}
+
+.composer-active-job-dot.is-running {
+  background: var(--accent, #4f8cff);
+  animation: composer-active-job-pulse 1.4s ease-in-out infinite;
+}
+
+.composer-active-job-dot.is-starting {
+  background: var(--muted, rgba(255, 255, 255, 0.6));
+  animation: composer-active-job-pulse 1.1s ease-in-out infinite;
+}
+
+.composer-active-job-dot.is-ready {
+  background: var(--ok, #10b981);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok, #10b981) 16%, transparent);
+}
+
+.composer-active-job-dot.is-stopping {
+  background: var(--muted, rgba(255, 255, 255, 0.6));
+  opacity: 0.5;
+}
+
+@keyframes composer-active-job-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.composer-active-job-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+  font-weight: 500;
+}
+
+.composer-active-job-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-active-job-stop {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted, rgba(255, 255, 255, 0.6));
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.composer-active-job-stop:hover {
+  color: var(--text, #ffffff);
+  background: color-mix(in srgb, var(--text, #ffffff) 8%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-active-job-dot.is-running,
+  .composer-active-job-dot.is-starting {
+    animation: none;
+  }
+}
