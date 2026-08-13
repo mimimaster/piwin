@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type {
+  ExtensionDeploymentRecord,
   ExtensionUiKind,
   HostPush,
   HostResponse,
@@ -27,6 +28,8 @@ import type { NotificationAction } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { PtyOutputLine } from '../terminal-dock';
 import { PIWIN_APPEARANCE_DARK, resolveDesktopAppearance } from '../appearance-tokens';
+import { getDesktopCopy, type DesktopCopy } from '../desktop-locale';
+import { useDesktopLocale } from '../desktop-locale-context';
 import { createStreamEventBuffer } from '../stream-event-buffer';
 
 export type ExtensionUiRequestState = {
@@ -85,6 +88,73 @@ export function toPermissionPromptUi(message: PermissionRequestPush): Permission
 }
 
 /**
+ * Map a durable extension deployment push to a user-visible failure message,
+ * or null when nothing needs surfacing. Background activations (quick-ACKed
+ * waiting-current-run applies) report their outcome only through this push,
+ * so terminal failures must not stay silent. The transient `failed` phase is
+ * always followed by a terminal rolled-back/restart-required write; reacting
+ * to both would double-report the same failure.
+ */
+export function describeExtensionDeploymentFailure(
+  deployment: ExtensionDeploymentRecord,
+  copy?: Pick<
+    DesktopCopy,
+    | 'extensionDeploymentRolledBack'
+    | 'extensionDeploymentRestartRequired'
+    | 'extensionDeploymentSuperseded'
+  >,
+): string | null {
+  const rolledBack = copy?.extensionDeploymentRolledBack ?? 'Extension deployment rolled back';
+  const restartRequired =
+    copy?.extensionDeploymentRestartRequired ??
+    'Extension deployment needs a session restart to finish applying';
+  const superseded =
+    copy?.extensionDeploymentSuperseded ??
+    'This extension deployment was superseded by a newer extension configuration';
+  if (deployment.phase === 'rolled-back') {
+    const detail = deployment.error ? `: ${deployment.error}` : '';
+    return `${rolledBack}${detail}`;
+  }
+  if (deployment.phase === 'restart-required') {
+    const detail = deployment.error ? ` (${deployment.error})` : '';
+    return `${restartRequired}${detail}`;
+  }
+  if (deployment.phase === 'superseded') {
+    const detail = deployment.error ? `: ${deployment.error}` : '';
+    return `${superseded}${detail}`;
+  }
+  return null;
+}
+
+export function extensionDeploymentAnnouncementKey(
+  deployment: ExtensionDeploymentRecord,
+): string {
+  return `${deployment.deploymentId}:${deployment.phase}`;
+}
+
+/** Dedup reconnect/replay of the same terminal failure for one deployment. */
+export function shouldAnnounceExtensionDeploymentFailure(
+  seenKeys: Set<string>,
+  deployment: ExtensionDeploymentRecord,
+  copy?: Pick<
+    DesktopCopy,
+    | 'extensionDeploymentRolledBack'
+    | 'extensionDeploymentRestartRequired'
+    | 'extensionDeploymentSuperseded'
+  >,
+): boolean {
+  if (describeExtensionDeploymentFailure(deployment, copy) === null) {
+    return false;
+  }
+  const key = extensionDeploymentAnnouncementKey(deployment);
+  if (seenKeys.has(key)) {
+    return false;
+  }
+  seenKeys.add(key);
+  return true;
+}
+
+/**
  * Normalize a `theme/get-active` response into the manifest the root theme
  * owner should apply. Built-in piwin ids resolve to the desktop-owned
  * manifest (a stale host copy must not override desktop tokens); failures
@@ -103,6 +173,10 @@ export function resolveThemeBootstrapResponse(response: HostResponse): ThemeMani
 }
 
 export function useHostBootstrap(args: UseHostBootstrapArgs) {
+  const { locale } = useDesktopLocale();
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+  const announcedExtensionDeploymentsRef = useRef(new Set<string>());
   const [hostStatus, setHostStatus] = useState<HostStatusData | null>(null);
   const [hostReadyEpoch, setHostReadyEpoch] = useState(0);
   const lastPushedHostReadyRef = useRef<boolean | null>(null);
@@ -297,6 +371,23 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         extensionUiRequestRef.current = nextRequest;
         setExtensionUiRequest(nextRequest);
         setExtensionUiInput('');
+        return;
+      }
+      if (message.type === 'extension/deployment-updated') {
+        const copy = getDesktopCopy(localeRef.current);
+        if (
+          !shouldAnnounceExtensionDeploymentFailure(
+            announcedExtensionDeploymentsRef.current,
+            message.deployment,
+            copy,
+          )
+        ) {
+          return;
+        }
+        const failure = describeExtensionDeploymentFailure(message.deployment, copy);
+        if (failure) {
+          dispatch({ type: 'error', message: failure });
+        }
         return;
       }
       if (message.type === 'plan/updated') {

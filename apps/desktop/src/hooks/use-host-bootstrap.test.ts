@@ -1,15 +1,89 @@
 import { describe, expect, it } from 'vitest';
-import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
+import type { ExtensionDeploymentRecord, SessionPlan, ThemeManifest } from '@piwin/contracts';
 import {
   cacheSessionPlan,
+  describeExtensionDeploymentFailure,
   resolveThemeBootstrapResponse,
   selectSessionPlan,
+  shouldAnnounceExtensionDeploymentFailure,
   toPermissionPromptUi,
 } from './use-host-bootstrap';
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
 } from '../appearance-tokens';
+
+describe('describeExtensionDeploymentFailure', () => {
+  const record = (
+    phase: ExtensionDeploymentRecord['phase'],
+    error?: string,
+  ): ExtensionDeploymentRecord => ({
+    deploymentId: 'deploy-1',
+    sessionId: 'session-1',
+    targetRegistryRevision: 'rev-1',
+    when: 'after-current-run',
+    phase,
+    ...(error !== undefined ? { error } : {}),
+    createdAt: '2026-08-13T00:00:00.000Z',
+    updatedAt: '2026-08-13T00:00:00.000Z',
+  });
+
+  it('reports a rolled-back background deployment with its error', () => {
+    const message = describeExtensionDeploymentFailure(record('rolled-back', 'compile exploded'));
+    expect(message).toContain('rolled back');
+    expect(message).toContain('compile exploded');
+  });
+
+  it('reports restart-required so the user learns action is needed', () => {
+    const message = describeExtensionDeploymentFailure(record('restart-required'));
+    expect(message).toMatch(/restart/i);
+  });
+
+  it('stays quiet for in-flight, transient-failed, and successful phases', () => {
+    expect(describeExtensionDeploymentFailure(record('waiting-current-run'))).toBeNull();
+    expect(describeExtensionDeploymentFailure(record('compiling'))).toBeNull();
+    // `failed` is always followed by a terminal rolled-back/restart-required
+    // write; reacting to both would double-report the same failure.
+    expect(describeExtensionDeploymentFailure(record('failed', 'x'))).toBeNull();
+    expect(describeExtensionDeploymentFailure(record('active'))).toBeNull();
+  });
+
+  it('reports superseded so the user learns the apply was overtaken', () => {
+    const message = describeExtensionDeploymentFailure(record('superseded'));
+    expect(message).toMatch(/cover|覆盖|supersed/i);
+  });
+});
+
+describe('shouldAnnounceExtensionDeploymentFailure', () => {
+  const record = (
+    phase: ExtensionDeploymentRecord['phase'],
+    deploymentId = 'deploy-1',
+  ): ExtensionDeploymentRecord => ({
+    deploymentId,
+    sessionId: 'session-1',
+    targetRegistryRevision: 'rev-1',
+    when: 'after-current-run',
+    phase,
+    createdAt: '2026-08-13T00:00:00.000Z',
+    updatedAt: '2026-08-13T00:00:00.000Z',
+  });
+
+  it('announces a terminal failure once per deploymentId and phase', () => {
+    const seen = new Set<string>();
+    expect(shouldAnnounceExtensionDeploymentFailure(seen, record('rolled-back'))).toBe(true);
+    expect(shouldAnnounceExtensionDeploymentFailure(seen, record('rolled-back'))).toBe(false);
+    expect(shouldAnnounceExtensionDeploymentFailure(seen, record('superseded'))).toBe(true);
+    expect(shouldAnnounceExtensionDeploymentFailure(seen, record('superseded'))).toBe(false);
+  });
+
+  it('does not announce successful or in-flight phases', () => {
+    const seen = new Set<string>();
+    expect(shouldAnnounceExtensionDeploymentFailure(seen, record('active'))).toBe(false);
+    expect(shouldAnnounceExtensionDeploymentFailure(seen, record('waiting-current-run'))).toBe(
+      false,
+    );
+  });
+});
 
 describe('toPermissionPromptUi', () => {
   it('preserves the complete runId from a permission push', () => {
