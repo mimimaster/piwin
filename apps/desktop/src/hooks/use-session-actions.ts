@@ -1587,6 +1587,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       state.projectPath,
       state.projectTrusted,
       state.streaming,
+      state.transcriptOwnerSessionId,
     ],
   );
 

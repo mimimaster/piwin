@@ -260,6 +260,19 @@ export type ChatUiState = {
    */
   transcriptOwnerSessionId: string | null;
   /**
+   * Title/origin/scope for the active session, independent of the currently
+   * retained sidebar page. Sidebar paging replaces `sessions` but the active
+   * title must survive; hydrate paths refresh this cache from any list that
+   * still contains the row.
+   */
+  activeSessionMetadata: {
+    id: string;
+    name: string;
+    scope?: SessionScope;
+    origin?: SessionListItemUi['origin'];
+    parentSessionId?: string;
+  } | null;
+  /**
    * idle | streaming | aborting — replaces overloaded boolean for Stop UI.
    * `streaming` remains true for both streaming and aborting so existing guards keep working.
    */
@@ -507,6 +520,7 @@ export function createInitialChatUiState(): ChatUiState {
     activeSessionArchived: false,
     awaitingTranscript: false,
     transcriptOwnerSessionId: null,
+    activeSessionMetadata: null,
     runPhase: 'idle',
     activeRunId: null,
     activeRunPhase: null,
@@ -700,7 +714,46 @@ function enforceBoundedTranscriptWindow(state: ChatUiState): ChatUiState {
   };
 }
 
-export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiState {
+function refreshActiveSessionMetadata(
+  state: ChatUiState,
+  next: Partial<ChatUiState>,
+): ChatUiState {
+  const activeSessionId = next.activeSessionId !== undefined ? next.activeSessionId : state.activeSessionId;
+  if (activeSessionId === null) {
+    return { ...state, ...next, activeSessionMetadata: null };
+  }
+  const lists: SessionListItemUi[][] = [
+    (next.sessions as SessionListItemUi[] | undefined) ?? state.sessions,
+    (next.generalSessions as SessionListItemUi[] | undefined) ?? state.generalSessions,
+    ...Object.values(
+      (next.projectSessionsByPath as Record<string, SessionListItemUi[]> | undefined) ??
+        state.projectSessionsByPath,
+    ),
+  ];
+  const item = lists.flat().find((session) => session.id === activeSessionId);
+  // A changed active session with no list row yet must not inherit the
+  // previous session's title (first-send / cold resume). Keep the previous
+  // cache only when the active session id did not change (sidebar paging).
+  const activeSessionChanged =
+    next.activeSessionId !== undefined && next.activeSessionId !== state.activeSessionId;
+  return {
+    ...state,
+    ...next,
+    activeSessionMetadata: item
+      ? {
+          id: item.id,
+          name: item.name,
+          ...(item.scope ? { scope: item.scope } : {}),
+          ...(item.origin ? { origin: item.origin } : {}),
+          ...(item.origin?.kind === 'fork' ? { parentSessionId: item.origin.rootSessionId } : {}),
+        }
+      : activeSessionChanged
+        ? null
+        : state.activeSessionMetadata,
+  };
+}
+
+function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiState {
   switch (action.type) {
     case 'scope/set':
       if (action.scope.kind === 'general' && state.activeScope.kind === 'general') {
@@ -1847,6 +1900,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
     default:
       return state;
   }
+}
+
+export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiState {
+  const next = chatUiReducerCore(state, action);
+  if (next === state) {
+    return state;
+  }
+  return refreshActiveSessionMetadata(state, next);
 }
 
 /**

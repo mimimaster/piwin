@@ -2840,4 +2840,75 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.warmSessionCache.byId.s1).toBeUndefined();
     expect(state.messages).toHaveLength(0);
   });
+
+  it('keeps transcript ownership on the old session while awaiting transcript', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-a' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'session-a',
+      messages: [
+        {
+          id: 'a-1',
+          role: 'user',
+          text: 'from A',
+          createdAt: '2026-08-12T00:00:00.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    expect(state.transcriptOwnerSessionId).toBe('session-a');
+
+    // Cold switch to B: old rows stay painted, owner must remain A.
+    state = chatUiReducer(state, {
+      type: 'session/set',
+      sessionId: 'session-b',
+      awaitTranscript: true,
+    });
+    expect(state.activeSessionId).toBe('session-b');
+    expect(state.awaitingTranscript).toBe(true);
+    expect(state.messages.map((message) => message.id)).toEqual(['a-1']);
+    expect(state.transcriptOwnerSessionId).toBe('session-a');
+
+    // B's transcript commits: owner flips to B.
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'session-b',
+      messages: [
+        {
+          id: 'b-1',
+          role: 'user',
+          text: 'from B',
+          createdAt: '2026-08-12T00:01:00.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    expect(state.awaitingTranscript).toBe(false);
+    expect(state.transcriptOwnerSessionId).toBe('session-b');
+  });
+
+
+  it('keeps active session metadata across sidebar paging', () => {
+    let state = createInitialChatUiState();
+    const namedA = {
+      id: 'session-a',
+      name: 'Named session A',
+      scope: { kind: 'project', projectPath: '/p' } as const,
+    };
+    state = chatUiReducer(state, { type: 'session/hydrate-project', projectPath: '/p', sessions: [namedA] });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-a' });
+    expect(state.activeSessionMetadata).toMatchObject({ id: 'session-a', name: 'Named session A' });
+
+    // Sidebar paging replaces the retained page without the active row.
+    state = chatUiReducer(state, {
+      type: 'session/hydrate-page',
+      scope: { kind: 'project', projectPath: '/p' },
+      sessions: [{ id: 'session-zzz', name: 'Other' }],
+      fillActiveList: true,
+    });
+    expect(state.sessions.some((item) => item.id === 'session-a')).toBe(false);
+    expect(state.activeSessionMetadata).toMatchObject({ id: 'session-a', name: 'Named session A' });
+  });
+
 });

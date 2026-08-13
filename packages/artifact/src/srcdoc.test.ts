@@ -334,6 +334,7 @@ type FakeDocument = {
   body: FakeElement;
   documentElement: FakeElement;
   querySelector: (selector: string) => FakeElement | null;
+  addEventListener: (type: string, listener: unknown, capture?: boolean) => void;
 };
 
 type FakeWindow = {
@@ -392,6 +393,7 @@ function runBridgeMeasurement(fixture: BridgeFixture): number {
     body: fixture.body,
     documentElement: fixture.documentElement,
     querySelector: (selector) => (selector === '.piwin-artifact-root' ? fixture.root : null),
+    addEventListener: () => undefined,
   };
   const windowObject: FakeWindow = {
     scrollY: 0,

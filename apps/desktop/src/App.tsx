@@ -2721,10 +2721,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     return null;
   }, [state.messages]);
 
-  const activeSessionName =
-    state.sessions.find((item) => item.id === state.activeSessionId)?.name ?? 'New chat';
-  const activeSessionOrigin =
-    state.sessions.find((item) => item.id === state.activeSessionId)?.origin ?? null;
+  const activeSessionListItem =
+    state.activeSessionMetadata ??
+    state.sessions.find((item) => item.id === state.activeSessionId) ??
+    null;
+  const activeSessionName = activeSessionListItem?.name ?? 'New chat';
+  const activeSessionOrigin = activeSessionListItem?.origin ?? null;
   const desktopCopy = getDesktopCopy(desktopLocale);
 
   // Stable callback identities so composerCard useMemo does not thrash on every App render.
