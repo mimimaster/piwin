@@ -32,8 +32,11 @@
   app-region: drag;
 }
 
-/* Only when the navigator is collapsed does the stage sit under traffic lights. */
-.app-shell[data-layout='desktop']:not(.nav-open) .context-bar {
+/* Whenever the navigator is closed, the stage sits beneath the macOS traffic
+   lights. This applies to both a collapsed desktop sidebar and the default
+   compact-shell state; otherwise the sidebar toggle lands under the red close
+   button until the compact drawer is opened. */
+.app-shell:not(.nav-open) .context-bar {
   padding-left: 88px;
 }
 
