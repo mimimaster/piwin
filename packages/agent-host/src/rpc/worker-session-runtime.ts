@@ -65,6 +65,8 @@ export type CreateWorkerPiSessionInput = {
   blueprint: SerializableBlueprint;
   providers?: SerializableWorkerProviderRuntime[];
   seedMessages?: readonly SessionSeedMessage[];
+  /** `compaction` (default) forces whole-history compaction; `replay` keeps seeds intact. */
+  seedMode?: 'compaction' | 'replay';
   extensionUi?: ExtensionUiPort;
   /**
    * Proxy tool definitions to register with the Pi session (WP4).
@@ -205,6 +207,7 @@ export class WorkerSessionRuntime {
       blueprint: payload.blueprint,
       ...(payload.providers ? { providers: payload.providers } : {}),
       ...(payload.seedMessages ? { seedMessages: payload.seedMessages } : {}),
+      ...(payload.seedMode ? { seedMode: payload.seedMode } : {}),
       extensionUi: this.createExtensionUiPort(payload.productSessionId),
       ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });

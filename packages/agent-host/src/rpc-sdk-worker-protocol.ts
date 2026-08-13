@@ -193,6 +193,7 @@ export type WorkerRequestPayload =
       blueprint: SerializableBlueprint;
       providers?: SerializableWorkerProviderRuntime[];
       seedMessages?: readonly SessionSeedMessage[];
+      seedMode?: 'compaction' | 'replay';
     }
   | {
       method: 'session/prompt';

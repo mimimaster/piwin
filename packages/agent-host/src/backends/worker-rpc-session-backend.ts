@@ -85,6 +85,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
         blueprint: serializableBlueprint,
         providers: input.providers,
         ...(input.seedMessages ? { seedMessages: input.seedMessages } : {}),
+        ...(input.seedMode ? { seedMode: input.seedMode } : {}),
       });
     } catch (error) {
       await this.options.supervisor

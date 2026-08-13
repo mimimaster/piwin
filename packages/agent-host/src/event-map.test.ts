@@ -775,6 +775,92 @@ describe('C1: wrapEvent and wrapEvents', () => {
     expect(w2.event.type).toBe('message/end');
   });
 
+  it('emits message/native_context after assistant and toolResult message_end', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+
+    unwrap({ type: 'message_start', message: { id: 'pa-1', role: 'assistant' } });
+    const assistantEnd = unwrap({
+      type: 'message_end',
+      message: {
+        id: 'pa-1',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hi' }],
+        timestamp: 1,
+      },
+    });
+    const assistantNative = assistantEnd.find(
+      (event) => event.type === 'message/native_context',
+    );
+    if (assistantNative?.type !== 'message/native_context') {
+      throw new Error('missing assistant native context event');
+    }
+    expect(assistantNative.role).toBe('assistant');
+    expect(assistantNative.messageId).toBe('pa-1');
+    expect(JSON.parse(assistantNative.entry.payload)).toMatchObject({
+      id: 'pa-1',
+      role: 'assistant',
+    });
+    expect(assistantNative.entry.byteLength).toBeGreaterThan(0);
+
+    unwrap({ type: 'message_start', message: { id: 'pt-1', role: 'toolResult' } });
+    const toolEnd = unwrap({
+      type: 'message_end',
+      message: {
+        id: 'pt-1',
+        role: 'toolResult',
+        toolCallId: 'tc-1',
+        content: [],
+        isError: false,
+        timestamp: 2,
+      },
+    });
+    const toolNative = toolEnd.find((event) => event.type === 'message/native_context');
+    if (toolNative?.type !== 'message/native_context') {
+      throw new Error('missing toolResult native context event');
+    }
+    expect(toolNative.role).toBe('toolResult');
+    expect(toolNative.responseMessageId).toBe('pa-1');
+    expect(JSON.parse(toolNative.entry.payload)).toMatchObject({ toolCallId: 'tc-1' });
+  });
+
+  it('marks oversized native payload truncated without payload body', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    unwrap({ type: 'message_start', message: { id: 'pa-2', role: 'assistant' } });
+    const events = unwrap({
+      type: 'message_end',
+      message: {
+        id: 'pa-2',
+        role: 'assistant',
+        timestamp: 3,
+        content: [{ type: 'text', text: 'x'.repeat(300_000) }],
+      },
+    });
+    const native = events.find((event) => event.type === 'message/native_context');
+    if (native?.type !== 'message/native_context') {
+      throw new Error('missing native context event');
+    }
+    expect(native.entry.truncated).toBe(true);
+    expect(native.entry.payload).toBe('');
+    expect(native.entry.byteLength).toBeGreaterThan(262_144);
+  });
+
+  it('does not emit native context for user message_end or payload-less ends', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((wrapped) => wrapped.event);
+    unwrap({ type: 'message_start', message: { id: 'pu-1', role: 'user' } });
+    const userEvents = unwrap({
+      type: 'message_end',
+      message: { id: 'pu-1', role: 'user', content: 'q', timestamp: 4 },
+    });
+    expect(userEvents.some((event) => event.type === 'message/native_context')).toBe(false);
+
+    unwrap({ type: 'message_start', role: 'assistant' });
+    const bareEnd = unwrap({ type: 'message_end' });
+    expect(bareEnd.some((event) => event.type === 'message/native_context')).toBe(false);
+  });
+
   it('createsPiSessionEventMapper returns wrapped events with envelopes', () => {
     const mapper = createPiSessionEventMapper();
     const rawEvents = mapper.map({

@@ -113,6 +113,15 @@ export function normalizeAgentEventIds(
         messageId: normalizeGenerationMessageId(context, event.messageId),
       };
     }
+    case 'message/native_context': {
+      return {
+        ...event,
+        messageId: normalizeGenerationMessageId(context, event.messageId),
+        ...(event.responseMessageId !== undefined
+          ? { responseMessageId: normalizeGenerationMessageId(context, event.responseMessageId) }
+          : {}),
+      };
+    }
     case 'tool/start':
     case 'tool/update':
     case 'tool/end': {
