@@ -79,6 +79,7 @@ import { BranchChip, type BranchChipRequest } from './branch-chip';
 import { RuntimeTargetChip } from './runtime-target-chip';
 import { ProjectChip } from './project-chip';
 import { SteerQueue, type SteerQueueMessage } from './steer-queue';
+import { ActiveJobsStrip } from './active-jobs-strip';
 import { useSpeechInput } from './hooks/use-speech-input.js';
 import { PromptHistoryMenu } from './prompt-history-menu';
 import {
@@ -222,6 +223,12 @@ export type ComposerDockProps = {
    * Merged under the live stack when listing history (max 10).
    */
   sessionUserPrompts?: readonly string[];
+  /** AJB: active jobs owned by the current session (isJobActive filter). */
+  activeJobs?: readonly import('@piwin/contracts').JobRecord[];
+  /** AJB: stop a controlled program (`job/stop`). */
+  onStopJob?: (jobId: string) => void;
+  /** AJB: open the right Terminal panel with the job's logs. */
+  onViewJobLogs?: (jobId: string) => void;
 };
 
 function getAgentPlaceholder(
@@ -1405,6 +1412,13 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           ) : null}
           <RuntimeTargetChip />
         </div>
+      ) : null}
+      {props.activeJobs && props.activeJobs.length > 0 ? (
+        <ActiveJobsStrip
+          jobs={props.activeJobs}
+          onStop={props.onStopJob ?? (() => {})}
+          onViewLogs={props.onViewJobLogs ?? (() => {})}
+        />
       ) : null}
       {props.steerQueueMessages && props.steerQueueMessages.length > 0 ? (
         <SteerQueue

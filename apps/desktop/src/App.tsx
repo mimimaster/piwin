@@ -981,10 +981,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const {
     jobs,
     refreshJobs,
+    stopJob,
     appendJobLog: appendJobLogBase,
   } = useJobs(hostClient, {
     refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'terminal',
   });
+  // AJB: active jobs owned by the current session drive the composer strip.
+  const activeJobsForComposer = useMemo(() => {
+    return jobs.filter(
+      (job) => isJobActive(job.status) && job.ownerSessionId === state.activeSessionId,
+    );
+  }, [jobs, state.activeSessionId]);
+
   const backendServiceSessionIds = useMemo(() => {
     const sessionIds: Record<string, true> = {};
     for (const job of jobs) {
@@ -2793,6 +2801,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       composer,
       onComposerChange: setComposer,
       sessionUserPrompts,
+      activeJobs: activeJobsForComposer,
+      onStopJob: (jobId) => {
+        void stopJob(jobId);
+      },
+      onViewJobLogs: () => {
+        shell.openInspector('terminal');
+      },
       agentMode,
       onAgentModeChange: setAgentMode,
       pendingAttachments,
@@ -2932,6 +2947,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       discardFailedAttachments,
       revokePending,
       sessionUserPrompts,
+      activeJobsForComposer,
+      stopJob,
+      shell.openInspector,
       selectedModelContextWindow,
       selectedModelKey,
       selectedModelLabel,
