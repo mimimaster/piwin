@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import {
   SESSION_LIST_PAGE_MAX_ITEMS,
   type SessionIndexRecord,
-  type SessionListOrder,
   type SessionListPageInfo,
   type SessionListPageQuery,
   type SessionListPageResult,
 } from '@piwin/contracts';
 import { filterListableSessions } from './session-display-name.js';
+import { orderSessionIndexRecords } from './session-index-projection.js';
 
 const CURSOR_VERSION = 1;
 const MAX_CURSOR_CHARS = 512;
@@ -34,7 +34,10 @@ export function createSessionIndexPage(
   const lifecycleRecords = records.filter((record) =>
     query.lifecycle === 'archived' ? record.isArchived === true : record.isArchived !== true,
   );
-  const orderedRecords = orderSessionRecords(filterListableSessions(lifecycleRecords), query.order);
+  const orderedRecords = orderSessionIndexRecords(
+    filterListableSessions(lifecycleRecords),
+    query.order,
+  );
   const revision = createProjectionRevision(orderedRecords, query);
   const cursor = query.cursor === undefined ? null : decodeCursor(query.cursor);
 
@@ -87,32 +90,6 @@ export function createSessionIndexPage(
   }
 
   return { status: 'page', sessions, page };
-}
-
-function orderSessionRecords(
-  records: readonly SessionIndexRecord[],
-  order: SessionListOrder,
-): SessionIndexRecord[] {
-  return [...records].sort((left, right) => {
-    if (order === 'alphabetical') {
-      const byName = (left.name ?? '').localeCompare(right.name ?? '');
-      return byName !== 0 ? byName : left.id.localeCompare(right.id);
-    }
-
-    const leftPinned = left.isPinned === true;
-    const rightPinned = right.isPinned === true;
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-    if (leftPinned && rightPinned) {
-      const byPinnedAt = (right.pinnedAt ?? '').localeCompare(left.pinnedAt ?? '');
-      if (byPinnedAt !== 0) {
-        return byPinnedAt;
-      }
-    }
-    const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
-    return byUpdatedAt !== 0 ? byUpdatedAt : left.id.localeCompare(right.id);
-  });
 }
 
 function createProjectionRevision(

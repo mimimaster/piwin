@@ -32,6 +32,14 @@ export {
 } from './session-lifecycle.js';
 export { createSessionIndexPage, SessionIndexCursorError } from './session-index-page.js';
 export {
+  orderSessionIndexRecords,
+  projectSessionIndex,
+} from './session-index-projection.js';
+export type {
+  SessionIndexProjectionQuery,
+  SessionIndexProjectionResult,
+} from './session-index-projection.js';
+export {
   createSessionTranscriptPage,
   SessionTranscriptCursorError,
 } from './session-transcript-page.js';
