@@ -17,6 +17,7 @@ import type {
   ModelRef,
   ProductSessionLineageView,
   ProductSessionOrigin,
+  SessionListData,
   SessionListPageData,
   SessionTranscriptPageData,
   SessionSummary,
@@ -438,7 +439,20 @@ export class MockHostBackend {
         const includeArchived = command.includeArchived === true;
         const listScope = command.scope;
         const listProjectPath = command.projectPath;
-        const sessions: SessionSummary[] = [...this.sessions.entries()]
+        const order = command.order ?? 'updated';
+        if (
+          command.maxItems !== undefined &&
+          (!Number.isSafeInteger(command.maxItems) || command.maxItems <= 0)
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/list',
+            success: false,
+            error: 'Session list maxItems must be a positive safe integer',
+          };
+        }
+        const matchingSessions: SessionSummary[] = [...this.sessions.entries()]
           .map(([sessionId, value]) => {
             const scope =
               value.scope ??
@@ -452,7 +466,7 @@ export class MockHostBackend {
               scope,
               workingDirectory,
               projectPath: value.projectPath,
-              updatedAt: new Date().toISOString(),
+              updatedAt: value.updatedAt ?? new Date().toISOString(),
               messageCount: value.transcript.length || value.events.length,
             };
             if (value.name) summary.name = value.name;
@@ -486,8 +500,19 @@ export class MockHostBackend {
               return true;
             }
             return session.isArchived !== true;
-          });
-        return { id, type: 'response', command: 'session/list', success: true, data: { sessions } };
+          })
+          .sort((left, right) => compareMockSessionSummaries(left, right, order));
+        const totalCount = matchingSessions.length;
+        const sessions =
+          command.maxItems === undefined
+            ? matchingSessions
+            : matchingSessions.slice(0, command.maxItems);
+        const data: SessionListData = {
+          sessions,
+          totalCount,
+          truncated: sessions.length < totalCount,
+        };
+        return { id, type: 'response', command: 'session/list', success: true, data };
       }
       case 'session/list-page': {
         const query = command.query;

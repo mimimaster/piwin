@@ -102,6 +102,14 @@ export type RemoteSessionSummary = {
   parentSessionId?: string;
 };
 
+export type RemoteSessionListData = {
+  sessions: RemoteSessionSummary[];
+  /** Filtered, ordered count before truncation. */
+  totalCount: number;
+  /** True when `sessions.length < totalCount`. */
+  truncated: boolean;
+};
+
 export type RemoteSessionListPageData = SessionListPageResult<RemoteSessionSummary>;
 
 export type RemoteTranscriptMessage = {
