@@ -17,14 +17,21 @@ preparing text until the first safe stream-preview snapshot exists.
 1. Keep the completed Assistant row addressable by run after `message/end` so
    later tool events can reload and mutate it. Add a regression test using Pi's
    real event order.
-2. Project Assistant messages sharing one `runId` into one turn-work message.
+2. ~~Project Assistant messages sharing one `runId` into one turn-work message.
    Render `TurnWorkDetails` once at the first Assistant row, aggregate thinking
-   and tool cards, and suppress empty lifecycle-only rows.
-3. While a run is active, label aggregated work as thinking/working rather than
-   the terminal "Thought for N seconds" copy.
+   and tool cards, and suppress empty lifecycle-only rows.~~
+   **Superseded (2026-08-13)** by the append-only
+   [causal agent event stream](2026-08-12-causal-agent-event-stream.md): no
+   single aggregated run summary; rows render in causal event order.
+3. ~~While a run is active, label aggregated work as thinking/working rather
+   than the terminal "Thought for N seconds" copy.~~
+   **Superseded (2026-08-13)** together with step 2 — there is no aggregated
+   work summary to label; active thinking labels live on the causal rows.
 4. Replace the incomplete Artifact fence's static preparing shell with the
    shared `ArtifactFrame` preparing state and an Artifact sheen indicator. Keep
    the existing global locator for the pre-first-token phase.
+   **Reversed (2026-08-13)** — see the follow-up section below; the preparing
+   shell and loading overlay were removed again after user feedback.
 5. Update the activity presentation spec and verify focused Desktop,
    Host-runtime, package tests, typecheck, and full tests as practical.
 

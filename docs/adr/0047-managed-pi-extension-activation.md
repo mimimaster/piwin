@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Proposed |
+| Status | Accepted — Phase A implementation in progress (2026-08-13) |
 | Date | 2026-08-12 |
 | Extends | [ADR 0010](./0010-pi-extensions-channel.md) |
 | Related | [Runtime Refactor](../specs/runtime-refactor.md)、[Settings / Capability Runtime Refactor](../specs/settings-capability-runtime-refactor.md)、[ADR 0012](./0012-rpc-worker-isolation.md)、[ADR 0036](./0036-host-server-multi-client-deployment.md)、[ADR 0040](./0040-host-session-runtime-residency.md) |
@@ -202,6 +202,27 @@ causes Host code execution.
 
 Client paths are never interpreted as Host paths. Gateway processes only relay
 contracts and never inspect, store, approve, or execute extension code.
+
+Implemented (2026-08-13): `HostServer` excludes `extensions/set_enabled` and
+`extensions/apply` from the remote command allowlist by default; observation
+(`extensions/list`) stays allowed. The operator opt-in is
+`HostServerOptions.allowRemoteExtensionActivation`, surfaced in `apps/host` as
+`PIWIN_HOST_ALLOW_EXTENSION_ACTIVATION=1`. Local Desktop attaches through the
+in-process `HostRuntime` client, not `HostServer`, so local activation is
+unaffected. Remote install has no opt-in and remains denied unconditionally.
+
+Implemented (2026-08-13, recovery): Host startup scans in-flight deployment
+journal records. The journal is the recovery source of truth; the current
+registry revision is the desired-config source of truth. A leftover whose
+`targetRegistryRevision` still matches the registry is terminalized `active`
+(the next session runtime compiles from the current registry). A leftover
+whose target has been overtaken is terminalized `superseded` and cannot be
+retried under the same deployment id. Registry or journal read failures fail
+closed: `extensions/apply` is rejected until recovery can complete. The same
+deployment id claimed by a different session is a stable conflict and does
+not overwrite the journal. Desktop surfaces `rolled-back`, `restart-required`,
+and `superseded` from `extension/deployment-updated`, deduped by
+`deploymentId + phase`.
 
 ## Consequences
 

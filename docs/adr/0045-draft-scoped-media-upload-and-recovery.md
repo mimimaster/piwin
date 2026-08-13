@@ -160,6 +160,28 @@ and makes image-only drafts recoverable while the upload-ticket/binary staging
 transport below is still pending; it is not a substitute for that final
 transport.
 
+Phase 0 of the reliability plan
+([2026-08-11 plan §7](../plans/2026-08-11-composer-image-attachment-reliability.md))
+landed on 2026-08-13 and implements Decision 4 on the compatibility path:
+failed chips no longer disable Send; the thumbnail stays uncovered with the
+reason and retry/remove actions outside the chip; sending with failures asks
+retry / send-without-them / go-back; an attachment-only draft turns the primary
+action into Retry; strings are localized (zh/en). Failure classification is a
+Desktop-side heuristic (`policy` / `connection` / `local`); the stable
+`AttachmentFailureCode` contract remains Phase 1 work.
+
+### Known debt on the compatibility path (recorded 2026-08-13)
+
+- A `media/save` that succeeds and is then abandoned (chip removed, draft
+  discarded, prompt never sent) leaves the file under `~/.piwin/media/` and may
+  leave the just-created destination session empty. No reclaim/GC exists until
+  the staged-asset TTL lifecycle below lands.
+- Switching sessions while a send is in flight restores failure recovery state
+  into whichever composer is active, so session A's text/chips can land in
+  session B's composer. Recovery should bind to the originating session.
+- When the deferred-save branch fails to create the destination session, the
+  consumed draft sidebar row is not restored (composer content itself is kept).
+
 1. Add new contracts and Host capability flags without changing current prompt
    attachment handling.
 2. Implement staged assets and claiming while continuing to accept existing

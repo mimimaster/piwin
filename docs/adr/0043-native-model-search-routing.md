@@ -231,3 +231,53 @@ The implementation does not infer the capability from model names or persist
 provider credentials in Web config. A live smoke test used the configured
 `custom-openai/gemini-3.6-flash-high` endpoint with an in-memory capability tag
 and returned parseable official-source hits without mutating user config.
+
+## 2026-08-13 request-shaping adapter declaration (`nativeSearchAdapter`)
+
+The transport protocol alone is not evidence that a gateway accepts the
+protocol's canonical native-search fields: an openai-compatible vendor gateway
+may require a proprietary header/extra_body/tool shape. Models may therefore
+declare HOW native search must be expressed, separately from the
+`native-web-search` capability tag (which only declares that the model CAN):
+
+```ts
+// ModelConfigEntry.nativeSearchAdapter?: NativeSearchAdapterKind
+type NativeSearchAdapterKind =
+  | 'openai-web-search-options'   // chat/completions web_search_options field
+  | 'openai-responses-tool'       // Responses API web_search_preview tool
+  | 'anthropic-web-search-tool'   // Anthropic web_search_20250305 tool entry
+  | 'google-search-tool'          // Gemini googleSearch tool in config.tools
+  | 'vendor-specific';            // shape the generic adapter cannot express
+```
+
+Resolution rules (`resolveNativeSearchAdapterSupport`):
+
+- **Omitted** (legacy configs): fall back to the protocol's canonical shaping —
+  `openai-compatible`, `anthropic-compatible`, and `google-gemini` report
+  request support; unknown protocols do not.
+- **Declared**: the kind must be expressible for the model's provider protocol
+  (`openai-*` kinds only on `openai-compatible`, etc.). A mismatch fails
+  closed.
+- **`vendor-specific`**: never expressible by the generic adapter; native
+  readiness reports unsupported until a dedicated adapter exists. Under
+  `native-first` the route falls back to external `web_search`; under
+  `native-only` the generation exposes neither outlet and reports the issue.
+- `citationSupported` stays `false` independently of the declaration (Pi
+  0.80.10 does not deliver provider grounding metadata).
+
+The declaration is enforced everywhere native readiness is computed: main
+session and side-chat blueprint compilation, lazy session host-tool builds, and
+`findReadyWebSearchDelegate` for the Host `web_search` delegation backend (a
+delegate whose declared shape is not expressible is not "ready" and fails
+closed). The main-session blueprint path initially resolved by protocol only
+and was repaired on 2026-08-13 with regression coverage.
+
+Known limitations (recorded intentionally):
+
+- `nativeSearchAdapter` is config.json-only; the Desktop model editor and CLI
+  expose no entry yet. This is an intentional, temporary degradation.
+- A value outside the enum fails closed silently (treated as inexpressible);
+  no settings diagnostic surfaces the typo yet.
+- The Web Settings delegate dropdown lists models by capability tag and
+  protocol without filtering on declared-adapter expressibility; runtime
+  readiness still fails closed for such a selection.

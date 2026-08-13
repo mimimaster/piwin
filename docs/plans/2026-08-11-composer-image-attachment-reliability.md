@@ -337,6 +337,13 @@ durationMs, hostInstanceId, sessionId(if claimed)
 
 ### Phase 0：立即恢复可用性
 
+> **已落地（2026-08-13）**：`composer-dock.tsx` 失败行 + 三选确认对话框 +
+> 仅失败附件时主按钮变重试；`use-composer-media.ts` 增加
+> `retryFailedAttachments` / `discardFailedAttachments` 与发送入口守卫（失败
+> 附件永不静默丢弃）；错误按 `policy` / `connection` / `local` 启发式分类；
+> 中英文 localization 完成；组件与 hook 交互测试就位。稳定
+> `AttachmentFailureCode` 合同仍属 Phase 1。
+
 目标：不等新上传协议就先消灭“Retry 盖图 + 整个 composer 锁死”。
 
 - 去掉缩略图中央的 `Retry` 覆盖层；
