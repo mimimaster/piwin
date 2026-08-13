@@ -503,15 +503,17 @@ Heavy content has independent retention bounds:
 
 Optional renderer surfaces follow the same ownership rule:
 
-- session navigation initially exposes a six-row preview. `See all` enters
-  invisible cursor lazy loading over a three-page, 128-KiB sliding window per
-  hydrated project or General scope, while `Show less` refreshes the first Host
-  page; selecting an old active session anchors its Host page and never expands
-  the complete Host index. Infinite scroll must not mean “append forever”. Desktop uses additive
-  `session/list-page`: lifecycle and global order are Host-owned, cursors are
-  opaque and revision-bound, stale cursors restart once at page zero, and a
-  cursorless active-session anchor locates an old session directly. The
-  legacy complete `session/list` remains only for older shells;
+- session navigation hydrates one Host-bounded `session/list` projection per
+  scope (Desktop requests `maxItems: 2000` with Host-owned `order`; optional
+  `totalCount` / `truncated` report pre-truncation size). The Desktop bound is
+  a client request policy, not a Host-wide cap. Flattened sidebar rows over
+  `.sidebar-folder-tree` virtualize when the row count exceeds 60, so mounted
+  DOM tracks the viewport rather than the resident index; scrolling issues no
+  further session-list RPCs. A truncation hint points users at `session/search`
+  when older rows were omitted. `session/list-page` remains available for CLI,
+  mobile, and future clients; Desktop does not use it for the session index.
+  Infinite scroll must not mean “append forever”. ADR 0039 §5 remote path
+  safety and §6/§7 transcript paging are unchanged;
 - a completed-session cue in the sidebar is attention-only: terminal pushes add
   it for sessions that are no longer active, while the currently visible
   session never receives a duplicate completion marker;
