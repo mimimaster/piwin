@@ -1,10 +1,10 @@
 /**
  * Estimate intrinsic pixel height for a native SVG fence from attributes /
- * viewBox. Used when the sandboxed height bridge is silent (e.g. packaged
- * Tauri WebView where postMessage WindowProxy identity diverges).
+ * viewBox. Used only for the first loading paint; the bridge measurement is
+ * authoritative once the sandbox is ready.
  */
 import {
-  INITIAL_ARTIFACT_IFRAME_HEIGHT,
+  ARTIFACT_BOOTSTRAP_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
 } from './constants.js';
@@ -94,7 +94,7 @@ export function parseSvgFenceIntrinsicSize(source: string): {
 export function estimateSvgFenceHeight(input: EstimateSvgFenceHeightInput): number {
   const minHeight = input.minHeight ?? MIN_ARTIFACT_IFRAME_HEIGHT;
   const maxHeight = input.maxHeight ?? MAX_ARTIFACT_INLINE_FLOW_HEIGHT;
-  const fallback = input.fallbackHeight ?? INITIAL_ARTIFACT_IFRAME_HEIGHT;
+  const fallback = input.fallbackHeight ?? ARTIFACT_BOOTSTRAP_HEIGHT;
   const containerWidth = Math.max(1, input.containerWidth);
 
   const intrinsic = parseSvgFenceIntrinsicSize(input.source);

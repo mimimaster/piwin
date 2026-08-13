@@ -129,10 +129,6 @@ import { buildEnabledModelOptions } from './model-options';
 import { sessionScopeKey } from './session-scope-key';
 
 import {
-  ArtifactHeightSignalProvider,
-  type ArtifactHeightSignalContextValue,
-} from './artifact-height-signal';
-import {
   DeferredBrowserSessionPanel,
   DeferredChangesPanel,
   DeferredDocPreviewPanel,
@@ -2605,36 +2601,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [state, sessionTools, sessionPlan, jobs, runClock, desktopLocale],
   );
 
-  // Artifact height signal: bumped when an ArtifactFrame iframe grows via the
-  // postMessage bridge, so follow-tail can keep up with SVG/HTML stream growth
-  // even when markdown text length is unchanged.
-  //
-  // Coalesce hard: every tick re-renders App + stickToBottom. During SVG stream
-  // that produced a white flash near the composer (glass stage repaint thrash).
-  const [artifactHeightTick, setArtifactHeightTick] = useState(0);
-  const lastNotifiedArtifactHeightRef = useRef(0);
-  const artifactHeightNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const artifactHeightSignal = useMemo<ArtifactHeightSignalContextValue>(
-    () => ({
-      notifyHeightChange: (height: number) => {
-        const previous = lastNotifiedArtifactHeightRef.current;
-        // Ignore noise; ResizeObserver often covers sub-threshold growth.
-        if (Math.abs(height - previous) < 12) {
-          return;
-        }
-        lastNotifiedArtifactHeightRef.current = height;
-        if (artifactHeightNotifyTimerRef.current) {
-          return;
-        }
-        artifactHeightNotifyTimerRef.current = setTimeout(() => {
-          artifactHeightNotifyTimerRef.current = null;
-          setArtifactHeightTick((tick) => tick + 1);
-        }, 280);
-      },
-    }),
-    [],
-  );
-
   const activitySignal = useMemo(() => {
     const latestMessage = state.messages[state.messages.length - 1];
     const latestVisibleLength = latestMessage
@@ -2643,8 +2609,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     const toolStates = sessionTools
       .map((tool) => `${tool.toolCallId}:${tool.status}:${tool.output.length}`)
       .join(',');
-    return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}:ah${artifactHeightTick}`;
-  }, [state.runPhase, state.messages, sessionTools, artifactHeightTick]);
+    return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}`;
+  }, [state.runPhase, state.messages, sessionTools]);
 
   const historyViewActive = state.historyView !== null;
   const visibleTranscriptMessages = state.historyView?.messages ?? state.messages;
@@ -3446,8 +3412,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   }
                   {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
                 >
-                  <ArtifactHeightSignalProvider value={artifactHeightSignal}>
-                    {/*
+                  {/*
                      * Keep the thread mounted during the pre-ACK window. The
                      * optimistic send marks the run as streaming before the
                      * Host returns a run id, and ChatThread owns the waiting
@@ -3532,7 +3497,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         derivedActionsDisabled={!state.activeSessionId || state.streaming || state.awaitingTranscript}
                       />
                     ) : null}
-                  </ArtifactHeightSignalProvider>
                 </TranscriptViewport>
                 {state.compacting ? (
                   <Notice

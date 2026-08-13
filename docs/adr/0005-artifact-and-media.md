@@ -97,32 +97,58 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
 - Stream source is sanitized before rendering: scripts and unsafe embeds are
   removed, unfinished tags are withheld, and an unfinished `<style>` block is
   not applied.
-- The iframe `srcdoc` is stable for the whole streaming phase. Later snapshots
-  use a channel-scoped parent-to-iframe message and reconcile existing nodes in
-  place; text nodes may grow token-by-token and complete UI nodes append without
-  reloading the document.
-- Completion keeps the same iframe and channel. The repaired final source is
-  committed through the bridge with a final marker; final permitted scripts
-  are activated inside the existing sandbox under the same CSP and security
-  classifier. Completed/history Artifacts that did not begin as a live stream
-  still load their final `srcdoc` directly.
+- The iframe document is stable for the whole streaming phase. Sanitized token
+  snapshots reconcile its DOM in place at most once per 300ms and report the
+  resulting stream height.
+- Completion commits the repaired final source into that same iframe once,
+  removes its stream listener, activates final permitted scripts, and reports
+  one settled height. Completed/history Artifacts load the final document
+  directly.
 - Inline Artifact title/status/byte chrome is not permanently visible. Source
   inspection remains available from an action overlay shown on hover or
   keyboard focus; activating `Show code` opens the source fully expanded.
 - Model-authored Artifact motion is disabled by a host-owned style placed after
   model styles: CSS animations/transitions and SVG declarative motion do not
   run in either streaming or completed inline previews.
-- Desktop stream stability (2026-08-10, aligned with openwebui_m): live
-  stream-preview stays on during generation. Fence identity is sticky
-  (`<messageId>-artifact-<ordinal>`, never a hash of the body). One iframe
-  mounts for the stream and final commit; body updates use postMessage (not
-  srcdoc rewrite). A message that rendered live tokens remains on Streamdown's
-  keyed block renderer through completion so that transition cannot unmount
-  the code-fence subtree; completed history may use the static renderer
-  directly. Height is grow-only + coalesced; shell height signals are
-  throttled. Init grant depends only on channelId so parent re-renders do not
-  unmount the iframe.
+- Desktop completion stability (amended 2026-08-13): fence identity is sticky
+  (`<messageId>-artifact-<ordinal>`, never a hash of the body). During token
+  streaming the first lightweight document stays mounted while throttled body
+  snapshots reconcile its DOM in place. Completion commits one final snapshot
+  without navigating or remounting the iframe. Completed/history Artifacts load
+  the same final document directly. Parent re-renders do not reload it.
 - Artifact document canvas remains transparent. A host-owned theme guard is
   appended after model content to keep `html`/`body`/root transparent and map
   known fixed-light surfaces to the Artifact theme without creating a white
   page behind the component.
+
+## Amendment (2026-08-13): Static-flow routing and one height observer
+
+- Completed Inline HTML/SVG without JavaScript, external resource references,
+  embedded browsing contexts, or form submission capability renders directly
+  in a sanitized Shadow DOM. It participates in transcript flow and therefore
+  has no iframe height protocol. Streaming stays sandboxed until the final
+  source proves eligible; Canvas always stays sandboxed.
+- Allowed YouTube/Google Maps embeds remain sandboxed. External scripts,
+  stylesheets, images, fonts, APIs, and other network resources remain blocked
+  by the existing classifier/CSP policy.
+- Sandboxed Inline content uses one ResizeObserver-driven measurement stream.
+  There is no height phase state machine, MutationObserver, measurement ladder,
+  interaction shrink confirmation, or grow-only lock.
+- Packaged macOS registers a frame-scoped `WKScriptMessageHandler`. It accepts
+  bounded, whitelisted messages only from non-main frames; the main UI then
+  requires an exact Artifact `channelId` match. Browser/dev keeps
+  `window.postMessage` as a compatibility fallback. No Tauri invoke capability
+  is exposed to Artifact HTML.
+- Height transport, iframe admission, final-document lifecycle, and React
+  presentation remain separate modules. `ArtifactFrame` does not own protocol
+  timers or Tauri-native state.
+- Inline iframe height is authoritative after a sandbox measurement. SVG
+  attributes/viewBox may size the short-lived loading paint, but neither that
+  seed nor an HTML/CSS source estimate is accepted as the measured height.
+- If no measurement arrives before the timeout, Desktop keeps the iframe
+  visible in a bounded 640px fallback viewport and allows clipping. This is a
+  diagnostic degradation, not a render error: no error card replaces content,
+  and a late valid measurement may still restore the real height.
+- Canvas owns a fixed panel scrollport and therefore does not depend on the
+  Inline height measurement. CSP, sandboxing, channel binding, message parsing,
+  and action whitelisting remain unchanged.

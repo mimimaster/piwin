@@ -3480,6 +3480,14 @@ html[data-theme-mode='light'] .permission-detail {
   min-width: 0;
 }
 
+.artifact-frame--static,
+.artifact-static {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 /*
  * Fallback when a frame still hosts an action via extraHeaderAction (tests /
  * flashcard edge). Prefer .artifact-with-source--preview side rail in product UI.

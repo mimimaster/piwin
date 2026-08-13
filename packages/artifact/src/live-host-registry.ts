@@ -191,24 +191,6 @@ export function claimArtifactLiveHost(
   return { admitted: true };
 }
 
-/** Update priority / liveness without re-evicting. No-op if not registered. */
-export function touchArtifactLiveHost(
-  id: string,
-  patch: { priority?: number; forceKeep?: boolean } = {},
-): void {
-  const entry = hosts.get(id) ?? waiters.get(id);
-  if (!entry) {
-    return;
-  }
-  if (patch.priority !== undefined) {
-    entry.priority = patch.priority;
-  }
-  if (patch.forceKeep !== undefined) {
-    entry.forceKeep = patch.forceKeep;
-  }
-  entry.lastTouchAt = Date.now();
-}
-
 export function releaseArtifactLiveHost(id: string): void {
   const wasLive = hosts.delete(id);
   waiters.delete(id);

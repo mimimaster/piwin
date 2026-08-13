@@ -20,6 +20,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mountedMarkdownRenders: Array<{ container: HTMLElement; root: Root }> = [];
 
 const ARTIFACT_HTML_FENCE = '```artifact-html\n<div><h1>Hi</h1></div>\n```';
+const INTERACTIVE_ARTIFACT_HTML_FENCE =
+  '```artifact-html\n<button id="count">0</button><script>count.onclick=()=>count.textContent="1"</script>\n```';
 const CANVAS_ARTIFACT_FENCE =
   '```artifact-html title="Wide workspace" surface="canvas"\n<div>Wide</div>\n```';
 const PLAIN_HTML_FENCE = '```html\n<div class="card"><p>Hello</p></div>\n```';
@@ -101,7 +103,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('default mode (artifactCodeFirst=false): artifact-html fence directly renders ArtifactFrame', () => {
+  it('default mode: completed static HTML renders directly in transcript flow', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
     );
@@ -112,6 +114,11 @@ describe('MarkdownView artifact preview policy', () => {
     expect(wrapper?.querySelector('.artifact-side-rail')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-preview-surface .artifact-frame')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-frame .artifact-frame-actions')).toBeNull();
+    expect(
+      wrapper?.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer'),
+    ).toBe('static-flow');
+    expect(wrapper?.querySelector('[data-testid="artifact-static"]')).not.toBeNull();
+    expect(wrapper?.querySelector('iframe')).toBeNull();
   });
 
   it('routes an explicit Canvas fence to a launcher with stable message origin', () => {
@@ -141,6 +148,21 @@ describe('MarkdownView artifact preview policy', () => {
         title: 'Wide workspace',
       }),
     );
+  });
+
+  it('keeps completed JavaScript content inside the sandbox iframe', async () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={INTERACTIVE_ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      container.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer'),
+    ).toBe('sandbox');
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-static"]')).toBeNull();
   });
 
   it('keeps Canvas fences source-only while the response is streaming', () => {
@@ -214,7 +236,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(secondHost?.getAttribute('data-artifact-id')).toBe('m-stream-stable-artifact-0');
   });
 
-  it('keeps the same Artifact frame host when streaming becomes completed', () => {
+  it('replaces the temporary streaming sandbox with static natural flow on completion', () => {
     const streamingText = [
       '```artifact-html',
       '<style>.card { padding: 12px; }</style><div class="card"><p>Hel',
@@ -246,7 +268,11 @@ describe('MarkdownView artifact preview policy', () => {
       );
     });
 
-    expect(container.querySelector<HTMLElement>('.artifact-frame')).toBe(streamingFrame);
+    const completedFrame = container.querySelector<HTMLElement>('.artifact-frame');
+    expect(completedFrame).not.toBe(streamingFrame);
+    expect(completedFrame?.getAttribute('data-artifact-renderer')).toBe('static-flow');
+    expect(container.querySelector('[data-testid="artifact-static"]')).not.toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
   });
 
   it('capability off + flashcard source: shows Preview card affordance', () => {
@@ -414,7 +440,7 @@ describe('MarkdownView artifact preview policy', () => {
     scrollHeight.mockRestore();
   });
 
-  it('in-place toggle: SVG preview replaces source with ArtifactFrame', () => {
+  it('in-place toggle: static SVG replaces source without mounting an iframe', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
@@ -426,10 +452,10 @@ describe('MarkdownView artifact preview policy', () => {
     act(() => {
       toggle?.click();
     });
-    // Flush the async artifact init promise that resolves setGranted.
-    act(() => {});
     expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-static"]')).not.toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
   });
 
   it('diff fences use old/new file line numbers from hunk headers', () => {

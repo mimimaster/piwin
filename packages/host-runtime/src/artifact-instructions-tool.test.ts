@@ -23,6 +23,7 @@ describe('Artifact instruction loading', () => {
 
     expect(prompt).toContain('## Artifact capability');
     expect(prompt).toContain('artifact_instructions');
+    expect(prompt).toContain('at most once per run');
     expect(prompt).not.toContain('## HTML Artifact Runtime Contract');
     expect(prompt?.length).toBeLessThan(600);
     expect(prompt?.length).toBeLessThan(
@@ -66,5 +67,57 @@ describe('Artifact instruction loading', () => {
     }
     expect(result.output).toContain('private custom sentinel');
     expect(result.output).toContain('## HTML Artifact Runtime Contract');
+  });
+
+  it('returns the full contract only once for the same run', async () => {
+    const tool = buildArtifactInstructionsTool(config());
+    const context = {
+      sessionId: 'session-1',
+      runtimeGenerationId: 'generation-1',
+      runId: 'run-1',
+      toolCallId: 'call-1',
+      toolName: 'artifact_instructions',
+    };
+
+    const [first, repeated] = await Promise.all([
+      tool.execute({}, new AbortController().signal, context),
+      tool.execute({}, new AbortController().signal, { ...context, toolCallId: 'call-2' }),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(repeated.ok).toBe(true);
+    if (!first.ok || !repeated.ok) {
+      throw new Error('expected successful Artifact instruction results');
+    }
+    expect(first.output).toContain('## HTML Artifact Runtime Contract');
+    expect(repeated.output).not.toContain('## HTML Artifact Runtime Contract');
+    expect(repeated.output).toContain('already loaded for this run');
+    expect(repeated.output.length).toBeLessThan(200);
+  });
+
+  it('loads the full contract again for another run or runtime generation', async () => {
+    const tool = buildArtifactInstructionsTool(config());
+    const signal = new AbortController().signal;
+    const baseContext = {
+      sessionId: 'session-1',
+      runtimeGenerationId: 'generation-1',
+      runId: 'run-1',
+      toolName: 'artifact_instructions',
+    };
+
+    const firstRun = await tool.execute({}, signal, baseContext);
+    const nextRun = await tool.execute({}, signal, { ...baseContext, runId: 'run-2' });
+    const nextGeneration = await tool.execute({}, signal, {
+      ...baseContext,
+      runtimeGenerationId: 'generation-2',
+    });
+
+    for (const result of [firstRun, nextRun, nextGeneration]) {
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+      expect(result.output).toContain('## HTML Artifact Runtime Contract');
+    }
   });
 });

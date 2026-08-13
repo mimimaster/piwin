@@ -19,12 +19,11 @@ describe('parseArtifactBridgeMessage', () => {
       type: ARTIFACT_BRIDGE_READY_TYPE,
       channelId: 'ch-1',
       height: 421,
-      mode: 'normal',
     });
     expect(message && isArtifactBridgeReadyMessage(message)).toBe(true);
   });
 
-  it('accepts resize with interaction mode', () => {
+  it('ignores legacy height-mode metadata and keeps one height shape', () => {
     const message = parseArtifactBridgeMessage({
       type: ARTIFACT_BRIDGE_RESIZE_TYPE,
       channelId: 'ch-2',
@@ -35,7 +34,6 @@ describe('parseArtifactBridgeMessage', () => {
       type: ARTIFACT_BRIDGE_RESIZE_TYPE,
       channelId: 'ch-2',
       height: 300,
-      mode: 'interaction',
     });
   });
 
@@ -49,14 +47,6 @@ describe('parseArtifactBridgeMessage', () => {
         type: ARTIFACT_BRIDGE_READY_TYPE,
         channelId: 'ch',
         height: Number.NaN,
-      }),
-    ).toBeNull();
-    expect(
-      parseArtifactBridgeMessage({
-        type: ARTIFACT_BRIDGE_RESIZE_TYPE,
-        channelId: 'ch',
-        height: 10,
-        mode: 'bogus',
       }),
     ).toBeNull();
   });

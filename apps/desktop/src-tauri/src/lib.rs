@@ -1,3 +1,4 @@
+mod artifact_bridge;
 mod host_bridge;
 mod pet_overlay;
 mod pty_host;
@@ -6,6 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+use artifact_bridge::install_artifact_bridge;
 use host_bridge::{
     host_is_running, host_request, host_request_blocking, host_start, host_stop,
     observe_host_process_blocking, HostBridgeState, HostObservability,
@@ -172,6 +174,7 @@ pub fn run() {
             show_main_window
         ])
         .setup(|application| {
+            install_artifact_bridge(application.handle())?;
             // macOS may fall back to productName for an empty config title.
             // A zero-width title keeps traffic lights while removing visible chrome text.
             if let Some(main_window) = application.get_webview_window("main") {

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ARTIFACT_BRIDGE_READY_TYPE,
-  ARTIFACT_BRIDGE_RESIZE_TYPE,
-  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
-} from './constants.js';
+import { ARTIFACT_BRIDGE_READY_TYPE, ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE } from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import {
   buildArtifactBridgeBootstrapScript,
@@ -16,13 +12,15 @@ describe('buildStrictArtifactCsp', () => {
     const csp = buildStrictArtifactCsp(createDefaultArtifactIframePolicy('allowlist'));
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("connect-src 'none'");
+    expect(csp).toContain('img-src data: blob:');
     expect(csp).toContain('frame-src https://www.youtube.com');
     expect(csp).toContain("object-src 'none'");
   });
 
-  it('uses frame-src none when disabled', () => {
+  it('uses frame-src none when external frames are disabled', () => {
     const csp = buildStrictArtifactCsp(createDefaultArtifactIframePolicy('disabled'));
     expect(csp).toContain("frame-src 'none'");
+    expect(csp).not.toContain('frame-src https:');
   });
 });
 
@@ -37,10 +35,42 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('Content-Security-Policy');
     expect(srcdoc).toContain('piwin-artifact-root');
     expect(srcdoc).toContain(ARTIFACT_BRIDGE_READY_TYPE);
-    expect(srcdoc).toContain(ARTIFACT_BRIDGE_RESIZE_TYPE);
     expect(srcdoc).toContain('ch-1');
     expect(srcdoc).toContain('data-piwin-artifact-bridge-bootstrap');
     expect(csp).toContain("default-src 'none'");
+  });
+
+  it('reports one deduplicated ResizeObserver height stream over native and browser transports', () => {
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: '<div>completed</div>',
+      channelId: 'ch-completed',
+    });
+    expect(srcdoc).toContain('window.webkit.messageHandlers.piwinArtifact');
+    expect(srcdoc).toContain('nativeHandler.postMessage(JSON.stringify(message))');
+    expect(srcdoc).toContain('post(actionType, { action: action, payload: payload || {} })');
+    expect(srcdoc).toContain("parent.postMessage(message, '*')");
+    expect(srcdoc).toContain("'ResizeObserver' in window");
+    expect(srcdoc).toContain('observer.observe(root)');
+    expect(srcdoc).toContain('height === lastReportedHeight');
+    expect(srcdoc).not.toContain('MutationObserver');
+    expect(srcdoc).not.toContain('scheduleMeasureLadder');
+    expect(srcdoc).not.toContain("addEventListener('click'");
+  });
+
+  it('updates DOM only during streaming and removes the stream listener at final', () => {
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: '<div>streaming</div>',
+      channelId: 'ch-stream',
+      enableStreamUpdates: true,
+    });
+    expect(srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
+    expect(srcdoc).toContain('syncChildren(root, template.content)');
+    expect(srcdoc).toContain("window.removeEventListener('message', onStreamUpdate)");
+    expect(srcdoc).toContain('scheduleHeight();');
+    expect(srcdoc).toContain('interactive scripts may change normal-flow size later');
+    expect(srcdoc).not.toContain('MutationObserver');
+    const script = srcdoc.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
+    expect(() => new Function(script ?? '')).not.toThrow();
   });
 
   it('centers fixed-width native SVG fences within the responsive artifact measure', () => {
@@ -103,7 +133,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
   });
 
   it('lets Inline content flow without a document scrollport', () => {
-    const modelSource = '<style>body { overflow: auto !important; }</style><section>Flowing content</section>';
+    const modelSource =
+      '<style>body { overflow: auto !important; }</style><section>Flowing content</section>';
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: modelSource,
       channelId: 'inline-flow',
@@ -140,27 +171,12 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).not.toContain('data-piwin-artifact-bridge-bootstrap');
   });
 
-  it('adds in-place stream reconciliation only when explicitly enabled', () => {
-    const streaming = buildHtmlArtifactSrcdoc({
+  it('emits a syntactically valid one-shot bridge', () => {
+    const completed = buildHtmlArtifactSrcdoc({
       source: '<div>Hi</div>',
-      channelId: 'stream-channel',
-      enableStreamUpdates: true,
+      channelId: 'completed-channel',
     });
-    const interactive = buildHtmlArtifactSrcdoc({
-      source: '<div>Hi</div>',
-      channelId: 'interactive-channel',
-    });
-    expect(streaming.srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
-    expect(streaming.srcdoc).toContain('syncChildren(root, template.content)');
-    // channelId-bound stream auth — do not require event.source === parent
-    // (packaged Tauri WindowProxy identity breaks that check).
-    expect(streaming.srcdoc).not.toContain('event.source !== parent');
-    expect(streaming.srcdoc).toContain('data.channelId !== channelId');
-    expect(streaming.srcdoc).toContain('data.final === true');
-    expect(streaming.srcdoc).toContain('activateFinalScripts');
-    expect(streaming.srcdoc).toContain("new Event('DOMContentLoaded')");
-    expect(interactive.srcdoc).not.toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
-    const script = streaming.srcdoc.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
+    const script = completed.srcdoc.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeDefined();
     expect(() => new Function(script ?? '')).not.toThrow();
   });
@@ -181,15 +197,14 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('.piwin-artifact-root animateTransform');
   });
 
-  it('measures visible box height without counting clipped overflow', () => {
+  it('uses one root box measurement without descendant traversal', () => {
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: '<section><div class="panel">Hi</div></section>',
       channelId: 'ch-3',
     });
-    expect(srcdoc).toContain('rect.height');
-    expect(srcdoc).toContain('element.offsetHeight');
-    expect(srcdoc).toContain('element.scrollHeight');
-    expect(srcdoc).toContain('overflowY');
+    expect(srcdoc).toContain('Math.max(rect.height || 0, element.offsetHeight || 0, element.scrollHeight || 0)');
+    expect(srcdoc).not.toContain("root.querySelectorAll('*')");
+    expect(srcdoc).not.toContain('clipToAncestorBounds');
     expect(srcdoc).toContain('overflow-y: hidden !important');
   });
 
@@ -331,6 +346,7 @@ type FakeElement = {
 };
 
 type FakeDocument = {
+  readyState: string;
   body: FakeElement;
   documentElement: FakeElement;
   querySelector: (selector: string) => FakeElement | null;
@@ -390,6 +406,7 @@ function createFakeElement(input: {
 function runBridgeMeasurement(fixture: BridgeFixture): number {
   const messages: BridgeMessage[] = [];
   const documentObject: FakeDocument = {
+    readyState: 'complete',
     body: fixture.body,
     documentElement: fixture.documentElement,
     querySelector: (selector) => (selector === '.piwin-artifact-root' ? fixture.root : null),
@@ -429,7 +446,10 @@ function runBridgeMeasurement(fixture: BridgeFixture): number {
     windowObject,
     documentObject,
     parentObject,
-    () => 0,
+    (handler) => {
+      handler();
+      return 0;
+    },
     () => undefined,
     (handler) => {
       handler();
