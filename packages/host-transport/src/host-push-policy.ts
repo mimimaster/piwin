@@ -87,7 +87,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
         push.deployment.phase === 'active' ||
         push.deployment.phase === 'failed' ||
         push.deployment.phase === 'rolled-back' ||
-        push.deployment.phase === 'restart-required'
+        push.deployment.phase === 'restart-required' ||
+        push.deployment.phase === 'superseded'
       ) {
         return control([key]);
       }
@@ -200,6 +201,10 @@ function classifyAgentEvent(scope: HostDeliveryKey, event: AgentEvent): HostPush
     case 'memory/extraction_start':
     case 'memory/extraction_end':
       return control([deliveryKey(...scope, 'lifecycle')]);
+    case 'message/native_context':
+      // Host-runtime strips native context copies before egress
+      // (spec: session-conversation-tree §4.3); classify defensively only.
+      return control([], runId);
     default:
       return assertNever(event);
   }

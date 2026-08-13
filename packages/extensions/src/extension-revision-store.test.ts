@@ -60,4 +60,47 @@ describe('ExtensionRevisionStore', () => {
       createExtensionRevisionStore(rootDir).stage({ sourcePath: sourceDir }),
     ).rejects.toThrow('symbolic links');
   });
+
+  it('round-trips a superseded deployment record', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-extension-store-superseded-'));
+    const store = createExtensionRevisionStore(rootDir);
+    const now = new Date().toISOString();
+    const record = {
+      deploymentId: 'deploy-superseded',
+      sessionId: 'session-1',
+      targetRegistryRevision: 'rev-old',
+      when: 'after-current-run' as const,
+      phase: 'superseded' as const,
+      error: 'target registry revision is no longer current',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await store.writeDeployment(record);
+    expect(await store.readDeployment('deploy-superseded')).toEqual(record);
+  });
+
+  it('rejects an unknown deployment phase', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-extension-store-unknown-phase-'));
+    const store = createExtensionRevisionStore(rootDir);
+    const now = new Date().toISOString();
+    await mkdir(join(rootDir, 'extensions', 'deployments'), { recursive: true });
+    await writeFile(
+      join(rootDir, 'extensions', 'deployments', 'deploy-unknown.json'),
+      `${JSON.stringify({
+        deploymentId: 'deploy-unknown',
+        sessionId: 'session-1',
+        targetRegistryRevision: 'rev-1',
+        when: 'now',
+        phase: 'time-travel',
+        createdAt: now,
+        updatedAt: now,
+      })}\n`,
+      'utf8',
+    );
+
+    await expect(store.readDeployment('deploy-unknown')).rejects.toThrow(
+      'Invalid extension deployment record',
+    );
+  });
 });

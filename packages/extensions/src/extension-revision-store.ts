@@ -15,6 +15,7 @@ import {
 } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import type {
+  ExtensionDeploymentPhase,
   ExtensionDeploymentRecord,
   ExtensionRegistryDocument,
   ExtensionRevisionRef,
@@ -560,16 +561,7 @@ function parseDeployment(value: unknown): ExtensionDeploymentRecord {
     typeof value.sessionId !== 'string' ||
     typeof value.targetRegistryRevision !== 'string' ||
     (when !== 'now' && when !== 'after-current-run' && when !== 'new-sessions-only') ||
-    (phase !== 'queued' &&
-      phase !== 'validating' &&
-      phase !== 'waiting-current-run' &&
-      phase !== 'compiling' &&
-      phase !== 'creating-runtime' &&
-      phase !== 'publishing' &&
-      phase !== 'active' &&
-      phase !== 'failed' &&
-      phase !== 'rolled-back' &&
-      phase !== 'restart-required') ||
+    !isExtensionDeploymentPhase(phase) ||
     typeof value.createdAt !== 'string' ||
     typeof value.updatedAt !== 'string'
   ) {
@@ -757,6 +749,22 @@ function assertSafeIdentifier(value: string, label: string): void {
   ) {
     throw new Error(`Invalid ${label}`);
   }
+}
+
+function isExtensionDeploymentPhase(value: unknown): value is ExtensionDeploymentPhase {
+  return (
+    value === 'queued' ||
+    value === 'validating' ||
+    value === 'waiting-current-run' ||
+    value === 'compiling' ||
+    value === 'creating-runtime' ||
+    value === 'publishing' ||
+    value === 'active' ||
+    value === 'failed' ||
+    value === 'rolled-back' ||
+    value === 'restart-required' ||
+    value === 'superseded'
+  );
 }
 
 function isMissingFile(error: unknown): boolean {

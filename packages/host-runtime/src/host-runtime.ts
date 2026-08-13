@@ -340,6 +340,17 @@ type ExtensionDeploymentPatch = {
  * the same deploymentId re-ACKs the current durable state instead of starting
  * a second, overlapping activation.
  */
+/**
+ * Commands that change the extension registry revision. Startup recovery
+ * classifies leftover deployments against one registry read, so these must
+ * not run before it settles.
+ */
+const EXTENSION_REGISTRY_MUTATING_COMMANDS = new Set<HostCommand['type']>([
+  'extensions/set_enabled',
+  'extensions/install',
+  'extensions/ensure-bundled',
+]);
+
 const EXTENSION_DEPLOYMENT_IN_FLIGHT_PHASES = new Set<ExtensionDeploymentRecord['phase']>([
   'queued',
   'validating',
@@ -584,6 +595,11 @@ export class HostRuntime {
   private readonly extensionRevisionStore: ReturnType<typeof createExtensionRevisionStore>;
   private readonly extensionDeploymentIdsBySession = new Map<string, string>();
   private readonly extensionDeploymentPromisesById = new Map<string, Promise<HostResponse>>();
+  /**
+   * Startup terminalization of deployments left in-flight by a dead Host
+   * process. `extensions/apply` awaits this before trusting persisted state.
+   */
+  private extensionDeploymentStartupRecovery: Promise<void> | null = null;
   /** ADR 0040 §3: normalized retention policy (adaptive high water derived). */
   private runtimeRetention: SessionRuntimeRetentionConfig;
   /** Effective automatic RSS high-water budget in MiB. */
@@ -678,6 +694,21 @@ export class HostRuntime {
           push: options.onPush,
         });
       }
+      const extensionRecovery = this.recoverInterruptedExtensionDeployments().catch(
+        (error: unknown) => {
+          this.push({
+            type: 'host/log',
+            level: 'error',
+            message: `extension deployment startup recovery failed: ${formatError(error)}`,
+          });
+          throw error;
+        },
+      );
+      // Consumers await this promise lazily (first extension command); keep a
+      // terminal handler so a failure is never reported as an unhandled
+      // rejection when no extension command arrives.
+      void extensionRecovery.catch(() => undefined);
+      this.extensionDeploymentStartupRecovery = extensionRecovery;
       this.runRegistry = new RunRegistry({
         onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
         onRunTerminal: (run) => this.push({ type: 'run/terminal', run }),
@@ -1238,6 +1269,15 @@ export class HostRuntime {
       }
       this.subagentStartupRecovery = null;
     }
+    if (this.extensionDeploymentStartupRecovery) {
+      try {
+        await this.extensionDeploymentStartupRecovery;
+      } catch {
+        // Recovery already logged at startup. Failing shutdown over it would
+        // turn a known journal read error into an unclean Host exit.
+      }
+      this.extensionDeploymentStartupRecovery = null;
+    }
     if (this.rootLease) {
       try {
         this.rootLease.release();
@@ -1284,6 +1324,15 @@ export class HostRuntime {
           this.buildWalkthroughContext(),
           this.walkthroughRegistry,
         );
+      }
+      if (EXTENSION_REGISTRY_MUTATING_COMMANDS.has(command.type)) {
+        const recoveryFailure = await this.blockUntilExtensionRecoverySettled(
+          requestId,
+          command.type,
+        );
+        if (recoveryFailure) {
+          return recoveryFailure;
+        }
       }
       if (command.type === 'extensions/apply') {
         const deploymentId = command.deploymentId ?? randomUUID();
@@ -1383,10 +1432,88 @@ export class HostRuntime {
     }
   }
 
+  /**
+   * Startup recovery for durable extension deployments (ADR 0047). A record
+   * still in an in-flight phase belongs to a Host process that no longer
+   * exists — its background continuation was memory-only. Journal is the
+   * recovery source of truth; registry revision is the desired-config source
+   * of truth. Only a leftover whose target still matches the current registry
+   * can be terminalized as `active`. A stale target becomes `superseded`.
+   * Store/registry read failures fail closed so a later apply cannot pretend
+   * recovery succeeded.
+   */
+  private async recoverInterruptedExtensionDeployments(): Promise<void> {
+    const registry = await this.extensionRevisionStore.readRegistry();
+    const deployments = await this.extensionRevisionStore.listDeployments();
+    const failures: unknown[] = [];
+    for (const record of deployments) {
+      if (!EXTENSION_DEPLOYMENT_IN_FLIGHT_PHASES.has(record.phase)) {
+        continue;
+      }
+      if (this.extensionDeploymentPromisesById.has(record.deploymentId)) {
+        continue;
+      }
+      try {
+        if (record.targetRegistryRevision === registry.revision) {
+          await this.updateExtensionDeployment(record, { phase: 'active' });
+        } else {
+          await this.updateExtensionDeployment(record, {
+            phase: 'superseded',
+            error: 'target registry revision is no longer current',
+          });
+        }
+      } catch (error) {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `extension deployment recovery failed for ${record.deploymentId}: ${formatError(error)}`,
+        });
+        // A record left in-flight is exactly the state later commands must not
+        // trust, so an unpersisted terminalization has to fail the whole
+        // recovery instead of silently allowing the next apply.
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, 'extension deployment recovery could not terminalize');
+    }
+  }
+
+  /**
+   * Extension registry state is only trustworthy after startup recovery has
+   * terminalized leftovers. Recovery decides `active` vs `superseded` from one
+   * registry read, so a mutation racing that decision would make it stale:
+   * both apply and registry mutations wait here and fail closed together.
+   */
+  private async blockUntilExtensionRecoverySettled(
+    requestId: string | undefined,
+    commandType: HostCommand['type'],
+  ): Promise<HostResponse | null> {
+    try {
+      await this.extensionDeploymentStartupRecovery;
+      return null;
+    } catch (error) {
+      return fail(
+        requestId,
+        commandType,
+        `extension-deployment-recovery-failed: ${formatError(error)}`,
+      );
+    }
+  }
+
   private async executeExtensionApply(
     command: ExtensionApplyCommand,
     requestId: string | undefined,
   ): Promise<HostResponse> {
+    const recoveryFailure = await this.blockUntilExtensionRecoverySettled(
+      requestId,
+      'extensions/apply',
+    );
+    if (recoveryFailure) {
+      return recoveryFailure;
+    }
     const registry = await this.extensionRevisionStore.readRegistry();
     if (
       command.expectedRegistryRevision !== undefined &&
@@ -1400,14 +1527,34 @@ export class HostRuntime {
     }
 
     const persisted = await this.extensionRevisionStore.readDeployment(command.deploymentId);
+    if (persisted && persisted.sessionId !== command.sessionId) {
+      return fail(
+        requestId,
+        'extensions/apply',
+        `extension-deployment-session-conflict: ${command.deploymentId}`,
+      );
+    }
     if (persisted && persisted.sessionId === command.sessionId) {
       if (persisted.phase === 'active') {
         return ok(requestId, 'extensions/apply', extensionApplyDataFromRecord(persisted));
       }
-      if (EXTENSION_DEPLOYMENT_IN_FLIGHT_PHASES.has(persisted.phase)) {
-        // The deployment is still being applied, possibly in the background
-        // after a waiting-current-run quick ACK. Re-ACK the same durable
-        // lifecycle instead of starting a conflicting apply for the same id.
+      if (persisted.phase === 'superseded') {
+        return fail(
+          requestId,
+          'extensions/apply',
+          `extension-deployment-superseded: ${command.deploymentId}`,
+        );
+      }
+      if (
+        EXTENSION_DEPLOYMENT_IN_FLIGHT_PHASES.has(persisted.phase) &&
+        this.extensionDeploymentIdsBySession.get(command.sessionId) === command.deploymentId
+      ) {
+        // The deployment is still being applied by this process, possibly in
+        // the background after a waiting-current-run quick ACK. Re-ACK the
+        // same durable lifecycle instead of starting a conflicting apply for
+        // the same id. An in-flight record *without* a live continuation here
+        // is a leftover from an interrupted Host (startup recovery normally
+        // terminalizes it); fall through and start a fresh lifecycle.
         return ok(
           requestId,
           'extensions/apply',
