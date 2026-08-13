@@ -55,7 +55,11 @@ import {
   isValidOrchestrationSchemeId,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
-import { sanitizeProvidersForSave, validatePiwinConfig } from './provider-validation.js';
+import {
+  isBlockingValidationIssue,
+  sanitizeProvidersForSave,
+  validatePiwinConfig,
+} from './provider-validation.js';
 
 export function createDefaultPiwinConfig(): PiwinConfig {
   return {
@@ -99,7 +103,7 @@ export async function loadPiwinConfig(piwinRoot?: string): Promise<PiwinConfig> 
 }
 
 export async function savePiwinConfig(config: PiwinConfig, piwinRoot?: string): Promise<string> {
-  const issues = validatePiwinConfig(config);
+  const issues = validatePiwinConfig(config).filter(isBlockingValidationIssue);
   if (issues.length > 0) {
     throw new Error(
       `Invalid providers: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`,

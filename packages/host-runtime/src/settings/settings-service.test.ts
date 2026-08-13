@@ -161,6 +161,85 @@ describe('SettingsService', () => {
     expect(impact.securityTightenedImmediately).toBe(true);
   });
 
+  it('tightens Web search immediately when the native delegate becomes unusable', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const delegateModel: NonNullable<PiwinConfig['providers']>[number]['models'][number] = {
+      id: 'search-m',
+      label: 'Search',
+      enabled: true,
+      capabilities: ['chat', 'native-web-search'],
+    };
+    const delegateProvider: NonNullable<PiwinConfig['providers']>[number] = {
+      id: 'search-p',
+      protocol: 'openai-compatible',
+      name: 'Search',
+      baseUrl: 'https://example.test/v1',
+      enabled: true,
+      models: [delegateModel],
+    };
+    const delegateRef = {
+      protocol: 'openai-compatible' as const,
+      providerId: 'search-p',
+      modelId: 'search-m',
+    };
+    const previous: PiwinConfig = {
+      ...snapshot.config,
+      providers: [delegateProvider],
+      web: {
+        ...(snapshot.config.web ?? ({} as NonNullable<PiwinConfig['web']>)),
+        searchProvider: 'none',
+        searchSources: [],
+        searchDelegateModel: delegateRef,
+      },
+    };
+    // Same stale delegate reference, but its provider is gone: usable web
+    // search flips true → false and must restrict the live generation now,
+    // before the replacement runtime completes.
+    const next: PiwinConfig = { ...previous, providers: [] };
+
+    const impact = classifySettingsImpact('web', previous, next);
+    expect(impact.immediateRestrictions).toContain('web-search');
+    expect(impact.securityTightenedImmediately).toBe(true);
+  });
+
+  it('does not tighten Web search when the native delegate stays ready', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const delegateModel: NonNullable<PiwinConfig['providers']>[number]['models'][number] = {
+      id: 'search-m',
+      enabled: true,
+      capabilities: ['chat', 'native-web-search'],
+    };
+    const delegateProvider: NonNullable<PiwinConfig['providers']>[number] = {
+      id: 'search-p',
+      protocol: 'openai-compatible',
+      name: 'Search',
+      baseUrl: 'https://example.test/v1',
+      enabled: true,
+      models: [delegateModel],
+    };
+    const previous: PiwinConfig = {
+      ...snapshot.config,
+      providers: [delegateProvider],
+      web: {
+        ...(snapshot.config.web ?? ({} as NonNullable<PiwinConfig['web']>)),
+        searchProvider: 'none',
+        searchSources: [],
+        searchDelegateModel: {
+          protocol: 'openai-compatible',
+          providerId: 'search-p',
+          modelId: 'search-m',
+        },
+      },
+    };
+    const next: PiwinConfig = {
+      ...previous,
+      web: { ...(previous.web ?? ({} as NonNullable<PiwinConfig['web']>)), searchSources: [] },
+    };
+
+    const impact = classifySettingsImpact('web', previous, next);
+    expect(impact.immediateRestrictions).toEqual([]);
+  });
+
   it('rejects a stale expectedRevision with a typed conflict error', async () => {
     const service = new SettingsService({ piwinRoot });
     const before = await service.getSnapshot();
