@@ -2,7 +2,8 @@
  * Left project/session rail: brand, repositories, agent list, host status footer.
  * Handlers stay in App — this component is presentation + local open menu state only.
  */
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type {
   HostStatusData,
   ProjectRecord,
@@ -11,11 +12,16 @@ import type {
 } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { SessionTimeGroup } from './session-groups';
+import { type DraftSessionItemUi } from './draft-session';
+import { shouldVirtualizeSidebar } from './session-list-policy';
+import type { SessionListScopeState } from './session-list-scope';
+import { createSessionListScopeState } from './session-list-scope';
+import { SessionRowItem } from './session-row-item';
 import {
-  draftSessionMatchesQuery,
-  sortDraftSessions,
-  type DraftSessionItemUi,
-} from './draft-session';
+  buildSidebarTreeRows,
+  sidebarTreeRowKey,
+  type SidebarTreeRow,
+} from './sidebar-tree-rows';
 import {
   Button,
   ContextMenu,
@@ -32,100 +38,46 @@ import {
 import { projectDisplayName } from './project-display-name';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import {
-  IconArchive,
   IconBook,
   IconChat,
   IconCheck,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
-  IconDocument,
   IconFolder,
   IconFolderOpen,
   IconFolderPlus,
-  IconMoreVertical,
   IconPanelLeft,
-  IconPin,
   IconPlus,
   IconPaperPlane,
   IconSearch,
   IconSettings,
   IconSliders,
   IconTrash,
-  IconUnarchive,
 } from './shell-icons';
-import { getDesktopCopy, type DesktopCopy, type DesktopLocale } from './desktop-locale';
+import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
-function formatRelativeTime(dateString?: string): string {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  if (isNaN(diffMs) || diffMs < 0) return '';
+const SIDEBAR_SESSION_ROW_ESTIMATE_PX = 31;
+const SIDEBAR_SECTION_ROW_ESTIMATE_PX = 34;
+const SIDEBAR_FOLDER_ROW_ESTIMATE_PX = 32;
+const SIDEBAR_HINT_ROW_ESTIMATE_PX = 28;
+const SIDEBAR_VIRTUAL_OVERSCAN = 8;
 
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 60) return 'now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo`;
-  const years = Math.floor(days / 365);
-  return `${years}y`;
-}
-
-/** Sort sessions: pinned first, then updatedAt descending (missing = newest). */
-function sortByPinnedThenUpdated(list: SessionListItemUi[]): SessionListItemUi[] {
-  const sorted = [...list];
-  sorted.sort((left, right) => {
-    const leftPinned = left.isPinned === true;
-    const rightPinned = right.isPinned === true;
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-    // Missing updatedAt means just-created; keep above stamped rows so new
-    // Conversations entries stay at the top of the section.
-    const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
-    const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
-    const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
-    const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
-    return rightSafe - leftSafe;
-  });
-  return sorted;
-}
-
-type SidebarSessionItem = SessionListItemUi | DraftSessionItemUi;
-
-/** Drafts are always shown first; normal sessions keep the selected ordering. */
-function mergeDraftsIntoSessionList(
-  drafts: readonly DraftSessionItemUi[],
-  sessions: readonly SessionListItemUi[],
-  sortBy: SessionListOrder,
-): SidebarSessionItem[] {
-  const sortedSessions =
-    sortBy === 'alphabetical'
-      ? [...sessions].sort((left, right) => left.name.localeCompare(right.name))
-      : sortByPinnedThenUpdated([...sessions]);
-  return [...sortDraftSessions(drafts), ...sortedSessions];
-}
-
-function selectDraftsForScope(
-  drafts: readonly DraftSessionItemUi[],
-  scope: SessionScope,
-  query: string,
-): DraftSessionItemUi[] {
-  return sortDraftSessions(
-    drafts.filter((draft) => {
-      const sameScope =
-        draft.scope.kind === scope.kind &&
-        (draft.scope.kind === 'general' ||
-          (scope.kind === 'project' && draft.scope.projectPath === scope.projectPath));
-      return sameScope && draftSessionMatchesQuery(draft, query);
-    }),
-  );
+function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
+  if (row === undefined) {
+    return SIDEBAR_SESSION_ROW_ESTIMATE_PX;
+  }
+  switch (row.kind) {
+    case 'section-header':
+      return SIDEBAR_SECTION_ROW_ESTIMATE_PX;
+    case 'project-folder':
+      return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
+    case 'session':
+      return SIDEBAR_SESSION_ROW_ESTIMATE_PX;
+    case 'empty-hint':
+    case 'truncation-hint':
+      return SIDEBAR_HINT_ROW_ESTIMATE_PX;
+  }
 }
 
 export type ProjectSessionSidebarProps = {
@@ -208,275 +160,8 @@ export type ProjectSessionSidebarProps = {
   completedAttentionSessionIds?: Record<string, true> | undefined;
   /** Click the completed checkmark without opening the session. */
   onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
+  sessionListScopes?: SessionListScopeState;
 };
-
-function SessionActivityIndicator(props: {
-  isWorking: boolean;
-  hasActiveBackendService: boolean;
-  workingLabel: string;
-  backendServiceLabel: string;
-}): ReactElement | null {
-  if (props.hasActiveBackendService) {
-    return (
-      <span
-        className="session-item-activity session-item-activity--service"
-        data-testid="session-service-indicator"
-        aria-label={props.backendServiceLabel}
-        role="status"
-      >
-        <span className="session-item-activity-dot" aria-hidden />
-        <span className="session-item-activity-dot" aria-hidden />
-        <span className="session-item-activity-dot" aria-hidden />
-      </span>
-    );
-  }
-
-  if (props.isWorking) {
-    return (
-      <span
-        className="session-item-activity session-item-activity--working"
-        data-testid="session-working-indicator"
-        aria-label={props.workingLabel}
-        role="status"
-      />
-    );
-  }
-
-  return null;
-}
-
-function SessionRowItem({
-  session,
-  activeSessionId,
-  onResumeSession,
-  onOpenSessionMenu,
-  workingSessionIds,
-  backendServiceSessionIds,
-  completedAttentionSessionIds,
-  onDismissCompletedAttention,
-  onTogglePin,
-  onArchiveSession,
-  onUnarchiveSession,
-  onDeleteSession,
-  onResumeDraft,
-  activeDraftId,
-  copy,
-}: {
-  session: SessionListItemUi | DraftSessionItemUi;
-  activeSessionId: string | null;
-  onResumeSession: (sessionId: string) => void;
-  onOpenSessionMenu: (sessionId: string, x: number, y: number) => void;
-  onTogglePin?: ((sessionId: string, currentlyPinned: boolean) => void) | undefined;
-  onArchiveSession?: ((sessionId: string) => void) | undefined;
-  onUnarchiveSession?: ((sessionId: string) => void) | undefined;
-  onDeleteSession?: ((sessionId: string) => void) | undefined;
-  onResumeDraft?: ((draftId: string) => void) | undefined;
-  activeDraftId?: string | null | undefined;
-  copy: DesktopCopy['sidebar'];
-  workingSessionIds?: Record<string, true> | undefined;
-  backendServiceSessionIds?: Record<string, true> | undefined;
-  completedAttentionSessionIds?: Record<string, true> | undefined;
-  onDismissCompletedAttention?: ((sessionId: string) => void) | undefined;
-}): ReactElement {
-  const isDraft = 'isDraft' in session && session.isDraft === true;
-  const isPinned = 'isPinned' in session && session.isPinned === true;
-  const isArchived = 'isArchived' in session && session.isArchived === true;
-  const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
-  const isWorking = !isDraft && workingSessionIds != null && session.id in workingSessionIds;
-  const hasActiveBackendService =
-    !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
-  const hasActiveSessionWork = isWorking || hasActiveBackendService;
-  const hasCompletedAttention =
-    !isDraft && completedAttentionSessionIds != null && session.id in completedAttentionSessionIds;
-
-  return (
-    <li
-      key={session.id}
-      className={[
-        'session-row',
-        ...(hasActiveSessionWork ? ['session-row--working'] : []),
-        ...(hasCompletedAttention ? ['session-row--completed'] : []),
-        ...(isDraft ? ['session-row--draft'] : []),
-      ].join(' ')}
-    >
-      <button
-        type="button"
-        data-testid="session-item"
-        data-session-id={session.id}
-        data-pinned={isPinned ? 'true' : 'false'}
-        data-archived={isArchived ? 'true' : 'false'}
-        data-draft={isDraft ? 'true' : 'false'}
-        data-completed={hasCompletedAttention ? 'true' : 'false'}
-        aria-current={isActive ? 'page' : undefined}
-        className={
-          isActive
-            ? isWorking
-              ? 'session-item active working'
-              : 'session-item active'
-            : isWorking
-              ? 'session-item working'
-              : 'session-item'
-        }
-        onClick={() => (isDraft ? onResumeDraft?.(session.id) : onResumeSession(session.id))}
-        onContextMenu={(event) => {
-          if (isDraft) return;
-          event.preventDefault();
-          onOpenSessionMenu(session.id, event.clientX, event.clientY);
-        }}
-      >
-        <span className="session-item-body">
-          <span className="session-item-name">
-            {isDraft ? <span className="session-draft-mark" aria-hidden /> : null}
-            {isArchived ? (
-              <span className="session-archived-mark" aria-hidden title={copy.archived}>
-                <IconDocument width={13} height={13} />
-              </span>
-            ) : null}
-            {isPinned ? (
-              <span className="session-pin-mark" aria-hidden>
-                <IconPin width={12} height={12} />
-              </span>
-            ) : null}
-            <span className="session-item-title-text">{session.name}</span>
-          </span>
-        </span>
-        <SessionActivityIndicator
-          isWorking={isWorking}
-          hasActiveBackendService={hasActiveBackendService}
-          workingLabel={copy.working}
-          backendServiceLabel={copy.backendServiceActive}
-        />
-        {session.updatedAt && !isWorking && !hasActiveBackendService && !hasCompletedAttention ? (
-          <span className="session-item-time" aria-label={session.updatedAt}>
-            {formatRelativeTime(session.updatedAt)}
-          </span>
-        ) : null}
-      </button>
-      {hasCompletedAttention && !hasActiveSessionWork ? (
-        <button
-          type="button"
-          className="session-item-completed-mark session-item-completed-dismiss"
-          data-testid="session-completed-dismiss"
-          aria-label={copy.dismissCompleted}
-          title={copy.dismissCompleted}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onDismissCompletedAttention?.(session.id);
-          }}
-        >
-          <span data-testid="session-completed-indicator" aria-hidden>
-            <IconCheck width={12} height={12} />
-          </span>
-        </button>
-      ) : null}
-      <div
-        className={
-          isDraft
-            ? 'session-row-actions session-row-actions--draft'
-            : isArchived
-              ? 'session-row-actions session-row-actions--archived'
-              : 'session-row-actions'
-        }
-      >
-        {isArchived ? (
-          <>
-            <button
-              type="button"
-              className={
-                isPinned
-                  ? 'session-action-btn session-pin-btn active'
-                  : 'session-action-btn session-pin-btn'
-              }
-              data-testid="session-pin-btn"
-              title={isPinned ? copy.unpinSession : copy.pinSession}
-              aria-label={isPinned ? copy.unpinSession : copy.pinSession}
-              onClick={(event) => {
-                event.stopPropagation();
-                onTogglePin?.(session.id, isPinned);
-              }}
-            >
-              <IconPin width={17} height={17} />
-            </button>
-            <button
-              type="button"
-              className="session-action-btn session-unarchive-btn"
-              data-testid="session-unarchive-btn"
-              title={copy.restoreSession}
-              aria-label={copy.restoreSession}
-              onClick={(event) => {
-                event.stopPropagation();
-                onUnarchiveSession?.(session.id);
-              }}
-            >
-              <IconUnarchive width={17} height={17} />
-            </button>
-            <button
-              type="button"
-              className="session-action-btn session-delete-btn"
-              data-testid="session-delete-btn"
-              title={copy.deleteSessionPermanently}
-              aria-label={copy.deleteSessionPermanently}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDeleteSession?.(session.id);
-              }}
-            >
-              <IconTrash width={17} height={17} />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="session-action-btn session-menu-btn"
-              data-testid="session-menu-btn"
-              title={copy.sessionActions}
-              aria-label={copy.sessionActions}
-              onClick={(event) => {
-                event.stopPropagation();
-                const rect = event.currentTarget.getBoundingClientRect();
-                onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
-              }}
-            >
-              <IconMoreVertical width={17} height={17} />
-            </button>
-            <button
-              type="button"
-              className={
-                isPinned
-                  ? 'session-action-btn session-pin-btn active'
-                  : 'session-action-btn session-pin-btn'
-              }
-              data-testid="session-pin-btn"
-              title={isPinned ? copy.unpinSession : copy.pinSession}
-              aria-label={isPinned ? copy.unpinSession : copy.pinSession}
-              onClick={(event) => {
-                event.stopPropagation();
-                onTogglePin?.(session.id, isPinned);
-              }}
-            >
-              <IconPin width={17} height={17} />
-            </button>
-            <button
-              type="button"
-              className="session-action-btn session-archive-btn"
-              data-testid="session-archive-btn"
-              title={copy.archived}
-              aria-label={copy.archived}
-              onClick={(event) => {
-                event.stopPropagation();
-                onArchiveSession?.(session.id);
-              }}
-            >
-              <IconArchive width={17} height={17} />
-            </button>
-          </>
-        )}
-      </div>
-    </li>
-  );
-}
 
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
@@ -488,6 +173,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [conversationsSectionExpanded, setConversationsSectionExpanded] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
   const sidebarRef = useRef<HTMLElement>(null);
+  const folderTreeRef = useRef<HTMLDivElement>(null);
+  const [folderTreeElement, setFolderTreeElement] = useState<HTMLDivElement | null>(null);
+  const virtualizerRef = useRef<{ scrollToIndex: (index: number) => void } | null>(null);
   const sessionSearchInputRef = useRef<HTMLInputElement>(null);
   const hasActiveSessionSearch = props.sessionSearch.trim().length > 0;
   const [sessionSearchExpanded, setSessionSearchExpanded] = useState(hasActiveSessionSearch);
@@ -510,21 +198,91 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     sessionSearchInputRef.current?.focus();
   }, [sessionSearchExpanded]);
 
+  const treeRows = useMemo(
+    () =>
+      buildSidebarTreeRows({
+        recentProjects: props.recentProjects,
+        projectSessionsByPath: props.projectSessionsByPath ?? {},
+        generalSessions: props.generalSessions,
+        ...(props.draftSessions ? { draftSessions: props.draftSessions } : {}),
+        sessionSearch: props.sessionSearch,
+        sessionListOrder: sortBy,
+        projectsSectionExpanded,
+        conversationsSectionExpanded,
+        collapsedProjects,
+        sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
+        activeProjectPath: props.projectPath,
+        activeProjectSessions: props.filteredSessions,
+      }),
+    [
+      collapsedProjects,
+      conversationsSectionExpanded,
+      projectsSectionExpanded,
+      props.draftSessions,
+      props.filteredSessions,
+      props.generalSessions,
+      props.projectPath,
+      props.projectSessionsByPath,
+      props.recentProjects,
+      props.sessionListScopes,
+      props.sessionSearch,
+      sortBy,
+    ],
+  );
+  const virtualizeTree = shouldVirtualizeSidebar(treeRows.length);
+  const sessionRowIndexes = useMemo(
+    () =>
+      treeRows.flatMap((row, index) => (row.kind === 'session' ? [index] : [])),
+    [treeRows],
+  );
+
+  const virtualizer = useVirtualizer({
+    count: treeRows.length,
+    getScrollElement: () => folderTreeElement,
+    estimateSize: (index) => estimateSidebarTreeRowSize(treeRows[index]),
+    getItemKey: (index) => sidebarTreeRowKey(treeRows[index] ?? { kind: 'section-header', sectionId: 'projects', key: `missing:${index}` }),
+    measureElement: (element) => Math.max(element.getBoundingClientRect().height, 1),
+    overscan: SIDEBAR_VIRTUAL_OVERSCAN,
+    useFlushSync: false,
+  });
+  virtualizerRef.current = virtualizer;
+
+  const focusSessionRow = useCallback(
+    (rowIndex: number): void => {
+      const focusMounted = (): void => {
+        const row = treeRows[rowIndex];
+        if (row?.kind !== 'session') {
+          return;
+        }
+        const button = folderTreeRef.current?.querySelector<HTMLElement>(
+          `[data-session-id="${CSS.escape(row.session.id)}"]`,
+        );
+        button?.focus();
+      };
+      if (virtualizeTree) {
+        virtualizer.scrollToIndex(rowIndex, { align: 'auto' });
+        requestAnimationFrame(focusMounted);
+        return;
+      }
+      focusMounted();
+    },
+    [treeRows, virtualizeTree, virtualizer],
+  );
+
   // Keyboard navigation for session list (↑↓ Enter) when focus is inside the sidebar.
   useEffect(() => {
-    const el = sidebarRef.current;
-    if (!el) return;
+    const sidebarEl = sidebarRef.current;
+    if (sidebarEl === null) return;
+    const root: HTMLElement = sidebarEl;
 
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'Enter') {
         return;
       }
-      // Only handle when focus is inside the sidebar.
       const target = event.target;
-      if (!(target instanceof Node) || !el!.contains(target)) {
+      if (!(target instanceof Node) || !root.contains(target)) {
         return;
       }
-      // Skip if typing in an editable field.
       if (target instanceof HTMLElement) {
         const tag = target.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
@@ -532,18 +290,30 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         }
       }
 
+      if (sessionRowIndexes.length === 0) {
+        return;
+      }
+
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
-        const items = el!.querySelectorAll<HTMLElement>('[data-session-id]');
-        if (items.length === 0) return;
-        const currentIndex = Array.from(items).findIndex((item) => item === document.activeElement);
-        let nextIndex: number;
+        const activeId =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement.getAttribute('data-session-id')
+            : null;
+        const currentPosition = sessionRowIndexes.findIndex((rowIndex) => {
+          const row = treeRows[rowIndex];
+          return row?.kind === 'session' && row.session.id === activeId;
+        });
+        let nextPosition: number;
         if (event.key === 'ArrowDown') {
-          nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+          nextPosition = currentPosition < sessionRowIndexes.length - 1 ? currentPosition + 1 : 0;
         } else {
-          nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+          nextPosition = currentPosition > 0 ? currentPosition - 1 : sessionRowIndexes.length - 1;
         }
-        items[nextIndex]?.focus();
+        const nextRowIndex = sessionRowIndexes[nextPosition];
+        if (nextRowIndex !== undefined) {
+          focusSessionRow(nextRowIndex);
+        }
         return;
       }
 
@@ -556,28 +326,342 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       }
     }
 
-    el.addEventListener('keydown', onKeyDown);
-    return () => el.removeEventListener('keydown', onKeyDown);
-  }, []);
+    root.addEventListener('keydown', onKeyDown);
+    return () => root.removeEventListener('keydown', onKeyDown);
+  }, [focusSessionRow, sessionRowIndexes, treeRows]);
 
-  const sortedFilteredSessions = useMemo(() => {
-    if (sortBy === 'alphabetical') {
-      const list = [...props.filteredSessions];
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      return list;
+  const renderSidebarTreeRow = (row: SidebarTreeRow): ReactElement => {
+    if (row.kind === 'section-header' && row.sectionId === 'projects') {
+      return (
+        <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            data-testid="projects-section-toggle"
+            aria-expanded={projectsSectionExpanded}
+            aria-controls="projects-section-content"
+            aria-label={
+              projectsSectionExpanded ? sidebarCopy.collapseProjects : sidebarCopy.expandProjects
+            }
+            title={
+              projectsSectionExpanded ? sidebarCopy.collapseProjects : sidebarCopy.expandProjects
+            }
+            onClick={() => setProjectsSectionExpanded((expanded) => !expanded)}
+          >
+            <span className="sidebar-section-title" data-testid="projects-section-title">
+              {sidebarCopy.projects}
+            </span>
+            <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
+          </button>
+          <div className="sidebar-section-label-actions">
+            <span className="sidebar-section-count muted">{props.recentProjects.length}</span>
+            <DropdownMenu
+              trigger={
+                <IconButton
+                  className="sidebar-icon-btn"
+                  label={sidebarCopy.displayOptions}
+                  title={sidebarCopy.displayOptions}
+                  data-testid="display-options-btn"
+                >
+                  <IconSliders />
+                </IconButton>
+              }
+              contentClassName="sidebar-display-menu"
+              align="end"
+              label={sidebarCopy.customizeSidebar}
+              testId="display-options-menu"
+            >
+              <DropdownMenuLabel className="sidebar-display-menu-title">
+                {sidebarCopy.customize}
+              </DropdownMenuLabel>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger testId="display-options-ordering">
+                  <span className="sidebar-display-row">
+                    <span className="sidebar-display-row-label">{sidebarCopy.ordering}</span>
+                    <span className="sidebar-display-row-value">
+                      {sortBy === 'updated' ? sidebarCopy.updated : 'A-Z'}
+                      <IconChevronRight width={12} height={12} />
+                    </span>
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  className="sidebar-display-submenu"
+                  label={sidebarCopy.ordering}
+                  testId="display-options-ordering-menu"
+                >
+                  <DropdownMenuItem
+                    onSelect={() => changeSortBy('updated')}
+                    testId="display-sort-updated"
+                  >
+                    <span className="sidebar-display-option-label">{sidebarCopy.lastUpdated}</span>
+                    {sortBy === 'updated' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => changeSortBy('alphabetical')}
+                    testId="display-sort-alphabetical"
+                  >
+                    <span className="sidebar-display-option-label">{sidebarCopy.alphabetical}</span>
+                    {sortBy === 'alphabetical' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger testId="display-options-group-by">
+                  <span className="sidebar-display-row">
+                    <span className="sidebar-display-row-label">{sidebarCopy.groupBy}</span>
+                    <span className="sidebar-display-row-value">
+                      {groupBy === 'time' ? sidebarCopy.dateTime : sidebarCopy.none}
+                      <IconChevronRight width={12} height={12} />
+                    </span>
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  className="sidebar-display-submenu"
+                  label={sidebarCopy.groupBy}
+                  testId="display-options-group-by-menu"
+                >
+                  <DropdownMenuItem onSelect={() => setGroupBy('time')} testId="display-group-time">
+                    <span className="sidebar-display-option-label">{sidebarCopy.dateTime}</span>
+                    {groupBy === 'time' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setGroupBy('none')} testId="display-group-none">
+                    <span className="sidebar-display-option-label">
+                      {`${sidebarCopy.none} (${sidebarCopy.flatList})`}
+                    </span>
+                    {groupBy === 'none' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="sidebar-display-section-label">
+                {sidebarCopy.filters}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onSelect={() => props.onToggleShowArchived()}
+                testId="display-filter-archived"
+              >
+                <span className="sidebar-display-row">
+                  <span className="sidebar-display-row-label">{sidebarCopy.archived}</span>
+                  {props.showArchivedSessions ? (
+                    <span className="sidebar-display-check" aria-hidden>
+                      <IconCheck width={13} height={13} />
+                    </span>
+                  ) : (
+                    <span className="sidebar-display-check-spacer" aria-hidden />
+                  )}
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenu>
+            <DropdownMenu
+              trigger={
+                <IconButton
+                  className="sidebar-icon-btn"
+                  label={sidebarCopy.openWorkspaceFolder}
+                  data-testid="open-workspace-btn"
+                  title={props.projectPath ?? sidebarCopy.openWorkspaceFolder}
+                >
+                  <IconFolderPlus />
+                </IconButton>
+              }
+            >
+              <DropdownMenuItem onSelect={() => props.onOpenWorkspace()}>
+                <IconFolder width={14} height={14} /> {sidebarCopy.openWorkspaceFolderAction}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => props.onSelectGeneral?.()}>
+                <IconChat width={14} height={14} /> {sidebarCopy.generalChat}
+              </DropdownMenuItem>
+            </DropdownMenu>
+          </div>
+        </div>
+      );
     }
-    // 'updated' — pinned first, then updatedAt desc.
-    return sortByPinnedThenUpdated(props.filteredSessions);
-  }, [props.filteredSessions, sortBy]);
 
-  const sortedGeneralSessions = useMemo(() => {
-    if (sortBy === 'alphabetical') {
-      const list = [...props.generalSessions];
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      return list;
+    if (row.kind === 'section-header') {
+      return (
+        <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            data-testid="conversations-section-toggle"
+            aria-expanded={conversationsSectionExpanded}
+            aria-controls="conversations-section-content"
+            aria-label={
+              conversationsSectionExpanded
+                ? sidebarCopy.collapseConversations
+                : sidebarCopy.expandConversations
+            }
+            title={
+              conversationsSectionExpanded
+                ? sidebarCopy.collapseConversations
+                : sidebarCopy.expandConversations
+            }
+            onClick={() => setConversationsSectionExpanded((expanded) => !expanded)}
+          >
+            <span className="sidebar-section-title">{sidebarCopy.conversations}</span>
+            <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
+          </button>
+          <div className="sidebar-section-label-actions">
+            <IconButton
+              className="sidebar-icon-btn"
+              label={copy.newSession}
+              title={copy.newSession}
+              data-testid="general-workspace-btn"
+              onClick={() => props.onNewGeneralSession()}
+            >
+              <IconPlus width={14} height={14} />
+            </IconButton>
+          </div>
+        </div>
+      );
     }
-    return sortByPinnedThenUpdated(props.generalSessions);
-  }, [props.generalSessions, sortBy]);
+
+    if (row.kind === 'project-folder') {
+      const project = props.recentProjects.find((item) => item.path === row.projectPath);
+      const displayName = project?.displayName ?? projectDisplayName(row.projectPath);
+      const isActiveProject = row.projectPath === props.projectPath;
+      const projectScope: SessionScope = { kind: 'project', projectPath: row.projectPath };
+      const toggleProjectCollapsed = (): void => {
+        setCollapsedProjects((previous) => ({
+          ...previous,
+          [row.projectPath]: !(previous[row.projectPath] ?? false),
+        }));
+      };
+      const hasChildSessions =
+        (isActiveProject
+          ? props.filteredSessions.length
+          : (props.projectSessionsByPath?.[row.projectPath]?.length ?? 0)) > 0;
+      return (
+        <ContextMenu
+          label={sidebarCopy.projects}
+          testId="project-context-menu"
+          content={
+            <ContextMenuItem
+              testId="project-remove-from-sidebar"
+              onSelect={() => props.onRemoveProject(row.projectPath)}
+            >
+              <IconTrash width={14} height={14} />
+              {sidebarCopy.removeProjectFromSidebar}
+            </ContextMenuItem>
+          }
+        >
+          <div className={isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'}>
+            {hasChildSessions ? (
+              <button
+                type="button"
+                className="tree-folder-toggle"
+                data-testid="project-fold-toggle"
+                aria-expanded={!row.collapsed}
+                aria-label={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
+                title={row.collapsed ? sidebarCopy.expandProject : sidebarCopy.collapseProject}
+                onClick={toggleProjectCollapsed}
+              >
+                {row.collapsed ? (
+                  <IconFolder className="tree-folder-icon" />
+                ) : (
+                  <IconFolderOpen className="tree-folder-icon" />
+                )}
+              </button>
+            ) : (
+              <span className="tree-folder-toggle-spacer" aria-hidden />
+            )}
+            <button
+              type="button"
+              className="tree-folder-main"
+              data-testid="repository-item"
+              data-project-path={row.projectPath}
+              aria-expanded={!row.collapsed}
+              onClick={toggleProjectCollapsed}
+              title={row.projectPath}
+            >
+              <span className="tree-folder-title">
+                <span>{displayName}</span>
+              </span>
+            </button>
+            <IconButton
+              className="sidebar-icon-btn tree-folder-add-btn"
+              label={sidebarCopy.newConversationInProject(displayName)}
+              title={sidebarCopy.newConversationInProject(displayName)}
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onOpenProject(row.projectPath);
+                props.onNewSession({ scope: projectScope });
+              }}
+            >
+              <IconPlus width={14} height={14} />
+            </IconButton>
+          </div>
+        </ContextMenu>
+      );
+    }
+
+    if (row.kind === 'session') {
+      return (
+        <div
+          className={
+            row.scope.kind === 'project'
+              ? 'sidebar-tree-row sidebar-tree-row--project-session'
+              : 'sidebar-tree-row sidebar-tree-row--general-session'
+          }
+        >
+          <SessionRowItem
+            session={row.session}
+            activeSessionId={props.activeSessionId}
+            onResumeSession={props.onResumeSession}
+            onOpenSessionMenu={props.onOpenSessionMenu}
+            workingSessionIds={props.workingSessionIds}
+            backendServiceSessionIds={props.backendServiceSessionIds}
+            completedAttentionSessionIds={props.completedAttentionSessionIds}
+            onDismissCompletedAttention={props.onDismissCompletedAttention}
+            onTogglePin={props.onTogglePin}
+            onArchiveSession={props.onArchiveSession}
+            onUnarchiveSession={props.onUnarchiveSession}
+            onDeleteSession={props.onDeleteSession}
+            onResumeDraft={props.onResumeDraft}
+            activeDraftId={props.activeDraftId}
+            copy={sidebarCopy}
+          />
+        </div>
+      );
+    }
+
+    if (row.kind === 'empty-hint') {
+      return (
+        <div className="sidebar-empty-hint muted" data-testid="sidebar-empty-hint">
+          {sidebarCopy.noGeneralConversations}
+        </div>
+      );
+    }
+
+    return (
+      <div className="sidebar-truncation-hint muted" data-testid="sidebar-truncation-hint">
+        {sidebarCopy.olderSessionsHidden(row.hiddenCount)}
+      </div>
+    );
+  };
 
   const showResizeHandle =
     !props.isOverlayPresentation && typeof props.onResizePointerDown === 'function';
@@ -733,416 +817,42 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         </div>
       </div>
 
-      {/* Unified Folder Tree (Antigravity project-conversation tree style) */}
-      <div className="sidebar-folder-tree" data-testid="sessions-list">
-        {/* Header Toolbar: Projects Title, Display Options, Add Project */}
-        <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-          <button
-            type="button"
-            className="sidebar-section-toggle"
-            data-testid="projects-section-toggle"
-            aria-expanded={projectsSectionExpanded}
-            aria-controls="projects-section-content"
-            aria-label={
-              projectsSectionExpanded ? sidebarCopy.collapseProjects : sidebarCopy.expandProjects
-            }
-            title={
-              projectsSectionExpanded ? sidebarCopy.collapseProjects : sidebarCopy.expandProjects
-            }
-            onClick={() => setProjectsSectionExpanded((expanded) => !expanded)}
+      <div
+        className="sidebar-folder-tree"
+        data-testid="sessions-list"
+        ref={(node) => {
+          folderTreeRef.current = node;
+          setFolderTreeElement(node);
+        }}
+      >
+        {virtualizeTree ? (
+          <div
+            className="sidebar-folder-tree-virtual-window"
+            style={{ height: virtualizer.getTotalSize() }}
           >
-            <span className="sidebar-section-title" data-testid="projects-section-title">
-              {sidebarCopy.projects}
-            </span>
-            <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
-          </button>
-          <div className="sidebar-section-label-actions">
-            <span className="sidebar-section-count muted">{props.recentProjects.length}</span>
-
-            {/* Display Options Dropdown (Sort, Group By, Filter) */}
-            <DropdownMenu
-              trigger={
-                <IconButton
-                  className="sidebar-icon-btn"
-                  label={sidebarCopy.displayOptions}
-                  title={sidebarCopy.displayOptions}
-                  data-testid="display-options-btn"
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const row = treeRows[virtualRow.index];
+              if (row === undefined) return null;
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  className="sidebar-tree-virtual-item"
+                  style={{ transform: `translateY(${virtualRow.start}px)` }}
                 >
-                  <IconSliders />
-                </IconButton>
-              }
-              contentClassName="sidebar-display-menu"
-              align="end"
-              label={sidebarCopy.customizeSidebar}
-              testId="display-options-menu"
-            >
-              <DropdownMenuLabel className="sidebar-display-menu-title">
-                {sidebarCopy.customize}
-              </DropdownMenuLabel>
-
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger testId="display-options-ordering">
-                  <span className="sidebar-display-row">
-                    <span className="sidebar-display-row-label">{sidebarCopy.ordering}</span>
-                    <span className="sidebar-display-row-value">
-                      {sortBy === 'updated' ? sidebarCopy.updated : 'A-Z'}
-                      <IconChevronRight width={12} height={12} />
-                    </span>
-                  </span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent
-                  className="sidebar-display-submenu"
-                  label={sidebarCopy.ordering}
-                  testId="display-options-ordering-menu"
-                >
-                  <DropdownMenuItem
-                    onSelect={() => changeSortBy('updated')}
-                    testId="display-sort-updated"
-                  >
-                    <span className="sidebar-display-option-label">{sidebarCopy.lastUpdated}</span>
-                    {sortBy === 'updated' ? (
-                      <span className="sidebar-display-check" aria-hidden>
-                        <IconCheck width={13} height={13} />
-                      </span>
-                    ) : (
-                      <span className="sidebar-display-check-spacer" aria-hidden />
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => changeSortBy('alphabetical')}
-                    testId="display-sort-alphabetical"
-                  >
-                    <span className="sidebar-display-option-label">{sidebarCopy.alphabetical}</span>
-                    {sortBy === 'alphabetical' ? (
-                      <span className="sidebar-display-check" aria-hidden>
-                        <IconCheck width={13} height={13} />
-                      </span>
-                    ) : (
-                      <span className="sidebar-display-check-spacer" aria-hidden />
-                    )}
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger testId="display-options-group-by">
-                  <span className="sidebar-display-row">
-                    <span className="sidebar-display-row-label">{sidebarCopy.groupBy}</span>
-                    <span className="sidebar-display-row-value">
-                      {groupBy === 'time' ? sidebarCopy.dateTime : sidebarCopy.none}
-                      <IconChevronRight width={12} height={12} />
-                    </span>
-                  </span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent
-                  className="sidebar-display-submenu"
-                  label={sidebarCopy.groupBy}
-                  testId="display-options-group-by-menu"
-                >
-                  <DropdownMenuItem onSelect={() => setGroupBy('time')} testId="display-group-time">
-                    <span className="sidebar-display-option-label">{sidebarCopy.dateTime}</span>
-                    {groupBy === 'time' ? (
-                      <span className="sidebar-display-check" aria-hidden>
-                        <IconCheck width={13} height={13} />
-                      </span>
-                    ) : (
-                      <span className="sidebar-display-check-spacer" aria-hidden />
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setGroupBy('none')} testId="display-group-none">
-                    <span className="sidebar-display-option-label">
-                      {`${sidebarCopy.none} (${sidebarCopy.flatList})`}
-                    </span>
-                    {groupBy === 'none' ? (
-                      <span className="sidebar-display-check" aria-hidden>
-                        <IconCheck width={13} height={13} />
-                      </span>
-                    ) : (
-                      <span className="sidebar-display-check-spacer" aria-hidden />
-                    )}
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuLabel className="sidebar-display-section-label">
-                {sidebarCopy.filters}
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onSelect={() => props.onToggleShowArchived()}
-                testId="display-filter-archived"
-              >
-                <span className="sidebar-display-row">
-                  <span className="sidebar-display-row-label">{sidebarCopy.archived}</span>
-                  {props.showArchivedSessions ? (
-                    <span className="sidebar-display-check" aria-hidden>
-                      <IconCheck width={13} height={13} />
-                    </span>
-                  ) : (
-                    <span className="sidebar-display-check-spacer" aria-hidden />
-                  )}
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenu>
-
-            {/* New Project / Open Workspace Dropdown */}
-            <DropdownMenu
-              trigger={
-                <IconButton
-                  className="sidebar-icon-btn"
-                  label={sidebarCopy.openWorkspaceFolder}
-                  data-testid="open-workspace-btn"
-                  title={props.projectPath ?? sidebarCopy.openWorkspaceFolder}
-                >
-                  <IconFolderPlus />
-                </IconButton>
-              }
-            >
-              <DropdownMenuItem onSelect={() => props.onOpenWorkspace()}>
-                <IconFolder width={14} height={14} /> {sidebarCopy.openWorkspaceFolderAction}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => props.onSelectGeneral?.()}>
-                <IconChat width={14} height={14} /> {sidebarCopy.generalChat}
-              </DropdownMenuItem>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Project Folders list */}
-        <div
-          className="tree-node-list sidebar-section-content"
-          id="projects-section-content"
-          data-testid="projects-section-content"
-          hidden={!projectsSectionExpanded}
-        >
-          {props.recentProjects.map((project) => {
-            const isActiveProject = project.path === props.projectPath;
-            const displayName = project.displayName ?? projectDisplayName(project.path);
-            const projectScope: SessionScope = {
-              kind: 'project',
-              projectPath: project.path,
-            };
-            // Every project remains in the list. When a folder is expanded,
-            // its sessions flow below the project row and push later projects
-            // down naturally; the single folder-tree scrollbar handles the
-            // full list.
-            const projectDrafts = selectDraftsForScope(
-              props.draftSessions ?? [],
-              projectScope,
-              props.sessionSearch,
-            );
-            const projectHostSessions =
-              (isActiveProject
-                ? sortedFilteredSessions
-                : props.projectSessionsByPath?.[project.path]) ?? [];
-            const projectSessions = mergeDraftsIntoSessionList(
-              projectDrafts,
-              projectHostSessions,
-              sortBy,
-            );
-
-            const isProjectCollapsed = collapsedProjects[project.path] ?? false;
-            const toggleProjectCollapsed = (): void => {
-              setCollapsedProjects((previous) => ({
-                ...previous,
-                [project.path]: !(previous[project.path] ?? false),
-              }));
-            };
-
-            return (
-              <div key={project.path} className="tree-folder-details">
-                <ContextMenu
-                  label={sidebarCopy.projects}
-                  testId="project-context-menu"
-                  content={
-                    <ContextMenuItem
-                      testId="project-remove-from-sidebar"
-                      onSelect={() => props.onRemoveProject(project.path)}
-                    >
-                      <IconTrash width={14} height={14} />
-                      {sidebarCopy.removeProjectFromSidebar}
-                    </ContextMenuItem>
-                  }
-                >
-                  <div
-                    className={
-                      isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'
-                    }
-                  >
-                    {projectSessions.length > 0 ? (
-                      <button
-                        type="button"
-                        className="tree-folder-toggle"
-                        data-testid="project-fold-toggle"
-                        aria-expanded={!isProjectCollapsed}
-                        aria-label={
-                          isProjectCollapsed
-                            ? sidebarCopy.expandProject
-                            : sidebarCopy.collapseProject
-                        }
-                        title={
-                          isProjectCollapsed
-                            ? sidebarCopy.expandProject
-                            : sidebarCopy.collapseProject
-                        }
-                        onClick={toggleProjectCollapsed}
-                      >
-                        {isProjectCollapsed ? (
-                          <IconFolder className="tree-folder-icon" />
-                        ) : (
-                          <IconFolderOpen className="tree-folder-icon" />
-                        )}
-                      </button>
-                    ) : (
-                      <span className="tree-folder-toggle-spacer" aria-hidden />
-                    )}
-                    <button
-                      type="button"
-                      className="tree-folder-main"
-                      data-testid="repository-item"
-                      data-project-path={project.path}
-                      aria-expanded={!isProjectCollapsed}
-                      onClick={toggleProjectCollapsed}
-                      title={project.path}
-                    >
-                      <span className="tree-folder-title">
-                        <span>{displayName}</span>
-                      </span>
-                    </button>
-                    <IconButton
-                      className="sidebar-icon-btn tree-folder-add-btn"
-                      label={sidebarCopy.newConversationInProject(displayName)}
-                      title={sidebarCopy.newConversationInProject(displayName)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        props.onOpenProject(project.path);
-                        props.onNewSession({ scope: projectScope });
-                      }}
-                    >
-                      <IconPlus width={14} height={14} />
-                    </IconButton>
-                  </div>
-                </ContextMenu>
-
-                {/* Sessions under this project */}
-                {!isProjectCollapsed && projectSessions.length > 0 ? (
-                  <ul className="tree-session-list">
-                    {projectSessions.map((session) => (
-                      <SessionRowItem
-                        key={session.id}
-                        session={session}
-                        activeSessionId={props.activeSessionId}
-                        onResumeSession={props.onResumeSession}
-                        onOpenSessionMenu={props.onOpenSessionMenu}
-                        workingSessionIds={props.workingSessionIds}
-                        backendServiceSessionIds={props.backendServiceSessionIds}
-                        completedAttentionSessionIds={props.completedAttentionSessionIds}
-                        onDismissCompletedAttention={props.onDismissCompletedAttention}
-                        onTogglePin={props.onTogglePin}
-                        onArchiveSession={props.onArchiveSession}
-                        onUnarchiveSession={props.onUnarchiveSession}
-                        onDeleteSession={props.onDeleteSession}
-                        onResumeDraft={props.onResumeDraft}
-                        activeDraftId={props.activeDraftId}
-                        copy={sidebarCopy}
-                      />
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* SECTION 2: CONVERSATIONS (General / Non-Project Sessions) */}
-        {(() => {
-          // General sessions are maintained independently so the Conversations
-          // section stays populated even when a project is active.
-          const generalScope: SessionScope = { kind: 'general' };
-          const generalDrafts = selectDraftsForScope(
-            props.draftSessions ?? [],
-            generalScope,
-            props.sessionSearch,
-          );
-          const generalSessions = mergeDraftsIntoSessionList(
-            generalDrafts,
-            sortedGeneralSessions,
-            sortBy,
-          );
-
-          return (
-            <div className="sidebar-conversations-section">
-              <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-                <button
-                  type="button"
-                  className="sidebar-section-toggle"
-                  data-testid="conversations-section-toggle"
-                  aria-expanded={conversationsSectionExpanded}
-                  aria-controls="conversations-section-content"
-                  aria-label={
-                    conversationsSectionExpanded
-                      ? sidebarCopy.collapseConversations
-                      : sidebarCopy.expandConversations
-                  }
-                  title={
-                    conversationsSectionExpanded
-                      ? sidebarCopy.collapseConversations
-                      : sidebarCopy.expandConversations
-                  }
-                  onClick={() => setConversationsSectionExpanded((expanded) => !expanded)}
-                >
-                  <span className="sidebar-section-title">{sidebarCopy.conversations}</span>
-                  <IconChevronDown className="sidebar-section-chevron" width={15} height={15} />
-                </button>
-                <div className="sidebar-section-label-actions">
-                  <IconButton
-                    className="sidebar-icon-btn"
-                    label={copy.newSession}
-                    title={copy.newSession}
-                    data-testid="general-workspace-btn"
-                    onClick={() => props.onNewGeneralSession()}
-                  >
-                    <IconPlus width={14} height={14} />
-                  </IconButton>
+                  {renderSidebarTreeRow(row)}
                 </div>
-              </div>
-
-              <ul
-                className="tree-session-list conversations-list sidebar-section-content"
-                id="conversations-section-content"
-                data-testid="conversations-section-content"
-                hidden={!conversationsSectionExpanded}
-              >
-                {generalSessions.length > 0 ? (
-                  <>
-                    {generalSessions.map((session) => (
-                      <SessionRowItem
-                        key={session.id}
-                        session={session}
-                        activeSessionId={props.activeSessionId}
-                        onResumeSession={props.onResumeSession}
-                        onOpenSessionMenu={props.onOpenSessionMenu}
-                        workingSessionIds={props.workingSessionIds}
-                        completedAttentionSessionIds={props.completedAttentionSessionIds}
-                        onDismissCompletedAttention={props.onDismissCompletedAttention}
-                        onTogglePin={props.onTogglePin}
-                        onArchiveSession={props.onArchiveSession}
-                        onUnarchiveSession={props.onUnarchiveSession}
-                        onDeleteSession={props.onDeleteSession}
-                        onResumeDraft={props.onResumeDraft}
-                        activeDraftId={props.activeDraftId}
-                        copy={sidebarCopy}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  <li className="sidebar-empty-hint muted">{sidebarCopy.noGeneralConversations}</li>
-                )}
-              </ul>
+              );
+            })}
+          </div>
+        ) : (
+          treeRows.map((row) => (
+            <div key={sidebarTreeRowKey(row)} className="sidebar-tree-flow-item">
+              {renderSidebarTreeRow(row)}
             </div>
-          );
-        })()}
+          ))
+        )}
       </div>
 
       <div className="sidebar-footer">

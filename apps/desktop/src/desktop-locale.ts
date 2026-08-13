@@ -89,14 +89,11 @@ export type DesktopCopy = {
     expandProjects: string;
     collapseProject: string;
     expandProject: string;
-    showLess: string;
-    seeAll: (count: number) => string;
-    loadMoreSessions: string;
+    olderSessionsHidden: (count: number) => string;
     conversations: string;
     collapseConversations: string;
     expandConversations: string;
     noGeneralConversations: string;
-    loadingSessions: string;
     resizeSidebar: string;
     resizeSidebarHint: string;
   };
@@ -562,14 +559,11 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProjects: '展开项目列表',
       collapseProject: '收起项目',
       expandProject: '展开项目',
-      showLess: '收起',
-      seeAll: (count) => `查看全部 (${count})`,
-      loadMoreSessions: '加载更多会话',
+      olderSessionsHidden: (count) => `还有 ${count} 个更早的会话，用搜索查找`,
       conversations: '会话',
       collapseConversations: '收起会话列表',
       expandConversations: '展开会话列表',
       noGeneralConversations: '暂无通用会话',
-      loadingSessions: '正在加载会话…',
       resizeSidebar: '调整侧边栏宽度',
       resizeSidebarHint: '拖动调整宽度，双击恢复默认。',
     },
@@ -806,14 +800,12 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       expandProjects: 'Expand project list',
       collapseProject: 'Collapse project',
       expandProject: 'Expand project',
-      showLess: 'Show less',
-      seeAll: (count) => `See all (${count})`,
-      loadMoreSessions: 'Load more sessions',
+      olderSessionsHidden: (count) =>
+        `${count} older session${count === 1 ? '' : 's'} hidden; use search to find them`,
       conversations: 'Conversations',
       collapseConversations: 'Collapse conversation list',
       expandConversations: 'Expand conversation list',
       noGeneralConversations: 'No general conversations',
-      loadingSessions: 'Loading sessions…',
       resizeSidebar: 'Resize sidebar',
       resizeSidebarHint: 'Drag to resize. Double-click to reset.',
     },

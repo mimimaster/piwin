@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Reviewed — ready for implementation plan |
+| Status | Implemented |
 | Date | 2026-08-13 |
 | Surface | `apps/desktop` sidebar, `@piwin/contracts` session list, `@piwin/host-runtime` session product commands |
 | Related | [ADR 0039](../../adr/0039-host-owned-client-collection-pages.md), [Phase 3 record](../../notes/2026-08-09-desktop-client-collection-windowing-phase3.md) |

@@ -42,6 +42,18 @@ describe('desktop locale preference', () => {
     expect(getDesktopTranslator('en').settings.provider.models(2)).toBe('2 models');
   });
 
+  it('describes hidden older sessions without paging chrome', () => {
+    expect(getDesktopCopy('zh-CN').sidebar.olderSessionsHidden(3)).toBe(
+      '还有 3 个更早的会话，用搜索查找',
+    );
+    expect(getDesktopCopy('en').sidebar.olderSessionsHidden(1)).toBe(
+      '1 older session hidden; use search to find them',
+    );
+    expect(getDesktopCopy('en').sidebar.olderSessionsHidden(2)).toBe(
+      '2 older sessions hidden; use search to find them',
+    );
+  });
+
   it('provides complete shell and Appearance copy in both display languages', () => {
     expect(getDesktopCopy('zh-CN').titlebar.moreTools).toBe('更多工具');
     expect(getDesktopCopy('zh-CN').sidebar.displayOptions).toBe('显示选项');

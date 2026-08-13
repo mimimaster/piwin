@@ -109,10 +109,15 @@ export class MockHostBackend {
   };
   /** Monotonic revision for the in-memory settings snapshot (mock parity). */
   private mockSettingsRevision = 'mock-settings-v1';
+  private readonly e2eCommandCounts = {
+    sessionList: 0,
+    sessionListPage: 0,
+  };
 
   constructor(emitPush: MockEmit, getMode: () => HostMode) {
     this.emitPush = emitPush;
     this.getMode = getMode;
+    this.installE2eHarness();
   }
 
   clear(): void {
@@ -128,6 +133,38 @@ export class MockHostBackend {
     this.mockPauseRequested.clear();
     this.mockActiveRunIds.clear();
     this.mockTerminalRunIds.clear();
+  }
+
+  /** Playwright-only seed + request counters. Off unless the page query asks. */
+  private installE2eHarness(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const seedCount = Number(params.get('e2eSeedSessions'));
+    if (Number.isSafeInteger(seedCount) && seedCount > 0) {
+      const now = Date.parse('2026-08-13T00:00:00.000Z');
+      for (let index = 0; index < seedCount; index += 1) {
+        const sessionId = `e2e-session-${index + 1}`;
+        this.sessions.set(sessionId, {
+          projectPath: '',
+          scope: { kind: 'general' },
+          workingDirectory: 'general',
+          events: [],
+          transcript: [],
+          name: `E2E Session ${String(index + 1).padStart(3, '0')}`,
+          nameSource: 'user',
+          updatedAt: new Date(now - index * 60_000).toISOString(),
+        });
+      }
+    }
+    if (params.get('e2eHostDiagnostics') === '1') {
+      (
+        window as Window & {
+          __PIWIN_E2E_HOST_STATS__?: { sessionList: number; sessionListPage: number };
+        }
+      ).__PIWIN_E2E_HOST_STATS__ = this.e2eCommandCounts;
+    }
   }
 
   private mockSessionSummary(
@@ -215,6 +252,11 @@ export class MockHostBackend {
   }
 
   async handle(command: HostCommand, id: string): Promise<HostResponse> {
+    if (command.type === 'session/list') {
+      this.e2eCommandCounts.sessionList += 1;
+    } else if (command.type === 'session/list-page') {
+      this.e2eCommandCounts.sessionListPage += 1;
+    }
     switch (command.type) {
       case 'host/ping':
         return { id, type: 'response', command: 'host/ping', success: true, data: { pong: true } };

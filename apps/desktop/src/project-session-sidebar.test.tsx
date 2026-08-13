@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -142,42 +142,34 @@ describe('ProjectSessionSidebar resident session lists', () => {
     const projectsToggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="projects-section-toggle"]',
     );
-    const projectsContent = container.querySelector<HTMLElement>(
-      '[data-testid="projects-section-content"]',
-    );
     const conversationsToggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="conversations-section-toggle"]',
     );
-    const conversationsContent = container.querySelector<HTMLElement>(
-      '[data-testid="conversations-section-content"]',
-    );
 
     expect(projectsToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(projectsContent?.hidden).toBe(false);
     expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(conversationsContent?.hidden).toBe(false);
+    expect(container.querySelector('[data-testid="repository-item"]')).not.toBeNull();
 
     act(() => {
       projectsToggle?.click();
     });
     expect(projectsToggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(projectsContent?.hidden).toBe(true);
+    expect(container.querySelector('[data-testid="repository-item"]')).toBeNull();
     expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(conversationsContent?.hidden).toBe(false);
 
     act(() => {
       conversationsToggle?.click();
     });
-    expect(projectsContent?.hidden).toBe(true);
+    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('false');
     expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('false');
-    expect(conversationsContent?.hidden).toBe(true);
 
     act(() => {
       projectsToggle?.click();
       conversationsToggle?.click();
     });
-    expect(projectsContent?.hidden).toBe(false);
-    expect(conversationsContent?.hidden).toBe(false);
+    expect(projectsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(conversationsToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('[data-testid="repository-item"]')).not.toBeNull();
   });
 
   it('renders New Agent / Search as flat action rows and expands search on click', () => {
@@ -662,5 +654,138 @@ describe('ProjectSessionSidebar project row behavior', () => {
 
     expect(foldButtons[0]?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
+  });
+});
+
+describe('ProjectSessionSidebar virtualization gate', () => {
+  let originalResizeObserver: typeof ResizeObserver | undefined;
+  let geometrySpy: ReturnType<typeof vi.spyOn> | null = null;
+
+  beforeEach(() => {
+    originalResizeObserver = window.ResizeObserver;
+    class TestResizeObserver implements ResizeObserver {
+      private readonly callback: ResizeObserverCallback;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
+
+      disconnect(): void {}
+      observe(target: Element): void {
+        this.callback(
+          [
+            {
+              target,
+              contentRect: target.getBoundingClientRect(),
+              borderBoxSize: [],
+              contentBoxSize: [],
+              devicePixelContentBoxSize: [],
+            },
+          ],
+          this,
+        );
+      }
+      unobserve(): void {}
+    }
+    window.ResizeObserver = TestResizeObserver;
+    globalThis.ResizeObserver = TestResizeObserver;
+    geometrySpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function getTestBounds(this: HTMLElement): DOMRect {
+        const isTree = this.classList.contains('sidebar-folder-tree');
+        const height = isTree ? 400 : 31;
+        return {
+          top: 0,
+          right: 280,
+          bottom: height,
+          left: 0,
+          width: 280,
+          height,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains('sidebar-folder-tree') ? 400 : 31;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains('sidebar-folder-tree') ? 400 : 31;
+      },
+    });
+  });
+
+  afterEach(() => {
+    geometrySpy?.mockRestore();
+    geometrySpy = null;
+    if (originalResizeObserver) {
+      window.ResizeObserver = originalResizeObserver;
+      globalThis.ResizeObserver = originalResizeObserver;
+    }
+    Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+    Reflect.deleteProperty(HTMLElement.prototype, 'offsetHeight');
+  });
+
+  it('mounts at most 80 session rows for a 1,035-session fixture', () => {
+    const sessions = createMockSessions(1_035);
+    const onResume = vi.fn();
+    const { container } = renderSidebar({
+      filteredSessions: sessions,
+      onResumeSession: onResume,
+    });
+
+    expect(sessions).toHaveLength(1_035);
+    const mounted = container.querySelectorAll('[data-testid="session-item"]');
+    expect(mounted.length).toBeGreaterThan(0);
+    expect(mounted.length).toBeLessThanOrEqual(80);
+    expect(container.querySelector('[data-session-id="session-1035"]')).toBeNull();
+    expect(container.querySelector('[data-testid="see-all-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="see-all-general-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
+    expect(container.querySelector('.ui-spinner')).toBeNull();
+
+    const tree = container.querySelector('.sidebar-folder-tree');
+    expect(tree).not.toBeNull();
+    act(() => {
+      if (tree) {
+        Object.defineProperty(tree, 'scrollTop', { configurable: true, value: 40_000, writable: true });
+        tree.dispatchEvent(new Event('scroll'));
+      }
+    });
+    const far = container.querySelector<HTMLButtonElement>('[data-session-id="session-1035"]');
+    expect(far).not.toBeNull();
+    act(() => {
+      far?.click();
+    });
+    expect(onResume).toHaveBeenCalledWith('session-1035');
+  });
+
+  it('activates a durable session with Enter and skips the search input', () => {
+    const onResume = vi.fn();
+    const { container } = renderSidebar({
+      filteredSessions: createMockSessions(3),
+      onResumeSession: onResume,
+    });
+    const first = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
+    expect(first).not.toBeNull();
+    act(() => {
+      first?.focus();
+      first?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onResume).toHaveBeenCalledWith('session-1');
+
+    const search = container.querySelector<HTMLInputElement>('input[type="search"], input[data-testid="session-search-input"]');
+    if (search) {
+      act(() => {
+        search.focus();
+        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      });
+      expect(document.activeElement).toBe(search);
+    }
   });
 });
