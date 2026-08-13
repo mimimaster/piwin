@@ -4477,6 +4477,26 @@ html[data-theme-visual-style='ink-wash'] .bubble.role-user::after {
   opacity: 0.92 !important;
 }
 
+/* Editing reuses the complete ComposerCard inside the user-message row. The
+   row must stop painting the ink-wash banner while that card is mounted;
+   otherwise both surfaces draw a frame and ornament around the same editor. */
+html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-editing {
+  background: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-editing::before,
+html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-editing::after {
+  content: none !important;
+  display: none !important;
+}
+
 html[data-theme-visual-style='ink-wash'] .user-message-collapsible {
   background: transparent !important;
   border: none !important;

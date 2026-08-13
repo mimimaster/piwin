@@ -606,7 +606,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         outline: state.outline,
         preserveActiveTail: true,
       });
-      dispatchNotification(pushInfo('Transcript changed; refreshed the newest history page.'));
+      // dispatchNotification(pushInfo('Transcript changed; refreshed the newest history page.'));
     } finally {
       if (transcriptHistoryRequestSessionId.current === sessionId) {
         transcriptHistoryRequestSessionId.current = null;
