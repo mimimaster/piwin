@@ -772,6 +772,9 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         // Switching scope clears the visible session list; hydrate reloads it.
         sessions: [],
         activeSessionId: null,
+        // The painted transcript is gone; a stale owner would make the
+        // duplicate/fork/retry guards misfire on sidebar actions.
+        transcriptOwnerSessionId: null,
         messages: [],
         transcriptWindow: null,
         historyView: null,
@@ -802,6 +805,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         // transcript visible while the new project's session index is loading.
         sessions: [],
         activeSessionId: null,
+        transcriptOwnerSessionId: null,
         messages: [],
         transcriptWindow: null,
         historyView: null,
@@ -835,6 +839,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         trustDialogOpen: false,
         sessions: [],
         activeSessionId: null,
+        transcriptOwnerSessionId: null,
         messages: [],
         transcriptWindow: null,
         historyView: null,
@@ -1410,6 +1415,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         warmSessionCache: removeWarmSessionSnapshot(state.warmSessionCache, action.sessionId),
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,
+        transcriptOwnerSessionId: activeRemoved ? null : state.transcriptOwnerSessionId,
         messages: activeRemoved ? [] : state.messages,
         transcriptWindow: activeRemoved ? null : state.transcriptWindow,
         historyView: activeRemoved ? null : state.historyView,
