@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type {
   HostPush,
+  SessionListData,
   SessionListPageData,
   SessionTranscriptMessage,
   UsageRollup,
@@ -27,6 +28,81 @@ describe('MockHostBackend usage', () => {
       providerId: 'openai-work',
       modelId: 'gpt-5.2-codex',
     });
+  });
+});
+
+describe('MockHostBackend session/list', () => {
+  it('sorts globally, truncates after sort, and returns Host metadata', async () => {
+    const backend = new MockHostBackend(
+      () => {},
+      () => 'sdk',
+    );
+    const names = ['Zulu', 'Alpha', 'Bravo'] as const;
+    const sessionIds: string[] = [];
+    for (const name of names) {
+      const created = await backend.handle(
+        {
+          type: 'session/create',
+          input: { scope: { kind: 'general' }, sessionName: name },
+        },
+        `create-list-${name}`,
+      );
+      if (!created.success) throw new Error(created.error);
+      sessionIds.push((created.data as { sessionId: string }).sessionId);
+    }
+    const zuluId = sessionIds[0];
+    if (zuluId === undefined) throw new Error('missing zulu fixture');
+    const pin = await backend.handle({ type: 'session/pin', sessionId: zuluId }, 'pin-zulu');
+    if (!pin.success) throw new Error(pin.error);
+
+    const alphabetical = await backend.handle(
+      {
+        type: 'session/list',
+        scope: { kind: 'general' },
+        order: 'alphabetical',
+        maxItems: 2,
+      },
+      'list-alpha',
+    );
+    if (!alphabetical.success) throw new Error(alphabetical.error);
+    const alphaData = alphabetical.data as SessionListData;
+    expect(alphaData.sessions.map((session) => session.name)).toEqual(['Alpha', 'Bravo']);
+    expect(alphaData.totalCount).toBe(3);
+    expect(alphaData.truncated).toBe(true);
+
+    const updated = await backend.handle(
+      {
+        type: 'session/list',
+        scope: { kind: 'general' },
+        order: 'updated',
+        maxItems: 2,
+      },
+      'list-updated',
+    );
+    if (!updated.success) throw new Error(updated.error);
+    const updatedData = updated.data as SessionListData;
+    expect(updatedData.sessions[0]?.name).toBe('Zulu');
+    expect(updatedData.sessions).toHaveLength(2);
+    expect(updatedData.totalCount).toBe(3);
+    expect(updatedData.truncated).toBe(true);
+
+    const unbounded = await backend.handle(
+      { type: 'session/list', scope: { kind: 'general' } },
+      'list-unbounded',
+    );
+    if (!unbounded.success) throw new Error(unbounded.error);
+    const unboundedData = unbounded.data as SessionListData;
+    expect(unboundedData.sessions).toHaveLength(3);
+    expect(unboundedData.totalCount).toBe(3);
+    expect(unboundedData.truncated).toBe(false);
+
+    const rejected = await backend.handle(
+      { type: 'session/list', scope: { kind: 'general' }, maxItems: 0 },
+      'list-invalid',
+    );
+    expect(rejected.success).toBe(false);
+    if (rejected.success) throw new Error('expected mock session/list to reject invalid maxItems');
+    expect(rejected.error).toMatch(/maxItems must be a positive safe integer/i);
   });
 });
 

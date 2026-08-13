@@ -12,6 +12,7 @@ import type {
   RemoteProjectSummary,
   RemoteSessionScopeKind,
   RemoteSessionMessagesData,
+  RemoteSessionListData,
   RemoteSessionListPageData,
   RemoteSessionOutlineNode,
   RemoteSessionResumeData,
@@ -56,7 +57,7 @@ export function projectRemoteResponse(
   if (command.type === 'session/list') {
     return {
       ...response,
-      data: { sessions: projectSessions(response.data) },
+      data: projectSessionList(response.data),
     };
   }
 
@@ -227,6 +228,22 @@ function projectProjects(data: unknown): RemoteProjectSummary[] {
     projected.push(summary);
   }
   return projected;
+}
+
+function projectSessionList(data: unknown): RemoteSessionListData {
+  const record = asRecord(data);
+  const sessions = projectSessions(data);
+  const totalCount =
+    typeof record?.totalCount === 'number' &&
+    Number.isSafeInteger(record.totalCount) &&
+    record.totalCount >= 0
+      ? record.totalCount
+      : sessions.length;
+  return {
+    sessions,
+    totalCount,
+    truncated: record?.truncated === true,
+  };
 }
 
 function projectSessions(data: unknown): RemoteSessionSummary[] {

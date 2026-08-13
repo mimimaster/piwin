@@ -700,7 +700,14 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
     case 'session/list':
       return (
         command.projectPath === undefined &&
-        (command.scope === undefined || command.scope.kind === 'general')
+        (command.scope === undefined || command.scope.kind === 'general') &&
+        (command.order === undefined ||
+          command.order === 'updated' ||
+          command.order === 'alphabetical') &&
+        (command.maxItems === undefined ||
+          (typeof command.maxItems === 'number' &&
+            Number.isSafeInteger(command.maxItems) &&
+            command.maxItems > 0))
       );
     case 'session/list-page': {
       const query: unknown = command.query;

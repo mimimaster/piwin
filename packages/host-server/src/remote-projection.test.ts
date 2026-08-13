@@ -45,6 +45,101 @@ describe('remote session resume projection', () => {
   });
 });
 
+describe('remote session/list projection', () => {
+  const context = {
+    hostInstanceId: 'host-1',
+    mode: 'sdk' as const,
+    capabilities: createRemoteCapabilities(),
+  };
+
+  it('projects summaries plus count metadata and redacts Host paths', () => {
+    const projected = projectRemoteResponse(
+      {
+        type: 'session/list',
+        scope: { kind: 'general' },
+        order: 'alphabetical',
+        maxItems: 2000,
+      },
+      {
+        type: 'response',
+        command: 'session/list',
+        success: true,
+        data: {
+          sessions: [
+            {
+              id: 'session-1',
+              name: 'Remote chat',
+              scope: { kind: 'general' },
+              workingDirectory: '/Users/private/General',
+              projectPath: '/Users/private/Projects/example',
+              updatedAt: '2026-08-09T00:00:00.000Z',
+              messageCount: 2,
+            },
+          ],
+          totalCount: 7,
+          truncated: true,
+        },
+      },
+      context,
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    const serialized = JSON.stringify(projected.data);
+    expect(serialized).not.toMatch(/\/Users\//);
+    expect(serialized).not.toContain('projectPath');
+    expect(serialized).not.toContain('workingDirectory');
+    expect(projected.data).toEqual({
+      sessions: [
+        {
+          sessionId: 'session-1',
+          name: 'Remote chat',
+          scope: 'general',
+          updatedAt: '2026-08-09T00:00:00.000Z',
+          messageCount: 2,
+        },
+      ],
+      totalCount: 7,
+      truncated: true,
+    });
+  });
+
+  it('defaults omitted metadata without exposing Host paths', () => {
+    const projected = projectRemoteResponse(
+      { type: 'session/list' },
+      {
+        type: 'response',
+        command: 'session/list',
+        success: true,
+        data: {
+          sessions: [
+            {
+              id: 'session-legacy',
+              scope: { kind: 'general' },
+              workingDirectory: '/Users/private/General',
+              projectPath: '/Users/private/Projects/example',
+            },
+          ],
+        },
+      },
+      context,
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
+    expect(projected.data).toMatchObject({
+      sessions: [{ sessionId: 'session-legacy', scope: 'general' }],
+      totalCount: 1,
+      truncated: false,
+    });
+  });
+});
+
 describe('remote skills/read + tool-output projection', () => {
   const context = {
     hostInstanceId: 'host-1',

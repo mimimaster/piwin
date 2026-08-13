@@ -13,6 +13,7 @@ import { HostServer, type HostRuntimePort } from './host-server.js';
 class FakeRuntime implements HostRuntimePort {
   private readonly sinks = new Map<string, PushSink>();
   public lastPrompt: HostCommand | undefined;
+  public sessionListData: unknown = { sessions: [], totalCount: 0, truncated: false };
 
   public async handleCommand(command: HostCommand): Promise<HostResponse> {
     if (command.type === 'host/ping') {
@@ -106,6 +107,14 @@ class FakeRuntime implements HostRuntimePort {
             },
           ],
         },
+      };
+    }
+    if (command.type === 'session/list') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: this.sessionListData,
       };
     }
     if (command.type === 'session/list-page') {
@@ -251,6 +260,113 @@ class MessageInbox {
 }
 
 describe('HostServer', () => {
+  it('serves a bounded General session/list without Host paths', async () => {
+    const runtime = new FakeRuntime();
+    runtime.sessionListData = {
+      sessions: [
+        {
+          id: 'session-1',
+          scope: { kind: 'general' },
+          workingDirectory: '/Users/private/General',
+          projectPath: '/Users/private/Projects/example',
+          name: 'Remote chat',
+          updatedAt: '2026-08-09T00:00:00.000Z',
+          messageCount: 2,
+        },
+      ],
+      totalCount: 7,
+      truncated: true,
+    };
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-list-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-list-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'list-request',
+        command: {
+          type: 'session/list',
+          scope: { kind: 'general' },
+          order: 'alphabetical',
+          maxItems: 2000,
+        },
+      }),
+    );
+    const response = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'list-request',
+    );
+    expect(JSON.stringify(response)).not.toContain('/Users/private');
+    expect(JSON.stringify(response)).not.toContain('projectPath');
+    expect(JSON.stringify(response)).not.toContain('workingDirectory');
+    expect(response).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: {
+          sessions: [{ sessionId: 'session-1', name: 'Remote chat', scope: 'general' }],
+          totalCount: 7,
+          truncated: true,
+        },
+      },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'list-project-rejected',
+        command: {
+          type: 'session/list',
+          scope: { kind: 'project', projectPath: '/Users/private/Projects/example' },
+        },
+      }),
+    );
+    const projectRejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'list-project-rejected',
+    );
+    expect(projectRejected).toMatchObject({
+      type: 'error',
+      code: 'command-not-allowed',
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'list-max-rejected',
+        command: {
+          type: 'session/list',
+          scope: { kind: 'general' },
+          maxItems: 0,
+        },
+      }),
+    );
+    const maxRejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'list-max-rejected',
+    );
+    expect(maxRejected).toMatchObject({
+      type: 'error',
+      code: 'command-not-allowed',
+    });
+
+    socket.close();
+    await server.stop();
+  });
+
   it('serves bounded General session pages without Host paths', async () => {
     const runtime = new FakeRuntime();
     const server = new HostServer({ runtime, port: 0, instanceId: 'host-page-test' });
