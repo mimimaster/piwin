@@ -124,4 +124,24 @@ describe('classifyHostPush', () => {
       runBarrierId: 'run-1',
     });
   });
+
+  it('classifies a superseded extension deployment as a control barrier', () => {
+    expect(
+      classifyHostPush({
+        type: 'extension/deployment-updated',
+        deployment: {
+          deploymentId: 'deploy-1',
+          sessionId: 'session-1',
+          targetRegistryRevision: 'rev-old',
+          when: 'after-current-run',
+          phase: 'superseded',
+          createdAt: '2026-08-13T00:00:00.000Z',
+          updatedAt: '2026-08-13T00:00:00.000Z',
+        },
+      }),
+    ).toEqual({
+      kind: 'control',
+      barrierKeys: [['extensions', 'deployment', 'deploy-1']],
+    });
+  });
 });

@@ -51,7 +51,8 @@ export type ExtensionDeploymentPhase =
   | 'active'
   | 'failed'
   | 'rolled-back'
-  | 'restart-required';
+  | 'restart-required'
+  | 'superseded';
 
 export type ExtensionDeploymentRecord = {
   deploymentId: string;

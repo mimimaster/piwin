@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -757,7 +757,13 @@ describe('HostRuntime', () => {
     const aborted = await runtime.handleCommand({ type: 'session/abort', sessionId, runId });
     expect(aborted.success).toBe(true);
 
-    const terminalPhases = new Set(['active', 'failed', 'rolled-back', 'restart-required']);
+    const terminalPhases = new Set([
+      'active',
+      'failed',
+      'rolled-back',
+      'restart-required',
+      'superseded',
+    ]);
     let terminalPush: HostPush | undefined;
     for (let attempt = 0; attempt < 200; attempt += 1) {
       terminalPush = pushes.find(
@@ -774,6 +780,385 @@ describe('HostRuntime', () => {
       throw new Error('expected a deployment push');
     }
     expect(terminalPhases.has(terminalPush.deployment.phase)).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('recovers an interrupted in-flight extension deployment at startup', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-recover-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    // A deployment left in-flight by a Host process that no longer exists:
+    // its background continuation was memory-only and died with the process.
+    await store.writeDeployment({
+      deploymentId: 'interrupted-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+
+    // Startup recovery must terminalize the leftover record instead of
+    // leaving it permanently in-flight.
+    let recovered = await store.readDeployment('interrupted-deployment-1');
+    for (let attempt = 0; attempt < 200 && recovered?.phase === 'waiting-current-run'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      recovered = await store.readDeployment('interrupted-deployment-1');
+    }
+    expect(recovered?.phase).toBe('active');
+
+    // A same-id retry must reach the terminal state, not re-ACK
+    // waiting-current-run forever.
+    const reApplied = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId: 'ghost-session',
+      when: 'after-current-run',
+      deploymentId: 'interrupted-deployment-1',
+    });
+    expect(reApplied.success).toBe(true);
+    if (!reApplied.success) throw new Error(reApplied.error);
+    expect((reApplied.data as { state: string }).state).toBe('active');
+
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'extension/deployment-updated' &&
+          push.deployment.deploymentId === 'interrupted-deployment-1' &&
+          push.deployment.phase === 'active',
+      ),
+    ).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('marks an interrupted deployment superseded when its registry revision is stale', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-supersede-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'stale-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: 'rev-that-is-no-longer-current',
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    let recovered = await store.readDeployment('stale-deployment-1');
+    for (
+      let attempt = 0;
+      attempt < 200 && recovered?.phase === 'waiting-current-run';
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      recovered = await store.readDeployment('stale-deployment-1');
+    }
+    expect(recovered?.phase).toBe('superseded');
+    expect(recovered?.error).toMatch(/registry revision/i);
+
+    const retried = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId: 'ghost-session',
+      when: 'after-current-run',
+      deploymentId: 'stale-deployment-1',
+    });
+    expect(retried.success).toBe(false);
+    expect(retried.type === 'response' && !retried.success ? retried.error : '').toMatch(
+      /extension-deployment-superseded/,
+    );
+    expect((await store.readDeployment('stale-deployment-1'))?.phase).toBe('superseded');
+
+    await runtime.dispose();
+  });
+
+  it('does not rewrite a recovered terminal deployment on a later Host start', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-recover-idempotent-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'idempotent-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const first = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    let recovered = await store.readDeployment('idempotent-deployment-1');
+    for (let attempt = 0; attempt < 200 && recovered?.phase !== 'active'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      recovered = await store.readDeployment('idempotent-deployment-1');
+    }
+    expect(recovered?.phase).toBe('active');
+    const firstUpdatedAt = recovered?.updatedAt;
+    await first.dispose();
+
+    const secondPushes: HostPush[] = [];
+    const second = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => secondPushes.push(message),
+    });
+    const reAck = await second.handleCommand({
+      type: 'extensions/apply',
+      sessionId: 'ghost-session',
+      when: 'after-current-run',
+      deploymentId: 'idempotent-deployment-1',
+    });
+    expect(reAck.success).toBe(true);
+    const afterSecond = await store.readDeployment('idempotent-deployment-1');
+    expect(afterSecond?.phase).toBe('active');
+    expect(afterSecond?.updatedAt).toBe(firstUpdatedAt);
+    expect(
+      secondPushes.some(
+        (push) =>
+          push.type === 'extension/deployment-updated' &&
+          push.deployment.deploymentId === 'idempotent-deployment-1',
+      ),
+    ).toBe(false);
+    await second.dispose();
+  });
+
+  it('fails closed on a new apply when startup recovery cannot read the journal', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-recover-fail-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'interrupted-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await writeFile(
+      join(rootDir, 'extensions', 'deployments', 'corrupt.json'),
+      '{not-a-deployment}\n',
+      'utf8',
+    );
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    const applied = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId: 'ghost-session',
+      when: 'now',
+      deploymentId: 'fresh-deployment-1',
+    });
+    expect(applied.success).toBe(false);
+    expect(applied.type === 'response' && !applied.success ? applied.error : '').toMatch(
+      /extension-deployment-recovery-failed/,
+    );
+    expect((await store.readDeployment('interrupted-deployment-1'))?.phase).toBe(
+      'waiting-current-run',
+    );
+
+    await runtime.dispose();
+  });
+
+  it('fails closed on a new apply when a recovery terminalization cannot be persisted', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-recover-write-fail-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'interrupted-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+    // Journal stays readable but its terminal write fails: recovery must not
+    // report success, otherwise a later apply trusts an in-flight record.
+    const deploymentsDir = join(rootDir, 'extensions', 'deployments');
+    await chmod(deploymentsDir, 0o500);
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    try {
+      const applied = await runtime.handleCommand({
+        type: 'extensions/apply',
+        sessionId: 'ghost-session',
+        when: 'now',
+        deploymentId: 'fresh-deployment-1',
+      });
+      expect(applied.success).toBe(false);
+      expect(applied.type === 'response' && !applied.success ? applied.error : '').toMatch(
+        /extension-deployment-recovery-failed/,
+      );
+    } finally {
+      await chmod(deploymentsDir, 0o700);
+      await runtime.dispose();
+    }
+    expect((await store.readDeployment('interrupted-deployment-1'))?.phase).toBe(
+      'waiting-current-run',
+    );
+  });
+
+  it('fails closed on registry mutations while startup recovery is unusable', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-recover-mutation-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'interrupted-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await writeFile(
+      join(rootDir, 'extensions', 'deployments', 'corrupt.json'),
+      '{not-a-deployment}\n',
+      'utf8',
+    );
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    // Recovery compares each leftover against the registry revision it read.
+    // A registry mutation that races that comparison would make the decision
+    // stale, so mutations wait for recovery and inherit its failure.
+    const setEnabled = await runtime.handleCommand({
+      type: 'extensions/set_enabled',
+      extensionId: 'path-guard',
+      enabled: true,
+    });
+    expect(setEnabled.success).toBe(false);
+    expect(setEnabled.type === 'response' && !setEnabled.success ? setEnabled.error : '').toMatch(
+      /extension-deployment-recovery-failed/,
+    );
+
+    const listed = await runtime.handleCommand({ type: 'extensions/list' });
+    expect(listed.success).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('rejects the same deployment id claimed by a different session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-session-conflict-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'shared-deployment-1',
+      sessionId: 'session-a',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    let recovered = await store.readDeployment('shared-deployment-1');
+    for (let attempt = 0; attempt < 200 && recovered?.phase === 'waiting-current-run'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      recovered = await store.readDeployment('shared-deployment-1');
+    }
+    expect(recovered?.phase).toBe('active');
+
+    const conflicting = await runtime.handleCommand({
+      type: 'extensions/apply',
+      sessionId: 'session-b',
+      when: 'now',
+      deploymentId: 'shared-deployment-1',
+    });
+    expect(conflicting.success).toBe(false);
+    expect(conflicting.type === 'response' && !conflicting.success ? conflicting.error : '').toMatch(
+      /extension-deployment-session-conflict/,
+    );
+    const journal = await store.readDeployment('shared-deployment-1');
+    expect(journal?.sessionId).toBe('session-a');
+    expect(journal?.phase).toBe('active');
+
+    await runtime.dispose();
+  });
+
+  it('keeps a persisted terminal phase when the deployment push sink throws', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-push-fail-'));
+    const { createExtensionRevisionStore } = await import('@piwin/extensions');
+    const store = createExtensionRevisionStore(rootDir);
+    const registry = await store.readRegistry();
+    const now = new Date().toISOString();
+    await store.writeDeployment({
+      deploymentId: 'push-fail-deployment-1',
+      sessionId: 'ghost-session',
+      targetRegistryRevision: registry.revision,
+      when: 'after-current-run',
+      phase: 'waiting-current-run',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'extension/deployment-updated') {
+          throw new Error('sink exploded');
+        }
+      },
+    });
+
+    let recovered = await store.readDeployment('push-fail-deployment-1');
+    for (
+      let attempt = 0;
+      attempt < 200 && recovered?.phase === 'waiting-current-run';
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      recovered = await store.readDeployment('push-fail-deployment-1');
+    }
+    expect(recovered?.phase).toBe('active');
 
     await runtime.dispose();
   });
