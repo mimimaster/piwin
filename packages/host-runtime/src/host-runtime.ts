@@ -335,6 +335,20 @@ type ExtensionDeploymentPatch = {
   error?: string;
 };
 
+/**
+ * Deployment phases that still own an in-flight apply. A repeated apply for
+ * the same deploymentId re-ACKs the current durable state instead of starting
+ * a second, overlapping activation.
+ */
+const EXTENSION_DEPLOYMENT_IN_FLIGHT_PHASES = new Set<ExtensionDeploymentRecord['phase']>([
+  'queued',
+  'validating',
+  'waiting-current-run',
+  'compiling',
+  'creating-runtime',
+  'publishing',
+]);
+
 function extensionApplyDataFromRecord(
   record: ExtensionDeploymentRecord,
   stateOverride?: ExtensionsApplyData['state'],
@@ -1386,8 +1400,23 @@ export class HostRuntime {
     }
 
     const persisted = await this.extensionRevisionStore.readDeployment(command.deploymentId);
-    if (persisted && persisted.sessionId === command.sessionId && persisted.phase === 'active') {
-      return ok(requestId, 'extensions/apply', extensionApplyDataFromRecord(persisted));
+    if (persisted && persisted.sessionId === command.sessionId) {
+      if (persisted.phase === 'active') {
+        return ok(requestId, 'extensions/apply', extensionApplyDataFromRecord(persisted));
+      }
+      if (EXTENSION_DEPLOYMENT_IN_FLIGHT_PHASES.has(persisted.phase)) {
+        // The deployment is still being applied, possibly in the background
+        // after a waiting-current-run quick ACK. Re-ACK the same durable
+        // lifecycle instead of starting a conflicting apply for the same id.
+        return ok(
+          requestId,
+          'extensions/apply',
+          extensionApplyDataFromRecord(
+            persisted,
+            command.when === 'after-current-run' ? 'waiting-current-run' : 'pending',
+          ),
+        );
+      }
     }
 
     const activeDeploymentId = this.extensionDeploymentIdsBySession.get(command.sessionId);
@@ -1475,68 +1504,51 @@ export class HostRuntime {
         ...(expectedSettingsRevision ? { expectedSettingsRevision } : {}),
       });
 
-      const result = await this.runtimeReplacementEngine.replace({
-        sessionId: command.sessionId,
-        targetSettingsRevision: expectedSettingsRevision,
-        ...(status.generationId !== undefined
-          ? { expectedActiveGenerationId: status.generationId }
-          : {}),
-        when: command.when === 'after-current-run' ? 'after-current-run' : 'now',
-      });
-      const targetExtensionSetRevision =
-        result.candidate.extensionSetRevision ??
-        this.runtimeController.getStatus(command.sessionId).loadedExtensionSetRevision;
-      const finalRegistry = await this.extensionRevisionStore.readRegistry();
-      for (const reference of await this.extensionRevisionStore.listActiveRevisionRefs()) {
-        try {
-          await this.extensionRevisionStore.markLastKnownGood(
-            reference.extensionId,
-            reference.contentRevision,
-          );
-        } catch (error) {
-          this.push({
-            type: 'host/log',
-            level: 'warn',
-            message: `extension last-known-good update failed for ${reference.extensionId}: ${formatError(error)}`,
+      if (deployment.phase === 'waiting-current-run') {
+        // Job/lifecycle model (ADR 0047): the durable deployment record owns
+        // the state. Quick-ACK now so a long Agent Run cannot time this
+        // request out — the dispatcher's 45s deadline would otherwise report
+        // a false failure while the serialized apply keeps running, and a
+        // second apply could then overlap the first. Completion and failures
+        // are reported through the existing `extension/deployment-updated`
+        // push. The session keeps its deployment id until the background
+        // activation finishes.
+        const backgroundCompletion = this.finishExtensionApplyInBackground(
+          command,
+          deployment,
+          expectedSettingsRevision,
+        );
+        void backgroundCompletion
+          .catch(() => undefined)
+          .finally(() => {
+            if (
+              this.extensionDeploymentIdsBySession.get(command.sessionId) ===
+              command.deploymentId
+            ) {
+              this.extensionDeploymentIdsBySession.delete(command.sessionId);
+            }
           });
+        return ok(
+          requestId,
+          'extensions/apply',
+          extensionApplyDataFromRecord(deployment, 'waiting-current-run'),
+        );
+      }
+
+      try {
+        return await this.activateExtensionApply(
+          command,
+          requestId,
+          deployment,
+          expectedSettingsRevision,
+        );
+      } finally {
+        if (
+          this.extensionDeploymentIdsBySession.get(command.sessionId) === command.deploymentId
+        ) {
+          this.extensionDeploymentIdsBySession.delete(command.sessionId);
         }
       }
-      const registryAfterActivation = await this.extensionRevisionStore.readRegistry();
-      const activeConfig = await loadPiwinConfig(this.options.piwinRoot);
-      const catalog = await scanExtensions({
-        piwinRoot: getPiwinRoot(this.options.piwinRoot),
-        ...(activeConfig.extensions ? { extensionsConfig: activeConfig.extensions } : {}),
-      });
-      this.push({
-        type: 'extension/catalog-updated',
-        registryRevision: registryAfterActivation.revision,
-        extensions: catalog,
-      });
-      deployment = await this.updateExtensionDeployment(deployment, {
-        phase: 'active',
-        generationId: result.candidate.generationId,
-        ...(targetExtensionSetRevision !== undefined ? { targetExtensionSetRevision } : {}),
-      });
-      const statusAfterActivation = this.runtimeController.getStatus(command.sessionId);
-      const data: ExtensionsApplyData = {
-        sessionId: command.sessionId,
-        deploymentId: deployment.deploymentId,
-        state: 'active',
-        when: command.when,
-        registryRevision: registryAfterActivation.revision || finalRegistry.revision,
-        generationId: result.candidate.generationId,
-        settingsRevision: result.candidate.settingsRevision,
-        ...(targetExtensionSetRevision !== undefined
-          ? { extensionSetRevision: targetExtensionSetRevision }
-          : {}),
-      };
-      if (statusAfterActivation.restartRequired) {
-        deployment = await this.updateExtensionDeployment(deployment, {
-          phase: 'restart-required',
-        });
-        return ok(requestId, 'extensions/apply', { ...data, state: 'active' });
-      }
-      return ok(requestId, 'extensions/apply', data);
     } catch (error) {
       const message = formatError(error);
       const status = this.runtimeController.getStatus(command.sessionId);
@@ -1554,11 +1566,127 @@ export class HostRuntime {
       } else {
         this.runtimeController.clearExtensionDeploymentPending(command.sessionId);
       }
-      return fail(requestId, 'extensions/apply', message);
-    } finally {
-      if (this.extensionDeploymentIdsBySession.get(command.sessionId) === command.deploymentId) {
+      if (
+        this.extensionDeploymentIdsBySession.get(command.sessionId) === command.deploymentId
+      ) {
         this.extensionDeploymentIdsBySession.delete(command.sessionId);
       }
+      return fail(requestId, 'extensions/apply', message);
+    }
+  }
+
+  /**
+   * Tail of an extensions/apply after the deployment reached `compiling` or
+   * `waiting-current-run`: run the runtime replacement and publish the
+   * activation. Shared by the synchronous path and the waiting-current-run
+   * background continuation.
+   */
+  private async activateExtensionApply(
+    command: ExtensionApplyCommand,
+    requestId: string | undefined,
+    deployment: ExtensionDeploymentRecord,
+    expectedSettingsRevision: string,
+  ): Promise<HostResponse> {
+    const status = this.runtimeController.getStatus(command.sessionId);
+    const result = await this.runtimeReplacementEngine.replace({
+      sessionId: command.sessionId,
+      targetSettingsRevision: expectedSettingsRevision,
+      ...(status.generationId !== undefined
+        ? { expectedActiveGenerationId: status.generationId }
+        : {}),
+      when: command.when === 'after-current-run' ? 'after-current-run' : 'now',
+    });
+    const targetExtensionSetRevision =
+      result.candidate.extensionSetRevision ??
+      this.runtimeController.getStatus(command.sessionId).loadedExtensionSetRevision;
+    const finalRegistry = await this.extensionRevisionStore.readRegistry();
+    for (const reference of await this.extensionRevisionStore.listActiveRevisionRefs()) {
+      try {
+        await this.extensionRevisionStore.markLastKnownGood(
+          reference.extensionId,
+          reference.contentRevision,
+        );
+      } catch (error) {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `extension last-known-good update failed for ${reference.extensionId}: ${formatError(error)}`,
+        });
+      }
+    }
+    const registryAfterActivation = await this.extensionRevisionStore.readRegistry();
+    const activeConfig = await loadPiwinConfig(this.options.piwinRoot);
+    const catalog = await scanExtensions({
+      piwinRoot: getPiwinRoot(this.options.piwinRoot),
+      ...(activeConfig.extensions ? { extensionsConfig: activeConfig.extensions } : {}),
+    });
+    this.push({
+      type: 'extension/catalog-updated',
+      registryRevision: registryAfterActivation.revision,
+      extensions: catalog,
+    });
+    let nextDeployment = await this.updateExtensionDeployment(deployment, {
+      phase: 'active',
+      generationId: result.candidate.generationId,
+      ...(targetExtensionSetRevision !== undefined ? { targetExtensionSetRevision } : {}),
+    });
+    const statusAfterActivation = this.runtimeController.getStatus(command.sessionId);
+    const data: ExtensionsApplyData = {
+      sessionId: command.sessionId,
+      deploymentId: nextDeployment.deploymentId,
+      state: 'active',
+      when: command.when,
+      registryRevision: registryAfterActivation.revision || finalRegistry.revision,
+      generationId: result.candidate.generationId,
+      settingsRevision: result.candidate.settingsRevision,
+      ...(targetExtensionSetRevision !== undefined
+        ? { extensionSetRevision: targetExtensionSetRevision }
+        : {}),
+    };
+    if (statusAfterActivation.restartRequired) {
+      nextDeployment = await this.updateExtensionDeployment(nextDeployment, {
+        phase: 'restart-required',
+      });
+      return ok(requestId, 'extensions/apply', { ...data, state: 'active' });
+    }
+    return ok(requestId, 'extensions/apply', data);
+  }
+
+  /**
+   * Background continuation for a `waiting-current-run` extension deployment.
+   * The request already quick-ACKed; durable phase transitions (and failures)
+   * reach clients through the existing `extension/deployment-updated` push.
+   */
+  private async finishExtensionApplyInBackground(
+    command: ExtensionApplyCommand,
+    deployment: ExtensionDeploymentRecord,
+    expectedSettingsRevision: string,
+  ): Promise<void> {
+    try {
+      await this.activateExtensionApply(command, undefined, deployment, expectedSettingsRevision);
+    } catch (error) {
+      const message = formatError(error);
+      const status = this.runtimeController.getStatus(command.sessionId);
+      const phase =
+        status.candidateState === 'active' && status.generationId !== undefined
+          ? 'restart-required'
+          : 'rolled-back';
+      await this.updateExtensionDeployment(deployment, { phase: 'failed', error: message }).catch(
+        () => undefined,
+      );
+      await this.updateExtensionDeployment(deployment, { phase, error: message }).catch(
+        () => undefined,
+      );
+      if (phase === 'restart-required') {
+        this.runtimeController.setExtensionRestartRequired(command.sessionId, true);
+      } else {
+        this.runtimeController.clearExtensionDeploymentPending(command.sessionId);
+      }
+      this.push({
+        type: 'host/log',
+        level: 'error',
+        message: `extension apply failed for ${command.sessionId} (${command.deploymentId}): ${message}`,
+      });
     }
   }
 

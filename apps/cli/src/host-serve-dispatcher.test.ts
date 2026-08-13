@@ -151,6 +151,51 @@ describe('createHostServeDispatcher', () => {
     expect(sent).toEqual([expect.objectContaining({ command: 'session/compact', success: true })]);
   });
 
+  it('keeps waiting for extensions/apply after the ordinary command deadline', async () => {
+    let releaseApply: (() => void) | undefined;
+    const applyGate = new Promise<void>((resolve) => {
+      releaseApply = resolve;
+    });
+    const runtime = createMockRuntime({
+      onCommand: async (command) => {
+        await applyGate;
+        return {
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { state: 'active' },
+        };
+      },
+    });
+    const sent: HostServerMessage[] = [];
+    const dispatcher = createHostServeDispatcher({
+      runtime: runtime as HostRuntime,
+      send: async (message) => {
+        sent.push(message);
+      },
+      commandTimeoutMs: 10,
+    });
+
+    // A run longer than the ordinary deadline must not turn the waiting
+    // apply into a false failure while the serialized work keeps running.
+    dispatcher.dispatch({
+      type: 'extensions/apply',
+      sessionId: 'session-1',
+      when: 'after-current-run',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(sent).toHaveLength(0);
+
+    if (releaseApply === undefined) {
+      throw new Error('apply gate was not initialized');
+    }
+    releaseApply();
+    await dispatcher.drain();
+    expect(sent).toEqual([
+      expect.objectContaining({ command: 'extensions/apply', success: true }),
+    ]);
+  });
+
   it('does not accept commands after draining starts', async () => {
     const runtime = createMockRuntime({
       onCommand: async (command) => ({
