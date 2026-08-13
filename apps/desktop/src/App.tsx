@@ -3164,6 +3164,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 filteredSessions={filteredSessions}
                 generalSessions={filteredGeneralSessions}
                 projectSessionsByPath={state.projectSessionsByPath}
+                sessionListScopes={state.sessionListScopes}
                 sessionListOrder={sessionListOrder}
                 onSessionListOrderChange={handleSessionListOrderChange}
                 sessionGroups={sessionGroups}
