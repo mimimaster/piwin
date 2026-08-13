@@ -57,10 +57,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
   const [decision, setDecision] = useState<ArtifactPreviewDecision | null>(null);
   const [renderKey, setRenderKey] = useState<number>(0);
 
-  const themeVariables = useMemo(
-    () => mapThemeToArtifactVariables(activeTheme),
-    [activeTheme],
-  );
+  const themeVariables = useMemo(() => mapThemeToArtifactVariables(activeTheme), [activeTheme]);
 
   const handleRender = useCallback((): void => {
     const result = evaluateCodeFence({
@@ -85,7 +82,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
 
   const renderableDecision = useMemo(() => {
     if (!decision) return null;
-    if (decision.kind === 'render' || decision.kind === 'blocked' || decision.kind === 'preparing') {
+    if (decision.kind === 'render' || decision.kind === 'blocked') {
       return decision;
     }
     return null;
@@ -105,25 +102,13 @@ export function ArtifactPlaygroundPage(): ReactElement {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
         {/* Toolbar */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant="primary"
-            onClick={handleRender}
-            data-testid="playground-render-button"
-          >
+          <Button variant="primary" onClick={handleRender} data-testid="playground-render-button">
             {isZh ? '渲染' : 'Render'}
           </Button>
-          <Button
-            variant="ghost"
-            onClick={handleLoadSample}
-            data-testid="playground-sample-button"
-          >
+          <Button variant="ghost" onClick={handleLoadSample} data-testid="playground-sample-button">
             {isZh ? '示例' : 'Sample'}
           </Button>
-          <Button
-            variant="ghost"
-            onClick={handleClear}
-            data-testid="playground-clear-button"
-          >
+          <Button variant="ghost" onClick={handleClear} data-testid="playground-clear-button">
             {isZh ? '清空' : 'Clear'}
           </Button>
           <span style={{ flex: 1 }} />
@@ -136,9 +121,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
 
         {/* Source editor */}
         <div className="ui-field" data-testid="playground-source-field">
-          <label className="ui-field-label">
-            {isZh ? 'HTML 源代码' : 'HTML Source'}
-          </label>
+          <label className="ui-field-label">{isZh ? 'HTML 源代码' : 'HTML Source'}</label>
           <TextArea
             value={source}
             onChange={(value) => setSource(value)}
@@ -163,9 +146,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
                 marginBottom: 8,
               }}
             >
-              <strong style={{ fontSize: '0.9em' }}>
-                {isZh ? '预览' : 'Preview'}
-              </strong>
+              <strong style={{ fontSize: '0.9em' }}>{isZh ? '预览' : 'Preview'}</strong>
               {renderableDecision.kind === 'blocked' ? (
                 <span className="pill" style={{ fontSize: '0.75em' }}>
                   {isZh ? '已拦截' : 'blocked'}
@@ -197,9 +178,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
             }}
             data-testid="playground-empty-state"
           >
-            {isZh
-              ? '点击 "渲染" 预览你的 HTML 代码'
-              : 'Click "Render" to preview your HTML'}
+            {isZh ? '点击 "渲染" 预览你的 HTML 代码' : 'Click "Render" to preview your HTML'}
           </div>
         )}
       </div>

@@ -306,17 +306,18 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
   });
 
-  it('shows animated preparing feedback before an incomplete SVG can render', () => {
+  it('mounts a live Artifact frame immediately for an incomplete SVG (no waiting shell)', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={'```svg\n<svg'} renderingPhase="streaming" locale="zh-CN" />,
     );
     const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
 
-    expect(frame?.classList.contains('preparing')).toBe(true);
-    expect(frame?.getAttribute('data-activity-animation')).toBe('artifact-sheen');
-    expect(frame?.textContent).toContain('正在生成 SVG');
-    expect(frame?.querySelector('.artifact-preparing-sheen')).not.toBeNull();
-    expect(frame?.querySelector('iframe')).toBeNull();
+    expect(frame).not.toBeNull();
+    // Streaming mounts the frame right away so UI blocks draw progressively;
+    // there is no animated "preparing" intermediate state anymore.
+    expect(frame?.classList.contains('preparing')).toBe(false);
+    expect(frame?.querySelector('.artifact-preparing-sheen')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-stream-live"]')).not.toBeNull();
   });
 
   it('streaming mode keeps the explicit code-first preference source-only', () => {

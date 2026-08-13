@@ -62,23 +62,7 @@ function makeStreamDecision(
   };
 }
 
-function makePreparingDecision(): Extract<ArtifactPreviewDecision, { kind: 'preparing' }> {
-  return {
-    kind: 'preparing',
-    descriptor: {
-      id: 'artifact-preparing-svg',
-      type: 'svg',
-      title: 'Slow SVG',
-      rawLanguage: 'svg',
-      alias: 'svg',
-      surface: 'inline',
-      source: '<svg',
-    },
-    message: 'Generating SVG…',
-  };
-}
-
-type FrameDecision = Exclude<ArtifactPreviewDecision, { kind: 'code' }>;
+type FrameDecision = Extract<ArtifactPreviewDecision, { kind: 'render' } | { kind: 'blocked' }>;
 
 function renderFrame(
   decision: FrameDecision = makeRenderDecision(),
@@ -130,19 +114,6 @@ describe('ArtifactFrame chrome', () => {
     resetArtifactInitQueueForTests();
     resetArtifactLiveHostRegistryForTests();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
-  });
-
-  it('shows localized Artifact sheen before the first safe preview snapshot', () => {
-    const instance = renderFrame(makePreparingDecision(), 'inline', undefined, 'zh-CN');
-    instances.push(instance);
-    const frame = instance.container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
-
-    expect(frame?.classList.contains('preparing')).toBe(true);
-    expect(frame?.getAttribute('data-activity-animation')).toBe('artifact-sheen');
-    expect(frame?.textContent).toContain('正在生成 SVG');
-    expect(frame?.textContent).toContain('首个可安全渲染的内容准备好后会自动显示');
-    expect(frame?.querySelector('.artifact-preparing-sheen')).not.toBeNull();
-    expect(frame?.querySelector('iframe')).toBeNull();
   });
 
   it('omits Expand and raw-source disclosure on inline render frames', async () => {
@@ -272,7 +243,8 @@ describe('ArtifactFrame chrome', () => {
         type: 'svg',
         rawLanguage: 'svg',
         alias: 'svg',
-        source: '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
+        source:
+          '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
       },
       renderSource:
         '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
@@ -531,7 +503,7 @@ describe('ArtifactFrame chrome', () => {
     expect(onComposerProposal).toHaveBeenCalledWith({ text: 'Use React.', label: 'Stack' });
   });
 
-  it('shows a loading shell instead of a blank frame while the iframe paints', async () => {
+  it('paints the iframe immediately without a loading shell overlay', async () => {
     const { container, root } = renderFrame();
     instances.push({ container, root });
 
@@ -543,11 +515,58 @@ describe('ArtifactFrame chrome', () => {
     const host = container
       .querySelector('[data-testid="artifact-frame"]')
       ?.getAttribute('data-artifact-host');
-    // Before ready/onLoad paint, loading shell is required (never pure blank).
-    if (host === 'loading' || container.querySelector('iframe.is-pending-paint')) {
-      expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).not.toBeNull();
-    }
-    expect(container.querySelector('[data-testid="artifact-frame"]')).not.toBeNull();
+    expect(host).toBe('live');
+    // No waiting overlay between mount and bridge ready — the iframe paints
+    // right away (streaming previews draw progressively).
+    expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+  });
+
+  it('keeps the painted frame when a parent re-render rebuilds an equivalent decision', async () => {
+    // Clicking the composer re-renders the transcript; evaluateCodeFence builds
+    // a fresh (but byte-equivalent) decision each render. The frame must not
+    // reset its height or jump back to a waiting state.
+    const decision = makeRenderDecision();
+    const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe?.contentWindow ?? null,
+          data: {
+            type: 'piwin-artifact:ready',
+            channelId: decision.descriptor.id,
+            height: 640,
+          },
+        }),
+      );
+    });
+    const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
+    expect(stage?.style.height).toBe('640px');
+
+    // Equivalent decision object (same srcdoc) — e.g. composer focus re-render.
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame decision={makeRenderDecision()} />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const stageAfterRerender = container.querySelector(
+      '.artifact-iframe-stage',
+    ) as HTMLElement | null;
+    expect(stageAfterRerender?.style.height).toBe('640px');
+    expect(container.querySelector('[data-testid="artifact-iframe-loading"]')).toBeNull();
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
   });
 
   it('offers Load preview when the live budget rejects the frame', async () => {
@@ -585,16 +604,8 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    // After admit, either iframe or loading shell (still painting).
     expect(
-      container.querySelector('iframe.artifact-iframe') !== null ||
-        container.querySelector('[data-testid="artifact-iframe-loading"]') !== null ||
-        container
-          .querySelector('[data-testid="artifact-frame"]')
-          ?.getAttribute('data-artifact-host') === 'live' ||
-        container
-          .querySelector('[data-testid="artifact-frame"]')
-          ?.getAttribute('data-artifact-host') === 'loading',
-    ).toBe(true);
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toBe('live');
   });
 });

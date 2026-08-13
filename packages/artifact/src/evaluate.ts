@@ -1,6 +1,6 @@
 /**
  * High-level artifact pipeline used by chat UI:
- * fence → descriptor → (theme soft-repair) → security → srcdoc (or blocked/preparing).
+ * fence → descriptor → (theme soft-repair) → security → srcdoc (or blocked).
  */
 import { DEFAULT_MAX_ARTIFACT_BYTES } from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
@@ -113,32 +113,28 @@ export function evaluateArtifactDescriptor(
 
   if (!security.canRender) {
     const reason = security.blockReason ?? 'blocked-empty';
-    if (mode === 'stream-preview' && reason === 'blocked-empty') {
+    // While the model is still streaming, an empty/placeholder source is not a
+    // block — it just means tokens have not arrived yet. Mount the frame
+    // immediately (empty body) and let stream snapshots draw the UI block by
+    // block. Real blocks (size, external resources) stay blocked.
+    if (mode !== 'stream-preview' || reason !== 'blocked-empty') {
       return {
-        kind: 'preparing',
+        kind: 'blocked',
         descriptor,
-        message: descriptor.type === 'svg' ? 'Generating SVG…' : 'Generating HTML UI…',
+        security,
+        reason,
       };
     }
-    return {
-      kind: 'blocked',
-      descriptor,
-      security,
-      reason,
-    };
   }
 
   let bodySource = options.renderSource ?? descriptor.source;
 
   if (mode === 'stream-preview') {
     const preview = buildStreamableArtifactPreview(bodySource);
-    if (!preview.canStream) {
-      return {
-        kind: 'preparing',
-        descriptor,
-        message: descriptor.type === 'svg' ? 'Generating SVG…' : 'Generating HTML UI…',
-      };
-    }
+    // previewSource is the sanitized source even when there is no stable
+    // structure yet. Bootstrapping with it keeps one live iframe through the
+    // whole stream — the first safe snapshot appears progressively instead of
+    // a waiting state, and incomplete markup is auto-closed by the parser.
     bodySource = preview.previewSource;
   }
 
