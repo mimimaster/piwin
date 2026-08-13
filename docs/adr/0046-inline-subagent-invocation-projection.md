@@ -82,3 +82,19 @@ terminal batch or silently leave a retained worktree.
 - the child modal renders the same normalized message/tool sequence as the main
   transcript;
 - current-response child work is not duplicated above the composer.
+
+## Client presentation status (2026-08-13)
+
+Desktop implements the full inline projection. The CLI is an intentional
+degradation for now: it ignores the `subagent/invocation-updated` and
+`subagent/stream` pushes entirely, so subagent progress is visible only through
+the parent's tool result text. Durable state (invocation records, child
+sessions) is Host-owned and identical for both shells; reconnecting from
+Desktop shows the complete record. Revisit when the CLI gains a transcript
+renderer for pushes.
+
+Desktop live projection (2026-08-13): completed assistant messages are retained
+as bounded segments (cap 30). Empty `message/end` shells are kept so a
+tool-only assistant is not wiped by the next `message/start`. Inspector history
+refresh keys off a monotonic `completionRevision`, not segment array length,
+so a long child still refreshes after the cap.

@@ -161,11 +161,18 @@ Skill 是上下文能力，不应伪装成普通 Tool。Skill 安装、启用、
 | `image`    | 正在生成图片… | Generating image…   | `timeline-row` | `artifact-sheen` |
 | `video`    | 正在生成视频… | Generating video…   | `timeline-row` | `artifact-sheen` |
 
+> **Superseded（2026-08-13）**：下述"两阶段 preparing shell"已按用户反馈回退。
+> `stream-preview` 模式不再产生 `preparing` 决策：iframe 在 init 授权后立即
+> 挂载并逐块流式绘制，等待动效与 loading overlay 均已移除。表格中的
+> `artifact-sheen` 仅保留给图片/视频生成工具行。回退详情见
+> [Turn rendering 计划的 Follow-up 段](../plans/2026-08-10-turn-rendering-and-artifact-preparing.md)。
+
 Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时，由全局
 `RunActivitySlot` 表示等待首字；一旦识别到 SVG/HTML 围栏、但内容还不足以
 安全渲染，就在原位置显示 `ArtifactFrame` 的 sheen preparing shell。首个安全
 快照出现后，shell 原位切换为预览 iframe。Preparing 阶段不得提前挂载空 iframe，
-并且在 `prefers-reduced-motion` 下停用循环动效、保留状态文案。
+并且在 `prefers-reduced-motion` 下停用循环动效、保留状态文案。（历史设计，
+已被上方回退说明取代。）
 
 ### 4.7 人机交互阻塞
 
@@ -207,12 +214,13 @@ Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时�
 - Subagent 的父级批次、子任务和 Inspector 使用独立行为 ID；父级只展示聚合，子会话内部继续复用普通工具行为。
 - Skill 当前是资源加载与注入，不是普通 `tool-call`。V1 只对用户明确选择的 `/skill` 提交显示 `skill.load` / `skill.use` 芯片；安装、启用、禁用仍停留在设置页。未来若 Host 提供归一化资源活动事件，再扩展到自动注入的 Skill。
 - 全局定位器的展示入口是 `RunActivitySlot` 与等待模型的 `TurnWorkDetails`。
-- `TurnWorkDetails` 以 transcript turn 内的 `runId` 为展示所有权边界，但 `runId`
-  只是 Run 外壳，不是一次模型响应或工具批次。折叠态只显示一份 Run 摘要；展开态必须
-  保留每条 Assistant 生命周期消息的模型响应边界，工具仅可在同一 Assistant message
-  内成组。完整交互与迁移规则见
-  [Model-turn tool timeline](./model-turn-tool-timeline.md)。纯生命周期空行不单独占据
-  transcript 空间。
+- **Superseded（2026-08-13）**：原"折叠态只显示一份 Run 摘要"的 `TurnWorkDetails`
+  Run 级聚合与其引用的 [Model-turn tool timeline](./model-turn-tool-timeline.md)
+  均已废弃，替代方案是按事件因果序 append-only 渲染的
+  [causal agent event stream](../plans/2026-08-12-causal-agent-event-stream.md)：
+  thinking、正文与工具行按到达顺序落位，不再折叠为单份 Run 摘要。仍然有效的
+  约束：`runId` 只是 Run 外壳，不是一次模型响应或工具批次；工具仅可在同一
+  Assistant message 内成组；纯生命周期空行不单独占据 transcript 空间。
 - 现有动效组件位于 `@piwin/ui-kit`，行为映射应与动效实现分离。
 
 ### 6.5 路由包装器的展示透明性
@@ -228,10 +236,13 @@ Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时�
 - `apps/desktop/src/behavior-activity.ts`：行为 ID 注册表、工具/运行状态归一化、文案与文字动效映射。
 - `apps/desktop/src/agent-locator.tsx`：唯一轻量全局 Locator、Skill 上下文芯片；默认使用 `RadialBellow`。
 - `apps/desktop/src/RunActivitySlot.tsx`、`turn-work-details.tsx`：接入运行定位器与 Skill 芯片，旧 `RunActivitySplash` 保持隐藏。
-- `apps/desktop/src/transcript-turns.ts`、`chat-thread.tsx`：当前 V1 按 `runId` 聚合并隐藏
-  生命周期空行；其中扁平化工具数组的行为已被 Model-turn timeline 方案废弃，后续实现
-  必须保留有内容的 Assistant response step。
-- `apps/desktop/src/ArtifactFrame.tsx`、`MarkdownView.tsx`：识别到未完整 SVG/HTML 围栏后显示 preparing sheen，首个安全快照到达后原位切换预览。
+- `apps/desktop/src/transcript-turns.ts`、`chat-thread.tsx`：当前按
+  [causal agent event stream](../plans/2026-08-12-causal-agent-event-stream.md)
+  以事件因果序渲染；早期"按 `runId` 聚合出单份 Run 摘要 / 扁平化工具数组"的
+  行为已废弃（含曾经的 Model-turn timeline 过渡方案）。
+- `apps/desktop/src/ArtifactFrame.tsx`、`MarkdownView.tsx`：iframe 在 init 授权后立即
+  挂载并逐块流式绘制；preparing sheen 与 loading overlay 已于 2026-08-13 回退移除
+  （见 §4.6 的 superseded 说明）。
 - `apps/desktop/src/tool-call-card.tsx`、`turn-tool-group.tsx`：MCP、Web、Search、Explore、Read、Edit、Shell、Git 等 Timeline 行绑定行为 ID、双语文字与 CSS 动效。
 - `apps/desktop/src/settings/pages/animations-page.tsx`：定位器动效可选项，沿用桌面偏好持久化。
 - `apps/desktop/src/styles/behavior-activity.css`：文字 shimmer、工具图标微动效、Gate/Artifact/Subagent/Skill 绑定，并遵守 reduced motion；当前文字 shimmer 为 3s，定位图案按文字 `em` 在 18–24px 间缩放。

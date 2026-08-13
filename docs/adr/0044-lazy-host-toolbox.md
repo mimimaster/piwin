@@ -53,3 +53,13 @@ that is the boundary holding the frozen permission gate and generation surface.
 - describe causes no target permission admission;
 - call admits the original target registration, not the toolbox shell;
 - SDK and RPC use the same compiled descriptor and Host execution port.
+
+## Client presentation status (2026-08-13)
+
+Desktop consumes `ToolPresentation.routedToolName` and renders routed calls with
+the target tool's card (see the activity presentation spec §6.5). The CLI is an
+intentional degradation for now: it prints the wrapper name
+(`[tool:piwin_toolbox]`) without resolving the routed target. Routing,
+permission admission, and execution behave identically in both shells; only the
+CLI label is degraded. Revisit when the CLI activity renderer consumes
+`ToolPresentation`.
