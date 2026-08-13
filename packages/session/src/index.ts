@@ -52,6 +52,11 @@ export type { SessionNameFields, SessionNameSource } from './session-display-nam
 export { exportCompactionMarkdown, suggestCompactionExportBasename } from './export-compaction.js';
 export type { ExportCompactionMarkdownOptions } from './export-compaction.js';
 export { buildCompactionSeedMessages } from './build-compaction-seed.js';
+export {
+  buildReplaySeedMessages,
+  DEFAULT_REPLAY_SEED_MAX_CHARS,
+} from './build-replay-seed.js';
+export type { ReplaySeedSourceRow } from './build-replay-seed.js';
 
 export {
   buildDuplicateSessionName,
