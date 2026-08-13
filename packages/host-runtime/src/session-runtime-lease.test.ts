@@ -143,4 +143,68 @@ describe('session runtime lease coordination', () => {
       }),
     ).resolves.toBe(true);
   });
+
+  it('breaks an operation lock whose live PID predates any real operation', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-operation-lock-stale-'));
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const locksDir = join(rootDir, 'locks', 'session-operations');
+    await mkdir(locksDir, { recursive: true });
+
+    // A crashed Host left a lock; the OS later reused its PID for a
+    // long-lived unrelated process. The pid is alive but the createdAt is far
+    // older than any legitimate operation, so the lock must be broken.
+    const staleIso = new Date(Date.now() - 20 * 60_000).toISOString();
+    await writeFile(
+      join(locksDir, 'session-pid-reuse.lock'),
+      `${JSON.stringify({ pid: process.pid, createdAt: staleIso, token: 'crashed-owner' })}\n`,
+      'utf8',
+    );
+
+    const contender = await tryWithSessionOperationLock({
+      rootDir,
+      sessionId: 'session-pid-reuse',
+      operation: async () => 'acquired',
+    });
+    expect(contender).toEqual({ acquired: true, value: 'acquired' });
+  });
+
+  it('does not remove a newer owner lock when a stale-broken owner releases', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-operation-lock-token-'));
+    const { mkdir, readFile, writeFile } = await import('node:fs/promises');
+    const locksDir = join(rootDir, 'locks', 'session-operations');
+    await mkdir(locksDir, { recursive: true });
+    const lockPath = join(locksDir, 'session-token.lock');
+
+    let releaseOwner: (() => void) | undefined;
+    const ownerGate = new Promise<void>((resolve) => {
+      releaseOwner = resolve;
+    });
+    let ownerStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      ownerStarted = resolve;
+    });
+    const owner = withSessionOperationLock({
+      rootDir,
+      sessionId: 'session-token',
+      operation: async () => {
+        ownerStarted?.();
+        await ownerGate;
+      },
+    });
+    await started;
+
+    // Simulate the owner's lock being stale-broken and replaced by another
+    // process. The old owner's release must not delete the new lock.
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token: 'new-owner' })}\n`,
+      'utf8',
+    );
+
+    releaseOwner?.();
+    await owner;
+
+    const remaining = JSON.parse(await readFile(lockPath, 'utf8')) as { token?: unknown };
+    expect(remaining.token).toBe('new-owner');
+  });
 });

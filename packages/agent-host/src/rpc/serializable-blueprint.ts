@@ -80,6 +80,8 @@ export type SerializableProviderRuntime = {
     contextWindow?: number;
     maxOutputTokens?: number;
     capabilities?: ModelCapability[];
+    /** Declared request-shaping mechanism for provider-native web search. */
+    nativeSearchAdapter?: import('@piwin/contracts').NativeSearchAdapterKind;
   }>;
   auth: ProviderAuthDescriptor;
 };

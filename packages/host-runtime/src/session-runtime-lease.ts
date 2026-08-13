@@ -7,6 +7,22 @@ import { assertSafePathSegment } from './paths.js';
 const OPERATION_LOCK_WAIT_MILLISECONDS = 10_000;
 /** Foreign leases without a recent heartbeat are treated as abandoned. */
 const RUNTIME_LEASE_STALE_MILLISECONDS = 120_000;
+/**
+ * Operation locks have no heartbeat, so their age threshold must exceed the
+ * longest legitimate operation rather than mirror the 2-minute lease window.
+ * A live pid with a *stale* createdAt means the pid was almost certainly
+ * reused by an unrelated process after a crash; a live pid with a fresh
+ * createdAt means the operation is still running. 10 minutes is conservative
+ * for quarantine/archive/delete work while still bounded for recovery.
+ */
+const OPERATION_LOCK_STALE_MILLISECONDS = 10 * 60_000;
+
+type OperationLockRecord = {
+  pid: number;
+  createdAt: string;
+  /** Owner token; release() only removes the lock if it still owns it. */
+  token: string;
+};
 
 export type SessionRuntimeLeaseOwner = {
   ownerId: string;
@@ -157,15 +173,35 @@ async function acquireSessionOperationLock(
   await mkdir(join(rootDir, 'locks', 'session-operations'), { recursive: true });
   while (tryOnly || Date.now() < deadline) {
     const temporaryLockPath = `${lockPath}.${process.pid}.${randomUUID()}.tmp`;
+    // Owner token: a lock that was stale-broken (age exceeded the threshold
+    // while this process kept running) may have been replaced by a newer
+    // owner. Release must only remove the lock it actually owns.
+    const token = randomUUID();
     try {
       await writeFile(
         temporaryLockPath,
-        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+        `${JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token })}\n`,
         'utf8',
       );
       await link(temporaryLockPath, lockPath);
       await rm(temporaryLockPath, { force: true });
       return async () => {
+        try {
+          const parsed = JSON.parse(await readFile(lockPath, 'utf8')) as {
+            token?: unknown;
+          };
+          if (parsed.token !== token) {
+            // Stale-broken and replaced by a newer owner; nothing to release.
+            return;
+          }
+        } catch (error) {
+          if (isNotFound(error)) {
+            return;
+          }
+          // An unreadable/corrupt lock is not evidence of ownership; leave it
+          // for the next contender's stale cleanup.
+          return;
+        }
         await rm(lockPath, { force: true });
       };
     } catch (error) {
@@ -186,20 +222,40 @@ async function acquireSessionOperationLock(
 }
 
 async function removeDeadOperationLock(lockPath: string): Promise<boolean> {
+  let record: Partial<OperationLockRecord>;
   try {
-    const parsed = JSON.parse(await readFile(lockPath, 'utf8')) as {
-      pid?: unknown;
-    };
-    if (typeof parsed.pid === 'number' && isProcessAlive(parsed.pid)) {
-      return false;
-    }
+    record = JSON.parse(await readFile(lockPath, 'utf8')) as Partial<OperationLockRecord>;
   } catch (error) {
     if (isNotFound(error)) {
       return false;
     }
+    // A corrupt lock is unowned by definition; break it.
+    await rm(lockPath, { force: true });
+    return true;
   }
+  if (
+    typeof record.pid === 'number' &&
+    isProcessAlive(record.pid) &&
+    !isOperationLockStale(record.createdAt)
+  ) {
+    // Live pid with a fresh createdAt: the operation is still running.
+    return false;
+  }
+  // Dead pid, missing/corrupt timestamp, or a live pid whose createdAt is too
+  // old to belong to a real operation (PID reuse after a crash).
   await rm(lockPath, { force: true });
   return true;
+}
+
+function isOperationLockStale(createdAt: string | undefined): boolean {
+  if (typeof createdAt !== 'string') {
+    return true;
+  }
+  const createdMilliseconds = Date.parse(createdAt);
+  if (!Number.isFinite(createdMilliseconds)) {
+    return true;
+  }
+  return Date.now() - createdMilliseconds > OPERATION_LOCK_STALE_MILLISECONDS;
 }
 
 function isLeaseHeartbeatFresh(timestamp: string): boolean {

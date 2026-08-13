@@ -174,7 +174,10 @@ export async function buildSessionHostTools(
     const searchRoute = resolveSearchRoute({
       ...(configuredModel?.model ? { model: configuredModel.model } : {}),
       web: resolveWebConfig(options.config.web),
-      adapter: resolveNativeSearchAdapterSupport(configuredModel?.provider.protocol),
+      adapter: resolveNativeSearchAdapterSupport(
+        configuredModel?.provider.protocol,
+        configuredModel?.model.nativeSearchAdapter,
+      ),
       externalDelegateReady: Boolean(webSearchDelegate),
     });
     const webSearchReady = shouldExposeExternalWebSearch(searchRoute);

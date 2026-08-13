@@ -13,6 +13,46 @@ describe('applyNativeSearchToPayload', () => {
     expect(payload.tools).toBeUndefined();
   });
 
+  it('honors a declared adapter over model api sniffing', () => {
+    // The model api says Google, but the model declares the Anthropic tool
+    // mechanism; the declaration wins.
+    const payload = applyNativeSearchToPayload(
+      { model: 'odd-gateway', tools: [{ type: 'function', name: 'keep' }] },
+      true,
+      'google-generative-ai',
+      'anthropic-web-search-tool',
+    ) as Record<string, unknown>;
+
+    expect(payload.tools).toEqual([
+      { type: 'function', name: 'keep' },
+      { type: 'web_search_20250305', name: 'web_search' },
+    ]);
+    expect(payload.web_search_options).toBeUndefined();
+  });
+
+  it('does not guess a wire shape for a vendor-specific adapter', () => {
+    const payload = applyNativeSearchToPayload(
+      { model: 'vendor-model', messages: [] },
+      true,
+      'openai-completions',
+      'vendor-specific',
+    ) as Record<string, unknown>;
+
+    expect(payload).toEqual({ model: 'vendor-model', messages: [] });
+  });
+
+  it('selects the Responses tool when the adapter declares openai-responses-tool', () => {
+    const payload = applyNativeSearchToPayload(
+      { model: 'responses-model', messages: [] },
+      true,
+      'openai-completions',
+      'openai-responses-tool',
+    ) as Record<string, unknown>;
+
+    expect(payload.tools).toEqual([{ type: 'web_search_preview' }]);
+    expect(payload.web_search_options).toBeUndefined();
+  });
+
   it('uses the @google/genai camelCase search tool shape', () => {
     const payload = applyNativeSearchToPayload(
       { model: 'gemini-search', config: { tools: [] } },

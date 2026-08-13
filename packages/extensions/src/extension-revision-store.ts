@@ -65,6 +65,13 @@ export class ExtensionRevisionStore {
   private readonly registryPath: string;
   private readonly revisionsDir: string;
   private readonly deploymentsDir: string;
+  /**
+   * Process-local mutation chain. The CLI dispatcher serializes install /
+   * set_enabled / apply commands, but the apply background continuation runs
+   * outside that lane, so read-modify-write cycles on the registry document
+   * must be atomic within the store itself.
+   */
+  private mutationChain: Promise<unknown> = Promise.resolve();
 
   constructor(options: ExtensionRevisionStoreOptions) {
     this.rootDir = resolve(options.piwinRoot);
@@ -420,7 +427,19 @@ export class ExtensionRevisionStore {
     }
   }
 
-  private async mutate(
+  private mutate(
+    update: (current: ExtensionRegistryDocument) => ExtensionRegistryDocument,
+  ): Promise<ExtensionRegistryDocument> {
+    const result = this.mutationChain.then(
+      () => this.applyMutation(update),
+      () => this.applyMutation(update),
+    );
+    // A failed mutation must never wedge the chain; later writes still run.
+    this.mutationChain = result.catch(() => undefined);
+    return result;
+  }
+
+  private async applyMutation(
     update: (current: ExtensionRegistryDocument) => ExtensionRegistryDocument,
   ): Promise<ExtensionRegistryDocument> {
     const current = await this.readRegistry();
