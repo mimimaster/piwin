@@ -29,12 +29,12 @@ export type NotificationAction =
   | { type: 'notify/clear' };
 
 const DEFAULT_TTL: Record<NotificationLevel, number> = {
-  info: 4000,
-  success: 3500,
-  warning: 6000,
+  info: 3000,
+  success: 2200,
+  warning: 5000,
   // Errors are important, but should not permanently cover the workspace.
   // The dismiss button remains available for messages that need more time.
-  error: 6000,
+  error: 5000,
 };
 
 const MAX_ITEMS = 5;

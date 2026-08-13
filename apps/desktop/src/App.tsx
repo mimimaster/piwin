@@ -3068,6 +3068,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
     [dispatchNotification],
   );
+  const handleDismissNotification = useCallback(
+    (id: string): void => {
+      dispatchNotification({ type: 'notify/dismiss', id });
+    },
+    [dispatchNotification],
+  );
 
   const handlePlanExecute = useCallback(
     async (mode: import('@piwin/contracts').PlanExecutionMode): Promise<void> => {
@@ -3130,7 +3136,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         >
           <NotificationRegion
             items={notificationState.items}
-            onDismiss={(id) => dispatchNotification({ type: 'notify/dismiss', id })}
+            onDismiss={handleDismissNotification}
           />
 
           <WorkspaceShell

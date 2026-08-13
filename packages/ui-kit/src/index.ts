@@ -105,9 +105,8 @@ export type { ColorInputProps } from './color-input.js';
 export { Card } from './card.js';
 export type { CardProps } from './card.js';
 
-/** Shared Tabler-based language/file icons used by Desktop surfaces. */
-export { FileTypeIcon, resolveFileTypeInfo, IconCopy, IconCheck, IconGit, IconArrowFork } from './icons/index.js';
-export type { FileTypeIconProps, FileTypeInfo, FileTypeKind } from './icons/index.js';
+/** Shared redesigned icons and file type badges. */
+export * from './icons/index.js';
 
 export { BreathDot, PulseBlock, SolidBars, ANIMATION_CATALOG } from './animations.js';
 export type {
