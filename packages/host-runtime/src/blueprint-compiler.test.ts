@@ -1075,6 +1075,63 @@ describe('compileBlueprintForWorker', () => {
       expect(snapshotHostToolNames).not.toContain('web_search');
     });
 
+    it('falls back to external search when the model declares a vendor-specific native adapter (native-first)', async () => {
+      const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'native-first' as const };
+      const webSearchDescriptor = {
+        name: 'web_search',
+        description: 'Search the web',
+        parameters: {},
+      };
+      const hostToolDescriptors = [webSearchDescriptor];
+      const hostToolFamilyIndex = createFamilyIndex(
+        hostToolDescriptors,
+        familyAssignments([['web-search', ['web_search']]]),
+      );
+      const config = createConfig({
+        web,
+        providers: [
+          {
+            id: 'xai-local',
+            protocol: 'openai-compatible' as const,
+            name: 'xAI local',
+            baseUrl: 'https://api.example.test/v1',
+            apiKeyEnv: 'XAI_API_KEY',
+            models: [
+              {
+                id: 'grok-4.5',
+                capabilities: ['chat', 'native-web-search'],
+                // The vendor gateway needs proprietary request shaping that the
+                // adapter cannot express; native search must not be selected or
+                // this generation would lose both search outlets.
+                nativeSearchAdapter: 'vendor-specific' as const,
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await compileBlueprintForWorker(
+        {
+          scope: generalScope,
+          model: {
+            protocol: 'openai-compatible' as const,
+            providerId: 'xai-local',
+            modelId: 'grok-4.5',
+          },
+        },
+        {
+          config,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+          hostToolDescriptors,
+          hostToolFamilyIndex,
+        },
+      );
+
+      expect(result.blueprint.searchRoute?.selected).toBe('external');
+      expect(result.blueprint.searchRoute?.readiness.native.ready).toBe(false);
+      expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_search');
+    });
+
     it('selects external search and keeps web_search when the model has native search and the policy is external-only', async () => {
       const web = { ...createDefaultWebConfig(), searchRoutePolicy: 'external-only' as const };
       const webSearchDescriptor = {

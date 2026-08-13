@@ -28,6 +28,40 @@ function mutation(domain: 'automation' | 'permissions' | 'web', value: unknown):
   return { kind: 'replace-domain', domain, value } as SettingsMutation;
 }
 
+/** Config whose Host web_search is exclusively backed by a ready delegate model. */
+function delegateBackedConfig(
+  base: PiwinConfig,
+  options: {
+    searchSources: NonNullable<PiwinConfig['web']>['searchSources'];
+    searchRoutePolicy?: NonNullable<PiwinConfig['web']>['searchRoutePolicy'];
+  },
+): { previous: PiwinConfig; delegateProvider: NonNullable<PiwinConfig['providers']>[number] } {
+  const delegateProvider: NonNullable<PiwinConfig['providers']>[number] = {
+    id: 'search-p',
+    protocol: 'openai-compatible',
+    name: 'Search',
+    baseUrl: 'https://example.test/v1',
+    enabled: true,
+    models: [{ id: 'search-m', enabled: true, capabilities: ['chat', 'native-web-search'] }],
+  };
+  const previous: PiwinConfig = {
+    ...base,
+    providers: [delegateProvider],
+    web: {
+      ...(base.web ?? ({} as NonNullable<PiwinConfig['web']>)),
+      searchProvider: 'none',
+      searchSources: options.searchSources,
+      searchDelegateModel: {
+        protocol: 'openai-compatible',
+        providerId: 'search-p',
+        modelId: 'search-m',
+      },
+      ...(options.searchRoutePolicy ? { searchRoutePolicy: options.searchRoutePolicy } : {}),
+    },
+  };
+  return { previous, delegateProvider };
+}
+
 describe('createSettingsSnapshot', () => {
   it('produces a stable revision for identical config and different revisions for changes', () => {
     const base: PiwinConfig = {
@@ -237,6 +271,67 @@ describe('SettingsService', () => {
     };
 
     const impact = classifySettingsImpact('web', previous, next);
+    expect(impact.immediateRestrictions).toEqual([]);
+  });
+
+  it('tightens Web search when a providers mutation removes the delegate model', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const { previous } = delegateBackedConfig(snapshot.config, { searchSources: [] });
+    // Deleting the delegate's provider is a `providers` mutation — the real
+    // user path in the settings UI — and must restrict live generations just
+    // like the equivalent `web` mutation.
+    const next: PiwinConfig = { ...previous, providers: [] };
+
+    const impact = classifySettingsImpact('providers', previous, next);
+    expect(impact.immediateRestrictions).toContain('web-search');
+    expect(impact.securityTightenedImmediately).toBe(true);
+  });
+
+  it('tightens Web search when the delegate goes stale even though external sources stay enabled', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const { previous } = delegateBackedConfig(snapshot.config, {
+      searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
+    });
+    // A configured delegate is the exclusive web_search backend (fail-closed
+    // when stale); enabled ordinary sources must not mask the revocation.
+    const next: PiwinConfig = { ...previous, providers: [] };
+
+    const impact = classifySettingsImpact('providers', previous, next);
+    expect(impact.immediateRestrictions).toContain('web-search');
+  });
+
+  it('does not tighten Web search when a providers mutation leaves the delegate ready', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const { previous, delegateProvider } = delegateBackedConfig(snapshot.config, {
+      searchSources: [],
+    });
+    const unrelatedProvider: NonNullable<PiwinConfig['providers']>[number] = {
+      id: 'other-p',
+      protocol: 'openai-compatible',
+      name: 'Other',
+      baseUrl: 'https://other.example/v1',
+      enabled: true,
+      models: [{ id: 'other-m', enabled: true, capabilities: ['chat'] }],
+    };
+    const withUnrelated: PiwinConfig = {
+      ...previous,
+      providers: [delegateProvider, unrelatedProvider],
+    };
+    const next: PiwinConfig = { ...withUnrelated, providers: [delegateProvider] };
+
+    const impact = classifySettingsImpact('providers', withUnrelated, next);
+    expect(impact.immediateRestrictions).toEqual([]);
+  });
+
+  it('does not tighten Web search under a native-only policy where the external tool is never exposed', async () => {
+    const snapshot = await new SettingsService({ piwinRoot }).getSnapshot();
+    const { previous } = delegateBackedConfig(snapshot.config, {
+      searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
+      searchRoutePolicy: 'native-only',
+    });
+    const next: PiwinConfig = { ...previous, providers: [] };
+
+    const impact = classifySettingsImpact('providers', previous, next);
     expect(impact.immediateRestrictions).toEqual([]);
   });
 

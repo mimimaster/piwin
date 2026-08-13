@@ -186,6 +186,11 @@ function findImmediateRestrictions(
       }
       return restrictions;
     }
+    case 'providers':
+      // Deleting or disabling the delegate model is a providers mutation, but
+      // it revokes the Host web_search backend (the delegate is its exclusive
+      // backend when configured). Apply the same immediate rule as `web`.
+      return hasUsableWebSearch(previous) && !hasUsableWebSearch(next) ? ['web-search'] : [];
     case 'process':
       return previous.process?.enabled !== false && next.process?.enabled === false
         ? ['process']
@@ -221,31 +226,27 @@ function findImmediateRestrictions(
 }
 
 /**
- * Whether the config can actually route web search for a generation.
+ * Whether the Host external `web_search` backend is usable for a generation.
  *
- * Native readiness reuses the production resolver (`findReadyWebSearchDelegate`):
- * the delegate reference only counts when its provider exists and is enabled,
- * the model exists, is enabled, is tagged `native-web-search`, the protocol
- * matches, and the active adapter can express the native search request. A
- * stale reference to a deleted/disabled model must not keep reporting web
- * search as usable (false negative on immediate restriction).
+ * The `web-search` immediate restriction clamps exactly the Host `web_search`
+ * tool family, so this mirrors the production external-readiness rule
+ * (`evaluateSearchReadiness`): a configured delegate is the tool's exclusive
+ * backend and fails closed when stale (`findReadyWebSearchDelegate`); enabled
+ * ordinary sources back the tool only when no delegate is configured. Model
+ * native search is per-session request shaping and cannot be revoked
+ * mid-generation, so it never counts as usability here. Under `native-only`
+ * the external tool is never exposed, so there is nothing to restrict.
  */
 function hasUsableWebSearch(config: PiwinConfig): boolean {
   const web = config.web;
   if (!web) return false;
-  const hasExternalSource = (web.searchSources ?? []).some((source) => source.enabled);
-  const hasNativeSource = findReadyWebSearchDelegate(config) !== undefined;
-  switch (web.searchRoutePolicy) {
-    case 'native-only':
-      return hasNativeSource;
-    case 'external-only':
-      return hasExternalSource;
-    case 'native-first':
-    case 'external-first':
-      return hasNativeSource || hasExternalSource;
-    default:
-      return hasExternalSource || hasNativeSource;
+  if (web.searchRoutePolicy === 'native-only') {
+    return false;
   }
+  const delegateConfigured = web.searchDelegateModel !== undefined;
+  return delegateConfigured
+    ? findReadyWebSearchDelegate(config) !== undefined
+    : (web.searchSources ?? []).some((source) => source.enabled);
 }
 
 function permissionModeRank(mode: 'auto' | 'ask-all' | 'bypass' | undefined): number {

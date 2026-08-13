@@ -560,7 +560,10 @@ function compileToolPolicy(
   const searchRoute = resolveSearchRoute({
     model: configuredModel?.model ?? null,
     web: resolvedWebConfig ?? config.web,
-    adapter: resolveNativeSearchAdapterSupport(configuredModel?.provider.protocol),
+    adapter: resolveNativeSearchAdapterSupport(
+      configuredModel?.provider.protocol,
+      configuredModel?.model.nativeSearchAdapter,
+    ),
     externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
   });
   // External Host web_search is ready only when the resolved route selected it.
