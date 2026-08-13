@@ -45,6 +45,7 @@ import {
   type SessionTranscriptPageData,
   type SessionTranscriptPageQuery,
   type SessionToolCardView,
+  type NativeContextEntry,
 } from '@piwin/contracts';
 import { projectTranscriptMessagesForUi } from './transcript-ui-projection.js';
 import {
@@ -143,6 +144,17 @@ export type SessionTranscriptStore = {
   hasLaterAssistant(messageId: string, runId?: string): Promise<boolean>;
   /** Delete one row by normalized id. Returns false when absent. */
   deleteMessage(id: string): Promise<boolean>;
+  /**
+   * Attach opaque native context copies to one message row
+   * (spec: session-conversation-tree §4.2). Idempotent per (message, ordinal):
+   * replays never overwrite a stored payload.
+   */
+  appendNativeEntries(
+    messageId: string,
+    entries: readonly { ordinal: number; entry: NativeContextEntry }[],
+  ): Promise<void>;
+  /** Native context copies for one message in ordinal order (opaque payloads). */
+  readNativeEntries(messageId: string): Promise<NativeContextEntry[]>;
   /** Newest-first bounded tail window (chronological order returned). */
   listTail(limit: number, beforeSequence?: number): Promise<SessionTranscriptMessage[]>;
   /** Revision-bound, byte-bounded transcript page for Host clients. */
@@ -315,6 +327,17 @@ export async function openSessionTranscriptStore(
     CREATE INDEX IF NOT EXISTS idx_message_user_sequence
       ON transcript_message(sequence)
       WHERE role = 'user' AND length(trim(text)) > 0;
+    CREATE TABLE IF NOT EXISTS native_entry(
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id TEXT NOT NULL,
+      ordinal INTEGER NOT NULL,
+      payload TEXT NOT NULL,
+      byte_length INTEGER NOT NULL,
+      truncated INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(message_id, ordinal)
+    );
+    CREATE INDEX IF NOT EXISTS idx_native_entry_message
+      ON native_entry(message_id);
     CREATE TABLE IF NOT EXISTS pause_checkpoint(
       checkpoint_id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
@@ -702,6 +725,7 @@ export async function openSessionTranscriptStore(
           .get(id) as { role: string; text: string } | undefined;
         const result = db.prepare('DELETE FROM transcript_message WHERE id = ?').run(id);
         if (result.changes > 0) {
+          db.prepare('DELETE FROM native_entry WHERE message_id = ?').run(id);
           bumpRevision(
             1,
             previous !== undefined && isIndexedUserMessage(previous.role, previous.text) ? 1 : 0,
@@ -713,6 +737,53 @@ export async function openSessionTranscriptStore(
         rollback(db);
         throw error;
       }
+    },
+
+    async appendNativeEntries(messageId, entries) {
+      ensureOpen();
+      if (entries.length === 0) {
+        return;
+      }
+      const insert = db.prepare(
+        `INSERT OR IGNORE INTO native_entry(message_id, ordinal, payload, byte_length, truncated)
+         VALUES (?, ?, ?, ?, ?)`,
+      );
+      db.exec('BEGIN');
+      try {
+        for (const { ordinal, entry } of entries) {
+          insert.run(
+            messageId,
+            ordinal,
+            entry.payload,
+            entry.byteLength,
+            entry.truncated === true ? 1 : 0,
+          );
+        }
+        db.exec('COMMIT');
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+
+    async readNativeEntries(messageId) {
+      ensureOpen();
+      const rows = db
+        .prepare(
+          `SELECT payload, byte_length, truncated FROM native_entry
+           WHERE message_id = ? ORDER BY ordinal ASC`,
+        )
+        .all(messageId) as unknown as Array<{
+        payload: string;
+        byte_length: number;
+        truncated: number;
+      }>;
+      return rows.map((row) => ({
+        format: 'pi-message-v1' as const,
+        payload: row.payload,
+        byteLength: row.byte_length,
+        ...(row.truncated === 1 ? { truncated: true as const } : {}),
+      }));
     },
 
     async transcriptPage(query) {
@@ -1166,6 +1237,11 @@ export async function openSessionTranscriptStore(
              WHERE sequence >= ? AND role = 'user' AND length(trim(text)) > 0`,
           )
           .get(target.sequence) as { count: number };
+        db.prepare(
+          `DELETE FROM native_entry WHERE message_id IN (
+             SELECT id FROM transcript_message WHERE sequence >= ?
+           )`,
+        ).run(target.sequence);
         const removed = db
           .prepare('DELETE FROM transcript_message WHERE sequence >= ?')
           .run(target.sequence);

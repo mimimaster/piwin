@@ -61,6 +61,52 @@ function messageInput(overrides: {
   };
 }
 
+function nativeEntryOf(payload: string) {
+  return { format: 'pi-message-v1' as const, payload, byteLength: payload.length };
+}
+
+describe('SessionTranscriptStore native entries', () => {
+  it('persists, reads, and cascades native entries on deleteMessage', async () => {
+    const { store } = await openStore('native');
+    await store.appendMessage(
+      messageInput({ id: 'a1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-a1' }),
+    );
+    await store.appendNativeEntries('a1', [
+      { ordinal: 0, entry: nativeEntryOf('{"role":"assistant"}') },
+      {
+        ordinal: 1,
+        entry: { format: 'pi-message-v1', payload: '', byteLength: 400_000, truncated: true },
+      },
+    ]);
+    // Same ordinal replay is idempotent and never overwrites the stored payload.
+    await store.appendNativeEntries('a1', [{ ordinal: 0, entry: nativeEntryOf('REPLAYED') }]);
+    const entries = await store.readNativeEntries('a1');
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.payload).toBe('{"role":"assistant"}');
+    expect(entries[0]?.truncated).toBeUndefined();
+    expect(entries[1]?.truncated).toBe(true);
+    expect(entries[1]?.byteLength).toBe(400_000);
+    await store.deleteMessage('a1');
+    expect(await store.readNativeEntries('a1')).toHaveLength(0);
+  });
+
+  it('truncateFrom removes native entries of removed rows only', async () => {
+    const { store } = await openStore('native-truncate');
+    await store.appendMessage(
+      messageInput({ id: 'u1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-u1', role: 'user' }),
+    );
+    await store.appendMessage(
+      messageInput({ id: 'a1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-a1' }),
+    );
+    await store.appendNativeEntries('u1', [{ ordinal: 0, entry: nativeEntryOf('keep') }]);
+    await store.appendNativeEntries('a1', [{ ordinal: 0, entry: nativeEntryOf('drop') }]);
+    const result = await store.truncateFrom('a1');
+    expect(result.found).toBe(true);
+    expect(await store.readNativeEntries('u1')).toHaveLength(1);
+    expect(await store.readNativeEntries('a1')).toHaveLength(0);
+  });
+});
+
 describe('SessionTranscriptStore', () => {
   it('appends rows with provenance and treats same-generation replay as idempotent', async () => {
     const { store } = await openStore('replay');
