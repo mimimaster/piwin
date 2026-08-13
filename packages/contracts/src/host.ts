@@ -12,7 +12,7 @@ import type { CompactionFileOps } from './compaction-fileops.js';
 import type { PromptAttachment } from './browser.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { AgentModeId } from './permission.js';
-import type { CreateSessionOptions } from './session-seed.js';
+import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js';
 import type { SearchEvidence } from './web.js';
 
 export type HostMode = 'sdk' | 'rpc';
@@ -441,6 +441,19 @@ export type AgentEvent =
       runId?: string;
     }
   | { type: 'message/end'; messageId: string; runId?: string }
+  /**
+   * Host-internal opaque native context copy (spec: session-conversation-tree §4).
+   * Never forwarded to clients; host-runtime persists it and strips it before egress.
+   */
+  | {
+      type: 'message/native_context';
+      messageId: string;
+      role: 'assistant' | 'toolResult';
+      entry: NativeContextEntry;
+      /** Owning assistant message for toolResult entries. */
+      responseMessageId?: string;
+      runId?: string;
+    }
   | {
       type: 'tool/start';
       toolCallId: string;
