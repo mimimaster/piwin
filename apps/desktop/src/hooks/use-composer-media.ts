@@ -23,13 +23,17 @@ import type { ChatUiAction, ChatUiState, SkillActivityView } from '../chat-reduc
 import {
   fileToBase64,
   prepareComposerAttachmentForSave,
+  isFailedMediaAttachment,
   isPendingAttachmentReady,
   isAllowedAttachmentFile,
   resolveAttachmentContentKind,
   resolveAttachmentMimeType,
+  type PendingAttachmentErrorKind,
   type PendingComposerAttachment,
   type PendingAttachmentUploadStatus,
 } from '../media-utils.js';
+import { getDesktopCopy } from '../desktop-locale.js';
+import { useDesktopLocale } from '../desktop-locale-context.js';
 import { type AgentModeId } from '../agent-mode';
 import {
   applySkillToPrompt,
@@ -121,6 +125,8 @@ type SessionComposerSnapshot = {
 };
 
 export function useComposerMedia(args: UseComposerMediaArgs) {
+  const { locale } = useDesktopLocale();
+  const attachmentCopy = getDesktopCopy(locale).composer;
   const [composer, setComposer] = useState('');
   const composerRef = useRef('');
   composerRef.current = composer;
@@ -161,7 +167,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
    * does not depend on React re-render timing.
    */
   const mediaSaveResultsRef = useRef(
-    new Map<string, { ok: true; attachment: PromptAttachment } | { ok: false; error: string }>(),
+    new Map<
+      string,
+      | { ok: true; attachment: PromptAttachment }
+      | { ok: false; error: string; kind: PendingAttachmentErrorKind }
+    >(),
   );
 
   // ── Local composer drafts ───────────────────────────────────────────────
@@ -588,11 +598,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       sessionId: string;
     }): Promise<void> => {
       const { localId, file, source, sessionId } = params;
-      const markError = (message: string): void => {
+      const markError = (message: string, kind: PendingAttachmentErrorKind): void => {
         if (cancelledAttachmentIdsRef.current.has(localId)) {
           return;
         }
-        mediaSaveResultsRef.current.set(localId, { ok: false, error: message });
+        mediaSaveResultsRef.current.set(localId, { ok: false, error: message, kind });
         setPendingAttachments((current) =>
           current.map((item) =>
             item.localId === localId
@@ -600,6 +610,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
                   ...item,
                   uploadStatus: 'error' as const,
                   uploadError: message,
+                  uploadErrorKind: kind,
                 }
               : item,
           ),
@@ -633,7 +644,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         removeLocalChip();
         args.dispatch({
           type: 'error',
-          message: `Unsupported attachment type: ${file.type || file.name}`,
+          message: attachmentCopy.attachmentUnsupportedType(file.type || file.name),
         });
         return;
       }
@@ -703,22 +714,30 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           return;
         }
 
-        const response = await args.hostClient.request({
-          type: 'media/save',
-          input: {
-            sessionId,
-            mimeType: prepared.mimeType,
-            name: file.name,
-            contentKind: prepared.contentKind,
-            source,
-            base64Data,
-          },
-        });
+        // A thrown request is a transport/IPC failure (retry usually helps);
+        // success:false means the Host received and rejected the save (policy).
+        let response;
+        try {
+          response = await args.hostClient.request({
+            type: 'media/save',
+            input: {
+              sessionId,
+              mimeType: prepared.mimeType,
+              name: file.name,
+              contentKind: prepared.contentKind,
+              source,
+              base64Data,
+            },
+          });
+        } catch (error) {
+          markError(formatError(error), 'connection');
+          return;
+        }
         if (cancelledAttachmentIdsRef.current.has(localId)) {
           return;
         }
         if (!response.success) {
-          markError(response.error);
+          markError(response.error, 'policy');
           return;
         }
         const asset = (response.data as MediaSaveData).asset;
@@ -729,7 +748,11 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           current.map((item) =>
             item.localId === localId
               ? (() => {
-                  const { uploadError: _ignoredUploadError, ...rest } = item;
+                  const {
+                    uploadError: _ignoredUploadError,
+                    uploadErrorKind: _ignoredKind,
+                    ...rest
+                  } = item;
                   return {
                     ...rest,
                     attachment,
@@ -740,11 +763,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           ),
         );
       } catch (error) {
-        const message = formatError(error);
-        markError(message);
+        // Reached only from local prepare/encode steps; the request has its
+        // own catch above.
+        markError(formatError(error), 'local');
       }
     },
-    [args],
+    [args, attachmentCopy],
   );
 
   const enqueueAttachmentFile = useCallback(
@@ -785,17 +809,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         ]);
       } else {
         // Retry: drop the failed terminal state back to queued. The save runs
-        // on the next Send, not immediately.
-        setPendingAttachments((current) =>
-          current.map((item) =>
-            item.localId === localId
-              ? (() => {
-                  const { uploadError: _ignored, ...rest } = item;
-                  return { ...rest, uploadStatus: 'queued' as const };
-                })()
-              : item,
-          ),
+        // on the next Send, not immediately. The ref updates synchronously so
+        // a retry-then-send in the same tick already sees the queued chip.
+        const next = pendingAttachmentsRef.current.map((item) =>
+          item.localId === localId
+            ? (() => {
+                const { uploadError: _ignored, uploadErrorKind: _ignoredKind, ...rest } = item;
+                return { ...rest, uploadStatus: 'queued' as const };
+              })()
+            : item,
         );
+        pendingAttachmentsRef.current = next;
+        setPendingAttachments(next);
       }
     },
     [],
@@ -807,14 +832,46 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (!source) {
         args.dispatch({
           type: 'error',
-          message: 'Cannot retry this attachment — remove it and attach it again.',
+          message: attachmentCopy.attachmentRetryUnavailable,
         });
         return;
       }
       enqueueAttachmentFile(source.file, source.source, localId);
     },
-    [args, enqueueAttachmentFile],
+    [args, attachmentCopy, enqueueAttachmentFile],
   );
+
+  /**
+   * Phase 0 send confirmation "Retry": re-queue every failed chip. Updates are
+   * synchronous on the ref so a handleSend in the same tick re-runs the saves.
+   */
+  const retryFailedAttachments = useCallback((): void => {
+    for (const item of pendingAttachmentsRef.current) {
+      if (isFailedMediaAttachment(item)) {
+        retryPendingAttachment(item.localId);
+      }
+    }
+  }, [retryPendingAttachment]);
+
+  /**
+   * Phase 0 send confirmation "Send the rest": drop every failed chip. Updates
+   * are synchronous on the ref so a handleSend in the same tick excludes them.
+   */
+  const discardFailedAttachments = useCallback((): void => {
+    const failed = pendingAttachmentsRef.current.filter(isFailedMediaAttachment);
+    if (failed.length === 0) {
+      return;
+    }
+    for (const item of failed) {
+      cancelledAttachmentIdsRef.current.add(item.localId);
+      sourceFilesRef.current.delete(item.localId);
+      mediaSaveResultsRef.current.delete(item.localId);
+      URL.revokeObjectURL(item.previewUrl);
+    }
+    const next = pendingAttachmentsRef.current.filter((item) => !isFailedMediaAttachment(item));
+    pendingAttachmentsRef.current = next;
+    setPendingAttachments(next);
+  }, []);
 
   /**
    * Merge terminal save results into the chip list so Send never depends on
@@ -830,7 +887,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         return item;
       }
       if (result.ok) {
-        const { uploadError: _ignored, ...rest } = item;
+        const { uploadError: _ignored, uploadErrorKind: _ignoredKind, ...rest } = item;
         return {
           ...rest,
           attachment: result.attachment,
@@ -841,6 +898,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         ...item,
         uploadStatus: 'error' as const,
         uploadError: result.error,
+        uploadErrorKind: result.kind,
       };
     });
     // Keep React state in sync with the merge used for send.
@@ -884,12 +942,21 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           if (!source) {
             // Chip survived a draft round-trip without its File (e.g. restored
             // from a stale snapshot). Never send a placeholder path.
-            const message = 'Attachment is no longer available — remove it and attach it again.';
-            mediaSaveResultsRef.current.set(chip.localId, { ok: false, error: message });
+            const message = attachmentCopy.attachmentSourceMissing;
+            mediaSaveResultsRef.current.set(chip.localId, {
+              ok: false,
+              error: message,
+              kind: 'local',
+            });
             setPendingAttachments((current) =>
               current.map((item) =>
                 item.localId === chip.localId
-                  ? { ...item, uploadStatus: 'error' as const, uploadError: message }
+                  ? {
+                      ...item,
+                      uploadStatus: 'error' as const,
+                      uploadError: message,
+                      uploadErrorKind: 'local' as const,
+                    }
                   : item,
               ),
             );
@@ -904,7 +971,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }),
       );
     },
-    [runMediaSave],
+    [attachmentCopy, runMediaSave],
   );
 
   /**
@@ -1253,6 +1320,19 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         ? promptRefsSnapshot.items.map((item) => item.ref)
         : (args.getPendingContextRefs?.() ?? []);
 
+      // Failed chips are never dropped into a prompt silently and never
+      // auto-retried here. The composer confirmation (Phase 0) resolves them
+      // through retryFailedAttachments/discardFailedAttachments before this
+      // point; anything left is a hard stop that keeps the draft intact.
+      const failedChipsAtEntry = pendingAttachmentsRef.current.filter(isFailedMediaAttachment);
+      if (failedChipsAtEntry.length > 0) {
+        args.dispatch({
+          type: 'error',
+          message: attachmentCopy.attachmentSendBlocked(failedChipsAtEntry.length),
+        });
+        return;
+      }
+
       // ADR 0045 compatibility path: pastes are queued locally and only reach
       // `media/save` here, after Send resolves the destination session. The
       // bubble must carry real Host attachment refs, so deferred saves run
@@ -1321,10 +1401,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         if (failed.length > 0) {
           args.dispatch({
             type: 'error',
-            message:
-              failed.length === 1
-                ? 'One attachment failed to save — tap Retry on the chip, or remove it.'
-                : `${failed.length} attachments failed to save — tap Retry or remove them.`,
+            message: attachmentCopy.attachmentSendBlocked(failed.length),
           });
           return;
         }
@@ -1560,6 +1637,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     [
       args,
       applyAcceptedRun,
+      attachmentCopy,
       buildPromptRequestInput,
       clearPendingAttachments,
       composer,
@@ -1790,6 +1868,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     addWebElement,
     handleSend,
     retryPendingAttachment,
+    retryFailedAttachments,
+    discardFailedAttachments,
     handleSteer,
     handleFollowUp,
     steerQueueMessages,
@@ -1813,8 +1893,4 @@ function isImagePromptAttachment(attachment: PromptAttachment): boolean {
       (attachment.contentKind === undefined &&
         attachment.mimeType.trim().toLowerCase().startsWith('image/')))
   );
-}
-
-function isFailedMediaAttachment(item: PendingComposerAttachment): boolean {
-  return item.attachment.kind === 'media' && item.uploadStatus === 'error';
 }

@@ -904,25 +904,72 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   pointer-events: none;
 }
 
-.composer-v2-attachment-status.is-error {
-  background: color-mix(in srgb, var(--danger, #ef4444) 88%, transparent);
-  color: #fff;
-}
-
-.composer-v2-attachment-status.is-action {
-  pointer-events: auto;
-  cursor: pointer;
-  border: none;
-  font: inherit;
-}
-
-.composer-v2-attachment-status.is-action:hover {
-  filter: brightness(1.08);
-}
-
 .composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb,
 .composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb-button {
   opacity: 0.72;
+}
+
+/* Phase 0: failed chips keep the thumbnail visible — a danger ring marks the
+   chip, and reasons/actions render in the failure rows below the list. */
+.composer-v2-attachment-chip[data-upload-status='error'] {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 72%, transparent);
+}
+
+.composer-v2-attachment-failures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 12px 0;
+}
+
+.composer-v2-attachment-failure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.composer-v2-attachment-failure-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--danger, #ef4444);
+}
+
+.composer-v2-attachment-failure-reason {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted, rgba(248, 250, 252, 0.64));
+}
+
+.composer-v2-attachment-failure-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.composer-v2-attachment-failure-action {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent, #60a5fa);
+  cursor: pointer;
+}
+
+.composer-v2-attachment-failure-action:hover {
+  text-decoration: underline;
+}
+
+/* Only failed attachments remain: the action button is a retry. */
+.composer-v2-send-btn.is-retry {
+  background: color-mix(in srgb, var(--danger, #ef4444) 24%, transparent);
+  color: var(--danger, #ef4444);
 }
 
 .composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb,

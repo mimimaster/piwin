@@ -106,6 +106,22 @@ export type DesktopCopy = {
     openModelSettings: string;
     removeCommentAttachment: string;
     removeAttachment: string;
+    attachmentPreparing: string;
+    attachmentPreparingGif: string;
+    attachmentRetry: string;
+    attachmentRemove: string;
+    attachmentFailedLabel: string;
+    attachmentFailureConnectionHint: string;
+    attachmentFailureDialogTitle: string;
+    attachmentFailureDialogBody: (count: number) => string;
+    attachmentFailureRetrySend: string;
+    attachmentFailureSendRest: string;
+    attachmentFailureBack: string;
+    attachmentRetryOnly: string;
+    attachmentSendBlocked: (count: number) => string;
+    attachmentRetryUnavailable: string;
+    attachmentSourceMissing: string;
+    attachmentUnsupportedType: (label: string) => string;
     typeYourAnswer: string;
     chooseOption: string;
     agentPlaceholder: string;
@@ -563,6 +579,26 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       openModelSettings: '模型设置',
       removeCommentAttachment: '移除评论附件',
       removeAttachment: '移除附件',
+      attachmentPreparing: '准备中…',
+      attachmentPreparingGif: '提取 GIF 首帧…',
+      attachmentRetry: '重试',
+      attachmentRemove: '移除',
+      attachmentFailedLabel: '保存失败',
+      attachmentFailureConnectionHint: 'Host 连接失败',
+      attachmentFailureDialogTitle: '部分附件保存失败',
+      attachmentFailureDialogBody: (count) =>
+        `${count} 个附件未能保存。可以重试，或不带失败附件发送其余内容。`,
+      attachmentFailureRetrySend: '重试并发送',
+      attachmentFailureSendRest: '仅发送其余内容',
+      attachmentFailureBack: '返回',
+      attachmentRetryOnly: '重试附件',
+      attachmentSendBlocked: (count) =>
+        count === 1
+          ? '1 个附件保存失败——请重试或移除后再发送。'
+          : `${count} 个附件保存失败——请重试或移除后再发送。`,
+      attachmentRetryUnavailable: '无法重试该附件——请移除后重新添加。',
+      attachmentSourceMissing: '附件已不可用——请移除后重新添加。',
+      attachmentUnsupportedType: (label) => `不支持的附件类型: ${label}`,
       typeYourAnswer: '输入你的回答',
       chooseOption: '选择上方选项以继续',
       agentPlaceholder: '规划、搜索或构建任何内容',
@@ -788,6 +824,28 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       openModelSettings: 'Model settings',
       removeCommentAttachment: 'Remove comment attachment',
       removeAttachment: 'Remove attachment',
+      attachmentPreparing: 'Preparing…',
+      attachmentPreparingGif: 'Preparing first frame…',
+      attachmentRetry: 'Retry',
+      attachmentRemove: 'Remove',
+      attachmentFailedLabel: 'Save failed',
+      attachmentFailureConnectionHint: 'Host connection failed',
+      attachmentFailureDialogTitle: 'Some attachments failed to save',
+      attachmentFailureDialogBody: (count) =>
+        count === 1
+          ? 'One attachment could not be saved. Retry it, or send the rest without it.'
+          : `${count} attachments could not be saved. Retry them, or send the rest without them.`,
+      attachmentFailureRetrySend: 'Retry and send',
+      attachmentFailureSendRest: 'Send without them',
+      attachmentFailureBack: 'Go back',
+      attachmentRetryOnly: 'Retry attachments',
+      attachmentSendBlocked: (count) =>
+        count === 1
+          ? 'One attachment failed to save — retry or remove it before sending.'
+          : `${count} attachments failed to save — retry or remove them before sending.`,
+      attachmentRetryUnavailable: 'Cannot retry this attachment — remove it and attach it again.',
+      attachmentSourceMissing: 'Attachment is no longer available — remove it and attach it again.',
+      attachmentUnsupportedType: (label) => `Unsupported attachment type: ${label}`,
       typeYourAnswer: 'Type your answer',
       chooseOption: 'Choose an option above to continue',
       agentPlaceholder: 'Plan, search, build anything',
