@@ -2,10 +2,18 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Accepted — session index and transcript slices implemented** |
+| Status | **Accepted — session index and transcript slices implemented; Desktop session-index §4 superseded in part by ADR 0049** |
 | Date | 2026-08-09 |
 | Trigger | Desktop mapped complete session indexes into renderer state and mounted 530 buttons / 400 SVG roots at idle |
-| Related | ADR 0036, ADR 0038; [Phase 3 plan](../plans/2026-08-09-desktop-client-collection-windowing-phase3.md) |
+| Related | ADR 0036, ADR 0038; [Phase 3 plan](../plans/2026-08-09-desktop-client-collection-windowing-phase3.md); [ADR 0049](./0049-session-index-full-load-and-virtualized-sidebar.md) |
+
+> **Supersession (2026-08-13):** [ADR 0049](./0049-session-index-full-load-and-virtualized-sidebar.md)
+> replaces **only §4 below** for the **Desktop session index**. Desktop hydrates
+> a Host-bounded full `session/list` projection (max 2,000) and virtualizes
+> flattened sidebar rows instead of the three-page cursor window described in
+> §4. This document's historical diagnosis is retained. **§5 remote path
+> safety** and **§6 / §7 transcript paging** remain in force. `session/list-page`
+> stays available for CLI, mobile, and future clients.
 
 ## Context
 
