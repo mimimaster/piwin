@@ -10,6 +10,7 @@ import type {
   SubagentInvocation,
   ThemeManifest,
   WalkthroughArtifact,
+  ContextSummaryPush,
 } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
@@ -36,6 +37,11 @@ import { TurnWorkDetails } from './turn-work-details';
 import type { DocumentOpenInput } from './tool-call-card';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
+import { GoalStickyStrip } from './goal';
+import {
+  AssemblySummaryCapsule,
+  resolveAssemblySummaryForUserMessage,
+} from './assembly-summary-capsule';
 import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import { ImageGenerationProgress } from './image-generation-progress';
@@ -292,6 +298,8 @@ export type ChatThreadProps = {
   onOpenSession?: ((sessionId: string) => void) | undefined;
   /** SF-03: Whether derived-session actions are disabled (e.g. no host). */
   derivedActionsDisabled?: boolean;
+  /** M1 assembly summaries keyed by runId. Never claims model-visible. */
+  assemblySummariesByRunId?: Record<string, ContextSummaryPush>;
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -391,6 +399,17 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
         />
       ) : null}
+      {props.composerCard.agentMode === 'goal' ? (
+        <GoalStickyStrip
+          goalTitle={
+            [...props.messages].reverse().find((m) => m.role === 'user')?.text ||
+            (props.locale === 'zh-CN' ? '目标自主执行循环' : 'Autonomous Goal Execution')
+          }
+          status={props.streaming ? 'running' : 'paused'}
+          turnsCount={props.messages.filter((m) => m.role === 'user').length}
+          onAbort={() => props.composerCard.onAgentModeChange('agent')}
+        />
+      ) : null}
       <TranscriptTurnList
         turns={turnGroups}
         pinnedMessageId={props.editingMessageId}
@@ -403,11 +422,29 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               ? { 'data-testid': 'current-response-turn' }
               : {})}
           >
-            {turn.items.map(({ message, messageIndex }) => {
+            {turn.items.map(({ message, messageIndex }, itemIndex) => {
+              const followingAssistantRunId = turn.items
+                .slice(itemIndex + 1)
+                .find((item) => item.message.role === 'assistant' && item.message.runId)?.message
+                .runId;
+              const assemblySummary =
+                message.role === 'user'
+                  ? resolveAssemblySummaryForUserMessage({
+                      messageId: message.id,
+                      ...(message.runId !== undefined ? { messageRunId: message.runId } : {}),
+                      lastUserMessageId: props.lastUserMessageId,
+                      activeRunId: props.activeRunId ?? null,
+                      ...(followingAssistantRunId !== undefined
+                        ? { followingAssistantRunId }
+                        : {}),
+                      summariesByRunId: props.assemblySummariesByRunId ?? {},
+                    })
+                  : undefined;
               return (
                 <ChatMessageRow
                   key={message.id}
                   message={message}
+                  {...(assemblySummary !== undefined ? { assemblySummary } : {})}
                   {...(props.sessionId ? { sessionId: props.sessionId } : {})}
                   messageIndex={messageIndex}
                   showStreamingCaret={streamingCaretMessageId === message.id}
@@ -623,6 +660,8 @@ type ChatMessageRowProps = {
   isLastAssistantInTurn?: boolean;
   /** SF-04: True only for the newest completed assistant response. */
   isLatestAssistantResponse?: boolean;
+  /** Assembly capsule for this user row, if Host recorded one. */
+  assemblySummary?: ContextSummaryPush;
 };
 
 function formatMessageTime(createdAt?: string): string {
@@ -1041,8 +1080,27 @@ const ChatMessageRow = memo(
     // CM-10: message context menu wraps the whole bubble. Streaming rows keep
     // the menu (retry/fork are capability-gated off); subagent cards are
     // handled by the early return above.
+    const showPreparingCapsule =
+      isUserMessage &&
+      props.assemblySummary === undefined &&
+      props.streaming === true &&
+      props.lastUserMessageId === message.id;
+    const capsule =
+      isUserMessage && (props.assemblySummary !== undefined || showPreparingCapsule) ? (
+        <AssemblySummaryCapsule
+          {...(props.assemblySummary !== undefined ? { summary: props.assemblySummary } : {})}
+          {...(showPreparingCapsule && props.assemblySummary === undefined ? { preparing: true } : {})}
+          locale={props.locale ?? 'zh-CN'}
+        />
+      ) : null;
+    const row = (
+      <>
+        {bubble}
+        {capsule}
+      </>
+    );
     if (!messageTarget || !contextMenu) {
-      return bubble;
+      return row;
     }
     return (
       <ContextMenuFromCatalog
@@ -1051,7 +1109,7 @@ const ChatMessageRow = memo(
         caps={contextMenu.caps}
         dispatchers={contextMenu.dispatchers}
       >
-        {bubble}
+        {row}
       </ContextMenuFromCatalog>
     );
   },
@@ -1126,6 +1184,7 @@ const ChatMessageRow = memo(
       previous.derivedActionsDisabled === next.derivedActionsDisabled &&
       previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
       previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
+      previous.assemblySummary === next.assemblySummary &&
       callbackPropsAreStable
     );
   },

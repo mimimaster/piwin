@@ -329,6 +329,73 @@ describe('MockHostBackend product session lineage', () => {
   });
 });
 
+describe('MockHostBackend assembly summary', () => {
+  it('emits a user-bound assembly capsule and returns it on read-back', async () => {
+    const pushes: HostPush[] = [];
+    const backend = new MockHostBackend(
+      (message) => {
+        pushes.push(message);
+      },
+      () => 'sdk',
+    );
+    const createResponse = await backend.handle(
+      { type: 'session/create', input: { projectPath: '/tmp/mock' } },
+      'create-assembly',
+    );
+    expect(createResponse.success).toBe(true);
+    if (!createResponse.success) return;
+    const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+    const promptResponse = await backend.handle(
+      {
+        type: 'session/prompt',
+        sessionId,
+        input: { text: 'show assembly', clientMessageId: 'user-assembly-1' },
+      },
+      'prompt-assembly',
+    );
+    expect(promptResponse.success).toBe(true);
+    const summary = pushes.find((push) => push.type === 'agent/context-summary');
+    expect(summary?.type).toBe('agent/context-summary');
+    if (summary?.type !== 'agent/context-summary') return;
+    expect(summary.userMessageId).toBe('user-assembly-1');
+    expect(summary.coverage).toBe('assembly-only');
+    expect(JSON.stringify(summary)).not.toContain('/Users/');
+    const readBack = await backend.handle(
+      { type: 'session/model-context-summary', sessionId },
+      'read-assembly',
+    );
+    expect(readBack.success).toBe(true);
+    if (!readBack.success) return;
+    expect(readBack.data).toMatchObject({
+      sessionId,
+      coverage: 'assembly-only',
+      summaries: [expect.objectContaining({ userMessageId: 'user-assembly-1' })],
+    });
+
+    const duplicated = await backend.handle(
+      { type: 'session/duplicate', sessionId },
+      'dup-assembly',
+    );
+    expect(duplicated.success).toBe(true);
+    if (!duplicated.success) return;
+    const duplicateSessionId = (duplicated.data as { sessionId: string }).sessionId;
+    const duplicateRead = await backend.handle(
+      { type: 'session/model-context-summary', sessionId: duplicateSessionId },
+      'read-dup-assembly',
+    );
+    expect(duplicateRead.success).toBe(true);
+    if (!duplicateRead.success) return;
+    const duplicateSummaries = (
+      duplicateRead.data as {
+        summaries: Array<{ sessionId: string; userMessageId?: string }>;
+      }
+    ).summaries;
+    expect(duplicateSummaries).toHaveLength(1);
+    expect(duplicateSummaries[0]?.sessionId).toBe(duplicateSessionId);
+    expect(duplicateSummaries[0]?.userMessageId).not.toBe('user-assembly-1');
+  });
+});
+
 async function waitForPush(
   pushes: HostPush[],
   predicate: (push: HostPush) => boolean,

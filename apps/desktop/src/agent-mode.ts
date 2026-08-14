@@ -52,6 +52,14 @@ export const AGENT_MODES: readonly AgentModeDefinition[] = [
     systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.ask,
     placeholder: 'Ask anything about this project…',
   },
+  {
+    id: 'goal',
+    label: 'Goal',
+    title: 'Goal Mode',
+    description: 'Autonomous goal execution loop (@narumitw/pi-goal)',
+    systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.goal,
+    placeholder: 'Set an objective & acceptance criteria to run autonomously…',
+  },
 ] as const;
 
 export function getAgentMode(modeId: AgentModeId): AgentModeDefinition {

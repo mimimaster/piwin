@@ -119,6 +119,14 @@ export function getPiwinSessionTranscriptDatabasePath(rootDir: string, sessionId
   return join(getPiwinSessionDir(rootDir, sessionId), 'transcript.sqlite3');
 }
 
+/** Independent Model Visibility Ledger for one product session. */
+export function getPiwinSessionModelContextDatabasePath(
+  rootDir: string,
+  sessionId: string,
+): string {
+  return join(getPiwinSessionDir(rootDir, sessionId), 'model-context.sqlite3');
+}
+
 /** Retained lossless v1 source used by doctor/recovery after migration. */
 export function getPiwinSessionTranscriptBackupPath(rootDir: string, sessionId: string): string {
   return join(getPiwinSessionDir(rootDir, sessionId), 'transcript.json.v1.bak');

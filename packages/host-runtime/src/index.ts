@@ -63,6 +63,7 @@ export {
   getPiwinSessionsDir,
   getPiwinSessionDir,
   getPiwinSessionTranscriptPath,
+  getPiwinSessionModelContextDatabasePath,
   getPiwinSessionWalkthroughDir,
   getPiwinSessionWalkthroughPath,
   getPiwinSessionWalkthroughMdPath,

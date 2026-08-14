@@ -75,6 +75,7 @@ import {
   suggestCompactionExportBasename,
   upsertSessionRecord,
   readToolOutputSnapshot,
+  openModelContextStore,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
@@ -82,6 +83,8 @@ import { redactToolText } from '@piwin/agent-host';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
+import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-context-assembly.js';
+import { persistAndPushAssembly } from '../model-context-record.js';
 
 /** Build resolver deps with registered-project-root enforcement (security). */
 function createResolveRefsDeps(context: SessionLiveContext): {
@@ -129,6 +132,7 @@ import {
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
+  getPiwinSessionModelContextDatabasePath,
   getPiwinSessionPlanPath,
 } from '../paths.js';
 import { isRegisteredProjectRoot, loadProjectStore } from '@piwin/project';
@@ -220,6 +224,7 @@ export type SessionLiveContext = {
   ) => Promise<void>;
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
   getTranscriptStore: (sessionId: string) => Promise<SessionTranscriptStore>;
+  nextModelRequestOrdinal: (sessionId: string) => Promise<number>;
   withTranscriptStore: <T>(
     sessionId: string,
     operation: (store: SessionTranscriptStore) => Promise<T>,
@@ -710,18 +715,80 @@ function throwIfPromptPreparationAborted(context: SessionLiveContext, runId: str
   }
 }
 
+function isImageAttachment(attachment: NonNullable<PromptInput['attachments']>[number]): boolean {
+  return (
+    attachment.kind === 'media' &&
+    (attachment.contentKind === 'image' ||
+      (attachment.contentKind === undefined &&
+        attachment.mimeType.toLowerCase().startsWith('image/')))
+  );
+}
+
+function collectPreparedAttachmentContributions(
+  assembly: ModelPromptAssembly,
+  original: PromptInput,
+  prepared: PromptInput,
+): void {
+  const originalAttachments = original.attachments ?? [];
+  for (const attachment of originalAttachments) {
+    if (attachment.kind === 'media') {
+      assembly.add({
+        kind: isImageAttachment(attachment) ? 'native-image' : 'attachment-text',
+        label: attachment.mimeType,
+        trustOrigin: 'user',
+        hostPath: attachment.path,
+      });
+    } else {
+      assembly.add({
+        kind: 'web-element',
+        label: 'Web element',
+        trustOrigin: 'external-web',
+        text: attachment.text,
+      });
+    }
+  }
+  if (prepared.text === original.text) {
+    return;
+  }
+  const injected = prepared.text.endsWith(original.text)
+    ? prepared.text.slice(0, Math.max(0, prepared.text.length - original.text.length)).trim()
+    : prepared.text.startsWith(original.text)
+      ? prepared.text.slice(original.text.length).trim()
+      : '';
+  if (injected.length === 0) {
+    return;
+  }
+  const preparedKeptNativeImage =
+    prepared.attachments?.some((attachment) => isImageAttachment(attachment)) === true;
+  const hadImage = originalAttachments.some((attachment) => isImageAttachment(attachment));
+  assembly.add({
+    kind: hadImage && !preparedKeptNativeImage ? 'vision-description' : 'attachment-text',
+    label: hadImage && !preparedKeptNativeImage ? 'Vision / path injection' : 'Attachment text',
+    trustOrigin: 'piwin',
+    text: injected,
+  });
+}
+
 async function preparePromptInput(
   context: SessionLiveContext,
   command: PromptCommand,
   run: ExecutionRunRecord,
-): Promise<PromptInput> {
+  assembly: ModelPromptAssembly,
+): Promise<{ promptInput: PromptInput; userMessageId?: string }> {
   throwIfPromptPreparationAborted(context, run.runId);
 
   // Persist ordinary user text + attachments before path-injection rewrite.
   // A resume continuation is Host-authored and must not create a fake user row.
+  // Stamp a stable clientMessageId so the assembly capsule can bind to the
+  // exact product user row after reload.
+  let userMessageId: string | undefined;
   if (command.input.source !== 'resume') {
+    userMessageId = command.input.clientMessageId?.trim() || randomUUID();
     try {
-      await context.recordUserPrompt(command.sessionId, command.input);
+      await context.recordUserPrompt(command.sessionId, {
+        ...command.input,
+        clientMessageId: userMessageId,
+      });
     } catch (error) {
       const message = formatError(error);
       context.push({
@@ -757,6 +824,13 @@ async function preparePromptInput(
     text: preparedFromHost.text,
     ...(preparedFromHost.attachments ? { attachments: [...preparedFromHost.attachments] } : {}),
   };
+  assembly.add({
+    kind: 'user',
+    label: 'User',
+    trustOrigin: 'user',
+    text: command.input.text,
+  });
+  collectPreparedAttachmentContributions(assembly, command.input, preparedFromHost);
   throwIfPromptPreparationAborted(context, run.runId);
 
   context.setRunDelegationMode?.(
@@ -789,11 +863,23 @@ async function preparePromptInput(
         throwIfPromptPreparationAborted(context, run.runId);
         if (refText) {
           promptInput.text = `${refText}\n\n${promptInput.text}`;
+          assembly.add({
+            kind: 'context-ref',
+            label: 'Side chat refs',
+            trustOrigin: 'piwin',
+            text: refText,
+          });
         }
       } else {
         throwIfPromptPreparationAborted(context, run.runId);
       }
       context.sideChatSnapshotInjectedVersions.set(command.sessionId, sideChatSnapshot.version);
+      assembly.add({
+        kind: 'side-chat',
+        label: 'Side chat context',
+        trustOrigin: 'piwin',
+        text: sideBlock,
+      });
     }
   }
   throwIfPromptPreparationAborted(context, run.runId);
@@ -809,6 +895,12 @@ async function preparePromptInput(
       );
       if (resolvedContext) {
         promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
+        assembly.add({
+          kind: 'context-ref',
+          label: 'Context refs',
+          trustOrigin: 'user',
+          text: resolvedContext,
+        });
       }
     } catch (error) {
       const message = formatError(error);
@@ -840,7 +932,16 @@ async function preparePromptInput(
   // Agent mode operating contract: model-facing only. Transcript already
   // recorded the original command.input (user text only) so naming stays clean.
   if (command.input.agentMode) {
+    const before = promptInput.text;
     promptInput.text = mergeAgentModeIntoPrompt(command.input.agentMode, promptInput.text);
+    if (promptInput.text !== before) {
+      assembly.add({
+        kind: 'agent-mode',
+        label: `Agent mode ${command.input.agentMode}`,
+        trustOrigin: 'piwin',
+        text: promptInput.text.slice(0, Math.max(0, promptInput.text.length - before.length)),
+      });
+    }
   }
 
   // ORCH: per-send orchestration scheme — inject model-facing preamble only.
@@ -866,7 +967,16 @@ async function preparePromptInput(
     );
     if (resolved) {
       context.setRunOrchestrationScheme(run.runId, resolved);
+      const beforeOrch = promptInput.text;
       promptInput.text = mergeOrchestrationSchemeIntoPrompt(resolved, promptInput.text);
+      if (promptInput.text !== beforeOrch) {
+        assembly.add({
+          kind: 'orchestration',
+          label: resolved.scheme.name,
+          trustOrigin: 'piwin',
+          text: promptInput.text.slice(0, Math.max(0, promptInput.text.length - beforeOrch.length)),
+        });
+      }
     }
   } else {
     context.setRunOrchestrationScheme(run.runId, undefined);
@@ -876,7 +986,14 @@ async function preparePromptInput(
   const activePlan = await loadSessionPlan(planPath);
   throwIfPromptPreparationAborted(context, run.runId);
   if (activePlan && (activePlan.status === 'approved' || activePlan.status === 'executing')) {
-    promptInput.text = `${formatPlanForModelContext(activePlan)}\n\n${promptInput.text}`;
+    const planText = formatPlanForModelContext(activePlan);
+    promptInput.text = `${planText}\n\n${promptInput.text}`;
+    assembly.add({
+      kind: 'active-plan',
+      label: activePlan.title ?? 'Active plan',
+      trustOrigin: 'piwin',
+      text: planText,
+    });
   }
 
   throwIfPromptPreparationAborted(context, run.runId);
@@ -884,6 +1001,12 @@ async function preparePromptInput(
   const filesTouched = context.sessionFilesTouched.get(command.sessionId);
   if (filesTouched) {
     promptInput.text = `${filesTouched}\n\n${promptInput.text}`;
+    assembly.add({
+      kind: 'files-touched',
+      label: 'Files touched',
+      trustOrigin: 'piwin',
+      text: filesTouched,
+    });
   }
 
   // ADR 0026: concisePrompt injection retired with walkthrough generation.
@@ -901,7 +1024,7 @@ async function preparePromptInput(
     });
   }
   throwIfPromptPreparationAborted(context, run.runId);
-  return promptInput;
+  return userMessageId === undefined ? { promptInput } : { promptInput, userMessageId };
 }
 
 /**
@@ -1136,12 +1259,26 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/truncate-from', `Unknown session: ${command.sessionId}`);
       }
       const store = await context.getTranscriptStore(command.sessionId);
-      if ((await store.getMessage(command.messageId)) === undefined) {
+      const truncationAnchor = await store.getMessage(command.messageId);
+      if (truncationAnchor === undefined) {
         return fail(
           requestId,
           'session/truncate-from',
           `Message not found in transcript: ${command.messageId}`,
         );
+      }
+      let ledgerBoundaryMessageId: string | undefined;
+      let ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
+      if (truncationAnchor.role === 'user') {
+        ledgerBoundaryMessageId = truncationAnchor.id;
+      } else {
+        for await (const message of store.iterateAll(100)) {
+          if (message.id === truncationAnchor.id) break;
+          if (message.role === 'user') {
+            ledgerBoundaryMessageId = message.id;
+            ledgerBoundaryCreatedAt = message.createdAt;
+          }
+        }
       }
       // Runtime reset is a Host lifecycle transaction: it cancels replacement
       // and active work, flushes/detaches the generation, releases residency,
@@ -1150,6 +1287,44 @@ export async function handleSessionLiveCommand(
       const truncated = await store.truncateFrom(command.messageId);
       if (!truncated.found) {
         throw new Error(`Transcript changed before truncate: ${command.messageId}`);
+      }
+      const modelContextStore = await openModelContextStore({
+        dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
+        sessionId: command.sessionId,
+      });
+      try {
+        const events = await modelContextStore.listEvents();
+        const matchingUserEvent =
+          ledgerBoundaryMessageId !== undefined
+            ? events
+                .filter((event) => {
+                  if (event.type !== 'turn/input') return false;
+                  if (
+                    event.payload === null ||
+                    typeof event.payload !== 'object' ||
+                    Array.isArray(event.payload)
+                  ) {
+                    return false;
+                  }
+                  return (
+                    (event.payload as { userMessageId?: unknown }).userMessageId ===
+                    ledgerBoundaryMessageId
+                  );
+                })
+                .at(-1)
+            : undefined;
+        const boundarySeq =
+          matchingUserEvent?.seq ??
+          events.find((event) =>
+            ledgerBoundaryMessageId !== undefined
+              ? event.createdAt >= ledgerBoundaryCreatedAt
+              : event.createdAt > truncationAnchor.createdAt,
+          )?.seq;
+        if (boundarySeq !== undefined) {
+          await modelContextStore.truncateEventsFrom(boundarySeq);
+        }
+      } finally {
+        modelContextStore.close();
       }
       // ADR 0040 §7: no eager rebuild. The next session/prompt activates a
       // fresh runtime generation for the stable product session id and
@@ -1689,7 +1864,13 @@ export async function handleSessionLiveCommand(
               }),
             );
           }
-          const promptInput = await preparePromptInput(context, command, run);
+          const assembly = createModelPromptAssembly();
+          const { promptInput, userMessageId } = await preparePromptInput(
+            context,
+            command,
+            run,
+            assembly,
+          );
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
@@ -1733,7 +1914,31 @@ export async function handleSessionLiveCommand(
           // A reconstructed generation owns no native context: inject bounded
           // product history exactly once before provider execution. Later
           // turns reuse the backend's own conversation state.
+          const historyBefore = promptInput.text;
           await injectProductHistoryOnce(context, command.sessionId, promptInput);
+          if (promptInput.text !== historyBefore) {
+            assembly.add({
+              kind: 'product-history',
+              label: 'Product history',
+              trustOrigin: 'piwin',
+              text: promptInput.text.slice(
+                0,
+                Math.max(0, promptInput.text.length - historyBefore.length),
+              ),
+            });
+          }
+          const summary = assembly.toSummary({
+            sessionId: command.sessionId,
+            runId: run.runId,
+            requestClass: command.input.source === 'resume' ? 'pause-resume' : 'prompt',
+            requestOrdinal: await context.nextModelRequestOrdinal(command.sessionId),
+            ...(userMessageId === undefined ? {} : { userMessageId }),
+          });
+          await persistAndPushAssembly({
+            ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),
+            summary,
+            push: context.push,
+          });
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
@@ -1917,9 +2122,28 @@ export async function handleSessionLiveCommand(
         );
       }
       await context.requireSession(command.sessionId).steer(command.message);
+      const userMessageId = command.clientMessageId?.trim() || randomUUID();
       await context.recordUserPrompt(command.sessionId, {
         text: command.message,
-        ...(command.clientMessageId ? { clientMessageId: command.clientMessageId } : {}),
+        clientMessageId: userMessageId,
+      });
+      const steerAssembly = createModelPromptAssembly();
+      steerAssembly.add({
+        kind: 'user',
+        label: 'Steer',
+        trustOrigin: 'user',
+        text: command.message,
+      });
+      await persistAndPushAssembly({
+        ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),
+        summary: steerAssembly.toSummary({
+          sessionId: command.sessionId,
+          runId: active.runId,
+          requestClass: 'steer',
+          requestOrdinal: await context.nextModelRequestOrdinal(command.sessionId),
+          userMessageId,
+        }),
+        push: context.push,
       });
       return ok(requestId, 'session/steer', {
         sessionId: command.sessionId,
@@ -1953,6 +2177,31 @@ export async function handleSessionLiveCommand(
         );
       }
       await context.requireSession(command.sessionId).followUp(command.message);
+      const userMessageId = command.clientMessageId?.trim() || randomUUID();
+      await context.recordUserPrompt(command.sessionId, {
+        text: command.message,
+        clientMessageId: userMessageId,
+      });
+      // Same run, new request. The follow-up has a normal product user row so
+      // its capsule remains addressable after reload, duplicate, and fork.
+      const followUpAssembly = createModelPromptAssembly();
+      followUpAssembly.add({
+        kind: 'user',
+        label: 'Follow-up',
+        trustOrigin: 'user',
+        text: command.message,
+      });
+      await persistAndPushAssembly({
+        ...(context.piwinRoot === undefined ? {} : { piwinRoot: context.piwinRoot }),
+        summary: followUpAssembly.toSummary({
+          sessionId: command.sessionId,
+          runId: active.runId,
+          requestClass: 'follow-up',
+          requestOrdinal: await context.nextModelRequestOrdinal(command.sessionId),
+          userMessageId,
+        }),
+        push: context.push,
+      });
       return ok(requestId, 'session/follow_up', {
         sessionId: command.sessionId,
         runId: active.runId,

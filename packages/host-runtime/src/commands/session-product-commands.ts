@@ -39,6 +39,8 @@ import {
   unpinSessionRecord,
   upsertSessionRecord,
   type SessionTranscriptStore,
+  openModelContextStore,
+  copyModelContextLedger,
 } from '@piwin/session';
 import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
@@ -48,6 +50,7 @@ import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinMediaDir,
   getPiwinRoot,
+  getPiwinSessionModelContextDatabasePath,
   getPiwinProjectsPath,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
@@ -114,6 +117,7 @@ const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/fork',
   'session/lineage',
   'session/search',
+  'session/model-context-summary',
 ]);
 
 export function isSessionProductCommand(command: HostCommand): boolean {
@@ -397,13 +401,22 @@ export async function handleSessionProductCommand(
         const targetStore = await context.getTranscriptStore(created.id, targetProjectPath);
         let messageCount = 0;
         let lastMessage: SessionTranscriptMessage | undefined;
+        const messageIdMap = new Map<string, string>();
         for await (const message of sourceStore.iterateAll(100)) {
           const cloned = cloneTranscriptMessage(message);
+          messageIdMap.set(message.id, cloned.id);
           await appendDerivedMessage(targetStore, cloned);
           await copyNativeEntries(sourceStore, targetStore, message.id, cloned.id);
           messageCount += 1;
           lastMessage = cloned;
         }
+        await copyModelContextLedger({
+          sourceDbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
+          sourceSessionId: command.sessionId,
+          targetDbPath: getPiwinSessionModelContextDatabasePath(rootDir, created.id),
+          targetSessionId: created.id,
+          messageIdMap,
+        });
         const displayName =
           typeof command.name === 'string' && command.name.trim().length > 0
             ? command.name.trim()
@@ -495,8 +508,15 @@ export async function handleSessionProductCommand(
         let messageCount = 0;
         let lastMessage: SessionTranscriptMessage | undefined;
         let reachedSelection = false;
+        const messageIdMap = new Map<string, string>();
+        const retainedRunIds = new Set<string>();
+        let lastSourceUserMessageId: string | undefined;
         for await (const message of sourceStore.iterateAll(100)) {
           const cloned = cloneTranscriptMessage(message);
+          messageIdMap.set(message.id, cloned.id);
+          if (message.role === 'user') lastSourceUserMessageId = message.id;
+          if (message.runId) retainedRunIds.add(message.runId);
+          if (cloned.runId) retainedRunIds.add(cloned.runId);
           if (cloned.attachments !== undefined) {
             const singleMessageDocument = {
               version: 1 as const,
@@ -519,6 +539,21 @@ export async function handleSessionProductCommand(
             break;
           }
         }
+        await copyModelContextLedger({
+          sourceDbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
+          sourceSessionId: command.sessionId,
+          targetDbPath: getPiwinSessionModelContextDatabasePath(rootDir, created.id),
+          targetSessionId: created.id,
+          messageIdMap,
+          retain: {
+            sourceMessageIds: new Set(messageIdMap.keys()),
+            runIds: retainedRunIds,
+          },
+          ...(lastSourceUserMessageId === undefined
+            ? {}
+            : { boundarySourceMessageId: lastSourceUserMessageId }),
+          boundaryCreatedAt: selected.createdAt,
+        });
         if (!reachedSelection) {
           throw new Error(
             `Message not found while streaming source transcript: ${command.messageId}`,
@@ -593,6 +628,35 @@ export async function handleSessionProductCommand(
         command.query,
       );
       return ok(requestId, 'session/search', result);
+    }
+    case 'session/model-context-summary': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const record = await getSessionRecord(
+        getPiwinSessionIndexPath(rootDir),
+        command.sessionId,
+      );
+      if (!record) {
+        return fail(
+          requestId,
+          'session/model-context-summary',
+          `Unknown session: ${command.sessionId}`,
+        );
+      }
+      const store = await openModelContextStore({
+        dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
+        sessionId: command.sessionId,
+      });
+      try {
+        const coverage = await store.getCoverage();
+        const summaries = await store.listSummaries();
+        return ok(requestId, 'session/model-context-summary', {
+          sessionId: command.sessionId,
+          coverage,
+          summaries,
+        });
+      } finally {
+        store.close();
+      }
     }
     default:
       return null;

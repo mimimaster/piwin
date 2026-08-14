@@ -9,6 +9,7 @@ import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
 import { clusterToolCalls } from './tool-group-clustering';
 import { ToolBatchCapsule } from './tool-batch-capsule';
+import { GoalDeliveryCard, GoalBlockedCard } from './goal';
 
 export type TurnToolGroupProps = {
   tools: ToolCardUi[];
@@ -88,6 +89,26 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
             />
           );
         }
+
+        if (tool.toolName === 'goal_complete' && tool.status === 'done') {
+          return (
+            <GoalDeliveryCard
+              key={tool.toolCallId}
+              summary={tool.output || 'Goal accomplished'}
+              {...(props.onOpenFile ? { onOpenFile: (path) => props.onOpenFile?.(path) } : {})}
+            />
+          );
+        }
+
+        if (tool.toolName === 'goal_blocked') {
+          return (
+            <GoalBlockedCard
+              key={tool.toolCallId}
+              reason={tool.output || 'Goal execution is blocked'}
+            />
+          );
+        }
+
         return (
           <ToolCallCard
             key={tool.toolCallId}

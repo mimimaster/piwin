@@ -145,6 +145,7 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     toolOutputRead: true,
     sessionUserMessageIndex: true,
     sessionTranscriptSeek: true,
+    contextSummary: true,
   };
 }
 

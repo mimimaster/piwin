@@ -21,6 +21,8 @@ export type BuildSlashCatalogOptions = {
   projectTrusted?: boolean;
   /** Current agent mode (for availability UI only). */
   agentMode?: AgentModeId;
+  /** Whether the goal extension is enabled (defaults to true). */
+  goalExtensionEnabled?: boolean;
 };
 
 /**
@@ -35,6 +37,7 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'agent',
   'plan',
   'ask',
+  'goal',
   'scheme',
   'ultra-code',
 ]);
@@ -161,6 +164,16 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
 
   // --- Modes ---
   for (const mode of AGENT_MODES) {
+    const isGoalDisabled = mode.id === 'goal' && options.goalExtensionEnabled === false;
+    const available = interactive && !isGoalDisabled;
+    let unavailableReason: string | undefined;
+    if (!interactive) {
+      unavailableReason = !hasActiveSession
+        ? 'Start or select a session first'
+        : 'Trust the project first';
+    } else if (isGoalDisabled) {
+      unavailableReason = 'Enable the Goal extension in Settings → Extensions';
+    }
     items.push({
       id: `mode:${mode.id}`,
       kind: 'mode',
@@ -169,14 +182,8 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       description: mode.description,
       keywords: [mode.title, mode.id],
       groupLabel: 'Mode',
-      available: interactive,
-      ...(interactive
-        ? {}
-        : {
-            unavailableReason: !hasActiveSession
-              ? 'Start or select a session first'
-              : 'Trust the project first',
-          }),
+      available,
+      ...(unavailableReason ? { unavailableReason } : {}),
     });
   }
 
