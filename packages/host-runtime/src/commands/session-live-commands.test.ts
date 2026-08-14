@@ -7,7 +7,7 @@ import type {
   ResolvedOrchestrationScheme,
   SessionHandle,
 } from '@piwin/contracts';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -167,6 +167,47 @@ describe('session live control commands', () => {
     expect(recordedPrompts).toEqual([
       { text: 'Use the smaller fix', clientMessageId: 'client-steer-1' },
     ]);
+  });
+
+  it('persists a follow-up assembly bound to its user row', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-follow-up-mvl-'));
+    const session = createDelayedSessionHandle();
+    const { context, activeRun } = createControlContext(session);
+    context.piwinRoot = rootDir;
+    const recordedPrompts: PromptInput[] = [];
+    const pushes: HostPush[] = [];
+    context.recordUserPrompt = async (_sessionId, input): Promise<void> => {
+      recordedPrompts.push(input);
+    };
+    context.push = (message: HostPush): void => {
+      pushes.push(message);
+    };
+
+    try {
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/follow_up',
+          sessionId: session.id,
+          message: 'continue after this tool',
+          runId: activeRun.runId,
+          clientMessageId: 'client-follow-up-1',
+        },
+        undefined,
+        context,
+      );
+      expect(response).toMatchObject({ success: true, command: 'session/follow_up' });
+      expect(recordedPrompts).toEqual([
+        { text: 'continue after this tool', clientMessageId: 'client-follow-up-1' },
+      ]);
+      const summary = pushes.find((item) => item.type === 'agent/context-summary');
+      expect(summary?.type).toBe('agent/context-summary');
+      if (summary?.type !== 'agent/context-summary') return;
+      expect(summary.requestClass).toBe('follow-up');
+      expect(summary.userMessageId).toBe('client-follow-up-1');
+      expect(summary.runId).toBe(activeRun.runId);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 
   it('rejects stale steer and follow-up requests without calling the session', async () => {
@@ -1105,6 +1146,7 @@ function createControlContext(
     getTranscriptStore: async () => {
       throw new Error('transcript store is not configured for this control-only test');
     },
+    nextModelRequestOrdinal: async (): Promise<number> => 1,
     withTranscriptStore: async () => {
       throw new Error('transcript store is not configured for this control-only test');
     },

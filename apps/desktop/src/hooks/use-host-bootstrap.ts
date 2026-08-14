@@ -190,6 +190,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     null,
   );
   const [extensionUiInput, setExtensionUiInput] = useState('');
+  const [assemblySummariesByRunId, setAssemblySummariesByRunId] = useState<
+    Record<string, import('@piwin/contracts').ContextSummaryPush>
+  >({});
   /**
    * React state can lag behind a push while an extension-ui resolve is in
    * flight. Keep the latest request synchronously so an old resolve cannot
@@ -222,6 +225,16 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
       if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
+        return;
+      }
+      if (message.type === 'agent/context-summary') {
+        setAssemblySummariesByRunId((current) => {
+          const next = { ...current, [message.runId]: message };
+          if (message.userMessageId) {
+            next[message.userMessageId] = message;
+          }
+          return next;
+        });
         return;
       }
       if (message.type === 'run/updated') {
@@ -512,6 +525,37 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     let cancelled = false;
     void (async () => {
       try {
+        const response = await args.hostClient.request({
+          type: 'session/model-context-summary',
+          sessionId,
+        });
+        if (cancelled || !response.success) return;
+        const data = response.data as import('@piwin/contracts').ModelContextSummaryData;
+        setAssemblySummariesByRunId((current) => {
+          const next = { ...current };
+          for (const summary of data.summaries) {
+            next[summary.runId] = summary;
+            if (summary.userMessageId) {
+              next[summary.userMessageId] = summary;
+            }
+          }
+          return next;
+        });
+      } catch {
+        // Historical assembly is best-effort; live pushes still populate the map.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [args.activeSessionId, args.hostClient, hostReadyEpoch, hostStatus?.ready]);
+
+  useEffect(() => {
+    const sessionId = args.activeSessionId;
+    if (!sessionId || hostStatus?.ready !== true) return;
+    let cancelled = false;
+    void (async () => {
+      try {
         const response = await args.hostClient.request({ type: 'plan/get', sessionId });
         if (cancelled || !response.success) return;
         const data = response.data as { sessionId: string; plan: SessionPlan | null };
@@ -543,5 +587,6 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     extensionUiInput,
     setExtensionUiInput,
     clearExtensionUiRequest,
+    assemblySummariesByRunId,
   };
 }

@@ -166,6 +166,7 @@ import {
   readLatestSessionContextUsage,
   createSubagentRunStore,
   buildCompactionSeedMessages,
+  openModelContextStore,
   type SessionTranscriptStore,
 } from '@piwin/session';
 import { buildColdActivationSeedOptions } from './cold-activation-seed.js';
@@ -216,6 +217,7 @@ import {
   getPiwinProjectsPath,
   getPiwinRoot,
   getPiwinSessionIndexPath,
+  getPiwinSessionModelContextDatabasePath,
   getPiwinSessionPlanPath,
   getPiwinSessionDir,
   getPiwinUsageLedgerPath,
@@ -498,6 +500,8 @@ export class HostRuntime {
   private readonly sessionUsage = new Map<string, ContextUsageSnapshot>();
   /** Last user prompt text for host-estimate usage (mock path). */
   private readonly sessionLastPromptText = new Map<string, string>();
+  private readonly modelRequestOrdinals = new Map<string, number>();
+  private readonly modelRequestOrdinalTails = new Map<string, Promise<void>>();
   /** CE-NAME: ModelRef used for the most recent prompt, for auto-naming. */
   private readonly sessionModels = new Map<string, ModelRef>();
   /** CE-NAME: latest assistant reply text per session (captured from events). */
@@ -4214,6 +4218,7 @@ export class HostRuntime {
         this.bindSession(session, projectPath, sessionName, lineage),
       loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
       getTranscriptStore: (sessionId) => this.getTranscriptStore(sessionId),
+      nextModelRequestOrdinal: (sessionId) => this.nextModelRequestOrdinal(sessionId),
       withTranscriptStore: (sessionId, operation) => this.withTranscriptStore(sessionId, operation),
       loadSideChatSnapshot: async (sessionId) => {
         const rootDir = getPiwinRoot(this.options.piwinRoot);
@@ -5271,6 +5276,57 @@ export class HostRuntime {
         level: 'warn',
         message: `interim session name failed: ${detail}`,
       });
+    }
+  }
+
+  private async nextModelRequestOrdinal(sessionId: string): Promise<number> {
+    const previous = this.modelRequestOrdinalTails.get(sessionId) ?? Promise.resolve();
+    let release: (() => void) | undefined;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.then(() => current);
+    this.modelRequestOrdinalTails.set(sessionId, tail);
+    await previous;
+
+    try {
+      let lastOrdinal = this.modelRequestOrdinals.get(sessionId);
+      if (lastOrdinal === undefined) {
+        const rootDir = getPiwinRoot(this.options.piwinRoot);
+        const store = await openModelContextStore({
+          dbPath: getPiwinSessionModelContextDatabasePath(rootDir, sessionId),
+          sessionId,
+        });
+        try {
+          const events = await store.listEvents();
+          lastOrdinal = events.reduce(
+            (maximum, event) => Math.max(maximum, event.requestOrdinal ?? 0),
+            0,
+          );
+        } finally {
+          store.close();
+        }
+        this.modelRequestOrdinals.set(sessionId, lastOrdinal);
+      }
+      const next = lastOrdinal + 1;
+      this.modelRequestOrdinals.set(sessionId, next);
+      return next;
+    } catch (error) {
+      // A visibility ledger failure must not prevent the provider request.
+      // persistAndPushAssembly reports the capture failure separately.
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `model request ordinal load failed: ${formatError(error)}`,
+      });
+      const next = (this.modelRequestOrdinals.get(sessionId) ?? 0) + 1;
+      this.modelRequestOrdinals.set(sessionId, next);
+      return next;
+    } finally {
+      release?.();
+      if (this.modelRequestOrdinalTails.get(sessionId) === tail) {
+        this.modelRequestOrdinalTails.delete(sessionId);
+      }
     }
   }
 

@@ -17,6 +17,7 @@ import type {
   ModelRef,
   ProductSessionLineageView,
   ProductSessionOrigin,
+  PromptInput,
   SessionListData,
   SessionListPageData,
   SessionTranscriptPageData,
@@ -26,9 +27,11 @@ import type {
   UsageBucket,
   UsageRollup,
   WalkthroughArtifact,
+  ContextSummaryPush,
 } from '@piwin/contracts';
 import {
   isJobTerminal,
+  estimateHostTokens,
   SESSION_LIST_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
@@ -90,6 +93,8 @@ export class MockHostBackend {
   private mockBrowserUrl: string | null = null;
   /** ADR 0015: the run currently owning each session's foreground turn. */
   private mockActiveRunIds = new Map<string, string>();
+  private mockAssemblySummaries = new Map<string, ContextSummaryPush[]>();
+  private mockAssemblyOrdinals = new Map<string, number>();
   /** Guards the exactly-once terminal transition for each mock run. */
   private mockTerminalRunIds = new Set<string>();
   private mockRuns = new Map<string, ExecutionRunRecord>();
@@ -1018,6 +1023,14 @@ export class MockHostBackend {
                 .map((item) => item.path)
                 .join(', ')}]`
             : '';
+        this.emitMockAssemblySummary({
+          sessionId: command.sessionId,
+          runId,
+          requestClass: command.input.source === 'resume' ? 'pause-resume' : 'prompt',
+          ...(command.input.source === 'resume' ? {} : { userMessageId: userMessage.id }),
+          text: command.input.text,
+          ...(command.input.attachments ? { attachments: command.input.attachments } : {}),
+        });
         // Stream asynchronously so concurrent session/abort can cancel mid-turn.
         void this.emitMockPrompt(
           command.sessionId,
@@ -1213,12 +1226,20 @@ export class MockHostBackend {
           };
         }
         const now = new Date().toISOString();
+        const userMessageId = command.clientMessageId?.trim() || crypto.randomUUID();
         session.transcript.push({
-          id: command.clientMessageId?.trim() || crypto.randomUUID(),
+          id: userMessageId,
           role: 'user',
           text: command.message,
           createdAt: now,
           status: 'done',
+        });
+        this.emitMockAssemblySummary({
+          sessionId: command.sessionId,
+          runId: activeRunId,
+          requestClass: 'steer',
+          userMessageId,
+          text: command.message,
         });
         return {
           id,
@@ -2094,6 +2115,14 @@ export class MockHostBackend {
             path: '/mock/.piwin/extensions/path-guard.ts',
             enabled: !this.mockDisabledExtensionIds.has('path-guard'),
           },
+          {
+            id: 'goal',
+            name: 'goal',
+            description: 'Autonomous goal execution loop and tracking extension (@narumitw/pi-goal).',
+            source: 'bundled' as const,
+            path: '/mock/.piwin/extensions/goal.ts',
+            enabled: !this.mockDisabledExtensionIds.has('goal'),
+          },
         ];
         if (!this.mockBundledExtensionsInstalled) {
           return {
@@ -2156,7 +2185,7 @@ export class MockHostBackend {
         };
       }
       case 'extensions/ensure-bundled': {
-        const installed = this.mockBundledExtensionsInstalled ? [] : ['path-guard'];
+        const installed = this.mockBundledExtensionsInstalled ? [] : ['path-guard', 'goal'];
         this.mockBundledExtensionsInstalled = true;
         return {
           id,
@@ -3059,6 +3088,7 @@ export class MockHostBackend {
               : baseName.startsWith('Copy of ')
                 ? `${baseName} (2)`
                 : `Copy of ${baseName}`;
+        const messageIdMap = new Map<string, string>();
         const clonedTranscript = session.transcript.map((message) => {
           const next: SessionTranscriptMessage = {
             id: crypto.randomUUID(),
@@ -3067,6 +3097,8 @@ export class MockHostBackend {
             createdAt: message.createdAt,
             status: message.status === 'streaming' ? 'done' : message.status,
           };
+          messageIdMap.set(message.id, next.id);
+          if (message.runId !== undefined) next.runId = message.runId;
           if (message.thinking !== undefined) {
             next.thinking = message.thinking;
           }
@@ -3078,6 +3110,7 @@ export class MockHostBackend {
           }
           return next;
         });
+        this.copyMockAssemblySummaries(command.sessionId, newId, messageIdMap);
         const origin: ProductSessionOrigin = {
           kind: 'duplicate',
           sourceSessionId: command.sessionId,
@@ -3158,6 +3191,8 @@ export class MockHostBackend {
               );
         const rootSessionId =
           session.origin?.kind === 'fork' ? session.origin.rootSessionId : command.sessionId;
+        const messageIdMap = new Map<string, string>();
+        const retainedRunIds = new Set<string>();
         const forkTranscript = session.transcript.slice(0, messageIndex + 1).map((message) => {
           const next: SessionTranscriptMessage = {
             id: crypto.randomUUID(),
@@ -3166,6 +3201,11 @@ export class MockHostBackend {
             createdAt: message.createdAt,
             status: message.status === 'streaming' ? 'done' : message.status,
           };
+          messageIdMap.set(message.id, next.id);
+          if (message.runId !== undefined) {
+            next.runId = message.runId;
+            retainedRunIds.add(message.runId);
+          }
           if (message.thinking !== undefined) {
             next.thinking = message.thinking;
           }
@@ -3177,6 +3217,7 @@ export class MockHostBackend {
           }
           return next;
         });
+        this.copyMockAssemblySummaries(command.sessionId, newForkId, messageIdMap, retainedRunIds);
         const origin: ProductSessionOrigin = {
           kind: 'fork',
           rootSessionId,
@@ -3224,6 +3265,19 @@ export class MockHostBackend {
           command: 'session/lineage',
           success: true,
           data: this.mockBuildSessionLineage(command.sessionId),
+        };
+      }
+      case 'session/model-context-summary': {
+        return {
+          id,
+          type: 'response',
+          command: 'session/model-context-summary',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            coverage: 'assembly-only',
+            summaries: this.mockAssemblySummaries.get(command.sessionId) ?? [],
+          },
         };
       }
       case 'session/search': {
@@ -3790,6 +3844,98 @@ export class MockHostBackend {
           error: `mock client does not implement ${command.type}`,
         };
     }
+  }
+
+  private copyMockAssemblySummaries(
+    sourceSessionId: string,
+    targetSessionId: string,
+    messageIdMap: ReadonlyMap<string, string>,
+    retainedRunIds?: ReadonlySet<string>,
+  ): void {
+    const source = this.mockAssemblySummaries.get(sourceSessionId) ?? [];
+    if (source.length === 0) {
+      return;
+    }
+    const copied: ContextSummaryPush[] = [];
+    for (const summary of source) {
+      const mappedUser = summary.userMessageId
+        ? messageIdMap.get(summary.userMessageId)
+        : undefined;
+      const keepByUser = summary.userMessageId !== undefined && messageIdMap.has(summary.userMessageId);
+      const keepByRun = retainedRunIds === undefined || retainedRunIds.has(summary.runId);
+      if (retainedRunIds !== undefined && !keepByUser && !keepByRun) {
+        continue;
+      }
+      copied.push({
+        ...summary,
+        sessionId: targetSessionId,
+        ...(mappedUser === undefined ? {} : { userMessageId: mappedUser }),
+      });
+    }
+    this.mockAssemblySummaries.set(targetSessionId, copied);
+    this.mockAssemblyOrdinals.set(
+      targetSessionId,
+      copied.reduce((max, item) => Math.max(max, item.requestOrdinal), 0),
+    );
+  }
+
+  private emitMockAssemblySummary(input: {
+    sessionId: string;
+    runId: string;
+    requestClass: ContextSummaryPush['requestClass'];
+    userMessageId?: string;
+    text: string;
+    attachments?: PromptInput['attachments'];
+  }): void {
+    const requestOrdinal = (this.mockAssemblyOrdinals.get(input.sessionId) ?? 0) + 1;
+    this.mockAssemblyOrdinals.set(input.sessionId, requestOrdinal);
+    const contributions: ContextSummaryPush['contributions'] = [
+      {
+        id: crypto.randomUUID(),
+        kind: input.requestClass === 'steer' ? 'user' : 'user',
+        label: input.requestClass === 'steer' ? 'Steer' : 'User',
+        trustOrigin: 'user',
+        canOpenOnClient: false,
+        redactionState: 'none',
+        estimatedTokens: estimateHostTokens(input.text),
+        preview: input.text.slice(0, 200),
+      },
+    ];
+    for (const attachment of input.attachments ?? []) {
+      if (attachment.kind !== 'media') {
+        continue;
+      }
+      contributions.push({
+        id: crypto.randomUUID(),
+        kind: attachment.mimeType.toLowerCase().startsWith('image/')
+          ? 'native-image'
+          : 'attachment-text',
+        label: attachment.mimeType,
+        trustOrigin: 'user',
+        canOpenOnClient: false,
+        redactionState: 'path',
+        displayPath: attachment.path.split(/[/\\]/).pop() ?? attachment.path,
+      });
+    }
+    const totalEstimatedTokens = contributions.reduce(
+      (sum, item) => sum + (item.estimatedTokens ?? 0),
+      0,
+    );
+    const summary: ContextSummaryPush = {
+      type: 'agent/context-summary',
+      sessionId: input.sessionId,
+      runId: input.runId,
+      requestClass: input.requestClass,
+      requestOrdinal,
+      coverage: 'assembly-only',
+      estimateSource: 'host-estimate',
+      contributions,
+      ...(input.userMessageId ? { userMessageId: input.userMessageId } : {}),
+      ...(totalEstimatedTokens > 0 ? { totalEstimatedTokens } : {}),
+    };
+    const existing = this.mockAssemblySummaries.get(input.sessionId) ?? [];
+    this.mockAssemblySummaries.set(input.sessionId, [...existing, summary]);
+    this.emitPush(summary);
   }
 
   private async emitMockPrompt(sessionId: string, text: string, runId: string): Promise<void> {

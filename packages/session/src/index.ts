@@ -172,6 +172,22 @@ export type {
   TranscriptStoreOptions,
 } from './transcript-store.js';
 
+export { openModelContextStore, digestContent } from './model-context-store.js';
+export type {
+  ModelContextStore,
+  ModelContextStoreOptions,
+  ModelContextAppendEventInput,
+  ModelContextCopiedEvent,
+  ModelContextCopiedBlob,
+} from './model-context-store.js';
+export { copyModelContextLedger, copyModelContextStore } from './model-context-copy.js';
+export type {
+  ModelContextCopyInput,
+  ModelContextCopyRetain,
+  ModelContextCopyResult,
+  ModelContextStoreCopyOptions,
+} from './model-context-copy.js';
+
 export { validateSessionPlan } from './validate-plan.js';
 export type { PlanValidationIssue, PlanValidationResult } from './validate-plan.js';
 export { loadSessionPlan, saveSessionPlan, clearSessionPlan } from './plan-store.js';
