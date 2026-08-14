@@ -83,7 +83,6 @@ import { ensureBundledPromptsInstalled } from './ensure-bundled-prompts.js';
 import {
   createMcpLifecycleManager,
   getMcpConfigPath,
-  listEnabledServers,
   loadMcpConfig,
   saveMcpConfig,
   tryValidateMcpConfig,
@@ -256,7 +255,7 @@ import {
 } from './tools/session-host-tool-port.js';
 import { buildSessionHostTools, descriptorsFromTools } from './tools/build-session-host-tools.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
-import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { createHostToolAdmission } from './tools/tool-admission.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
 import type {
@@ -436,7 +435,7 @@ type SessionLineage = {
 
 type ComposedSessionHostTools = {
   tools: HostToolRegistration[];
-  permissionGate: import('./tools/host-tool-execution-router.js').HostToolPermissionGate;
+  permissionGate: import('./tools/tool-admission.js').HostToolAdmission;
   mcpCapabilityBrief: McpCapabilityBrief;
 };
 
@@ -3571,12 +3570,8 @@ export class HostRuntime {
     }
     this.permissionModeFromConfig = config?.permissions?.mode ?? 'auto';
     let mcpConfig: McpConfigDocument | undefined;
-    let mcpEnabledServerIds: string[] = [];
     try {
       mcpConfig = await loadMcpConfig(rootDir);
-      mcpEnabledServerIds = listEnabledServers(mcpConfig)
-        .map((server) => server.id)
-        .sort((left, right) => left.localeCompare(right));
     } catch (error) {
       this.push({
         type: 'host/log',
@@ -3646,7 +3641,7 @@ export class HostRuntime {
     // Repair spec WP3: the permission admission gate is bound to the frozen
     // generation snapshot (rules + MCP allowlist) and reads the dynamic
     // PermissionMode on every call. Executors never re-derive a decision.
-    const permissionGate = createHostToolPermissionGate({
+    const permissionGate = createHostToolAdmission({
       rules,
       getPermissionMode: () =>
         this.sessionPermissionOverrides.get(sessionId) ??
@@ -3665,7 +3660,6 @@ export class HostRuntime {
       projectRoot: projectPath ?? rootDir ?? process.cwd(),
       ...(projectPath !== undefined ? { projectPath } : {}),
       projectsFilePath: getPiwinProjectsPath(rootDir),
-      mcpEnabledServerIds,
       onDiagnostic: (message) => this.push({ type: 'host/log', level: 'warn', message }),
     });
     this.generationPermissionRuleRevisions.set(

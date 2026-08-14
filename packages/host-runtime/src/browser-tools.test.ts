@@ -12,7 +12,7 @@ import {
 } from './browser-tools.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import type { PermissionRuleSet } from '@piwin/contracts';
-import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { createHostToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 /** Minimal mock session that records calls and can be controlled in tests. */
@@ -122,14 +122,13 @@ async function executeThroughAdmission(
     signal?: AbortSignal;
   }) => Promise<'allow' | 'ask' | 'deny'>,
 ): Promise<ToolResult> {
-  const permissionGate = createHostToolPermissionGate({
+  const admission = createHostToolAdmission({
     rules: createBundledRuleSet(),
     getPermissionMode: () => 'auto',
     ...(requestPermission ? { requestPermission } : {}),
     projectRoot: '/tmp',
-    mcpEnabledServerIds: [],
   });
-  const router = new HostToolExecutionRouter({ tools: [tool], permissionGate });
+  const router = new HostToolExecutionRouter({ tools: [tool], admission });
   return router.execute(tool.descriptor.name, args, new AbortController().signal, {
     sessionId: 'session-1',
     runtimeGenerationId: 'generation-1',

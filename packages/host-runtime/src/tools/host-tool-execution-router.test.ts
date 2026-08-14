@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { HostToolExecutionContext, HostToolRegistration, ToolResult } from '@piwin/contracts';
+import { createPermissiveToolAdmission, type HostToolAdmission } from './tool-admission.js';
 import { HostToolExecutionRouter } from './host-tool-execution-router.js';
+import type { ToolPolicyOutcome } from './tool-policy-evaluator.js';
+
+function admissionWithEvaluate(
+  evaluate: HostToolAdmission['policyEvaluator']['evaluate'],
+): HostToolAdmission {
+  return {
+    ...createPermissiveToolAdmission(),
+    policyEvaluator: { evaluate },
+  };
+}
+
+function allowOutcome(): ToolPolicyOutcome {
+  return {
+    kind: 'decision',
+    policy: {
+      decision: 'allow',
+      reason: 'test-allow',
+      action: 'filesystem:read',
+      rememberable: false,
+    },
+  };
+}
 
 function executionContext(toolName: string): HostToolExecutionContext {
   return {
@@ -47,7 +70,7 @@ describe('HostToolExecutionRouter', () => {
   it('executes a known tool by name', async () => {
     const router = new HostToolExecutionRouter({
       tools: [tool('web_search')],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await runTool(router, 'web_search', { query: 'piwin' });
     expect(result).toEqual({ ok: true, output: 'web_search:ok' });
@@ -56,7 +79,7 @@ describe('HostToolExecutionRouter', () => {
   it('reports tool-not-available for unknown names', async () => {
     const router = new HostToolExecutionRouter({
       tools: [tool('web_search')],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await runTool(router, 'process_start', {});
     expect(result).toEqual({
@@ -73,7 +96,7 @@ describe('HostToolExecutionRouter', () => {
         registration.descriptor.name.startsWith('process')
           ? { domain: 'process', message: 'process family disabled' }
           : null,
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const disabled = await runTool(router, 'process_start', {});
     expect(disabled.ok).toBe(false);
@@ -88,19 +111,25 @@ describe('HostToolExecutionRouter', () => {
   it('permission gate denies un-gated tools', async () => {
     const router = new HostToolExecutionRouter({
       tools: [tool('web_search')],
-      permissionGate: async ({ args }) =>
+      admission: admissionWithEvaluate(({ arguments: args }) =>
         args.query === 'blocked'
           ? {
-              allowed: false,
-              result: { ok: false, code: 'permission-denied', message: 'query blocked' },
+              kind: 'decision',
+              policy: {
+                decision: 'deny',
+                reason: 'query blocked',
+                action: 'filesystem:read',
+                rememberable: false,
+              },
             }
-          : { allowed: true },
+          : allowOutcome(),
+      ),
     });
     const denied = await runTool(router, 'web_search', { query: 'blocked' });
     expect(denied.ok).toBe(false);
     if (!denied.ok) {
       expect(denied.code).toBe('permission-denied');
-      expect(denied.message).toBe('query blocked');
+      expect(denied.message).toContain('query blocked');
     }
     const allowed = await runTool(router, 'web_search', { query: 'ok' });
     expect(allowed.ok).toBe(true);
@@ -109,7 +138,7 @@ describe('HostToolExecutionRouter', () => {
   it('permission gate allowing a call falls through to execution', async () => {
     const router = new HostToolExecutionRouter({
       tools: [tool('web_search')],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await runTool(router, 'web_search', {});
     expect(result.ok).toBe(true);
@@ -120,7 +149,7 @@ describe('HostToolExecutionRouter', () => {
     controller.abort();
     const router = new HostToolExecutionRouter({
       tools: [tool('web_search')],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await runTool(router, 'web_search', {}, controller.signal);
     expect(result.ok).toBe(false);
@@ -136,7 +165,7 @@ describe('HostToolExecutionRouter', () => {
           throw new Error('boom');
         }),
       ],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await runTool(router, 'fragile', {});
     expect(result.ok).toBe(false);
@@ -158,7 +187,7 @@ describe('HostToolExecutionRouter', () => {
           return { ok: true, output: 'never' };
         }),
       ],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const promise = runTool(router, 'slow', {}, controller.signal);
     controller.abort();
@@ -182,10 +211,10 @@ describe('HostToolExecutionRouter', () => {
     };
     const router = new HostToolExecutionRouter({
       tools: [prepared],
-      permissionGate: async ({ args }) => {
+      admission: admissionWithEvaluate(({ arguments: args }) => {
         seen.push(`gate:${String(args.path ?? '')}`);
-        return { allowed: true };
-      },
+        return allowOutcome();
+      }),
     });
     const result = await runTool(router, 'web_search', { path: './file.ts' });
     expect(result).toEqual({ ok: true, output: '/abs/file.ts' });
@@ -201,10 +230,10 @@ describe('HostToolExecutionRouter', () => {
     let gateCalled = false;
     const router = new HostToolExecutionRouter({
       tools: [prepared],
-      permissionGate: async () => {
+      admission: admissionWithEvaluate(() => {
         gateCalled = true;
-        return { allowed: true };
-      },
+        return allowOutcome();
+      }),
     });
     await expect(runTool(router, 'web_search', {})).resolves.toMatchObject({
       ok: false,
@@ -217,10 +246,10 @@ describe('HostToolExecutionRouter', () => {
     let admitted = true;
     const router = new HostToolExecutionRouter({
       tools: [tool('web_search')],
-      permissionGate: async () => {
+      admission: admissionWithEvaluate(() => {
         admitted = false;
-        return { allowed: true };
-      },
+        return allowOutcome();
+      }),
       revalidateAuthority: () =>
         admitted
           ? { allowed: true }

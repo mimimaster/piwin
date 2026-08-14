@@ -24,6 +24,7 @@ import type {
   WorkerPiSessionLike,
 } from '@piwin/agent-host';
 import { WorkerSessionRuntime, RpcSdkWorkerClient } from '@piwin/agent-host';
+import { createPermissiveToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 function fakeHostTool(
@@ -366,7 +367,7 @@ describe('HostToolExecutionRouter integration with worker client', () => {
     );
     const router = new HostToolExecutionRouter({
       tools: [fakeTool],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const client = new RpcSdkWorkerClient({
       context: { sessionId: 'ps-1', runtimeGenerationId: 'gen-1' },
@@ -419,7 +420,7 @@ describe('HostToolExecutionRouter integration with worker client', () => {
     );
     const router = new HostToolExecutionRouter({
       tools: [fakeTool],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
 
     // Simulate the client's handleToolCall logic.
@@ -443,7 +444,7 @@ describe('HostToolExecutionRouter integration with worker client', () => {
   it('returns tool-not-available when the tool is not in the router', async () => {
     const router = new HostToolExecutionRouter({
       tools: [],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await router.execute(
       'missing_tool',
@@ -468,7 +469,7 @@ describe('HostToolExecutionRouter integration with worker client', () => {
         registration.descriptor.name === 'web_search'
           ? { domain: 'web', message: 'web tools family disabled' }
           : null,
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await router.execute(
       'web_search',
@@ -490,10 +491,20 @@ describe('HostToolExecutionRouter integration with worker client', () => {
     );
     const router = new HostToolExecutionRouter({
       tools: [fakeTool],
-      permissionGate: async () => ({
-        allowed: false,
-        result: { ok: false, code: 'permission-denied', message: 'user denied' },
-      }),
+      admission: {
+        ...createPermissiveToolAdmission(),
+        policyEvaluator: {
+          evaluate: () => ({
+            kind: 'decision',
+            policy: {
+              decision: 'deny',
+              reason: 'user denied',
+              action: 'bash',
+              rememberable: false,
+            },
+          }),
+        },
+      },
     });
     const result = await router.execute(
       'bash',

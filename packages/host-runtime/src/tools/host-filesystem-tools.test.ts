@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { HostToolRegistration, PermissionMode, ToolResult } from '@piwin/contracts';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import { createBundledRuleSet } from '../permission-defaults.js';
-import { createHostToolPermissionGate } from './host-tool-admission-gate.js';
+import { createHostToolAdmission } from './tool-admission.js';
 import { HostToolExecutionRouter } from './host-tool-execution-router.js';
 
 async function executeTool(
@@ -33,14 +33,13 @@ async function executeThroughAdmission(
     signal?: AbortSignal;
   }) => Promise<'allow' | 'ask' | 'deny'>,
 ): Promise<ToolResult> {
-  const permissionGate = createHostToolPermissionGate({
+  const admission = createHostToolAdmission({
     rules: createBundledRuleSet(),
     getPermissionMode,
     ...(requestPermission ? { requestPermission } : {}),
     projectRoot: '/tmp',
-    mcpEnabledServerIds: [],
   });
-  const router = new HostToolExecutionRouter({ tools: [tool], permissionGate });
+  const router = new HostToolExecutionRouter({ tools: [tool], admission });
   return router.execute(tool.descriptor.name, args, new AbortController().signal, {
     sessionId: 'session-1',
     runtimeGenerationId: 'generation-1',

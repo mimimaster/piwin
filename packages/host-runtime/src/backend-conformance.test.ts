@@ -28,6 +28,7 @@ import type {
 } from '@piwin/contracts';
 import { BLUEPRINT_PROTOCOL_VERSION, projectBlueprintForWorker } from '@piwin/agent-host';
 import { buildWorkerProxyTools } from '@piwin/agent-host';
+import { createPermissiveToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 function makeHostTools(toolNames: string[]) {
@@ -165,10 +166,20 @@ describe('WP6 conformance: tool router parity', () => {
     // Both paths use the same HostToolExecutionRouter.
     const router = new HostToolExecutionRouter({
       tools: [bashTool],
-      permissionGate: async () => ({
-        allowed: false,
-        result: { ok: false, code: 'permission-denied', message: 'user denied' },
-      }),
+      admission: {
+        ...createPermissiveToolAdmission(),
+        policyEvaluator: {
+          evaluate: () => ({
+            kind: 'decision',
+            policy: {
+              decision: 'deny',
+              reason: 'user denied',
+              action: 'bash',
+              rememberable: false,
+            },
+          }),
+        },
+      },
     });
     const result = await router.execute(
       'bash',
@@ -193,7 +204,7 @@ describe('WP6 conformance: tool router parity', () => {
     // registers the tool. Both paths produce "tool-not-available".
     const router = new HostToolExecutionRouter({
       tools: [],
-      permissionGate: async () => ({ allowed: true }),
+      admission: createPermissiveToolAdmission(),
     });
     const result = await router.execute(
       'web_search',
