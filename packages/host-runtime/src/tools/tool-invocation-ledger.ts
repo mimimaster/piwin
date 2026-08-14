@@ -245,9 +245,15 @@ export class ToolInvocationLedger {
 
   private dropWaiter(entry: InvocationEntry, options: { keepShared?: boolean } = {}): void {
     entry.waiterCount = Math.max(0, entry.waiterCount - 1);
-    if (entry.waiterCount === 0 && !entry.runnerStarted && !options.keepShared) {
-      entry.abortController.abort();
-      this.deleteEntry(entry);
+    if (entry.waiterCount === 0 && !options.keepShared) {
+      // Always abort the shared runner signal so execute() sees cancel.
+      // Only pre-start aborts may delete the entry and allow re-entry.
+      if (!entry.abortController.signal.aborted) {
+        entry.abortController.abort();
+      }
+      if (!entry.runnerStarted) {
+        this.deleteEntry(entry);
+      }
     }
   }
 

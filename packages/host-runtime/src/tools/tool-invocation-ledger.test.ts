@@ -190,6 +190,44 @@ describe('ToolInvocationLedger', () => {
     expect(runs).toBe(1);
   });
 
+  it('aborts the shared runner signal when the last waiter leaves after start', async () => {
+    const ledger = new ToolInvocationLedger();
+    const controller = new AbortController();
+    let sawSharedAbort = false;
+    const first = ledger.run(
+      {
+        runId: 'run-1',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        fingerprint: 'fp',
+        callerSignal: controller.signal,
+      },
+      async (attempt) => {
+        attempt.markRunnerStarted();
+        await new Promise<void>((resolve) => {
+          if (attempt.signal.aborted) {
+            sawSharedAbort = true;
+            resolve();
+            return;
+          }
+          attempt.signal.addEventListener(
+            'abort',
+            () => {
+              sawSharedAbort = true;
+              resolve();
+            },
+            { once: true },
+          );
+        });
+        return { ok: false, code: 'aborted', message: 'tool execution aborted' };
+      },
+    );
+    await delay(5);
+    controller.abort();
+    await expect(first).resolves.toMatchObject({ ok: false, code: 'aborted' });
+    expect(sawSharedAbort).toBe(true);
+  });
+
   it('fail-closes new keys once the per-run ceiling is reached', async () => {
     const ledger = new ToolInvocationLedger({ maxKeysPerRun: 1 });
     const signal = new AbortController().signal;
