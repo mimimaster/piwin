@@ -24,6 +24,7 @@ import type {
 import {
   HostToolExecutionRouter,
   type HostToolPermissionGate,
+  type ToolAuthorityRevalidation,
   type ToolDisablePredicate,
 } from './host-tool-execution-router.js';
 import { HOST_TOOLBOX_NAME } from '../host-toolbox.js';
@@ -178,6 +179,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       tools: filteredTools,
       ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
       permissionGate: cached.permissionGate,
+      revalidateAuthority: (context) => this.revalidateAuthority(context),
     });
     cached.toolboxTargets = toolboxTargets;
     cached.toolboxRouter =
@@ -188,6 +190,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
               ? { isToolDisabled: this.options.isToolDisabled }
               : {}),
             permissionGate: cached.permissionGate,
+            revalidateAuthority: (context) => this.revalidateAuthority(context),
           })
         : undefined;
     return true;
@@ -346,6 +349,39 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     this.surfacesBySession.clear();
   }
 
+  private revalidateAuthority(context: {
+    sessionId: string;
+    runtimeGenerationId: string;
+    runId: string;
+  }): ToolAuthorityRevalidation {
+    if (!this.options.isSessionKnown(context.sessionId)) {
+      return {
+        allowed: false,
+        code: 'tool-not-available',
+        reason: `session not found: ${context.sessionId}`,
+      };
+    }
+    const activeGeneration = this.options.getRuntimeGenerationId(context.sessionId);
+    if (activeGeneration === undefined || context.runtimeGenerationId !== activeGeneration) {
+      return {
+        allowed: false,
+        code: 'tool-not-available',
+        reason: 'runtime generation superseded or session dropped',
+      };
+    }
+    if (
+      this.options.isRunAdmitted &&
+      !this.options.isRunAdmitted(context.runId, context.sessionId, context.runtimeGenerationId)
+    ) {
+      return {
+        allowed: false,
+        code: 'tool-not-available',
+        reason: `run is not admitted for tool execution: ${context.runId}`,
+      };
+    }
+    return { allowed: true };
+  }
+
   private getOrCreateSessionSurfaces(sessionId: string): SessionSurfaces {
     const existing = this.surfacesBySession.get(sessionId);
     if (existing) {
@@ -370,6 +406,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
         tools: frozenTools,
         ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
         permissionGate,
+        revalidateAuthority: (context) => this.revalidateAuthority(context),
       }),
       tools: frozenTools,
       permissionGate,

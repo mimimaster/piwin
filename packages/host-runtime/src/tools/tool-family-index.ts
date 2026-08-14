@@ -1,6 +1,10 @@
 /** Explicit Host tool-family index derived from concrete registrations. */
 
-import type { HostToolRegistration, SessionToolFamily } from '@piwin/contracts';
+import {
+  isHostToolPermissionAction,
+  type HostToolRegistration,
+  type SessionToolFamily,
+} from '@piwin/contracts';
 
 export class HostToolRegistrationError extends Error {
   override readonly name = 'HostToolRegistrationError';
@@ -34,6 +38,11 @@ export function toolFamilyIndex(
     }
     if (!registration.permissionSpec.action.trim()) {
       throw new HostToolRegistrationError(`permission action must not be empty: ${name}`);
+    }
+    if (!isHostToolPermissionAction(registration.permissionSpec.action)) {
+      throw new HostToolRegistrationError(
+        `unknown permission action: ${name}/${registration.permissionSpec.action}`,
+      );
     }
     // Repair spec WP0: side-effect tools must declare a subject builder so the
     // admission gate never guesses from the tool name. Read-only tools must

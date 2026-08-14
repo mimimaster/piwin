@@ -14,6 +14,7 @@ import type {
   ToolResultErrorCode,
 } from '@piwin/contracts';
 import { formatError,  toolDisabledResult } from '@piwin/contracts';
+import { validateCanonicalArguments } from './canonical-tool-args.js';
 import { toolFamilyIndex } from './tool-family-index.js';
 
 /** Stable tool-execution error codes crossing the tool boundary. */
@@ -54,6 +55,10 @@ export type HostToolPermissionGate = (input: {
   signal: AbortSignal;
 }) => Promise<HostToolAdmissionDecision>;
 
+export type ToolAuthorityRevalidation =
+  | { allowed: true }
+  | { allowed: false; code: 'tool-not-available' | 'aborted'; reason: string };
+
 export type HostToolExecutionRouterOptions = {
   tools: readonly HostToolRegistration[];
   /** Immediate safety gate; when omitted (tests only) all tools are allowed. */
@@ -64,6 +69,11 @@ export type HostToolExecutionRouterOptions = {
    * fake. Omitting it is a configuration error that must fail loudly.
    */
   permissionGate: HostToolPermissionGate;
+  /**
+   * Live session/generation/run check immediately before the executor.
+   * Tests may omit it; production Port always supplies one.
+   */
+  revalidateAuthority?: (context: HostToolExecutionContext) => ToolAuthorityRevalidation;
 };
 
 /**
@@ -75,6 +85,9 @@ export class HostToolExecutionRouter {
   private readonly toolsByName = new Map<string, HostToolRegistration>();
   private readonly isToolDisabled: ToolDisablePredicate | undefined;
   private readonly permissionGate: HostToolPermissionGate;
+  private readonly revalidateAuthority:
+    | ((context: HostToolExecutionContext) => ToolAuthorityRevalidation)
+    | undefined;
 
   constructor(options: HostToolExecutionRouterOptions) {
     toolFamilyIndex(options.tools);
@@ -83,6 +96,7 @@ export class HostToolExecutionRouter {
     }
     this.isToolDisabled = options.isToolDisabled;
     this.permissionGate = options.permissionGate;
+    this.revalidateAuthority = options.revalidateAuthority;
   }
 
   has(toolName: string): boolean {
@@ -108,7 +122,35 @@ export class HostToolExecutionRouter {
       return { ok: false, code: 'tool-not-available', message: `tool not available: ${toolName}` };
     }
 
-    const disabled = this.isToolDisabled?.(tool, args, context);
+    let canonicalArgs = args;
+    if (tool.prepareArgs) {
+      let prepared;
+      try {
+        prepared = await tool.prepareArgs(args, context, signal);
+      } catch (error) {
+        return signal.aborted
+          ? { ok: false, code: 'aborted', message: 'tool preparation aborted' }
+          : {
+              ok: false,
+              code: 'execution-failed',
+              message: `tool argument preparation failed for ${tool.descriptor.name}: ${formatError(error)}`,
+            };
+      }
+      if (!prepared.ok) {
+        return prepared.result;
+      }
+      canonicalArgs = prepared.arguments;
+    }
+    if (signal.aborted) {
+      return { ok: false, code: 'aborted', message: 'tool preparation aborted' };
+    }
+
+    const canonical = validateCanonicalArguments(canonicalArgs);
+    if (!canonical.ok) {
+      return canonical.result;
+    }
+
+    const disabled = this.isToolDisabled?.(tool, canonicalArgs, context);
     if (disabled) {
       return toolDisabledResult({
         message: disabled.message,
@@ -119,7 +161,7 @@ export class HostToolExecutionRouter {
 
     const decision = await this.permissionGate({
       registration: tool,
-      args,
+      args: canonicalArgs,
       context,
       signal,
     });
@@ -128,13 +170,25 @@ export class HostToolExecutionRouter {
     }
 
     // A permission prompt or asynchronous gate may yield while the caller
-    // aborts. Do not start a side effect after that boundary has closed.
+    // aborts, the Run closes admission, or safety tightens.
     if (signal.aborted) {
       return { ok: false, code: 'aborted', message: 'tool execution aborted before executor' };
     }
+    const authority = this.revalidateAuthority?.(context);
+    if (authority && !authority.allowed) {
+      return { ok: false, code: authority.code, message: authority.reason };
+    }
+    const postDisabled = this.isToolDisabled?.(tool, canonicalArgs, context);
+    if (postDisabled) {
+      return toolDisabledResult({
+        message: postDisabled.message,
+        domain: postDisabled.domain,
+        runtimeGenerationId: context.runtimeGenerationId,
+      });
+    }
 
     try {
-      return await tool.execute(args, signal, context);
+      return await tool.execute(canonicalArgs, signal, context);
     } catch (error) {
       if (signal.aborted) {
         return { ok: false, code: 'aborted', message: 'tool execution aborted' };

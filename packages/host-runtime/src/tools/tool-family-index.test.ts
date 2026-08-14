@@ -11,7 +11,7 @@ function registration(name: string, family: HostToolRegistration['family']): Hos
     },
     family,
     permissionSpec: {
-      action: `tool:${name}`,
+      action: 'filesystem:read',
       risk: 'unknown',
       rememberable: false,
       readOnly: true,
@@ -48,7 +48,15 @@ describe('toolFamilyIndex', () => {
 
     expect(Object.keys(tool.descriptor).sort()).toEqual(['description', 'name', 'parameters']);
     expect(tool.family).toBe('web-fetch');
-    expect(tool.permissionSpec.action).toBe('tool:web_fetch');
+    expect(tool.permissionSpec.action).toBe('filesystem:read');
+  });
+
+  it('rejects unknown permission actions at compose time', () => {
+    const unknown = registration('mystery', 'process');
+    unknown.permissionSpec.action = 'mystery:mutate';
+    expect(() => toolFamilyIndex([unknown])).toThrow(
+      'unknown permission action: mystery/mystery:mutate',
+    );
   });
 
   it('rejects side-effect tools without a subjectBuilder', () => {

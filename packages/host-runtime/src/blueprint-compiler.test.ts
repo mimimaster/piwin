@@ -64,7 +64,7 @@ function createFamilyIndex(
       descriptor,
       family,
       permissionSpec: {
-        action: `test:${name}`,
+        action: 'filesystem:read',
         risk: 'unknown',
         rememberable: false,
         readOnly: true,

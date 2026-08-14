@@ -67,8 +67,10 @@ export function buildHostFilesystemTools(
       rememberable: false,
       readOnly: true,
     },
-    async execute(args, signal) {
-      const filePath = resolvePath(String(args.path ?? ''));
+    prepareArgs: (rawArguments, _context, signal) =>
+      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),
+    async execute(args) {
+      const filePath = String(args.path ?? '');
       const content = await readFile(filePath, 'utf-8');
       return { ok: true, output: content };
     },
@@ -95,11 +97,13 @@ export function buildHostFilesystemTools(
       rememberable: true,
       subjectBuilder: (args) => ({
         kind: 'file-write',
-        path: resolvePath(String(args.path ?? '')),
+        path: String(args.path ?? ''),
       }),
     },
-    async execute(args, signal) {
-      const filePath = resolvePath(String(args.path ?? ''));
+    prepareArgs: (rawArguments, _context, signal) =>
+      prepareResolvedPath(rawArguments, resolvePath, signal, { required: true }),
+    async execute(args) {
+      const filePath = String(args.path ?? '');
       const dir = join(filePath, '..');
       await mkdir(dir, { recursive: true });
       await writeFile(filePath, String(args.content ?? ''), 'utf-8');
@@ -129,8 +133,13 @@ export function buildHostFilesystemTools(
       rememberable: false,
       readOnly: true,
     },
+    prepareArgs: (rawArguments, _context, signal) =>
+      prepareResolvedPath(rawArguments, resolvePath, signal, {
+        required: false,
+        defaultPath: cwd,
+      }),
     async execute(args) {
-      const dirPath = args.path ? resolvePath(String(args.path)) : cwd;
+      const dirPath = String(args.path ?? cwd);
       const entries = await readdir(dirPath, { withFileTypes: true });
       const result = entries.map((entry) => ({
         name: entry.name,
@@ -164,6 +173,7 @@ export function buildHostFilesystemTools(
       rememberable: false,
       subjectBuilder: (args) => ({ kind: 'bash', command: String(args.command ?? '') }),
     },
+    prepareArgs: (rawArguments, _context, signal) => prepareBashArgs(rawArguments, signal),
     async execute(args, signal) {
       const command = String(args.command ?? '');
       const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
@@ -200,6 +210,7 @@ export function buildHostFilesystemTools(
       rememberable: false,
       subjectBuilder: (args) => ({ kind: 'bash', command: String(args.command ?? '') }),
     },
+    prepareArgs: (rawArguments, _context, signal) => prepareBashArgs(rawArguments, signal),
     async execute(args, signal) {
       const command = String(args.command ?? '');
       const timeout = typeof args.timeout === 'number' ? args.timeout : 30000;
@@ -214,4 +225,45 @@ export function buildHostFilesystemTools(
   };
 
   return [readFileTool, writeFileTool, listDirectoryTool, bashTool, runBashTool];
+}
+
+function prepareResolvedPath(
+  rawArguments: Record<string, unknown>,
+  resolvePath: (path: string) => string,
+  signal: AbortSignal,
+  options: { required: boolean; defaultPath?: string },
+): { ok: true; arguments: Record<string, unknown> } | { ok: false; result: ToolResult } {
+  if (signal.aborted) {
+    return { ok: false, result: { ok: false, code: 'aborted', message: 'tool preparation aborted' } };
+  }
+  const rawPath = rawArguments.path;
+  if (rawPath === undefined || rawPath === null || rawPath === '') {
+    if (!options.required && options.defaultPath !== undefined) {
+      return { ok: true, arguments: { ...rawArguments, path: options.defaultPath } };
+    }
+    return { ok: false, result: { ok: false, code: 'invalid-input', message: 'path is required' } };
+  }
+  if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
+    return { ok: false, result: { ok: false, code: 'invalid-input', message: 'path is required' } };
+  }
+  return { ok: true, arguments: { ...rawArguments, path: resolvePath(rawPath.trim()) } };
+}
+
+function prepareBashArgs(
+  rawArguments: Record<string, unknown>,
+  signal: AbortSignal,
+): { ok: true; arguments: Record<string, unknown> } | { ok: false; result: ToolResult } {
+  if (signal.aborted) {
+    return { ok: false, result: { ok: false, code: 'aborted', message: 'tool preparation aborted' } };
+  }
+  if (typeof rawArguments.command !== 'string' || rawArguments.command.trim().length === 0) {
+    return {
+      ok: false,
+      result: { ok: false, code: 'invalid-input', message: 'command is required' },
+    };
+  }
+  return {
+    ok: true,
+    arguments: { ...rawArguments, command: rawArguments.command.trim() },
+  };
 }
