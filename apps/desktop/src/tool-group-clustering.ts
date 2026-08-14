@@ -178,10 +178,10 @@ export function computeBatchSummary(
   return {
     totalCount: tools.length,
     hasRunning,
-    activeTool,
+    ...(activeTool ? { activeTool } : {}),
     hasError: errorCount > 0,
     errorCount,
-    totalDurationMs: hasDuration ? totalDurationMs : undefined,
+    ...(hasDuration ? { totalDurationMs } : {}),
     keyTargets: extractKeyTargets(clusterKind, tools),
   };
 }

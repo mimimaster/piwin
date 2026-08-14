@@ -78,6 +78,11 @@ describe('parseComposerSlashSubmit', () => {
       modeId: 'ask',
       args: 'about auth',
     });
+    expect(parseComposerSlashSubmit('/goal finish feature', skills)).toMatchObject({
+      kind: 'mode',
+      modeId: 'goal',
+      args: 'finish feature',
+    });
   });
 
   it('parses known skills', () => {

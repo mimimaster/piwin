@@ -319,7 +319,7 @@ function kindIcon(
   if (name.includes('git')) {
     return <IconGit className="tool-call-kind-icon" />;
   }
-  if (name.includes('image')) {
+  if (name.startsWith('goal')) {
     return <IconSpark className="tool-call-kind-icon" />;
   }
 
@@ -348,6 +348,9 @@ function kindIcon(
 /** Fallback verb when host presentation is missing (legacy transcripts). */
 function kindVerb(kind: ToolKind | 'unknown', toolName: string): string {
   const name = toolName.toLowerCase();
+  if (name === 'goal_complete') return 'Goal Completed';
+  if (name === 'goal_blocked') return 'Goal Blocked';
+  if (name === 'goal_wait') return 'Goal Waiting';
   if (name.includes('grep') || name.includes('search')) return 'Searched';
   if (name.includes('glob') || name.includes('list_dir') || name === 'ls') return 'Explored';
   if (name.includes('read') || name.includes('view')) return 'Read';
