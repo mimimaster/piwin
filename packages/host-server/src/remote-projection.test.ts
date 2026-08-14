@@ -254,6 +254,7 @@ describe('remote skills/read + tool-output projection', () => {
     expect(createRemoteCapabilities()).toMatchObject({
       skillPreview: true,
       toolOutputRead: true,
+      contextSummary: true,
     });
   });
 });

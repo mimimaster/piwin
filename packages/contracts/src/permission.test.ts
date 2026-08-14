@@ -152,4 +152,14 @@ describe('mergeAgentModeIntoPrompt', () => {
     expect(out).toContain('durable artifact');
     expect(out).toContain('build auth');
   });
+
+  it('prefixes goal mode with autonomous iteration and verification contracts', () => {
+    const out = mergeAgentModeIntoPrompt('goal', 'refactor auth and verify');
+    expect(out).toContain('[piwin-mode:goal]');
+    expect(out).toContain('Goal Mode');
+    expect(out).toContain('goal_complete');
+    expect(out).toContain('goal_blocked');
+    expect(out).toContain('refactor auth and verify');
+  });
 });
+

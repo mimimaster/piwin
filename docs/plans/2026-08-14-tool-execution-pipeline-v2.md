@@ -1,7 +1,7 @@
 # Tool Execution Pipeline V2 Implementation Plan
 
 > **Date**: 2026-08-14
-> **Status**: Ready（实现尚未开始；勾选需以代码为准）
+> **Status**: Implemented on `feat/tool-execution-pipeline-v2`
 > **Target Package**: `@piwin/contracts`, `@piwin/host-runtime`；`@piwin/agent-host` 仅架构断言
 > **Spec Reference**: [`docs/specs/tool-execution-pipeline-v2.md`](../specs/tool-execution-pipeline-v2.md)
 > **ADR**: [`docs/adr/0050-tool-execution-pipeline-v2.md`](../adr/0050-tool-execution-pipeline-v2.md)

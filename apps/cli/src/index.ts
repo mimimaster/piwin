@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createInterface } from 'node:readline';
-import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { access, readdir, readFile } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
 import {
   getPiwinRoot,
   getPiwinMediaDir,
@@ -15,6 +15,7 @@ import {
   scanPrompts,
   createSecretResolver,
   getPiwinSessionIndexPath,
+  getPiwinSessionsDir,
   listInterruptedTranscriptMigrations,
   repairInterruptedTranscriptMigration,
 } from '@piwin/host-runtime';
@@ -70,6 +71,7 @@ import {
   type SideChatHostClient,
 } from './side-chat-command.js';
 import { runSessionLifecycleApply, runSessionLifecyclePlan } from './session-lifecycle-command.js';
+import { runContextSummary } from './context-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -130,6 +132,7 @@ Usage:
   piwin walkthrough list <session-id>
   piwin walkthrough generate <session-id> <message-id>
   piwin walkthrough export <session-id> <message-id> [--output <path>]
+  piwin context <sessionId> [--mock]
   piwin subagent status <runId>
   piwin subagent cancel <runId>
   piwin side-chat list <source-session-id> [--include-archived]
@@ -447,6 +450,28 @@ async function commandDoctor(args: string[] = []): Promise<void> {
     console.log(`- capability matrix: (unavailable: ${formatError(error)})`);
   }
   console.log(`- session index path: ${getPiwinSessionIndexPath(root)}`);
+  try {
+    const sessionsDir = getPiwinSessionsDir(root);
+    const entries = await readdir(sessionsDir, { withFileTypes: true });
+    let present = 0;
+    let missing = 0;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      try {
+        await access(join(sessionsDir, entry.name, 'model-context.sqlite3'));
+        present += 1;
+      } catch {
+        missing += 1;
+      }
+    }
+    console.log(
+      `- model-context: ${present} session files present${
+        missing > 0 ? `, ${missing} sessions without ledger` : ''
+      }`,
+    );
+  } catch {
+    console.log('- model-context: (no sessions dir)');
+  }
   const interruptedMigrations = await listInterruptedTranscriptMigrations(root);
   if (interruptedMigrations.length === 0) {
     console.log('- transcript migration: healthy');
@@ -2301,6 +2326,26 @@ function formatUsageRate(value: number | null): string {
   return value === null ? 'unknown' : `${Math.round(value * 100)}%`;
 }
 
+async function commandContext(argv: string[]): Promise<void> {
+  const sessionId = argv[1];
+  if (!sessionId || sessionId.startsWith('--')) {
+    console.error('Usage: piwin context <sessionId> [--mock]');
+    process.exitCode = 1;
+    return;
+  }
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+  const runtime = new HostRuntime({ mode, mock });
+  try {
+    await runContextSummary(runtime, sessionId, console.log);
+  } catch (error) {
+    console.error(formatError(error));
+    process.exitCode = 1;
+  } finally {
+    await runtime.dispose();
+  }
+}
+
 async function commandWalkthrough(argv: string[]): Promise<void> {
   const sub = argv[1] ?? '';
   const mock = parseMock(argv);
@@ -2805,6 +2850,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'walkthrough') {
     await commandWalkthrough(argv);
+    return;
+  }
+  if (command === 'context') {
+    await commandContext(argv);
     return;
   }
   if (command === 'subagent') {

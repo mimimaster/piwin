@@ -115,6 +115,7 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/transcript-page',
   'session/transcript-window',
   'session/messages',
+  'session/model-context-summary',
   'session/prompt',
   'session/pause',
   'session/resume-run',
@@ -807,7 +808,10 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         (command.clientMessageId === undefined || command.clientMessageId.length <= 256)
       );
     case 'session/follow_up':
-      return command.message.length <= 512_000;
+      return (
+        command.message.length <= 512_000 &&
+        (command.clientMessageId === undefined || command.clientMessageId.length <= 256)
+      );
     case 'media/save':
       return (
         (command.input.source === 'file-picker' ||

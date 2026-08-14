@@ -3,6 +3,25 @@ import type { AgentEvent, HostPushVariant } from '@piwin/contracts';
 import { classifyHostPush } from './host-push-policy.js';
 
 describe('classifyHostPush', () => {
+  it('classifies assembly context summaries as a session projection', () => {
+    expect(
+      classifyHostPush({
+        type: 'agent/context-summary',
+        sessionId: 'session-1',
+        runId: 'run-1',
+        requestClass: 'prompt',
+        requestOrdinal: 1,
+        coverage: 'assembly-only',
+        estimateSource: 'host-estimate',
+        contributions: [],
+      }),
+    ).toEqual({
+      kind: 'projection',
+      key: ['session', 'session-1', 'model-context', 'run-1', '1'],
+      runId: 'run-1',
+    });
+  });
+
   it('classifies append events with a run- and entity-scoped key', () => {
     const event: AgentEvent = {
       type: 'message/text_delta',

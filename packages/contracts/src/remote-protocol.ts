@@ -58,6 +58,8 @@ export type RemoteCapabilitySummary = {
   sessionUserMessageIndex?: boolean;
   /** Host supports bounded transcript windows around an anchor message. */
   sessionTranscriptSeek?: boolean;
+  /** Assembly-only model context summaries (M1). */
+  contextSummary?: boolean;
 };
 
 export type HostHello = {

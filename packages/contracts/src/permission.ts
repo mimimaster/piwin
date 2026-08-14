@@ -44,7 +44,7 @@ export type SandboxProfileName = 'read-only' | 'workspace' | 'none';
  * Agent collaboration mode for Desktop / host prompt preparation.
  * Used by {@link resolvePreset} (Plan/Ask floor) and {@link mergeAgentModeIntoPrompt}.
  */
-export type AgentModeId = 'agent' | 'plan' | 'ask';
+export type AgentModeId = 'agent' | 'plan' | 'ask' | 'goal';
 
 const DEFAULT_AGENT_MODE_RULES = [
   "Success: satisfy the user's stated goal with the smallest correct change; leave clear evidence of what was verified.",
@@ -63,7 +63,7 @@ export const DEFAULT_AGENT_MODE_SYSTEM_PROMPT = [
   '[piwin-prompt-meta kind="mode:agent-default" version="3" applies="generation"]',
   '## Default Agent operating contract',
   'Apply this contract when the latest user message has `[piwin-mode:agent]` or no mode marker.',
-  'A turn-scoped Plan or Ask contract in the latest user message overrides this default for that turn.',
+  'A turn-scoped Plan, Ask, or Goal contract in the latest user message overrides this default for that turn.',
   ...DEFAULT_AGENT_MODE_RULES,
 ].join('\n');
 
@@ -93,11 +93,20 @@ export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> 
     'Do not edit files, run mutating commands, or implement features unless the user exits Ask mode.',
     'Stop at explanation; if implementation is required, say so and wait for Agent/Plan mode.',
   ].join('\n'),
+  goal: [
+    '[piwin-prompt-meta kind="mode:goal" version="1" applies="goal-mode"]',
+    'You are in Goal Mode (Autonomous Goal Execution Loop with @narumitw/pi-goal).',
+    'Success: satisfy the stated objective and all acceptance criteria autonomously through iterative execution.',
+    'Explore, edit files, and run tests/checks until the goal is fully accomplished and verified.',
+    'When the goal is fully achieved and verified by test/build evidence, call the `goal_complete` tool or report the final delivery summary with evidence.',
+    'If you encounter an insurmountable blocker or need an essential user decision, call `goal_blocked` or report the blocker immediately.',
+    'Do not falsely claim completion without empirical verification in this environment.',
+  ].join('\n'),
 };
 
 /** Normalize optional mode id; unknown / empty → agent. */
 export function normalizeAgentModeId(modeId: string | undefined | null): AgentModeId {
-  if (modeId === 'plan' || modeId === 'ask' || modeId === 'agent') {
+  if (modeId === 'plan' || modeId === 'ask' || modeId === 'goal' || modeId === 'agent') {
     return modeId;
   }
   return 'agent';
