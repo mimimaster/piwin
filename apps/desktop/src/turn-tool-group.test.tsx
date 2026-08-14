@@ -51,12 +51,23 @@ describe('TurnToolGroup causal tool sequence', () => {
     );
   }
 
-  it('renders one response tool array directly without a process disclosure', () => {
+  it('renders isolated single tool directly as a tool card', () => {
+    act(() => renderGroup([tool('tool-1')]));
+
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="tool-batch-capsule"]')).toBeNull();
+  });
+
+  it('groups consecutive tools into a batch capsule', () => {
     act(() => renderGroup([tool('tool-1'), tool('tool-2')]));
 
+    expect(container.querySelector('[data-testid="tool-batch-capsule"]')).not.toBeNull();
+    expect(container.textContent).toContain('执行了 2 条排查命令');
+
+    // Clicking header expands the 2 cards
+    const header = container.querySelector<HTMLButtonElement>('[data-testid="tool-batch-header"]');
+    act(() => header?.click());
     expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(2);
-    expect(container.querySelector('[data-testid="activity-call-chain-summary"]')).toBeNull();
-    expect(container.querySelector('[data-testid="run-inspector-inline"]')).toBeNull();
   });
 
   it('keeps a running tool container mounted while its output streams', () => {
