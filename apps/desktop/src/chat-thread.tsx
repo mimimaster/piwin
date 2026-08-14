@@ -36,6 +36,7 @@ import { TurnWorkDetails } from './turn-work-details';
 import type { DocumentOpenInput } from './tool-call-card';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
+import { GoalStickyStrip } from './goal';
 import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import { ImageGenerationProgress } from './image-generation-progress';
@@ -389,6 +390,17 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.onPlanExecute ? { onExecute: props.onPlanExecute } : {})}
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
+        />
+      ) : null}
+      {props.composerCard.agentMode === 'goal' ? (
+        <GoalStickyStrip
+          goalTitle={
+            [...props.messages].reverse().find((m) => m.role === 'user')?.text ||
+            (props.locale === 'zh-CN' ? '目标自主执行循环' : 'Autonomous Goal Execution')
+          }
+          status={props.streaming ? 'running' : 'paused'}
+          turnsCount={props.messages.filter((m) => m.role === 'user').length}
+          onAbort={() => props.composerCard.onAgentModeChange('agent')}
         />
       ) : null}
       <TranscriptTurnList

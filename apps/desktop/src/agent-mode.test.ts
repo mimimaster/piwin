@@ -15,4 +15,13 @@ describe('agent-mode', () => {
     expect(out).toContain('build auth');
     expect(getAgentMode('plan').description).toMatch(/implementation plan/i);
   });
+
+  it('prefixes goal mode with autonomous iteration constraints', () => {
+    const out = applyAgentModeToPrompt('goal', 'build feature');
+    expect(out).toContain('[piwin-mode:goal]');
+    expect(out).toContain('Goal Mode');
+    expect(out).toContain('build feature');
+    expect(getAgentMode('goal').description).toMatch(/goal/i);
+  });
 });
+

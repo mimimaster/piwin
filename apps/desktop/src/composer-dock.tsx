@@ -121,6 +121,8 @@ export type ComposerDockProps = {
   onComposerChange: (value: string) => void;
   agentMode: AgentModeId;
   onAgentModeChange: (mode: AgentModeId) => void;
+  /** Whether the bundled goal extension is enabled in settings. */
+  goalExtensionEnabled?: boolean;
   pendingAttachments: PendingComposerAttachment[];
   onRemoveAttachment: (localId: string) => void;
   /** One-tap retry after a failed media/save. */
@@ -237,6 +239,7 @@ function getAgentPlaceholder(
 ): string {
   if (mode === 'plan') return copy.planPlaceholder;
   if (mode === 'ask') return copy.askPlaceholder;
+  if (mode === 'goal') return copy.goalPlaceholder;
   return copy.agentPlaceholder;
 }
 
@@ -352,6 +355,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     }
   }, [extensionUiRequest?.requestId, isExtensionUiInput]);
 
+  const isGoalEnabled = props.goalExtensionEnabled !== false;
+
   // Catalog: Slash Menu items
   const slashCatalog = useMemo(
     () =>
@@ -367,6 +372,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         hasActiveSession: Boolean(props.activeSessionId),
         projectTrusted: props.projectTrusted,
         agentMode: props.agentMode,
+        goalExtensionEnabled: isGoalEnabled,
       }),
     [
       props.menuSkills,
@@ -376,6 +382,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       props.activeSessionId,
       props.projectTrusted,
       props.agentMode,
+      isGoalEnabled,
     ],
   );
 

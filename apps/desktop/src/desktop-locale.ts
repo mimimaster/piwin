@@ -124,6 +124,7 @@ export type DesktopCopy = {
     agentPlaceholder: string;
     planPlaceholder: string;
     askPlaceholder: string;
+    goalPlaceholder: string;
     attachFiles: string;
     exitAgentMode: (mode: string) => string;
     model: string;
@@ -600,6 +601,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       agentPlaceholder: '规划、搜索或构建任何内容',
       planPlaceholder: '描述你希望制定的计划…',
       askPlaceholder: '询问有关此项目的任何问题…',
+      goalPlaceholder: '设定目标与验收标准并自主运行…',
       attachFiles: '添加文件和上下文',
       exitAgentMode: (mode) => `退出 ${mode} 模式`,
       model: '模型',
@@ -847,6 +849,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       agentPlaceholder: 'Plan, search, build anything',
       planPlaceholder: 'Describe what you want planned…',
       askPlaceholder: 'Ask anything about this project…',
+      goalPlaceholder: 'Set an objective & acceptance criteria to run autonomously…',
       attachFiles: 'Attach files, add context',
       exitAgentMode: (mode) => `Exit ${mode} mode`,
       model: 'Model',

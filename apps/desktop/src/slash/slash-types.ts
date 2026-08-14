@@ -2,6 +2,8 @@
  * Composer slash menu item shapes (commands · modes · skills).
  */
 
+import type { AgentModeId } from '../agent-mode';
+
 export type SlashItemKind = 'command' | 'mode' | 'skill';
 
 export type SlashGroupLabel = 'Command' | 'Mode' | 'Skill';
@@ -47,7 +49,7 @@ export type ParsedSlashSubmit =
     }
   | {
       kind: 'mode';
-      modeId: 'agent' | 'plan' | 'ask';
+      modeId: AgentModeId;
       name: string;
       /** Extra text after mode name; empty when mode-only. */
       args: string;

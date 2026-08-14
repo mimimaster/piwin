@@ -2786,6 +2786,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     return prompts;
   }, [state.messages]);
 
+  const isGoalExtensionEnabled = useMemo(() => {
+    const disabledIds = config?.extensions?.disabledIds ?? [];
+    return !disabledIds.some((id) => id.toLowerCase() === 'goal');
+  }, [config?.extensions?.disabledIds]);
+
+  useEffect(() => {
+    if (agentMode === 'goal' && !isGoalExtensionEnabled) {
+      setAgentMode('agent');
+    }
+  }, [agentMode, isGoalExtensionEnabled]);
+
   // Shared composer card props for the bottom dock and in-place message editing.
   // Local state fields (composer text, attachments, plus menu, etc.) are overridden
   // by the bottom dock or the edit card; this bundle carries the global config.
@@ -2810,6 +2821,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       },
       agentMode,
       onAgentModeChange: setAgentMode,
+      goalExtensionEnabled: isGoalExtensionEnabled,
       pendingAttachments,
       onRemoveAttachment: revokePending,
       onRetryAttachment: retryPendingAttachment,
