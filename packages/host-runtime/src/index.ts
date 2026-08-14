@@ -282,6 +282,7 @@ export type {
   ToolApprovalOutcome,
 } from './tools/tool-approval-broker.js';
 export { HostToolRegistrationError, toolFamilyIndex } from './tools/tool-family-index.js';
+export { ToolInvocationLedger, fingerprintToolInvocation } from './tools/tool-invocation-ledger.js';
 
 // Phase 2: Structured Concurrency
 export { RunRegistry } from './run-registry.js';

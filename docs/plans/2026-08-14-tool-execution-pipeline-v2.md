@@ -71,24 +71,24 @@ M1 完成即可合并。用户侧安全收益到此。
 
 只在已经看到或即将上线重复 `toolCallId` 帧时做。
 
-- [ ] `tool-invocation-ledger.ts`：键 `(runId, toolCallId)`；指纹 = SHA-256(UTF-8(toolName + `\n` + 按 UTF-16 排序键的 canonical JSON))。
-- [ ] runner 启动前 abort 可删重入；启动后 sealed。
-- [ ] 活跃 Run tombstone 不 LRU；每 Run 4096 key；replay 512 条 / 16 MiB。
-- [ ] `releaseRun` **只**挂 `RunRegistry.onRunTerminal`。cancel / `requestCancel` / admission close **不要** release。
-- [ ] session/host 清理走 surface/port dispose，托管 late settle。
-- [ ] 仍从同一个 `Router.execute` 调用；不要平行 Pipeline。
+- [x] `tool-invocation-ledger.ts`：键 `(runId, toolCallId)`；指纹 = SHA-256(UTF-8(toolName + `\n` + 按 UTF-16 排序键的 canonical JSON))。
+- [x] runner 启动前 abort 可删重入；启动后 sealed。
+- [x] 活跃 Run tombstone 不 LRU；每 Run 4096 key；replay 512 条 / 16 MiB。
+- [x] `releaseRun` **只**挂 `RunRegistry.onRunTerminal`。cancel / `requestCancel` / admission close **不要** release。
+- [x] session/host 清理走 surface/port dispose，托管 late settle。
+- [x] 仍从同一个 `Router.execute` 调用；不要平行 Pipeline。
 
 ---
 
 ### Milestone 4: 改名收口（可停）
 
-- [ ] `Router.execute` 抽/改名为 `ToolExecutionPipeline`；`CachedTools` → `GenerationToolSurface`。
-- [ ] 删除 `toolboxRouter`；call 走同一 execute。
-- [ ] 非 trusted / 非 readOnly 强制 `prepareArgs`。
-- [ ] 可选 `executionSpec.maxDurationMs` + deadline `Promise.race`。
-- [ ] 架构测试：coding `['read','grep','ls']`；Side Chat 可加 `find`；禁止 `write`/`edit`/`bash`/`execute`。
-- [ ] 更新 `docs/architecture.md`、phase7 里仍写双 Router 的段落。
-- [ ] `pnpm typecheck`、`pnpm test`、`pnpm test:architecture`。
+- [x] `CachedTools` → `GenerationToolSurface`。Router 仍是唯一 execute（不平行 Pipeline）。
+- [x] 删除 `toolboxRouter`；call 走同一 execute。
+- [x] 非 trusted / 非 readOnly 强制 `prepareArgs`。
+- [x] 可选 `executionSpec.maxDurationMs` + deadline `Promise.race`。
+- [x] 架构测试：coding `['read','grep','ls']`；禁止 `write`/`edit`/`bash`/`execute`。
+- [x] 更新 `docs/architecture.md` 的 Host 执行路径说明。phase7 历史计划仍写旧 Router 名，不改叙事档案。
+- [x] `pnpm typecheck`、`pnpm test`（host-runtime 1299）、`pnpm test:architecture`。
 
 ---
 

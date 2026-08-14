@@ -16,6 +16,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import { MAX_PLAN_INDEPENDENT_STEPS, MAX_PLAN_STEPS } from '@piwin/contracts';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   classifyPlanComplexity,
   isWithinPlanSizeLimits,
@@ -105,6 +106,7 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolRe
       rememberable: false,
       subjectBuilder: () => ({ kind: 'tool', action: 'planning:create' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(args) {
       const title = String(args.title ?? '').trim();
       const goal = String(args.goal ?? '').trim();

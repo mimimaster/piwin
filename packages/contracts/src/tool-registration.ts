@@ -132,14 +132,22 @@ export type HostToolExecutor = (
  * This type is not JSON-safe and must stay inside the Host process. Only its
  * nested `descriptor` is projected to SDK/RPC/Pi.
  */
+export type HostToolExecutionSpec = {
+  /** Hard ceiling for runner.execute only. Does not bound approval wait. */
+  maxDurationMs?: number;
+};
+
+export const MAX_HOST_TOOL_DURATION_MS = 30 * 60 * 1000;
+
 export type HostToolRegistration = {
   descriptor: HostToolDescriptor;
   family: SessionToolFamily;
   /**
    * Optional argument normalizer. Required for non-trusted, non-readOnly
-   * tools at compose time once M4 lands; M1 wires it when present.
+   * tools at compose time.
    */
   prepareArgs?: HostToolArgumentPreparer;
   permissionSpec: HostToolPermissionSpec;
+  executionSpec?: HostToolExecutionSpec;
   execute: HostToolExecutor;
 };

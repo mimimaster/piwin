@@ -28,6 +28,7 @@ import {
   type ToolDisablePredicate,
 } from './host-tool-execution-router.js';
 import { HOST_TOOLBOX_NAME } from '../host-toolbox.js';
+import { ToolInvocationLedger } from './tool-invocation-ledger.js';
 
 /**
  * Callbacks the port needs from the HostRuntime to validate and dispatch.
@@ -47,23 +48,23 @@ export type SessionHostToolExecutionPortOptions = {
   isToolDisabled?: ToolDisablePredicate;
 };
 
-type CachedTools = {
+type GenerationToolSurface = {
   generationId: string;
   /** Active generation observed when this candidate was prepared. */
   baseActiveGenerationId?: string;
   router: HostToolExecutionRouter;
+  ledger: ToolInvocationLedger;
   tools: readonly HostToolRegistration[];
   admission: HostToolAdmission;
   toolNames: Set<string>;
   toolboxTargets: ReadonlyMap<string, HostToolRegistration>;
-  toolboxRouter: HostToolExecutionRouter | undefined;
 };
 
 type SessionSurfaces = {
-  active?: CachedTools;
-  pending: Map<string, CachedTools>;
+  active?: GenerationToolSurface;
+  pending: Map<string, GenerationToolSurface>;
   /** Previous active surface retained until the replacement is finalized. */
-  committedPrevious?: CachedTools;
+  committedPrevious?: GenerationToolSurface;
 };
 
 /**
@@ -175,24 +176,8 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     const filteredTools = cached.tools.filter((tool) => allowed.has(tool.descriptor.name));
     cached.tools = Object.freeze(filteredTools);
     cached.toolNames = new Set(filteredTools.map((tool) => tool.descriptor.name));
-    cached.router = new HostToolExecutionRouter({
-      tools: filteredTools,
-      ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
-      admission: cached.admission,
-      revalidateAuthority: (context) => this.revalidateAuthority(context),
-    });
     cached.toolboxTargets = toolboxTargets;
-    cached.toolboxRouter =
-      toolboxTargets.size > 0
-        ? new HostToolExecutionRouter({
-            tools: [...toolboxTargets.values()],
-            ...(this.options.isToolDisabled
-              ? { isToolDisabled: this.options.isToolDisabled }
-              : {}),
-            admission: cached.admission,
-            revalidateAuthority: (context) => this.revalidateAuthority(context),
-          })
-        : undefined;
+    cached.router = this.createRouter(cached, [...filteredTools, ...toolboxTargets.values()]);
     return true;
   }
 
@@ -232,12 +217,14 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     if (!surfaces?.active || surfaces.active.generationId !== runtimeGenerationId) {
       return false;
     }
+    const failed = surfaces.active;
     if (surfaces.committedPrevious) {
       surfaces.active = surfaces.committedPrevious;
     } else {
       delete surfaces.active;
     }
     delete surfaces.committedPrevious;
+    failed.ledger.dispose();
     return true;
   }
 
@@ -247,6 +234,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     if (surfaces?.committedPrevious?.generationId !== runtimeGenerationId) {
       return false;
     }
+    surfaces.committedPrevious.ledger.dispose();
     delete surfaces.committedPrevious;
     return true;
   }
@@ -257,7 +245,24 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     if (!surfaces) {
       return false;
     }
+    const candidate = surfaces.pending.get(runtimeGenerationId);
+    if (!candidate) {
+      return false;
+    }
+    candidate.ledger.dispose();
     return surfaces.pending.delete(runtimeGenerationId);
+  }
+
+  releaseRun(sessionId: string, runId: string): void {
+    const surfaces = this.surfacesBySession.get(sessionId);
+    if (!surfaces) {
+      return;
+    }
+    surfaces.active?.ledger.releaseRun(runId);
+    surfaces.committedPrevious?.ledger.releaseRun(runId);
+    for (const candidate of surfaces.pending.values()) {
+      candidate.ledger.releaseRun(runId);
+    }
   }
 
   async execute(
@@ -341,11 +346,18 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
 
   /** Clear cached tools for a session (call on session drop/dispose). */
   clearSession(sessionId: string): void {
+    const surfaces = this.surfacesBySession.get(sessionId);
+    if (surfaces) {
+      this.disposeSessionSurfaces(surfaces);
+    }
     this.surfacesBySession.delete(sessionId);
   }
 
   /** Clear all cached tools (call on host dispose). */
   clear(): void {
+    for (const surfaces of this.surfacesBySession.values()) {
+      this.disposeSessionSurfaces(surfaces);
+    }
     this.surfacesBySession.clear();
   }
 
@@ -387,7 +399,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     if (existing) {
       return existing;
     }
-    const created: SessionSurfaces = { pending: new Map<string, CachedTools>() };
+    const created: SessionSurfaces = { pending: new Map<string, GenerationToolSurface>() };
     this.surfacesBySession.set(sessionId, created);
     return created;
   }
@@ -397,27 +409,51 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     tools: readonly HostToolRegistration[],
     admission: HostToolAdmission,
     baseActiveGenerationId?: string,
-  ): CachedTools {
+  ): GenerationToolSurface {
     const frozenTools = Object.freeze([...tools]);
+    const ledger = new ToolInvocationLedger();
+    const router = new HostToolExecutionRouter({
+      tools: frozenTools,
+      ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
+      admission,
+      revalidateAuthority: (context) => this.revalidateAuthority(context),
+      invocationLedger: ledger,
+    });
     return {
       generationId,
       ...(baseActiveGenerationId !== undefined ? { baseActiveGenerationId } : {}),
-      router: new HostToolExecutionRouter({
-        tools: frozenTools,
-        ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
-        admission,
-        revalidateAuthority: (context) => this.revalidateAuthority(context),
-      }),
+      router,
+      ledger,
       tools: frozenTools,
       admission,
       toolNames: new Set(frozenTools.map((tool) => tool.descriptor.name)),
       toolboxTargets: new Map(),
-      toolboxRouter: undefined,
     };
   }
 
+  private createRouter(
+    surface: GenerationToolSurface,
+    tools: readonly HostToolRegistration[],
+  ): HostToolExecutionRouter {
+    return new HostToolExecutionRouter({
+      tools,
+      ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
+      admission: surface.admission,
+      revalidateAuthority: (context) => this.revalidateAuthority(context),
+      invocationLedger: surface.ledger,
+    });
+  }
+
+  private disposeSessionSurfaces(surfaces: SessionSurfaces): void {
+    surfaces.active?.ledger.dispose();
+    surfaces.committedPrevious?.ledger.dispose();
+    for (const candidate of surfaces.pending.values()) {
+      candidate.ledger.dispose();
+    }
+  }
+
   private async executeToolbox(
-    cached: CachedTools,
+    cached: GenerationToolSurface,
     input: HostToolExecutionInput,
     signal: AbortSignal,
   ): Promise<HostToolExecutionResult> {
@@ -453,15 +489,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
         message: 'piwin_toolbox call requires an arguments object',
       };
     }
-    const router = cached.toolboxRouter;
-    if (!router) {
-      return {
-        ok: false,
-        code: 'tool-not-available',
-        message: 'toolbox target router is unavailable',
-      };
-    }
-    return await router.execute(
+    return await cached.router.execute(
       targetName,
       targetArguments as Record<string, unknown>,
       signal,

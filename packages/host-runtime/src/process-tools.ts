@@ -15,6 +15,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export type BuildProcessToolsOptions = {
   /** Single Host Job authority. */
@@ -146,6 +147,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
       rememberable: false,
       subjectBuilder: () => ({ kind: 'process' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(argumentsObject, signal, context: HostToolExecutionContext) {
       const command = readStringArgument(argumentsObject, 'command');
       const argv = readStringArrayArgument(argumentsObject, 'argv');
@@ -280,6 +282,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
       rememberable: false,
       subjectBuilder: () => ({ kind: 'process' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(argumentsObject, signal, context) {
       const jobId = readStringArgument(argumentsObject, 'jobId');
       if (!jobId) {

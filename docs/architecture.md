@@ -309,8 +309,11 @@ file-write keys above; `listRememberedPermissions` surfaces those in Settings.
 
 File-write gate, bash gate, rule loading, and the bypass guard apply on every
 Host tool execution path. `@piwin/host-runtime` owns those gates and injects a
-runtime-generation-scoped tool router into either backend. SDK calls it
-directly; the isolated worker proxies calls back to the parent. Apps never
+runtime-generation `SessionHostToolExecutionPort` plus one
+`HostToolExecutionRouter` per generation surface. Policy evaluation is a
+pure function; approval memory and prompts live in a separate broker; identical
+`toolCallId` frames are coalesced by a generation-scoped ledger. SDK calls the
+port directly; the isolated worker proxies calls back to the parent. Apps never
 import Pi, and `@piwin/agent-host` never owns product permission policy.
 
 #### Desktop UI (first-tier)

@@ -17,6 +17,11 @@ import { formatError,  toolDisabledResult } from '@piwin/contracts';
 import { resolveHostToolAdmission, type HostToolAdmission } from './tool-admission.js';
 import { validateCanonicalArguments } from './canonical-tool-args.js';
 import { toolFamilyIndex } from './tool-family-index.js';
+import {
+  fingerprintToolInvocation,
+  type LedgerAttempt,
+  type ToolInvocationLedger,
+} from './tool-invocation-ledger.js';
 
 /** Stable tool-execution error codes crossing the tool boundary. */
 export type HostToolErrorCode = ToolResultErrorCode;
@@ -57,6 +62,8 @@ export type HostToolExecutionRouterOptions = {
    * Tests may omit it; production Port always supplies one.
    */
   revalidateAuthority?: (context: HostToolExecutionContext) => ToolAuthorityRevalidation;
+  /** Generation-scoped invocation ledger. Tests may omit it. */
+  invocationLedger?: ToolInvocationLedger;
 };
 
 /**
@@ -71,6 +78,7 @@ export class HostToolExecutionRouter {
   private readonly revalidateAuthority:
     | ((context: HostToolExecutionContext) => ToolAuthorityRevalidation)
     | undefined;
+  private readonly invocationLedger: ToolInvocationLedger | undefined;
 
   constructor(options: HostToolExecutionRouterOptions) {
     toolFamilyIndex(options.tools);
@@ -80,6 +88,7 @@ export class HostToolExecutionRouter {
     this.isToolDisabled = options.isToolDisabled;
     this.admission = options.admission;
     this.revalidateAuthority = options.revalidateAuthority;
+    this.invocationLedger = options.invocationLedger;
   }
 
   has(toolName: string): boolean {
@@ -133,6 +142,35 @@ export class HostToolExecutionRouter {
       return canonical.result;
     }
 
+    const toolCallId = context.toolCallId;
+    if (this.invocationLedger && toolCallId) {
+      return await this.invocationLedger.run(
+        {
+          runId: context.runId,
+          toolCallId,
+          toolName: tool.descriptor.name,
+          fingerprint: fingerprintToolInvocation(tool.descriptor.name, canonicalArgs),
+          callerSignal: signal,
+        },
+        async (attempt) =>
+          await this.continuePreparedExecution(tool, canonicalArgs, context, attempt),
+      );
+    }
+
+    return await this.continuePreparedExecution(tool, canonicalArgs, context, {
+      invocationId: context.runId,
+      signal,
+      markRunnerStarted: () => undefined,
+    });
+  }
+
+  private async continuePreparedExecution(
+    tool: HostToolRegistration,
+    canonicalArgs: Record<string, unknown>,
+    context: HostToolExecutionContext,
+    attempt: LedgerAttempt,
+  ): Promise<ToolExecutionResult> {
+    const signal = attempt.signal;
     const disabled = this.isToolDisabled?.(tool, canonicalArgs, context);
     if (disabled) {
       return toolDisabledResult({
@@ -171,14 +209,64 @@ export class HostToolExecutionRouter {
       });
     }
 
+    attempt.markRunnerStarted();
+    const maxDurationMs = tool.executionSpec?.maxDurationMs;
+    const deadline =
+      maxDurationMs !== undefined ? AbortSignal.timeout(maxDurationMs) : undefined;
+    const runnerSignal = deadline ? AbortSignal.any([signal, deadline]) : signal;
+    const runnerPromise = tool.execute(canonicalArgs, runnerSignal, context);
     try {
-      return await tool.execute(canonicalArgs, signal, context);
+      if (deadline && maxDurationMs !== undefined) {
+        const raced = await Promise.race([
+          runnerPromise.then((result) => ({ kind: 'result' as const, result })),
+          abortableTimeout(deadline, maxDurationMs),
+        ]);
+        if (raced.kind === 'timeout') {
+          void runnerPromise.catch(() => undefined);
+          return {
+            ok: false,
+            code: 'execution-failed',
+            message: `tool execution timed out after ${maxDurationMs}ms`,
+            details: { reason: 'timeout', maxDurationMs },
+          };
+        }
+        return raced.result;
+      }
+      return await runnerPromise;
     } catch (error) {
       if (signal.aborted) {
         return { ok: false, code: 'aborted', message: 'tool execution aborted' };
+      }
+      if (deadline?.aborted && !signal.aborted) {
+        return {
+          ok: false,
+          code: 'execution-failed',
+          message: `tool execution timed out after ${maxDurationMs}ms`,
+          details: { reason: 'timeout', maxDurationMs },
+        };
       }
       const message = formatError(error);
       return { ok: false, code: 'execution-failed', message };
     }
   }
+}
+
+function abortableTimeout(
+  deadline: AbortSignal,
+  maxDurationMs: number,
+): Promise<{ kind: 'timeout' }> {
+  return new Promise((resolve) => {
+    if (deadline.aborted) {
+      resolve({ kind: 'timeout' });
+      return;
+    }
+    deadline.addEventListener(
+      'abort',
+      () => {
+        resolve({ kind: 'timeout' });
+      },
+      { once: true },
+    );
+    void maxDurationMs;
+  });
 }
