@@ -59,11 +59,11 @@ M1 完成即可合并。用户侧安全收益到此。
 
 ### Milestone 2: 就地抽出 Policy / Approval（结构，可紧接 M1）
 
-- [ ] `tool-policy-evaluator.ts`：trusted → readOnly 之前先做运行时 catalog 校验。`ToolPolicyOutcome` 区分 invalid-input / unclassified / decision。planning always-allow。
-- [ ] `tool-approval-broker.ts`：只处理 ask；读 session bash/file-write 与 project network；不写记忆。
-- [ ] Router 改调 evaluator + broker；删除 `host-tool-admission-gate.ts`。
-- [ ] **Router 文件保留**，Port 仍 `router.execute`。
-- [ ] 抽出前后同一组 golden：bash / file-write escape / web / planning / MCP / non-interactive deny。
+- [x] `tool-policy-evaluator.ts`：trusted → readOnly 之前先做运行时 catalog 校验。`ToolPolicyOutcome` 区分 invalid-input / unclassified / decision。planning always-allow。
+- [x] `tool-approval-broker.ts`：只处理 ask；读 session bash/file-write 与 project network；不写记忆。
+- [x] Router 改调 evaluator + broker；删除 `host-tool-admission-gate.ts`。
+- [x] **Router 文件保留**，Port 仍 `router.execute`。
+- [x] 抽出前后同一组 golden：bash / file-write escape / web / planning / MCP / non-interactive deny。
 
 ---
 

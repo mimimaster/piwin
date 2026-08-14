@@ -12,7 +12,7 @@ import { createDefaultWebConfig } from '@piwin/contracts';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { allowNetworkFetchHost, allowNetworkWebSearch, openOrCreateProject } from '@piwin/project';
 import { buildSessionTools } from './session-tools.js';
-import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { createHostToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 const context: HostToolExecutionContext = {
@@ -35,18 +35,17 @@ async function executeThroughAdmission(
   projectPath?: string,
   projectsFilePath?: string,
 ) {
-  const permissionGate = createHostToolPermissionGate({
+  const admission = createHostToolAdmission({
     rules: createBundledRuleSet(),
     getPermissionMode: mode,
     ...(requestPermission ? { requestPermission } : {}),
     projectRoot: projectPath ?? '/tmp',
     ...(projectPath ? { projectPath } : {}),
     ...(projectsFilePath ? { projectsFilePath } : {}),
-    mcpEnabledServerIds: [],
   });
   const router = new HostToolExecutionRouter({
     tools: [tool],
-    permissionGate,
+    admission,
   });
   return router.execute(tool.descriptor.name, args, new AbortController().signal, {
     ...context,

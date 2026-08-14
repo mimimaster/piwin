@@ -7,7 +7,7 @@ import { createNoteStore, openNoteIndex, type NoteIndex } from '@piwin/notes';
 import { buildNotesTools } from './notes-tools.js';
 import { evaluateNotesPermission } from './permission-policy.js';
 import { createBundledRuleSet } from './permission-defaults.js';
-import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { createHostToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 let cleanupDirs: string[] = [];
@@ -35,14 +35,13 @@ async function executeThroughAdmission(
     signal?: AbortSignal;
   }) => Promise<'allow' | 'ask' | 'deny'>,
 ): Promise<ToolResult> {
-  const permissionGate = createHostToolPermissionGate({
+  const admission = createHostToolAdmission({
     rules: createBundledRuleSet(),
     getPermissionMode: () => 'auto',
     ...(requestPermission ? { requestPermission } : {}),
     projectRoot: '/tmp',
-    mcpEnabledServerIds: [],
   });
-  const router = new HostToolExecutionRouter({ tools: [tool], permissionGate });
+  const router = new HostToolExecutionRouter({ tools: [tool], admission });
   return router.execute(tool.descriptor.name, args, new AbortController().signal, {
     sessionId: 'session-1',
     runtimeGenerationId: 'generation-1',

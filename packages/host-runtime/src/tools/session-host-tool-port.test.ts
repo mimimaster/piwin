@@ -4,10 +4,10 @@ import {
   SessionHostToolExecutionPort,
   createSessionHostToolExecutionPort,
 } from './session-host-tool-port.js';
-import type { HostToolPermissionGate } from './host-tool-execution-router.js';
+import { createPermissiveToolAdmission, type HostToolAdmission } from './tool-admission.js';
 import { buildHostToolboxRegistration } from '../host-toolbox.js';
 
-const allowPermission: HostToolPermissionGate = async () => ({ allowed: true });
+const allowPermission = createPermissiveToolAdmission();
 
 function makeTool(name: string): HostToolRegistration {
   return {
@@ -62,9 +62,22 @@ describe('SessionHostToolExecutionPort', () => {
       getRuntimeGenerationId: () => 'gen-1',
       isRunAdmitted: () => admitted,
     });
-    const slowGate: HostToolPermissionGate = async () => {
-      admitted = false;
-      return { allowed: true };
+    const slowGate: HostToolAdmission = {
+      ...createPermissiveToolAdmission(),
+      policyEvaluator: {
+        evaluate: () => {
+          admitted = false;
+          return {
+            kind: 'decision',
+            policy: {
+              decision: 'allow',
+              reason: 'test-allow',
+              action: 'filesystem:read',
+              rememberable: false,
+            },
+          };
+        },
+      },
     };
     port.registerActiveGeneration('session-1', 'gen-1', [makeTool('web_search')], slowGate);
     await expect(
@@ -293,9 +306,22 @@ describe('SessionHostToolExecutionPort', () => {
     target.permissionSpec.subjectBuilder = () => ({ kind: 'tool', action: 'process:start' });
     const toolbox = buildHostToolboxRegistration([target]);
     const admittedNames: string[] = [];
-    const permissionGate: HostToolPermissionGate = async ({ registration }) => {
-      admittedNames.push(registration.descriptor.name);
-      return { allowed: true };
+    const permissionGate: HostToolAdmission = {
+      ...createPermissiveToolAdmission(),
+      policyEvaluator: {
+        evaluate: ({ registration }) => {
+          admittedNames.push(registration.descriptor.name);
+          return {
+            kind: 'decision',
+            policy: {
+              decision: 'allow',
+              reason: 'test-allow',
+              action: 'filesystem:read',
+              rememberable: false,
+            },
+          };
+        },
+      },
     };
     const port = createSessionHostToolExecutionPort({
       isSessionKnown: () => true,

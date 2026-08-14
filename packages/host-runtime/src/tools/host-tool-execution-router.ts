@@ -14,6 +14,7 @@ import type {
   ToolResultErrorCode,
 } from '@piwin/contracts';
 import { formatError,  toolDisabledResult } from '@piwin/contracts';
+import { resolveHostToolAdmission, type HostToolAdmission } from './tool-admission.js';
 import { validateCanonicalArguments } from './canonical-tool-args.js';
 import { toolFamilyIndex } from './tool-family-index.js';
 
@@ -36,24 +37,7 @@ export type ToolDisablePredicate = (
   context: HostToolExecutionContext,
 ) => { domain: string; message: string } | null;
 
-/**
- * Result of the permission admission gate for one tool invocation.
- */
-export type HostToolAdmissionDecision =
-  | { allowed: true }
-  | { allowed: false; result: ToolResult };
-
-/**
- * Unified permission admission gate (repair spec WP3). The gate decides
- * allow/ask/deny from the registration's static `permissionSpec` and the
- * frozen rule set; the executor never re-derives a permission decision.
- */
-export type HostToolPermissionGate = (input: {
-  registration: HostToolRegistration;
-  args: Record<string, unknown>;
-  context: HostToolExecutionContext;
-  signal: AbortSignal;
-}) => Promise<HostToolAdmissionDecision>;
+export type { HostToolAdmissionDecision } from './tool-admission.js';
 
 export type ToolAuthorityRevalidation =
   | { allowed: true }
@@ -64,11 +48,10 @@ export type HostToolExecutionRouterOptions = {
   /** Immediate safety gate; when omitted (tests only) all tools are allowed. */
   isToolDisabled?: ToolDisablePredicate;
   /**
-   * Mandatory production permission gate. The production
-   * `SessionHostToolExecutionPort` always supplies one; tests may inject a
-   * fake. Omitting it is a configuration error that must fail loudly.
+   * Production policy + approval composition. Tests may pass a permissive
+   * admission; they must not skip this object.
    */
-  permissionGate: HostToolPermissionGate;
+  admission: HostToolAdmission;
   /**
    * Live session/generation/run check immediately before the executor.
    * Tests may omit it; production Port always supplies one.
@@ -84,7 +67,7 @@ export type HostToolExecutionRouterOptions = {
 export class HostToolExecutionRouter {
   private readonly toolsByName = new Map<string, HostToolRegistration>();
   private readonly isToolDisabled: ToolDisablePredicate | undefined;
-  private readonly permissionGate: HostToolPermissionGate;
+  private readonly admission: HostToolAdmission;
   private readonly revalidateAuthority:
     | ((context: HostToolExecutionContext) => ToolAuthorityRevalidation)
     | undefined;
@@ -95,7 +78,7 @@ export class HostToolExecutionRouter {
       this.toolsByName.set(tool.descriptor.name, tool);
     }
     this.isToolDisabled = options.isToolDisabled;
-    this.permissionGate = options.permissionGate;
+    this.admission = options.admission;
     this.revalidateAuthority = options.revalidateAuthority;
   }
 
@@ -159,7 +142,8 @@ export class HostToolExecutionRouter {
       });
     }
 
-    const decision = await this.permissionGate({
+    const decision = await resolveHostToolAdmission({
+      admission: this.admission,
       registration: tool,
       args: canonicalArgs,
       context,

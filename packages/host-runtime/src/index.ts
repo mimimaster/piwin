@@ -261,7 +261,26 @@ export type {
   ToolExecutionResult,
   ToolDisablePredicate,
   HostToolExecutionRouterOptions,
+  HostToolAdmissionDecision,
 } from './tools/host-tool-execution-router.js';
+export {
+  createHostToolAdmission,
+  createPermissiveToolAdmission,
+  resolveHostToolAdmission,
+} from './tools/tool-admission.js';
+export type { HostToolAdmission, HostToolAdmissionOptions } from './tools/tool-admission.js';
+export { evaluateHostToolPolicy, hostToolPolicyEvaluator } from './tools/tool-policy-evaluator.js';
+export type {
+  ToolPolicyDecision,
+  ToolPolicyEvaluator,
+  ToolPolicyOutcome,
+} from './tools/tool-policy-evaluator.js';
+export { createToolApprovalBroker } from './tools/tool-approval-broker.js';
+export type {
+  ToolApprovalBroker,
+  ToolApprovalBrokerOptions,
+  ToolApprovalOutcome,
+} from './tools/tool-approval-broker.js';
 export { HostToolRegistrationError, toolFamilyIndex } from './tools/tool-family-index.js';
 
 // Phase 2: Structured Concurrency

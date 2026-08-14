@@ -5,7 +5,7 @@ import type {
   PermissionMode,
 } from '@piwin/contracts';
 import { HOST_TOOL_PERMISSION_ACTIONS, createEmptyRuleSet } from '@piwin/contracts';
-import { createHostToolPermissionGate } from './host-tool-admission-gate.js';
+import { createHostToolAdmission, resolveHostToolAdmission } from './tool-admission.js';
 
 function gatewayRegistration(): HostToolRegistration {
   return {
@@ -35,10 +35,25 @@ const context: HostToolExecutionContext = {
   toolName: 'mcp_gateway',
 };
 
-describe('createHostToolPermissionGate', () => {
+async function admit(
+  options: Parameters<typeof createHostToolAdmission>[0],
+  registration: HostToolRegistration,
+  args: Record<string, unknown>,
+  toolContext: HostToolExecutionContext = { ...context, toolName: registration.descriptor.name },
+) {
+  return resolveHostToolAdmission({
+    admission: createHostToolAdmission(options),
+    registration,
+    args,
+    context: toolContext,
+    signal: new AbortController().signal,
+  });
+}
+
+describe('host tool admission composition', () => {
   it('allows Host-owned plan artifact writes in ask-all mode without prompting', async () => {
     let promptCount = 0;
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'ask-all',
       requestPermission: async () => {
@@ -46,7 +61,6 @@ describe('createHostToolPermissionGate', () => {
         return 'deny';
       },
       projectRoot: '/tmp',
-      mcpEnabledServerIds: [],
     });
     const registration: HostToolRegistration = {
       descriptor: {
@@ -63,7 +77,8 @@ describe('createHostToolPermissionGate', () => {
       execute: async () => ({ ok: true, output: 'persisted' }),
     };
 
-    const decision = await gate({
+    const decision = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: {},
       context: { ...context, toolName: registration.descriptor.name },
@@ -75,14 +90,14 @@ describe('createHostToolPermissionGate', () => {
   });
 
   it('treats MCP as local trusted execution without permission prompts', async () => {
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'auto',
       projectRoot: '/tmp',
-      mcpEnabledServerIds: ['docs'],
     });
 
-    const decision = await gate({
+    const decision = await resolveHostToolAdmission({
+      admission: gate,
       registration: gatewayRegistration(),
       args: { action: 'call' },
       context,
@@ -95,7 +110,7 @@ describe('createHostToolPermissionGate', () => {
   it('does not enter ask-all mode for MCP calls', async () => {
     let mode: PermissionMode = 'auto';
     let promptCount = 0;
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => mode,
       requestPermission: async () => {
@@ -103,11 +118,11 @@ describe('createHostToolPermissionGate', () => {
         return 'allow';
       },
       projectRoot: '/tmp',
-      mcpEnabledServerIds: ['docs'],
     });
 
     const registration = gatewayRegistration();
-    const first = await gate({
+    const first = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { action: 'call', selector: 'docs.search', arguments: { query: 'x' } },
       context,
@@ -117,7 +132,8 @@ describe('createHostToolPermissionGate', () => {
     expect(promptCount).toBe(0);
 
     mode = 'ask-all';
-    const second = await gate({
+    const second = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { action: 'call', selector: 'docs.search', arguments: { query: 'x' } },
       context,
@@ -129,7 +145,7 @@ describe('createHostToolPermissionGate', () => {
 
   it('uses session-scoped bash approvals without overriding an explicit deny', async () => {
     const allowlist = new Set(['rm -rf /tmp/approved']);
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: {
         deny: [
           {
@@ -153,7 +169,6 @@ describe('createHostToolPermissionGate', () => {
         hasFilePath: () => false,
       }),
       projectRoot: '/tmp',
-      mcpEnabledServerIds: [],
     });
 
     const registration: HostToolRegistration = {
@@ -172,7 +187,8 @@ describe('createHostToolPermissionGate', () => {
       execute: async () => ({ ok: true, output: 'ok' }),
     };
 
-    const approved = await gate({
+    const approved = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { command: 'rm -rf /tmp/approved' },
       context: { ...context, toolName: 'bash' },
@@ -180,7 +196,8 @@ describe('createHostToolPermissionGate', () => {
     });
     expect(approved.allowed).toBe(true);
 
-    const denied = await gate({
+    const denied = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { command: 'rm -rf /tmp/blocked' },
       context: { ...context, toolName: 'bash' },
@@ -193,11 +210,10 @@ describe('createHostToolPermissionGate', () => {
   });
 
   it('does not treat browser screenshot output as read-only file access', async () => {
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'auto',
       projectRoot: '/tmp/project',
-      mcpEnabledServerIds: [],
     });
     const registration: HostToolRegistration = {
       descriptor: {
@@ -218,7 +234,8 @@ describe('createHostToolPermissionGate', () => {
       execute: async () => ({ ok: true, output: 'ok' }),
     };
 
-    const result = await gate({
+    const result = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { path: '/etc/piwin-shot.jpg' },
       context: { ...context, toolName: 'browser_screenshot' },
@@ -232,7 +249,7 @@ describe('createHostToolPermissionGate', () => {
 
   it('fails closed when the interactive permission resolver throws', async () => {
     const diagnostics: string[] = [];
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: {
         deny: [],
         ask: [
@@ -249,7 +266,6 @@ describe('createHostToolPermissionGate', () => {
         throw new Error('permission UI unavailable');
       },
       projectRoot: '/tmp',
-      mcpEnabledServerIds: [],
       onDiagnostic: (message) => diagnostics.push(message),
     });
     const registration = {
@@ -271,7 +287,8 @@ describe('createHostToolPermissionGate', () => {
       execute: async () => ({ ok: true as const, output: 'must not execute' }),
     } satisfies HostToolRegistration;
 
-    const result = await gate({
+    const result = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { command: 'danger rm -rf /' },
       context: { ...context, toolName: 'bash' },
@@ -283,7 +300,7 @@ describe('createHostToolPermissionGate', () => {
 
   it('allows video-gen without a prompt so default-allow stays explicit', async () => {
     let promptCount = 0;
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'ask-all',
       requestPermission: async () => {
@@ -291,7 +308,6 @@ describe('createHostToolPermissionGate', () => {
         return 'deny';
       },
       projectRoot: '/tmp',
-      mcpEnabledServerIds: [],
     });
     const registration: HostToolRegistration = {
       descriptor: {
@@ -309,7 +325,8 @@ describe('createHostToolPermissionGate', () => {
       execute: async () => ({ ok: true, output: 'ok' }),
     };
 
-    const decision = await gate({
+    const decision = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: { prompt: 'a cat' },
       context: { ...context, toolName: registration.descriptor.name },
@@ -321,11 +338,10 @@ describe('createHostToolPermissionGate', () => {
   });
 
   it('denies unknown side-effect actions even in bypass', async () => {
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'bypass',
       projectRoot: '/tmp',
-      mcpEnabledServerIds: [],
     });
     const registration: HostToolRegistration = {
       descriptor: {
@@ -343,7 +359,8 @@ describe('createHostToolPermissionGate', () => {
       execute: async () => ({ ok: true, output: 'must not execute' }),
     };
 
-    const decision = await gate({
+    const decision = await resolveHostToolAdmission({
+      admission: gate,
       registration,
       args: {},
       context: { ...context, toolName: registration.descriptor.name },
@@ -372,11 +389,10 @@ describe('createHostToolPermissionGate', () => {
       'artifact:instructions',
       'toolbox:route',
     ]);
-    const gate = createHostToolPermissionGate({
+    const gate = createHostToolAdmission({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'bypass',
       projectRoot: '/tmp',
-      mcpEnabledServerIds: [],
     });
 
     for (const action of HOST_TOOL_PERMISSION_ACTIONS) {
@@ -406,7 +422,8 @@ describe('createHostToolPermissionGate', () => {
         },
         execute: async () => ({ ok: true, output: action }),
       };
-      const decision = await gate({
+      const decision = await resolveHostToolAdmission({
+        admission: gate,
         registration,
         args: {
           command: 'echo hi',

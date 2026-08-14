@@ -21,9 +21,9 @@ import type {
   HostToolExecutionResult,
   HostToolRegistration,
 } from '@piwin/contracts';
+import type { HostToolAdmission } from './tool-admission.js';
 import {
   HostToolExecutionRouter,
-  type HostToolPermissionGate,
   type ToolAuthorityRevalidation,
   type ToolDisablePredicate,
 } from './host-tool-execution-router.js';
@@ -53,7 +53,7 @@ type CachedTools = {
   baseActiveGenerationId?: string;
   router: HostToolExecutionRouter;
   tools: readonly HostToolRegistration[];
-  permissionGate: HostToolPermissionGate;
+  admission: HostToolAdmission;
   toolNames: Set<string>;
   toolboxTargets: ReadonlyMap<string, HostToolRegistration>;
   toolboxRouter: HostToolExecutionRouter | undefined;
@@ -95,13 +95,13 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     sessionId: string,
     runtimeGenerationId: string,
     tools: readonly HostToolRegistration[],
-    permissionGate: HostToolPermissionGate,
+    admission: HostToolAdmission,
   ): void {
     const surfaces = this.getOrCreateSessionSurfaces(sessionId);
     // A direct active registration supersedes a same-id pending candidate;
     // keeping both would allow a later stale commit to resurrect it.
     surfaces.pending.delete(runtimeGenerationId);
-    surfaces.active = this.createCachedTools(runtimeGenerationId, tools, permissionGate);
+    surfaces.active = this.createCachedTools(runtimeGenerationId, tools, admission);
     this.surfacesBySession.set(sessionId, surfaces);
   }
 
@@ -113,7 +113,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     sessionId: string,
     runtimeGenerationId: string,
     tools: readonly HostToolRegistration[],
-    permissionGate: HostToolPermissionGate,
+    admission: HostToolAdmission,
   ): void {
     const surfaces = this.getOrCreateSessionSurfaces(sessionId);
     surfaces.pending.set(
@@ -121,7 +121,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       this.createCachedTools(
         runtimeGenerationId,
         tools,
-        permissionGate,
+        admission,
         surfaces.active?.generationId,
       ),
     );
@@ -178,7 +178,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     cached.router = new HostToolExecutionRouter({
       tools: filteredTools,
       ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
-      permissionGate: cached.permissionGate,
+      admission: cached.admission,
       revalidateAuthority: (context) => this.revalidateAuthority(context),
     });
     cached.toolboxTargets = toolboxTargets;
@@ -189,7 +189,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
             ...(this.options.isToolDisabled
               ? { isToolDisabled: this.options.isToolDisabled }
               : {}),
-            permissionGate: cached.permissionGate,
+            admission: cached.admission,
             revalidateAuthority: (context) => this.revalidateAuthority(context),
           })
         : undefined;
@@ -395,7 +395,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
   private createCachedTools(
     generationId: string,
     tools: readonly HostToolRegistration[],
-    permissionGate: HostToolPermissionGate,
+    admission: HostToolAdmission,
     baseActiveGenerationId?: string,
   ): CachedTools {
     const frozenTools = Object.freeze([...tools]);
@@ -405,11 +405,11 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       router: new HostToolExecutionRouter({
         tools: frozenTools,
         ...(this.options.isToolDisabled ? { isToolDisabled: this.options.isToolDisabled } : {}),
-        permissionGate,
+        admission,
         revalidateAuthority: (context) => this.revalidateAuthority(context),
       }),
       tools: frozenTools,
-      permissionGate,
+      admission,
       toolNames: new Set(frozenTools.map((tool) => tool.descriptor.name)),
       toolboxTargets: new Map(),
       toolboxRouter: undefined,
