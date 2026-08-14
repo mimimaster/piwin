@@ -18,7 +18,7 @@ function makeTool(name: string): HostToolRegistration {
     },
     family: name.startsWith('process') ? 'process' : 'web-search',
     permissionSpec: {
-      action: `${name}:execute`,
+      action: 'filesystem:read',
       risk: 'unknown',
       rememberable: false,
       readOnly: true,
@@ -55,6 +55,36 @@ function makePort(
 }
 
 describe('SessionHostToolExecutionPort', () => {
+  it('revalidates run admission after a long permission wait', async () => {
+    let admitted = true;
+    const port = createSessionHostToolExecutionPort({
+      isSessionKnown: () => true,
+      getRuntimeGenerationId: () => 'gen-1',
+      isRunAdmitted: () => admitted,
+    });
+    const slowGate: HostToolPermissionGate = async () => {
+      admitted = false;
+      return { allowed: true };
+    };
+    port.registerActiveGeneration('session-1', 'gen-1', [makeTool('web_search')], slowGate);
+    await expect(
+      port.execute(
+        {
+          sessionId: 'session-1',
+          runtimeGenerationId: 'gen-1',
+          runId: 'run-1',
+          toolName: 'web_search',
+          arguments: {},
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      code: 'tool-not-available',
+      message: 'run is not admitted for tool execution: run-1',
+    });
+  });
+
   it('executes a known tool with matching generation', async () => {
     const port = makePort();
     const result = await port.execute(

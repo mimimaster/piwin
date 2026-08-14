@@ -129,6 +129,21 @@ describe('buildHostFilesystemTools', () => {
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
+  it('rejects write_file with an empty path before prompting', async () => {
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const tools = buildHostFilesystemTools({ cwd: '/tmp' });
+    const writeFileTool = requireTool(tools, 'write_file');
+    await expect(
+      executeThroughAdmission(
+        writeFileTool,
+        { path: '   ', content: 'x' },
+        () => 'auto',
+        requestPermission,
+      ),
+    ).resolves.toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
   it('bash denies destructive commands without permission gate', async () => {
     const tools = buildHostFilesystemTools({
       cwd: '/tmp',

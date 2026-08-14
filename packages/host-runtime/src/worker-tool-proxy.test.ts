@@ -42,7 +42,7 @@ function fakeHostTool(
           }),
         }
       : {
-          action: `${name}:execute`,
+          action: 'filesystem:read',
           risk: 'unknown' as const,
           rememberable: false,
           readOnly: true,

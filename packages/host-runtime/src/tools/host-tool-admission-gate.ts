@@ -302,6 +302,8 @@ function resolveDomainPolicy(
       void url;
       return evaluation;
     }
+    case 'network:video-gen':
+      return { decision: 'allow', reason: 'legacy-unclassified-allow' };
     case 'process:start':
     case 'process:stop':
       return evaluateProcessPermission(action, options.rules, mode);
@@ -361,7 +363,7 @@ function resolveDomainPolicy(
           reason: mode === 'ask-all' ? 'ask-all-browser-interaction' : 'browser-interaction',
         };
       }
-      return { decision: 'allow', reason: 'unclassified-tool' };
+      return { decision: 'deny', reason: 'unclassified-side-effect' };
   }
 }
 

@@ -17,6 +17,81 @@ export type HostToolExecutionContext = {
 };
 
 /**
+ * Production permission actions. Compose-time fail-closed uses this list;
+ * `HostToolPermissionSpec.action` stays `string` so tests and trusted
+ * registrations are not forced through the TypeScript union.
+ */
+export const HOST_TOOL_PERMISSION_ACTIONS = [
+  'filesystem:read',
+  'filesystem:list',
+  'file-write',
+  'bash',
+  'network:web_search',
+  'network:web_fetch',
+  'network:image-gen',
+  'network:video-gen',
+  'process:start',
+  'process:stop',
+  'process:list',
+  'process:logs',
+  'browser:navigate',
+  'browser:screenshot',
+  'browser:snapshot',
+  'browser:click',
+  'browser:type',
+  'browser:fill-form',
+  'browser:scroll',
+  'browser:find',
+  'browser:back',
+  'browser:forward',
+  'browser:wait',
+  'notes:note_list',
+  'notes:note_search',
+  'notes:note_read',
+  'notes:note_write',
+  'notes:note_update',
+  'notes:note_delete',
+  'flashcards:create',
+  'flashcards:batch-create',
+  'flashcards:list',
+  'flashcards:delete',
+  'planning:create',
+  'planning:update',
+  'subagent:run',
+  'artifact:instructions',
+  'toolbox:route',
+  'mcp:trusted',
+] as const;
+
+export type HostToolPermissionAction = (typeof HOST_TOOL_PERMISSION_ACTIONS)[number];
+
+const HOST_TOOL_PERMISSION_ACTION_SET: ReadonlySet<string> = new Set(
+  HOST_TOOL_PERMISSION_ACTIONS,
+);
+
+export function isHostToolPermissionAction(
+  value: string,
+): value is HostToolPermissionAction {
+  return HOST_TOOL_PERMISSION_ACTION_SET.has(value);
+}
+
+export type HostToolArgumentPreparation =
+  | {
+      ok: true;
+      arguments: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      result: ToolResult;
+    };
+
+export type HostToolArgumentPreparer = (
+  rawArguments: Record<string, unknown>,
+  context: HostToolExecutionContext,
+  signal: AbortSignal,
+) => HostToolArgumentPreparation | Promise<HostToolArgumentPreparation>;
+
+/**
  * Static permission facts declared by a tool registration.
  *
  * `subjectBuilder` derives the concrete runtime subject from tool arguments.
@@ -60,6 +135,11 @@ export type HostToolExecutor = (
 export type HostToolRegistration = {
   descriptor: HostToolDescriptor;
   family: SessionToolFamily;
+  /**
+   * Optional argument normalizer. Required for non-trusted, non-readOnly
+   * tools at compose time once M4 lands; M1 wires it when present.
+   */
+  prepareArgs?: HostToolArgumentPreparer;
   permissionSpec: HostToolPermissionSpec;
   execute: HostToolExecutor;
 };

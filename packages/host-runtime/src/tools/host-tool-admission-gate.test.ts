@@ -4,7 +4,7 @@ import type {
   HostToolRegistration,
   PermissionMode,
 } from '@piwin/contracts';
-import { createEmptyRuleSet } from '@piwin/contracts';
+import { HOST_TOOL_PERMISSION_ACTIONS, createEmptyRuleSet } from '@piwin/contracts';
 import { createHostToolPermissionGate } from './host-tool-admission-gate.js';
 
 function gatewayRegistration(): HostToolRegistration {
@@ -279,5 +279,147 @@ describe('createHostToolPermissionGate', () => {
     });
     expect(result).toMatchObject({ allowed: false, result: { code: 'permission-denied' } });
     expect(diagnostics[0]).toContain('permission UI unavailable');
+  });
+
+  it('allows video-gen without a prompt so default-allow stays explicit', async () => {
+    let promptCount = 0;
+    const gate = createHostToolPermissionGate({
+      rules: createEmptyRuleSet(),
+      getPermissionMode: () => 'ask-all',
+      requestPermission: async () => {
+        promptCount += 1;
+        return 'deny';
+      },
+      projectRoot: '/tmp',
+      mcpEnabledServerIds: [],
+    });
+    const registration: HostToolRegistration = {
+      descriptor: {
+        name: 'video_generate',
+        description: 'generate video',
+        parameters: { type: 'object', properties: {} },
+      },
+      family: 'video-generation',
+      permissionSpec: {
+        action: 'network:video-gen',
+        risk: 'network',
+        rememberable: false,
+        subjectBuilder: () => ({ kind: 'tool', action: 'network:video-gen' }),
+      },
+      execute: async () => ({ ok: true, output: 'ok' }),
+    };
+
+    const decision = await gate({
+      registration,
+      args: { prompt: 'a cat' },
+      context: { ...context, toolName: registration.descriptor.name },
+      signal: new AbortController().signal,
+    });
+
+    expect(decision.allowed).toBe(true);
+    expect(promptCount).toBe(0);
+  });
+
+  it('denies unknown side-effect actions even in bypass', async () => {
+    const gate = createHostToolPermissionGate({
+      rules: createEmptyRuleSet(),
+      getPermissionMode: () => 'bypass',
+      projectRoot: '/tmp',
+      mcpEnabledServerIds: [],
+    });
+    const registration: HostToolRegistration = {
+      descriptor: {
+        name: 'mystery',
+        description: 'mystery',
+        parameters: { type: 'object', properties: {} },
+      },
+      family: 'process',
+      permissionSpec: {
+        action: 'mystery:mutate',
+        risk: 'unknown',
+        rememberable: false,
+        subjectBuilder: () => ({ kind: 'tool', action: 'mystery:mutate' }),
+      },
+      execute: async () => ({ ok: true, output: 'must not execute' }),
+    };
+
+    const decision = await gate({
+      registration,
+      args: {},
+      context: { ...context, toolName: registration.descriptor.name },
+      signal: new AbortController().signal,
+    });
+
+    expect(decision).toMatchObject({
+      allowed: false,
+      result: { code: 'permission-denied', message: expect.stringContaining('unclassified') },
+    });
+  });
+
+  it('classifies every catalog action instead of falling through to default allow', async () => {
+    const readOnly = new Set([
+      'filesystem:read',
+      'filesystem:list',
+      'process:list',
+      'process:logs',
+      'browser:snapshot',
+      'browser:find',
+      'browser:wait',
+      'notes:note_list',
+      'notes:note_search',
+      'notes:note_read',
+      'flashcards:list',
+      'artifact:instructions',
+      'toolbox:route',
+    ]);
+    const gate = createHostToolPermissionGate({
+      rules: createEmptyRuleSet(),
+      getPermissionMode: () => 'bypass',
+      projectRoot: '/tmp',
+      mcpEnabledServerIds: [],
+    });
+
+    for (const action of HOST_TOOL_PERMISSION_ACTIONS) {
+      const registration: HostToolRegistration = {
+        descriptor: {
+          name: `tool-${action}`,
+          description: action,
+          parameters: { type: 'object', properties: {} },
+        },
+        family: 'process',
+        permissionSpec: {
+          action,
+          risk: 'unknown',
+          rememberable: false,
+          ...(action === 'mcp:trusted' ? { admission: 'trusted' as const } : {}),
+          ...(readOnly.has(action) ? { readOnly: true } : {}),
+          subjectBuilder: () =>
+            action === 'bash'
+              ? { kind: 'bash', command: 'echo hi' }
+              : action === 'file-write'
+                ? { kind: 'file-write', path: '/tmp/a' }
+                : action === 'network:web_fetch' || action === 'browser:navigate'
+                  ? { kind: 'web-fetch', host: 'example.com' }
+                  : action === 'network:web_search'
+                    ? { kind: 'web-search' }
+                    : { kind: 'tool', action },
+        },
+        execute: async () => ({ ok: true, output: action }),
+      };
+      const decision = await gate({
+        registration,
+        args: {
+          command: 'echo hi',
+          path: '/tmp/a',
+          url: 'https://example.com',
+          query: 'q',
+          noteId: 'n1',
+          content: 'hello',
+        },
+        context: { ...context, toolName: registration.descriptor.name },
+        signal: new AbortController().signal,
+      });
+      expect(decision.allowed, action).toBe(true);
+    }
   });
 });

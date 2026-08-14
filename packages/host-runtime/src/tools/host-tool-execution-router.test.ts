@@ -20,7 +20,7 @@ function tool(name: string, execute?: HostToolRegistration['execute']): HostTool
     },
     family: name.startsWith('process') ? 'process' : 'web-search',
     permissionSpec: {
-      action: `${name}:execute`,
+      action: 'filesystem:read',
       risk: 'unknown',
       rememberable: false,
       readOnly: true,
@@ -167,5 +167,72 @@ describe('HostToolExecutionRouter', () => {
     if (!result.ok) {
       expect(result.code).toBe('aborted');
     }
+  });
+
+  it('prepares arguments before the permission gate and executor', async () => {
+    const seen: string[] = [];
+    const prepared = tool('web_search');
+    prepared.prepareArgs = (raw) => {
+      seen.push(`prepare:${String(raw.path ?? '')}`);
+      return { ok: true, arguments: { ...raw, path: '/abs/file.ts' } };
+    };
+    prepared.execute = async (args) => {
+      seen.push(`execute:${String(args.path ?? '')}`);
+      return { ok: true, output: String(args.path ?? '') };
+    };
+    const router = new HostToolExecutionRouter({
+      tools: [prepared],
+      permissionGate: async ({ args }) => {
+        seen.push(`gate:${String(args.path ?? '')}`);
+        return { allowed: true };
+      },
+    });
+    const result = await runTool(router, 'web_search', { path: './file.ts' });
+    expect(result).toEqual({ ok: true, output: '/abs/file.ts' });
+    expect(seen).toEqual(['prepare:./file.ts', 'gate:/abs/file.ts', 'execute:/abs/file.ts']);
+  });
+
+  it('returns invalid-input from prepareArgs before prompting', async () => {
+    const prepared = tool('web_search');
+    prepared.prepareArgs = async () => ({
+      ok: false,
+      result: { ok: false, code: 'invalid-input', message: 'path is required' },
+    });
+    let gateCalled = false;
+    const router = new HostToolExecutionRouter({
+      tools: [prepared],
+      permissionGate: async () => {
+        gateCalled = true;
+        return { allowed: true };
+      },
+    });
+    await expect(runTool(router, 'web_search', {})).resolves.toMatchObject({
+      ok: false,
+      code: 'invalid-input',
+    });
+    expect(gateCalled).toBe(false);
+  });
+
+  it('revalidates authority after the permission gate returns', async () => {
+    let admitted = true;
+    const router = new HostToolExecutionRouter({
+      tools: [tool('web_search')],
+      permissionGate: async () => {
+        admitted = false;
+        return { allowed: true };
+      },
+      revalidateAuthority: () =>
+        admitted
+          ? { allowed: true }
+          : {
+              allowed: false,
+              code: 'tool-not-available',
+              reason: 'run is not admitted for tool execution: run-1',
+            },
+    });
+    await expect(runTool(router, 'web_search', {})).resolves.toMatchObject({
+      ok: false,
+      code: 'tool-not-available',
+    });
   });
 });

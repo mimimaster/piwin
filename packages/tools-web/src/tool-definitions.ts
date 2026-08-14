@@ -30,6 +30,21 @@ export function createWebToolDefinitions(
         rememberable: true,
         subjectBuilder: () => ({ kind: 'web-search' }),
       },
+      prepareArgs: (rawArguments, _context, signal) => {
+        if (signal.aborted) {
+          return {
+            ok: false,
+            result: { ok: false, code: 'aborted', message: 'tool preparation aborted' },
+          };
+        }
+        if (typeof rawArguments.query !== 'string' || rawArguments.query.trim().length === 0) {
+          return {
+            ok: false,
+            result: { ok: false, code: 'invalid-input', message: 'query is required' },
+          };
+        }
+        return { ok: true, arguments: { ...rawArguments, query: rawArguments.query.trim() } };
+      },
       async execute(args, signal) {
         const query = String(args.query ?? '');
         const result = await webSearch(query, config, signal, credentials, delegate);
@@ -59,9 +74,39 @@ export function createWebToolDefinitions(
           try {
             return { kind: 'web-fetch', host: new URL(target).hostname.toLowerCase() };
           } catch {
-            return { kind: 'web-fetch', host: target };
+            return undefined;
           }
         },
+      },
+      prepareArgs: (rawArguments, _context, signal) => {
+        if (signal.aborted) {
+          return {
+            ok: false,
+            result: { ok: false, code: 'aborted', message: 'tool preparation aborted' },
+          };
+        }
+        if (typeof rawArguments.url !== 'string' || rawArguments.url.trim().length === 0) {
+          return {
+            ok: false,
+            result: { ok: false, code: 'invalid-input', message: 'url is required' },
+          };
+        }
+        const url = rawArguments.url.trim();
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            return {
+              ok: false,
+              result: { ok: false, code: 'invalid-input', message: 'url must be http(s)' },
+            };
+          }
+        } catch {
+          return {
+            ok: false,
+            result: { ok: false, code: 'invalid-input', message: 'url is invalid' },
+          };
+        }
+        return { ok: true, arguments: { ...rawArguments, url } };
       },
       async execute(args, signal) {
         const url = String(args.url ?? '');

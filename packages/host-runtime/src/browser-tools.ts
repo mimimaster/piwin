@@ -120,8 +120,15 @@ function createBrowserRegistration(
   descriptor: HostToolDescriptor,
   permissionSpec: HostToolPermissionSpec,
   execute: HostToolExecutor,
+  prepareArgs?: HostToolRegistration['prepareArgs'],
 ): HostToolRegistration {
-  return { descriptor, family: 'browser', permissionSpec, execute };
+  return {
+    descriptor,
+    family: 'browser',
+    permissionSpec,
+    execute,
+    ...(prepareArgs ? { prepareArgs } : {}),
+  };
 }
 
 function success(output: unknown, details?: Record<string, unknown>): ToolResult {
@@ -206,6 +213,36 @@ export function createBrowserToolDefinitions(
       const url = String(args.url ?? '');
       await session.navigate(url, { signal });
       return success({ ok: true, url }, { url });
+    },
+    (rawArguments, _context, signal) => {
+      if (signal.aborted) {
+        return {
+          ok: false,
+          result: { ok: false, code: 'aborted', message: 'tool preparation aborted' },
+        };
+      }
+      if (typeof rawArguments.url !== 'string' || rawArguments.url.trim().length === 0) {
+        return {
+          ok: false,
+          result: { ok: false, code: 'invalid-input', message: 'url is required' },
+        };
+      }
+      const url = rawArguments.url.trim();
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          return {
+            ok: false,
+            result: { ok: false, code: 'invalid-input', message: 'url must be http(s)' },
+          };
+        }
+      } catch {
+        return {
+          ok: false,
+          result: { ok: false, code: 'invalid-input', message: 'url is invalid' },
+        };
+      }
+      return { ok: true, arguments: { ...rawArguments, url } };
     },
   );
 
