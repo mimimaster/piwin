@@ -112,6 +112,11 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       );
     case 'host/replay-done':
       return control([]);
+    case 'agent/context-summary':
+      return projection(
+        deliveryKey('session', push.sessionId, 'model-context', push.runId, String(push.requestOrdinal)),
+        push.runId,
+      );
     case 'job/started':
     case 'job/ready':
       return control([deliveryKey('job', push.job.jobId)]);

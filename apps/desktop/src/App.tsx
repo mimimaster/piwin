@@ -1045,6 +1045,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     extensionUiInput,
     setExtensionUiInput,
     clearExtensionUiRequest,
+    assemblySummariesByRunId,
   } = useHostBootstrap({
     hostClient,
     activeSessionId: state.activeSessionId,
@@ -3489,6 +3490,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                           ? { artifactMaxBytes: config.artifact.maxBytes }
                           : {})}
                         locale={desktopLocale}
+                        assemblySummariesByRunId={assemblySummariesByRunId}
                         onInspectSubagent={handleInspectSubagent}
                         subagentChildren={state.subagentChildren}
                         subagentInvocations={state.subagentInvocations}

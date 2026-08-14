@@ -24,6 +24,7 @@ import type {
   SessionTranscriptWindowQuery,
   } from './session-transcript-page.js';
 import type { SessionUserMessageIndexQuery } from './session-user-message-index.js';
+import type { ContextSummaryPush } from './model-context.js';
 import type { SkillSummary } from './skills.js';
 import type { ExtensionDeploymentRecord, ExtensionSummary } from './extensions.js';
 import type { PromptTemplateSummary } from './prompts.js';
@@ -228,6 +229,7 @@ export type HostCommand =
       when: 'now' | 'after-current-run';
     }
   | { id?: string; type: 'session/messages'; sessionId: string }
+  | { id?: string; type: 'session/model-context-summary'; sessionId: string }
   | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
   | { id?: string; type: 'session/pause'; sessionId: string; runId?: string }
   | { id?: string; type: 'session/resume-run'; sessionId: string; checkpointId?: string }
@@ -241,7 +243,15 @@ export type HostCommand =
       /** Matches an optimistic client row to the persisted Host transcript row. */
       clientMessageId?: string;
     }
-  | { id?: string; type: 'session/follow_up'; sessionId: string; message: string; runId?: string }
+  | {
+      id?: string;
+      type: 'session/follow_up';
+      sessionId: string;
+      message: string;
+      runId?: string;
+      /** Matches the optimistic client row to the persisted Follow-up row. */
+      clientMessageId?: string;
+    }
   | {
       id?: string;
       type: 'session/compact';
@@ -838,6 +848,7 @@ export type HostPushVariant =
       /** Last seq emitted by this replay, or sinceSeq if nothing was buffered. */
       lastSeq?: number;
     }
+  | ContextSummaryPush
   | JobHostPush
   | RunHostPush;
 

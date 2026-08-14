@@ -27,10 +27,21 @@ describe('SQLite transcript derived operations', () => {
       expect(prompted.success).toBe(true);
 
       const sourceMessages = await waitForCompletedAssistant(runtime, sourceSessionId);
-      const assistant = sourceMessages.find(
+      const firstAssistant = sourceMessages.find(
         (message) => message.role === 'assistant' && message.status === 'done',
       );
-      if (assistant === undefined) throw new Error('completed assistant message missing');
+      if (firstAssistant === undefined) throw new Error('completed assistant message missing');
+      const secondPrompted = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId: sourceSessionId,
+        input: { text: 'add a later turn beyond the fork point' },
+      });
+      expect(secondPrompted.success).toBe(true);
+      const sourceMessagesAfterSecondTurn = await waitForCompletedAssistants(
+        runtime,
+        sourceSessionId,
+        2,
+      );
 
       const duplicated = await runtime.handleCommand({
         type: 'session/duplicate',
@@ -50,12 +61,43 @@ describe('SQLite transcript derived operations', () => {
         comparableMessages(
           (duplicateMessages.data as { messages: SessionTranscriptMessage[] }).messages,
         ),
-      ).toEqual(comparableMessages(sourceMessages));
+      ).toEqual(comparableMessages(sourceMessagesAfterSecondTurn));
+
+      const duplicateSummaries = await runtime.handleCommand({
+        type: 'session/model-context-summary',
+        sessionId: duplicateSessionId,
+      });
+      expect(duplicateSummaries.success).toBe(true);
+      if (!duplicateSummaries.success) throw new Error(duplicateSummaries.error);
+      expect(
+        (duplicateSummaries.data as { summaries: unknown[] }).summaries.length,
+      ).toBe(2);
+      const duplicatePrompted = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId: duplicateSessionId,
+        input: { text: 'continue on the duplicated session' },
+      });
+      expect(duplicatePrompted.success).toBe(true);
+      await waitForCompletedAssistants(runtime, duplicateSessionId, 3);
+      const duplicateSummariesAfterPrompt = await runtime.handleCommand({
+        type: 'session/model-context-summary',
+        sessionId: duplicateSessionId,
+      });
+      expect(duplicateSummariesAfterPrompt.success).toBe(true);
+      if (!duplicateSummariesAfterPrompt.success) {
+        throw new Error(duplicateSummariesAfterPrompt.error);
+      }
+      const duplicateOrdinals = (
+        duplicateSummariesAfterPrompt.data as {
+          summaries: Array<{ requestOrdinal: number }>;
+        }
+      ).summaries.map((summary) => summary.requestOrdinal);
+      expect(duplicateOrdinals).toEqual([1, 2, 3]);
 
       const forked = await runtime.handleCommand({
         type: 'session/fork',
         sessionId: sourceSessionId,
-        messageId: assistant.id,
+        messageId: firstAssistant.id,
         workspaceStrategy: 'shared',
         messageProjection: 'tail',
       });
@@ -69,13 +111,21 @@ describe('SQLite transcript derived operations', () => {
       expect(forkMessages.success).toBe(true);
       if (!forkMessages.success) throw new Error(forkMessages.error);
       expect((forkMessages.data as { messages: SessionTranscriptMessage[] }).messages).toHaveLength(
-        sourceMessages.length,
+        2,
       );
       expect(
         comparableMessages(
           (forkMessages.data as { messages: SessionTranscriptMessage[] }).messages,
         ),
       ).toEqual(comparableMessages(sourceMessages));
+
+      const forkSummaries = await runtime.handleCommand({
+        type: 'session/model-context-summary',
+        sessionId: forkSessionId,
+      });
+      expect(forkSummaries.success).toBe(true);
+      if (!forkSummaries.success) throw new Error(forkSummaries.error);
+      expect((forkSummaries.data as { summaries: unknown[] }).summaries.length).toBe(1);
 
       const outputPath = join(rootDir, 'source-export.md');
       const exported = await runtime.handleCommand({
@@ -90,7 +140,7 @@ describe('SQLite transcript derived operations', () => {
       const truncated = await runtime.handleCommand({
         type: 'session/truncate-from',
         sessionId: forkSessionId,
-        messageId: assistant.id,
+        messageId: firstAssistant.id,
         messageProjection: 'tail',
       });
       // Fork regenerates ids, so the source assistant id must never address a
@@ -110,6 +160,14 @@ describe('SQLite transcript derived operations', () => {
       expect(targetTruncate.success).toBe(true);
       if (!targetTruncate.success) throw new Error(targetTruncate.error);
       expect((targetTruncate.data as { remainingCount: number }).remainingCount).toBe(1);
+      const truncatedSummaries = await runtime.handleCommand({
+        type: 'session/model-context-summary',
+        sessionId: forkSessionId,
+      });
+      expect(truncatedSummaries).toMatchObject({
+        success: true,
+        data: { summaries: [] },
+      });
       const truncatedRuntime = await runtime.handleCommand({
         type: 'session/runtime-status',
         sessionId: forkSessionId,
@@ -235,11 +293,22 @@ async function waitForCompletedAssistant(
   runtime: HostRuntime,
   sessionId: string,
 ): Promise<SessionTranscriptMessage[]> {
+  return waitForCompletedAssistants(runtime, sessionId, 1);
+}
+
+async function waitForCompletedAssistants(
+  runtime: HostRuntime,
+  sessionId: string,
+  count: number,
+): Promise<SessionTranscriptMessage[]> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const response = await runtime.handleCommand({ type: 'session/messages', sessionId });
     if (response.success) {
       const messages = (response.data as { messages: SessionTranscriptMessage[] }).messages;
-      if (messages.some((message) => message.role === 'assistant' && message.status === 'done')) {
+      if (
+        messages.filter((message) => message.role === 'assistant' && message.status === 'done')
+          .length >= count
+      ) {
         return messages;
       }
     }
