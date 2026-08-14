@@ -245,6 +245,33 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('saves media for a cold durable session before the next prompt wakes it', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cold-media-'));
+    const sessionId = await seedColdPromptSession(rootDir);
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    expect(residencyOf(runtime).getResidency(sessionId)).toBe('cold');
+
+    const saved = await runtime.handleCommand({
+      type: 'media/save',
+      input: {
+        sessionId,
+        mimeType: 'image/png',
+        source: 'paste',
+        base64Data:
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      },
+    });
+
+    expect(saved.success).toBe(true);
+    if (!saved.success) throw new Error(saved.error);
+    const asset = (saved.data as MediaSaveData).asset;
+    expect(asset.sessionId).toBe(sessionId);
+    expect(await readFile(asset.absolutePath)).not.toHaveLength(0);
+
+    await runtime.dispose();
+  });
+
   it('keeps media attachments for multimodal primary (no path inject in text)', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-media-vision-'));
     const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');

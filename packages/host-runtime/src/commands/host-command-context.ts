@@ -58,6 +58,12 @@ export type HostCommandContext = {
   piwinRoot?: string;
   push: (message: HostPush) => void;
   requireSession: (sessionId: string) => SessionHandle;
+  /**
+   * Validate a durable session without requiring a resident runtime handle.
+   * Production HostRuntime provides this for media/save; small command tests
+   * may omit it when they do not exercise session-backed commands.
+   */
+  requireDurableSession?: (sessionId: string) => Promise<void>;
   getMcpManager: () => McpLifecycleManager;
   /** Single Host Job authority (process/* IPC adapts through this). */
   getJobController: () => import('@piwin/contracts').JobController;

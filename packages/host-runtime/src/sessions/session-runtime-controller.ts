@@ -383,6 +383,7 @@ export class SessionRuntimeController {
     sessionId: string,
     targetSettingsRevision: string,
     expectedActiveGenerationId?: string,
+    options: { allowWhenFresh?: boolean } = {},
   ): SessionReloadPlan {
     const activeGenerationId = this.generationBySession.get(sessionId);
     if (
@@ -403,7 +404,10 @@ export class SessionRuntimeController {
       return { allowed: false, reason: 'revision-mismatch' };
     }
     const staleDomains = this.pendingChangesBySession.get(sessionId);
-    if (staleDomains === undefined || staleDomains.size === 0) {
+    if (
+      (staleDomains === undefined || staleDomains.size === 0) &&
+      options.allowWhenFresh !== true
+    ) {
       return { allowed: false, reason: 'not-stale' };
     }
     return { allowed: true };

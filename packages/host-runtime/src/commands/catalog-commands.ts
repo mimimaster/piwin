@@ -175,7 +175,16 @@ export async function handleCatalogCommand(
       }
     }
     case 'media/save': {
-      context.requireSession(command.input.sessionId);
+      // Media persistence belongs to a durable product session, not to the
+      // session's current in-memory runtime generation. A cold/evicted session
+      // must be able to receive an attachment before the following prompt
+      // wakes its Agent runtime.
+      if (context.requireDurableSession) {
+        await context.requireDurableSession(command.input.sessionId);
+      } else {
+        // Compatibility fallback for stateless command test contexts.
+        context.requireSession(command.input.sessionId);
+      }
       const rootDir = getPiwinRoot(context.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
       const mediaService = createMediaService({

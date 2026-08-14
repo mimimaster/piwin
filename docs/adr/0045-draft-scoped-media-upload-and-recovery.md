@@ -10,9 +10,9 @@
 
 Desktop currently creates an optimistic image preview, prepares the file in the
 WebView, converts the complete payload to Base64, and sends it through the
-ordinary `media/save` Host command. `media/save` requires a live `sessionId`, so
-attaching an image to a new draft also creates a Host session before the user
-sends anything.
+ordinary `media/save` Host command. The compatibility command is scoped to a
+durable `sessionId`; it must not require the Agent runtime to remain resident in
+memory while the attachment is being saved.
 
 This creates avoidable failure coupling:
 
@@ -169,6 +169,19 @@ retry / send-without-them / go-back; an attachment-only draft turns the primary
 action into Retry; strings are localized (zh/en). Failure classification is a
 Desktop-side heuristic (`policy` / `connection` / `local`); the stable
 `AttachmentFailureCode` contract remains Phase 1 work.
+
+### Compatibility-path correction (2026-08-14)
+
+`media/save` now validates that the target session exists in the durable
+session index instead of requiring a resident Agent runtime. A session may be
+cold after history browsing, Host restart, or residency eviction; the Host can
+still persist the attachment, and the following `session/prompt` activates the
+runtime as usual. This removes the `Unknown session` failure for valid cold
+sessions without making attachment persistence allocate a Pi worker.
+
+The staged upload decision below remains the long-term transport improvement:
+it removes the Base64 command envelope and makes draft attachments independent
+of a session id altogether.
 
 ### Known debt on the compatibility path (recorded 2026-08-13)
 

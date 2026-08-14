@@ -115,6 +115,9 @@ describe('session live control commands', () => {
     const { context } = createPromptContext(session);
     context.hasRunReceivedFirstToken = () => true;
     context.sessionModels.set(session.id, largeModelRef());
+    context.replaceRuntimeForModel = async () => {
+      order.push('replace-runtime');
+    };
     context.loadSessionUsage = async () => ({
       sessionId: session.id,
       tokensUsed: 900_000,
@@ -136,7 +139,7 @@ describe('session live control commands', () => {
 
     expect(response).toMatchObject({ success: true });
     await vi.waitFor(() => expect(context.getForegroundRun(session.id)).toBeUndefined());
-    expect(order).toEqual(['compact-source', 'prompt:small-252k']);
+    expect(order).toEqual(['compact-source', 'replace-runtime', 'prompt:small-252k']);
     expect(context.sessionModels.get(session.id)).toEqual(smallModelRef());
   });
 
@@ -1167,6 +1170,7 @@ function createControlContext(
     disposeLiveSession: async () => undefined,
     quarantineSessionRuntime: (): void => undefined,
     reloadRuntime: async () => ({ generationId: 'generation-2', settingsRevision: 'rev-2' }),
+    replaceRuntimeForModel: async (): Promise<void> => undefined,
     loadConfig: async () => ({}) as any,
     setRunOrchestrationScheme: (_runId, _scheme): void => undefined,
     getRunOrchestrationScheme: (_runId): ResolvedOrchestrationScheme | undefined => undefined,

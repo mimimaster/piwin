@@ -4270,12 +4270,15 @@ export class HostRuntime {
         }
       },
       getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
-      registerForegroundRun: (sessionId, resumeCheckpointId) => {
+      registerForegroundRun: (sessionId, resumeCheckpointId, options) => {
         const runtimeStatus = this.runtimeController.getStatus(sessionId);
         const updatePending =
           this.runtimeReplacementEngine.hasPending(sessionId) ||
           runtimeStatus.desiredSettingsRevision !== undefined;
-        const generationId = updatePending ? undefined : runtimeStatus.generationId;
+        const generationId =
+          updatePending || options?.deferRuntimeGeneration
+            ? undefined
+            : runtimeStatus.generationId;
         const parentRunId = this.runExecutionContext.getStore();
         const run = this.runRegistry.createForegroundRun(
           sessionId,
@@ -4481,6 +4484,7 @@ export class HostRuntime {
             settingsRevision: result.candidate.settingsRevision,
           }));
       },
+      replaceRuntimeForModel: (sessionId) => this.replaceRuntimeForModel(sessionId),
     };
   }
 
@@ -4539,6 +4543,7 @@ export class HostRuntime {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
       push: (message) => this.push(message),
       requireSession: (sessionId) => this.requireSession(sessionId),
+      requireDurableSession: (sessionId) => this.requireDurableSession(sessionId),
       getMcpManager: () => this.getMcpManager(),
       getJobController: () => this.getJobController(),
       getBrowserSession: () => this.browserSession ?? undefined,
@@ -5583,11 +5588,16 @@ export class HostRuntime {
     let handle: SessionHandle;
     try {
       // 3. create and commit a generation for the same product session id.
+      const activationModel = this.sessionModels.get(sessionId) ?? record.model;
       handle = await this.host.activateSession(
         sessionId,
         {
           projectPath: record.projectPath,
           ...(record.name ? { sessionName: record.name } : {}),
+          ...(activationModel ? { model: activationModel } : {}),
+          ...(record.thinkingLevel !== undefined
+            ? { thinkingLevel: record.thinkingLevel }
+            : {}),
         },
         runtimeGenerationId,
         replaySeedOptions ?? {},
@@ -6454,6 +6464,22 @@ export class HostRuntime {
     return session;
   }
 
+  /**
+   * Validate product-session ownership without waking a Pi runtime. Media
+   * uploads may arrive while a session is cold; the next prompt owns runtime
+   * activation and must not be blocked by attachment persistence.
+   */
+  private async requireDurableSession(sessionId: string): Promise<void> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+    if (!record) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+    if (record.isArchived === true) {
+      throw new Error(`Archived session cannot receive attachments: ${sessionId}`);
+    }
+  }
+
   private async createSession(
     input: CreateSessionInput,
     options: CreateSessionOptions = {},
@@ -6532,6 +6558,33 @@ export class HostRuntime {
       default:
         throw new Error(`Unsupported host test fixture: ${this.options.testFixture}`);
     }
+  }
+
+  /**
+   * Rebuild the resident generation for a cross-Provider model switch.
+   * Provider registration is frozen into each compiled generation, so a
+   * prompt must never try to teach the old Pi ModelRuntime a new provider.
+   */
+  private async replaceRuntimeForModel(sessionId: string): Promise<void> {
+    const status = this.runtimeController.getStatus(sessionId);
+    if (status.generationId === undefined) {
+      // Cold activation compiles directly from the latest session model; no
+      // replacement transaction is needed.
+      return;
+    }
+    const targetSettingsRevision = status.desiredSettingsRevision ?? status.settingsRevision;
+    if (targetSettingsRevision === undefined) {
+      throw new Error(`runtime model switch has no Settings revision: ${sessionId}`);
+    }
+    await this.runtimeReplacementEngine.replace({
+      sessionId,
+      reason: 'model-change',
+      targetSettingsRevision,
+      expectedActiveGenerationId: status.generationId,
+      // The current prompt is deliberately not attached to the old
+      // generation; descendants still correlated to it are drained first.
+      when: 'after-current-run',
+    });
   }
 
   private async compileRuntimeCandidate(

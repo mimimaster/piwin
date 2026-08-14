@@ -286,7 +286,11 @@ export type SessionLiveContext = {
   flushTranscriptRecorder?: (sessionId: string) => Promise<void>;
   /** RunRegistry-backed foreground lifecycle. */
   getForegroundRun: (sessionId: string) => ExecutionRunRecord | undefined;
-  registerForegroundRun: (sessionId: string, resumeCheckpointId?: string) => ExecutionRunRecord;
+  registerForegroundRun: (
+    sessionId: string,
+    resumeCheckpointId?: string,
+    options?: { deferRuntimeGeneration?: boolean },
+  ) => ExecutionRunRecord;
   getRunSignal: (runId: string) => AbortSignal | undefined;
   hasRunReceivedFirstToken: (runId: string) => boolean;
   requestCancelRun: (
@@ -358,6 +362,8 @@ export type SessionLiveContext = {
     expectedSettingsRevision: string;
     when: 'now' | 'after-current-run';
   }) => Promise<{ generationId: string; settingsRevision: string }>;
+  /** Rebuild a resident generation when the next turn changes Provider. */
+  replaceRuntimeForModel: (sessionId: string) => Promise<void>;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -1632,11 +1638,26 @@ export async function handleSessionLiveCommand(
       } catch (error) {
         return fail(requestId, 'session/prompt', formatError(error));
       }
+      // A live SDK/RPC generation owns the Provider envelope compiled at its
+      // creation. If the next turn selects another Provider, the old
+      // generation cannot resolve that model even though the durable config
+      // can. Keep this Run detached from the old generation while Host builds
+      // the replacement below; same-Provider model switches still use Pi's
+      // native setModel path without a rebuild.
+      const previousModel = command.input.model
+        ? context.sessionModels.get(command.sessionId)
+        : undefined;
+      const requiresModelRuntimeReplacement =
+        command.input.model !== undefined &&
+        context.sessions.has(command.sessionId) &&
+        (previousModel === undefined ||
+          previousModel.providerId !== command.input.model.providerId);
       let run: ExecutionRunRecord;
       try {
         run = context.registerForegroundRun(
           command.sessionId,
           command.input.source === 'resume' ? command.input.resumeCheckpointId : undefined,
+          requiresModelRuntimeReplacement ? { deferRuntimeGeneration: true } : undefined,
         );
       } catch (error) {
         const message = formatError(error);
@@ -1672,6 +1693,27 @@ export async function handleSessionLiveCommand(
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeAbortedRun(context, command.sessionId, run.runId);
             return;
+          }
+
+          if (requiresModelRuntimeReplacement) {
+            try {
+              await context.replaceRuntimeForModel(command.sessionId);
+            } catch (error) {
+              // The durable composer profile remains the user's requested
+              // model, but keep the in-memory source marker aligned with the
+              // still-live generation so the next prompt retries replacement
+              // instead of sending the same missing Provider to the old one.
+              if (previousModel === undefined) {
+                context.sessionModels.delete(command.sessionId);
+              } else {
+                context.sessionModels.set(command.sessionId, previousModel);
+              }
+              throw error;
+            }
+            if (context.getRunSignal(run.runId)?.aborted) {
+              await finalizeAbortedRun(context, command.sessionId, run.runId);
+              return;
+            }
           }
 
           // ADR 0040 §7: activate a cold runtime for the stable product
