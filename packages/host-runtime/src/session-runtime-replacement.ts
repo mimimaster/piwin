@@ -7,8 +7,13 @@ import type {
 
 export type RuntimeReplacementWhen = 'now' | 'after-current-run';
 
+/** Why a runtime generation is being rebuilt. */
+export type RuntimeReplacementReason = 'settings' | 'model-change';
+
 export type RuntimeReplacementRequest = {
   sessionId: string;
+  /** Settings replacement is the default; model changes may rebuild a live generation even when Settings are fresh. */
+  reason?: RuntimeReplacementReason;
   /** @deprecated Compatibility field; target revision is resolved by Host state. */
   expectedSettingsRevision?: string;
   /** Settings revision used to compile the candidate generation. */
@@ -81,6 +86,7 @@ export class SessionRuntimeReplacementEngine {
       request.sessionId,
       targetSettingsRevision,
       request.expectedActiveGenerationId,
+      { allowWhenFresh: request.reason === 'model-change' },
     );
     if (!plan.allowed && plan.reason !== 'running') {
       return Promise.reject(new Error(`runtime-reload-${plan.reason ?? 'not-allowed'}`));

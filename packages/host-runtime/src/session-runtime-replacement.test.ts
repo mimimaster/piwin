@@ -56,6 +56,27 @@ describe('SessionRuntimeReplacementEngine', () => {
     });
   });
 
+  it('replaces a fresh runtime for a cross-Provider model change', async () => {
+    const log: string[] = [];
+    const controller = new SessionRuntimeController({ isRunInFlight: () => true });
+    controller.attachGeneration('session-1', 'generation-old', 'settings-old');
+    const engine = new SessionRuntimeReplacementEngine(createEngine(log, controller));
+
+    const result = await engine.replace({
+      sessionId: 'session-1',
+      reason: 'model-change',
+      targetSettingsRevision: 'settings-old',
+      when: 'after-current-run',
+    });
+
+    expect(log).toEqual(['compile', 'join-runs', 'create-new', 'dispose-old']);
+    expect(result.candidate.generationId).toBe('generation-new');
+    expect(controller.getStatus('session-1')).toMatchObject({
+      state: 'live',
+      generationId: 'generation-new',
+    });
+  });
+
   it('coalesces after-current-run requests to the latest target revision', async () => {
     let release: (() => void) | undefined;
     const wait = new Promise<void>((resolve) => {

@@ -45,6 +45,11 @@ The Host is the only Settings-to-runtime update authority.
    cleared only when the desired generation attaches. A replacement generation
    has no native Pi conversation state, so its first prompt receives the same
    bounded, one-shot product-history reconstruction as a cold activation.
+8. A per-turn model switch across Provider IDs is also a runtime-generation
+   boundary. The Host leaves the new Run unattached while it compiles a
+   generation whose Provider envelope contains the selected model's Provider,
+   then attaches the Run to that generation. Same-Provider model switches use
+   Pi's native model selection and do not rebuild the generation.
 
 ## Consequences
 
@@ -54,5 +59,7 @@ The Host is the only Settings-to-runtime update authority.
   restrictions so Desktop and CLI do not infer state from transcript events.
 - `session/reload-runtime` remains a recovery/compatibility command; normal
   Settings application does not depend on a client clicking it.
+- Model selection never registers a missing Provider into an already-live Pi
+  `ModelRuntime`; that would bypass the compiled capability/secret boundary.
 - `host-restart` settings remain explicit and are not falsely reported as hot
   applied.

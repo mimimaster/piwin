@@ -94,6 +94,14 @@ describe('SessionRuntimeController', () => {
     expect(controller.planReload('s1', 'rev-1')).toEqual({ allowed: false, reason: 'not-stale' });
   });
 
+  it('allows a model-change replacement when Settings are fresh', () => {
+    const controller = createController(false);
+    controller.attachGeneration('s1', 'gen-1', 'rev-1');
+    expect(controller.planReload('s1', 'rev-1', undefined, { allowWhenFresh: true })).toEqual({
+      allowed: true,
+    });
+  });
+
   it('reload is blocked on a settings revision mismatch', () => {
     const controller = createController(false);
     controller.attachGeneration('s1', 'gen-1', 'rev-1');
