@@ -2,6 +2,7 @@
 
 import {
   isHostToolPermissionAction,
+  MAX_HOST_TOOL_DURATION_MS,
   type HostToolRegistration,
   type SessionToolFamily,
 } from '@piwin/contracts';
@@ -57,6 +58,23 @@ export function toolFamilyIndex(
       throw new HostToolRegistrationError(
         `permission subject builder missing for side-effect tool: ${name}`,
       );
+    }
+    if (
+      registration.permissionSpec.admission !== 'trusted' &&
+      registration.permissionSpec.readOnly !== true &&
+      !registration.prepareArgs
+    ) {
+      throw new HostToolRegistrationError(
+        `prepareArgs missing for side-effect tool: ${name}`,
+      );
+    }
+    const maxDurationMs = registration.executionSpec?.maxDurationMs;
+    if (maxDurationMs !== undefined) {
+      if (!Number.isSafeInteger(maxDurationMs) || maxDurationMs < 1 || maxDurationMs > MAX_HOST_TOOL_DURATION_MS) {
+        throw new HostToolRegistrationError(
+          `invalid executionSpec.maxDurationMs for ${name}: ${String(maxDurationMs)}`,
+        );
+      }
     }
     names.add(name);
 

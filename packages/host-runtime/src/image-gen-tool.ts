@@ -11,6 +11,7 @@ import type {
 import { createMediaService } from '@piwin/media';
 import type { SecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export class ImageGenConfigError extends Error {
   readonly name = 'ImageGenConfigError';
@@ -669,6 +670,7 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
       rememberable: false,
       subjectBuilder: () => ({ kind: 'tool', action: 'network:image-gen' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(args, signal) {
       const prompt = String(args.prompt ?? '').trim();
       if (!prompt) {

@@ -304,6 +304,7 @@ describe('SessionHostToolExecutionPort', () => {
     const target = makeTool('process_start');
     target.permissionSpec.readOnly = false;
     target.permissionSpec.subjectBuilder = () => ({ kind: 'tool', action: 'process:start' });
+    target.prepareArgs = async (args) => ({ ok: true, arguments: args });
     const toolbox = buildHostToolboxRegistration([target]);
     const admittedNames: string[] = [];
     const permissionGate: HostToolAdmission = {

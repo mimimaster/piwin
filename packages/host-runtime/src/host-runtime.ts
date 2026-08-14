@@ -711,7 +711,10 @@ export class HostRuntime {
       this.extensionDeploymentStartupRecovery = extensionRecovery;
       this.runRegistry = new RunRegistry({
         onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
-        onRunTerminal: (run) => this.push({ type: 'run/terminal', run }),
+        onRunTerminal: (run) => {
+          this.sessionHostToolPort?.releaseRun(run.sessionId, run.runId);
+          this.push({ type: 'run/terminal', run });
+        },
       });
       this.runtimeController = new SessionRuntimeController({
         isRunInFlight: (sessionId) => {

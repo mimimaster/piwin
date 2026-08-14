@@ -14,6 +14,7 @@
  * path.
  */
 import { randomUUID } from 'node:crypto';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import type {
   HostToolExecutionContext,
   HostToolRegistration,
@@ -153,6 +154,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       rememberable: false,
       subjectBuilder: () => ({ kind: 'tool', action: 'subagent:run' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(args, signal, context: HostToolExecutionContext) {
       const task = String(args.task ?? '').trim();
       if (!task) return invalidSubagentInput('task is required');

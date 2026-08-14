@@ -23,6 +23,7 @@ import type { BrowserSession } from '@piwin/browser';
 import { isPrivateOrLocalHostname } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
 import { applyModeToMatchedRule, type PermissionEvaluation } from './permission-policy.js';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 // ---------------------------------------------------------------------------
 // Permission classification (ADR 0020 §5)
@@ -127,7 +128,11 @@ function createBrowserRegistration(
     family: 'browser',
     permissionSpec,
     execute,
-    ...(prepareArgs ? { prepareArgs } : {}),
+    ...(prepareArgs
+      ? { prepareArgs }
+      : permissionSpec.readOnly === true
+        ? {}
+        : { prepareArgs: passThroughPrepareArgs }),
   };
 }
 

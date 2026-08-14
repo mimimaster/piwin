@@ -8,6 +8,7 @@
 import type { FlashcardCreateInput, HostToolRegistration, ToolResult } from '@piwin/contracts';
 import type { CardStore } from '@piwin/flashcards';
 import { buildFlashcardArtifactHtml, buildFlashcardBatchArtifactHtml } from '@piwin/flashcards';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export type BuildFlashcardToolsOptions = {
   store: CardStore;
@@ -62,6 +63,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         rememberable: false,
         subjectBuilder: () => ({ kind: 'tool', action: 'flashcards:create' }),
       },
+      prepareArgs: passThroughPrepareArgs,
       async execute(args) {
         const input = parseCardInput(args);
         if (!input.front.trim() || !input.back.trim()) {
@@ -112,6 +114,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         rememberable: false,
         subjectBuilder: () => ({ kind: 'tool', action: 'flashcards:batch-create' }),
       },
+      prepareArgs: passThroughPrepareArgs,
       async execute(args) {
         if (!Array.isArray(args.cards) || args.cards.length === 0) {
           return invalidFlashcardInput('cards must be a non-empty array');
@@ -197,6 +200,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         rememberable: false,
         subjectBuilder: () => ({ kind: 'tool', action: 'flashcards:delete' }),
       },
+      prepareArgs: passThroughPrepareArgs,
       async execute(args, signal) {
         const cardId = String(args.cardId ?? '').trim();
         if (!cardId) {

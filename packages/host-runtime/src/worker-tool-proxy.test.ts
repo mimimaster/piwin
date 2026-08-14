@@ -24,6 +24,7 @@ import type {
   WorkerPiSessionLike,
 } from '@piwin/agent-host';
 import { WorkerSessionRuntime, RpcSdkWorkerClient } from '@piwin/agent-host';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import { createPermissiveToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
@@ -52,6 +53,7 @@ function fakeHostTool(
     descriptor: { name, description: `${name} tool`, parameters: {} },
     family: name === 'bash' ? 'shell' : 'web-search',
     permissionSpec,
+    ...(name === 'bash' ? { prepareArgs: passThroughPrepareArgs } : {}),
     execute,
   };
 }

@@ -17,6 +17,7 @@ import type { SecretResolver } from './secret-resolver.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 import { callVideoEndpoint } from './video-generation-adapters.js';
 import { VideoGenConfigError, type VideoGenerationImageInput } from './video-generation-types.js';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export type ResolvedVideoProvider = {
   provider: ModelProviderConfig;
@@ -158,6 +159,7 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
       rememberable: false,
       subjectBuilder: () => ({ kind: 'tool', action: 'network:video-gen' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(args, signal) {
       const prompt = String(args.prompt ?? '').trim();
       if (!prompt) {

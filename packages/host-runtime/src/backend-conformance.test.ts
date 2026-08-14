@@ -28,6 +28,7 @@ import type {
 } from '@piwin/contracts';
 import { BLUEPRINT_PROTOCOL_VERSION, projectBlueprintForWorker } from '@piwin/agent-host';
 import { buildWorkerProxyTools } from '@piwin/agent-host';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import { createPermissiveToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
@@ -159,6 +160,7 @@ describe('WP6 conformance: tool router parity', () => {
         rememberable: false,
         subjectBuilder: (args) => ({ kind: 'bash', command: String(args.command ?? '') }),
       },
+      prepareArgs: passThroughPrepareArgs,
       execute: async () => ({ ok: true, output: 'ok' }),
     };
     // SDK path: tool is registered directly, permission gate is called.

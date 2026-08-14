@@ -62,8 +62,18 @@ describe('toolFamilyIndex', () => {
   it('rejects side-effect tools without a subjectBuilder', () => {
     const sideEffectTool = registration('bash_exec', 'process');
     sideEffectTool.permissionSpec.readOnly = false;
+    sideEffectTool.prepareArgs = async (args) => ({ ok: true, arguments: args });
     expect(() => toolFamilyIndex([sideEffectTool])).toThrow(
       'permission subject builder missing for side-effect tool: bash_exec',
+    );
+  });
+
+  it('rejects side-effect tools without prepareArgs', () => {
+    const sideEffectTool = registration('bash_exec', 'process');
+    sideEffectTool.permissionSpec.readOnly = false;
+    sideEffectTool.permissionSpec.subjectBuilder = () => ({ kind: 'process' });
+    expect(() => toolFamilyIndex([sideEffectTool])).toThrow(
+      'prepareArgs missing for side-effect tool: bash_exec',
     );
   });
 

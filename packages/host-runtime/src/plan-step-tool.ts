@@ -8,6 +8,7 @@ import type {
   SessionPlan,
   ToolResult,
 } from '@piwin/contracts';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 import {
   applyPlanStepUpdate,
   loadSessionPlan,
@@ -57,6 +58,7 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolRegist
       rememberable: false,
       subjectBuilder: () => ({ kind: 'tool', action: 'planning:update' }),
     },
+    prepareArgs: passThroughPrepareArgs,
     async execute(args) {
       const stepId = String(args.stepId ?? '').trim();
       const statusRaw = String(args.status ?? '').trim();

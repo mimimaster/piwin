@@ -14,6 +14,7 @@ import type {
 import type { NoteIndex, NoteStore, SearchNotesOptions } from '@piwin/notes';
 import { searchNotes } from '@piwin/notes';
 import type { NotesPermissionAction } from './permission-policy.js';
+import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export type BuildNotesToolsOptions = {
   store: NoteStore;
@@ -210,6 +211,7 @@ function createNotesToolDefinitions(
       },
       family: 'notes-write',
       permissionSpec: notesPermissionSpec('note_write', true),
+      prepareArgs: passThroughPrepareArgs,
       async execute(args) {
         const writeInput: NoteWriteInput = {
           title: String(args.title ?? ''),
@@ -248,6 +250,7 @@ function createNotesToolDefinitions(
       },
       family: 'notes-write',
       permissionSpec: notesPermissionSpec('note_update', true),
+      prepareArgs: passThroughPrepareArgs,
       async execute(args) {
         const noteId = String(args.noteId ?? '').trim();
         if (!noteId) return invalidNotesInput('noteId is required');
@@ -275,6 +278,7 @@ function createNotesToolDefinitions(
       },
       family: 'notes-write',
       permissionSpec: notesPermissionSpec('note_delete', true),
+      prepareArgs: passThroughPrepareArgs,
       async execute(args) {
         const noteId = String(args.noteId ?? '').trim();
         if (!noteId) return invalidNotesInput('noteId is required');
