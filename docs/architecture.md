@@ -140,6 +140,9 @@ interface SessionHandle {
   prompt(input: PromptInput): Promise<void>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
+  armRunIntervention?(input: BackendRunIntervention): Promise<void>;
+  cancelRunIntervention?(interventionId: string, expectedRevision: number): Promise<boolean>;
+  subscribeRunInterventions?(listener: RunInterventionListener): () => void;
   abort(): Promise<void>;
   getMessages(): Promise<AgentMessageView[]>;
   getTree(): Promise<SessionTreeView>;
@@ -157,6 +160,16 @@ interface PromptInput {
 The product `session/prompt` HostCommand follows ADR 0015: it allocates and
 returns a `runId` immediately, then observes completion through Host pushes and
 RunRegistry state.
+
+`steer()` and `followUp()` remain compatibility backend methods, not the
+product control vocabulary. New clients use the Host-owned Run intervention
+commands from [ADR 0051](./adr/0051-host-owned-run-interventions.md): the Host
+durably accepts an instruction for one exact `(runId, runtimeGenerationId)`,
+then `agent-host` applies it at Pi's next safe checkpoint through a lifecycle
+channel separate from `AgentEvent`. Pending or failed instructions remain
+visible in the product transcript but enter reconstructed model history only
+after their state is `applied`. SDK and RPC-worker modes implement the same
+arm/claim/apply protocol.
 
 ### 3.3 Event model
 

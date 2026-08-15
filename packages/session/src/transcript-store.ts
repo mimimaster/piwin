@@ -46,6 +46,17 @@ import {
   type SessionTranscriptPageQuery,
   type SessionToolCardView,
   type NativeContextEntry,
+  type RunInterventionRecord,
+  type RunInterventionStatus,
+  type RunInterventionTerminalReason,
+  type UserInstructionPayload,
+  type QueuedTurnMode,
+  type QueuedTurnRecord,
+  type QueuedTurnStatus,
+  type QueuedTurnTerminalReason,
+  QUEUED_TURN_MAX_PENDING_BYTES_PER_SESSION,
+  QUEUED_TURN_MAX_PENDING_PER_SESSION,
+  QUEUED_TURN_MAX_TEXT_BYTES,
 } from '@piwin/contracts';
 import { projectTranscriptMessagesForUi } from './transcript-ui-projection.js';
 import {
@@ -84,7 +95,62 @@ export type TranscriptStoreMessageInput = {
     terminalMessage?: string;
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
     searchEvidence?: SessionTranscriptMessage['searchEvidence'];
+    instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
   };
+};
+
+export type RunInterventionStoreCreateInput = {
+  interventionId: string;
+  sessionId: string;
+  runId: string;
+  runtimeGenerationId: string;
+  userMessageId: string;
+  input: UserInstructionPayload;
+  preparedText: string;
+  fingerprint: string;
+  submittedAt: string;
+};
+
+export type RunInterventionStoreCreateResult =
+  | { outcome: 'created' | 'replayed'; intervention: RunInterventionRecord }
+  | { outcome: 'idempotency-conflict' | 'message-id-conflict' };
+
+export type RunInterventionStoreTransitionInput = {
+  interventionId: string;
+  expectedRevision: number;
+  from: RunInterventionStatus[];
+  to: RunInterventionStatus;
+  updatedAt: string;
+  terminalReason?: RunInterventionTerminalReason;
+  appliedAt?: string;
+  appliedRequestOrdinal?: number;
+};
+
+export type QueuedTurnStoreCreateInput = {
+  queuedTurnId: string;
+  sessionId: string;
+  userMessageId: string;
+  mode: QueuedTurnMode;
+  replaceRunId?: string;
+  input: import('@piwin/contracts').PromptInput;
+  fingerprint: string;
+  submittedAt: string;
+};
+
+export type QueuedTurnStoreCreateResult =
+  | { outcome: 'created' | 'replayed'; queuedTurn: QueuedTurnRecord }
+  | {
+      outcome: 'idempotency-conflict' | 'message-id-conflict' | 'queue-full' | 'bounds-exceeded';
+    };
+
+export type QueuedTurnStoreTransitionInput = {
+  queuedTurnId: string;
+  expectedRevision: number;
+  from: QueuedTurnStatus[];
+  to: QueuedTurnStatus;
+  updatedAt: string;
+  terminalReason?: QueuedTurnTerminalReason;
+  startedRunId?: string;
 };
 
 /** Partial row update keyed by the normalized product id only. */
@@ -177,6 +243,53 @@ export type SessionTranscriptStore = {
   consumePauseCheckpoint(checkpointId: string): Promise<boolean>;
   /** Mark an active checkpoint cleared by an irreversible Stop or reset. */
   clearPauseCheckpoint(checkpointId?: string): Promise<boolean>;
+  /** Atomically store a pending intervention and its provisional user row. */
+  createRunIntervention(
+    input: RunInterventionStoreCreateInput,
+  ): Promise<RunInterventionStoreCreateResult>;
+  getRunIntervention(interventionId: string): Promise<RunInterventionRecord | undefined>;
+  listRunInterventions(runId: string): Promise<RunInterventionRecord[]>;
+  updatePendingRunIntervention(input: {
+    interventionId: string;
+    expectedRevision: number;
+    input: UserInstructionPayload;
+    preparedText: string;
+    fingerprint: string;
+    updatedAt: string;
+  }): Promise<RunInterventionRecord | undefined>;
+  transitionRunIntervention(
+    input: RunInterventionStoreTransitionInput,
+  ): Promise<RunInterventionRecord | undefined>;
+  /** Atomically store a durable normal next-turn request and its user row. */
+  createQueuedTurn(input: QueuedTurnStoreCreateInput): Promise<QueuedTurnStoreCreateResult>;
+  getQueuedTurn(queuedTurnId: string): Promise<QueuedTurnRecord | undefined>;
+  listQueuedTurns(): Promise<{ queueRevision: number; queuedTurns: QueuedTurnRecord[] }>;
+  updatePendingQueuedTurn(input: {
+    queuedTurnId: string;
+    expectedRevision: number;
+    input: import('@piwin/contracts').PromptInput;
+    fingerprint: string;
+    updatedAt: string;
+  }): Promise<QueuedTurnRecord | { outcome: 'queue-full' | 'bounds-exceeded' } | undefined>;
+  transitionQueuedTurn(
+    input: QueuedTurnStoreTransitionInput,
+  ): Promise<QueuedTurnRecord | undefined>;
+  reorderQueuedTurns(input: {
+    expectedQueueRevision: number;
+    orderedQueuedTurnIds: string[];
+  }): Promise<{ queueRevision: number; queuedTurns: QueuedTurnRecord[] } | undefined>;
+  /** Fail ambiguous in-flight records after a Host restart. */
+  reconcileQueuedTurns(updatedAt: string): Promise<QueuedTurnRecord[]>;
+  expirePendingRunInterventions(
+    runId: string,
+    terminalReason: RunInterventionTerminalReason,
+    updatedAt: string,
+  ): Promise<RunInterventionRecord[]>;
+  /** Reconcile crash-orphaned open interventions when no matching Run exists. */
+  finalizeOpenRunInterventions(
+    terminalReason: RunInterventionTerminalReason,
+    updatedAt: string,
+  ): Promise<RunInterventionRecord[]>;
   /** Bounded model-facing history window (role + text only). */
   buildHistoryWindow(options?: {
     maxMessages?: number;
@@ -275,6 +388,42 @@ type PauseCheckpointRow = {
   consumed_at: string | null;
 };
 
+type RunInterventionRow = {
+  intervention_id: string;
+  revision: number;
+  session_id: string;
+  run_id: string;
+  runtime_generation_id: string;
+  sequence: number;
+  user_message_id: string;
+  status: string;
+  input_json: string;
+  prepared_text: string;
+  fingerprint: string;
+  submitted_at: string;
+  updated_at: string;
+  applied_at: string | null;
+  applied_request_ordinal: number | null;
+  terminal_reason: string | null;
+};
+
+type QueuedTurnRow = {
+  queued_turn_id: string;
+  revision: number;
+  session_id: string;
+  sequence: number;
+  user_message_id: string;
+  mode: string;
+  status: string;
+  input_json: string;
+  fingerprint: string;
+  submitted_at: string;
+  updated_at: string;
+  replace_run_id: string | null;
+  started_run_id: string | null;
+  terminal_reason: string | null;
+};
+
 /** Compute a canonical digest covering every field persisted by the Store. */
 export function computeLegacyTranscriptDigest(document: SessionTranscriptDocument): string {
   return digestStoredMessages(
@@ -295,6 +444,7 @@ export async function openSessionTranscriptStore(
       session_id TEXT PRIMARY KEY,
       revision INTEGER NOT NULL,
       user_message_revision INTEGER NOT NULL DEFAULT 0,
+      queued_turn_revision INTEGER NOT NULL DEFAULT 0,
       project_path TEXT NOT NULL,
       scope_json TEXT,
       working_directory TEXT,
@@ -354,6 +504,50 @@ export async function openSessionTranscriptStore(
       ON pause_checkpoint(session_id, created_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_pause_checkpoint_active_session
       ON pause_checkpoint(session_id) WHERE status = 'active';
+    CREATE TABLE IF NOT EXISTS run_intervention(
+      intervention_id TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL,
+      session_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      runtime_generation_id TEXT NOT NULL,
+      sequence INTEGER NOT NULL,
+      user_message_id TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL,
+      input_json TEXT NOT NULL,
+      prepared_text TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      submitted_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      applied_at TEXT,
+      applied_request_ordinal INTEGER,
+      terminal_reason TEXT,
+      UNIQUE(run_id, sequence)
+    );
+    CREATE INDEX IF NOT EXISTS idx_run_intervention_run
+      ON run_intervention(run_id, sequence);
+    CREATE INDEX IF NOT EXISTS idx_run_intervention_status
+      ON run_intervention(run_id, status, sequence);
+    CREATE TABLE IF NOT EXISTS queued_turn(
+      queued_turn_id TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL,
+      session_id TEXT NOT NULL,
+      sequence INTEGER NOT NULL,
+      user_message_id TEXT NOT NULL UNIQUE,
+      mode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      input_json TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      submitted_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      replace_run_id TEXT,
+      started_run_id TEXT,
+      terminal_reason TEXT,
+      UNIQUE(session_id, sequence)
+    );
+    CREATE INDEX IF NOT EXISTS idx_queued_turn_session
+      ON queued_turn(session_id, sequence);
+    CREATE INDEX IF NOT EXISTS idx_queued_turn_status
+      ON queued_turn(session_id, status, sequence);
   `);
   const metaColumns = db.prepare('PRAGMA table_info(transcript_meta)').all() as Array<{
     name: string;
@@ -368,6 +562,11 @@ export async function openSessionTranscriptStore(
       'ALTER TABLE transcript_meta ADD COLUMN user_message_revision INTEGER NOT NULL DEFAULT 0',
     );
   }
+  if (!metaColumns.some((column) => column.name === 'queued_turn_revision')) {
+    db.exec(
+      'ALTER TABLE transcript_meta ADD COLUMN queued_turn_revision INTEGER NOT NULL DEFAULT 0',
+    );
+  }
   const messageColumns = db.prepare('PRAGMA table_info(transcript_message)').all() as Array<{
     name: string;
   }>;
@@ -378,7 +577,7 @@ export async function openSessionTranscriptStore(
     `INSERT OR IGNORE INTO transcript_meta(
       session_id, revision, project_path, updated_at
     ) VALUES (?, 0, ?, ?)`,
-  ).run(options.sessionId, options.projectPath, new Date().toISOString());
+  ).run(options.sessionId, options.projectPath ?? '', new Date().toISOString());
 
   let closed = false;
 
@@ -403,6 +602,24 @@ export async function openSessionTranscriptStore(
            updated_at = ?
        WHERE session_id = ?`,
     ).run(by, userMessageBy, new Date().toISOString(), options.sessionId);
+  }
+
+  function currentQueueRevision(): number {
+    const row = db
+      .prepare('SELECT queued_turn_revision FROM transcript_meta WHERE session_id = ?')
+      .get(options.sessionId) as { queued_turn_revision: number } | undefined;
+    return row?.queued_turn_revision ?? 0;
+  }
+
+  function bumpQueueRevision(userMessageBy = 0): void {
+    db.prepare(
+      `UPDATE transcript_meta
+       SET revision = revision + 1,
+           queued_turn_revision = queued_turn_revision + 1,
+           user_message_revision = user_message_revision + ?,
+           updated_at = ?
+       WHERE session_id = ?`,
+    ).run(userMessageBy, new Date().toISOString(), options.sessionId);
   }
 
   function currentUserMessageRevision(): number {
@@ -485,8 +702,87 @@ export async function openSessionTranscriptStore(
       if (metadata.searchEvidence !== undefined) {
         message.searchEvidence = metadata.searchEvidence;
       }
+      if (metadata.instructionDelivery !== undefined) {
+        message.instructionDelivery = metadata.instructionDelivery;
+      }
     }
     return message;
+  }
+
+  function rowToRunIntervention(row: RunInterventionRow): RunInterventionRecord {
+    const intervention: RunInterventionRecord = {
+      interventionId: row.intervention_id,
+      revision: row.revision,
+      sessionId: row.session_id,
+      runId: row.run_id,
+      runtimeGenerationId: row.runtime_generation_id,
+      sequence: row.sequence,
+      userMessageId: row.user_message_id,
+      status: row.status as RunInterventionStatus,
+      input: JSON.parse(row.input_json) as UserInstructionPayload,
+      submittedAt: row.submitted_at,
+      updatedAt: row.updated_at,
+    };
+    if (row.applied_at !== null) intervention.appliedAt = row.applied_at;
+    if (row.applied_request_ordinal !== null) {
+      intervention.appliedRequestOrdinal = row.applied_request_ordinal;
+    }
+    if (row.terminal_reason !== null) {
+      intervention.terminalReason = row.terminal_reason as RunInterventionTerminalReason;
+    }
+    return intervention;
+  }
+
+  function rowToQueuedTurn(row: QueuedTurnRow): QueuedTurnRecord {
+    const queuedTurn: QueuedTurnRecord = {
+      queuedTurnId: row.queued_turn_id,
+      revision: row.revision,
+      sessionId: row.session_id,
+      sequence: row.sequence,
+      userMessageId: row.user_message_id,
+      mode: row.mode as QueuedTurnMode,
+      status: row.status as QueuedTurnStatus,
+      input: JSON.parse(row.input_json) as import('@piwin/contracts').PromptInput,
+      submittedAt: row.submitted_at,
+      updatedAt: row.updated_at,
+    };
+    if (row.replace_run_id !== null) queuedTurn.replaceRunId = row.replace_run_id;
+    if (row.started_run_id !== null) queuedTurn.startedRunId = row.started_run_id;
+    if (row.terminal_reason !== null) {
+      queuedTurn.terminalReason = row.terminal_reason as QueuedTurnTerminalReason;
+    }
+    return queuedTurn;
+  }
+
+  function instructionMetadata(
+    row: Pick<RunInterventionRecord, 'interventionId' | 'revision' | 'runId' | 'status'>,
+  ): NonNullable<TranscriptStoreMessageInput['metadata']> {
+    return {
+      instructionDelivery: {
+        kind: 'run-intervention',
+        instructionId: row.interventionId,
+        status: row.status,
+        targetRunId: row.runId,
+        revision: row.revision,
+      },
+    };
+  }
+
+  function queuedTurnMetadata(
+    row: Pick<QueuedTurnRecord, 'queuedTurnId' | 'revision' | 'status' | 'replaceRunId'> & {
+      startedRunId?: string;
+    },
+  ): NonNullable<TranscriptStoreMessageInput['metadata']> {
+    const targetRunId = row.startedRunId ?? row.replaceRunId;
+    return {
+      instructionDelivery: {
+        kind: 'queued-turn',
+        instructionId: row.queuedTurnId,
+        status: row.status,
+        ...(targetRunId === undefined ? {} : { targetRunId }),
+        revision: row.revision,
+      },
+    };
   }
 
   function rowToPauseCheckpoint(row: PauseCheckpointRow): SessionPauseCheckpoint {
@@ -1083,6 +1379,675 @@ export async function openSessionTranscriptStore(
       return result.changes > 0;
     },
 
+    async createRunIntervention(input) {
+      ensureOpen();
+      if (input.sessionId !== options.sessionId) {
+        throw new Error(
+          `Run intervention session mismatch: expected ${options.sessionId}, got ${input.sessionId}`,
+        );
+      }
+      const existing = db
+        .prepare('SELECT * FROM run_intervention WHERE intervention_id = ?')
+        .get(input.interventionId) as unknown as RunInterventionRow | undefined;
+      if (existing !== undefined) {
+        return existing.fingerprint === input.fingerprint &&
+          existing.run_id === input.runId &&
+          existing.user_message_id === input.userMessageId
+          ? { outcome: 'replayed', intervention: rowToRunIntervention(existing) }
+          : { outcome: 'idempotency-conflict' };
+      }
+      if (
+        db.prepare('SELECT 1 FROM transcript_message WHERE id = ?').get(input.userMessageId) !==
+        undefined
+      ) {
+        return { outcome: 'message-id-conflict' };
+      }
+      const sequenceRow = db
+        .prepare(
+          'SELECT COALESCE(MAX(sequence), 0) + 1 AS sequence FROM run_intervention WHERE run_id = ?',
+        )
+        .get(input.runId) as { sequence: number };
+      const record: RunInterventionRecord = {
+        interventionId: input.interventionId,
+        revision: 1,
+        sessionId: input.sessionId,
+        runId: input.runId,
+        runtimeGenerationId: input.runtimeGenerationId,
+        sequence: sequenceRow.sequence,
+        userMessageId: input.userMessageId,
+        status: 'pending',
+        input: input.input,
+        submittedAt: input.submittedAt,
+        updatedAt: input.submittedAt,
+      };
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        db.prepare(
+          `INSERT INTO run_intervention(
+             intervention_id, revision, session_id, run_id, runtime_generation_id,
+             sequence, user_message_id, status, input_json, prepared_text,
+             fingerprint, submitted_at, updated_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
+        ).run(
+          record.interventionId,
+          record.revision,
+          record.sessionId,
+          record.runId,
+          record.runtimeGenerationId,
+          record.sequence,
+          record.userMessageId,
+          JSON.stringify(record.input),
+          input.preparedText,
+          input.fingerprint,
+          record.submittedAt,
+          record.updatedAt,
+        );
+        insertMessageRow({
+          id: record.userMessageId,
+          runtimeGenerationId: USER_AUTHORED_GENERATION,
+          backendMessageId: record.userMessageId,
+          role: 'user',
+          text: record.input.text,
+          status: 'done',
+          createdAt: record.submittedAt,
+          runId: record.runId,
+          metadata: instructionMetadata(record),
+        });
+        bumpRevision(1, isIndexedUserMessage('user', record.input.text) ? 1 : 0);
+        db.exec('COMMIT');
+        return { outcome: 'created', intervention: record };
+      } catch (error) {
+        rollback(db);
+        if (isSqliteUniqueConstraint(error)) {
+          const concurrent = db
+            .prepare('SELECT * FROM run_intervention WHERE intervention_id = ?')
+            .get(input.interventionId) as unknown as RunInterventionRow | undefined;
+          if (concurrent !== undefined) {
+            return concurrent.fingerprint === input.fingerprint
+              ? { outcome: 'replayed', intervention: rowToRunIntervention(concurrent) }
+              : { outcome: 'idempotency-conflict' };
+          }
+          return { outcome: 'message-id-conflict' };
+        }
+        throw error;
+      }
+    },
+
+    async getRunIntervention(interventionId) {
+      ensureOpen();
+      const row = db
+        .prepare('SELECT * FROM run_intervention WHERE intervention_id = ? AND session_id = ?')
+        .get(interventionId, options.sessionId) as unknown as RunInterventionRow | undefined;
+      return row === undefined ? undefined : rowToRunIntervention(row);
+    },
+
+    async listRunInterventions(runId) {
+      ensureOpen();
+      const rows = db
+        .prepare(
+          'SELECT * FROM run_intervention WHERE session_id = ? AND run_id = ? ORDER BY sequence ASC',
+        )
+        .all(options.sessionId, runId) as unknown as RunInterventionRow[];
+      return rows.map(rowToRunIntervention);
+    },
+
+    async updatePendingRunIntervention(input) {
+      ensureOpen();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const row = db
+          .prepare(
+            `SELECT * FROM run_intervention
+             WHERE intervention_id = ? AND session_id = ? AND revision = ? AND status = 'pending'`,
+          )
+          .get(
+            input.interventionId,
+            options.sessionId,
+            input.expectedRevision,
+          ) as unknown as RunInterventionRow | undefined;
+        if (row === undefined) {
+          db.exec('COMMIT');
+          return undefined;
+        }
+        const revision = row.revision + 1;
+        db.prepare(
+          `UPDATE run_intervention
+           SET revision = ?, input_json = ?, prepared_text = ?, fingerprint = ?, updated_at = ?
+           WHERE intervention_id = ?`,
+        ).run(
+          revision,
+          JSON.stringify(input.input),
+          input.preparedText,
+          input.fingerprint,
+          input.updatedAt,
+          input.interventionId,
+        );
+        const updated = rowToRunIntervention({
+          ...row,
+          revision,
+          input_json: JSON.stringify(input.input),
+          prepared_text: input.preparedText,
+          fingerprint: input.fingerprint,
+          updated_at: input.updatedAt,
+        });
+        db.prepare('UPDATE transcript_message SET text = ?, metadata_json = ? WHERE id = ?').run(
+          input.input.text,
+          JSON.stringify(instructionMetadata(updated)),
+          row.user_message_id,
+        );
+        bumpRevision(1, 1);
+        db.exec('COMMIT');
+        return updated;
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+
+    async transitionRunIntervention(input) {
+      ensureOpen();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const row = db
+          .prepare(
+            'SELECT * FROM run_intervention WHERE intervention_id = ? AND session_id = ?',
+          )
+          .get(input.interventionId, options.sessionId) as unknown as
+          | RunInterventionRow
+          | undefined;
+        if (
+          row === undefined ||
+          row.revision !== input.expectedRevision ||
+          !input.from.includes(row.status as RunInterventionStatus)
+        ) {
+          db.exec('COMMIT');
+          return undefined;
+        }
+        const revision = row.revision + 1;
+        db.prepare(
+          `UPDATE run_intervention
+           SET revision = ?, status = ?, updated_at = ?, terminal_reason = ?,
+               applied_at = ?, applied_request_ordinal = ?
+           WHERE intervention_id = ?`,
+        ).run(
+          revision,
+          input.to,
+          input.updatedAt,
+          input.terminalReason ?? null,
+          input.appliedAt ?? null,
+          input.appliedRequestOrdinal ?? null,
+          input.interventionId,
+        );
+        const updated = rowToRunIntervention({
+          ...row,
+          revision,
+          status: input.to,
+          updated_at: input.updatedAt,
+          terminal_reason: input.terminalReason ?? null,
+          applied_at: input.appliedAt ?? null,
+          applied_request_ordinal: input.appliedRequestOrdinal ?? null,
+        });
+        db.prepare('UPDATE transcript_message SET metadata_json = ? WHERE id = ?').run(
+          JSON.stringify(instructionMetadata(updated)),
+          row.user_message_id,
+        );
+        bumpRevision();
+        db.exec('COMMIT');
+        return updated;
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+
+    async expirePendingRunInterventions(runId, terminalReason, updatedAt) {
+      ensureOpen();
+      const storeApi = this as SessionTranscriptStore;
+      const rows = db
+        .prepare(
+          `SELECT * FROM run_intervention
+           WHERE session_id = ? AND run_id = ? AND status IN ('pending', 'applying')
+           ORDER BY sequence ASC`,
+        )
+        .all(options.sessionId, runId) as unknown as RunInterventionRow[];
+      const updated: RunInterventionRecord[] = [];
+      for (const row of rows) {
+        const result = await storeApi.transitionRunIntervention({
+          interventionId: row.intervention_id,
+          expectedRevision: row.revision,
+          from: [row.status as RunInterventionStatus],
+          to: row.status === 'applying' ? 'uncertain' : 'expired',
+          updatedAt,
+          terminalReason:
+            row.status === 'applying' ? 'application-outcome-unknown' : terminalReason,
+        });
+        if (result !== undefined) updated.push(result);
+      }
+      return updated;
+    },
+
+    async finalizeOpenRunInterventions(terminalReason, updatedAt) {
+      ensureOpen();
+      const rows = db
+        .prepare(
+          `SELECT * FROM run_intervention
+           WHERE session_id = ? AND status IN ('pending', 'applying')
+           ORDER BY run_id ASC, sequence ASC`,
+        )
+        .all(options.sessionId) as unknown as RunInterventionRow[];
+      const updated: RunInterventionRecord[] = [];
+      const storeApi = this as SessionTranscriptStore;
+      for (const row of rows) {
+        const result = await storeApi.transitionRunIntervention({
+          interventionId: row.intervention_id,
+          expectedRevision: row.revision,
+          from: [row.status as RunInterventionStatus],
+          to: row.status === 'applying' ? 'uncertain' : 'expired',
+          updatedAt,
+          terminalReason:
+            row.status === 'applying' ? 'application-outcome-unknown' : terminalReason,
+        });
+        if (result !== undefined) updated.push(result);
+      }
+      return updated;
+    },
+
+    async createQueuedTurn(input) {
+      ensureOpen();
+      if (input.sessionId !== options.sessionId) {
+        throw new Error(
+          `Queued turn session mismatch: expected ${options.sessionId}, got ${input.sessionId}`,
+        );
+      }
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const existing = db
+          .prepare('SELECT * FROM queued_turn WHERE queued_turn_id = ? AND session_id = ?')
+          .get(input.queuedTurnId, options.sessionId) as unknown as QueuedTurnRow | undefined;
+        if (existing !== undefined) {
+          const existingInput = JSON.parse(existing.input_json) as import('@piwin/contracts').PromptInput;
+          const same =
+            existing.fingerprint === input.fingerprint &&
+            existing.user_message_id === input.userMessageId &&
+            existing.mode === input.mode &&
+            existing.replace_run_id === (input.replaceRunId ?? null);
+          db.exec('COMMIT');
+          if (!same) return { outcome: 'idempotency-conflict' };
+          // Keep this read as a structural check: a caller cannot replay an id
+          // with a different JSON payload hidden behind a reused fingerprint.
+          if (stableSerialize(existingInput) !== stableSerialize(input.input)) {
+            return { outcome: 'idempotency-conflict' };
+          }
+          return { outcome: 'replayed', queuedTurn: rowToQueuedTurn(existing) };
+        }
+        if (Buffer.byteLength(input.input.text, 'utf8') > QUEUED_TURN_MAX_TEXT_BYTES) {
+          db.exec('COMMIT');
+          return { outcome: 'bounds-exceeded' };
+        }
+        const existingMessage = db
+          .prepare('SELECT 1 FROM transcript_message WHERE id = ?')
+          .get(input.userMessageId);
+        if (existingMessage !== undefined) {
+          db.exec('COMMIT');
+          return { outcome: 'message-id-conflict' };
+        }
+        const pending = db
+          .prepare(
+            `SELECT status, input_json FROM queued_turn
+             WHERE session_id = ? AND status IN ('pending', 'starting')`,
+          )
+          .all(options.sessionId) as Array<{ status: string; input_json: string }>;
+        if (pending.length >= QUEUED_TURN_MAX_PENDING_PER_SESSION) {
+          db.exec('COMMIT');
+          return { outcome: 'queue-full' };
+        }
+        const pendingBytes = pending.reduce((total, row) => {
+          const queuedInput = JSON.parse(row.input_json) as import('@piwin/contracts').PromptInput;
+          return total + Buffer.byteLength(queuedInput.text, 'utf8');
+        }, 0);
+        if (
+          pendingBytes + Buffer.byteLength(input.input.text, 'utf8') >
+          QUEUED_TURN_MAX_PENDING_BYTES_PER_SESSION
+        ) {
+          db.exec('COMMIT');
+          return { outcome: 'queue-full' };
+        }
+        const sequenceRow = db
+          .prepare(
+            `SELECT COALESCE(MAX(sequence), 0) + 1 AS sequence
+             FROM queued_turn WHERE session_id = ?`,
+          )
+          .get(options.sessionId) as { sequence: number };
+        const record: QueuedTurnRecord = {
+          queuedTurnId: input.queuedTurnId,
+          revision: 1,
+          sessionId: input.sessionId,
+          sequence: sequenceRow.sequence,
+          userMessageId: input.userMessageId,
+          mode: input.mode,
+          status: 'pending',
+          input: input.input,
+          submittedAt: input.submittedAt,
+          updatedAt: input.submittedAt,
+          ...(input.replaceRunId === undefined ? {} : { replaceRunId: input.replaceRunId }),
+        };
+        db.prepare(
+          `INSERT INTO queued_turn(
+             queued_turn_id, revision, session_id, sequence, user_message_id, mode,
+             status, input_json, fingerprint, submitted_at, updated_at,
+             replace_run_id, started_run_id, terminal_reason
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+          record.queuedTurnId,
+          record.revision,
+          record.sessionId,
+          record.sequence,
+          record.userMessageId,
+          record.mode,
+          record.status,
+          JSON.stringify(record.input),
+          input.fingerprint,
+          record.submittedAt,
+          record.updatedAt,
+          record.replaceRunId ?? null,
+          null,
+          null,
+        );
+        const mediaAttachments = input.input.attachments?.filter(
+          (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+        );
+        insertMessageRow({
+          id: record.userMessageId,
+          runtimeGenerationId: USER_AUTHORED_GENERATION,
+          backendMessageId: record.userMessageId,
+          role: 'user',
+          text: record.input.text,
+          status: 'done',
+          createdAt: record.submittedAt,
+          ...(mediaAttachments === undefined || mediaAttachments.length === 0
+            ? {}
+            : { attachments: mediaAttachments }),
+          ...(record.input.contextRefs === undefined
+            ? {}
+            : { contextRefs: record.input.contextRefs }),
+          metadata: queuedTurnMetadata(record),
+        });
+        bumpQueueRevision(isIndexedUserMessage('user', record.input.text) ? 1 : 0);
+        db.exec('COMMIT');
+        return { outcome: 'created', queuedTurn: record };
+      } catch (error) {
+        rollback(db);
+        if (isSqliteUniqueConstraint(error)) {
+          const concurrent = db
+            .prepare('SELECT * FROM queued_turn WHERE queued_turn_id = ? AND session_id = ?')
+            .get(input.queuedTurnId, options.sessionId) as unknown as QueuedTurnRow | undefined;
+          if (concurrent !== undefined && concurrent.fingerprint === input.fingerprint) {
+            return { outcome: 'replayed', queuedTurn: rowToQueuedTurn(concurrent) };
+          }
+          return { outcome: 'message-id-conflict' };
+        }
+        throw error;
+      }
+    },
+
+    async getQueuedTurn(queuedTurnId) {
+      ensureOpen();
+      const row = db
+        .prepare('SELECT * FROM queued_turn WHERE queued_turn_id = ? AND session_id = ?')
+        .get(queuedTurnId, options.sessionId) as unknown as QueuedTurnRow | undefined;
+      return row === undefined ? undefined : rowToQueuedTurn(row);
+    },
+
+    async listQueuedTurns() {
+      ensureOpen();
+      const rows = db
+        .prepare(
+          `SELECT * FROM queued_turn
+           WHERE session_id = ? ORDER BY sequence ASC`,
+        )
+        .all(options.sessionId) as unknown as QueuedTurnRow[];
+      return { queueRevision: currentQueueRevision(), queuedTurns: rows.map(rowToQueuedTurn) };
+    },
+
+    async updatePendingQueuedTurn(input) {
+      ensureOpen();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const row = db
+          .prepare(
+            `SELECT * FROM queued_turn
+             WHERE queued_turn_id = ? AND session_id = ? AND revision = ? AND status = 'pending'`,
+          )
+          .get(input.queuedTurnId, options.sessionId, input.expectedRevision) as unknown as
+          | QueuedTurnRow
+          | undefined;
+        if (row === undefined) {
+          db.exec('COMMIT');
+          return undefined;
+        }
+        if (Buffer.byteLength(input.input.text, 'utf8') > QUEUED_TURN_MAX_TEXT_BYTES) {
+          db.exec('COMMIT');
+          return { outcome: 'bounds-exceeded' };
+        }
+        const pending = db
+          .prepare(
+            `SELECT input_json FROM queued_turn
+             WHERE session_id = ? AND status IN ('pending', 'starting')
+               AND queued_turn_id <> ?`,
+          )
+          .all(options.sessionId, input.queuedTurnId) as Array<{ input_json: string }>;
+        const pendingBytes = pending.reduce((total, pendingRow) => {
+          const pendingInput = JSON.parse(pendingRow.input_json) as import('@piwin/contracts').PromptInput;
+          return total + Buffer.byteLength(pendingInput.text, 'utf8');
+        }, 0);
+        if (
+          pendingBytes + Buffer.byteLength(input.input.text, 'utf8') >
+          QUEUED_TURN_MAX_PENDING_BYTES_PER_SESSION
+        ) {
+          db.exec('COMMIT');
+          return { outcome: 'queue-full' };
+        }
+        const revision = row.revision + 1;
+        db.prepare(
+          `UPDATE queued_turn
+           SET revision = ?, input_json = ?, fingerprint = ?, updated_at = ?
+           WHERE queued_turn_id = ? AND session_id = ?`,
+        ).run(
+          revision,
+          JSON.stringify(input.input),
+          input.fingerprint,
+          input.updatedAt,
+          input.queuedTurnId,
+          options.sessionId,
+        );
+        const updated: QueuedTurnRecord = {
+          ...rowToQueuedTurn(row),
+          revision,
+          input: input.input,
+          updatedAt: input.updatedAt,
+        };
+        const mediaAttachments = input.input.attachments?.filter(
+          (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+        );
+        db.prepare(
+          `UPDATE transcript_message
+           SET text = ?, attachments_json = ?, context_refs_json = ?, metadata_json = ?
+           WHERE id = ?`,
+        ).run(
+          input.input.text,
+          mediaAttachments === undefined || mediaAttachments.length === 0
+            ? null
+            : JSON.stringify(mediaAttachments),
+          input.input.contextRefs === undefined ? null : JSON.stringify(input.input.contextRefs),
+          JSON.stringify(queuedTurnMetadata(updated)),
+          row.user_message_id,
+        );
+        bumpQueueRevision();
+        db.exec('COMMIT');
+        return updated;
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+
+    async transitionQueuedTurn(input) {
+      ensureOpen();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const row = db
+          .prepare(
+            `SELECT * FROM queued_turn
+             WHERE queued_turn_id = ? AND session_id = ?`,
+          )
+          .get(input.queuedTurnId, options.sessionId) as unknown as QueuedTurnRow | undefined;
+        if (
+          row === undefined ||
+          row.revision !== input.expectedRevision ||
+          !input.from.includes(row.status as QueuedTurnStatus)
+        ) {
+          db.exec('COMMIT');
+          return undefined;
+        }
+        const revision = row.revision + 1;
+        db.prepare(
+          `UPDATE queued_turn
+           SET revision = ?, status = ?, updated_at = ?, terminal_reason = ?,
+               started_run_id = ?
+           WHERE queued_turn_id = ? AND session_id = ?`,
+        ).run(
+          revision,
+          input.to,
+          input.updatedAt,
+          input.terminalReason ?? null,
+          input.startedRunId ?? row.started_run_id,
+          input.queuedTurnId,
+          options.sessionId,
+        );
+        const updated: QueuedTurnRecord = {
+          ...rowToQueuedTurn(row),
+          revision,
+          status: input.to,
+          updatedAt: input.updatedAt,
+          ...(input.startedRunId === undefined
+            ? row.started_run_id === null
+              ? {}
+              : { startedRunId: row.started_run_id }
+            : { startedRunId: input.startedRunId }),
+          ...(input.terminalReason === undefined
+            ? row.terminal_reason === null
+              ? {}
+              : { terminalReason: row.terminal_reason as QueuedTurnTerminalReason }
+            : { terminalReason: input.terminalReason }),
+        };
+        db.prepare('UPDATE transcript_message SET metadata_json = ?, run_id = ? WHERE id = ?').run(
+          JSON.stringify(queuedTurnMetadata(updated)),
+          updated.startedRunId ?? null,
+          row.user_message_id,
+        );
+        bumpQueueRevision();
+        db.exec('COMMIT');
+        return updated;
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+
+    async reorderQueuedTurns(input) {
+      ensureOpen();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const queueRevision = currentQueueRevision();
+        if (queueRevision !== input.expectedQueueRevision) {
+          db.exec('COMMIT');
+          return undefined;
+        }
+        const rows = db
+          .prepare(
+            `SELECT * FROM queued_turn
+             WHERE session_id = ? AND status = 'pending' ORDER BY sequence ASC`,
+          )
+          .all(options.sessionId) as unknown as QueuedTurnRow[];
+        const currentIds = rows.map((row) => row.queued_turn_id);
+        if (
+          currentIds.length !== input.orderedQueuedTurnIds.length ||
+          new Set(input.orderedQueuedTurnIds).size !== currentIds.length ||
+          input.orderedQueuedTurnIds.some((id) => !currentIds.includes(id))
+        ) {
+          db.exec('COMMIT');
+          return undefined;
+        }
+        db.prepare(
+          `UPDATE queued_turn SET sequence = -sequence, revision = revision + 1
+           WHERE session_id = ? AND status = 'pending'`,
+        ).run(options.sessionId);
+        // Terminal rows stay in the durable queue for audit/history purposes.
+        // Assign reordered pending rows after the current session maximum so
+        // the UNIQUE(session_id, sequence) constraint cannot collide with a
+        // previously started/cancelled turn (for example started=1, pending=2).
+        const maxSequenceRow = db
+          .prepare(
+            `SELECT COALESCE(MAX(sequence), 0) AS max_sequence
+             FROM queued_turn WHERE session_id = ?`,
+          )
+          .get(options.sessionId) as { max_sequence: number };
+        const firstSequence = maxSequenceRow.max_sequence + 1;
+        const updateSequence = db.prepare(
+          `UPDATE queued_turn SET sequence = ?
+           WHERE queued_turn_id = ? AND session_id = ?`,
+        );
+        input.orderedQueuedTurnIds.forEach((queuedTurnId, index) => {
+          updateSequence.run(firstSequence + index, queuedTurnId, options.sessionId);
+        });
+        const updatedRows = db
+          .prepare(
+            `SELECT * FROM queued_turn
+             WHERE session_id = ? ORDER BY sequence ASC`,
+          )
+          .all(options.sessionId) as unknown as QueuedTurnRow[];
+        for (const row of updatedRows) {
+          db.prepare('UPDATE transcript_message SET metadata_json = ? WHERE id = ?').run(
+            JSON.stringify(queuedTurnMetadata(rowToQueuedTurn(row))),
+            row.user_message_id,
+          );
+        }
+        bumpQueueRevision();
+        db.exec('COMMIT');
+        return {
+          queueRevision: currentQueueRevision(),
+          queuedTurns: updatedRows.map(rowToQueuedTurn),
+        };
+      } catch (error) {
+        rollback(db);
+        throw error;
+      }
+    },
+
+    async reconcileQueuedTurns(updatedAt) {
+      ensureOpen();
+      const rows = db
+        .prepare(
+          `SELECT * FROM queued_turn
+           WHERE session_id = ? AND (status = 'starting' OR (status = 'pending' AND mode = 'replace'))`,
+        )
+        .all(options.sessionId) as unknown as QueuedTurnRow[];
+      const updated: QueuedTurnRecord[] = [];
+      const storeApi = this as SessionTranscriptStore;
+      for (const row of rows) {
+        const result = await storeApi.transitionQueuedTurn({
+          queuedTurnId: row.queued_turn_id,
+          expectedRevision: row.revision,
+          from: [row.status as QueuedTurnStatus],
+          to: 'failed',
+          updatedAt,
+          terminalReason: 'host-restarted',
+        });
+        if (result !== undefined) updated.push(result);
+      }
+      return updated;
+    },
+
     async buildHistoryWindow(options = {}) {
       ensureOpen();
       const maxMessages = options.maxMessages ?? DEFAULT_HISTORY_MESSAGES;
@@ -1101,6 +2066,11 @@ export async function openSessionTranscriptStore(
               .prepare(
                 `SELECT role, text, context_refs_json FROM transcript_message
                WHERE role IN ('user', 'assistant', 'system') AND text != ''
+                 AND (json_extract(metadata_json, '$.instructionDelivery.kind') IS NULL
+                      OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'run-intervention'
+                          AND json_extract(metadata_json, '$.instructionDelivery.status') = 'applied')
+                      OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'queued-turn'
+                          AND json_extract(metadata_json, '$.instructionDelivery.status') = 'started'))
                ORDER BY sequence DESC LIMIT ?`,
               )
               .all(maxMessages) as Array<{
@@ -1112,6 +2082,11 @@ export async function openSessionTranscriptStore(
               .prepare(
                 `SELECT role, text, context_refs_json FROM transcript_message
                WHERE sequence < ? AND role IN ('user', 'assistant', 'system') AND text != ''
+                 AND (json_extract(metadata_json, '$.instructionDelivery.kind') IS NULL
+                      OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'run-intervention'
+                          AND json_extract(metadata_json, '$.instructionDelivery.status') = 'applied')
+                      OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'queued-turn'
+                          AND json_extract(metadata_json, '$.instructionDelivery.status') = 'started'))
                ORDER BY sequence DESC LIMIT ?`,
               )
               .all(excluded.sequence, maxMessages) as Array<{

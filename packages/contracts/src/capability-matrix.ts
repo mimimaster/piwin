@@ -62,6 +62,7 @@ export function buildCapabilityMatrix(
     ),
     row('sessionSearch', 'Session search', capabilities.sessionSearch === true),
     row('sessionPause', 'Resumable session pause', capabilities.sessionPause === true),
+    row('queuedTurns', 'Host-owned queued turns / Replace Run', capabilities.queuedTurns === true),
     row('process', 'Managed processes', capabilities.process === true),
     row('pty', 'Interactive terminal (PTY)', capabilities.pty === true, ptyNote),
     row(

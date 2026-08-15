@@ -133,9 +133,16 @@ describe('transcript turn window', () => {
     expect(container.querySelector('[data-testid="transcript-turn-window"]')).toBeNull();
   });
 
-  it('keeps a long active transcript in document flow', async () => {
+  it('bounds mounted rows during streaming while keeping live tail pinned', async () => {
     const turns = createTurns(80);
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 30_000 },
+      scrollTop: { configurable: true, writable: true, value: 29_000 },
+    });
 
     await act(async () => {
       root.render(
@@ -151,10 +158,11 @@ describe('transcript turn window', () => {
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
     });
 
-    expect(container.querySelector('[data-testid="transcript-turn-window"]')).toBeNull();
-    expect(container.querySelectorAll('[data-testid="rendered-turn"]')).toHaveLength(80);
-    expect(container.querySelector('#msg-user-0')).not.toBeNull();
-    expect(container.querySelector('#msg-user-40')).not.toBeNull();
+    expect(container.querySelector('[data-testid="transcript-turn-window"]')).not.toBeNull();
+    const mountedCount = container.querySelectorAll('[data-testid="rendered-turn"]').length;
+    expect(mountedCount).toBeGreaterThan(0);
+    expect(mountedCount).toBeLessThan(25);
+    // Live tail is pinned
     expect(container.querySelector('#msg-user-79')).not.toBeNull();
   });
 
@@ -162,10 +170,11 @@ describe('transcript turn window', () => {
     const turns = createTurns(500);
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
     Object.defineProperties(container, {
-      offsetHeight: { configurable: true, value: 640 },
-      offsetWidth: { configurable: true, value: 900 },
-      clientHeight: { configurable: true, value: 640 },
-      scrollHeight: { configurable: true, value: 190_000 },
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 190_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
     });
 
     await act(async () => {
@@ -187,10 +196,11 @@ describe('transcript turn window', () => {
   it('keeps an edited historical turn mounted and focused while the tail changes', async () => {
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
     Object.defineProperties(container, {
-      offsetHeight: { configurable: true, value: 640 },
-      offsetWidth: { configurable: true, value: 900 },
-      clientHeight: { configurable: true, value: 640 },
-      scrollHeight: { configurable: true, value: 20_000 },
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 20_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
     });
 
     async function renderTurns(turns: TranscriptTurn[]): Promise<void> {
@@ -221,13 +231,14 @@ describe('transcript turn window', () => {
 });
 
 describe('transcript virtualization policy', () => {
-  it('virtualizes completed history only after the long-session threshold', () => {
+  it('virtualizes after a short exchange so everyday coding sessions stay windowed', () => {
     expect(shouldVirtualizeTranscript(0)).toBe(false);
-    expect(shouldVirtualizeTranscript(40)).toBe(false);
-    expect(shouldVirtualizeTranscript(41)).toBe(true);
-    expect(shouldVirtualizeTranscript(200, { streaming: true })).toBe(false);
+    expect(shouldVirtualizeTranscript(3)).toBe(false);
+    expect(shouldVirtualizeTranscript(20)).toBe(false);
+    expect(shouldVirtualizeTranscript(21)).toBe(true);
+    expect(shouldVirtualizeTranscript(200, { streaming: true })).toBe(true);
     expect(shouldVirtualizeTranscript(200, { streaming: false })).toBe(true);
-    expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(40);
+    expect(TRANSCRIPT_VIRTUALIZATION_THRESHOLD).toBe(20);
   });
 
   it('range extractor still pins edit + live tail when virtualizer is re-enabled later', () => {

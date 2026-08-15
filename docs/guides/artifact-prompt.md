@@ -22,7 +22,7 @@ A self-contained artifact fence that renders correctly in the chat column sandbo
 SVG: ```svg title="Short descriptive title"``` — self-contained, no external refs.
 
 ## Constraints (break without these)
-- Colors: only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `border`, `bg`).
+- Colors: for proactive artifacts, use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `border`, `bg`) to adapt to host theme; for user-specified requests (e.g. custom SVG, HTML pages, or explicit UI designs), style freely with custom colors.
 - Outermost wrapper background: transparent; surface colors on inner cards only.
 - Layout for 360–760px chat column; fluid grids; not a full-page landing.
 - Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling.

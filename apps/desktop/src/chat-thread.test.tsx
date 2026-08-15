@@ -1125,6 +1125,142 @@ describe('ChatThread render isolation (E1)', () => {
     expect(onRetrySpy).toHaveBeenCalledWith('msg-u1');
   });
 
+  it('shows edit and cancel controls for a pending run adjustment', () => {
+    const onEdit = vi.fn();
+    const onInterventionCancel = vi.fn();
+    const userMsg: ChatMessageUi = {
+      id: 'msg-intervention',
+      role: 'user',
+      text: 'Use the smaller fix',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      instructionDelivery: {
+        kind: 'run-intervention',
+        instructionId: 'intervention-1',
+        status: 'pending',
+        targetRunId: 'run-1',
+        revision: 1,
+      },
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMsg]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId="msg-intervention"
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={onEdit}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInterventionEdit={noop}
+            onInterventionCancel={onInterventionCancel}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="intervention-delivery-status"]')?.textContent).toContain(
+      '等待当前步骤完成',
+    );
+    const editButton = container.querySelector(
+      '[data-testid="intervention-edit-btn"]',
+    ) as HTMLButtonElement;
+    const cancelButton = container.querySelector(
+      '[data-testid="intervention-cancel-btn"]',
+    ) as HTMLButtonElement;
+    act(() => editButton.click());
+    act(() => cancelButton.click());
+    expect(onEdit).toHaveBeenCalledWith('msg-intervention');
+    expect(onInterventionCancel).toHaveBeenCalledWith('msg-intervention');
+  });
+
+  it('keeps pending queued turns out of the transcript until they start', () => {
+    const queuedMessage: ChatMessageUi = {
+      id: 'msg-queued',
+      role: 'user',
+      text: 'This belongs in the next-turn queue',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      instructionDelivery: {
+        kind: 'queued-turn',
+        instructionId: 'queued-1',
+        status: 'pending',
+        revision: 1,
+      },
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[queuedMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={queuedMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.textContent).not.toContain(queuedMessage.text);
+    expect(container.querySelector('[data-testid="message-bubble"]')).toBeNull();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[{
+              ...queuedMessage,
+              instructionDelivery: {
+                kind: 'queued-turn',
+                instructionId: 'queued-1',
+                status: 'started',
+                targetRunId: 'run-queued',
+                revision: 2,
+              },
+            }]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={queuedMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.textContent).toContain(queuedMessage.text);
+    expect(container.querySelector('[data-testid="message-bubble"]')).not.toBeNull();
+  });
+
   it('collapses user image attachments with the message body by default', () => {
     const userMessageWithImage: ChatMessageUi = {
       id: 'msg-image-history',
@@ -1557,9 +1693,7 @@ describe('ChatThread render isolation (E1)', () => {
     }
 
     act(() => renderThread('run-thinking-timer', null));
-    let summary = container.querySelector<HTMLElement>(
-      '[data-testid="turn-work-details-summary"]',
-    );
+    let summary = container.querySelector<HTMLElement>('[data-testid="turn-work-details-summary"]');
     expect(summary?.textContent).toContain('正在处理…');
     expect(summary?.textContent).not.toContain('已思考');
     expect(container.querySelector('[data-testid="turn-summary-active-animation"]')).toBeNull();

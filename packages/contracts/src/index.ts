@@ -69,4 +69,6 @@ export * from './speech.js';
 export * from './settings.js';
 export * from './job.js';
 export * from './run.js';
+export * from './run-intervention.js';
+export * from './queued-turn.js';
 export * from './model-context.js';

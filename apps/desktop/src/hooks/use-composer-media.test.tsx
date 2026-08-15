@@ -690,6 +690,169 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().pendingAttachments[0]?.uploadStatus).toBe('error');
   });
 
+  it('retries an intervention ACK timeout with the same stable identities', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const commands: Array<{
+      type: string;
+      interventionId?: string;
+      userMessageId?: string;
+      sessionId?: string;
+      runId?: string;
+      input?: { text: string };
+    }> = [];
+    const hostClient = {
+      request: vi.fn(async (command: (typeof commands)[number]) => {
+        commands.push(command);
+        if (commands.length === 1) {
+          return {
+            type: 'response' as const,
+            command: command.type,
+            success: false as const,
+            error: 'host request timed out after 5000ms',
+          };
+        }
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            intervention: {
+              interventionId: command.interventionId ?? 'missing-intervention',
+              revision: 1,
+              sessionId: command.sessionId ?? 'missing-session',
+              runId: command.runId ?? 'missing-run',
+              runtimeGenerationId: 'generation-1',
+              sequence: 1,
+              userMessageId: command.userMessageId ?? 'missing-message',
+              status: 'pending' as const,
+              input: command.input ?? { text: '' },
+              submittedAt: '2026-08-15T00:00:00.000Z',
+              updatedAt: '2026-08-15T00:00:00.000Z',
+            },
+          },
+        };
+      }),
+    } as unknown as HostClient;
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runPhase: 'streaming',
+          streaming: true,
+        },
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => latest().setComposer('Use the smaller fix'));
+    await act(async () => {
+      await latest().handleSteer();
+    });
+
+    expect(commands).toHaveLength(2);
+    expect(commands[0]).toMatchObject({ type: 'run/intervention-submit', runId: 'run-1' });
+    expect(commands[1]?.interventionId).toBe(commands[0]?.interventionId);
+    expect(commands[1]?.userMessageId).toBe(commands[0]?.userMessageId);
+    expect(commands.every((command) => command.type !== 'session/queued-turn-submit')).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'run/intervention-updated' }),
+    );
+    expect(latest().composer).toBe('');
+  });
+
+  it('freezes slash-mode prompt preparation when Send becomes a queued turn', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: vi.fn(async (command: { type: string; input?: Record<string, unknown> }) => {
+        if (command.type === 'session/queued-turn-list') {
+          return {
+            type: 'response' as const,
+            command: command.type,
+            success: true as const,
+            data: { queueRevision: 1, queuedTurns: [] },
+          };
+        }
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: {
+            queuedTurn: {
+              queuedTurnId: 'queued-1',
+              revision: 1,
+              sessionId: 'session-1',
+              sequence: 1,
+              userMessageId: 'user-1',
+              mode: 'next' as const,
+              status: 'pending' as const,
+              input: command.input ?? { text: '' },
+              submittedAt: '2026-08-15T00:00:00.000Z',
+              updatedAt: '2026-08-15T00:00:00.000Z',
+            },
+          },
+        };
+      }),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runPhase: 'streaming',
+          streaming: true,
+        },
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+    act(() => latest().setComposer('/plan focus on the failing test'));
+    await act(async () => {
+      await latest().handleSend();
+    });
+    const command = vi.mocked(hostClient.request).mock.calls[0]?.[0] as {
+      type: string;
+      input: { text: string; agentMode?: string };
+    };
+    expect(command.type).toBe('session/queued-turn-submit');
+    expect(command.input).toMatchObject({ text: 'focus on the failing test', agentMode: 'plan' });
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send' }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'session/queued-turns-hydrate',
+      sessionId: 'session-1',
+      queueRevision: 1,
+      queuedTurns: [],
+    });
+  });
 });
 
 describe('useComposerMedia failed attachment policy (Phase 0)', () => {

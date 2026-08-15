@@ -435,7 +435,7 @@ describe('VideoGenerationSettings discovery wiring', () => {
     act(() => {
       container?.querySelector<HTMLButtonElement>('[data-testid="video-model-remove"]')?.click();
     });
-    expect(saved.at(-1)?.providers[0]?.models).toEqual([]);
+    expect(saved.at(-1)?.providers[0]?.models).toEqual([{ id: 'existing-video' }]);
   });
 
   it('saves a manually typed custom video ID with the custom API style', async () => {

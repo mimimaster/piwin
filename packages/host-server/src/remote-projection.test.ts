@@ -258,3 +258,63 @@ describe('remote skills/read + tool-output projection', () => {
     });
   });
 });
+
+describe('remote queued-turn projection', () => {
+  const context = {
+    hostInstanceId: 'host-1',
+    mode: 'sdk' as const,
+    capabilities: createRemoteCapabilities(),
+    remoteMediaPaths: new Map([['asset-1', '/Users/private/.piwin/media/asset-1.png']]),
+  };
+
+  it('restores opaque media refs without exposing Host paths', () => {
+    const projected = projectRemoteResponse(
+      {
+        type: 'session/queued-turn-submit',
+        sessionId: 'session-1',
+        queuedTurnId: 'queued-1',
+        userMessageId: 'user-1',
+        input: { text: 'look at this' },
+      },
+      {
+        type: 'response',
+        command: 'session/queued-turn-submit',
+        success: true,
+        data: {
+          queuedTurn: {
+            queuedTurnId: 'queued-1',
+            revision: 1,
+            sessionId: 'session-1',
+            sequence: 1,
+            userMessageId: 'user-1',
+            mode: 'next',
+            status: 'pending',
+            input: {
+              text: 'look at this',
+              attachments: [
+                {
+                  id: 'asset-1',
+                  kind: 'media',
+                  path: '/Users/private/.piwin/media/asset-1.png',
+                  mimeType: 'image/png',
+                  byteSize: 12,
+                  source: 'paste',
+                },
+              ],
+            },
+            submittedAt: '2026-08-15T10:00:00.000Z',
+            updatedAt: '2026-08-15T10:00:00.000Z',
+          },
+        },
+      },
+      context,
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) throw new Error(projected.error);
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
+    expect(projected.data).toMatchObject({
+      queuedTurn: { input: { attachments: [{ path: 'remote-asset:asset-1' }] } },
+    });
+  });
+});

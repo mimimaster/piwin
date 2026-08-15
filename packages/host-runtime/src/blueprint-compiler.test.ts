@@ -15,6 +15,7 @@ import { BLUEPRINT_PROTOCOL_VERSION } from '@piwin/agent-host';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { buildHostToolboxDescriptor } from './host-toolbox.js';
+import { createSettingsSnapshot } from './settings/settings-service.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
@@ -495,6 +496,10 @@ describe('compileBlueprintForWorker', () => {
     ]);
 
     expect(configuredResult.settingsRevision).not.toBe(baseResult.settingsRevision);
+    expect(configuredResult.settingsRevision).toBe(
+      createSettingsSnapshot(configuredConfig).runtimeRevision,
+    );
+    expect(baseResult.settingsRevision).toBe(createSettingsSnapshot(baseConfig).runtimeRevision);
   });
 
   it('prefers the keychain ref over a stale env ref for SDK auth', async () => {

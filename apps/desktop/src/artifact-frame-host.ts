@@ -18,6 +18,13 @@ export type ArtifactFrameHost = {
   requestHost: () => void;
 };
 
+export function shouldForceKeepArtifactHost(
+  presentation: 'inline' | 'canvas',
+  _streaming: boolean,
+): boolean {
+  return presentation === 'canvas';
+}
+
 function resolveHostPriority(presentation: 'inline' | 'canvas', streaming: boolean): number {
   if (presentation === 'canvas') {
     return ARTIFACT_LIVE_PRIORITY_CANVAS;
@@ -32,7 +39,7 @@ export function useArtifactFrameHost(input: {
   presentation: 'inline' | 'canvas';
   streaming: boolean;
 }): ArtifactFrameHost {
-  const forceKeep = input.presentation === 'canvas' || input.streaming;
+  const forceKeep = shouldForceKeepArtifactHost(input.presentation, input.streaming);
   const priority = resolveHostPriority(input.presentation, input.streaming);
   const [hostIframe, setHostIframe] = useState(true);
   const [initGranted, setInitGranted] = useState(false);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@piwin/contracts';
+import type { AgentEvent, BackendRunInterventionEvent } from '@piwin/contracts';
 import { createMockSessionHandle } from './mock-session.js';
 
 describe('createMockSessionHandle abort', () => {
@@ -52,12 +52,60 @@ describe('createMockSessionHandle abort', () => {
     await session.prompt({ text: 'current visible prompt' });
 
     const reply = events
-      .filter((event): event is Extract<AgentEvent, { type: 'message/text_delta' }> =>
-        event.type === 'message/text_delta',
+      .filter(
+        (event): event is Extract<AgentEvent, { type: 'message/text_delta' }> =>
+          event.type === 'message/text_delta',
       )
       .map((event) => event.delta)
       .join('');
     expect(reply).toContain('current visible prompt');
     expect(reply).not.toContain('[piwin-product-history]');
+  });
+
+  it('applies a staged Run intervention after the current answer checkpoint', async () => {
+    const session = createMockSessionHandle({
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+    });
+    if (!session.armRunIntervention || !session.subscribeRunInterventions) {
+      throw new Error('mock session must support Run interventions');
+    }
+    const lifecycle: BackendRunInterventionEvent[] = [];
+    session.subscribeRunInterventions(async (event) => {
+      lifecycle.push(event);
+      return { accepted: true };
+    });
+
+    const promptPromise = session.prompt({ text: 'first request' });
+    await session.armRunIntervention({
+      interventionId: 'intervention-1',
+      revision: 1,
+      sessionId: 'session-1',
+      runId: 'run-1',
+      runtimeGenerationId: 'generation-1',
+      sequence: 1,
+      text: 'adjust the answer',
+    });
+    await promptPromise;
+
+    expect(lifecycle).toEqual([
+      {
+        type: 'claim',
+        interventionId: 'intervention-1',
+        revision: 1,
+        runId: 'run-1',
+        runtimeGenerationId: 'generation-1',
+      },
+      {
+        type: 'applied',
+        interventionId: 'intervention-1',
+        revision: 2,
+        runId: 'run-1',
+        runtimeGenerationId: 'generation-1',
+      },
+    ]);
+    const messages = await session.getMessages();
+    expect(messages.filter((message) => message.role === 'assistant')).toHaveLength(2);
+    expect(messages.at(-1)?.text).toContain('adjust the answer');
   });
 });

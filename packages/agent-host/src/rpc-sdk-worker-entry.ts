@@ -16,6 +16,7 @@ import type {
   WorkerExtensionUiResponseFrame,
   WorkerRequest,
   WorkerToolResultFrame,
+  WorkerInterventionPermitFrame,
 } from './rpc-sdk-worker-protocol.js';
 import { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
 import { createWorkerPiSessionFactory } from './rpc/worker-pi-session-factory.js';
@@ -105,6 +106,10 @@ async function main(): Promise<void> {
       }
       if (parsed.type === 'extension-ui-response') {
         runtime.handleExtensionUiResponse(parsed as WorkerExtensionUiResponseFrame);
+        return;
+      }
+      if (parsed.type === 'intervention-permit') {
+        runtime.handleInterventionPermit(parsed as WorkerInterventionPermitFrame);
         return;
       }
       if (parsed.type === 'resource-request' && typeof parsed.id === 'string') {

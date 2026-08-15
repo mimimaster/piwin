@@ -24,6 +24,43 @@ describe('mapPiSessionEvent', () => {
     expect(events).toEqual([{ type: 'message/text_delta', messageId: 'm1', delta: 'hello' }]);
   });
 
+  it('reconstructs assistant content carried only by message_end', () => {
+    const mapper = createPiSessionEventMapper();
+    const events = mapper
+      .map({
+        type: 'message_end',
+        messageId: 'm-final',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'checking the provider' },
+            { type: 'text', text: 'The provider returned a quota error.' },
+          ],
+        },
+      })
+      .map((wrapped) => wrapped.event);
+
+    expect(events.slice(0, 4)).toEqual([
+      { type: 'message/start', messageId: 'm-final', role: 'assistant' },
+      {
+        type: 'message/thinking_delta',
+        messageId: 'm-final',
+        delta: 'checking the provider',
+      },
+      {
+        type: 'message/text_snapshot',
+        messageId: 'm-final',
+        text: 'The provider returned a quota error.',
+      },
+      { type: 'message/end', messageId: 'm-final' },
+    ]);
+    expect(events[4]).toMatchObject({
+      type: 'message/native_context',
+      messageId: 'm-final',
+      role: 'assistant',
+    });
+  });
+
   it('maps only normalized search evidence from assistant message metadata', () => {
     const events = mapPiSessionEvent({
       type: 'message_end',

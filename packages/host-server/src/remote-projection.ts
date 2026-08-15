@@ -20,12 +20,15 @@ import type {
   RemoteSessionTranscriptPageData,
   RemoteSessionTranscriptPageInfo,
   RemoteTranscriptMessage,
+  QueuedTurnRecord,
 } from '@piwin/contracts';
 
 export type RemoteProjectionContext = {
   hostInstanceId: string;
   mode: HostMode;
   capabilities: RemoteCapabilitySummary;
+  /** Host media id → absolute path, used to restore opaque client refs. */
+  remoteMediaPaths?: ReadonlyMap<string, string>;
 };
 
 export function projectRemoteResponse(
@@ -96,6 +99,20 @@ export function projectRemoteResponse(
     };
   }
 
+  if (
+    command.type === 'session/queued-turn-submit' ||
+    command.type === 'session/queued-turn-list' ||
+    command.type === 'session/queued-turn-edit' ||
+    command.type === 'session/queued-turn-cancel' ||
+    command.type === 'session/queued-turn-reorder' ||
+    command.type === 'session/replace-run'
+  ) {
+    return {
+      ...response,
+      data: projectRemoteQueuedTurnData(response.data, context),
+    };
+  }
+
   if (command.type === 'skills/read') {
     return {
       ...response,
@@ -117,7 +134,11 @@ export function projectRemoteResponse(
     };
   }
 
-  if (command.type.startsWith('session/') || command.type === 'permission/resolve') {
+  if (
+    command.type.startsWith('session/') ||
+    command.type.startsWith('run/') ||
+    command.type === 'permission/resolve'
+  ) {
     return {
       ...response,
       data: sanitizeRemoteValue(response.data, undefined),
@@ -146,11 +167,19 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     sessionUserMessageIndex: true,
     sessionTranscriptSeek: true,
     contextSummary: true,
+    runInterventions: true,
+    queuedTurns: true,
   };
 }
 
-export function projectRemotePush(message: HostPush): HostPush {
-  const projected = sanitizeRemoteValue(message, undefined);
+export function projectRemotePush(
+  message: HostPush,
+  context?: Pick<RemoteProjectionContext, 'remoteMediaPaths'>,
+): HostPush {
+  const projected =
+    message.type === 'session/queued-turn-updated'
+      ? projectRemoteQueuedTurnPush(message, context?.remoteMediaPaths)
+      : sanitizeRemoteValue(message, undefined);
   return (projected ?? message) as HostPush;
 }
 
@@ -508,6 +537,26 @@ function projectTranscriptMessages(messagesValue: unknown): RemoteTranscriptMess
     if (Array.isArray(item.attachments) && item.attachments.length > 0) {
       transcript.attachmentCount = item.attachments.length;
     }
+    const delivery = asRecord(item.instructionDelivery);
+    if (
+      delivery !== undefined &&
+      (delivery.kind === 'run-intervention' || delivery.kind === 'queued-turn') &&
+      typeof delivery.instructionId === 'string' &&
+      typeof delivery.revision === 'number' &&
+      typeof delivery.status === 'string'
+    ) {
+      transcript.instructionDelivery = {
+        kind: delivery.kind,
+        instructionId: delivery.instructionId,
+        status: delivery.status as NonNullable<
+          RemoteTranscriptMessage['instructionDelivery']
+        >['status'],
+        revision: delivery.revision,
+        ...(typeof delivery.targetRunId === 'string'
+          ? { targetRunId: delivery.targetRunId }
+          : {}),
+      };
+    }
     projected.push(transcript);
   }
   return projected;
@@ -673,6 +722,9 @@ function sanitizeRemoteValue(value: unknown, key: string | undefined): unknown {
     return '[redacted]';
   }
   if (key !== undefined && REMOTE_PATH_KEYS.has(key)) {
+    if (typeof value === 'string' && isRemoteAssetRef(value)) {
+      return value;
+    }
     return Array.isArray(value) ? [] : '[host-path]';
   }
   if (typeof value === 'string') {
@@ -693,6 +745,91 @@ function sanitizeRemoteValue(value: unknown, key: string | undefined): unknown {
     }
   }
   return sanitized;
+}
+
+function projectRemoteQueuedTurnData(
+  data: unknown,
+  context: RemoteProjectionContext,
+): unknown {
+  const source = asRecord(data);
+  const projected = asRecord(sanitizeRemoteValue(data, undefined));
+  if (source === undefined || projected === undefined) {
+    return projected ?? sanitizeRemoteValue(data, undefined);
+  }
+  if ('queuedTurn' in source) {
+    projected.queuedTurn = projectRemoteQueuedTurnRecord(
+      source.queuedTurn,
+      context.remoteMediaPaths,
+    );
+  }
+  if (Array.isArray(source.queuedTurns)) {
+    projected.queuedTurns = source.queuedTurns.map((queuedTurn) =>
+      projectRemoteQueuedTurnRecord(queuedTurn, context.remoteMediaPaths),
+    );
+  }
+  return projected;
+}
+
+function projectRemoteQueuedTurnPush(
+  message: Extract<HostPush, { type: 'session/queued-turn-updated' }>,
+  remoteMediaPaths: ReadonlyMap<string, string> | undefined,
+): HostPush {
+  return {
+    ...message,
+    queuedTurn: projectRemoteQueuedTurnRecord(message.queuedTurn, remoteMediaPaths) as QueuedTurnRecord,
+  };
+}
+
+function projectRemoteQueuedTurnRecord(
+  value: unknown,
+  remoteMediaPaths: ReadonlyMap<string, string> | undefined,
+): unknown {
+  const record = asRecord(value);
+  if (record === undefined) {
+    return sanitizeRemoteValue(value, undefined);
+  }
+  const input = asRecord(record.input);
+  if (input === undefined || !Array.isArray(input.attachments)) {
+    return sanitizeRemoteValue(record, undefined);
+  }
+  const attachments = input.attachments.map((attachment) => {
+    const attachmentRecord = asRecord(attachment);
+    if (attachmentRecord?.kind !== 'media' || typeof attachmentRecord.path !== 'string') {
+      return attachment;
+    }
+    return {
+      ...attachmentRecord,
+      path: projectRemoteMediaRef(attachmentRecord.path, remoteMediaPaths),
+    };
+  });
+  return sanitizeRemoteValue(
+    {
+      ...record,
+      input: { ...input, attachments },
+    },
+    undefined,
+  );
+}
+
+function projectRemoteMediaRef(
+  value: string,
+  remoteMediaPaths: ReadonlyMap<string, string> | undefined,
+): string {
+  if (isRemoteAssetRef(value)) {
+    return value;
+  }
+  for (const [assetId, absolutePath] of remoteMediaPaths ?? []) {
+    if (absolutePath === value && assetId.length > 0 && assetId.length <= 256) {
+      return `remote-asset:${assetId}`;
+    }
+  }
+  return '[host-path]';
+}
+
+function isRemoteAssetRef(value: string): boolean {
+  if (!value.startsWith('remote-asset:')) return false;
+  const assetId = value.slice('remote-asset:'.length);
+  return assetId.length > 0 && assetId.length <= 256 && !/[\\/\u0000-\u001f]/.test(assetId);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

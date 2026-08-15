@@ -16,6 +16,7 @@ export type ModelRequestClass =
   | 'prompt'
   | 'tool-loop'
   | 'steer'
+  | 'run-intervention'
   | 'follow-up'
   | 'pause-resume'
   | 'compaction'

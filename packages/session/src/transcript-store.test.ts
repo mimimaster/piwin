@@ -107,6 +107,309 @@ describe('SessionTranscriptStore native entries', () => {
   });
 });
 
+describe('SessionTranscriptStore run interventions', () => {
+  it('commits the pending record and user row together and excludes it from model history', async () => {
+    const { store } = await openStore('intervention-create');
+    const created = await store.createRunIntervention({
+      interventionId: 'intervention-1',
+      sessionId: 'session-intervention-create',
+      runId: 'run-1',
+      runtimeGenerationId: 'generation-1',
+      userMessageId: 'user-intervention-1',
+      input: { text: 'change direction' },
+      preparedText: 'change direction',
+      fingerprint: 'fingerprint-1',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    });
+
+    expect(created).toMatchObject({
+      outcome: 'created',
+      intervention: { status: 'pending', revision: 1, sequence: 1 },
+    });
+    expect(await store.getMessage('user-intervention-1')).toMatchObject({
+      text: 'change direction',
+      instructionDelivery: {
+        kind: 'run-intervention',
+        status: 'pending',
+        revision: 1,
+      },
+    });
+    expect(await store.buildHistoryWindow()).toEqual([]);
+
+    const applying = await store.transitionRunIntervention({
+      interventionId: 'intervention-1',
+      expectedRevision: 1,
+      from: ['pending'],
+      to: 'applying',
+      updatedAt: '2026-08-15T10:00:01.000Z',
+    });
+    const applied = await store.transitionRunIntervention({
+      interventionId: 'intervention-1',
+      expectedRevision: applying?.revision ?? 0,
+      from: ['applying'],
+      to: 'applied',
+      updatedAt: '2026-08-15T10:00:02.000Z',
+      appliedAt: '2026-08-15T10:00:02.000Z',
+      appliedRequestOrdinal: 2,
+    });
+    expect(applied).toMatchObject({ status: 'applied', revision: 3, appliedRequestOrdinal: 2 });
+    expect(await store.buildHistoryWindow()).toEqual([
+      { role: 'user', text: 'change direction' },
+    ]);
+    store.close();
+  });
+
+  it('is idempotent by intervention id and rejects a different fingerprint', async () => {
+    const { store } = await openStore('intervention-idempotency');
+    const input = {
+      interventionId: 'intervention-1',
+      sessionId: 'session-intervention-idempotency',
+      runId: 'run-1',
+      runtimeGenerationId: 'generation-1',
+      userMessageId: 'user-intervention-1',
+      input: { text: 'change direction' },
+      preparedText: 'change direction',
+      fingerprint: 'fingerprint-1',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    } as const;
+    expect((await store.createRunIntervention(input)).outcome).toBe('created');
+    expect((await store.createRunIntervention(input)).outcome).toBe('replayed');
+    expect(
+      (
+        await store.createRunIntervention({
+          ...input,
+          input: { text: 'different' },
+          preparedText: 'different',
+          fingerprint: 'fingerprint-2',
+        })
+      ).outcome,
+    ).toBe('idempotency-conflict');
+    expect(await store.count()).toBe(1);
+    store.close();
+  });
+});
+
+describe('SessionTranscriptStore queued turns', () => {
+  it('stores a queued user row, filters pending history, and includes started history', async () => {
+    const { store } = await openStore('queued-create');
+    const created = await store.createQueuedTurn({
+      queuedTurnId: 'queued-1',
+      sessionId: 'session-queued-create',
+      userMessageId: 'user-queued-1',
+      mode: 'next',
+      input: { text: 'do this next' },
+      fingerprint: 'queue-fingerprint-1',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    });
+    expect(created).toMatchObject({
+      outcome: 'created',
+      queuedTurn: { status: 'pending', sequence: 1, revision: 1 },
+    });
+    expect(await store.buildHistoryWindow()).toEqual([]);
+    const started = await store.transitionQueuedTurn({
+      queuedTurnId: 'queued-1',
+      expectedRevision: 1,
+      from: ['pending'],
+      to: 'started',
+      startedRunId: 'run-2',
+      updatedAt: '2026-08-15T10:00:01.000Z',
+    });
+    expect(started).toMatchObject({ status: 'started', revision: 2, startedRunId: 'run-2' });
+    expect(await store.getMessage('user-queued-1')).toMatchObject({
+      runId: 'run-2',
+      instructionDelivery: {
+        kind: 'queued-turn',
+        status: 'started',
+        targetRunId: 'run-2',
+      },
+    });
+    expect(await store.buildHistoryWindow()).toEqual([{ role: 'user', text: 'do this next' }]);
+    store.close();
+  });
+
+  it('replays the same queued identity even when PromptInput object keys arrive in another order', async () => {
+    const { store } = await openStore('queued-idempotency');
+    const first = await store.createQueuedTurn({
+      queuedTurnId: 'queued-idempotent',
+      sessionId: 'session-queued-idempotency',
+      userMessageId: 'user-idempotent',
+      mode: 'next',
+      input: {
+        text: 'same turn',
+        clientMessageId: 'user-idempotent',
+        agentMode: 'plan',
+      },
+      fingerprint: 'same-fingerprint',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    });
+    expect(first.outcome).toBe('created');
+    const replay = await store.createQueuedTurn({
+      queuedTurnId: 'queued-idempotent',
+      sessionId: 'session-queued-idempotency',
+      userMessageId: 'user-idempotent',
+      mode: 'next',
+      input: {
+        agentMode: 'plan',
+        clientMessageId: 'user-idempotent',
+        text: 'same turn',
+      },
+      fingerprint: 'same-fingerprint',
+      submittedAt: '2026-08-15T10:00:02.000Z',
+    });
+    expect(replay).toMatchObject({ outcome: 'replayed', queuedTurn: { revision: 1 } });
+    store.close();
+  });
+
+  it('enforces revision CAS and deterministic reorder order', async () => {
+    const { store } = await openStore('queued-reorder');
+    for (const [index, id] of ['one', 'two', 'three'].entries()) {
+      await store.createQueuedTurn({
+        queuedTurnId: `queued-${id}`,
+        sessionId: 'session-queued-reorder',
+        userMessageId: `user-${id}`,
+        mode: 'next',
+        input: { text: id },
+        fingerprint: `fingerprint-${id}`,
+        submittedAt: `2026-08-15T10:00:0${index}.000Z`,
+      });
+    }
+    const before = await store.listQueuedTurns();
+    const reordered = await store.reorderQueuedTurns({
+      expectedQueueRevision: before.queueRevision,
+      orderedQueuedTurnIds: ['queued-three', 'queued-one', 'queued-two'],
+    });
+    expect(reordered?.queuedTurns.map((item) => item.queuedTurnId)).toEqual([
+      'queued-three',
+      'queued-one',
+      'queued-two',
+    ]);
+    expect(
+      await store.reorderQueuedTurns({
+        expectedQueueRevision: before.queueRevision,
+        orderedQueuedTurnIds: ['queued-one', 'queued-two', 'queued-three'],
+      }),
+    ).toBeUndefined();
+    expect(
+      await store.updatePendingQueuedTurn({
+        queuedTurnId: 'queued-one',
+        expectedRevision: 1,
+        input: { text: 'stale edit' },
+        fingerprint: 'stale',
+        updatedAt: '2026-08-15T10:01:00.000Z',
+      }),
+    ).toBeUndefined();
+    store.close();
+  });
+
+  it('reorders pending turns without colliding with terminal queue rows', async () => {
+    const { store } = await openStore('queued-reorder-terminal-row');
+    const first = await store.createQueuedTurn({
+      queuedTurnId: 'queued-started',
+      sessionId: 'session-queued-reorder-terminal-row',
+      userMessageId: 'user-started',
+      mode: 'next',
+      input: { text: 'already started' },
+      fingerprint: 'fingerprint-started',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    });
+    expect(first.outcome).toBe('created');
+    await store.transitionQueuedTurn({
+      queuedTurnId: 'queued-started',
+      expectedRevision: 1,
+      from: ['pending'],
+      to: 'started',
+      startedRunId: 'run-started',
+      updatedAt: '2026-08-15T10:00:01.000Z',
+    });
+    for (const id of ['one', 'two']) {
+      await store.createQueuedTurn({
+        queuedTurnId: `queued-${id}`,
+        sessionId: 'session-queued-reorder-terminal-row',
+        userMessageId: `user-${id}`,
+        mode: 'next',
+        input: { text: id },
+        fingerprint: `fingerprint-${id}`,
+        submittedAt: '2026-08-15T10:00:02.000Z',
+      });
+    }
+    const before = await store.listQueuedTurns();
+    const reordered = await store.reorderQueuedTurns({
+      expectedQueueRevision: before.queueRevision,
+      orderedQueuedTurnIds: ['queued-two', 'queued-one'],
+    });
+    expect(reordered?.queuedTurns.map((item) => item.queuedTurnId)).toEqual([
+      'queued-started',
+      'queued-two',
+      'queued-one',
+    ]);
+    expect(reordered?.queuedTurns.slice(1).map((item) => item.status)).toEqual([
+      'pending',
+      'pending',
+    ]);
+    store.close();
+  });
+
+  it('keeps aggregate queue bounds when a pending turn is edited', async () => {
+    const { store } = await openStore('queued-edit-bounds');
+    for (let index = 0; index < 7; index += 1) {
+      const created = await store.createQueuedTurn({
+        queuedTurnId: `queued-large-${index}`,
+        sessionId: 'session-queued-edit-bounds',
+        userMessageId: `user-large-${index}`,
+        mode: 'next',
+        input: { text: 'a'.repeat(64 * 1024) },
+        fingerprint: `fingerprint-large-${index}`,
+        submittedAt: '2026-08-15T10:00:00.000Z',
+      });
+      expect(created.outcome).toBe('created');
+    }
+    const smallInputs = ['b'.repeat(60 * 1024), 'small'];
+    for (let index = 0; index < smallInputs.length; index += 1) {
+      const text = smallInputs[index];
+      if (text === undefined) continue;
+      const created = await store.createQueuedTurn({
+        queuedTurnId: `queued-${index}`,
+        sessionId: 'session-queued-edit-bounds',
+        userMessageId: `user-${index}`,
+        mode: 'next',
+        input: { text },
+        fingerprint: `fingerprint-${index}`,
+        submittedAt: '2026-08-15T10:00:01.000Z',
+      });
+      expect(created.outcome).toBe('created');
+    }
+    const updated = await store.updatePendingQueuedTurn({
+      queuedTurnId: 'queued-1',
+      expectedRevision: 1,
+      input: { text: 'b'.repeat(64 * 1024) },
+      fingerprint: 'fingerprint-too-large',
+      updatedAt: '2026-08-15T10:00:02.000Z',
+    });
+    expect(updated).toEqual({ outcome: 'queue-full' });
+    expect((await store.getQueuedTurn('queued-1'))?.input.text).toBe('small');
+    store.close();
+  });
+
+  it('reconciles ambiguous replace and starting records after restart', async () => {
+    const { store } = await openStore('queued-reconcile');
+    await store.createQueuedTurn({
+      queuedTurnId: 'queued-replace',
+      sessionId: 'session-queued-reconcile',
+      userMessageId: 'user-replace',
+      mode: 'replace',
+      replaceRunId: 'run-old',
+      input: { text: 'replace it' },
+      fingerprint: 'replace-fingerprint',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    });
+    const reconciled = await store.reconcileQueuedTurns('2026-08-15T10:00:01.000Z');
+    expect(reconciled).toMatchObject([
+      { queuedTurnId: 'queued-replace', status: 'failed', terminalReason: 'host-restarted' },
+    ]);
+    store.close();
+  });
+});
+
 describe('SessionTranscriptStore', () => {
   it('appends rows with provenance and treats same-generation replay as idempotent', async () => {
     const { store } = await openStore('replay');

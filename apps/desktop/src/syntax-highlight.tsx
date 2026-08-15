@@ -15,12 +15,19 @@
 import {
   createElement,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import type { Highlighter, ThemedToken } from 'shiki';
+import { desktopMetrics } from './diagnostic-metrics';
+import { globalMemoryGovernor } from './memory-governor';
+import { globalHighlightCache } from './syntax/highlight-cache';
+import { hashSource, type TokenLine } from './syntax/highlight-protocol';
+
+export type { ThemedToken, TokenLine };
 
 const DARK_THEME = 'github-dark' as const;
 const LIGHT_THEME = 'github-light' as const;
@@ -100,14 +107,15 @@ export function useShikiTheme(): typeof DARK_THEME | typeof LIGHT_THEME {
 
 function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
-    // Module loading is part of the lazy boundary too. A static createHighlighter
-    // import makes WebKit parse Shiki, TextMate, and language loaders even when
-    // every visible code block is still streaming or plain text.
-    highlighterPromise = import('shiki').then(({ createHighlighter }) =>
-      createHighlighter({
-        themes: [DARK_THEME, LIGHT_THEME],
-        langs: [...PRELOAD_LANGS],
-      }),
+    // Use Shiki's pure JavaScript regex engine to guarantee reliable, instant
+    // execution in all webview/WebKit/Vite environments without WASM asset fetching.
+    highlighterPromise = import('shiki').then(
+      ({ createHighlighter, createJavaScriptRegexEngine }) =>
+        createHighlighter({
+          themes: [DARK_THEME, LIGHT_THEME],
+          langs: [...PRELOAD_LANGS],
+          engine: createJavaScriptRegexEngine(),
+        }),
     );
   }
   return highlighterPromise;
@@ -128,7 +136,8 @@ export async function ensureLanguage(rawLang: string): Promise<string> {
   try {
     await hl.loadLanguage(lang as never);
     loadedLanguages.add(lang);
-  } catch {
+  } catch (err) {
+    console.warn(`[syntax-highlight] Failed to load language '${lang}':`, err);
     // Unknown language — fall back to typescript so we still get reasonable
     // tokenization rather than throwing and breaking the render.
     return 'typescript';
@@ -136,18 +145,54 @@ export async function ensureLanguage(rawLang: string): Promise<string> {
   return lang;
 }
 
-/** Tokens for one source line. */
-export type TokenLine = ThemedToken[];
+export const MAX_HIGHLIGHT_CODE_BYTES = 40_000;
+export const MAX_HIGHLIGHT_LINES = 400;
+
+export function shouldHighlightCode(code: string): boolean {
+  if (globalMemoryGovernor.isHighlightDisabled()) {
+    return false;
+  }
+  if (code.length > MAX_HIGHLIGHT_CODE_BYTES) {
+    return false;
+  }
+  let newlineCount = 0;
+  for (let i = 0; i < code.length; i += 1) {
+    if (code.charCodeAt(i) === 10) {
+      newlineCount += 1;
+      if (newlineCount > MAX_HIGHLIGHT_LINES) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 /**
  * Highlight a whole code block into per-line tokens.
- * Returns `null` if the language is unknown AND fallback also fails (rare).
+ * Returns plain text tokens if code exceeds safety bounds or language fallback fails.
+ * Utilizes multi-bounded LRU cache to prevent redundant AST construction.
  */
 export async function highlightCode(code: string, rawLang: string): Promise<TokenLine[]> {
-  const lang = await ensureLanguage(rawLang);
-  const hl = await getHighlighter();
-  const result = hl.codeToTokens(code, { lang: lang as never, theme: getShikiTheme() });
-  return result.tokens;
+  if (!shouldHighlightCode(code)) {
+    return code.split('\n').map((line) => [{ content: line, offset: 0 }]);
+  }
+  const theme = getShikiTheme();
+  const cacheKey = `${theme}::${rawLang}::${hashSource(code)}`;
+  const cached = globalHighlightCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  desktopMetrics.incrementHighlightRequests();
+  try {
+    const lang = await ensureLanguage(rawLang);
+    const hl = await getHighlighter();
+    const result = hl.codeToTokens(code, { lang: lang as never, theme });
+    globalHighlightCache.set(cacheKey, result.tokens, code.length);
+    return result.tokens;
+  } finally {
+    desktopMetrics.decrementHighlightRequests();
+  }
 }
 
 /**
@@ -175,12 +220,22 @@ function isTestEnv(): boolean {
 export function useHighlight(code: string, lang: string, enabled = true): TokenLine[] | null {
   const [tokens, setTokens] = useState<TokenLine[] | null>(null);
   const theme = useShikiTheme();
+  const degradationLevel = useSyncExternalStore(
+    globalMemoryGovernor.subscribe,
+    () => globalMemoryGovernor.getDegradationLevel(),
+    () => 'normal',
+  );
   const sourceIdentityRef = useRef<string | null>(enabled ? `${lang}::${code}` : null);
 
   useEffect(() => {
-    if (!enabled) {
+    if (degradationLevel === 'critical') {
       sourceIdentityRef.current = null;
-      setTokens((currentTokens) => (currentTokens === null ? currentTokens : null));
+      setTokens(null);
+      return;
+    }
+    if (!enabled || !shouldHighlightCode(code)) {
+      sourceIdentityRef.current = null;
+      setTokens(null);
       return;
     }
     if (isTestEnv()) {
@@ -200,53 +255,69 @@ export function useHighlight(code: string, lang: string, enabled = true): TokenL
       .then((result) => {
         if (!cancelled && isDomAlive()) setTokens(result);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn(`[syntax-highlight] highlightCode failed for '${lang}':`, err);
         if (!cancelled && isDomAlive()) setTokens(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [code, enabled, lang, theme]);
+  }, [code, degradationLevel, enabled, lang, theme]);
+
+  if (degradationLevel === 'critical') {
+    return null;
+  }
 
   return enabled ? tokens : null;
 }
 
 /**
- * React hook: highlights many lines independently (no marker stripping).
+ * React hook: highlights many lines in a single batch pass.
  * Returns a map from line index → tokens, or `null` while pending.
  * Re-runs when inputs change. Used by diff renderers where each line's code
- * content is highlighted in isolation against the source language.
+ * content is highlighted against the source language.
  */
 export function useHighlightLines(lines: string[], lang: string): Map<number, TokenLine> | null {
   const [result, setResult] = useState<Map<number, TokenLine> | null>(null);
   const theme = useShikiTheme();
-  const sourceIdentityRef = useRef(`${lang}::${lines.join('\n')}`);
+  const degradationLevel = useSyncExternalStore(
+    globalMemoryGovernor.subscribe,
+    () => globalMemoryGovernor.getDegradationLevel(),
+    () => 'normal',
+  );
+  const joined = useMemo(() => lines.join('\n'), [lines]);
+  const sourceIdentityRef = useRef(`${lang}::${joined}`);
 
   useEffect(() => {
-    if (isTestEnv()) {
+    if (degradationLevel === 'critical' || isTestEnv() || !shouldHighlightCode(joined)) {
       return;
     }
     let cancelled = false;
-    const nextIdentity = `${lang}::${lines.join('\n')}`;
+    const nextIdentity = `${lang}::${joined}`;
     // Keep previous line tokens across theme flips; clear only on source change.
     if (sourceIdentityRef.current !== nextIdentity) {
       sourceIdentityRef.current = nextIdentity;
       setResult(null);
     }
-    void Promise.all(lines.map((line) => highlightLine(line, lang)))
+    void highlightCode(joined, lang)
       .then((tokenLines) => {
         if (cancelled || !isDomAlive()) return;
         const map = new Map<number, TokenLine>();
         tokenLines.forEach((tl, index) => map.set(index, tl));
         setResult(map);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn(`[syntax-highlight] highlightLines failed for '${lang}':`, err);
         if (!cancelled && isDomAlive()) setResult(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [lines, lang, theme]);
+  }, [degradationLevel, joined, lang, theme]);
+
+  if (degradationLevel === 'critical') {
+    return null;
+  }
 
   return result;
 }

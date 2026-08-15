@@ -404,6 +404,7 @@ describe('createWorkerPiSessionFactory', () => {
 
     const handle = await factory({
       productSessionId: 'ps-1',
+      runtimeGenerationId: 'generation-test',
       blueprint,
       providers: [
         {
@@ -454,6 +455,7 @@ describe('createWorkerPiSessionFactory', () => {
     lifecycle.push('beforeCreate');
     await factory({
       productSessionId: 'ps-1',
+      runtimeGenerationId: 'generation-test',
       blueprint,
       extensionUi: { request: extensionUiRequest },
     });
@@ -494,7 +496,11 @@ describe('createWorkerPiSessionFactory', () => {
     };
 
     await expect(
-      factory({ productSessionId: 'ps-1', blueprint: blueprintWithModel }),
+      factory({
+        productSessionId: 'ps-1',
+        runtimeGenerationId: 'generation-test',
+        blueprint: blueprintWithModel,
+      }),
     ).rejects.toThrow(/Configured model is unavailable/);
   });
 
@@ -518,7 +524,11 @@ describe('createWorkerPiSessionFactory', () => {
       },
     };
 
-    await factory({ productSessionId: 'ps-1', blueprint: blueprintWithTools });
+    await factory({
+      productSessionId: 'ps-1',
+      runtimeGenerationId: 'generation-test',
+      blueprint: blueprintWithTools,
+    });
 
     const createAgentSession = piModule.createAgentSession as unknown as {
       mock: { calls: unknown[][] };
@@ -554,6 +564,7 @@ describe('createWorkerPiSessionFactory', () => {
 
     await factory({
       productSessionId: 'ps-1',
+      runtimeGenerationId: 'generation-test',
       blueprint: blueprintWithHostTools,
       proxyTools: [
         {

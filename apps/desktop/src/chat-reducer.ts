@@ -4,6 +4,8 @@ import type {
   AgentEventEnvelope,
   ContextUsageSnapshot,
   ExecutionRunRecord,
+  RunInterventionRecord,
+  QueuedTurnRecord,
   MediaAttachmentRef,
   PromptAttachment,
   PermissionDecision,
@@ -101,6 +103,9 @@ export type ChatMessageUi = {
   /** Run that produced this assistant message when host provided run identity. */
   runId?: string;
   subagentActivity?: SubagentActivityView;
+  /** True when the message text or thinking exceeded client memory boundaries and is displaying a trailing sliding window. */
+  uiTruncated?: boolean;
+  instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
 };
 
 export type TranscriptHistoryViewUi = {
@@ -277,6 +282,10 @@ export type ChatUiState = {
   userMessageIndex: SessionUserMessageIndexData | null;
   /** Monotonic invalidation token used to reject stale async index responses. */
   userMessageIndexEpoch: number;
+  /** Host-authoritative queued-turn projections keyed by session. */
+  queuedTurnsBySession: Record<string, QueuedTurnRecord[]>;
+  /** Queue CAS revision keyed by session. */
+  queuedTurnQueueRevisions: Record<string, number>;
   outline: SessionOutlineNode[];
   /** Active session was archived without switching context. */
   activeSessionArchived: boolean;
@@ -443,6 +452,12 @@ export type ChatUiAction =
       index: SessionUserMessageIndexData;
     }
   | { type: 'session/return-to-live'; sessionId: string }
+  | {
+      type: 'session/queued-turns-hydrate';
+      sessionId: string;
+      queueRevision: number;
+      queuedTurns: QueuedTurnRecord[];
+    }
   | { type: 'session/update'; session: SessionListItemUi }
   | { type: 'session/remove'; sessionId: string }
   | { type: 'session/mark-archived-active'; archived: boolean }
@@ -468,12 +483,17 @@ export type ChatUiAction =
       text: string;
       /** Client-generated id shared with Host transcript persistence. */
       clientMessageId: string;
+      /** Optimistic Host intervention identity; reconciled by the first push. */
+      instructionId?: string;
+      targetRunId?: string;
     }
   | { type: 'user/send-rollback'; clientMessageId: string }
   | { type: 'run/aborting' }
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
   | { type: 'run/updated'; run: ExecutionRunRecord }
   | { type: 'run/terminal'; run: ExecutionRunRecord }
+  | { type: 'run/intervention-updated'; intervention: RunInterventionRecord }
+  | { type: 'session/queued-turn-updated'; queuedTurn: QueuedTurnRecord }
   | { type: 'run/terminal-dismiss' }
   | { type: 'session/attention-dismiss'; sessionId: string }
   | { type: 'host/status'; ready: boolean; mock: boolean }
@@ -555,6 +575,8 @@ export function createInitialChatUiState(): ChatUiState {
     historyView: null,
     userMessageIndex: null,
     userMessageIndexEpoch: 0,
+    queuedTurnsBySession: {},
+    queuedTurnQueueRevisions: {},
     outline: [],
     activeSessionArchived: false,
     awaitingTranscript: false,
@@ -648,10 +670,108 @@ export function mapTranscriptMessagesToUi(
       ? { thinkingEndedAt: parseEventTime(message.thinkingEndedAt) }
       : {}),
     ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
+    ...(message.instructionDelivery
+      ? { instructionDelivery: message.instructionDelivery }
+      : {}),
   }));
 }
 
+export const MAX_LIVE_ASSISTANT_TEXT_BYTES = 500_000;
+export const MAX_LIVE_THINKING_BYTES = 200_000;
+const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder('utf-8', { fatal: false });
+
+export function calculateUtf8ByteLength(text: string): number {
+  return textEncoder.encode(text).byteLength;
+}
+
+export function sliceTrailingUtf8Bytes(
+  text: string,
+  maxBytes: number,
+): { text: string; truncated: boolean } {
+  const bytes = textEncoder.encode(text);
+  if (bytes.byteLength <= maxBytes) {
+    return { text, truncated: false };
+  }
+  const sliced = bytes.subarray(bytes.byteLength - maxBytes);
+  return {
+    text: textDecoder.decode(sliced),
+    truncated: true,
+  };
+}
+
+export function appendBoundedStreamingText(
+  current: string,
+  delta: string,
+  maxBytes = MAX_LIVE_ASSISTANT_TEXT_BYTES,
+): { text: string; truncated: boolean } {
+  const combined = current + delta;
+  return sliceTrailingUtf8Bytes(combined, maxBytes);
+}
+
+export function appendBoundedThinkingText(
+  current: string,
+  delta: string,
+  maxBytes = MAX_LIVE_THINKING_BYTES,
+): { text: string; truncated: boolean } {
+  const combined = current + delta;
+  return sliceTrailingUtf8Bytes(combined, maxBytes);
+}
+
 function collectLiveTranscriptMessageIds(
+  messages: readonly ChatMessageUi[],
+  streaming: boolean,
+): Set<string> {
+  const liveIds = new Set<string>();
+
+  // 1. Retain any message actively streaming or running a tool
+  for (const message of messages) {
+    if (
+      message.status === 'streaming' ||
+      message.tools.some((tool) => tool.status === 'running')
+    ) {
+      liveIds.add(message.id);
+    }
+  }
+
+  // 2. Retain the live tail (last N items)
+  const tailStart = Math.max(0, messages.length - TRANSCRIPT_LIVE_TAIL_PIN_COUNT);
+  for (let index = tailStart; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message !== undefined) {
+      liveIds.add(message.id);
+    }
+  }
+
+  // 3. If streaming, also retain the user prompt initiating the active turn
+  if (streaming) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === 'user') {
+        liveIds.add(messages[index]!.id);
+        break;
+      }
+    }
+  }
+
+  return liveIds;
+}
+
+function collectRetainedTranscriptMessageIds(
+  messages: readonly ChatMessageUi[],
+  streaming: boolean,
+): Set<string> {
+  const retainedIds = collectLiveTranscriptMessageIds(messages, streaming);
+  const tailStart = Math.max(0, messages.length - SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS);
+  for (let index = tailStart; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message !== undefined) retainedIds.add(message.id);
+  }
+  return retainedIds;
+}
+
+function collectActiveTurnMessageIds(
   messages: readonly ChatMessageUi[],
   streaming: boolean,
 ): Set<string> {
@@ -671,25 +791,12 @@ function collectLiveTranscriptMessageIds(
   return new Set(messages.slice(activeStart).map((message) => message.id));
 }
 
-function collectRetainedTranscriptMessageIds(
-  messages: readonly ChatMessageUi[],
-  streaming: boolean,
-): Set<string> {
-  const retainedIds = collectLiveTranscriptMessageIds(messages, streaming);
-  const tailStart = Math.max(0, messages.length - SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS);
-  for (let index = tailStart; index < messages.length; index += 1) {
-    const message = messages[index];
-    if (message !== undefined) retainedIds.add(message.id);
-  }
-  return retainedIds;
-}
-
 function mergeRefreshedTailWithLiveMessages(
   refreshedMessages: readonly ChatMessageUi[],
   currentMessages: readonly ChatMessageUi[],
   streaming: boolean,
 ): ChatMessageUi[] {
-  const liveIds = collectLiveTranscriptMessageIds(currentMessages, streaming);
+  const liveIds = collectActiveTurnMessageIds(currentMessages, streaming);
   if (liveIds.size === 0) return [...refreshedMessages];
   const currentLiveMessages = currentMessages.filter((message) => liveIds.has(message.id));
   const durablePrefix = refreshedMessages.filter((message) => !liveIds.has(message.id));
@@ -979,12 +1086,13 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       // 3) else → empty
       // Stream events stay ignored while awaitingTranscript is true.
       const keepPreviousWhileLoading =
-        !warmHit && awaitingTranscript && switchingAway && state.messages.length > 0;
+        !warmHit && awaitingTranscript && state.messages.length > 0;
       // Owner follows the painted rows: new session for fresh/warm paint,
       // the previous owner while old rows stay visible under the loading banner.
-      const transcriptOwnerSessionId = keepPreviousWhileLoading
-        ? (state.transcriptOwnerSessionId ?? state.activeSessionId)
-        : action.sessionId;
+      const transcriptOwnerSessionId =
+        keepPreviousWhileLoading && switchingAway
+          ? (state.transcriptOwnerSessionId ?? state.activeSessionId)
+          : action.sessionId;
 
       return {
         ...state,
@@ -1513,12 +1621,18 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           ? state.sessionListScopes
           : adjustSessionListScopeTotal(state.sessionListScopes, removedScope, -1);
       const activeRemoved = state.activeSessionId === action.sessionId;
+      const queuedTurnsBySession = { ...state.queuedTurnsBySession };
+      const queuedTurnQueueRevisions = { ...state.queuedTurnQueueRevisions };
+      delete queuedTurnsBySession[action.sessionId];
+      delete queuedTurnQueueRevisions[action.sessionId];
       return {
         ...state,
         sessions: nextSessions,
         generalSessions: nextGeneralSessions,
         projectSessionsByPath: nextProjectSessionsByPath,
         sessionListScopes: nextSessionListScopes,
+        queuedTurnsBySession,
+        queuedTurnQueueRevisions,
         warmSessionCache: removeWarmSessionSnapshot(state.warmSessionCache, action.sessionId),
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,
@@ -1671,6 +1785,18 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         attachments: [],
         status: 'done',
         createdAt: new Date().toISOString(),
+        ...(action.instructionId && action.targetRunId
+          ? {
+              runId: action.targetRunId,
+              instructionDelivery: {
+                kind: 'run-intervention' as const,
+                instructionId: action.instructionId,
+                status: 'pending' as const,
+                targetRunId: action.targetRunId,
+                revision: 1,
+              },
+            }
+          : {}),
       };
       // A steer is part of the already-active run. Keep run ownership and
       // phase intact while placing the instruction in the visible chain.
@@ -1773,6 +1899,98 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         };
       }
       return enforceBoundedTranscriptWindow(applyRunRecord(state, action.run, true));
+    case 'run/intervention-updated': {
+      if (state.activeSessionId !== action.intervention.sessionId) return state;
+      const delivery: NonNullable<SessionTranscriptMessage['instructionDelivery']> = {
+        kind: 'run-intervention',
+        instructionId: action.intervention.interventionId,
+        status: action.intervention.status,
+        targetRunId: action.intervention.runId,
+        revision: action.intervention.revision,
+      };
+      const messageIndex = state.messages.findIndex(
+        (message) => message.id === action.intervention.userMessageId,
+      );
+      if (messageIndex < 0) return state;
+      const messages = [...state.messages];
+      const previous = messages[messageIndex];
+      if (!previous) return state;
+      if (
+        previous.instructionDelivery?.kind === 'run-intervention' &&
+        previous.instructionDelivery.instructionId === action.intervention.interventionId &&
+        previous.instructionDelivery.revision > action.intervention.revision
+      ) {
+        // Pushes are normally sequenced, but an ACK/replay can race a newer
+        // lifecycle push. Intervention revisions are monotonic; never regress
+        // an edited, applied, or terminal row to an older projection.
+        return state;
+      }
+      messages[messageIndex] = {
+        ...previous,
+        text: action.intervention.input.text,
+        runId: action.intervention.runId,
+        instructionDelivery: delivery,
+      };
+      return { ...state, messages };
+    }
+    case 'session/queued-turns-hydrate': {
+      const previousRevision = state.queuedTurnQueueRevisions[action.sessionId] ?? -1;
+      if (action.queueRevision < previousRevision) return state;
+      return {
+        ...state,
+        queuedTurnsBySession: {
+          ...state.queuedTurnsBySession,
+          [action.sessionId]: [...action.queuedTurns].sort((left, right) => left.sequence - right.sequence),
+        },
+        queuedTurnQueueRevisions: {
+          ...state.queuedTurnQueueRevisions,
+          [action.sessionId]: action.queueRevision,
+        },
+      };
+    }
+    case 'session/queued-turn-updated': {
+      const queuedTurn = action.queuedTurn;
+      const current = state.queuedTurnsBySession[queuedTurn.sessionId] ?? [];
+      const existing = current.find((item) => item.queuedTurnId === queuedTurn.queuedTurnId);
+      if (existing && existing.revision > queuedTurn.revision) return state;
+      const next = existing
+        ? current.map((item) =>
+            item.queuedTurnId === queuedTurn.queuedTurnId ? queuedTurn : item,
+          )
+        : [...current, queuedTurn];
+      let messages = state.messages;
+      if (state.activeSessionId === queuedTurn.sessionId) {
+        const messageIndex = state.messages.findIndex(
+          (message) => message.id === queuedTurn.userMessageId,
+        );
+        const previous = messageIndex >= 0 ? state.messages[messageIndex] : undefined;
+        if (previous !== undefined) {
+          const targetRunId = queuedTurn.startedRunId ?? queuedTurn.replaceRunId;
+          const instructionDelivery: NonNullable<SessionTranscriptMessage['instructionDelivery']> = {
+            kind: 'queued-turn',
+            instructionId: queuedTurn.queuedTurnId,
+            status: queuedTurn.status,
+            revision: queuedTurn.revision,
+            ...(targetRunId ? { targetRunId } : {}),
+          };
+          messages = [...state.messages];
+          messages[messageIndex] = {
+            ...previous,
+            text: queuedTurn.input.text,
+            ...(queuedTurn.startedRunId ? { runId: queuedTurn.startedRunId } : {}),
+            instructionDelivery,
+          };
+        }
+      }
+      return {
+        ...state,
+        messages,
+        queuedTurnsBySession: {
+          ...state.queuedTurnsBySession,
+          [queuedTurn.sessionId]: next.sort((left, right) => left.sequence - right.sequence),
+        },
+      };
+    }
     case 'run/terminal-dismiss':
       return {
         ...state,
@@ -2541,9 +2759,11 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.delta.length > 0 ? finishMessageThinking(message, Date.now()) : message;
+        const { text, truncated } = appendBoundedStreamingText(message.text, event.delta);
         return {
           ...nextMessage,
-          text: message.text + event.delta,
+          text,
+          ...(truncated || message.uiTruncated ? { uiTruncated: true } : {}),
           status: 'streaming',
         };
       });
@@ -2558,9 +2778,14 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.text.length > 0 ? finishMessageThinking(message, Date.now()) : message;
+        const { text: boundedText, truncated } = sliceTrailingUtf8Bytes(
+          event.text,
+          MAX_LIVE_ASSISTANT_TEXT_BYTES,
+        );
         return {
           ...nextMessage,
-          text: event.text,
+          text: boundedText,
+          ...(truncated ? { uiTruncated: true } : {}),
           status: message.status,
         };
       });
@@ -2574,9 +2799,14 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.delta.length > 0 ? startMessageThinking(message, Date.now()) : message;
+        const { text: thinking, truncated } = appendBoundedThinkingText(
+          message.thinking,
+          event.delta,
+        );
         return {
           ...nextMessage,
-          thinking: message.thinking + event.delta,
+          thinking,
+          ...(truncated || message.uiTruncated ? { uiTruncated: true } : {}),
         };
       });
     case 'message/search_evidence': {

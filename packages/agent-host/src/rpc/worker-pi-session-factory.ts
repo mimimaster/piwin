@@ -46,10 +46,15 @@ import {
 } from '../seeded-pi-session.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
+import {
+  createRunInterventionStager,
+  type PiRunInterventionSession,
+} from '../run-intervention-stager.js';
 
 /** Input passed to the factory's `createPiSession` callback. */
 export type WorkerPiSessionFactoryInput = {
   productSessionId: string;
+  runtimeGenerationId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableWorkerProviderRuntime[];
   /** Opaque bootstrap ids resolved inside the worker, never from JSONL. */
@@ -411,7 +416,13 @@ export function createWorkerPiSessionFactory(
       await bindExtensionUiToPiSession(piSession, uiContext);
     }
 
-    return adaptPiSessionForWorker(piSession, input.productSessionId, modelRuntime, providers);
+    return adaptPiSessionForWorker(
+      piSession,
+      input.productSessionId,
+      input.runtimeGenerationId,
+      modelRuntime,
+      providers,
+    );
   };
 }
 
@@ -421,6 +432,8 @@ function createWorkerRequestId(): string {
 
 /** Pi session shape we need from `createAgentSession` inside the worker. */
 type WorkerPiSessionHandle = {
+  agent?: PiRunInterventionSession['agent'];
+  readonly isStreaming?: boolean;
   sessionId?: string;
   prompt: (
     text: string,
@@ -448,11 +461,24 @@ type WorkerPiSessionHandle = {
 function adaptPiSessionForWorker(
   piSession: WorkerPiSessionHandle,
   productSessionId: string,
+  runtimeGenerationId: string,
   modelRuntime: PiModelRuntime,
   providers: SerializableWorkerProviderRuntime[] | undefined,
 ): WorkerPiSessionLike {
+  let activeRunId: string | undefined;
+  const interventionStager = piSession.agent
+    ? createRunInterventionStager({
+        session: piSession as PiRunInterventionSession,
+        sessionId: productSessionId,
+        runtimeGenerationId,
+        getActiveRunId: () => activeRunId,
+      })
+    : undefined;
   return {
     id: piSession.sessionId ?? productSessionId,
+    setActiveRunId(runId) {
+      activeRunId = runId;
+    },
     prompt: async (text, options) => {
       if (options?.model && piSession.setModel) {
         const selectedModel = modelRuntime.getModel(
@@ -478,6 +504,15 @@ function adaptPiSessionForWorker(
     },
     ...(piSession.steer ? { steer: (message) => piSession.steer!(message) } : {}),
     ...(piSession.followUp ? { followUp: (message) => piSession.followUp!(message) } : {}),
+    ...(interventionStager
+      ? {
+          armRunIntervention: (intervention) => interventionStager.arm(intervention),
+          cancelRunIntervention: (interventionId, expectedRevision) =>
+            interventionStager.cancel(interventionId, expectedRevision),
+          subscribeRunInterventions: (listener) => interventionStager.subscribe(listener),
+          settleRunInterventions: (runId) => interventionStager.settleRun(runId),
+        }
+      : {}),
     ...(piSession.abort ? { abort: () => piSession.abort!() } : {}),
     ...(piSession.compact
       ? {

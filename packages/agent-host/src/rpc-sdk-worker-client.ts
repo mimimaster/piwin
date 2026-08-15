@@ -28,9 +28,12 @@ import {
   type WorkerResponse,
   type WorkerToolCallFrame,
   type WorkerToolResultFrame,
+  type WorkerInterventionClaimFrame,
+  type WorkerInterventionPermitFrame,
 } from './rpc-sdk-worker-protocol.js';
 import type {
   AgentEvent,
+  BackendRunIntervention,
   HostToolExecutionResult,
   SessionCompactResult,
   SessionSeedMessage,
@@ -438,6 +441,34 @@ export class RpcSdkWorkerClient extends EventEmitter {
     if (!response.success) throw new Error(response.error ?? 'session/follow-up failed');
   }
 
+  async armRunIntervention(sessionId: string, intervention: BackendRunIntervention): Promise<void> {
+    const response = await this.request(
+      { method: 'session/intervention-arm', sessionId, intervention },
+      undefined,
+      { runId: intervention.runId },
+    );
+    if (!response.success) {
+      throw new Error(response.error ?? 'session/intervention-arm failed');
+    }
+  }
+
+  async cancelRunIntervention(
+    sessionId: string,
+    interventionId: string,
+    expectedRevision: number,
+  ): Promise<boolean> {
+    const response = await this.request({
+      method: 'session/intervention-cancel',
+      sessionId,
+      interventionId,
+      expectedRevision,
+    });
+    if (!response.success) {
+      throw new Error(response.error ?? 'session/intervention-cancel failed');
+    }
+    return (response.data as { cancelled?: boolean } | undefined)?.cancelled === true;
+  }
+
   /** Compact a session in the worker and return the normalized result. */
   async compact(sessionId: string, customInstructions?: string): Promise<SessionCompactResult> {
     const response = await this.request({
@@ -574,6 +605,12 @@ export class RpcSdkWorkerClient extends EventEmitter {
         const message = formatError(error);
         this.emit('log', `[worker-client] extension-ui error: ${message}`);
       });
+    } else if (frame.type === 'intervention-claim') {
+      if (!this.matchesWorkerContext(frame.context)) return;
+      this.emit('intervention-claim', frame);
+    } else if (frame.type === 'intervention-event') {
+      if (!this.matchesWorkerContext(frame.context)) return;
+      this.emit('intervention-event', frame.context.sessionId, frame.event);
     } else if (frame.type === 'resource-response') {
       const pending = this.pendingResource.get(frame.id);
       if (pending) {
@@ -581,6 +618,18 @@ export class RpcSdkWorkerClient extends EventEmitter {
         pending.resolve(frame);
       }
     }
+  }
+
+  sendInterventionPermit(frame: WorkerInterventionClaimFrame, accepted: boolean): void {
+    const child = this.child;
+    if (!child || this.exited) return;
+    const permit: WorkerInterventionPermitFrame = {
+      type: 'intervention-permit',
+      id: frame.id,
+      context: frame.context,
+      accepted,
+    };
+    child.stdin?.write(`${JSON.stringify(permit)}\n`);
   }
 
   /**

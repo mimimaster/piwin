@@ -314,7 +314,7 @@ describe('ComposerDock host status', () => {
     expect(handleResolve).toHaveBeenCalledWith({ value: 'Use a new branch' });
   });
 
-  it('queues Enter/send while streaming and reserves Command+Enter for immediate steer', () => {
+  it('queues Enter/send while streaming and reserves Command+Enter for a Run intervention', () => {
     const handleSteer = vi.fn();
     const handleFollowUp = vi.fn();
     const handleSend = vi.fn();

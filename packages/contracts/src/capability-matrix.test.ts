@@ -47,4 +47,9 @@ describe('capability-matrix', () => {
     expect(enabled.find((row) => row.id === 'runtimeResidency')?.available).toBe(true);
     expect(enabled.find((row) => row.id === 'sessionOutlinePage')?.available).toBe(true);
   });
+
+  it('surfaces the Host-owned queue capability', () => {
+    const rows = buildCapabilityMatrix({ ...baseCaps, queuedTurns: true });
+    expect(rows.find((row) => row.id === 'queuedTurns')).toMatchObject({ available: true });
+  });
 });

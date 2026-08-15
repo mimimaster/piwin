@@ -35,6 +35,41 @@ export class SettingsRevisionConflictError extends Error {
   }
 }
 
+/**
+ * Settings domains whose values are compiled into a new Agent Runtime
+ * generation. Desktop restore/composer state and immediate-only service
+ * preferences intentionally do not participate in this revision: they may
+ * advance the durable Settings document without invalidating a resident
+ * generation.
+ *
+ * Keep this list aligned with `classifySettingsImpact`'s `new-runtime`
+ * domains. The full document revision remains the optimistic-concurrency
+ * token; this projection is only for runtime generation identity.
+ */
+const RUNTIME_REVISION_DOMAINS = [
+  'providers',
+  'defaultProviderId',
+  'defaultModelId',
+  'thinking',
+  'web',
+  'skills',
+  'extensions',
+  'prompts',
+  'compaction',
+  'process',
+  'session',
+  'notes',
+  'flashcards',
+  'marketplace',
+  'imageGeneration',
+  'videoGeneration',
+  'speech',
+  'permissions',
+  'walkthrough',
+  'subagents',
+  'remote',
+] as const satisfies readonly (keyof PiwinConfig)[];
+
 type SettingsServiceOptions = {
   piwinRoot?: string | undefined;
 };
@@ -120,8 +155,29 @@ export function createSettingsSnapshot(config: PiwinConfig): SettingsSnapshot {
   return {
     schemaVersion: PIWIN_SETTINGS_SCHEMA_VERSION,
     revision,
+    runtimeRevision: createRuntimeSettingsRevision(normalizedConfig),
     config: normalizedConfig,
   };
+}
+
+/**
+ * Compute the revision used by Agent Runtime replacement and candidate
+ * validation. This deliberately hashes a projection rather than the whole
+ * product config so Desktop-only persistence cannot invalidate a resident
+ * runtime that does not consume it.
+ */
+export function createRuntimeSettingsRevision(config: PiwinConfig): string {
+  const normalizedConfig = normalizePiwinConfig(config);
+  const runtimeConfig = Object.fromEntries(
+    RUNTIME_REVISION_DOMAINS.map((domain) => [domain, normalizedConfig[domain]]),
+  );
+  const canonicalRuntimeConfig = {
+    schemaVersion: PIWIN_SETTINGS_SCHEMA_VERSION,
+    config: runtimeConfig,
+  };
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalRuntimeConfig))
+    .digest('hex');
 }
 
 export function applySettingsMutations(

@@ -198,6 +198,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         raw,
         activeMessageId,
         lastAssistantMessageId,
+        activeMessageRole,
       )
         .flatMap((event) => filterDuplicateSearchEvidence(event, citationUrlsByMessageId))
         .map((event): AgentEvent => {
@@ -393,6 +394,7 @@ export function mapPiSessionEvent(
   raw: unknown,
   activeMessageId?: string | null,
   lastAssistantMessageId?: string | null,
+  activeMessageRole?: AgentMessageRole | null,
 ): AgentEvent[] {
   if (!raw || typeof raw !== 'object') {
     return [];
@@ -437,10 +439,30 @@ export function mapPiSessionEvent(
         readNestedId(event, 'message') ??
         activeMessageId ??
         'unknown';
-      const evidence = normalizeNativeSearchCitations(
-        event.message ?? event.assistantMessage ?? event,
-      );
+      const messagePayload = event.message ?? event.assistantMessage ?? event;
+      const evidence = normalizeNativeSearchCitations(messagePayload);
+      const endedMessageRole =
+        readRole(event.role) ??
+        readNestedRole(event, 'message') ??
+        readNestedRole(event, 'assistantMessage') ??
+        activeMessageRole;
+      const snapshot =
+        endedMessageRole === 'assistant'
+          ? extractAssistantMessageSnapshot(messagePayload)
+          : null;
       const mapped: AgentEvent[] = [];
+      if (snapshot !== null) {
+        // Some Pi versions put the complete assistant content only on
+        // message_end. Reconstruct a normal lifecycle so the Host recorder
+        // and clients do not lose the final response.
+        mapped.push({ type: 'message/start', messageId, role: 'assistant' });
+        if (snapshot.thinking.length > 0) {
+          mapped.push({ type: 'message/thinking_delta', messageId, delta: snapshot.thinking });
+        }
+        if (snapshot.text.length > 0) {
+          mapped.push({ type: 'message/text_snapshot', messageId, text: snapshot.text });
+        }
+      }
       if (evidence) {
         mapped.push({ type: 'message/search_evidence', messageId, evidence });
       }
@@ -693,6 +715,50 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+type AssistantMessageSnapshot = {
+  text: string;
+  thinking: string;
+};
+
+function extractAssistantMessageSnapshot(value: unknown): AssistantMessageSnapshot | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const textParts: string[] = [];
+  const thinkingParts: string[] = [];
+  const content = record.content;
+  if (Array.isArray(content)) {
+    for (const item of content) {
+      const part = asRecord(item);
+      if (!part) {
+        continue;
+      }
+      if (part.type === 'text') {
+        const text = readString(part.text);
+        if (text) textParts.push(text);
+      } else if (part.type === 'thinking' || part.type === 'reasoning') {
+        const thinking = readString(part.thinking) ?? readString(part.text);
+        if (thinking) thinkingParts.push(thinking);
+      }
+    }
+  } else if (typeof content === 'string' && content.length > 0) {
+    textParts.push(content);
+  }
+
+  const directText = readString(record.text);
+  if (directText) textParts.push(directText);
+  const directThinking = readString(record.thinking) ?? readString(record.reasoning);
+  if (directThinking) thinkingParts.push(directThinking);
+
+  const snapshot = {
+    text: textParts.join(''),
+    thinking: thinkingParts.join(''),
+  } satisfies AssistantMessageSnapshot;
+  return snapshot.text.length > 0 || snapshot.thinking.length > 0 ? snapshot : null;
 }
 
 /**

@@ -11,7 +11,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadSessionPlan, saveSessionPlan } from '@piwin/session';
+import { loadSessionPlan, openSessionTranscriptStore, saveSessionPlan } from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
 import { getPiwinProjectsPath } from '../paths.js';
 import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contracts';
@@ -167,6 +167,204 @@ describe('session live control commands', () => {
     expect(recordedPrompts).toEqual([
       { text: 'Use the smaller fix', clientMessageId: 'client-steer-1' },
     ]);
+  });
+
+  it('durably accepts an exact-Run intervention before arming the backend', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-intervention-command-'));
+    const baseSession = createDelayedSessionHandle();
+    let store: Awaited<ReturnType<typeof openSessionTranscriptStore>>;
+    const armRunIntervention = vi.fn(async (intervention) => {
+      expect(await store.getRunIntervention(intervention.interventionId)).toMatchObject({
+        status: 'pending',
+        runId: intervention.runId,
+      });
+    });
+    const session: SessionHandle = { ...baseSession, armRunIntervention };
+    const control = createControlContext(session);
+    control.registry.attachRuntimeGeneration(control.activeRun.runId, 'generation-1');
+    store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: session.id,
+      projectPath: '/tmp/project',
+    });
+    control.context.getTranscriptStore = async () => store;
+    const pushes: HostPush[] = [];
+    control.context.push = (push) => pushes.push(push);
+
+    try {
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-submit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-1',
+          userMessageId: 'user-intervention-1',
+          input: { text: 'Use the smaller fix' },
+        },
+        undefined,
+        control.context,
+      );
+
+      expect(response).toMatchObject({
+        success: true,
+        command: 'run/intervention-submit',
+        data: { intervention: { status: 'pending', revision: 1 } },
+      });
+      expect(armRunIntervention).toHaveBeenCalledOnce();
+      expect(pushes.map((push) => push.type)).toContain('transcript/append');
+      expect(pushes.map((push) => push.type)).toContain('run/intervention-updated');
+      expect(await store.buildHistoryWindow()).toEqual([]);
+
+      const activeReplay = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-submit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-1',
+          userMessageId: 'user-intervention-1',
+          input: { text: 'Use the smaller fix' },
+        },
+        undefined,
+        control.context,
+      );
+      expect(activeReplay).toMatchObject({
+        success: true,
+        data: { intervention: { interventionId: 'intervention-1', status: 'pending' } },
+      });
+      expect(armRunIntervention).toHaveBeenCalledTimes(2);
+
+      control.registry.terminate(control.activeRun.runId, 'completed');
+      const replay = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-submit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-1',
+          userMessageId: 'user-intervention-1',
+          input: { text: 'Use the smaller fix' },
+        },
+        undefined,
+        control.context,
+      );
+      expect(replay).toMatchObject({
+        success: true,
+        data: { intervention: { interventionId: 'intervention-1', revision: 1 } },
+      });
+      expect(armRunIntervention).toHaveBeenCalledTimes(2);
+
+      const conflict = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-submit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-1',
+          userMessageId: 'user-intervention-1',
+          input: { text: 'different instruction' },
+        },
+        undefined,
+        control.context,
+      );
+      expect(conflict).toMatchObject({ success: false, error: 'idempotency-conflict' });
+    } finally {
+      store.close();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an intervention without an exact active Run owner', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createControlContext(session);
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'run/intervention-submit',
+        sessionId: session.id,
+        runId: 'stale-run',
+        interventionId: 'intervention-stale',
+        userMessageId: 'user-stale',
+        input: { text: 'late instruction' },
+      },
+      undefined,
+      context,
+    );
+    expect(response).toMatchObject({
+      success: false,
+      error: expect.stringContaining('run-mismatch'),
+    });
+  });
+
+  it('edits and cancels only a still-pending intervention revision', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-intervention-edit-'));
+    const baseSession = createDelayedSessionHandle();
+    const armRunIntervention = vi.fn(async () => undefined);
+    const cancelRunIntervention = vi.fn(async () => true);
+    const session: SessionHandle = {
+      ...baseSession,
+      armRunIntervention,
+      cancelRunIntervention,
+    };
+    const control = createControlContext(session);
+    control.registry.attachRuntimeGeneration(control.activeRun.runId, 'generation-1');
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: session.id,
+      projectPath: '/tmp/project',
+    });
+    control.context.getTranscriptStore = async () => store;
+
+    try {
+      await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-submit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-edit-1',
+          userMessageId: 'user-intervention-edit-1',
+          input: { text: 'first instruction' },
+        },
+        undefined,
+        control.context,
+      );
+      const editResponse = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-edit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-edit-1',
+          expectedRevision: 1,
+          input: { text: 'revised instruction' },
+        },
+        undefined,
+        control.context,
+      );
+      expect(editResponse).toMatchObject({
+        success: true,
+        data: { intervention: { revision: 2, input: { text: 'revised instruction' } } },
+      });
+      expect(armRunIntervention).toHaveBeenLastCalledWith(
+        expect.objectContaining({ revision: 2, text: 'revised instruction' }),
+      );
+
+      const cancelResponse = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-cancel',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-edit-1',
+          expectedRevision: 2,
+        },
+        undefined,
+        control.context,
+      );
+      expect(cancelResponse).toMatchObject({
+        success: true,
+        data: { intervention: { revision: 3, status: 'cancelled' } },
+      });
+      expect(cancelRunIntervention).toHaveBeenCalledWith('intervention-edit-1', 2);
+      expect(await store.buildHistoryWindow()).toEqual([]);
+    } finally {
+      store.close();
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 
   it('persists a follow-up assembly bound to its user row', async () => {

@@ -28,10 +28,16 @@ import type {
   UsageRollup,
   WalkthroughArtifact,
   ContextSummaryPush,
+  RunInterventionRecord,
+  QueuedTurnRecord,
 } from '@piwin/contracts';
 import {
   isJobTerminal,
+  isRunTerminal,
   estimateHostTokens,
+  QUEUED_TURN_MAX_PENDING_BYTES_PER_SESSION,
+  QUEUED_TURN_MAX_PENDING_PER_SESSION,
+  QUEUED_TURN_MAX_TEXT_BYTES,
   SESSION_LIST_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
   SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
@@ -88,6 +94,9 @@ export class MockHostBackend {
   private mockPromptAborts = new Map<string, AbortController>();
   /** In-memory equivalent of the Host's durable active pause checkpoint. */
   private mockPauseCheckpointIds = new Map<string, string>();
+  private mockRunInterventions = new Map<string, RunInterventionRecord>();
+  private mockQueuedTurns = new Map<string, QueuedTurnRecord[]>();
+  private mockQueueRevisions = new Map<string, number>();
   private mockPauseRequested = new Set<string>();
   /** Mock browser session current URL (null = stopped). */
   private mockBrowserUrl: string | null = null;
@@ -114,6 +123,8 @@ export class MockHostBackend {
   };
   /** Monotonic revision for the in-memory settings snapshot (mock parity). */
   private mockSettingsRevision = 'mock-settings-v1';
+  /** Runtime-only revision kept separate from the full settings CAS token. */
+  private mockRuntimeSettingsRevision = 'mock-runtime-settings-v1';
   private readonly e2eCommandCounts = {
     sessionList: 0,
     sessionListPage: 0,
@@ -136,6 +147,8 @@ export class MockHostBackend {
     this.mockPromptAborts.clear();
     this.mockPauseCheckpointIds.clear();
     this.mockPauseRequested.clear();
+    this.mockQueuedTurns.clear();
+    this.mockQueueRevisions.clear();
     this.mockActiveRunIds.clear();
     this.mockTerminalRunIds.clear();
   }
@@ -289,6 +302,8 @@ export class MockHostBackend {
               sessionPin: true,
               sessionLifecycle: true,
               sessionPause: true,
+              runInterventions: true,
+              queuedTurns: true,
               sessionUserMessageIndex: true,
               sessionTranscriptSeek: true,
               sessionExport: true,
@@ -950,6 +965,18 @@ export class MockHostBackend {
           },
         };
       }
+      case 'session/queued-turn-submit':
+        return this.handleMockQueuedTurnSubmit(command, id);
+      case 'session/queued-turn-list':
+        return this.handleMockQueuedTurnList(command, id);
+      case 'session/queued-turn-edit':
+        return this.handleMockQueuedTurnEdit(command, id);
+      case 'session/queued-turn-cancel':
+        return this.handleMockQueuedTurnCancel(command, id);
+      case 'session/queued-turn-reorder':
+        return this.handleMockQueuedTurnReorder(command, id);
+      case 'session/replace-run':
+        return this.handleMockReplaceRun(command, id);
       case 'session/prompt': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
@@ -1011,7 +1038,7 @@ export class MockHostBackend {
             userMessage.attachments = mediaAttachments;
           }
         }
-        if (command.input.source !== 'resume') {
+        if (command.input.source !== 'resume' && command.input.source !== 'queued-turn') {
           session.transcript.push(userMessage);
         }
         // Immediate text name (matches host recordUserPrompt naming pipeline).
@@ -1247,6 +1274,188 @@ export class MockHostBackend {
           command: 'session/steer',
           success: true,
           data: { sessionId: command.sessionId, runId: activeRunId },
+        };
+      }
+
+      case 'run/intervention-submit': {
+        const session = this.sessions.get(command.sessionId);
+        const activeRunId = this.mockActiveRunIds.get(command.sessionId);
+        if (!session || activeRunId !== command.runId) {
+          return {
+            id,
+            type: 'response',
+            command: command.type,
+            success: false,
+            error: activeRunId
+              ? `run-mismatch: requested ${command.runId}, active ${activeRunId}`
+              : `no-active-run: session ${command.sessionId} has no foreground run`,
+          };
+        }
+        const replay = this.mockRunInterventions.get(command.interventionId);
+        if (replay) {
+          return {
+            id,
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: { intervention: replay },
+          };
+        }
+        const now = new Date().toISOString();
+        const intervention: RunInterventionRecord = {
+          interventionId: command.interventionId,
+          revision: 1,
+          sessionId: command.sessionId,
+          runId: command.runId,
+          runtimeGenerationId: 'mock-generation',
+          sequence:
+            [...this.mockRunInterventions.values()].filter(
+              (item) => item.runId === command.runId,
+            ).length + 1,
+          userMessageId: command.userMessageId,
+          status: 'pending',
+          input: command.input,
+          submittedAt: now,
+          updatedAt: now,
+        };
+        this.mockRunInterventions.set(intervention.interventionId, intervention);
+        const message: SessionTranscriptMessage = {
+          id: intervention.userMessageId,
+          role: 'user',
+          text: intervention.input.text,
+          createdAt: now,
+          status: 'done',
+          runId: intervention.runId,
+          instructionDelivery: {
+            kind: 'run-intervention',
+            instructionId: intervention.interventionId,
+            status: intervention.status,
+            targetRunId: intervention.runId,
+            revision: intervention.revision,
+          },
+        };
+        session.transcript.push(message);
+        this.emitPush({ type: 'transcript/append', sessionId: command.sessionId, message });
+        this.emitPush({ type: 'run/intervention-updated', intervention });
+        globalThis.setTimeout(() => {
+          const current = this.mockRunInterventions.get(intervention.interventionId);
+          if (!current || current.status !== 'pending') return;
+          if (this.mockActiveRunIds.get(command.sessionId) !== command.runId) {
+            const expired: RunInterventionRecord = {
+              ...current,
+              revision: current.revision + 1,
+              status: 'expired',
+              updatedAt: new Date().toISOString(),
+              terminalReason: 'run-ended',
+            };
+            this.mockRunInterventions.set(expired.interventionId, expired);
+            this.emitPush({ type: 'run/intervention-updated', intervention: expired });
+            return;
+          }
+          const applied: RunInterventionRecord = {
+            ...current,
+            revision: current.revision + 2,
+            status: 'applied',
+            updatedAt: new Date().toISOString(),
+            appliedAt: new Date().toISOString(),
+          };
+          this.mockRunInterventions.set(applied.interventionId, applied);
+          this.emitPush({ type: 'run/intervention-updated', intervention: applied });
+        }, 50);
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { intervention },
+        };
+      }
+
+      case 'run/intervention-edit': {
+        const current = this.mockRunInterventions.get(command.interventionId);
+        if (
+          !current ||
+          current.sessionId !== command.sessionId ||
+          current.runId !== command.runId ||
+          current.status !== 'pending' ||
+          current.revision !== command.expectedRevision
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: command.type,
+            success: false,
+            error: 'intervention-revision-conflict',
+          };
+        }
+        const updated: RunInterventionRecord = {
+          ...current,
+          revision: current.revision + 1,
+          input: command.input,
+          updatedAt: new Date().toISOString(),
+        };
+        this.mockRunInterventions.set(updated.interventionId, updated);
+        const session = this.sessions.get(command.sessionId);
+        const messageIndex = session?.transcript.findIndex(
+          (message) => message.id === updated.userMessageId,
+        );
+        if (session && messageIndex !== undefined && messageIndex >= 0) {
+          const previous = session.transcript[messageIndex];
+          if (previous) {
+            session.transcript[messageIndex] = {
+              ...previous,
+              text: updated.input.text,
+              instructionDelivery: {
+                kind: 'run-intervention',
+                instructionId: updated.interventionId,
+                status: updated.status,
+                targetRunId: updated.runId,
+                revision: updated.revision,
+              },
+            };
+          }
+        }
+        this.emitPush({ type: 'run/intervention-updated', intervention: updated });
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { intervention: updated },
+        };
+      }
+
+      case 'run/intervention-cancel': {
+        const current = this.mockRunInterventions.get(command.interventionId);
+        if (
+          !current ||
+          current.sessionId !== command.sessionId ||
+          current.runId !== command.runId ||
+          current.status !== 'pending' ||
+          current.revision !== command.expectedRevision
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: command.type,
+            success: false,
+            error: 'intervention-revision-conflict',
+          };
+        }
+        const cancelled: RunInterventionRecord = {
+          ...current,
+          revision: current.revision + 1,
+          status: 'cancelled',
+          updatedAt: new Date().toISOString(),
+        };
+        this.mockRunInterventions.set(cancelled.interventionId, cancelled);
+        this.emitPush({ type: 'run/intervention-updated', intervention: cancelled });
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: { intervention: cancelled },
         };
       }
 
@@ -2691,6 +2900,7 @@ export class MockHostBackend {
             snapshot: {
               schemaVersion: 2,
               revision: this.mockSettingsRevision,
+              runtimeRevision: this.mockRuntimeSettingsRevision,
               config: this.mockConfig,
             },
           },
@@ -2769,6 +2979,18 @@ export class MockHostBackend {
         this.mockSettingsRevision = `mock-settings-v${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}`;
+        if (
+          input.mutations.some(
+            (mutation) =>
+              !['desktop', 'media', 'artifact', 'automation', 'visionDelegation'].includes(
+                mutation.domain,
+              ),
+          )
+        ) {
+          this.mockRuntimeSettingsRevision = `mock-runtime-settings-v${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2, 8)}`;
+        }
         return {
           id,
           type: 'response',
@@ -2778,6 +3000,7 @@ export class MockHostBackend {
             snapshot: {
               schemaVersion: 2,
               revision: this.mockSettingsRevision,
+              runtimeRevision: this.mockRuntimeSettingsRevision,
               config: this.mockConfig,
             },
             changedDomains: input.mutations.map((mutation) => ({
@@ -3938,6 +4161,321 @@ export class MockHostBackend {
     this.emitPush(summary);
   }
 
+  private mockQueueRevision(sessionId: string): number {
+    return this.mockQueueRevisions.get(sessionId) ?? 0;
+  }
+
+  private bumpMockQueueRevision(sessionId: string): number {
+    const next = this.mockQueueRevision(sessionId) + 1;
+    this.mockQueueRevisions.set(sessionId, next);
+    return next;
+  }
+
+  private emitMockQueuedTurn(queuedTurn: QueuedTurnRecord): void {
+    this.emitPush({ type: 'session/queued-turn-updated', queuedTurn });
+  }
+
+  private async handleMockQueuedTurnSubmit(
+    command: Extract<HostCommand, { type: 'session/queued-turn-submit' }>,
+    id: string,
+  ): Promise<HostResponse> {
+    const session = this.sessions.get(command.sessionId);
+    if (!session) {
+      return { id, type: 'response', command: command.type, success: false, error: 'unknown session' };
+    }
+    const existing = this.mockQueuedTurns
+      .get(command.sessionId)
+      ?.find((item) => item.queuedTurnId === command.queuedTurnId);
+    const normalizedInput: PromptInput = {
+      ...command.input,
+      clientMessageId: command.userMessageId,
+    };
+    if (existing) {
+      if (mockQueuedInputFingerprint(existing.input) !== mockQueuedInputFingerprint(normalizedInput)) {
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: false,
+          error: 'queued-turn-idempotency-conflict',
+        };
+      }
+      return { id, type: 'response', command: command.type, success: true, data: { queuedTurn: existing } };
+    }
+    const inputError = validateMockQueuedTurnInput(command.input);
+    if (inputError) {
+      return { id, type: 'response', command: command.type, success: false, error: inputError };
+    }
+    const queue = this.mockQueuedTurns.get(command.sessionId) ?? [];
+    const pending = queue.filter((item) => item.status === 'pending' || item.status === 'starting');
+    if (pending.length >= QUEUED_TURN_MAX_PENDING_PER_SESSION) {
+      return {
+        id,
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: 'queued-turn-queue-full',
+      };
+    }
+    const pendingBytes = pending.reduce((total, item) => total + byteLength(item.input.text), 0);
+    if (pendingBytes + byteLength(command.input.text) > QUEUED_TURN_MAX_PENDING_BYTES_PER_SESSION) {
+      return {
+        id,
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: 'queued-turn-queue-full',
+      };
+    }
+    const now = new Date().toISOString();
+    const queuedTurn: QueuedTurnRecord = {
+      queuedTurnId: command.queuedTurnId,
+      revision: 1,
+      sessionId: command.sessionId,
+      sequence: queue.length + 1,
+      userMessageId: command.userMessageId,
+      mode: 'next',
+      status: 'pending',
+      input: normalizedInput,
+      submittedAt: now,
+      updatedAt: now,
+    };
+    queue.push(queuedTurn);
+    this.mockQueuedTurns.set(command.sessionId, queue);
+    this.bumpMockQueueRevision(command.sessionId);
+    const message: SessionTranscriptMessage = {
+      id: queuedTurn.userMessageId,
+      role: 'user',
+      text: queuedTurn.input.text,
+      createdAt: now,
+      status: 'done',
+      instructionDelivery: {
+        kind: 'queued-turn',
+        instructionId: queuedTurn.queuedTurnId,
+        status: queuedTurn.status,
+        revision: queuedTurn.revision,
+      },
+    };
+    if (queuedTurn.input.attachments) {
+      const media = queuedTurn.input.attachments.filter(
+        (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+      );
+      if (media.length > 0) message.attachments = media;
+    }
+    if (queuedTurn.input.contextRefs) message.contextRefs = queuedTurn.input.contextRefs;
+    session.transcript.push(message);
+    this.emitPush({ type: 'transcript/append', sessionId: command.sessionId, message });
+    this.emitMockQueuedTurn(queuedTurn);
+    void this.drainMockQueue(command.sessionId);
+    return { id, type: 'response', command: command.type, success: true, data: { queuedTurn } };
+  }
+
+  private async handleMockQueuedTurnList(
+    command: Extract<HostCommand, { type: 'session/queued-turn-list' }>,
+    id: string,
+  ): Promise<HostResponse> {
+    const queuedTurns = [...(this.mockQueuedTurns.get(command.sessionId) ?? [])].sort(
+      (left, right) => left.sequence - right.sequence,
+    );
+    return {
+      id,
+      type: 'response',
+      command: command.type,
+      success: true,
+      data: { queueRevision: this.mockQueueRevision(command.sessionId), queuedTurns },
+    };
+  }
+
+  private async handleMockQueuedTurnEdit(
+    command: Extract<HostCommand, { type: 'session/queued-turn-edit' }>,
+    id: string,
+  ): Promise<HostResponse> {
+    const queue = this.mockQueuedTurns.get(command.sessionId) ?? [];
+    const index = queue.findIndex((item) => item.queuedTurnId === command.queuedTurnId);
+    const current = queue[index];
+    if (!current || current.status !== 'pending' || current.revision !== command.expectedRevision) {
+      return { id, type: 'response', command: command.type, success: false, error: 'queued-turn-revision-conflict' };
+    }
+    const updated: QueuedTurnRecord = {
+      ...current,
+      revision: current.revision + 1,
+      input: { ...command.input, clientMessageId: current.userMessageId },
+      updatedAt: new Date().toISOString(),
+    };
+    queue[index] = updated;
+    this.bumpMockQueueRevision(command.sessionId);
+    this.updateMockQueuedTranscript(command.sessionId, updated);
+    this.emitMockQueuedTurn(updated);
+    return { id, type: 'response', command: command.type, success: true, data: { queuedTurn: updated } };
+  }
+
+  private async handleMockQueuedTurnCancel(
+    command: Extract<HostCommand, { type: 'session/queued-turn-cancel' }>,
+    id: string,
+  ): Promise<HostResponse> {
+    const queue = this.mockQueuedTurns.get(command.sessionId) ?? [];
+    const index = queue.findIndex((item) => item.queuedTurnId === command.queuedTurnId);
+    const current = queue[index];
+    if (!current || current.status !== 'pending' || current.revision !== command.expectedRevision) {
+      return { id, type: 'response', command: command.type, success: false, error: 'queued-turn-revision-conflict' };
+    }
+    const cancelled: QueuedTurnRecord = {
+      ...current,
+      revision: current.revision + 1,
+      status: 'cancelled',
+      terminalReason: 'user-cancelled',
+      updatedAt: new Date().toISOString(),
+    };
+    queue[index] = cancelled;
+    this.bumpMockQueueRevision(command.sessionId);
+    this.updateMockQueuedTranscript(command.sessionId, cancelled);
+    this.emitMockQueuedTurn(cancelled);
+    return { id, type: 'response', command: command.type, success: true, data: { queuedTurn: cancelled } };
+  }
+
+  private async handleMockQueuedTurnReorder(
+    command: Extract<HostCommand, { type: 'session/queued-turn-reorder' }>,
+    id: string,
+  ): Promise<HostResponse> {
+    if (this.mockQueueRevision(command.sessionId) !== command.expectedQueueRevision) {
+      return { id, type: 'response', command: command.type, success: false, error: 'queued-turn-revision-conflict' };
+    }
+    const queue = this.mockQueuedTurns.get(command.sessionId) ?? [];
+    const pending = queue.filter((item) => item.status === 'pending');
+    if (
+      pending.length !== command.orderedQueuedTurnIds.length ||
+      new Set(command.orderedQueuedTurnIds).size !== pending.length ||
+      command.orderedQueuedTurnIds.some((queuedTurnId) => !pending.some((item) => item.queuedTurnId === queuedTurnId))
+    ) {
+      return { id, type: 'response', command: command.type, success: false, error: 'queued-turn-reorder-invalid' };
+    }
+    const firstSequence = queue.reduce(
+      (maximum, item) => Math.max(maximum, item.sequence),
+      0,
+    ) + 1;
+    command.orderedQueuedTurnIds.forEach((queuedTurnId, index) => {
+      const item = queue.find((candidate) => candidate.queuedTurnId === queuedTurnId);
+      if (item) {
+        item.sequence = firstSequence + index;
+        item.revision += 1;
+        this.updateMockQueuedTranscript(command.sessionId, item);
+        this.emitMockQueuedTurn(item);
+      }
+    });
+    const revision = this.bumpMockQueueRevision(command.sessionId);
+    return { id, type: 'response', command: command.type, success: true, data: { queueRevision: revision, queuedTurns: queue } };
+  }
+
+  private async handleMockReplaceRun(
+    command: Extract<HostCommand, { type: 'session/replace-run' }>,
+    id: string,
+  ): Promise<HostResponse> {
+    const activeRunId = this.mockActiveRunIds.get(command.sessionId);
+    if (!activeRunId) {
+      return { id, type: 'response', command: command.type, success: false, error: 'queued-turn-no-active-run' };
+    }
+    if (activeRunId !== command.runId) {
+      return { id, type: 'response', command: command.type, success: false, error: 'queued-turn-run-mismatch' };
+    }
+    const response = await this.handle(
+      {
+        type: 'session/queued-turn-submit',
+        sessionId: command.sessionId,
+        queuedTurnId: command.queuedTurnId,
+        userMessageId: command.userMessageId,
+        input: command.input,
+      },
+      id,
+    );
+    if (!response.success) return response;
+    const queue = this.mockQueuedTurns.get(command.sessionId) ?? [];
+    const item = queue.find((candidate) => candidate.queuedTurnId === command.queuedTurnId);
+    if (item) {
+      item.mode = 'replace';
+      item.replaceRunId = command.runId;
+      item.revision += 1;
+      this.bumpMockQueueRevision(command.sessionId);
+      this.updateMockQueuedTranscript(command.sessionId, item);
+      this.emitMockQueuedTurn(item);
+    }
+    this.pushMockRunUpdated(command.sessionId, command.runId, 'cancelling', 'cancelling');
+    this.mockPromptAborts.get(command.sessionId)?.abort();
+    return {
+      ...response,
+      ...(response.success && item
+        ? { data: { ...(response.data ?? {}), queuedTurn: item } }
+        : {}),
+    };
+  }
+
+  private updateMockQueuedTranscript(sessionId: string, queuedTurn: QueuedTurnRecord): void {
+    const session = this.sessions.get(sessionId);
+    const message = session?.transcript.find((item) => item.id === queuedTurn.userMessageId);
+    if (!message) return;
+    message.text = queuedTurn.input.text;
+    if (queuedTurn.startedRunId === undefined) {
+      delete message.runId;
+    } else {
+      message.runId = queuedTurn.startedRunId;
+    }
+    message.instructionDelivery = {
+      kind: 'queued-turn',
+      instructionId: queuedTurn.queuedTurnId,
+      status: queuedTurn.status,
+      ...(queuedTurn.startedRunId ?? queuedTurn.replaceRunId
+        ? { targetRunId: queuedTurn.startedRunId ?? queuedTurn.replaceRunId }
+        : {}),
+      revision: queuedTurn.revision,
+    };
+  }
+
+  private async drainMockQueue(sessionId: string): Promise<void> {
+    if (this.mockActiveRunIds.has(sessionId)) return;
+    const queue = this.mockQueuedTurns.get(sessionId) ?? [];
+    const next = [...queue]
+      .sort((left, right) => left.sequence - right.sequence)
+      .find((item) => item.status === 'pending');
+    if (!next) return;
+    if (next.mode === 'replace' && next.replaceRunId) {
+      const oldRun = this.mockRuns.get(next.replaceRunId);
+      if (!oldRun || !isRunTerminal(oldRun.status)) return;
+    }
+    next.status = 'starting';
+    next.revision += 1;
+    next.updatedAt = new Date().toISOString();
+    this.bumpMockQueueRevision(sessionId);
+    this.updateMockQueuedTranscript(sessionId, next);
+    this.emitMockQueuedTurn(next);
+    const response = await this.handle(
+      {
+        type: 'session/prompt',
+        sessionId,
+        admission: 'queued-turn',
+        input: { ...next.input, source: 'queued-turn', clientMessageId: next.userMessageId },
+      },
+      `queued-${next.queuedTurnId}`,
+    );
+    if (!response.success) {
+      next.status = 'failed';
+      next.revision += 1;
+      next.terminalReason = 'prompt-rejected';
+      next.updatedAt = new Date().toISOString();
+      this.bumpMockQueueRevision(sessionId);
+      this.updateMockQueuedTranscript(sessionId, next);
+      this.emitMockQueuedTurn(next);
+      return;
+    }
+    const runId = (response.data as { runId?: unknown } | undefined)?.runId;
+    if (typeof runId !== 'string') return;
+    next.status = 'started';
+    next.startedRunId = runId;
+    next.revision += 1;
+    next.updatedAt = new Date().toISOString();
+    this.bumpMockQueueRevision(sessionId);
+    this.updateMockQueuedTranscript(sessionId, next);
+    this.emitMockQueuedTurn(next);
+  }
+
   private async emitMockPrompt(sessionId: string, text: string, runId: string): Promise<void> {
     const existing = this.mockPromptAborts.get(sessionId);
     existing?.abort();
@@ -4118,6 +4656,9 @@ export class MockHostBackend {
     }
     this.emitPush({ type: 'run/updated', run: terminalRun });
     this.emitPush({ type: 'run/terminal', run: terminalRun });
+    // Preserve the Host terminal barrier: only request the next-turn drain
+    // after the terminal projection has entered the client stream.
+    void this.drainMockQueue(sessionId);
   }
 
   private pushMockRunUpdated(
@@ -4352,4 +4893,28 @@ function waitForMockAbort(signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     signal.addEventListener('abort', () => resolve(), { once: true });
   });
+}
+
+function mockQueuedInputFingerprint(input: PromptInput): string {
+  return JSON.stringify(input, Object.keys(input).sort());
+}
+
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).byteLength;
+}
+
+function validateMockQueuedTurnInput(input: PromptInput): string | undefined {
+  const hasText = input.text.trim().length > 0;
+  const hasAttachments = (input.attachments?.length ?? 0) > 0;
+  const hasContext = (input.contextRefs?.length ?? 0) > 0;
+  if (!hasText && !hasAttachments && !hasContext) {
+    return 'queued-turn-empty: text, attachment, or context is required';
+  }
+  if (byteLength(input.text) > QUEUED_TURN_MAX_TEXT_BYTES) {
+    return 'queued-turn-bounds-exceeded: text exceeds 64 KiB';
+  }
+  if (input.source === 'resume' || input.resumeCheckpointId !== undefined) {
+    return 'queued-turn-input-invalid: resume prompts cannot be queued';
+  }
+  return undefined;
 }

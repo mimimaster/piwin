@@ -14,6 +14,7 @@
 
 import type {
   AgentEvent,
+  BackendRunInterventionEvent,
   SessionSeedMessage,
   ToolResult,
   ToolResultErrorCode,
@@ -30,6 +31,8 @@ export type WorkerRequestMethod =
   | 'session/abort'
   | 'session/steer'
   | 'session/follow-up'
+  | 'session/intervention-arm'
+  | 'session/intervention-cancel'
   | 'session/compact'
   | 'session/compact-abort'
   | 'session/drop';
@@ -150,6 +153,29 @@ export type WorkerExtensionUiResponseFrame = {
   error?: string;
 };
 
+/** Worker asks the parent Host to durably claim a staged intervention revision. */
+export type WorkerInterventionClaimFrame = {
+  type: 'intervention-claim';
+  id: string;
+  context: WorkerFrameContext;
+  event: Extract<BackendRunInterventionEvent, { type: 'claim' }>;
+};
+
+/** Parent answers a worker claim before the worker injects model-visible content. */
+export type WorkerInterventionPermitFrame = {
+  type: 'intervention-permit';
+  id: string;
+  context: WorkerFrameContext;
+  accepted: boolean;
+};
+
+/** Worker reports post-claim application or terminal staging outcomes. */
+export type WorkerInterventionEventFrame = {
+  type: 'intervention-event';
+  context: WorkerFrameContext;
+  event: Exclude<BackendRunInterventionEvent, { type: 'claim' }>;
+};
+
 /**
  * Parent → worker: internal resource query (ADR 0040 §8). The worker answers
  * with its current `process.memoryUsage()` snapshot. Strict frame: no
@@ -182,6 +208,8 @@ export type WorkerFrame =
   | WorkerHelloFrame
   | WorkerShutdownFrame
   | WorkerExtensionUiRequestFrame
+  | WorkerInterventionClaimFrame
+  | WorkerInterventionEventFrame
   | WorkerResourceResponseFrame;
 
 /** Payload variants for worker requests. */
@@ -219,6 +247,17 @@ export type WorkerRequestPayload =
       method: 'session/follow-up';
       sessionId: string;
       message: string;
+    }
+  | {
+      method: 'session/intervention-arm';
+      sessionId: string;
+      intervention: import('@piwin/contracts').BackendRunIntervention;
+    }
+  | {
+      method: 'session/intervention-cancel';
+      sessionId: string;
+      interventionId: string;
+      expectedRevision: number;
     }
   | {
       method: 'session/compact';
@@ -275,6 +314,16 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
         (parsed.kind === 'confirm' || parsed.kind === 'select' || parsed.kind === 'input')
       ) {
         return parsed as WorkerExtensionUiRequestFrame;
+      }
+      if (
+        parsed.type === 'intervention-claim' &&
+        typeof parsed.id === 'string' &&
+        isFrameContext(parsed.context)
+      ) {
+        return parsed as WorkerInterventionClaimFrame;
+      }
+      if (parsed.type === 'intervention-event' && isFrameContext(parsed.context)) {
+        return parsed as WorkerInterventionEventFrame;
       }
       if (
         parsed.type === 'resource-response' &&

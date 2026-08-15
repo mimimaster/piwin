@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, AgentEventEnvelope } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  AgentEventEnvelope,
+  BackendRunInterventionEvent,
+} from '@piwin/contracts';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   WorkerEvent,
@@ -113,6 +117,69 @@ describe('WorkerSessionRuntime', () => {
       success: true,
       data: { sessionId: 'pi-s1' },
     });
+  });
+
+  it('waits for a parent permit before accepting a worker intervention claim', async () => {
+    const frames: WorkerFrame[] = [];
+    let interventionListener:
+      | ((event: BackendRunInterventionEvent) => Promise<{ accepted: boolean }>)
+      | undefined;
+    const session: WorkerPiSessionLike = {
+      ...createMockPiSession(),
+      armRunIntervention: vi.fn(async () => undefined),
+      cancelRunIntervention: vi.fn(async () => true),
+      subscribeRunInterventions(listener) {
+        interventionListener = listener;
+        return () => {
+          interventionListener = undefined;
+        };
+      },
+    };
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => session,
+      eventMapper: fakeMapper(),
+    });
+    await runtime.handleRequest(createRequest());
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'req-arm',
+      method: 'session/intervention-arm',
+      context: { ...frameContext, runId: 'run-1' },
+      payload: {
+        method: 'session/intervention-arm',
+        sessionId: 'ps-1',
+        intervention: {
+          interventionId: 'intervention-1',
+          revision: 1,
+          sessionId: 'ps-1',
+          runId: 'run-1',
+          runtimeGenerationId: 'gen-1',
+          sequence: 1,
+          text: 'change direction',
+        },
+      },
+    });
+
+    const claimPromise = interventionListener?.({
+      type: 'claim',
+      interventionId: 'intervention-1',
+      revision: 1,
+      runId: 'run-1',
+      runtimeGenerationId: 'gen-1',
+    });
+    const claim = frames.find(
+      (frame): frame is Extract<WorkerFrame, { type: 'intervention-claim' }> =>
+        frame.type === 'intervention-claim',
+    );
+    if (!claim || !claimPromise) throw new Error('worker intervention claim was not emitted');
+    runtime.handleInterventionPermit({
+      type: 'intervention-permit',
+      id: claim.id,
+      context: claim.context,
+      accepted: true,
+    });
+    await expect(claimPromise).resolves.toEqual({ accepted: true });
   });
 
   it('rejects a forged inline provider before creating a Pi session', async () => {

@@ -299,6 +299,17 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'run/intervention-updated') {
+        dispatch({
+          type: 'run/intervention-updated',
+          intervention: message.intervention,
+        });
+        return;
+      }
+      if (message.type === 'session/queued-turn-updated') {
+        dispatch({ type: 'session/queued-turn-updated', queuedTurn: message.queuedTurn });
+        return;
+      }
       if (message.type === 'session/name-updated') {
         // Host named the session (text on send or LLM after complete). session/update
         // inserts the row when missing so the first text name makes it listable.

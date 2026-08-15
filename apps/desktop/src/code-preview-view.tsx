@@ -45,13 +45,16 @@ function computeSelectionTarget(
     return null;
   }
 
-  const rows = Array.from(preElement.querySelectorAll<HTMLElement>('.code-preview-row'));
-  let lineStart: number | null = null;
-  let lineEnd: number | null = null;
-  rows.forEach((row, index) => {
-    if (row.contains(range.startContainer)) lineStart = index + 1;
-    if (row.contains(range.endContainer)) lineEnd = index + 1;
-  });
+  const startContainer = range.startContainer;
+  const endContainer = range.endContainer;
+  const startEl =
+    startContainer instanceof Element ? startContainer : startContainer.parentElement;
+  const endEl = endContainer instanceof Element ? endContainer : endContainer.parentElement;
+  const startRow = startEl?.closest<HTMLElement>('.code-preview-row');
+  const endRow = endEl?.closest<HTMLElement>('.code-preview-row');
+
+  const lineStart = startRow?.dataset.line ? Number(startRow.dataset.line) : null;
+  const lineEnd = endRow?.dataset.line ? Number(endRow.dataset.line) : lineStart;
   if (lineStart === null) {
     return null;
   }
@@ -117,7 +120,7 @@ export function CodePreviewView({
       {lines.map((line, index) => {
         const lineTokens = tokens?.[index] ?? null;
         return (
-          <div key={index} className="code-preview-row">
+          <div key={index} className="code-preview-row" data-line={index + 1}>
             <span className="code-preview-lineno" aria-hidden="true">
               {String(index + 1).padStart(gutterWidth, ' ')}
             </span>

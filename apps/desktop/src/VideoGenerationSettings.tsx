@@ -228,9 +228,9 @@ export function VideoGenerationSettings(): ReactElement {
       }
       return {
         ...provider,
-        models: provider.models.flatMap((model) => {
+        models: provider.models.map((model) => {
           if (model.id !== modelId) {
-            return [model];
+            return model;
           }
           const remainingCapabilities = (model.capabilities ?? []).filter(
             (capability) => capability !== 'video-generation',
@@ -241,19 +241,18 @@ export function VideoGenerationSettings(): ReactElement {
           }
           const hasRemainingRoutes =
             remainingRoutes !== undefined && Object.keys(remainingRoutes).length > 0;
-          if (remainingCapabilities.length === 0 && !hasRemainingRoutes) {
-            return [];
+          const nextModel: ModelConfigEntry = { ...model };
+          if (remainingCapabilities.length > 0) {
+            nextModel.capabilities = remainingCapabilities;
+          } else {
+            delete nextModel.capabilities;
           }
-          const baseModel = { ...model };
-          delete baseModel.capabilities;
-          delete baseModel.routes;
-          return [
-            {
-              ...baseModel,
-              ...(remainingCapabilities.length > 0 ? { capabilities: remainingCapabilities } : {}),
-              ...(hasRemainingRoutes && remainingRoutes ? { routes: remainingRoutes } : {}),
-            },
-          ];
+          if (hasRemainingRoutes && remainingRoutes) {
+            nextModel.routes = remainingRoutes;
+          } else {
+            delete nextModel.routes;
+          }
+          return nextModel;
         }),
       };
     });

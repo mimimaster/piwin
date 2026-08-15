@@ -131,6 +131,30 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       );
     case 'run/updated':
       return projection(deliveryKey('run', push.run.runId), push.run.runId);
+    case 'run/intervention-updated':
+      return projection(
+        deliveryKey('run', push.intervention.runId, 'intervention', push.intervention.interventionId),
+        push.intervention.runId,
+      );
+    case 'session/queued-turn-updated':
+      {
+        const key = deliveryKey(
+          'session',
+          push.queuedTurn.sessionId,
+          'queued-turn',
+          push.queuedTurn.queuedTurnId,
+        );
+        // A started queued turn is emitted after its new Run has been
+        // admitted. It must precede that Run's first events, so do not use
+        // startedRunId as a barrier here. Only a pending Replace projection
+        // may use its old target Run to flush the latest queue state before
+        // that target's terminal barrier.
+        const runId =
+          push.queuedTurn.status === 'pending' ? push.queuedTurn.replaceRunId : undefined;
+        return push.queuedTurn.status === 'pending' || push.queuedTurn.status === 'starting'
+          ? projection(key, runId)
+          : control([key], runId);
+      }
     case 'run/terminal':
       return control([deliveryKey('run', push.run.runId)], push.run.runId);
     default:

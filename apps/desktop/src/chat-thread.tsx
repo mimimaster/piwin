@@ -52,7 +52,7 @@ import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
-import { IconCopy, IconCheck, IconRevert } from './shell-icons';
+import { IconCopy, IconCheck, IconClose, IconEdit, IconRevert } from './shell-icons';
 import { AssistantResponseActions } from './assistant-response-actions';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { groupTranscriptTurns } from './transcript-turns';
@@ -80,7 +80,6 @@ export function shouldCollapseTurnToolHistory(input: {
   return !runActive;
 }
 
-
 /**
  * In-place composer for editing a user message. Renders the same ComposerCard
  * as the bottom dock so the user gets the same send, model, mode, and slash
@@ -93,6 +92,7 @@ function MessageEditCard(props: {
   composerCard: ComposerDockProps;
   onCancel: () => void;
   onResend: (text: string) => void;
+  interventionEdit?: boolean;
 }): ReactElement {
   const [editText, setEditTextState] = useState(props.initialText);
   const editTextRef = useRef(props.initialText);
@@ -167,8 +167,8 @@ function MessageEditCard(props: {
         onComposerChange={setEditText}
         agentMode={props.composerCard.agentMode}
         onAgentModeChange={props.composerCard.onAgentModeChange}
-        streaming={props.composerCard.streaming}
-        runPhase={props.composerCard.runPhase}
+        streaming={props.interventionEdit === true ? false : props.composerCard.streaming}
+        runPhase={props.interventionEdit === true ? 'idle' : props.composerCard.runPhase}
         compacting={props.composerCard.compacting}
         pendingAttachments={pendingAttachments}
         onRemoveAttachment={handleRemoveAttachment}
@@ -242,6 +242,10 @@ export type ChatThreadProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
+  /** Edit a still-pending instruction without rewinding conversation history. */
+  onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
+  /** Cancel a still-pending instruction without cancelling its target Run. */
+  onInterventionCancel?: (messageId: string) => void | Promise<void>;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
   /** Open the read-only subagent session inspector for a transcript card. */
   onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
@@ -327,23 +331,43 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     knownIdsRef.current = known;
   }, [props.messages]);
 
+  // A pending/starting queued turn already has a dedicated Host-owned queue
+  // row above the composer. Keep its durable transcript row in state for
+  // reload/reconciliation, but do not render the same text as a second chat
+  // bubble until the Host has actually started the turn.
+  const transcriptMessages = useMemo(
+    () =>
+      props.messages.filter((message) => {
+        const delivery = message.instructionDelivery;
+        return !(
+          delivery?.kind === 'queued-turn' &&
+          (delivery.status === 'pending' || delivery.status === 'starting')
+        );
+      }),
+    [props.messages],
+  );
+
   const activeToolName = useMemo(() => {
-    for (let i = props.messages.length - 1; i >= 0; i--) {
-      const msg = props.messages[i];
+    for (let i = transcriptMessages.length - 1; i >= 0; i--) {
+      const msg = transcriptMessages[i];
       if (msg?.role === 'assistant') {
         const runningTool = msg.tools.find((t) => t.status === 'running');
         if (runningTool) return runningTool.toolName;
       }
     }
     return undefined;
-  }, [props.messages]);
+  }, [transcriptMessages]);
 
-  const turnGroups = useMemo(() => groupTranscriptTurns(props.messages), [props.messages]);
+  const turnGroups = useMemo(
+    () => groupTranscriptTurns(transcriptMessages),
+    [transcriptMessages],
+  );
   const currentResponseTurnId = turnGroups[turnGroups.length - 1]?.id ?? null;
   const showRunActivity =
     props.streaming &&
     !props.permissionPrompt &&
-    (props.messages.length === 0 || props.messages[props.messages.length - 1]?.role === 'user');
+    (transcriptMessages.length === 0 ||
+      transcriptMessages[transcriptMessages.length - 1]?.role === 'user');
   const runActivitySlot = showRunActivity ? (
     <RunActivitySlot
       activeRunId={props.activeRunId ?? null}
@@ -372,22 +396,22 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return pathsByTurnId;
   }, [turnGroups]);
   const latestAssistantMessageId = useMemo(() => {
-    for (let index = props.messages.length - 1; index >= 0; index -= 1) {
-      const message = props.messages[index];
+    for (let index = transcriptMessages.length - 1; index >= 0; index -= 1) {
+      const message = transcriptMessages[index];
       if (message?.role === 'assistant' && message.status === 'done') {
         return message.id;
       }
     }
     return null;
-  }, [props.messages]);
+  }, [transcriptMessages]);
   const streamingCaretMessageId = useMemo(
     () =>
       findStreamingCaretMessageId(
-        props.messages,
+        transcriptMessages,
         props.runRecordsById ?? {},
         props.activeRunId ?? null,
       ),
-    [props.messages, props.runRecordsById, props.activeRunId],
+    [transcriptMessages, props.runRecordsById, props.activeRunId],
   );
   return (
     <div className="chat-thread">
@@ -414,6 +438,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         turns={turnGroups}
         pinnedMessageId={props.editingMessageId}
         streaming={props.streaming === true}
+        latestAssistantMessageId={latestAssistantMessageId}
         renderTurn={(turn) => (
           <section
             key={turn.id}
@@ -422,138 +447,144 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               ? { 'data-testid': 'current-response-turn' }
               : {})}
           >
-            {turn.items.map(({ message, messageIndex }, itemIndex) => {
-              const followingAssistantRunId = turn.items
-                .slice(itemIndex + 1)
-                .find((item) => item.message.role === 'assistant' && item.message.runId)?.message
-                .runId;
-              const assemblySummary =
-                message.role === 'user'
-                  ? resolveAssemblySummaryForUserMessage({
-                      messageId: message.id,
-                      ...(message.runId !== undefined ? { messageRunId: message.runId } : {}),
-                      lastUserMessageId: props.lastUserMessageId,
-                      activeRunId: props.activeRunId ?? null,
-                      ...(followingAssistantRunId !== undefined
-                        ? { followingAssistantRunId }
-                        : {}),
-                      summariesByRunId: props.assemblySummariesByRunId ?? {},
-                    })
-                  : undefined;
-              return (
-                <ChatMessageRow
-                  key={message.id}
-                  message={message}
-                  {...(assemblySummary !== undefined ? { assemblySummary } : {})}
-                  {...(props.sessionId ? { sessionId: props.sessionId } : {})}
-                  messageIndex={messageIndex}
-                  showStreamingCaret={streamingCaretMessageId === message.id}
-                  isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
-                  isLatestAssistantResponse={latestAssistantMessageId === message.id}
-                  isNew={enteringIds.has(message.id)}
-                  knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
-                  streaming={props.streaming}
-                  activeSessionId={props.activeSessionId ?? null}
-                  editingMessageId={props.editingMessageId}
-                  lastUserMessageId={props.lastUserMessageId}
-                  activeTheme={props.activeTheme}
-                  artifactThemeKey={props.artifactThemeKey}
-                  runRecordsById={props.runRecordsById ?? {}}
-                  {...(message.runId !== undefined &&
-                  props.runRecordsById?.[message.runId] !== undefined
-                    ? { runRecord: props.runRecordsById[message.runId] }
-                    : {})}
-                  activeRunId={props.activeRunId ?? null}
-                  activeSkill={props.activeSkill ?? null}
-                  {...(props.agentLocatorAnimation
-                    ? { agentLocatorAnimation: props.agentLocatorAnimation }
-                    : {})}
-                  permissionPrompt={props.permissionPrompt ?? null}
-                  workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
-                  toolDensity={props.toolDensity ?? 'comfortable'}
-                  showThinking={props.showThinking !== false}
-                  {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-                  {...(props.toolDiffRequest !== undefined
-                    ? { toolDiffRequest: props.toolDiffRequest }
-                    : {})}
-                  {...(props.filesChangedRequest !== undefined
-                    ? { filesChangedRequest: props.filesChangedRequest }
-                    : {})}
-                  {...(props.onReviewChanges !== undefined
-                    ? { onReviewChanges: props.onReviewChanges }
-                    : {})}
-                  onEdit={props.onEdit}
-                  onCancelEdit={props.onCancelEdit}
-                  onEditResend={props.onEditResend}
-                  onRetry={props.onRetry}
-                  onFeedback={props.onFeedback}
-                  onInspectSubagent={props.onInspectSubagent}
-                  {...(props.subagentChildren
-                    ? { subagentChildren: props.subagentChildren }
-                    : {})}
-                  {...(props.subagentInvocations
-                    ? { subagentInvocations: props.subagentInvocations }
-                    : {})}
-                  {...(props.subagentStreams
-                    ? { subagentStreams: props.subagentStreams }
-                    : {})}
-                  composerCard={props.composerCard}
-                  {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-                  {...(props.onOpenArtifactCanvas
-                    ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
-                    : {})}
-                  {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
-                  {...(props.artifactCodeFirst !== undefined
-                    ? { artifactCodeFirst: props.artifactCodeFirst }
-                    : {})}
-                  {...(props.artifactMaxBytes !== undefined
-                    ? { artifactMaxBytes: props.artifactMaxBytes }
-                    : {})}
-                  {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
-                  {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-                  {...(props.locale ? { locale: props.locale } : {})}
-                  {...(props.walkthroughsByMessageId
-                    ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
-                    : {})}
-                  {...(props.walkthroughEnabled !== undefined
-                    ? { walkthroughEnabled: props.walkthroughEnabled }
-                    : {})}
-                  {...(props.walkthroughAutoGenerate !== undefined
-                    ? { walkthroughAutoGenerate: props.walkthroughAutoGenerate }
-                    : {})}
-                  {...(props.onGenerateWalkthrough
-                    ? {
-                        onGenerateWalkthrough: props.onGenerateWalkthrough,
-                        walkthroughEligible: isWalkthroughEligible({
-                          message,
-                          messages: props.messages,
-                          runRecordsById: props.runRecordsById ?? {},
-                          activeRunId: props.activeRunId ?? null,
-                          enabled: props.walkthroughEnabled !== false,
-                        }),
-                      }
-                    : {})}
-                  {...(props.onCancelWalkthrough
-                    ? { onCancelWalkthrough: props.onCancelWalkthrough }
-                    : {})}
-                  {...(props.onDuplicateSession
-                    ? { onDuplicateSession: props.onDuplicateSession }
-                    : {})}
-                  {...(props.onForkFromMessage
-                    ? { onForkFromMessage: props.onForkFromMessage }
-                    : {})}
-                  {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
-                  {...(props.forkCountsByMessageId
-                    ? { forkCountsByMessageId: props.forkCountsByMessageId }
-                    : {})}
-                  {...(props.sessionLineage ? { sessionLineage: props.sessionLineage } : {})}
-                  {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
-                  {...(props.derivedActionsDisabled !== undefined
-                    ? { derivedActionsDisabled: props.derivedActionsDisabled }
-                    : {})}
-                />
-              );
-            })}
+              {turn.items.map(({ message, messageIndex }, itemIndex) => {
+                const followingAssistantRunId = turn.items
+                  .slice(itemIndex + 1)
+                  .find((item) => item.message.role === 'assistant' && item.message.runId)
+                  ?.message.runId;
+                const assemblySummary =
+                  message.role === 'user'
+                    ? resolveAssemblySummaryForUserMessage({
+                        messageId: message.id,
+                        ...(message.runId !== undefined ? { messageRunId: message.runId } : {}),
+                        lastUserMessageId: props.lastUserMessageId,
+                        activeRunId: props.activeRunId ?? null,
+                        ...(followingAssistantRunId !== undefined
+                          ? { followingAssistantRunId }
+                          : {}),
+                        summariesByRunId: props.assemblySummariesByRunId ?? {},
+                      })
+                    : undefined;
+                return (
+                  <ChatMessageRow
+                    key={message.id}
+                    message={message}
+                    {...(assemblySummary !== undefined ? { assemblySummary } : {})}
+                    {...(props.sessionId ? { sessionId: props.sessionId } : {})}
+                    messageIndex={messageIndex}
+                    showStreamingCaret={streamingCaretMessageId === message.id}
+                    isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
+                    isLatestAssistantResponse={latestAssistantMessageId === message.id}
+                    isNew={enteringIds.has(message.id)}
+                    knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
+                    streaming={props.streaming}
+                    activeSessionId={props.activeSessionId ?? null}
+                    editingMessageId={props.editingMessageId}
+                    lastUserMessageId={props.lastUserMessageId}
+                    activeTheme={props.activeTheme}
+                    artifactThemeKey={props.artifactThemeKey}
+                    runRecordsById={props.runRecordsById ?? {}}
+                    {...(message.runId !== undefined &&
+                    props.runRecordsById?.[message.runId] !== undefined
+                      ? { runRecord: props.runRecordsById[message.runId] }
+                      : {})}
+                    activeRunId={props.activeRunId ?? null}
+                    activeSkill={props.activeSkill ?? null}
+                    {...(props.agentLocatorAnimation
+                      ? { agentLocatorAnimation: props.agentLocatorAnimation }
+                      : {})}
+                    permissionPrompt={props.permissionPrompt ?? null}
+                    workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
+                    toolDensity={props.toolDensity ?? 'comfortable'}
+                    showThinking={props.showThinking !== false}
+                    {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+                    {...(props.toolDiffRequest !== undefined
+                      ? { toolDiffRequest: props.toolDiffRequest }
+                      : {})}
+                    {...(props.filesChangedRequest !== undefined
+                      ? { filesChangedRequest: props.filesChangedRequest }
+                      : {})}
+                    {...(props.onReviewChanges !== undefined
+                      ? { onReviewChanges: props.onReviewChanges }
+                      : {})}
+                    onEdit={props.onEdit}
+                    onCancelEdit={props.onCancelEdit}
+                    onEditResend={props.onEditResend}
+                    onRetry={props.onRetry}
+                    {...(props.onInterventionEdit
+                      ? { onInterventionEdit: props.onInterventionEdit }
+                      : {})}
+                    {...(props.onInterventionCancel
+                      ? { onInterventionCancel: props.onInterventionCancel }
+                      : {})}
+                    onFeedback={props.onFeedback}
+                    onInspectSubagent={props.onInspectSubagent}
+                    {...(props.subagentChildren
+                      ? { subagentChildren: props.subagentChildren }
+                      : {})}
+                    {...(props.subagentInvocations
+                      ? { subagentInvocations: props.subagentInvocations }
+                      : {})}
+                    {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
+                    composerCard={props.composerCard}
+                    {...(props.onArtifactAction
+                      ? { onArtifactAction: props.onArtifactAction }
+                      : {})}
+                    {...(props.onOpenArtifactCanvas
+                      ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
+                      : {})}
+                    {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+                    {...(props.artifactCodeFirst !== undefined
+                      ? { artifactCodeFirst: props.artifactCodeFirst }
+                      : {})}
+                    {...(props.artifactMaxBytes !== undefined
+                      ? { artifactMaxBytes: props.artifactMaxBytes }
+                      : {})}
+                    {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+                    {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+                    {...(props.locale ? { locale: props.locale } : {})}
+                    {...(props.walkthroughsByMessageId
+                      ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
+                      : {})}
+                    {...(props.walkthroughEnabled !== undefined
+                      ? { walkthroughEnabled: props.walkthroughEnabled }
+                      : {})}
+                    {...(props.walkthroughAutoGenerate !== undefined
+                      ? { walkthroughAutoGenerate: props.walkthroughAutoGenerate }
+                      : {})}
+                    {...(props.onGenerateWalkthrough
+                      ? {
+                          onGenerateWalkthrough: props.onGenerateWalkthrough,
+                          walkthroughEligible: isWalkthroughEligible({
+                            message,
+                            messages: props.messages,
+                            runRecordsById: props.runRecordsById ?? {},
+                            activeRunId: props.activeRunId ?? null,
+                            enabled: props.walkthroughEnabled !== false,
+                          }),
+                        }
+                      : {})}
+                    {...(props.onCancelWalkthrough
+                      ? { onCancelWalkthrough: props.onCancelWalkthrough }
+                      : {})}
+                    {...(props.onDuplicateSession
+                      ? { onDuplicateSession: props.onDuplicateSession }
+                      : {})}
+                    {...(props.onForkFromMessage
+                      ? { onForkFromMessage: props.onForkFromMessage }
+                      : {})}
+                    {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
+                    {...(props.forkCountsByMessageId
+                      ? { forkCountsByMessageId: props.forkCountsByMessageId }
+                      : {})}
+                    {...(props.sessionLineage ? { sessionLineage: props.sessionLineage } : {})}
+                    {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
+                    {...(props.derivedActionsDisabled !== undefined
+                      ? { derivedActionsDisabled: props.derivedActionsDisabled }
+                      : {})}
+                  />
+                );
+              })}
             {turn.id === currentResponseTurnId ? runActivitySlot : null}
           </section>
         )}
@@ -606,6 +637,8 @@ type ChatMessageRowProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
+  onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
+  onInterventionCancel?: (messageId: string) => void | Promise<void>;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
   /** Open the read-only subagent session inspector for a transcript card. */
   onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
@@ -712,7 +745,10 @@ function UserMessageContent(props: {
   message: ChatMessageUi;
   streaming?: boolean;
   onRetry: (messageId: string) => void;
+  onInterventionEdit?: (messageId: string) => void;
+  onInterventionCancel?: (messageId: string) => void | Promise<void>;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
+  locale?: 'zh-CN' | 'en';
 }): ReactElement {
   const { message } = props;
   const [copied, setCopied] = useState(false);
@@ -721,6 +757,38 @@ function UserMessageContent(props: {
   const textRef = useRef<HTMLDivElement | null>(null);
   const formattedTime = formatMessageTime(message.createdAt);
   const hasAttachments = message.attachments.length > 0;
+  const interventionStatus = message.instructionDelivery?.status;
+  const isChinese = props.locale !== 'en';
+  const interventionLabel =
+    interventionStatus === 'pending'
+      ? isChinese
+        ? '等待当前步骤完成'
+        : 'Waiting for the current step'
+      : interventionStatus === 'applying'
+        ? isChinese
+          ? '正在应用到下一次回复'
+          : 'Applying to the next response'
+        : interventionStatus === 'applied'
+          ? isChinese
+            ? '已应用到当前任务'
+            : 'Applied to this run'
+          : interventionStatus === 'expired'
+            ? isChinese
+              ? '当前任务已结束，未应用'
+              : 'Run ended before it was applied'
+            : interventionStatus === 'cancelled'
+              ? isChinese
+                ? '已取消'
+                : 'Cancelled'
+              : interventionStatus === 'uncertain'
+                ? isChinese
+                  ? '是否应用无法确认'
+                  : 'Application could not be confirmed'
+                : interventionStatus === 'failed'
+                  ? isChinese
+                    ? '未能应用'
+                    : 'Could not be applied'
+                  : null;
 
   // Measure the natural height of the text node to determine if it needs collapsing.
   useEffect(() => {
@@ -790,6 +858,11 @@ function UserMessageContent(props: {
         data-testid="user-message-actions"
         onClick={(e) => e.stopPropagation()}
       >
+        {interventionLabel ? (
+          <span className="user-message-time" data-testid="intervention-delivery-status">
+            {interventionLabel}
+          </span>
+        ) : null}
         {formattedTime ? (
           <span className="user-message-time" data-testid="user-message-time">
             {formattedTime}
@@ -805,11 +878,37 @@ function UserMessageContent(props: {
         >
           {copied ? <IconCheck /> : <IconCopy />}
         </button>
+        {interventionStatus === 'pending' && props.onInterventionCancel ? (
+          <button
+            type="button"
+            className="user-msg-btn"
+            onClick={() => void props.onInterventionCancel?.(message.id)}
+            title={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
+            aria-label={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
+            data-testid="intervention-cancel-btn"
+          >
+            <IconClose />
+          </button>
+        ) : null}
+        {interventionStatus === 'pending' && props.onInterventionEdit ? (
+          <button
+            type="button"
+            className="user-msg-btn"
+            onClick={() => props.onInterventionEdit?.(message.id)}
+            title={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
+            aria-label={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
+            data-testid="intervention-edit-btn"
+          >
+            <IconEdit />
+          </button>
+        ) : null}
         <button
           type="button"
           className="user-msg-btn"
           onClick={() => props.onRetry(message.id)}
-          disabled={props.streaming}
+          disabled={
+            props.streaming || interventionStatus === 'pending' || interventionStatus === 'applying'
+          }
           title="Revert"
           aria-label="Revert message"
           data-testid="message-revert-btn"
@@ -879,8 +978,9 @@ const ChatMessageRow = memo(
     // Double-click any user bubble (or click the pencil action) to enter edit
     // mode in-place. Editing the last user message sends immediately; editing
     // an earlier message triggers the revert confirmation in App.
+    const canEditPendingIntervention = message.instructionDelivery?.status === 'pending';
     const handleDoubleClick =
-      isUserMessage && !isEditingThis && !props.streaming
+      isUserMessage && !isEditingThis && (!props.streaming || canEditPendingIntervention)
         ? () => props.onEdit(message.id)
         : undefined;
 
@@ -888,7 +988,9 @@ const ChatMessageRow = memo(
     // action rules: retry on user bubbles; fork on completed assistants when a
     // fork hook exists; side chat when the host has a session.
     const messageTarget: ContextMenuTarget | null =
-      contextMenu && props.activeSessionId && (message.role === 'user' || message.role === 'assistant')
+      contextMenu &&
+      props.activeSessionId &&
+      (message.role === 'user' || message.role === 'assistant')
         ? {
             surface: message.role === 'user' ? 'message-user' : 'message-assistant',
             sessionId: props.activeSessionId,
@@ -940,18 +1042,12 @@ const ChatMessageRow = memo(
                     }),
                 }
               : {})}
-            {...(props.subagentChildren
-              ? { subagentChildren: props.subagentChildren }
-              : {})}
+            {...(props.subagentChildren ? { subagentChildren: props.subagentChildren } : {})}
             {...(props.subagentInvocations
               ? { subagentInvocations: props.subagentInvocations }
               : {})}
-            {...(props.subagentStreams
-              ? { subagentStreams: props.subagentStreams }
-              : {})}
-            {...(props.onInspectSubagent
-              ? { onInspectSubagent: props.onInspectSubagent }
-              : {})}
+            {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
+            {...(props.onInspectSubagent ? { onInspectSubagent: props.onInspectSubagent } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
           >
             {message.text.trim().length > 0 ? (
@@ -1014,14 +1110,28 @@ const ChatMessageRow = memo(
             initialText={message.text}
             composerCard={props.composerCard}
             onCancel={props.onCancelEdit}
-            onResend={(text) => props.onEditResend(message.id, text)}
+            onResend={(text) => {
+              if (canEditPendingIntervention && props.onInterventionEdit) {
+                void props.onInterventionEdit(message.id, text);
+                return;
+              }
+              props.onEditResend(message.id, text);
+            }}
+            interventionEdit={canEditPendingIntervention}
           />
         ) : message.role === 'assistant' ? null : (
           <UserMessageContent
             message={message}
             streaming={props.streaming}
             onRetry={props.onRetry}
+            {...(canEditPendingIntervention && props.onInterventionEdit
+              ? { onInterventionEdit: props.onEdit }
+              : {})}
+            {...(props.onInterventionCancel
+              ? { onInterventionCancel: props.onInterventionCancel }
+              : {})}
             onFeedback={props.onFeedback}
+            {...(props.locale ? { locale: props.locale } : {})}
           />
         )}
         {message.role === 'assistant' && message.tools.length > 0 ? (
@@ -1089,7 +1199,9 @@ const ChatMessageRow = memo(
       isUserMessage && (props.assemblySummary !== undefined || showPreparingCapsule) ? (
         <AssemblySummaryCapsule
           {...(props.assemblySummary !== undefined ? { summary: props.assemblySummary } : {})}
-          {...(showPreparingCapsule && props.assemblySummary === undefined ? { preparing: true } : {})}
+          {...(showPreparingCapsule && props.assemblySummary === undefined
+            ? { preparing: true }
+            : {})}
           locale={props.locale ?? 'zh-CN'}
         />
       ) : null;
@@ -1126,6 +1238,8 @@ const ChatMessageRow = memo(
           previous.onCancelEdit === next.onCancelEdit &&
           previous.onEditResend === next.onEditResend &&
           previous.onRetry === next.onRetry &&
+          previous.onInterventionEdit === next.onInterventionEdit &&
+          previous.onInterventionCancel === next.onInterventionCancel &&
           (!isEditingThisRow || previous.composerCard === next.composerCard)
         : previous.message.subagentActivity
           ? previous.onInspectSubagent === next.onInspectSubagent

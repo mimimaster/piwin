@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 /**
  * Live session IPC: create/spawn/prompt/compact/export and sub-agent lifecycle.
  * HostRuntime provides SessionLiveContext (maps + ensureLiveSession/bindSession/…).
@@ -18,6 +18,7 @@ import type {
   ThinkingLevel,
   PiwinConfig,
   PromptInput,
+  RunInterventionRecord,
   SessionHandle,
   SessionCompactData,
   SessionCompactExportData,
@@ -51,6 +52,9 @@ import {
   readContextOccupiedTokens,
   resolveModelContextBudget,
   type ResolvedOrchestrationScheme,
+  RUN_INTERVENTION_MAX_PENDING_BYTES_PER_RUN,
+  RUN_INTERVENTION_MAX_PENDING_PER_RUN,
+  RUN_INTERVENTION_MAX_TEXT_BYTES,
 } from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
 import {
@@ -386,6 +390,9 @@ const TYPES = new Set<HostCommand['type']>([
   'session/resume-run',
   'session/abort',
   'session/steer',
+  'run/intervention-submit',
+  'run/intervention-edit',
+  'run/intervention-cancel',
   'session/follow_up',
   'session/compact',
   'session/compact-export',
@@ -782,7 +789,9 @@ async function preparePromptInput(
   // Stamp a stable clientMessageId so the assembly capsule can bind to the
   // exact product user row after reload.
   let userMessageId: string | undefined;
-  if (command.input.source !== 'resume') {
+  if (command.input.source === 'queued-turn') {
+    userMessageId = command.input.clientMessageId?.trim() || undefined;
+  } else if (command.input.source !== 'resume') {
     userMessageId = command.input.clientMessageId?.trim() || randomUUID();
     try {
       await context.recordUserPrompt(command.sessionId, {
@@ -1166,6 +1175,62 @@ function recoverModelFromTranscript(
   return undefined;
 }
 
+function validateRunInterventionInput(
+  input: import('@piwin/contracts').UserInstructionPayload,
+): string | undefined {
+  if (input.text.trim().length === 0) return 'intervention-empty: instruction text is required';
+  if (Buffer.byteLength(input.text, 'utf8') > RUN_INTERVENTION_MAX_TEXT_BYTES) {
+    return `intervention-too-large: text exceeds ${RUN_INTERVENTION_MAX_TEXT_BYTES} bytes`;
+  }
+  if (input.text.trimStart().startsWith('/')) {
+    return 'intervention-command-unsupported: slash commands must be sent as a normal turn';
+  }
+  if ((input.attachments?.length ?? 0) > 0 || (input.contextRefs?.length ?? 0) > 0) {
+    return 'intervention-structured-input-unsupported: attachments and context references are not enabled yet';
+  }
+  return undefined;
+}
+
+function fingerprintRunIntervention(input: {
+  sessionId: string;
+  runId: string;
+  userMessageId: string;
+  payload: import('@piwin/contracts').UserInstructionPayload;
+}): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        sessionId: input.sessionId,
+        runId: input.runId,
+        userMessageId: input.userMessageId,
+        text: input.payload.text,
+        attachments: input.payload.attachments ?? [],
+        contextRefs: input.payload.contextRefs ?? [],
+      }),
+    )
+    .digest('hex');
+}
+
+function validateInterventionTarget(
+  context: SessionLiveContext,
+  sessionId: string,
+  runId: string,
+): ExecutionRunRecord | string {
+  const active = context.getForegroundRun(sessionId);
+  if (!active) return `no-active-run: session ${sessionId} has no foreground run`;
+  if (active.runId !== runId) {
+    return `run-mismatch: requested ${runId}, active ${active.runId}`;
+  }
+  if (active.status === 'cancelling') return 'run-cancelling: intervention is unavailable';
+  if (context.isPauseRequested(active.runId) || active.phase === 'pausing') {
+    return 'run-pausing: intervention is unavailable';
+  }
+  if (active.runtimeGenerationId === undefined) {
+    return 'runtime-generation-unavailable: active Run is not bound to a backend generation';
+  }
+  return active;
+}
+
 export async function handleSessionLiveCommand(
   command: HostCommand,
   requestId: string | undefined,
@@ -1357,6 +1422,15 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
       }
       const store = await context.getTranscriptStore(command.sessionId);
+      if (context.getForegroundRun(command.sessionId) === undefined) {
+        const reconciled = await store.finalizeOpenRunInterventions(
+          'run-ended',
+          new Date().toISOString(),
+        );
+        for (const intervention of reconciled) {
+          context.push({ type: 'run/intervention-updated', intervention });
+        }
+      }
       const transcriptPage = await store.transcriptPage({
         sessionId: command.sessionId,
         limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
@@ -1735,6 +1809,13 @@ export async function handleSessionLiveCommand(
       // optional). Still one *registered* foreground run after this block.
       const existingRun = context.getForegroundRun(command.sessionId);
       if (existingRun) {
+        if (command.admission === 'queued-turn') {
+          return fail(
+            requestId,
+            'session/prompt',
+            `run-active: queued turn cannot admit while ${existingRun.runId} is foreground`,
+          );
+        }
         const supersedeReason = createSupersededByNewPromptAbortReason();
         context.updateRunPhase(
           existingRun.runId,
@@ -2101,6 +2182,323 @@ export async function handleSessionLiveCommand(
         runId: active.runId,
         cancelled: true,
       });
+    }
+    case 'run/intervention-submit': {
+      const validationError = validateRunInterventionInput(command.input);
+      if (validationError) return fail(requestId, command.type, validationError);
+      if (!command.interventionId.trim() || !command.userMessageId.trim()) {
+        return fail(
+          requestId,
+          command.type,
+          'intervention-identity-invalid: interventionId and userMessageId are required',
+        );
+      }
+      const target = validateInterventionTarget(context, command.sessionId, command.runId);
+      let store: Awaited<ReturnType<SessionLiveContext['getTranscriptStore']>>;
+      let existingById: RunInterventionRecord | undefined;
+      if (typeof target === 'string') {
+        try {
+          store = await context.getTranscriptStore(command.sessionId);
+          existingById = await store.getRunIntervention(command.interventionId);
+        } catch {
+          return fail(requestId, command.type, target);
+        }
+        if (existingById === undefined) {
+          return fail(requestId, command.type, target);
+        }
+      } else {
+        store = await context.getTranscriptStore(command.sessionId);
+        existingById = await store.getRunIntervention(command.interventionId);
+      }
+      if (existingById !== undefined) {
+        const replay = await store.createRunIntervention({
+          interventionId: command.interventionId,
+          sessionId: command.sessionId,
+          runId: command.runId,
+          runtimeGenerationId: existingById.runtimeGenerationId,
+          userMessageId: command.userMessageId,
+          input: command.input,
+          preparedText: command.input.text,
+          fingerprint: fingerprintRunIntervention({
+            sessionId: command.sessionId,
+            runId: command.runId,
+            userMessageId: command.userMessageId,
+            payload: command.input,
+          }),
+          submittedAt: existingById.submittedAt,
+        });
+        if (!('intervention' in replay)) {
+          return fail(requestId, command.type, 'idempotency-conflict');
+        }
+        let replayedIntervention = replay.intervention;
+        if (typeof target !== 'string' && replayedIntervention.status === 'pending') {
+          if (target.runtimeGenerationId !== replayedIntervention.runtimeGenerationId) {
+            const expired = await store.transitionRunIntervention({
+              interventionId: replayedIntervention.interventionId,
+              expectedRevision: replayedIntervention.revision,
+              from: ['pending'],
+              to: 'expired',
+              updatedAt: new Date().toISOString(),
+              terminalReason: 'generation-replaced',
+            });
+            if (expired !== undefined) {
+              replayedIntervention = expired;
+              context.push({ type: 'run/intervention-updated', intervention: expired });
+            }
+          } else {
+            const session = context.requireSession(command.sessionId);
+            try {
+              if (!session.armRunIntervention) {
+                throw new Error('run-intervention-backend-unsupported');
+              }
+              // Recover the narrow window where Host persistence succeeded but
+              // the first ACK/arm did not. Backend arming is revision-idempotent.
+              await session.armRunIntervention({
+                interventionId: replayedIntervention.interventionId,
+                revision: replayedIntervention.revision,
+                sessionId: replayedIntervention.sessionId,
+                runId: replayedIntervention.runId,
+                runtimeGenerationId: replayedIntervention.runtimeGenerationId,
+                sequence: replayedIntervention.sequence,
+                text: replayedIntervention.input.text,
+              });
+            } catch {
+              const latest = await store.getRunIntervention(replayedIntervention.interventionId);
+              if (latest !== undefined && latest.status !== 'pending') {
+                replayedIntervention = latest;
+              } else {
+                const failed = await store.transitionRunIntervention({
+                  interventionId: replayedIntervention.interventionId,
+                  expectedRevision: replayedIntervention.revision,
+                  from: ['pending'],
+                  to: 'failed',
+                  updatedAt: new Date().toISOString(),
+                  terminalReason: 'backend-rejected',
+                });
+                if (failed !== undefined) {
+                  replayedIntervention = failed;
+                  context.push({ type: 'run/intervention-updated', intervention: failed });
+                }
+              }
+            }
+          }
+        }
+        // Idempotent recovery is valid even after the target Run became
+        // terminal: the client is recovering Host admission, not asking a
+        // newer Run to consume the instruction.
+        return ok(requestId, command.type, { intervention: replayedIntervention });
+      }
+      // An invalid target can only reach here if a concurrent cleanup removed
+      // the record between the replay lookup and this check.
+      if (typeof target === 'string') return fail(requestId, command.type, target);
+      const runtimeGenerationId = target.runtimeGenerationId;
+      if (runtimeGenerationId === undefined) {
+        return fail(requestId, command.type, 'runtime-generation-unavailable');
+      }
+      const existingItems = await store.listRunInterventions(command.runId);
+      const pendingItems = existingItems.filter(
+        (item) => item.status === 'pending' || item.status === 'applying',
+      );
+      if (pendingItems.length >= RUN_INTERVENTION_MAX_PENDING_PER_RUN) {
+        return fail(requestId, command.type, 'intervention-queue-full');
+      }
+      const pendingBytes = pendingItems.reduce(
+        (total, item) => total + Buffer.byteLength(item.input.text, 'utf8'),
+        0,
+      );
+      if (
+        pendingBytes + Buffer.byteLength(command.input.text, 'utf8') >
+          RUN_INTERVENTION_MAX_PENDING_BYTES_PER_RUN
+      ) {
+        return fail(requestId, command.type, 'intervention-queue-bytes-exceeded');
+      }
+      const submittedAt = new Date().toISOString();
+      const created = await store.createRunIntervention({
+        interventionId: command.interventionId,
+        sessionId: command.sessionId,
+        runId: command.runId,
+        runtimeGenerationId,
+        userMessageId: command.userMessageId,
+        input: command.input,
+        preparedText: command.input.text,
+        fingerprint: fingerprintRunIntervention({
+          sessionId: command.sessionId,
+          runId: command.runId,
+          userMessageId: command.userMessageId,
+          payload: command.input,
+        }),
+        submittedAt,
+      });
+      if (!('intervention' in created)) {
+        return fail(
+          requestId,
+          command.type,
+          created.outcome === 'idempotency-conflict'
+            ? 'idempotency-conflict'
+            : 'user-message-id-conflict',
+        );
+      }
+      let intervention = created.intervention;
+      if (created.outcome === 'created') {
+        const userMessage = await store.getMessage(intervention.userMessageId);
+        if (userMessage) {
+          context.push({
+            type: 'transcript/append',
+            sessionId: command.sessionId,
+            message: userMessage,
+          });
+        }
+        context.push({ type: 'run/intervention-updated', intervention });
+      }
+      if (intervention.status !== 'pending') {
+        return ok(requestId, command.type, { intervention });
+      }
+      const revalidated = validateInterventionTarget(context, command.sessionId, command.runId);
+      if (
+        typeof revalidated === 'string' ||
+        revalidated.runtimeGenerationId !== runtimeGenerationId
+      ) {
+        const expired = await store.transitionRunIntervention({
+          interventionId: intervention.interventionId,
+          expectedRevision: intervention.revision,
+          from: ['pending'],
+          to: 'expired',
+          updatedAt: new Date().toISOString(),
+          terminalReason:
+            typeof revalidated === 'string' && revalidated.startsWith('run-pausing')
+              ? 'run-pausing'
+              : 'run-ended',
+        });
+        if (expired) {
+          intervention = expired;
+          context.push({ type: 'run/intervention-updated', intervention });
+        }
+        return ok(requestId, command.type, { intervention });
+      }
+      const session = context.requireSession(command.sessionId);
+      if (!session.armRunIntervention) {
+        const failed = await store.transitionRunIntervention({
+          interventionId: intervention.interventionId,
+          expectedRevision: intervention.revision,
+          from: ['pending'],
+          to: 'failed',
+          updatedAt: new Date().toISOString(),
+          terminalReason: 'backend-rejected',
+        });
+        if (failed) {
+          intervention = failed;
+          context.push({ type: 'run/intervention-updated', intervention });
+        }
+        return ok(requestId, command.type, { intervention });
+      }
+      try {
+        await session.armRunIntervention({
+          interventionId: intervention.interventionId,
+          revision: intervention.revision,
+          sessionId: intervention.sessionId,
+          runId: intervention.runId,
+          runtimeGenerationId: intervention.runtimeGenerationId,
+          sequence: intervention.sequence,
+          text: intervention.input.text,
+        });
+      } catch {
+        const failed = await store.transitionRunIntervention({
+          interventionId: intervention.interventionId,
+          expectedRevision: intervention.revision,
+          from: ['pending'],
+          to: 'failed',
+          updatedAt: new Date().toISOString(),
+          terminalReason: 'backend-rejected',
+        });
+        if (failed) {
+          intervention = failed;
+          context.push({ type: 'run/intervention-updated', intervention });
+        }
+      }
+      return ok(requestId, command.type, { intervention });
+    }
+    case 'run/intervention-edit': {
+      const validationError = validateRunInterventionInput(command.input);
+      if (validationError) return fail(requestId, command.type, validationError);
+      const target = validateInterventionTarget(context, command.sessionId, command.runId);
+      if (typeof target === 'string') return fail(requestId, command.type, target);
+      const store = await context.getTranscriptStore(command.sessionId);
+      const existing = await store.getRunIntervention(command.interventionId);
+      if (!existing || existing.runId !== command.runId) {
+        return fail(requestId, command.type, 'intervention-not-found');
+      }
+      const updated = await store.updatePendingRunIntervention({
+        interventionId: command.interventionId,
+        expectedRevision: command.expectedRevision,
+        input: command.input,
+        preparedText: command.input.text,
+        fingerprint: fingerprintRunIntervention({
+          sessionId: command.sessionId,
+          runId: command.runId,
+          userMessageId: existing.userMessageId,
+          payload: command.input,
+        }),
+        updatedAt: new Date().toISOString(),
+      });
+      if (!updated) return fail(requestId, command.type, 'intervention-revision-conflict');
+      const session = context.requireSession(command.sessionId);
+      if (!session.armRunIntervention) {
+        const failed = await store.transitionRunIntervention({
+          interventionId: updated.interventionId,
+          expectedRevision: updated.revision,
+          from: ['pending'],
+          to: 'failed',
+          updatedAt: new Date().toISOString(),
+          terminalReason: 'backend-rejected',
+        });
+        if (failed) context.push({ type: 'run/intervention-updated', intervention: failed });
+        return fail(requestId, command.type, 'intervention-backend-unsupported');
+      }
+      try {
+        await session.armRunIntervention({
+          interventionId: updated.interventionId,
+          revision: updated.revision,
+          sessionId: updated.sessionId,
+          runId: updated.runId,
+          runtimeGenerationId: updated.runtimeGenerationId,
+          sequence: updated.sequence,
+          text: updated.input.text,
+        });
+      } catch {
+        const failed = await store.transitionRunIntervention({
+          interventionId: updated.interventionId,
+          expectedRevision: updated.revision,
+          from: ['pending'],
+          to: 'failed',
+          updatedAt: new Date().toISOString(),
+          terminalReason: 'backend-rejected',
+        });
+        if (failed) context.push({ type: 'run/intervention-updated', intervention: failed });
+        return fail(requestId, command.type, 'intervention-backend-rejected');
+      }
+      context.push({ type: 'run/intervention-updated', intervention: updated });
+      return ok(requestId, command.type, { intervention: updated });
+    }
+    case 'run/intervention-cancel': {
+      const store = await context.getTranscriptStore(command.sessionId);
+      const existing = await store.getRunIntervention(command.interventionId);
+      if (!existing || existing.runId !== command.runId) {
+        return fail(requestId, command.type, 'intervention-not-found');
+      }
+      const cancelled = await store.transitionRunIntervention({
+        interventionId: command.interventionId,
+        expectedRevision: command.expectedRevision,
+        from: ['pending'],
+        to: 'cancelled',
+        updatedAt: new Date().toISOString(),
+      });
+      if (!cancelled) return fail(requestId, command.type, 'intervention-revision-conflict');
+      await context
+        .requireSession(command.sessionId)
+        .cancelRunIntervention?.(command.interventionId, command.expectedRevision)
+        .catch(() => false);
+      context.push({ type: 'run/intervention-updated', intervention: cancelled });
+      return ok(requestId, command.type, { intervention: cancelled });
     }
     case 'session/steer': {
       const active = context.getForegroundRun(command.sessionId);

@@ -10,6 +10,8 @@ import type {
 } from './host.js';
 import type { SearchEvidence } from './web.js';
 import type { PromptContextRef } from './side-chat.js';
+import type { QueuedTurnStatus } from './queued-turn.js';
+import type { RunInterventionStatus } from './run-intervention.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -77,6 +79,14 @@ export type SessionTranscriptMessage = {
    * resolved file or message bodies.
    */
   contextRefs?: PromptContextRef[];
+  /** Host-owned delivery state for durable user instructions. */
+  instructionDelivery?: {
+    kind: 'run-intervention' | 'queued-turn';
+    instructionId: string;
+    status: RunInterventionStatus | QueuedTurnStatus;
+    targetRunId?: string;
+    revision: number;
+  };
   /**
    * Model snapshot used to produce this Assistant message (spec §7.3).
    * Only set for Assistant messages; legacy transcripts may omit it.
