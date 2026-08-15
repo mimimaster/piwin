@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type {
   AgentEvent,
   AgentMessageView,
+  BackendRunIntervention,
+  BackendRunInterventionEvent,
+  BackendRunInterventionEventResult,
   CreateSessionInput,
   PromptInput,
   SessionCompactResult,
@@ -13,6 +16,9 @@ import type {
 import { estimateMockUsage } from '@piwin/agent-host';
 
 type Listener = (event: AgentEvent) => void;
+type InterventionListener = (
+  event: BackendRunInterventionEvent,
+) => Promise<BackendRunInterventionEventResult>;
 
 export type CreateMockSessionOptions = CreateSessionInput & {
   /** Stable product session id for cross-process resume. */
@@ -28,6 +34,8 @@ export type CreateMockSessionOptions = CreateSessionInput & {
 export function createMockSessionHandle(input: CreateMockSessionOptions): SessionHandle {
   const sessionId = input.sessionId ?? randomUUID();
   const listeners = new Set<Listener>();
+  const interventionListeners = new Set<InterventionListener>();
+  const stagedInterventions = new Map<string, BackendRunIntervention>();
   const messages: AgentMessageView[] = (input.seedMessages ?? []).map(seedMessageToView);
   let aborted = false;
   let autoCompactionEnabled = true;
@@ -39,105 +47,255 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
     }
   };
 
-  return {
-    id: sessionId,
-    async prompt(promptInput: PromptInput): Promise<void> {
-      aborted = false;
-      const userMessageId = randomUUID();
-      const assistantMessageId = randomUUID();
-      const userText = promptInput.text.trim() || '(empty)';
-      const startedAt = Date.now();
+  const notifyIntervention = async (
+    event: BackendRunInterventionEvent,
+  ): Promise<BackendRunInterventionEventResult> => {
+    if (interventionListeners.size === 0) return { accepted: false };
+    for (const listener of interventionListeners) {
+      try {
+        const result = await listener(event);
+        if (!result.accepted) return result;
+      } catch {
+        return { accepted: false };
+      }
+    }
+    return { accepted: true };
+  };
 
-      const userMessage: AgentMessageView = {
+  const expireStagedInterventions = async (): Promise<void> => {
+    const pending = [...stagedInterventions.values()];
+    stagedInterventions.clear();
+    for (const intervention of pending) {
+      await notifyIntervention({
+        type: 'expired',
+        interventionId: intervention.interventionId,
+        revision: intervention.revision,
+        runId: intervention.runId,
+        runtimeGenerationId: intervention.runtimeGenerationId,
+        reason: 'run-ended',
+      });
+    }
+  };
+
+  const emitInterventionReply = async (intervention: BackendRunIntervention): Promise<boolean> => {
+    const userMessageId = randomUUID();
+    const assistantMessageId = randomUUID();
+    const reply = buildMockReply(intervention.text, resolveMockLocationLabel(input));
+    const startedAt = Date.now();
+    messages.push(
+      {
         id: userMessageId,
         role: 'user',
-        text: userText,
+        text: intervention.text,
         createdAt: new Date().toISOString(),
-      };
-      if (promptInput.attachments && promptInput.attachments.length > 0) {
-        userMessage.attachments = promptInput.attachments;
-      }
-      messages.push(userMessage);
-
-      emit({ type: 'message/start', messageId: userMessageId, role: 'user' });
-      emit({ type: 'message/end', messageId: userMessageId });
-
-      if (aborted) {
-        return;
-      }
-
-      const locationLabel = resolveMockLocationLabel(input);
-      const reply = buildMockReply(userText, locationLabel);
-      messages.push({
+      },
+      {
         id: assistantMessageId,
         role: 'assistant',
         text: reply,
         createdAt: new Date().toISOString(),
+      },
+    );
+    emit({ type: 'message/start', messageId: userMessageId, role: 'user' });
+    const applied = await notifyIntervention({
+      type: 'applied',
+      interventionId: intervention.interventionId,
+      revision: intervention.revision + 1,
+      runId: intervention.runId,
+      runtimeGenerationId: intervention.runtimeGenerationId,
+    });
+    emit({ type: 'message/end', messageId: userMessageId });
+    if (!applied.accepted || aborted) return false;
+
+    emit({ type: 'message/start', messageId: assistantMessageId, role: 'assistant' });
+    let assembled = '';
+    for (const chunk of chunkText(reply, 24)) {
+      if (aborted) {
+        emit({ type: 'session/aborted', sessionId, messageId: assistantMessageId });
+        return false;
+      }
+      assembled += chunk;
+      emit({ type: 'message/text_delta', messageId: assistantMessageId, delta: chunk });
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 8);
       });
+    }
+    emit({ type: 'message/end', messageId: assistantMessageId });
+    const nativePayload = JSON.stringify({
+      role: 'assistant',
+      content: [{ type: 'text', text: assembled }],
+      timestamp: Date.now(),
+    });
+    emit({
+      type: 'message/native_context',
+      messageId: assistantMessageId,
+      role: 'assistant',
+      entry: {
+        format: 'pi-message-v1',
+        payload: nativePayload,
+        byteLength: Buffer.byteLength(nativePayload, 'utf8'),
+      },
+    });
+    emit({
+      type: 'usage/update',
+      sessionId,
+      usage: estimateMockUsage(
+        sessionId,
+        intervention.text,
+        reply,
+        Math.max(1, Date.now() - startedAt),
+      ),
+    });
+    return true;
+  };
 
-      emit({ type: 'message/start', messageId: assistantMessageId, role: 'assistant' });
+  const drainRunInterventions = async (): Promise<void> => {
+    while (!aborted) {
+      const candidate = [...stagedInterventions.values()].sort(
+        (left, right) => left.sequence - right.sequence,
+      )[0];
+      if (candidate === undefined) return;
+      const claim = await notifyIntervention({
+        type: 'claim',
+        interventionId: candidate.interventionId,
+        revision: candidate.revision,
+        runId: candidate.runId,
+        runtimeGenerationId: candidate.runtimeGenerationId,
+      });
+      if (!claim.accepted) {
+        if (stagedInterventions.get(candidate.interventionId) === candidate) {
+          stagedInterventions.delete(candidate.interventionId);
+          await notifyIntervention({
+            type: 'failed',
+            interventionId: candidate.interventionId,
+            revision: candidate.revision,
+            runId: candidate.runId,
+            runtimeGenerationId: candidate.runtimeGenerationId,
+            reason: 'claim-rejected',
+          });
+        }
+        return;
+      }
+      if (stagedInterventions.get(candidate.interventionId) !== candidate) {
+        await notifyIntervention({
+          type: 'failed',
+          interventionId: candidate.interventionId,
+          revision: candidate.revision + 1,
+          runId: candidate.runId,
+          runtimeGenerationId: candidate.runtimeGenerationId,
+          reason: 'staging-changed-after-claim',
+        });
+        return;
+      }
+      stagedInterventions.delete(candidate.interventionId);
+      if (!(await emitInterventionReply(candidate))) return;
+    }
+  };
 
-      const toolCallId = randomUUID();
-      emit({ type: 'tool/start', toolCallId, toolName: 'mock_echo' });
-      emit({ type: 'tool/update', toolCallId, delta: `echo: ${userText.slice(0, 80)}` });
-      emit({ type: 'tool/end', toolCallId, isError: false });
+  return {
+    id: sessionId,
+    async prompt(promptInput: PromptInput): Promise<void> {
+      aborted = false;
+      try {
+        const userMessageId = randomUUID();
+        const assistantMessageId = randomUUID();
+        const userText = promptInput.text.trim() || '(empty)';
+        const startedAt = Date.now();
 
-      let assembled = '';
-      for (const chunk of chunkText(reply, 24)) {
+        const userMessage: AgentMessageView = {
+          id: userMessageId,
+          role: 'user',
+          text: userText,
+          createdAt: new Date().toISOString(),
+        };
+        if (promptInput.attachments && promptInput.attachments.length > 0) {
+          userMessage.attachments = promptInput.attachments;
+        }
+        messages.push(userMessage);
+
+        emit({ type: 'message/start', messageId: userMessageId, role: 'user' });
+        emit({ type: 'message/end', messageId: userMessageId });
+
+        if (aborted) {
+          return;
+        }
+
+        const locationLabel = resolveMockLocationLabel(input);
+        const reply = buildMockReply(userText, locationLabel);
+        messages.push({
+          id: assistantMessageId,
+          role: 'assistant',
+          text: reply,
+          createdAt: new Date().toISOString(),
+        });
+
+        emit({ type: 'message/start', messageId: assistantMessageId, role: 'assistant' });
+
+        const toolCallId = randomUUID();
+        emit({ type: 'tool/start', toolCallId, toolName: 'mock_echo' });
+        emit({ type: 'tool/update', toolCallId, delta: `echo: ${userText.slice(0, 80)}` });
+        emit({ type: 'tool/end', toolCallId, isError: false });
+
+        let assembled = '';
+        for (const chunk of chunkText(reply, 24)) {
+          if (aborted) {
+            const existing = messages.find((message) => message.id === assistantMessageId);
+            if (existing) {
+              existing.text = assembled;
+            }
+            emit({
+              type: 'session/aborted',
+              sessionId,
+              messageId: assistantMessageId,
+            });
+            return;
+          }
+          assembled += chunk;
+          emit({ type: 'message/text_delta', messageId: assistantMessageId, delta: chunk });
+          // Yield so concurrent abort() can land between chunks.
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 8);
+          });
+        }
+
         if (aborted) {
           const existing = messages.find((message) => message.id === assistantMessageId);
           if (existing) {
             existing.text = assembled;
           }
-          emit({
-            type: 'session/aborted',
-            sessionId,
-            messageId: assistantMessageId,
-          });
+          emit({ type: 'session/aborted', sessionId, messageId: assistantMessageId });
           return;
         }
-        assembled += chunk;
-        emit({ type: 'message/text_delta', messageId: assistantMessageId, delta: chunk });
-        // Yield so concurrent abort() can land between chunks.
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, 8);
+
+        emit({ type: 'message/end', messageId: assistantMessageId });
+        // Mirror the real backend's native context copy so mock mode exercises
+        // the host-internal persistence path and the client egress filter.
+        const nativePayload = JSON.stringify({
+          role: 'assistant',
+          content: [{ type: 'text', text: assembled }],
+          timestamp: Date.now(),
         });
+        emit({
+          type: 'message/native_context',
+          messageId: assistantMessageId,
+          role: 'assistant',
+          entry: {
+            format: 'pi-message-v1',
+            payload: nativePayload,
+            byteLength: Buffer.byteLength(nativePayload, 'utf8'),
+          },
+        });
+        const usage = estimateMockUsage(
+          sessionId,
+          userText,
+          reply,
+          Math.max(1, Date.now() - startedAt),
+        );
+        emit({ type: 'usage/update', sessionId, usage });
+        await drainRunInterventions();
+      } finally {
+        await expireStagedInterventions();
       }
-
-      if (aborted) {
-        const existing = messages.find((message) => message.id === assistantMessageId);
-        if (existing) {
-          existing.text = assembled;
-        }
-        emit({ type: 'session/aborted', sessionId, messageId: assistantMessageId });
-        return;
-      }
-
-      emit({ type: 'message/end', messageId: assistantMessageId });
-      // Mirror the real backend's native context copy so mock mode exercises
-      // the host-internal persistence path and the client egress filter.
-      const nativePayload = JSON.stringify({
-        role: 'assistant',
-        content: [{ type: 'text', text: assembled }],
-        timestamp: Date.now(),
-      });
-      emit({
-        type: 'message/native_context',
-        messageId: assistantMessageId,
-        role: 'assistant',
-        entry: {
-          format: 'pi-message-v1',
-          payload: nativePayload,
-          byteLength: Buffer.byteLength(nativePayload, 'utf8'),
-        },
-      });
-      const usage = estimateMockUsage(
-        sessionId,
-        userText,
-        reply,
-        Math.max(1, Date.now() - startedAt),
-      );
-      emit({ type: 'usage/update', sessionId, usage });
     },
     async steer(message: string): Promise<void> {
       emit({
@@ -148,6 +306,37 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
     },
     async followUp(message: string): Promise<void> {
       await this.prompt({ text: message, streamingBehavior: 'followUp' });
+    },
+    async armRunIntervention(intervention): Promise<void> {
+      if (intervention.sessionId !== sessionId) {
+        throw new Error('run-intervention-backend-mismatch');
+      }
+      const existing = stagedInterventions.get(intervention.interventionId);
+      if (existing !== undefined && existing.revision > intervention.revision) {
+        throw new Error('run-intervention-stale-revision');
+      }
+      if (existing !== undefined && existing.revision === intervention.revision) {
+        if (
+          existing.runId !== intervention.runId ||
+          existing.runtimeGenerationId !== intervention.runtimeGenerationId ||
+          existing.sequence !== intervention.sequence ||
+          existing.text !== intervention.text
+        ) {
+          throw new Error('run-intervention-revision-payload-mismatch');
+        }
+        return;
+      }
+      stagedInterventions.set(intervention.interventionId, intervention);
+    },
+    async cancelRunIntervention(interventionId, expectedRevision): Promise<boolean> {
+      const existing = stagedInterventions.get(interventionId);
+      if (existing === undefined || existing.revision !== expectedRevision) return false;
+      stagedInterventions.delete(interventionId);
+      return true;
+    },
+    subscribeRunInterventions(listener): () => void {
+      interventionListeners.add(listener);
+      return () => interventionListeners.delete(listener);
     },
     async abort(): Promise<void> {
       aborted = true;

@@ -88,6 +88,8 @@ import type {
   WaitForJobInput,
 } from './job.js';
 import type { RunHostPush } from './run.js';
+import type { QueuedTurnRecord } from './queued-turn.js';
+import type { RunInterventionRecord, UserInstructionPayload } from './run-intervention.js';
 import type { SessionRuntimeStatus } from './session-runtime.js';
 import type { HostHydrationFrame } from './remote-protocol.js';
 
@@ -230,7 +232,54 @@ export type HostCommand =
     }
   | { id?: string; type: 'session/messages'; sessionId: string }
   | { id?: string; type: 'session/model-context-summary'; sessionId: string }
-  | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
+  | {
+      id?: string;
+      type: 'session/prompt';
+      sessionId: string;
+      input: PromptInput;
+      /** Internal Host admission path; remote clients must omit this. */
+      admission?: 'queued-turn';
+    }
+  | {
+      id?: string;
+      type: 'session/queued-turn-submit';
+      sessionId: string;
+      queuedTurnId: string;
+      userMessageId: string;
+      input: PromptInput;
+    }
+  | { id?: string; type: 'session/queued-turn-list'; sessionId: string }
+  | {
+      id?: string;
+      type: 'session/queued-turn-edit';
+      sessionId: string;
+      queuedTurnId: string;
+      expectedRevision: number;
+      input: PromptInput;
+    }
+  | {
+      id?: string;
+      type: 'session/queued-turn-cancel';
+      sessionId: string;
+      queuedTurnId: string;
+      expectedRevision: number;
+    }
+  | {
+      id?: string;
+      type: 'session/queued-turn-reorder';
+      sessionId: string;
+      expectedQueueRevision: number;
+      orderedQueuedTurnIds: string[];
+    }
+  | {
+      id?: string;
+      type: 'session/replace-run';
+      sessionId: string;
+      runId: string;
+      queuedTurnId: string;
+      userMessageId: string;
+      input: PromptInput;
+    }
   | { id?: string; type: 'session/pause'; sessionId: string; runId?: string }
   | { id?: string; type: 'session/resume-run'; sessionId: string; checkpointId?: string }
   | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
@@ -242,6 +291,32 @@ export type HostCommand =
       runId?: string;
       /** Matches an optimistic client row to the persisted Host transcript row. */
       clientMessageId?: string;
+    }
+  | {
+      id?: string;
+      type: 'run/intervention-submit';
+      sessionId: string;
+      runId: string;
+      interventionId: string;
+      userMessageId: string;
+      input: UserInstructionPayload;
+    }
+  | {
+      id?: string;
+      type: 'run/intervention-edit';
+      sessionId: string;
+      runId: string;
+      interventionId: string;
+      expectedRevision: number;
+      input: UserInstructionPayload;
+    }
+  | {
+      id?: string;
+      type: 'run/intervention-cancel';
+      sessionId: string;
+      runId: string;
+      interventionId: string;
+      expectedRevision: number;
     }
   | {
       id?: string;
@@ -850,7 +925,9 @@ export type HostPushVariant =
     }
   | ContextSummaryPush
   | JobHostPush
-  | RunHostPush;
+  | RunHostPush
+  | { type: 'run/intervention-updated'; intervention: RunInterventionRecord }
+  | { type: 'session/queued-turn-updated'; queuedTurn: QueuedTurnRecord };
 
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;
@@ -925,6 +1002,10 @@ export type HostStatusData = {
     sessionExport?: boolean;
     /** Resumable cooperative pause checkpoints for foreground turns. */
     sessionPause?: boolean;
+    /** Host-owned, exact-Run intervention lifecycle. */
+    runInterventions?: boolean;
+    /** Host-owned durable next-turn queue and Replace Run workflow. */
+    queuedTurns?: boolean;
     /** ADR 0027: host accepts remote gateway push sinks. */
     remoteGateway?: boolean;
     /** ADR 0027: host tags pushes with seq/eventId and supports host/replay. */

@@ -6,17 +6,24 @@ import { useEffect, useRef, useState, type ReactElement, type ReactNode } from '
 import { IconChevronDown, IconChevronUp } from './shell-icons';
 
 export type CollapsibleContentBlockProps = {
-  children: ReactNode;
+  children?: ReactNode;
+  renderCollapsed?: () => ReactNode;
+  renderExpanded?: () => ReactNode;
   maxCollapsedHeight?: number;
   defaultCollapsed?: boolean;
+  /** Explicit override for whether content can be expanded/collapsed (bypasses measuring collapsed preview). */
+  expandable?: boolean;
   className?: string;
 };
 
 export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): ReactElement {
   const maxCollapsedHeight = props.maxCollapsedHeight ?? 130;
   const [collapsed, setCollapsed] = useState(props.defaultCollapsed ?? true);
-  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [measuredOverflow, setMeasuredOverflow] = useState(false);
   const contentRef = useRef<HTMLDivElement | null>(null);
+
+  const isOverflowing =
+    props.expandable !== undefined ? props.expandable || measuredOverflow : measuredOverflow;
 
   useEffect(() => {
     const node = contentRef.current;
@@ -24,7 +31,7 @@ export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): Re
 
     function checkOverflow(): void {
       if (!node) return;
-      setIsOverflowing(node.scrollHeight > maxCollapsedHeight + 12);
+      setMeasuredOverflow(node.scrollHeight > maxCollapsedHeight + 12);
     }
 
     checkOverflow();
@@ -52,6 +59,10 @@ export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): Re
     }
   };
 
+  const renderedContent = shouldCollapse
+    ? (props.renderCollapsed ? props.renderCollapsed() : props.children)
+    : (props.renderExpanded ? props.renderExpanded() : props.children);
+
   return (
     <div
       className={`collapsible-content-block ${shouldCollapse ? 'is-collapsed' : 'is-expanded'} ${
@@ -65,7 +76,7 @@ export function CollapsibleContentBlock(props: CollapsibleContentBlockProps): Re
         className="collapsible-content-inner"
         style={shouldCollapse ? { maxHeight: `${maxCollapsedHeight}px` } : undefined}
       >
-        {props.children}
+        {renderedContent}
       </div>
       {isOverflowing ? (
         <button

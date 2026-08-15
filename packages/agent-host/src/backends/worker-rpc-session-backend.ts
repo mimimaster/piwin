@@ -6,6 +6,8 @@ import type {
   ExtensionUiPort,
   HostToolExecutionPort,
   HostToolExecutionResult,
+  BackendRunInterventionEvent,
+  BackendRunInterventionEventResult,
 } from '@piwin/contracts';
 import type {
   BackendSessionHandle,
@@ -20,7 +22,10 @@ import {
 } from '../rpc/serializable-blueprint.js';
 import { AgentWorkerSupervisor } from '../agent-worker-supervisor.js';
 import type { WorkerClientOptions, RpcSdkWorkerClient } from '../rpc-sdk-worker-client.js';
-import type { WorkerToolCallFrame } from '../rpc-sdk-worker-protocol.js';
+import type {
+  WorkerInterventionClaimFrame,
+  WorkerToolCallFrame,
+} from '../rpc-sdk-worker-protocol.js';
 
 export type WorkerSessionBackendOptions = {
   /** Sole owner of worker process creation and release. */
@@ -41,6 +46,9 @@ type ActiveSession = {
   runtimeGenerationId: string;
   hostToolExecution: HostToolExecutionPort;
   extensionUi?: ExtensionUiPort;
+  interventionListeners: Set<
+    (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>
+  >;
 };
 
 export class WorkerSessionBackend implements PiSessionBackend {
@@ -95,6 +103,9 @@ export class WorkerSessionBackend implements PiSessionBackend {
     }
 
     const listeners = new EventEmitter();
+    const interventionListeners = new Set<
+      (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>
+    >();
     const handle: BackendSessionHandle = {
       // Product session ids are the stable Host identity. The worker may use
       // a different internal id; that translation stays inside this backend.
@@ -130,6 +141,16 @@ export class WorkerSessionBackend implements PiSessionBackend {
       async followUp(message) {
         await client.followUp(created.sessionId, message);
       },
+      async armRunIntervention(intervention) {
+        await client.armRunIntervention(created.sessionId, intervention);
+      },
+      async cancelRunIntervention(interventionId, expectedRevision) {
+        return client.cancelRunIntervention(created.sessionId, interventionId, expectedRevision);
+      },
+      subscribeRunInterventions(listener) {
+        interventionListeners.add(listener);
+        return () => interventionListeners.delete(listener);
+      },
       async abort() {
         await client.abort(created.sessionId);
       },
@@ -160,12 +181,35 @@ export class WorkerSessionBackend implements PiSessionBackend {
       runtimeGenerationId: input.blueprint.runtimeGenerationId,
       hostToolExecution: input.hostToolExecution,
       ...(input.extensionUi ? { extensionUi: input.extensionUi } : {}),
+      interventionListeners,
     });
     client.on('event', (sessionId: string, event: AgentEvent) => {
       if (sessionId === created.sessionId || sessionId === input.blueprint.sessionId) {
         listeners.emit('event', event);
       }
     });
+    client.on('intervention-claim', (frame: WorkerInterventionClaimFrame) => {
+      if (frame.context.sessionId !== input.blueprint.sessionId) return;
+      void resolveInterventionClaim(interventionListeners, frame.event)
+        .then((accepted) => {
+          client.sendInterventionPermit(frame, accepted);
+        })
+        .catch(() => {
+          // A failed Host listener must close the claim, never leave the worker
+          // waiting or permit an instruction without a durable transition.
+          client.sendInterventionPermit(frame, false);
+        });
+    });
+    client.on(
+      'intervention-event',
+      (sessionId: string, event: BackendRunInterventionEvent) => {
+        if (sessionId !== input.blueprint.sessionId) return;
+        void notifyInterventionListeners(interventionListeners, event).catch(() => {
+          // Lifecycle notification failure is reconciled from durable Host
+          // state at Run termination or session resume.
+        });
+      },
+    );
     client.on('exit', (code: number | null) => {
       const session = this.sessions.get(sessionKey);
       if (!session) return;
@@ -327,6 +371,28 @@ export class WorkerSessionBackend implements PiSessionBackend {
       await this.options.supervisor.dispose();
     }
   }
+}
+
+async function resolveInterventionClaim(
+  listeners: ReadonlySet<
+    (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>
+  >,
+  event: BackendRunInterventionEvent,
+): Promise<boolean> {
+  if (listeners.size === 0 || event.type !== 'claim') return false;
+  for (const listener of listeners) {
+    if (!(await listener(event)).accepted) return false;
+  }
+  return true;
+}
+
+async function notifyInterventionListeners(
+  listeners: ReadonlySet<
+    (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>
+  >,
+  event: BackendRunInterventionEvent,
+): Promise<void> {
+  for (const listener of listeners) await listener(event);
 }
 
 function sessionGenerationKey(sessionId: string, runtimeGenerationId: string): string {

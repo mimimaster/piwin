@@ -271,7 +271,7 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
             onMouseLeave={() => setHovered(false)}
             onFocus={() => setHovered(true)}
             onBlur={() => setHovered(false)}
-            title={
+            aria-label={
               typeof used === 'number'
                 ? `Context ${formatTokens(used)} / ${formatTokens(limit)} (${percent}%)`
                 : `Context window ${formatTokens(limit)} · no usage yet`

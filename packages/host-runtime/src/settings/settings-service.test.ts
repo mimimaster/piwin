@@ -84,6 +84,47 @@ describe('createSettingsSnapshot', () => {
     expect(changed.revision).not.toBe(snapshotOne.revision);
   });
 
+  it('keeps the runtime revision stable for Desktop-only persistence', () => {
+    const base: PiwinConfig = {
+      hostMode: 'sdk',
+      agentMock: false,
+      providers: [],
+      media: { maxPasteBytes: 100, allowedMimeTypes: ['image/png'] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 100,
+      },
+    };
+    const initial = createSettingsSnapshot(base);
+    const withComposerState = createSettingsSnapshot({
+      ...base,
+      desktop: { composerProfile: { thinkingLevel: 'high' } },
+    });
+
+    expect(withComposerState.revision).not.toBe(initial.revision);
+    expect(withComposerState.runtimeRevision).toBe(initial.runtimeRevision);
+  });
+
+  it('changes the runtime revision when a Provider changes', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig);
+    const changed = createSettingsSnapshot({
+      ...base.config,
+      providers: [
+        {
+          id: 'provider-a',
+          protocol: 'openai-compatible',
+          name: 'Provider A',
+          baseUrl: 'https://example.test/v1',
+          models: [{ id: 'model-a' }],
+        },
+      ],
+    });
+
+    expect(changed.runtimeRevision).not.toBe(base.runtimeRevision);
+  });
+
   it('normalizes the config before hashing so equivalent drafts hash identically', () => {
     const normalized: PiwinConfig = {
       hostMode: 'sdk',

@@ -222,7 +222,7 @@ export const IconMic = createIcon(
 );
 
 export const IconStop = createIcon(
-  <rect x="6.5" y="6.5" width="11" height="11" rx="2.4" fill="currentColor" stroke="none" />,
+  <rect x="4.75" y="4.75" width="14.5" height="14.5" rx="2.8" fill="currentColor" stroke="none" />,
 );
 
 export const IconPause = createIcon(

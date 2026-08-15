@@ -20,6 +20,9 @@ import type {
   SessionCompactResult,
   SessionSeedMessage,
   EphemeralProviderSecret,
+  BackendRunIntervention,
+  BackendRunInterventionEvent,
+  BackendRunInterventionEventResult,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.js';
 
@@ -32,6 +35,13 @@ export type BackendSessionHandle = {
   prompt(prepared: BackendPreparedPrompt): Promise<void>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
+  armRunIntervention?(intervention: BackendRunIntervention): Promise<void>;
+  cancelRunIntervention?(interventionId: string, expectedRevision: number): Promise<boolean>;
+  subscribeRunInterventions?(
+    listener: (
+      event: BackendRunInterventionEvent,
+    ) => Promise<BackendRunInterventionEventResult>,
+  ): () => void;
   abort(): Promise<void>;
   compact?(customInstructions?: string): Promise<SessionCompactResult>;
   abortCompaction?(): void;

@@ -169,7 +169,7 @@ export type PromptInput = {
    */
   delegationMode?: 'auto' | 'disabled';
   /** Internal Host continuation source; normal clients should omit this. */
-  source?: 'user' | 'resume';
+  source?: 'user' | 'resume' | 'queued-turn';
   /** Internal Host checkpoint reference used by session/resume-run. */
   resumeCheckpointId?: string;
 };
@@ -537,6 +537,16 @@ export interface SessionHandle {
   prompt(input: PromptInput): Promise<void>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
+  /** Arm a literal instruction for this exact active Run's next safe checkpoint. */
+  armRunIntervention?(intervention: import('./run-intervention.js').BackendRunIntervention): Promise<void>;
+  /** Remove an intervention that is still staged and has not been claimed. */
+  cancelRunIntervention?(interventionId: string, expectedRevision: number): Promise<boolean>;
+  /** Backend intervention lifecycle; deliberately separate from AgentEvent. */
+  subscribeRunInterventions?(
+    listener: (
+      event: import('./run-intervention.js').BackendRunInterventionEvent,
+    ) => Promise<import('./run-intervention.js').BackendRunInterventionEventResult>,
+  ): () => void;
   abort(): Promise<void>;
   getMessages(): Promise<AgentMessageView[]>;
   getTree(): Promise<SessionTreeView>;

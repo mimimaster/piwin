@@ -238,6 +238,27 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(updates).toHaveLength(4);
   });
 
+  it('counts a final text snapshot as the first token', () => {
+    const updates: ExecutionRunRecord[] = [];
+    const reg = new RunRegistry({
+      createId: makeIdGen(),
+      onRunUpdated: (record) => updates.push(record),
+    });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-snapshot' });
+    updates.length = 0;
+
+    const result = reg.noteAgentEvent(run.runId, {
+      type: 'message/text_snapshot',
+      messageId: 'message-snapshot',
+      text: 'final response',
+    });
+
+    expect(result?.phase).toBe('streaming');
+    expect(result?.firstTokenReceived).toBe(true);
+    expect(result?.revision).toBe(2);
+    expect(updates).toHaveLength(1);
+  });
+
   it('ignores an explicitly mismatched Run ID without publishing', () => {
     const updates: ExecutionRunRecord[] = [];
     const reg = new RunRegistry({

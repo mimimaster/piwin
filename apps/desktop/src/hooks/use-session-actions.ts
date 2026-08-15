@@ -132,6 +132,34 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const historySeekRequestGeneration = useRef(0);
   const [transcriptHistoryLoading, setTranscriptHistoryLoading] = useState(false);
 
+  const hydrateQueuedTurns = useCallback(
+    async (sessionId: string): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'session/queued-turn-list',
+        sessionId,
+      });
+      if (!response.success) return;
+      const data = response.data as {
+        queueRevision?: unknown;
+        queuedTurns?: unknown;
+      } | undefined;
+      if (
+        data === undefined ||
+        !Number.isSafeInteger(data.queueRevision) ||
+        !Array.isArray(data.queuedTurns)
+      )
+        return;
+      const queueRevision = data.queueRevision as number;
+      dispatch({
+        type: 'session/queued-turns-hydrate',
+        sessionId,
+        queueRevision,
+        queuedTurns: data.queuedTurns as import('@piwin/contracts').QueuedTurnRecord[],
+      });
+    },
+    [dispatch, hostClient],
+  );
+
   const loadUserMessageIndex = useCallback(
     async (sessionId: string, epoch: number): Promise<void> => {
       const response = await hostClient.request({
@@ -522,6 +550,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             contextUsage: data.contextUsage ?? null,
             live: data.live,
           });
+          await hydrateQueuedTurns(sessionId);
           return;
         }
       }
@@ -542,10 +571,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         contextUsage: data.contextUsage ?? null,
         live: data.live,
       });
+      await hydrateQueuedTurns(sessionId);
     },
     [
       dispatch,
       dispatchNotification,
+      hydrateQueuedTurns,
       hostClient,
       hydrateSessions,
       onSessionComposerProfileRestored,

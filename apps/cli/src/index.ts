@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
@@ -71,6 +72,13 @@ import {
   type SideChatHostClient,
 } from './side-chat-command.js';
 import { runSessionLifecycleApply, runSessionLifecyclePlan } from './session-lifecycle-command.js';
+import {
+  runSessionQueueCancel,
+  runSessionQueueEdit,
+  runSessionQueueList,
+  runSessionQueueReorder,
+  runSessionReplaceRun,
+} from './session-queue-command.js';
 import { runContextSummary } from './context-command.js';
 
 function printHelp(): void {
@@ -86,6 +94,11 @@ Usage:
   piwin session unpin <sessionId> [--mock]
   piwin session pause <sessionId> [--run-id <runId>] [--mock]
   piwin session resume-run <sessionId> [--checkpoint <checkpointId>] [--mock]
+  piwin session queue list <sessionId> [--mock]
+  piwin session queue edit <sessionId> <queuedTurnId> --text <text> [--revision n] [--mock]
+  piwin session queue cancel <sessionId> <queuedTurnId> [--revision n] [--mock]
+  piwin session queue reorder <sessionId> <queuedTurnId...> [--revision n] [--mock]
+  piwin session replace <sessionId> <runId> <text> [--queued-id id] [--user-message-id id] [--mock]
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin session lifecycle plan [--mock]
@@ -175,6 +188,14 @@ function readOption(argv: string[], name: string): string | undefined {
     return undefined;
   }
   return argv[index + 1];
+}
+
+function parseCliRevision(value: string): number {
+  const revision = Number(value);
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    throw new Error(`Invalid revision: ${value}`);
+  }
+  return revision;
 }
 
 function parseMode(argv: string[]): HostMode {
@@ -649,6 +670,108 @@ async function commandSession(argv: string[]): Promise<void> {
       return;
     }
 
+    if (sub === 'queue') {
+      const action = argv[2] ?? 'list';
+      const sessionId = argv[3];
+      if (!sessionId) {
+        console.error(
+          'Usage: piwin session queue list|edit|cancel|reorder <sessionId> [options] [--mock]',
+        );
+        process.exitCode = 1;
+        return;
+      }
+      try {
+        if (action === 'list') {
+          await runSessionQueueList(runtime, sessionId, console.log);
+          return;
+        }
+        const revisionOption = readOption(argv, '--revision');
+        const expectedRevision =
+          revisionOption === undefined ? undefined : parseCliRevision(revisionOption);
+        if (action === 'edit') {
+          const queuedTurnId = argv[4];
+          const text = readOption(argv, '--text')?.trim();
+          if (!queuedTurnId || !text) {
+            throw new Error(
+              'Usage: piwin session queue edit <sessionId> <queuedTurnId> --text <text> [--revision n] [--mock]',
+            );
+          }
+          const updated = await runSessionQueueEdit(
+            runtime,
+            sessionId,
+            queuedTurnId,
+            text,
+            expectedRevision,
+          );
+          console.log(JSON.stringify(updated, null, 2));
+          return;
+        }
+        if (action === 'cancel') {
+          const queuedTurnId = argv[4];
+          if (!queuedTurnId) {
+            throw new Error(
+              'Usage: piwin session queue cancel <sessionId> <queuedTurnId> [--revision n] [--mock]',
+            );
+          }
+          const cancelled = await runSessionQueueCancel(
+            runtime,
+            sessionId,
+            queuedTurnId,
+            expectedRevision,
+          );
+          console.log(JSON.stringify(cancelled, null, 2));
+          return;
+        }
+        if (action === 'reorder') {
+          const orderedIds = collectPositionals(argv.slice(4), ['--revision']);
+          if (orderedIds.length === 0) {
+            throw new Error(
+              'Usage: piwin session queue reorder <sessionId> <queuedTurnId...> [--revision n] [--mock]',
+            );
+          }
+          const reordered = await runSessionQueueReorder(
+            runtime,
+            sessionId,
+            orderedIds,
+            expectedRevision,
+          );
+          console.log(JSON.stringify(reordered, null, 2));
+          return;
+        }
+        throw new Error(`Unknown queue action: ${action}`);
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+        return;
+      }
+    }
+
+    if (sub === 'replace') {
+      const sessionId = argv[2];
+      const runId = argv[3];
+      const text = collectPositionals(argv.slice(4), ['--queued-id', '--user-message-id'])
+        .join(' ')
+        .trim();
+      if (!sessionId || !runId || !text) {
+        console.error(
+          'Usage: piwin session replace <sessionId> <runId> <text> [--queued-id id] [--user-message-id id] [--mock]',
+        );
+        process.exitCode = 1;
+        return;
+      }
+      try {
+        const replaced = await runSessionReplaceRun(runtime, sessionId, runId, text, {
+          queuedTurnId: readOption(argv, '--queued-id') ?? randomUUID(),
+          userMessageId: readOption(argv, '--user-message-id') ?? randomUUID(),
+        });
+        console.log(JSON.stringify(replaced, null, 2));
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+      }
+      return;
+    }
+
     if (sub === 'pause' || sub === 'resume-run') {
       const sessionId = argv[2];
       if (!sessionId) {
@@ -774,7 +897,9 @@ async function commandSession(argv: string[]): Promise<void> {
     }
 
     console.error(`Unknown session subcommand: ${sub}`);
-    console.error('Usage: piwin session list|pin|unpin|pause|resume-run|search|export|lifecycle');
+    console.error(
+      'Usage: piwin session list|pin|unpin|pause|resume-run|queue|replace|search|export|lifecycle',
+    );
     process.exitCode = 1;
   } finally {
     await runtime.dispose();

@@ -254,6 +254,7 @@ export class RunRegistry {
     let nextPhase: SessionRunPhase | undefined;
     switch (event.type) {
       case 'message/text_delta':
+      case 'message/text_snapshot':
       case 'message/thinking_delta':
         if (node.record.firstTokenReceived !== true) {
           node.record.firstTokenReceived = true;

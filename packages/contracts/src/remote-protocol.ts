@@ -1,6 +1,7 @@
 import type { AgentMessageRole, HostMode } from './host.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
+import type { QueuedTurnRecord } from './queued-turn.js';
 import type { SessionListPageResult } from './session-list-page.js';
 
 /** The first version of the private shell-to-host wire protocol. */
@@ -60,6 +61,8 @@ export type RemoteCapabilitySummary = {
   sessionTranscriptSeek?: boolean;
   /** Assembly-only model context summaries (M1). */
   contextSummary?: boolean;
+  runInterventions?: boolean;
+  queuedTurns?: boolean;
 };
 
 export type HostHello = {
@@ -127,6 +130,7 @@ export type RemoteTranscriptMessage = {
   terminalMessage?: string;
   thinking?: string;
   attachmentCount?: number;
+  instructionDelivery?: import('./session-transcript.js').SessionTranscriptMessage['instructionDelivery'];
 };
 
 /** Remote-safe media projection; Host filesystem paths never cross this boundary. */
@@ -245,6 +249,7 @@ export type HostHydrationSnapshot = {
   status: RemoteHostStatusData;
   sessions: RemoteSessionSummary[];
   messagesBySession: Record<string, RemoteTranscriptMessage[]>;
+  queuedTurnsBySession?: Record<string, QueuedTurnRecord[]>;
   truncatedSessionIds: string[];
 };
 

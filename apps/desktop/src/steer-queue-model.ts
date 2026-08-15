@@ -2,6 +2,8 @@ export type SteerQueueMessage = {
   id: string;
   text: string;
   createdAt: string;
+  revision?: number;
+  status?: 'pending' | 'starting';
 };
 
 export type SteerQueuesBySession = Readonly<Record<string, readonly SteerQueueMessage[]>>;

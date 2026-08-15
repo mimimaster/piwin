@@ -249,8 +249,6 @@ export function ImageGenerationSettings(): ReactElement {
   const {
     config,
     saveConfig,
-    discoverProviderModels,
-    searchImageModelCatalog,
     testImageGenerationModel,
     setError,
     setInfo,
@@ -332,6 +330,32 @@ export function ImageGenerationSettings(): ReactElement {
     const previousDefault = defaultImagePathForStyle(previous, addModelId);
     if (!addModelPath.trim() || addModelPath === previousDefault) {
       setAddModelPath(defaultImagePathForStyle(style, addModelId));
+    }
+  }
+
+  function handleModelIdChange(nextId: string): void {
+    setAddModelId(nextId);
+    if (!selectedProvider) return;
+    const existing = selectedProvider.models.find((m) => m.id === nextId);
+    if (existing) {
+      if (existing.label && !addModelLabel) {
+        setAddModelLabel(existing.label);
+      }
+      if (existing.tooltipMarkdown && !addModelDescription) {
+        setAddModelDescription(existing.tooltipMarkdown);
+      }
+      const route = existing.routes?.['image-generation'];
+      if (route) {
+        if (isImageApiStyle(route.apiStyle)) {
+          setAddModelApiStyle(route.apiStyle);
+        }
+        if (route.path) {
+          setAddModelPath(route.path);
+        }
+        if (route.timeoutMs !== undefined) {
+          setAddModelTimeout(String(route.timeoutMs / 1000));
+        }
+      }
     }
   }
 
@@ -458,12 +482,41 @@ export function ImageGenerationSettings(): ReactElement {
     if (!config) {
       return;
     }
-    // Drop the model entry entirely (same as Models page remove).
-    const nextProviders = config.providers.map((provider) =>
-      provider.id === providerId
-        ? { ...provider, models: provider.models.filter((model) => model.id !== modelId) }
-        : provider,
-    );
+    // Strip image-generation capability and route while preserving the base model on the provider.
+    const nextProviders = config.providers.map((provider) => {
+      if (provider.id !== providerId) {
+        return provider;
+      }
+      return {
+        ...provider,
+        models: provider.models.map((model) => {
+          if (model.id !== modelId) {
+            return model;
+          }
+          const remainingCapabilities = (model.capabilities ?? []).filter(
+            (capability) => capability !== 'image-generation',
+          );
+          const remainingRoutes = model.routes ? { ...model.routes } : undefined;
+          if (remainingRoutes) {
+            delete remainingRoutes['image-generation'];
+          }
+          const hasRemainingRoutes =
+            remainingRoutes !== undefined && Object.keys(remainingRoutes).length > 0;
+          const nextModel: ModelConfigEntry = { ...model };
+          if (remainingCapabilities.length > 0) {
+            nextModel.capabilities = remainingCapabilities;
+          } else {
+            delete nextModel.capabilities;
+          }
+          if (hasRemainingRoutes && remainingRoutes) {
+            nextModel.routes = remainingRoutes;
+          } else {
+            delete nextModel.routes;
+          }
+          return nextModel;
+        }),
+      };
+    });
     const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
     if (!hasUsableImageDefault(nextConfig)) {
       const fallback = findFirstEnabledImageModel(nextProviders);
@@ -613,12 +666,9 @@ export function ImageGenerationSettings(): ReactElement {
                   <div className="ui-field-control">
                     <ImageModelSuggest
                       value={addModelId}
-                      onChange={setAddModelId}
+                      onChange={handleModelIdChange}
                       provider={selectedProvider}
                       disabled={Boolean(editingKey)}
-                      searchImageModelCatalog={searchImageModelCatalog}
-                      discoverProviderModels={discoverProviderModels}
-                      onDiscoverError={(message) => setError(message)}
                     />
                   </div>
                 </div>

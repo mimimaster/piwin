@@ -293,7 +293,7 @@ export class ProductAgentHost implements AgentHost {
         ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
       });
       const settingsRevision = this.options.piwinRoot
-        ? createSettingsSnapshot(await loadPiwinConfig(this.options.piwinRoot)).revision
+        ? createSettingsSnapshot(await loadPiwinConfig(this.options.piwinRoot)).runtimeRevision
         : 'live';
       return {
         session,
@@ -493,6 +493,9 @@ function createProductSessionHandle(
   const abortCompaction = backendHandle.abortCompaction;
   const getAutoCompactionEnabled = backendHandle.getAutoCompactionEnabled;
   const setAutoCompactionEnabled = backendHandle.setAutoCompactionEnabled;
+  const armRunIntervention = backendHandle.armRunIntervention;
+  const cancelRunIntervention = backendHandle.cancelRunIntervention;
+  const subscribeRunInterventions = backendHandle.subscribeRunInterventions;
   return {
     id: backendHandle.id,
     async prompt(input: PromptInput) {
@@ -516,6 +519,18 @@ function createProductSessionHandle(
     },
     steer: (message) => backendHandle.steer(message),
     followUp: (message) => backendHandle.followUp(message),
+    ...(armRunIntervention
+      ? { armRunIntervention: (intervention) => armRunIntervention(intervention) }
+      : {}),
+    ...(cancelRunIntervention
+      ? {
+          cancelRunIntervention: (interventionId, expectedRevision) =>
+            cancelRunIntervention(interventionId, expectedRevision),
+        }
+      : {}),
+    ...(subscribeRunInterventions
+      ? { subscribeRunInterventions: (listener) => subscribeRunInterventions(listener) }
+      : {}),
     abort: () => backendHandle.abort(),
     ...(compact ? { compact: (customInstructions?: string) => compact(customInstructions) } : {}),
     ...(abortCompaction ? { abortCompaction: () => abortCompaction() } : {}),

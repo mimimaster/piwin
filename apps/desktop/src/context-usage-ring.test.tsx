@@ -163,12 +163,13 @@ describe('ContextUsageRing', () => {
     expect(document.querySelector('[data-testid="context-usage-ring"]')).toBeNull();
   });
 
-  it('renders a closed ring with the usage tone and title', () => {
+  it('renders a closed ring with the usage tone and label', () => {
     render(createBaseProps(), root);
 
     const trigger = queryTrigger();
     expect(trigger.className).toContain('tone-ok');
-    expect(trigger.getAttribute('title')).toBe('Context 40K / 200K (20%)');
+    expect(trigger.getAttribute('aria-label')).toBe('Context 40K / 200K (20%)');
+    expect(trigger.getAttribute('title')).toBeNull();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(queryPopover()).toBeNull();
   });
@@ -253,7 +254,8 @@ describe('ContextUsageRing', () => {
     );
 
     const trigger = queryTrigger();
-    expect(trigger.getAttribute('title')).toBe('Context 21K / 1M (2%)');
+    expect(trigger.getAttribute('aria-label')).toBe('Context 21K / 1M (2%)');
+    expect(trigger.getAttribute('title')).toBeNull();
     expect(trigger.className).toContain('tone-ok');
 
     activateTrigger();

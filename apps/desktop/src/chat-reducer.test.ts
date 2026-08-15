@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ExecutionRunRecord } from '@piwin/contracts';
+import type { ExecutionRunRecord, QueuedTurnRecord } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
 
 function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): ExecutionRunRecord {
@@ -15,6 +15,88 @@ function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): Ex
 }
 
 describe('chatUiReducer', () => {
+  it('projects queued-turn lifecycle pushes onto the optimistic user bubble', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'queued request',
+      clientMessageId: 'queued-user',
+    });
+    const pending: QueuedTurnRecord = {
+      queuedTurnId: 'queued-1',
+      revision: 1,
+      sessionId: 's1',
+      sequence: 1,
+      userMessageId: 'queued-user',
+      mode: 'next',
+      status: 'pending',
+      input: { text: 'queued request', clientMessageId: 'queued-user' },
+      submittedAt: '2026-08-15T00:00:00.000Z',
+      updatedAt: '2026-08-15T00:00:00.000Z',
+    };
+    state = chatUiReducer(state, { type: 'session/queued-turn-updated', queuedTurn: pending });
+    expect(state.messages[0]?.instructionDelivery).toMatchObject({
+      kind: 'queued-turn',
+      instructionId: 'queued-1',
+      status: 'pending',
+      revision: 1,
+    });
+
+    const started: QueuedTurnRecord = {
+      ...pending,
+      revision: 2,
+      status: 'started',
+      startedRunId: 'run-queued',
+      updatedAt: '2026-08-15T00:00:01.000Z',
+    };
+    state = chatUiReducer(state, { type: 'session/queued-turn-updated', queuedTurn: started });
+    expect(state.messages[0]?.runId).toBe('run-queued');
+    expect(state.messages[0]?.instructionDelivery).toMatchObject({
+      status: 'started',
+      targetRunId: 'run-queued',
+      revision: 2,
+    });
+    const beforeStale = state;
+    state = chatUiReducer(state, {
+      type: 'session/queued-turn-updated',
+      queuedTurn: { ...pending, revision: 1 },
+    });
+    expect(state).toBe(beforeStale);
+  });
+
+  it('rejects stale queue hydration while retaining the latest queue revision', () => {
+    let state = createInitialChatUiState();
+    const record: QueuedTurnRecord = {
+      queuedTurnId: 'queued-1',
+      revision: 2,
+      sessionId: 's1',
+      sequence: 1,
+      userMessageId: 'queued-user',
+      mode: 'next',
+      status: 'pending',
+      input: { text: 'queued request', clientMessageId: 'queued-user' },
+      submittedAt: '2026-08-15T00:00:00.000Z',
+      updatedAt: '2026-08-15T00:00:01.000Z',
+    };
+    state = chatUiReducer(state, {
+      type: 'session/queued-turns-hydrate',
+      sessionId: 's1',
+      queueRevision: 4,
+      queuedTurns: [record],
+    });
+    const beforeStale = state;
+    state = chatUiReducer(state, {
+      type: 'session/queued-turns-hydrate',
+      sessionId: 's1',
+      queueRevision: 3,
+      queuedTurns: [],
+    });
+    expect(state).toBe(beforeStale);
+    expect(state.queuedTurnQueueRevisions.s1).toBe(4);
+    expect(state.queuedTurnsBySession.s1).toEqual([record]);
+  });
+
   it('records the reasoning interval and closes it when tool work begins', () => {
     const now = vi.spyOn(Date, 'now');
     try {
@@ -2940,16 +3022,104 @@ describe('chatUiReducer subagent hydration', () => {
       type: 'user/steer',
       text: 'Use the smaller fix',
       clientMessageId: 'steer-client-1',
+      instructionId: 'intervention-1',
+      targetRunId: 'run-1',
     });
 
     expect(state.messages.at(-1)).toMatchObject({
       id: 'steer-client-1',
       role: 'user',
       text: 'Use the smaller fix',
+      instructionDelivery: { status: 'pending', instructionId: 'intervention-1' },
     });
     expect(state.activeRunId).toBe('run-1');
     expect(state.runPhase).toBe('streaming');
     expect(state.streaming).toBe(true);
+  });
+
+  it('projects intervention revisions onto the optimistic user row', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'user/steer',
+      text: 'initial direction',
+      clientMessageId: 'intervention-user-1',
+    });
+    state = chatUiReducer(state, {
+      type: 'run/intervention-updated',
+      intervention: {
+        interventionId: 'intervention-1',
+        revision: 2,
+        sessionId: 's1',
+        runId: 'run-1',
+        runtimeGenerationId: 'generation-1',
+        sequence: 1,
+        userMessageId: 'intervention-user-1',
+        status: 'pending',
+        input: { text: 'revised direction' },
+        submittedAt: '2026-08-15T00:00:00.000Z',
+        updatedAt: '2026-08-15T00:00:01.000Z',
+      },
+    });
+
+    expect(state.messages.at(-1)).toMatchObject({
+      text: 'revised direction',
+      runId: 'run-1',
+      instructionDelivery: {
+        kind: 'run-intervention',
+        instructionId: 'intervention-1',
+        status: 'pending',
+        revision: 2,
+      },
+    });
+  });
+
+  it('ignores a stale intervention projection after a newer revision', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'user/steer',
+      text: 'initial direction',
+      clientMessageId: 'intervention-user-1',
+      instructionId: 'intervention-1',
+      targetRunId: 'run-1',
+    });
+    const base = {
+      interventionId: 'intervention-1',
+      sessionId: 's1',
+      runId: 'run-1',
+      runtimeGenerationId: 'generation-1',
+      sequence: 1,
+      userMessageId: 'intervention-user-1',
+      submittedAt: '2026-08-15T00:00:00.000Z',
+    } as const;
+    state = chatUiReducer(state, {
+      type: 'run/intervention-updated',
+      intervention: {
+        ...base,
+        revision: 3,
+        status: 'applied',
+        input: { text: 'new direction' },
+        updatedAt: '2026-08-15T00:00:02.000Z',
+      },
+    });
+    const afterApplied = state;
+    state = chatUiReducer(state, {
+      type: 'run/intervention-updated',
+      intervention: {
+        ...base,
+        revision: 2,
+        status: 'pending',
+        input: { text: 'stale direction' },
+        updatedAt: '2026-08-15T00:00:01.000Z',
+      },
+    });
+
+    expect(state).toBe(afterApplied);
+    expect(state.messages.at(-1)).toMatchObject({
+      text: 'new direction',
+      instructionDelivery: { status: 'applied', revision: 3 },
+    });
   });
 
   it('preserves paint-first optimistic draft bubbles when session/set activates a new session', () => {

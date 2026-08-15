@@ -144,6 +144,55 @@ describe('classifyHostPush', () => {
     });
   });
 
+  it('classifies intervention lifecycle as an exact-Run projection', () => {
+    expect(
+      classifyHostPush({
+        type: 'run/intervention-updated',
+        intervention: {
+          interventionId: 'intervention-1',
+          revision: 2,
+          sessionId: 'session-1',
+          runId: 'run-1',
+          runtimeGenerationId: 'generation-1',
+          sequence: 1,
+          userMessageId: 'user-1',
+          status: 'applying',
+          input: { text: 'Focus on the failing test.' },
+          submittedAt: '2026-08-15T00:00:00.000Z',
+          updatedAt: '2026-08-15T00:00:01.000Z',
+        },
+      }),
+    ).toEqual({
+      kind: 'projection',
+      key: ['run', 'run-1', 'intervention', 'intervention-1'],
+      runId: 'run-1',
+    });
+  });
+
+  it('classifies queued-turn lifecycle as a replayable session projection', () => {
+    expect(
+      classifyHostPush({
+        type: 'session/queued-turn-updated',
+        queuedTurn: {
+          queuedTurnId: 'queued-1',
+          revision: 2,
+          sessionId: 'session-1',
+          sequence: 1,
+          userMessageId: 'user-1',
+          mode: 'next',
+          status: 'started',
+          input: { text: 'next task', clientMessageId: 'user-1' },
+          submittedAt: '2026-08-15T00:00:00.000Z',
+          updatedAt: '2026-08-15T00:00:01.000Z',
+          startedRunId: 'run-2',
+        },
+      }),
+    ).toEqual({
+      kind: 'control',
+      barrierKeys: [['session', 'session-1', 'queued-turn', 'queued-1']],
+    });
+  });
+
   it('classifies a superseded extension deployment as a control barrier', () => {
     expect(
       classifyHostPush({

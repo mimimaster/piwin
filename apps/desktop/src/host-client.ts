@@ -49,6 +49,14 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'session/compact-abort':
     case 'session/steer':
     case 'session/follow_up':
+    case 'run/intervention-submit':
+    case 'run/intervention-edit':
+    case 'run/intervention-cancel':
+    case 'session/queued-turn-submit':
+    case 'session/queued-turn-edit':
+    case 'session/queued-turn-cancel':
+    case 'session/queued-turn-reorder':
+    case 'session/replace-run':
     case 'permission/resolve':
     case 'extension/ui_resolve':
     case 'project/authorize-terminal':

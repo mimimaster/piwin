@@ -32,6 +32,8 @@ import type {
   PushSink,
   RemoteSinkId,
   RunTerminalCode,
+  BackendRunInterventionEvent,
+  BackendRunInterventionEventResult,
 } from '@piwin/contracts';
 import {
   createEventEnvelopeGenerator,
@@ -54,6 +56,8 @@ import {
   type SessionRuntimeRetentionConfig,
 } from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
+import { createModelPromptAssembly } from './model-context-assembly.js';
+import { persistAndPushAssembly } from './model-context-record.js';
 import {
   assertInsideMediaRoot,
   createMediaService,
@@ -234,6 +238,7 @@ import {
   handleSessionLiveCommand,
   type SessionLiveContext,
 } from './commands/session-live-commands.js';
+import { QueuedTurnController } from './queued-turn-controller.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
 import {
@@ -317,6 +322,12 @@ const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/transcript-page',
   'session/transcript-window',
   'session/messages',
+  'session/queued-turn-submit',
+  'session/queued-turn-list',
+  'session/queued-turn-edit',
+  'session/queued-turn-cancel',
+  'session/queued-turn-reorder',
+  'session/replace-run',
   'session/export',
   'session/truncate-from',
   'session/duplicate',
@@ -524,6 +535,8 @@ export class HostRuntime {
   >();
   /** Structured lifecycle authority for every foreground and descendant Run. */
   private readonly runRegistry: RunRegistry;
+  /** Host-owned normal next-turn and Replace Run authority. */
+  private readonly queuedTurnController: QueuedTurnController;
   /** Preserves the run identity across asynchronous SDK event callbacks. */
   private readonly runExecutionContext = new AsyncLocalStorage<string>();
   private readonly runEventCorrelator = new RunEventCorrelator();
@@ -718,7 +731,44 @@ export class HostRuntime {
         onRunTerminal: (run) => {
           this.sessionHostToolPort?.releaseRun(run.sessionId, run.runId);
           this.push({ type: 'run/terminal', run });
+          this.queuedTurnController.notifyRunTerminal(run);
         },
+      });
+      this.queuedTurnController = new QueuedTurnController({
+        getTranscriptStore: (sessionId) => this.getTranscriptStore(sessionId),
+        hasSession: async (sessionId) => {
+          if (this.sessions.has(sessionId)) return true;
+          const record = await getSessionRecord(
+            getPiwinSessionIndexPath(getPiwinRoot(this.options.piwinRoot)),
+            sessionId,
+          );
+          return record !== undefined;
+        },
+        getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
+        getRun: (runId) => this.runRegistry.get(runId),
+        requestCancelRun: (sessionId, runId) => {
+          const active = this.runRegistry.getForegroundRun(sessionId);
+          if (!active || active.runId !== runId) return undefined;
+          return this.runRegistry.requestCancel(runId, 'replace-run');
+        },
+        updateRunPhase: (runId, phase, detail) => {
+          this.runRegistry.updatePhase(runId, phase, detail);
+        },
+        settlePendingPermissions: (sessionId) => {
+          for (const [requestId, pending] of this.pendingPermissions.entries()) {
+            if (pending.sessionId === sessionId) {
+              pending.resolve('deny');
+              this.pendingPermissions.delete(requestId);
+            }
+          }
+        },
+        settlePendingExtensionUi: (sessionId) => this.settlePendingExtensionUiForSession(sessionId),
+        validatePromptAttachments: (input) => this.validatePromptAttachments(input),
+        admitPrompt: (command) =>
+          handleSessionLiveCommand(command, command.id, this.buildSessionLiveContext()).then(
+            (response) => response ?? fail(command.id, 'session/prompt', 'queued prompt was not handled'),
+          ),
+        push: (message) => this.push(message),
       });
       this.runtimeController = new SessionRuntimeController({
         isRunInFlight: (sessionId) => {
@@ -1078,6 +1128,7 @@ export class HostRuntime {
 
   private async disposeInternal(): Promise<void> {
     const shutdownErrors: unknown[] = [];
+    this.queuedTurnController.dispose();
     const replacementCleanup = this.runtimeReplacementEngine.cancelAll();
     const activeRuns = this.runRegistry.list({
       status: ['queued', 'running', 'cancelling'],
@@ -1356,6 +1407,10 @@ export class HostRuntime {
         }
       }
       const ctx = await this.buildDomainContext();
+      const queuedTurn = await this.queuedTurnController.handleCommand(command, requestId);
+      if (queuedTurn) {
+        return queuedTurn;
+      }
       const domain = await dispatchDomainCommands(command, requestId, ctx);
       if (domain) {
         // Spec §12.3/12.4: when Settings change, mark the affected live
@@ -1388,12 +1443,12 @@ export class HostRuntime {
               this.runtimeController.recordSettingsChange(
                 sessionId,
                 runtimeChanges,
-                data.snapshot.revision,
+                data.snapshot.runtimeRevision,
               );
               void this.runtimeReplacementEngine
                 .replace({
                   sessionId,
-                  targetSettingsRevision: data.snapshot.revision,
+                  targetSettingsRevision: data.snapshot.runtimeRevision,
                   expectedActiveGenerationId: activeGenerationId,
                   when: 'after-current-run',
                 })
@@ -4409,6 +4464,41 @@ export class HostRuntime {
             });
           }
         }
+        const recorder = this.transcriptRecorders.get(sessionId);
+        if (recorder) {
+          try {
+            await recorder.flush();
+          } catch (error) {
+            const detail = formatError(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `transcript terminal flush failed: ${detail}`,
+            });
+          }
+        }
+        try {
+          const expired = await this.withTranscriptStore(sessionId, (store) =>
+            store.expirePendingRunInterventions(
+              runId,
+              effectiveOutcome === 'paused'
+                ? 'run-pausing'
+                : effectiveOutcome === 'cancelled'
+                  ? 'run-cancelling'
+                  : 'run-ended',
+              new Date().toISOString(),
+            ),
+          );
+          for (const intervention of expired) {
+            this.push({ type: 'run/intervention-updated', intervention });
+          }
+        } catch (error) {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `run intervention finalization failed for ${runId}: ${formatError(error)}`,
+          });
+        }
         const terminal = this.runRegistry.terminate(
           runId,
           terminalStatus,
@@ -4435,17 +4525,6 @@ export class HostRuntime {
             this.push({ type: 'host/log', level: 'warn', message: `auto-name failed: ${detail}` });
           });
           // Walkthrough is generated on plan completion, not after ordinary runs.
-        }
-        const recorder = this.transcriptRecorders.get(sessionId);
-        if (recorder) {
-          void recorder.flush().catch((error: unknown) => {
-            const detail = formatError(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `transcript terminal flush failed: ${detail}`,
-            });
-          });
         }
         return true;
       },
@@ -4755,6 +4834,8 @@ export class HostRuntime {
         sessionPin: true,
         sessionLifecycle: true,
         sessionPause: true,
+        runInterventions: true,
+        queuedTurns: true,
         runtimeResidency: true,
         sessionOutlinePage: true,
         sessionUserMessageIndex: true,
@@ -4913,7 +4994,7 @@ export class HostRuntime {
     // Capture parent session id for subagent event forwarding (inline stream UX).
     const parentSessionId = lineage?.parentSessionId;
 
-    const unsubscribe = session.subscribe((event: AgentEvent) => {
+    const unsubscribeAgent = session.subscribe((event: AgentEvent) => {
       const currentRuntimeGenerationId = this.runtimeController.getStatus(session.id).generationId;
       if (currentRuntimeGenerationId !== boundRuntimeGenerationId) {
         // A late callback from a disposed generation must not reach transcript,
@@ -5083,7 +5164,13 @@ export class HostRuntime {
         });
       }
     });
-    this.unsubscribers.set(session.id, unsubscribe);
+    const unsubscribeInterventions = session.subscribeRunInterventions?.((event) =>
+      this.handleBackendRunInterventionEvent(session.id, event),
+    );
+    this.unsubscribers.set(session.id, () => {
+      unsubscribeAgent();
+      unsubscribeInterventions?.();
+    });
 
     const pendingDirectGeneration = this.pendingDirectActivations.get(session.id);
     if (
@@ -5221,6 +5308,103 @@ export class HostRuntime {
           this.push({ type: 'host/log', level: 'warn', message: `[transcript] ${message}` }),
       }),
     );
+  }
+
+  private async handleBackendRunInterventionEvent(
+    sessionId: string,
+    event: BackendRunInterventionEvent,
+  ): Promise<BackendRunInterventionEventResult> {
+    const activeRun = this.runRegistry.getForegroundRun(sessionId);
+    if (
+      activeRun?.runId !== event.runId ||
+      activeRun.runtimeGenerationId !== event.runtimeGenerationId ||
+      isRunTerminal(activeRun.status)
+    ) {
+      return { accepted: false };
+    }
+    const store = await this.getTranscriptStore(sessionId);
+    const existing = await store.getRunIntervention(event.interventionId);
+    if (
+      existing === undefined ||
+      existing.runId !== event.runId ||
+      existing.runtimeGenerationId !== event.runtimeGenerationId
+    ) {
+      return { accepted: false };
+    }
+    if (event.type === 'claim') {
+      if (activeRun.status === 'cancelling' || activeRun.phase === 'pausing') {
+        // Admission closes before Stop/Pause settles. An already-observed
+        // `applied` marker may still finalize below, but no new claim may
+        // cross the control boundary once shutdown has begun.
+        return { accepted: false };
+      }
+      const applying = await store.transitionRunIntervention({
+        interventionId: event.interventionId,
+        expectedRevision: event.revision,
+        from: ['pending'],
+        to: 'applying',
+        updatedAt: new Date().toISOString(),
+      });
+      if (applying === undefined) return { accepted: false };
+      this.push({ type: 'run/intervention-updated', intervention: applying });
+      return { accepted: true };
+    }
+    if (event.type === 'applied') {
+      const appliedAt = new Date().toISOString();
+      const requestOrdinal = await this.nextModelRequestOrdinal(sessionId);
+      const applied = await store.transitionRunIntervention({
+        interventionId: event.interventionId,
+        expectedRevision: event.revision,
+        from: ['applying'],
+        to: 'applied',
+        updatedAt: appliedAt,
+        appliedAt,
+        appliedRequestOrdinal: requestOrdinal,
+      });
+      if (applied === undefined) return { accepted: false };
+      const assembly = createModelPromptAssembly();
+      assembly.add({
+        kind: 'user',
+        label: 'Run intervention',
+        trustOrigin: 'user',
+        text: applied.input.text,
+      });
+      await persistAndPushAssembly({
+        ...(this.options.piwinRoot === undefined ? {} : { piwinRoot: this.options.piwinRoot }),
+        summary: assembly.toSummary({
+          sessionId,
+          runId: applied.runId,
+          requestClass: 'run-intervention',
+          requestOrdinal,
+          userMessageId: applied.userMessageId,
+        }),
+        push: (message) => this.push(message),
+      });
+      this.push({ type: 'run/intervention-updated', intervention: applied });
+      return { accepted: true };
+    }
+    const current = await store.getRunIntervention(event.interventionId);
+    if (current === undefined || current.revision !== event.revision) {
+      // Late lifecycle events from an edited/cancelled staging revision must
+      // never terminalize the newer durable instruction.
+      return { accepted: false };
+    }
+    const applying = current.status === 'applying';
+    const terminal = await store.transitionRunIntervention({
+      interventionId: current.interventionId,
+      expectedRevision: current.revision,
+      from: [current.status],
+      to: applying ? 'uncertain' : event.type === 'expired' ? 'expired' : 'failed',
+      updatedAt: new Date().toISOString(),
+      terminalReason: applying
+        ? 'application-outcome-unknown'
+        : event.type === 'expired'
+          ? 'run-ended'
+          : 'backend-rejected',
+    });
+    if (terminal === undefined) return { accepted: false };
+    this.push({ type: 'run/intervention-updated', intervention: terminal });
+    return { accepted: true };
   }
 
   private async recordUserPrompt(sessionId: string, input: PromptInput): Promise<void> {

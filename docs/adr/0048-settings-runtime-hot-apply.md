@@ -23,8 +23,14 @@ source switch such as delegated search to CLI search.
 
 The Host is the only Settings-to-runtime update authority.
 
-1. A runtime records `settingsRevision` for the active generation and
-   `desiredSettingsRevision` for the latest committed Settings snapshot.
+1. Settings exposes two revisions. `revision` hashes the complete persisted
+   document and remains the optimistic-concurrency token for `settings/apply`.
+   `runtimeRevision` hashes only settings that require a new Agent Runtime
+   generation. Desktop restore/composer state can therefore advance the full
+   document revision without invalidating a resident runtime. A runtime records
+   the runtime revision in its existing `settingsRevision` compatibility field
+   and records `desiredSettingsRevision` for the latest committed runtime
+   revision.
 2. Runtime replacement uses the active generation ID as its compare-and-swap
    token and the desired Settings revision as immutable candidate input.
 3. Resident sessions converge automatically after a successful `settings/apply`.
@@ -63,3 +69,6 @@ The Host is the only Settings-to-runtime update authority.
   `ModelRuntime`; that would bypass the compiled capability/secret boundary.
 - `host-restart` settings remain explicit and are not falsely reported as hot
   applied.
+- Runtime revision projection is intentionally explicit and must stay aligned
+  with `classifySettingsImpact`; adding a new runtime-affecting domain requires
+  updating the projection and its regression tests.

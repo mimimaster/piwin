@@ -26,6 +26,7 @@ import type {
   PermissionPreset,
   PiwinConfig,
   ProjectRecord,
+  RunInterventionRecord,
   SessionListOrder,
   PromptContextRef,
   SessionSearchHit,
@@ -874,7 +875,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [runClock, setRunClock] = useState(() => Date.now());
   const hasHydratedInitialGeneralSessions = useRef(false);
   const hasRestoredDesktopSession = useRef(false);
-  const configSaveQueue = useRef(Promise.resolve());
+  const configSaveQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Initialize terminal CWD from home directory when no project/preference is set.
   useEffect(() => {
@@ -1700,30 +1701,40 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   ]);
 
   const saveSettingsInOrder = useCallback(
-    (buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[]): void => {
-      configSaveQueue.current = configSaveQueue.current
+    (buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[]): Promise<void> => {
+      const saveOperation = configSaveQueue.current
         .catch(() => undefined)
         .then(async () => {
           const currentResponse = await hostClient.request({ type: 'settings/get' });
           if (!currentResponse.success) {
+            dispatch({ type: 'error', message: `Settings read failed: ${currentResponse.error}` });
             return;
           }
           const data = currentResponse.data as {
             snapshot?: { config: PiwinConfig; revision: string };
           };
           if (!data.snapshot) {
+            dispatch({ type: 'error', message: 'Settings read returned no snapshot' });
             return;
           }
-          await hostClient.request({
+          const applyResponse = await hostClient.request({
             type: 'settings/apply',
             input: {
               expectedRevision: data.snapshot.revision,
               mutations: buildMutations(data.snapshot.config),
             },
           });
+          if (!applyResponse.success) {
+            dispatch({ type: 'error', message: `Settings save failed: ${applyResponse.error}` });
+          }
+        })
+        .catch((error: unknown) => {
+          dispatch({ type: 'error', message: `Settings save failed: ${formatError(error)}` });
         });
+      configSaveQueue.current = saveOperation;
+      return saveOperation;
     },
-    [hostClient],
+    [dispatch, hostClient],
   );
 
   const handleRemoveProjectFromSidebar = useCallback(
@@ -1752,7 +1763,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         delete nextDesktop.lastSession;
         const nextConfig: PiwinConfig = { ...config, desktop: nextDesktop };
         setConfig(nextConfig);
-        saveSettingsInOrder((currentConfig) => {
+        void saveSettingsInOrder((currentConfig) => {
           const desktop = { ...(currentConfig.desktop ?? {}) };
           delete desktop.lastSession;
           return [
@@ -1807,7 +1818,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         },
       };
       setConfig(nextConfig);
-      saveSettingsInOrder((currentConfig) => [
+      void saveSettingsInOrder((currentConfig) => [
         {
           kind: 'replace-domain',
           domain: 'desktop',
@@ -1931,7 +1942,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         permissions: { mode: resolved.mode, preset: nextPreset },
       };
       setConfig(nextConfig);
-      saveSettingsInOrder(() => [
+      void saveSettingsInOrder(() => [
         {
           kind: 'replace-domain',
           domain: 'permissions',
@@ -1961,7 +1972,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       desktop: { ...config.desktop, lastSession },
     };
     setConfig(nextConfig);
-    saveSettingsInOrder((currentConfig) => [
+    void saveSettingsInOrder((currentConfig) => [
       {
         kind: 'replace-domain',
         domain: 'desktop',
@@ -3062,6 +3073,75 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const handleCancelMessageEdit = useCallback((): void => {
     setEditingMessageId(null);
   }, []);
+  const handleInterventionEdit = useCallback(
+    async (messageId: string, text: string): Promise<void> => {
+      const message = state.messages.find((candidate) => candidate.id === messageId);
+      const delivery = message?.instructionDelivery;
+      if (
+        !state.activeSessionId ||
+        delivery?.kind !== 'run-intervention' ||
+        delivery.status !== 'pending' ||
+        !delivery.targetRunId
+      ) {
+        dispatch({ type: 'error', message: '这条调整已不能编辑，请重新发送。' });
+        return;
+      }
+      const response = await hostClient.request({
+        type: 'run/intervention-edit',
+        sessionId: state.activeSessionId,
+        runId: delivery.targetRunId,
+        interventionId: delivery.instructionId,
+        expectedRevision: delivery.revision,
+        input: { text },
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return;
+      }
+      const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
+      if (responseData?.intervention !== undefined) {
+        dispatch({
+          type: 'run/intervention-updated',
+          intervention: responseData.intervention,
+        });
+      }
+      setEditingMessageId(null);
+    },
+    [hostClient, state.activeSessionId, state.messages],
+  );
+  const handleInterventionCancel = useCallback(
+    async (messageId: string): Promise<void> => {
+      const message = state.messages.find((candidate) => candidate.id === messageId);
+      const delivery = message?.instructionDelivery;
+      if (
+        !state.activeSessionId ||
+        delivery?.kind !== 'run-intervention' ||
+        delivery.status !== 'pending' ||
+        !delivery.targetRunId
+      ) {
+        return;
+      }
+      const response = await hostClient.request({
+        type: 'run/intervention-cancel',
+        sessionId: state.activeSessionId,
+        runId: delivery.targetRunId,
+        interventionId: delivery.instructionId,
+        expectedRevision: delivery.revision,
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return;
+      }
+      const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
+      if (responseData?.intervention !== undefined) {
+        dispatch({
+          type: 'run/intervention-updated',
+          intervention: responseData.intervention,
+        });
+      }
+    },
+    [hostClient, state.activeSessionId, state.messages],
+  );
   const handleEditAndResendMessage = useCallback(
     (messageId: string, text: string): void => {
       if (preferences.dontAskRevertConfirm && messageId === lastUserMessageId) {
@@ -3499,6 +3579,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         onCancelEdit={handleCancelMessageEdit}
                         onEditResend={handleEditAndResendMessage}
                         onRetry={handleRetryMessage}
+                        onInterventionEdit={handleInterventionEdit}
+                        onInterventionCancel={handleInterventionCancel}
                         onFeedback={handleMessageFeedback}
                         onArtifactAction={handleArtifactAction}
                         onOpenArtifactCanvas={handleOpenArtifactCanvas}

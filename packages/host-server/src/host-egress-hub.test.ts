@@ -140,6 +140,71 @@ describe('HostEgressHub', () => {
 
     hub.stop();
   });
+
+  it('keeps a started queued turn ahead of the replacement Run events', async () => {
+    let runtimeSink: PushSink | undefined;
+    const sentFrames: HostPushFrame[] = [];
+    const hub = new HostEgressHub({
+      attachRuntimeSink: (sink) => {
+        runtimeSink = sink;
+        return () => undefined;
+      },
+    });
+    hub.start();
+    hub.attachClient({
+      id: 'ordering-client',
+      canSend: () => true,
+      sendNow: (frame) => sentFrames.push(frame),
+      closeSlowConsumer: () => undefined,
+    });
+
+    runtimeSink?.push({
+      type: 'run/terminal',
+      run: {
+        runId: 'run-old',
+        kind: 'session-turn',
+        status: 'cancelled',
+        rootRunId: 'run-old',
+        sessionId: 'session-1',
+      },
+    });
+    runtimeSink?.push({
+      type: 'run/updated',
+      run: {
+        runId: 'run-new',
+        kind: 'session-turn',
+        status: 'running',
+        rootRunId: 'run-new',
+        sessionId: 'session-1',
+      },
+    });
+    runtimeSink?.push({
+      type: 'session/queued-turn-updated',
+      queuedTurn: {
+        queuedTurnId: 'queued-1',
+        revision: 2,
+        sessionId: 'session-1',
+        sequence: 1,
+        userMessageId: 'user-1',
+        mode: 'replace',
+        status: 'started',
+        replaceRunId: 'run-old',
+        startedRunId: 'run-new',
+        input: { text: 'replacement', clientMessageId: 'user-1' },
+        submittedAt: '2026-08-15T00:00:00.000Z',
+        updatedAt: '2026-08-15T00:00:01.000Z',
+      },
+    });
+    hub.flush();
+    await waitForDrain();
+
+    expect(sentFrames.map((frame) => frame.push.type)).toEqual([
+      'run/terminal',
+      'session/queued-turn-updated',
+      'run/updated',
+    ]);
+    hub.stop();
+  });
 });
 
 function createStatusPush(): HostPush {

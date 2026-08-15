@@ -790,7 +790,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
-    // 4. ⌘Enter force send (bypasses IME protection)
+    // 4. ⌘Enter submits a run intervention (bypasses IME protection).
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
       if (hasContent) {

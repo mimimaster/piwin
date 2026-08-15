@@ -618,29 +618,29 @@ const CODE_FENCE_COLLAPSED_HEIGHT_PX = 200;
  * Non-diff fences keep sequential 1…n numbering of the fence body.
  * Tall fences auto-collapse behind a gradient mask + expand toggle.
  */
-function CodeBodyWithLineNumbers({
+const CODE_FENCE_PREVIEW_LINES = 8;
+
+function CodeLinesRenderer({
+  lines,
   source,
   language,
-  defaultCollapsed = true,
-  highlightEnabled = true,
+  isDiff,
+  highlightEnabled,
 }: {
+  lines: string[];
   source: string;
   language: string;
-  /** When false (e.g. streaming), keep expanded so new lines stay visible. */
-  defaultCollapsed?: boolean;
-  /** Streaming blocks stay plain until completion to avoid retaining token trees per delta. */
-  highlightEnabled?: boolean;
+  isDiff: boolean;
+  highlightEnabled: boolean;
 }): ReactElement {
   const normalizedLang = normalizeLanguage(language);
-  const isDiff = normalizedLang === 'diff';
-  const lines = useMemo(() => source.split('\n'), [source]);
   const tokenLines = useHighlight(source, normalizedLang, highlightEnabled);
   const diffLineNumbers = useMemo(() => {
     if (!isDiff) return null;
     return computeDiffLineNumbers(parseUnifiedDiff(source));
   }, [isDiff, source]);
 
-  const body = (
+  return (
     <pre className={`md-code${isDiff ? ' md-code-diff' : ''}`}>
       <div
         className="md-code-content"
@@ -690,14 +690,71 @@ function CodeBodyWithLineNumbers({
       </div>
     </pre>
   );
+}
+
+/**
+ * Line-numbered, syntax-highlighted code body for transcript code fences.
+ * Falls back to plain text while shiki is loading or when code exceeds bounds.
+ * Uses zero-DOM lazy mounting: collapsed fences only render the first 8 lines.
+ */
+function CodeBodyWithLineNumbers({
+  source,
+  language,
+  defaultCollapsed = true,
+  highlightEnabled = true,
+}: {
+  source: string;
+  language: string;
+  /** When false (e.g. streaming), keep expanded so new lines stay visible. */
+  defaultCollapsed?: boolean;
+  /** Streaming blocks stay plain until completion to avoid retaining token trees per delta. */
+  highlightEnabled?: boolean;
+}): ReactElement {
+  const normalizedLang = normalizeLanguage(language);
+  const isDiff = normalizedLang === 'diff';
+  const lines = useMemo(() => source.split('\n'), [source]);
+  const isTall = lines.length > 12;
+  const previewLines = useMemo(
+    () => (isTall ? lines.slice(0, CODE_FENCE_PREVIEW_LINES) : lines),
+    [isTall, lines],
+  );
+  const previewSource = useMemo(
+    () => (isTall ? previewLines.join('\n') : source),
+    [isTall, previewLines, source],
+  );
 
   return (
     <CollapsibleContentBlock
       maxCollapsedHeight={CODE_FENCE_COLLAPSED_HEIGHT_PX}
       defaultCollapsed={defaultCollapsed}
+      expandable={isTall}
       className="md-code-collapsible"
+      renderCollapsed={() => (
+        <CodeLinesRenderer
+          lines={previewLines}
+          source={previewSource}
+          language={language}
+          isDiff={isDiff}
+          highlightEnabled={highlightEnabled}
+        />
+      )}
+      renderExpanded={() => (
+        <CodeLinesRenderer
+          lines={lines}
+          source={source}
+          language={language}
+          isDiff={isDiff}
+          highlightEnabled={highlightEnabled}
+        />
+      )}
     >
-      {body}
+      <CodeLinesRenderer
+        lines={lines}
+        source={source}
+        language={language}
+        isDiff={isDiff}
+        highlightEnabled={highlightEnabled}
+      />
     </CollapsibleContentBlock>
   );
 }

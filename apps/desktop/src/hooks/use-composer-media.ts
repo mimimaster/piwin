@@ -14,6 +14,8 @@ import type {
   MediaSaveData,
   PromptContextRef,
   PromptAttachment,
+  QueuedTurnRecord,
+  RunInterventionRecord,
   WebElementAttachmentRef,
   WebElementPickResult,
 } from '@piwin/contracts';
@@ -46,13 +48,7 @@ import { isPlaceholderSessionName } from '../title-display';
 import { canUseThinkingLevel } from '../model-thinking-policy';
 import { decideDraftTransition } from '../draft-transition';
 import { sortDraftSessions, type DraftSessionItemUi } from '../draft-session';
-import {
-  appendSteerQueueMessage,
-  editSteerQueueMessage,
-  removeSteerQueueMessage,
-  type SteerQueueMessage,
-  type SteerQueuesBySession,
-} from '../steer-queue-model';
+import type { SteerQueueMessage } from '../steer-queue-model';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
@@ -157,11 +153,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   const readVisibleContextRefs = useCallback((): PromptContextRef[] => {
     return args.getPendingContextRefs?.() ?? [...pendingContextRefsRef.current];
   }, [args]);
-  const [steerQueuesBySession, setSteerQueuesBySession] = useState<SteerQueuesBySession>({});
-  const steerQueuesBySessionRef = useRef<SteerQueuesBySession>({});
-  const queueDrainInProgressRef = useRef(false);
-  const queueDrainBlockedMessageIdRef = useRef<string | null>(null);
-  const steerQueueSendNowInProgressRef = useRef(new Set<string>());
   /**
    * Terminal media results keyed by localId. Send reads this after awaits so it
    * does not depend on React re-render timing.
@@ -545,6 +536,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
       return [];
     });
+  }, []);
+
+  /**
+   * A queued turn is represented by the Host queue until it starts. Keep the
+   * composer cleared while admission is in flight, but do not create a second
+   * optimistic transcript row: the Host's queued-turn projection is the
+   * single durable source for that pending message.
+   */
+  const clearComposerForQueuedAdmission = useCallback((): void => {
+    setComposer('');
+    pendingAttachmentsRef.current = [];
+    setPendingAttachments([]);
   }, []);
 
   const resolveSessionIdForComposer = useCallback(async (): Promise<string | null> => {
@@ -1295,6 +1298,36 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     [args],
   );
 
+  const refreshQueuedTurnQueue = useCallback(
+    (sessionId: string): void => {
+      void args.hostClient
+        .request({ type: 'session/queued-turn-list', sessionId })
+        .then((response) => {
+          if (!response.success) return;
+          const data = response.data as
+            | { queueRevision?: unknown; queuedTurns?: unknown }
+            | undefined;
+          if (
+            data === undefined ||
+            !Number.isSafeInteger(data.queueRevision) ||
+            !Array.isArray(data.queuedTurns)
+          ) {
+            return;
+          }
+          args.dispatch({
+            type: 'session/queued-turns-hydrate',
+            sessionId,
+            queueRevision: data.queueRevision as number,
+            queuedTurns: data.queuedTurns as QueuedTurnRecord[],
+          });
+        })
+        .catch((error: unknown) => {
+          args.dispatch({ type: 'error', message: formatError(error) });
+        });
+    },
+    [args],
+  );
+
   const handleSend = useCallback(
     async (overrideText?: string): Promise<void> => {
       const text = (overrideText ?? composer).trim();
@@ -1505,31 +1538,15 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
       }
 
-      // Paint-first: clear composer and show the user bubble before any IPC.
-      // Session create / prompt ACK stay off the critical input path. A send
-      // with deferred media already ensured the session above.
-      if (deferredSessionId === null) {
-        // Sending consumes the local draft row, if this composer was resumed
-        // from one. The newly created Host session will replace it in the list.
-        removeCurrentDraft();
-        if (wasInDraftMode) {
-          skipDraftSaveRef.current = true;
-          draftTextRef.current = '';
-        }
-      }
-
-      let clientMessageId: string | null = null;
-      // Host injects agent-mode contracts on the model path. Send clean user
-      // text so transcript + session naming never see [piwin-mode:…] noise.
+      // Freeze all model-facing prompt choices before either the queue or the
+      // ordinary prompt path. A slash-mode/skill send while a Run is active
+      // must carry the same transformed text and metadata as an idle send.
       let displayText = text;
       let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
-      // Immutable send snapshot: never re-read live chips after this point.
-      // Concurrent chip edits must not change the turn that was already sent.
       const promptContextRefs = contextRefs;
       let skillActivity: SkillActivityView | undefined;
-
       if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
         const skills = (args.menuSkills ?? []).map((skill) => ({
           id: skill.id,
@@ -1544,13 +1561,86 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           promptAgentMode = parsed.modeId;
           promptAttachments = [];
         } else if (parsed.kind === 'skill') {
-          // Skill wrapper is model-facing guidance; host still receives it as
-          // text (skill is not a first-class host field). Naming strips it.
           hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
           promptAttachments = [];
           skillActivity = { skillId: parsed.skillId, name: parsed.skillName };
         }
       }
+
+      // Stage 4: an ordinary Send during an active Run is a Host-owned
+      // next-turn queue admission. The Host persists the same user identity
+      // and later drains it after the exact foreground Run terminalizes.
+      if (args.state.streaming && args.state.activeSessionId) {
+        const sessionId = args.state.activeSessionId;
+        const queuedTurnId = crypto.randomUUID();
+        const paintSnapshotAttachments = [...pendingAttachmentsRef.current];
+        const clientMessageId = crypto.randomUUID();
+        clearComposerForQueuedAdmission();
+        pendingContextRefsRef.current = contextRefs;
+        promptSubmissionInProgress.current = true;
+        try {
+          const response = await args.hostClient.request({
+            type: 'session/queued-turn-submit',
+            sessionId,
+            queuedTurnId,
+            userMessageId: clientMessageId,
+            input: buildPromptRequestInput({
+              text: hostPromptText,
+              attachments: promptAttachments,
+              contextRefs: promptContextRefs,
+              agentMode: promptAgentMode,
+              clientMessageId,
+              ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
+            }),
+          });
+          if (!response.success) {
+            setComposer(text);
+            if (paintSnapshotAttachments.length > 0) {
+              pendingAttachmentsRef.current = [...paintSnapshotAttachments];
+              setPendingAttachments([...paintSnapshotAttachments]);
+            }
+            args.dispatch({ type: 'error', message: response.error });
+            return;
+          }
+          disposeComposerAttachments(paintSnapshotAttachments);
+          pendingContextRefsRef.current = [];
+          const data = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
+          if (data?.queuedTurn) {
+            args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
+          }
+          refreshQueuedTurnQueue(sessionId);
+          if (promptRefsSnapshot) {
+            args.consumePendingContextRefs?.(promptRefsSnapshot);
+          } else {
+            args.clearPendingContextRefs?.();
+          }
+        } catch (error) {
+          setComposer(text);
+          if (paintSnapshotAttachments.length > 0) {
+            pendingAttachmentsRef.current = [...paintSnapshotAttachments];
+            setPendingAttachments([...paintSnapshotAttachments]);
+          }
+          args.dispatch({ type: 'error', message: formatError(error) });
+        } finally {
+          promptSubmissionInProgress.current = false;
+        }
+        return;
+      }
+
+      // Paint-first: clear composer and show the user bubble before any IPC.
+      // Session create / prompt ACK stay off the critical input path. A send
+      // with deferred media already ensured the session above.
+      if (deferredSessionId === null) {
+        // Sending consumes the local draft row, if this composer was resumed
+        // from one. The newly created Host session will replace it in the list.
+        removeCurrentDraft();
+        if (wasInDraftMode) {
+          skipDraftSaveRef.current = true;
+          draftTextRef.current = '';
+        }
+      }
+
+      let clientMessageId: string | null = null;
 
       // Chips exactly as painted (deferred saves already resolved to ready).
       // Kept alive until ACK so a failed prompt can restore them intact.
@@ -1640,11 +1730,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       attachmentCopy,
       buildPromptRequestInput,
       clearPendingAttachments,
+      clearComposerForQueuedAdmission,
       composer,
       disposeComposerAttachments,
       markAttachmentUploadStatus,
       paintOptimisticUserSend,
       readResolvedComposerChips,
+      refreshQueuedTurnQueue,
       removeCurrentDraft,
       resolveSessionIdForComposer,
       rollbackOptimisticUserSend,
@@ -1652,41 +1744,50 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     ],
   );
 
-  const updateSteerQueues = useCallback(
-    (update: (current: SteerQueuesBySession) => SteerQueuesBySession): void => {
-      setSteerQueuesBySession((current) => {
-        const next = update(current);
-        steerQueuesBySessionRef.current = next;
-        return next;
-      });
-    },
-    [],
-  );
-
   const handleSteer = useCallback(async (overrideText?: string): Promise<boolean> => {
     const text = (overrideText ?? composer).trim();
-    if (!text || !args.state.activeSessionId || !args.state.streaming) {
+    if (
+      !text ||
+      !args.state.activeSessionId ||
+      !args.state.activeRunId ||
+      !args.state.streaming
+    ) {
       return false;
     }
+    if (promptSubmissionInProgress.current) {
+      return false;
+    }
+    promptSubmissionInProgress.current = true;
     const clientMessageId = crypto.randomUUID();
+    const interventionId = crypto.randomUUID();
     // A steer belongs to the active run, so it must not reset run ownership as
     // a new `user/send` would. It is still a normal user row in the transcript.
     args.dispatch({
       type: 'user/steer',
       text,
       clientMessageId,
+      instructionId: interventionId,
+      targetRunId: args.state.activeRunId,
     });
     if (overrideText === undefined) {
       setComposer('');
     }
     try {
-      const response = await args.hostClient.request({
-        type: 'session/steer',
+      const command = {
+        type: 'run/intervention-submit',
         sessionId: args.state.activeSessionId,
-        message: text,
-        clientMessageId,
-        ...(args.state.activeRunId ? { runId: args.state.activeRunId } : {}),
-      });
+        runId: args.state.activeRunId,
+        interventionId,
+        userMessageId: clientMessageId,
+        input: { text },
+      } as const;
+      let response = await args.hostClient.request(command);
+      if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
+        // Admission may already be durable when the local ACK times out. Retry
+        // once with the same stable identities; Host returns the existing
+        // record instead of ever applying the instruction twice.
+        response = await args.hostClient.request(command);
+      }
       if (!response.success) {
         args.dispatch({ type: 'user/send-rollback', clientMessageId });
         if (overrideText === undefined) {
@@ -1694,6 +1795,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
         args.dispatch({ type: 'error', message: response.error });
         return false;
+      }
+      const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
+      if (responseData?.intervention !== undefined) {
+        args.dispatch({
+          type: 'run/intervention-updated',
+          intervention: responseData.intervention,
+        });
       }
       return true;
     } catch (error) {
@@ -1703,6 +1811,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
       args.dispatch({ type: 'error', message: formatError(error) });
       return false;
+    } finally {
+      promptSubmissionInProgress.current = false;
     }
   }, [args, composer]);
 
@@ -1717,137 +1827,175 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     ) {
       return;
     }
-    const message: SteerQueueMessage = {
-      id: crypto.randomUUID(),
-      text,
-      createdAt: new Date().toISOString(),
-    };
-    updateSteerQueues((current) => appendSteerQueueMessage(current, sessionId, message));
+    if (promptSubmissionInProgress.current) {
+      return;
+    }
+    promptSubmissionInProgress.current = true;
+    const queuedTurnId = crypto.randomUUID();
+    const userMessageId = crypto.randomUUID();
     setComposer('');
-  }, [args.state.activeSessionId, args.state.streaming, composer, updateSteerQueues]);
+    void args.hostClient
+      .request({
+        type: 'session/queued-turn-submit',
+        sessionId,
+        queuedTurnId,
+        userMessageId,
+        input: buildPromptRequestInput({
+          text,
+          attachments: [],
+          contextRefs: [],
+          agentMode: args.agentMode,
+          clientMessageId: userMessageId,
+        }),
+      })
+      .then((response) => {
+        if (!response.success) {
+          args.dispatch({ type: 'error', message: response.error });
+          setComposer(text);
+          return;
+        }
+        const queuedTurn = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
+          ?.queuedTurn;
+        if (queuedTurn) {
+          args.dispatch({ type: 'session/queued-turn-updated', queuedTurn });
+        }
+        refreshQueuedTurnQueue(sessionId);
+      })
+      .catch((error: unknown) => {
+        args.dispatch({ type: 'error', message: formatError(error) });
+        setComposer(text);
+      })
+      .finally(() => {
+        promptSubmissionInProgress.current = false;
+      });
+  }, [args, buildPromptRequestInput, composer, refreshQueuedTurnQueue]);
+
+  const hostQueueForActiveSession = args.state.activeSessionId
+    ? (args.state.queuedTurnsBySession[args.state.activeSessionId] ?? [])
+    : [];
 
   const handleSteerQueueEdit = useCallback(
     (messageId: string, text: string): void => {
       const sessionId = args.state.activeSessionId;
       if (!sessionId) return;
-      queueDrainBlockedMessageIdRef.current = null;
-      updateSteerQueues((current) =>
-        editSteerQueueMessage(current, sessionId, messageId, text),
+      const queuedTurn = (args.state.queuedTurnsBySession[sessionId] ?? []).find(
+        (item) => item.queuedTurnId === messageId,
       );
+      if (!queuedTurn || queuedTurn.status !== 'pending') return;
+      void args.hostClient
+        .request({
+          type: 'session/queued-turn-edit',
+          sessionId,
+          queuedTurnId: queuedTurn.queuedTurnId,
+          expectedRevision: queuedTurn.revision,
+          input: { ...queuedTurn.input, text, clientMessageId: queuedTurn.userMessageId },
+        })
+        .then((response) => {
+          if (!response.success) {
+            args.dispatch({ type: 'error', message: response.error });
+            return;
+          }
+          const updated = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
+            ?.queuedTurn;
+          if (updated) args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: updated });
+        })
+        .catch((error: unknown) => args.dispatch({ type: 'error', message: formatError(error) }));
     },
-    [args.state.activeSessionId, updateSteerQueues],
+    [args],
   );
 
   const handleSteerQueueRemove = useCallback(
     (messageId: string): void => {
       const sessionId = args.state.activeSessionId;
       if (!sessionId) return;
-      if (queueDrainBlockedMessageIdRef.current === messageId) {
-        queueDrainBlockedMessageIdRef.current = null;
-      }
-      updateSteerQueues((current) => removeSteerQueueMessage(current, sessionId, messageId));
+      const queuedTurn = (args.state.queuedTurnsBySession[sessionId] ?? []).find(
+        (item) => item.queuedTurnId === messageId,
+      );
+      if (!queuedTurn || queuedTurn.status !== 'pending') return;
+      void args.hostClient
+        .request({
+          type: 'session/queued-turn-cancel',
+          sessionId,
+          queuedTurnId: queuedTurn.queuedTurnId,
+          expectedRevision: queuedTurn.revision,
+        })
+        .then((response) => {
+          if (!response.success) {
+            args.dispatch({ type: 'error', message: response.error });
+            return;
+          }
+          const cancelled = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
+            ?.queuedTurn;
+          if (cancelled) {
+            args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: cancelled });
+          }
+        })
+        .catch((error: unknown) => args.dispatch({ type: 'error', message: formatError(error) }));
     },
-    [args.state.activeSessionId, updateSteerQueues],
+    [args],
   );
 
   const handleSteerQueueSendNow = useCallback(
     async (messageId: string): Promise<void> => {
       const sessionId = args.state.activeSessionId;
-      if (!sessionId || !args.state.streaming) return;
-      const message = (steerQueuesBySessionRef.current[sessionId] ?? []).find(
-        (item) => item.id === messageId,
+      if (!sessionId) return;
+      const queuedTurns = args.state.queuedTurnsBySession[sessionId] ?? [];
+      const target = queuedTurns.find(
+        (item) => item.queuedTurnId === messageId && item.status === 'pending',
       );
-      if (!message || steerQueueSendNowInProgressRef.current.has(messageId)) return;
-      steerQueueSendNowInProgressRef.current.add(messageId);
-      try {
-        const accepted = await handleSteer(message.text);
-        if (accepted) {
-          if (queueDrainBlockedMessageIdRef.current === messageId) {
-            queueDrainBlockedMessageIdRef.current = null;
-          }
-          updateSteerQueues((current) =>
-            removeSteerQueueMessage(current, sessionId, messageId),
-          );
-        }
-      } finally {
-        steerQueueSendNowInProgressRef.current.delete(messageId);
+      if (!target) return;
+      const ordered = queuedTurns
+        .filter((item) => item.status === 'pending')
+        .sort((left, right) => left.sequence - right.sequence)
+        .map((item) => item.queuedTurnId)
+        .filter((id) => id !== messageId);
+      ordered.unshift(messageId);
+      const response = await args.hostClient.request({
+        type: 'session/queued-turn-reorder',
+        sessionId,
+        expectedQueueRevision: args.state.queuedTurnQueueRevisions[sessionId] ?? 0,
+        orderedQueuedTurnIds: ordered,
+      });
+      if (!response.success) {
+        args.dispatch({ type: 'error', message: response.error });
+        return;
       }
-    },
-    [args.state.activeSessionId, args.state.streaming, handleSteer, updateSteerQueues],
-  );
-
-  const submitQueuedPrompt = useCallback(
-    async (sessionId: string, message: SteerQueueMessage): Promise<boolean> => {
-      const clientMessageId = crypto.randomUUID();
-      args.dispatch({ type: 'user/send', text: message.text, clientMessageId });
-      try {
-        const response = await args.hostClient.request({
-          type: 'session/prompt',
+      const data = response.data as
+        | { queueRevision?: number; queuedTurns?: QueuedTurnRecord[] }
+        | undefined;
+      if (data?.queuedTurns && typeof data.queueRevision === 'number') {
+        args.dispatch({
+          type: 'session/queued-turns-hydrate',
           sessionId,
-          input: buildPromptRequestInput({
-            text: message.text,
-            attachments: [],
-            contextRefs: [],
-            agentMode: args.agentMode,
-            clientMessageId,
-          }),
+          queueRevision: data.queueRevision,
+          queuedTurns: data.queuedTurns,
         });
-        if (!response.success) {
-          args.dispatch({ type: 'user/send-rollback', clientMessageId });
-          args.dispatch({ type: 'error', message: response.error });
-          return false;
-        }
-        applyAcceptedRun(response.data);
-        return true;
-      } catch (error) {
-        args.dispatch({ type: 'user/send-rollback', clientMessageId });
-        args.dispatch({ type: 'error', message: formatError(error) });
-        return false;
       }
     },
-    [applyAcceptedRun, args, buildPromptRequestInput],
+    [args],
   );
 
-  useEffect(() => {
-    const sessionId = args.state.activeSessionId;
-    if (
-      !sessionId ||
-      args.state.streaming ||
-      args.state.runPhase !== 'idle' ||
-      args.state.workingSessionIds[sessionId] === true ||
-      queueDrainInProgressRef.current
-    ) {
-      return;
-    }
-    const nextMessage = steerQueuesBySessionRef.current[sessionId]?.[0];
-    if (!nextMessage || queueDrainBlockedMessageIdRef.current === nextMessage.id) {
-      return;
-    }
-    queueDrainInProgressRef.current = true;
-    void submitQueuedPrompt(sessionId, nextMessage).then((accepted) => {
-      if (accepted) {
-        updateSteerQueues((current) =>
-          removeSteerQueueMessage(current, sessionId, nextMessage.id),
-        );
-      } else {
-        queueDrainBlockedMessageIdRef.current = nextMessage.id;
-      }
-      queueDrainInProgressRef.current = false;
-    });
-  }, [
-    args.state.activeSessionId,
-    args.state.runPhase,
-    args.state.runTerminal.kind,
-    args.state.streaming,
-    args.state.workingSessionIds,
-    steerQueuesBySession,
-    submitQueuedPrompt,
-    updateSteerQueues,
-  ]);
-
-  const steerQueueMessages = args.state.activeSessionId
-    ? (steerQueuesBySession[args.state.activeSessionId] ?? [])
-    : [];
+  const steerQueueMessages: SteerQueueMessage[] =
+    hostQueueForActiveSession.length > 0 ||
+    (args.state.activeSessionId !== null &&
+      Object.prototype.hasOwnProperty.call(
+        args.state.queuedTurnsBySession,
+        args.state.activeSessionId,
+      ))
+      ? hostQueueForActiveSession
+          .filter(
+            (item): item is QueuedTurnRecord & { status: 'pending' | 'starting' } =>
+              item.status === 'pending' || item.status === 'starting',
+          )
+          .sort((left, right) => left.sequence - right.sequence)
+          .map((item) => ({
+            id: item.queuedTurnId,
+            text: item.input.text,
+            createdAt: item.submittedAt,
+            revision: item.revision,
+            status: item.status,
+          }))
+      : [];
 
   return {
     composer,

@@ -254,6 +254,87 @@ describe('MockHostBackend run lifecycle', () => {
   });
 });
 
+describe('MockHostBackend queued turns', () => {
+  it('persists a next-turn request and drains it only after the foreground terminal push', async () => {
+    const pushes: HostPush[] = [];
+    const backend = new MockHostBackend(
+      (message) => pushes.push(message),
+      () => 'sdk',
+    );
+    const created = await backend.handle(
+      { type: 'session/create', input: { projectPath: '/tmp/mock-queue' } },
+      'queue-create',
+    );
+    expect(created.success).toBe(true);
+    if (!created.success) return;
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const prompt = await backend.handle(
+      { type: 'session/prompt', sessionId, input: { text: '__PIWIN_RENDER_STRESS__' } },
+      'queue-prompt',
+    );
+    expect(prompt.success).toBe(true);
+    if (!prompt.success) return;
+    const activeRunId = (prompt.data as { runId: string }).runId;
+    await waitForPush(
+      pushes,
+      (push) => push.type === 'run/updated' && push.run.runId === activeRunId && push.run.phase === 'streaming',
+    );
+
+    const queued = await backend.handle(
+      {
+        type: 'session/queued-turn-submit',
+        sessionId,
+        queuedTurnId: 'queued-next',
+        userMessageId: 'queued-user',
+        input: { text: 'next task' },
+      },
+      'queue-submit',
+    );
+    expect(queued).toMatchObject({ success: true, data: { queuedTurn: { status: 'pending' } } });
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'session/queued-turn-updated' &&
+          push.queuedTurn.queuedTurnId === 'queued-next' &&
+          push.queuedTurn.status === 'pending',
+      ),
+    ).toBe(true);
+
+    const aborted = await backend.handle(
+      { type: 'session/abort', sessionId, runId: activeRunId },
+      'queue-abort',
+    );
+    expect(aborted).toMatchObject({ success: true, data: { cancelled: true } });
+    await waitForPush(
+      pushes,
+      (push) => push.type === 'session/queued-turn-updated' && push.queuedTurn.status === 'started',
+    );
+    const queue = await backend.handle(
+      { type: 'session/queued-turn-list', sessionId },
+      'queue-list',
+    );
+    expect(queue).toMatchObject({
+      success: true,
+      data: { queuedTurns: [expect.objectContaining({ status: 'started', startedRunId: expect.any(String) })] },
+    });
+    const transcript = await backend.handle(
+      { type: 'session/messages', sessionId },
+      'queue-messages',
+    );
+    expect(transcript).toMatchObject({
+      success: true,
+      data: {
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'queued-user',
+            instructionDelivery: expect.objectContaining({ kind: 'queued-turn', status: 'started' }),
+          }),
+        ]),
+      },
+    });
+  });
+});
+
 describe('MockHostBackend product session lineage', () => {
   it('exposes fork origins through session/lineage', async () => {
     const pushes: HostPush[] = [];

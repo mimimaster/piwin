@@ -28,6 +28,10 @@ import {
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import { normalizeAgentEventIds } from '../generation-identity.js';
+import {
+  createRunInterventionStager,
+  type PiRunInterventionSession,
+} from '../run-intervention-stager.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -150,9 +154,15 @@ export async function createBackendSdkSession(
     await bindExtensionUiToPiSession(result.session, bridgedContext);
   }
 
-  return wrapBackendPiSession(result.session, input, modelRuntime, (runId) => {
-    activeRunId = runId;
-  });
+  return wrapBackendPiSession(
+    result.session,
+    input,
+    modelRuntime,
+    (runId) => {
+      activeRunId = runId;
+    },
+    () => activeRunId,
+  );
 }
 
 async function createBackendModelRuntime(
@@ -207,8 +217,17 @@ function wrapBackendPiSession(
   input: CreateBackendSessionInput,
   modelRuntime: PiModelRuntime,
   setActiveRunId: (runId: string | undefined) => void,
+  getActiveRunId: () => string | undefined,
 ): BackendSessionHandle {
   const eventMapper = createPiSessionEventMapper();
+  const interventionStager = piSession.agent
+    ? createRunInterventionStager({
+        session: piSession as PiRunInterventionSession,
+        sessionId: input.blueprint.sessionId,
+        runtimeGenerationId: input.blueprint.runtimeGenerationId,
+        getActiveRunId,
+      })
+    : undefined;
   return {
     id: input.blueprint.sessionId,
     async prompt(preparedPrompt: BackendPreparedPrompt) {
@@ -250,6 +269,9 @@ function wrapBackendPiSession(
           await piSession.prompt(preparedPrompt.text);
         }
       } finally {
+        if (preparedPrompt.runId !== undefined) {
+          await interventionStager?.settleRun(preparedPrompt.runId);
+        }
         setActiveRunId(undefined);
       }
     },
@@ -266,6 +288,14 @@ function wrapBackendPiSession(
       }
       await piSession.prompt(message);
     },
+    ...(interventionStager
+      ? {
+          armRunIntervention: (intervention) => interventionStager.arm(intervention),
+          cancelRunIntervention: (interventionId, expectedRevision) =>
+            interventionStager.cancel(interventionId, expectedRevision),
+          subscribeRunInterventions: (listener) => interventionStager.subscribe(listener),
+        }
+      : {}),
     async abort() {
       try {
         await piSession.abort?.();
@@ -312,6 +342,8 @@ function wrapBackendPiSession(
 }
 
 type PiLikeSession = {
+  agent?: PiRunInterventionSession['agent'];
+  readonly isStreaming?: boolean;
   prompt: (
     text: string,
     options?: {

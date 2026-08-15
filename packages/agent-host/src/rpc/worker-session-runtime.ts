@@ -9,6 +9,9 @@
 
 import type {
   AgentEvent,
+  BackendRunIntervention,
+  BackendRunInterventionEvent,
+  BackendRunInterventionEventResult,
   ExtensionUiPort,
   SessionCompactResult,
   SessionSeedMessage,
@@ -31,6 +34,9 @@ import type {
   WorkerToolResultFrame,
   WorkerExtensionUiRequestFrame,
   WorkerExtensionUiResponseFrame,
+  WorkerInterventionPermitFrame,
+  WorkerInterventionClaimFrame,
+  WorkerInterventionEventFrame,
 } from '../rpc-sdk-worker-protocol.js';
 import { buildWorkerProxyTools } from './worker-proxy-tool-factory.js';
 import {
@@ -58,10 +64,18 @@ export type WorkerPiSessionLike = {
   compact?: (customInstructions?: string) => Promise<SessionCompactResult>;
   abortCompaction?: () => void;
   subscribe: (listener: (raw: unknown) => void) => () => void;
+  setActiveRunId?(runId: string | undefined): void;
+  armRunIntervention?(intervention: BackendRunIntervention): Promise<void>;
+  cancelRunIntervention?(interventionId: string, expectedRevision: number): Promise<boolean>;
+  subscribeRunInterventions?(
+    listener: (event: BackendRunInterventionEvent) => Promise<BackendRunInterventionEventResult>,
+  ): () => void;
+  settleRunInterventions?(runId: string): Promise<void>;
 };
 
 export type CreateWorkerPiSessionInput = {
   productSessionId: string;
+  runtimeGenerationId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableWorkerProviderRuntime[];
   seedMessages?: readonly SessionSeedMessage[];
@@ -79,7 +93,13 @@ export type CreateWorkerPiSessionInput = {
 export type WorkerSessionRuntimeOptions = {
   /** Frame sink to stdout (responses, events, tool-call proxies). */
   sendFrame: (
-    frame: WorkerResponse | WorkerEvent | WorkerToolCallFrame | WorkerExtensionUiRequestFrame,
+    frame:
+      | WorkerResponse
+      | WorkerEvent
+      | WorkerToolCallFrame
+      | WorkerExtensionUiRequestFrame
+      | WorkerInterventionClaimFrame
+      | WorkerInterventionEventFrame,
   ) => void;
   /** Creates a Pi session inside this process from the exact blueprint. */
   createPiSession: (input: CreateWorkerPiSessionInput) => Promise<WorkerPiSessionLike>;
@@ -101,6 +121,7 @@ type RuntimeSession = {
   unsubscribe: () => void;
   context: Pick<WorkerFrameContext, 'sessionId' | 'runtimeGenerationId'>;
   activeRunId: string | undefined;
+  unsubscribeInterventions?: () => void;
 };
 
 type PendingToolCall = {
@@ -126,6 +147,14 @@ export class WorkerSessionRuntime {
   private readonly sessionToolCallControllers = new Map<string, Set<AbortController>>();
   private readonly pendingExtensionUiRequests = new Map<string, PendingExtensionUiRequest>();
   private readonly requestContexts = new Map<string, WorkerFrameContext>();
+  private readonly pendingInterventionClaims = new Map<
+    string,
+    {
+      resolve: (accepted: boolean) => void;
+      context: WorkerFrameContext;
+      timeout: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   constructor(options: WorkerSessionRuntimeOptions) {
     this.options = options;
@@ -156,6 +185,12 @@ export class WorkerSessionRuntime {
         case 'session/follow-up':
           await this.handleFollowUp(id, payload, request.context);
           break;
+        case 'session/intervention-arm':
+          await this.handleInterventionArm(id, payload, request.context);
+          break;
+        case 'session/intervention-cancel':
+          await this.handleInterventionCancel(id, payload, request.context);
+          break;
         case 'session/compact':
           await this.handleCompact(id, payload, request.context);
           break;
@@ -176,6 +211,20 @@ export class WorkerSessionRuntime {
       const message = formatError(error);
       this.sendResponse(id, false, undefined, message);
     }
+  }
+
+  handleInterventionPermit(frame: WorkerInterventionPermitFrame): void {
+    const pending = this.pendingInterventionClaims.get(frame.id);
+    if (
+      pending === undefined ||
+      pending.context.sessionId !== frame.context.sessionId ||
+      pending.context.runtimeGenerationId !== frame.context.runtimeGenerationId
+    ) {
+      return;
+    }
+    this.pendingInterventionClaims.delete(frame.id);
+    clearTimeout(pending.timeout);
+    pending.resolve(frame.accepted);
   }
 
   private async handleCreateBlueprint(
@@ -204,6 +253,7 @@ export class WorkerSessionRuntime {
     const proxyTools = this.buildProxyTools(payload.blueprint, payload.productSessionId);
     const handle = await this.options.createPiSession({
       productSessionId: payload.productSessionId,
+      runtimeGenerationId: context.runtimeGenerationId,
       blueprint: payload.blueprint,
       ...(payload.providers ? { providers: payload.providers } : {}),
       ...(payload.seedMessages ? { seedMessages: payload.seedMessages } : {}),
@@ -298,6 +348,7 @@ export class WorkerSessionRuntime {
     const session = this.requireSession(payload.sessionId);
     this.assertSessionContext(session, context);
     session.activeRunId = context.runId;
+    session.handle.setActiveRunId?.(context.runId);
     const options =
       payload.images && payload.images.length > 0
         ? {
@@ -319,6 +370,10 @@ export class WorkerSessionRuntime {
         Object.keys(promptOptions).length > 0 ? promptOptions : undefined,
       );
     } finally {
+      if (context.runId !== undefined) {
+        await session.handle.settleRunInterventions?.(context.runId);
+      }
+      session.handle.setActiveRunId?.(undefined);
       session.activeRunId = undefined;
     }
     this.sendResponse(id, true, {});
@@ -370,6 +425,34 @@ export class WorkerSessionRuntime {
     this.sendResponse(id, true, {});
   }
 
+  private async handleInterventionArm(
+    id: string,
+    payload: Extract<WorkerRequestPayload, { method: 'session/intervention-arm' }>,
+    context: WorkerFrameContext,
+  ): Promise<void> {
+    const session = this.requireSession(payload.sessionId);
+    this.assertSessionContext(session, context);
+    if (!session.handle.armRunIntervention) {
+      throw new Error('session does not support run interventions');
+    }
+    await session.handle.armRunIntervention(payload.intervention);
+    this.sendResponse(id, true, {});
+  }
+
+  private async handleInterventionCancel(
+    id: string,
+    payload: Extract<WorkerRequestPayload, { method: 'session/intervention-cancel' }>,
+    context: WorkerFrameContext,
+  ): Promise<void> {
+    const session = this.requireSession(payload.sessionId);
+    this.assertSessionContext(session, context);
+    const cancelled = await session.handle.cancelRunIntervention?.(
+      payload.interventionId,
+      payload.expectedRevision,
+    );
+    this.sendResponse(id, true, { cancelled: cancelled === true });
+  }
+
   private async handleCompact(
     id: string,
     payload: Extract<WorkerRequestPayload, { method: 'session/compact' }>,
@@ -406,6 +489,7 @@ export class WorkerSessionRuntime {
     if (session) {
       this.assertSessionContext(session, context);
       session.unsubscribe();
+      session.unsubscribeInterventions?.();
       this.deleteSessionAliases(session);
     }
     if (session) {
@@ -556,6 +640,40 @@ export class WorkerSessionRuntime {
     if (handle.id !== sessionId) {
       this.sessions.set(handle.id, session);
     }
+    if (handle.subscribeRunInterventions) {
+      session.unsubscribeInterventions = handle.subscribeRunInterventions(async (event) => {
+        const eventContext: WorkerFrameContext = {
+          sessionId,
+          runtimeGenerationId: context.runtimeGenerationId,
+          runId: event.runId,
+        };
+        if (event.type !== 'claim') {
+          this.options.sendFrame({
+            type: 'intervention-event',
+            context: eventContext,
+            event,
+          });
+          return { accepted: true };
+        }
+        const claimId = `${event.interventionId}:${event.revision}:${Date.now().toString(36)}`;
+        const accepted = await new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => {
+            const pending = this.pendingInterventionClaims.get(claimId);
+            if (pending === undefined) return;
+            this.pendingInterventionClaims.delete(claimId);
+            pending.resolve(false);
+          }, 5_000);
+          this.pendingInterventionClaims.set(claimId, { resolve, context: eventContext, timeout });
+          this.options.sendFrame({
+            type: 'intervention-claim',
+            id: claimId,
+            context: eventContext,
+            event,
+          });
+        });
+        return { accepted };
+      });
+    }
   }
 
   private requireSession(sessionId: string): RuntimeSession {
@@ -607,6 +725,13 @@ export class WorkerSessionRuntime {
       if (pending.sessionId !== session.productSessionId) continue;
       this.pendingExtensionUiRequests.delete(requestId);
       pending.reject(droppedSessionError);
+    }
+
+    for (const [claimId, pending] of this.pendingInterventionClaims) {
+      if (pending.context.sessionId !== session.productSessionId) continue;
+      this.pendingInterventionClaims.delete(claimId);
+      clearTimeout(pending.timeout);
+      pending.resolve(false);
     }
   }
 

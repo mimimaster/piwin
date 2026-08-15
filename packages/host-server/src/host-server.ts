@@ -27,6 +27,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_MAX_ITEMS,
   SESSION_USER_MESSAGE_INDEX_MAX_TICKS,
   SESSION_USER_MESSAGE_INDEX_MIN_TICKS,
+  QUEUED_TURN_MAX_TEXT_BYTES,
   isSupportedAttachmentMimeType,
 } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
@@ -115,6 +116,12 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/transcript-page',
   'session/transcript-window',
   'session/messages',
+  'session/queued-turn-submit',
+  'session/queued-turn-list',
+  'session/queued-turn-edit',
+  'session/queued-turn-cancel',
+  'session/queued-turn-reorder',
+  'session/replace-run',
   'session/model-context-summary',
   'session/prompt',
   'session/pause',
@@ -122,6 +129,9 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/abort',
   'session/steer',
   'session/follow_up',
+  'run/intervention-submit',
+  'run/intervention-edit',
+  'run/intervention-cancel',
   'session/runtime-status',
   'session/pin',
   'session/unpin',
@@ -186,7 +196,7 @@ export class HostServer {
         this.runtime.attachPushSink({
           id: sink.id,
           sequenced: false,
-          push: (message) => sink.push(projectRemotePush(message)),
+          push: (message) => sink.push(projectRemotePush(message, this.projectionContext())),
         }),
       ...(options.maxReplay === undefined
         ? {}
@@ -587,6 +597,10 @@ export class HostServer {
     const sessions = await this.loadHydrationSessions(context);
     const requestedSessionIds = normalizeHydrationSessionIds(subscriptions?.sessionIds);
     const messagesBySession: Record<string, RemoteTranscriptMessage[]> = {};
+    const queuedTurnsBySession: Record<
+      string,
+      import('@piwin/contracts').QueuedTurnRecord[]
+    > = {};
     const truncatedSessionIds: string[] = [];
 
     for (const sessionId of requestedSessionIds) {
@@ -604,6 +618,17 @@ export class HostServer {
           truncatedSessionIds.push(sessionId);
         }
         messagesBySession[sessionId] = boundedMessages;
+        const queueCommand = { type: 'session/queued-turn-list' as const, sessionId };
+        const queueResponse = await this.runtime.handleCommand(queueCommand);
+        const projectedQueue = projectRemoteResponse(queueCommand, queueResponse, context);
+        const queueData = projectedQueue.success ? projectedQueue.data : undefined;
+        const queueRecords =
+          queueData !== null && typeof queueData === 'object' && 'queuedTurns' in queueData
+            ? (queueData as { queuedTurns?: unknown }).queuedTurns
+            : undefined;
+        if (Array.isArray(queueRecords)) {
+          queuedTurnsBySession[sessionId] = queueRecords as import('@piwin/contracts').QueuedTurnRecord[];
+        }
       } catch (error) {
         this.onError(toError(error, `Unable to hydrate session ${sessionId}`));
       }
@@ -616,6 +641,7 @@ export class HostServer {
       status,
       sessions,
       messagesBySession,
+      queuedTurnsBySession,
       truncatedSessionIds,
     };
     return fitHydrationFrame({ type: 'hydration', reason, snapshot });
@@ -645,6 +671,7 @@ export class HostServer {
       hostInstanceId: this.instanceId,
       mode: this.mode,
       capabilities: this.capabilities,
+      remoteMediaPaths: this.remoteMediaPaths,
     };
   }
 
@@ -802,6 +829,36 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         (command.input.contextRefs === undefined || command.input.contextRefs.length === 0) &&
         command.input.text.length <= 512_000
       );
+    case 'session/queued-turn-submit':
+      return isSafeQueuedTurnCommand(command.sessionId, command.queuedTurnId, command.userMessageId, command.input);
+    case 'session/queued-turn-edit':
+      return (
+        isSafeQueuedTurnCommand(command.sessionId, command.queuedTurnId, undefined, command.input) &&
+        Number.isSafeInteger(command.expectedRevision) &&
+        command.expectedRevision > 0
+      );
+    case 'session/queued-turn-list':
+      return isSafeRemoteId(command.sessionId);
+    case 'session/queued-turn-cancel':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.queuedTurnId) &&
+        Number.isSafeInteger(command.expectedRevision) &&
+        command.expectedRevision > 0
+      );
+    case 'session/queued-turn-reorder':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        Number.isSafeInteger(command.expectedQueueRevision) &&
+        command.expectedQueueRevision >= 0 &&
+        command.orderedQueuedTurnIds.length <= 20 &&
+        command.orderedQueuedTurnIds.every(isSafeRemoteId)
+      );
+    case 'session/replace-run':
+      return (
+        isSafeQueuedTurnCommand(command.sessionId, command.queuedTurnId, command.userMessageId, command.input) &&
+        isSafeRemoteId(command.runId)
+      );
     case 'session/steer':
       return (
         command.message.length <= 512_000 &&
@@ -811,6 +868,45 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
       return (
         command.message.length <= 512_000 &&
         (command.clientMessageId === undefined || command.clientMessageId.length <= 256)
+      );
+    case 'run/intervention-submit':
+      return (
+        command.sessionId.length > 0 &&
+        command.sessionId.length <= 256 &&
+        command.runId.length > 0 &&
+        command.runId.length <= 256 &&
+        command.interventionId.length > 0 &&
+        command.interventionId.length <= 256 &&
+        command.userMessageId.length > 0 &&
+        command.userMessageId.length <= 256 &&
+        command.input.text.length <= 64 * 1024 &&
+        (command.input.attachments === undefined || command.input.attachments.length === 0) &&
+        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0)
+      );
+    case 'run/intervention-edit':
+      return (
+        command.sessionId.length > 0 &&
+        command.sessionId.length <= 256 &&
+        command.runId.length > 0 &&
+        command.runId.length <= 256 &&
+        command.interventionId.length > 0 &&
+        command.interventionId.length <= 256 &&
+        Number.isSafeInteger(command.expectedRevision) &&
+        command.expectedRevision > 0 &&
+        command.input.text.length <= 64 * 1024 &&
+        (command.input.attachments === undefined || command.input.attachments.length === 0) &&
+        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0)
+      );
+    case 'run/intervention-cancel':
+      return (
+        command.sessionId.length > 0 &&
+        command.sessionId.length <= 256 &&
+        command.runId.length > 0 &&
+        command.runId.length <= 256 &&
+        command.interventionId.length > 0 &&
+        command.interventionId.length <= 256 &&
+        Number.isSafeInteger(command.expectedRevision) &&
+        command.expectedRevision > 0
       );
     case 'media/save':
       return (
@@ -876,9 +972,15 @@ function resolveRemoteCommand(
   command: HostCommand,
   remoteMediaPaths: Map<string, string>,
 ): HostCommand {
-  if (command.type !== 'session/prompt' || command.input.attachments === undefined) {
+  if (
+    command.type !== 'session/prompt' &&
+    command.type !== 'session/queued-turn-submit' &&
+    command.type !== 'session/queued-turn-edit' &&
+    command.type !== 'session/replace-run'
+  ) {
     return command;
   }
+  if (command.input.attachments === undefined) return command;
   const attachments = command.input.attachments.map((attachment) => {
     if (attachment.kind !== 'media' || !attachment.path.startsWith('remote-asset:')) {
       return attachment;
@@ -891,6 +993,29 @@ function resolveRemoteCommand(
     return { ...attachment, path: absolutePath } satisfies MediaAttachmentRef;
   });
   return { ...command, input: { ...command.input, attachments } };
+}
+
+function isSafeQueuedTurnCommand(
+  sessionId: string,
+  queuedTurnId: string,
+  userMessageId: string | undefined,
+  input: import('@piwin/contracts').PromptInput,
+): boolean {
+  return (
+    isSafeRemoteId(sessionId) &&
+    isSafeRemoteId(queuedTurnId) &&
+    (userMessageId === undefined || isSafeRemoteId(userMessageId)) &&
+    Buffer.byteLength(input.text, 'utf8') <= QUEUED_TURN_MAX_TEXT_BYTES &&
+    (input.attachments === undefined ||
+      (input.attachments.length <= 8 && input.attachments.every(isSafeRemoteAttachment))) &&
+    (input.contextRefs === undefined || input.contextRefs.length === 0) &&
+    input.source === undefined &&
+    input.resumeCheckpointId === undefined
+  );
+}
+
+function isSafeRemoteId(value: string): boolean {
+  return value.length > 0 && value.length <= 256;
 }
 
 function isSafeRemoteAttachment(attachment: PromptAttachment): boolean {

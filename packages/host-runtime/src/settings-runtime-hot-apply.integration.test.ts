@@ -41,7 +41,7 @@ describe('settings to runtime hot apply', () => {
       if (!beforeResponse.success) throw new Error(beforeResponse.error);
       const before = (
         beforeResponse.data as {
-          snapshot: { revision: string; config: PiwinConfig };
+          snapshot: { revision: string; runtimeRevision: string; config: PiwinConfig };
         }
       ).snapshot;
       if (!before.config.web) throw new Error('default Web config missing');
@@ -73,7 +73,8 @@ describe('settings to runtime hot apply', () => {
       });
       expect(applied.success).toBe(true);
       if (!applied.success) throw new Error(applied.error);
-      const targetRevision = (applied.data as { snapshot: { revision: string } }).snapshot.revision;
+      const targetRevision = (applied.data as { snapshot: { runtimeRevision: string } }).snapshot
+        .runtimeRevision;
 
       await vi.waitFor(async () => {
         const statusResponse = await runtime.handleCommand({
@@ -112,6 +113,89 @@ describe('settings to runtime hot apply', () => {
         expect(assistants.length).toBeGreaterThan(assistantCountBeforeReplacementPrompt);
         expect(assistants.at(-1)?.text).toContain('[piwin-product-history]');
       });
+    } finally {
+      await runtime.dispose();
+      await rm(piwinRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not reject a cross-provider switch after Desktop composer persistence', async () => {
+    const piwinRoot = await mkdtemp(join(tmpdir(), 'piwin-desktop-revision-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot });
+    try {
+      const created = await runtime.handleCommand({
+        type: 'session/create',
+        input: { scope: { kind: 'general' } },
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) throw new Error(created.error);
+      const sessionId = (created.data as { sessionId: string }).sessionId;
+
+      const firstPrompt = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: {
+          text: 'first provider turn',
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'provider-a',
+            modelId: 'model-a',
+          },
+        },
+      });
+      expect(firstPrompt.success).toBe(true);
+
+      const beforeResponse = await runtime.handleCommand({ type: 'settings/get' });
+      expect(beforeResponse.success).toBe(true);
+      if (!beforeResponse.success) throw new Error(beforeResponse.error);
+      const before = (
+        beforeResponse.data as {
+          snapshot: { revision: string; runtimeRevision: string; config: PiwinConfig };
+        }
+      ).snapshot;
+      const applied = await runtime.handleCommand({
+        type: 'settings/apply',
+        input: {
+          expectedRevision: before.revision,
+          mutations: [
+            {
+              kind: 'replace-domain',
+              domain: 'desktop',
+              value: {
+                ...before.config.desktop,
+                composerProfile: {
+                  model: {
+                    protocol: 'openai-compatible',
+                    providerId: 'provider-b',
+                    modelId: 'model-b',
+                  },
+                  thinkingLevel: 'high',
+                },
+              },
+            },
+          ],
+        },
+      });
+      expect(applied.success).toBe(true);
+      if (!applied.success) throw new Error(applied.error);
+      const after = (applied.data as { snapshot: { revision: string; runtimeRevision: string } })
+        .snapshot;
+      expect(after.revision).not.toBe(before.revision);
+      expect(after.runtimeRevision).toBe(before.runtimeRevision);
+
+      const secondPrompt = await runtime.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: {
+          text: 'switch to the second provider',
+          model: {
+            protocol: 'anthropic-compatible',
+            providerId: 'provider-b',
+            modelId: 'model-b',
+          },
+        },
+      });
+      expect(secondPrompt.success, JSON.stringify(secondPrompt)).toBe(true);
     } finally {
       await runtime.dispose();
       await rm(piwinRoot, { recursive: true, force: true });

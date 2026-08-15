@@ -71,7 +71,7 @@ describe('SteerQueue', () => {
     expect(container.querySelector('[data-testid="steer-queue"]')).not.toBeNull();
     expect(container.querySelector('.steer-queue-title')?.textContent).toBe('Up next');
     expect(container.querySelector('.steer-queue-count')?.textContent).toBe('2');
-    expect(container.textContent).toContain('Sent in order after this response');
+    expect(container.textContent).toContain('Sent in order after this run');
     expect(container.textContent).toContain('Check the failing test first');
     expect(container.textContent).toContain('Then summarize the root cause');
   });

@@ -97,7 +97,10 @@ export type SettingsMutation = ReplaceSettingsDomainMutation;
 
 export type SettingsSnapshot = {
   schemaVersion: typeof PIWIN_SETTINGS_SCHEMA_VERSION;
+  /** Revision of the complete persisted settings document (CAS token). */
   revision: string;
+  /** Revision of settings that require a new Agent Runtime generation. */
+  runtimeRevision: string;
   config: PiwinConfig;
 };
 

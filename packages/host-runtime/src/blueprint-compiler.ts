@@ -68,6 +68,7 @@ import {
 } from './capabilities/search-route-resolver.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
+import { createSettingsSnapshot } from './settings/settings-service.js';
 import { discoverContextManifest } from './context-manifest-discovery.js';
 import { formatArtifactCapabilityPrompt } from './artifact-instructions-tool.js';
 import {
@@ -274,7 +275,7 @@ export async function compileBlueprintForWorker(
   // Compute content-based revisions from actual config rather than
   // placeholder 'live' strings. This makes the snapshot id deterministic
   // and enables stale-generation detection after settings changes.
-  const settingsRevision = computeConfigRevision(config);
+  const settingsRevision = createSettingsSnapshot(config).runtimeRevision;
   const rulesRevision =
     options.rulesRevision ?? computePermissionRulesRevision(createBundledRuleSet());
   const projectRevision = computeProjectRevision(location.scope);
@@ -399,42 +400,6 @@ export async function compileBlueprintForWorker(
     productSessionId,
     ...(settingsRevision ? { settingsRevision } : {}),
   };
-}
-
-/** Compute a stable revision string from the config content. */
-function computeConfigRevision(config: PiwinConfig): string {
-  // Hash the config fields that affect runtime behavior. We exclude
-  // volatile fields (like timestamps) by hashing only the structural
-  // config object. The hash is short (first 12 hex chars) for readability.
-  const payload = JSON.stringify({
-    providers:
-      config.providers?.map((provider) => ({
-        id: provider.id,
-        protocol: provider.protocol,
-        baseUrl: provider.baseUrl,
-        models: provider.models?.map((model) => ({
-          id: model.id,
-          reasoning: model.reasoning,
-          thinkingLevels: model.thinkingLevels,
-          nativeSearchAdapter: model.nativeSearchAdapter,
-        })),
-      })) ?? [],
-    permissions: config.permissions,
-    web: config.web,
-    notes: config.notes,
-    flashcards: config.flashcards,
-    imageGeneration: config.imageGeneration,
-    skills: config.skills,
-    extensions: config.extensions,
-    prompts: config.prompts,
-    subagents: config.subagents,
-    automation: config.automation,
-    thinking: config.thinking,
-    visionDelegation: config.visionDelegation,
-    process: config.process,
-    session: config.session,
-  });
-  return createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }
 
 /** Compute a revision from MCP server configuration. */

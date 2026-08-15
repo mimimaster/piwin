@@ -11,12 +11,15 @@ import {
 } from '../sidebar-width';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
-function writeSidebarWidthCss(widthPx: number): void {
-  if (typeof document === 'undefined') {
-    return;
-  }
-  const shell = document.querySelector('.app-shell') as HTMLElement | null;
+function writeSidebarWidthCss(shell: HTMLElement | null, widthPx: number): void {
   shell?.style.setProperty('--sidebar-width', `${widthPx}px`);
+}
+
+function findAppShell(): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  return document.querySelector<HTMLElement>('.app-shell');
 }
 
 export type UseSidebarResizeOptions = {
@@ -39,6 +42,9 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
   const [widthPx, setWidthState] = useState(() => loadSidebarWidth());
   const [isResizing, setIsResizing] = useState(false);
   const widthRef = useRef(widthPx);
+  const shellRef = useRef<HTMLElement | null>(null);
+  const pendingFrameRef = useRef<number | null>(null);
+  const pendingWidthRef = useRef<number | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -50,10 +56,56 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     widthRef.current = widthPx;
   }, [widthPx]);
 
+  const resolveShell = useCallback((): HTMLElement | null => {
+    if (shellRef.current !== null) {
+      return shellRef.current;
+    }
+    shellRef.current = findAppShell();
+    return shellRef.current;
+  }, []);
+
+  const writeLiveWidth = useCallback(
+    (nextWidth: number): void => {
+      writeSidebarWidthCss(resolveShell(), nextWidth);
+    },
+    [resolveShell],
+  );
+
+  const flushPendingWidth = useCallback((): void => {
+    const pendingFrame = pendingFrameRef.current;
+    if (pendingFrame !== null) {
+      cancelAnimationFrame(pendingFrame);
+      pendingFrameRef.current = null;
+    }
+    const pendingWidth = pendingWidthRef.current;
+    pendingWidthRef.current = null;
+    if (pendingWidth !== null) {
+      writeLiveWidth(pendingWidth);
+    }
+  }, [writeLiveWidth]);
+
+  const scheduleLiveWidth = useCallback(
+    (nextWidth: number): void => {
+      pendingWidthRef.current = nextWidth;
+      if (pendingFrameRef.current !== null) {
+        return;
+      }
+      pendingFrameRef.current = requestAnimationFrame(() => {
+        pendingFrameRef.current = null;
+        const pendingWidth = pendingWidthRef.current;
+        pendingWidthRef.current = null;
+        if (pendingWidth !== null) {
+          writeLiveWidth(pendingWidth);
+        }
+      });
+    },
+    [writeLiveWidth],
+  );
+
   // Re-assert after every commit so an unrelated App re-render cannot snap
   // --sidebar-width back to a stale React style value mid-drag.
   useLayoutEffect(() => {
-    writeSidebarWidthCss(widthRef.current);
+    writeLiveWidth(widthRef.current);
   });
 
   const resolveClamp = useCallback(
@@ -71,13 +123,14 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
 
   const setWidthPx = useCallback(
     (next: number) => {
+      flushPendingWidth();
       const clamped = resolveClamp(next);
       widthRef.current = clamped;
-      writeSidebarWidthCss(clamped);
+      writeLiveWidth(clamped);
       setWidthState(clamped);
       saveSidebarWidth(clamped);
     },
-    [resolveClamp],
+    [flushPendingWidth, resolveClamp, writeLiveWidth],
   );
 
   const onResizePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -88,6 +141,8 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     event.stopPropagation();
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
+    shellRef.current = target.closest<HTMLElement>('.app-shell') ?? findAppShell();
+    pendingWidthRef.current = null;
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -115,8 +170,9 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
         return;
       }
       widthRef.current = next;
-      // CSS-only during drag to avoid whole-App re-renders every pointer sample.
-      writeSidebarWidthCss(next);
+      // Coalesce grid writes to one per animation frame to avoid synchronous
+      // layout thrashing on every pointer event.
+      scheduleLiveWidth(next);
     }
 
     function endDrag(event: PointerEvent): void {
@@ -124,9 +180,10 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
       if (!drag || event.pointerId !== drag.pointerId) {
         return;
       }
+      flushPendingWidth();
       dragRef.current = null;
       const commit = widthRef.current;
-      writeSidebarWidthCss(commit);
+      writeLiveWidth(commit);
       setWidthState(commit);
       setTimeout(() => {
         setIsResizing(false);
@@ -140,27 +197,28 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
     return () => {
+      flushPendingWidth();
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing, resolveClamp]);
+  }, [flushPendingWidth, isResizing, resolveClamp, scheduleLiveWidth, writeLiveWidth]);
 
   useEffect(() => {
     function onWindowResize(): void {
       const clamped = resolveClamp(widthRef.current);
       if (clamped !== widthRef.current) {
         widthRef.current = clamped;
-        writeSidebarWidthCss(clamped);
+        writeLiveWidth(clamped);
         setWidthState(clamped);
         saveSidebarWidth(clamped);
       }
     }
     window.addEventListener('resize', onWindowResize);
     return () => window.removeEventListener('resize', onWindowResize);
-  }, [resolveClamp]);
+  }, [resolveClamp, writeLiveWidth]);
 
   return {
     widthPx: clampSidebarWidth(widthPx),

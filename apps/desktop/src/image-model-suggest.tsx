@@ -1,176 +1,66 @@
 /**
  * Image-model suggestion combobox for the Image Generation settings page.
  *
- * Replaces the old "discover → popup all models" flow with a smart dropdown:
- * 1. Fetch Pi's built-in image-generation catalog (35 models, static).
- * 2. Discover the provider's available models (network call).
- * 3. Match Pi image models to discovered models by split name (after last `/`).
- * 4. Dropdown shows matched models + discovered image-like models that are not
- *    in the Pi catalog (SiliconFlow / local gateways).
- * 5. A text button at the bottom reveals remaining Pi catalog models.
- *
- * Selecting a suggestion fills the model-id input with the discovered model id
- * (not the Pi catalog id) so the rest of the form works as before.
+ * Strictly sources from Piwin's own configured provider models (provider.models).
+ * - Default view: ONLY displays enabled models with the image-generation capability.
+ * - View all: expands to display ALL enabled models of the provider (deduplicated).
  */
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import { Spinner } from '@piwin/ui-kit';
-import { formatError } from '@piwin/contracts';
-import type {
-  DiscoveredModel,
-  ImageModelCatalogEntry,
-  ModelProviderConfig,
-} from '@piwin/contracts';
+import { isModelEnabled, type ModelConfigEntry, type ModelProviderConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context.js';
-import {
-  filterSuggestions,
-  matchImageCatalog,
-  type SuggestionMatch,
-} from './image-model-suggest.js';
+import { isImageGenerationModel } from './ImageGenerationSettings.js';
 
 export type ImageModelSuggestProps = {
   value: string;
   onChange: (value: string) => void;
   provider: ModelProviderConfig | null;
   disabled?: boolean;
-  /** Fetch Pi's built-in image-generation catalog. */
-  searchImageModelCatalog: () => Promise<{
-    entries: ImageModelCatalogEntry[];
-    catalogVersion: string;
-  }>;
-  /** Discover models from the provider's API. */
-  discoverProviderModels: (
-    provider: ModelProviderConfig,
-  ) => Promise<{ models: DiscoveredModel[] }>;
-  onDiscoverError?: (message: string) => void;
 };
 
-type SuggestionItem =
-  | { kind: 'matched'; entry: ImageModelCatalogEntry; matchedId: string }
-  | { kind: 'discovered'; modelId: string; label: string }
-  | { kind: 'unmatched'; entry: ImageModelCatalogEntry };
-
 export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
-  const { value, onChange, provider, disabled, searchImageModelCatalog, discoverProviderModels, onDiscoverError } = props;
+  const { value, onChange, provider, disabled } = props;
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const listboxId = useId();
 
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [matched, setMatched] = useState<SuggestionMatch[]>([]);
-  const [unmatched, setUnmatched] = useState<ImageModelCatalogEntry[]>([]);
-  const [discoveredOnly, setDiscoveredOnly] = useState<
-    Array<{ modelId: string; label: string }>
-  >([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const loadedProviderIdRef = useRef<string | null>(null);
 
-  // Load + match when the dropdown opens or the provider changes.
+  // Extract all enabled and deduplicated models from the current provider.
+  const providerModels = useMemo(() => {
+    if (!provider?.models) return [];
+    const seen = new Set<string>();
+    const list: ModelConfigEntry[] = [];
+    for (const model of provider.models) {
+      if (!isModelEnabled(model)) continue;
+      const id = model.id.trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      list.push(model);
+    }
+    return list;
+  }, [provider]);
+
+  // Image-capable models only.
+  const imageModels = useMemo(
+    () => providerModels.filter((model) => isImageGenerationModel(model)),
+    [providerModels],
+  );
+
+  // Reset showAll when provider changes.
   useEffect(() => {
-    if (!open || !provider) return;
-    const providerId = provider.id;
-    // Avoid re-fetching if we already loaded for this provider.
-    if (
-      loadedProviderIdRef.current === providerId &&
-      matched.length + unmatched.length + discoveredOnly.length > 0
-    ) {
-      return;
-    }
-    loadedProviderIdRef.current = providerId;
-
-    let cancelled = false;
-    setLoading(true);
     setShowAll(false);
-    setMatched([]);
-    setUnmatched([]);
-    setDiscoveredOnly([]);
-
-    async function load(): Promise<void> {
-      // Fetch catalog and discovery independently so one failure
-      // doesn't block the other.  If discovery fails we still show
-      // all Pi catalog models as "unmatched" so the user can pick.
-      let catalogEntries: ImageModelCatalogEntry[] = [];
-      let discoveredModels: DiscoveredModel[] = [];
-
-      try {
-        const catalogResult = await searchImageModelCatalog();
-        if (cancelled) return;
-        catalogEntries = catalogResult.entries;
-      } catch {
-        // Catalog may be unavailable on older host builds.
-      }
-
-      try {
-        const discoverResult = await discoverProviderModels(provider!);
-        if (cancelled) return;
-        discoveredModels = discoverResult.models;
-      } catch (error) {
-        if (cancelled) return;
-        const message = formatError(error);
-        onDiscoverError?.(message);
-      }
-
-      if (cancelled) return;
-      const discoveredIds = discoveredModels.map((model) => model.id);
-      const labelsById: Record<string, string> = {};
-      const capabilitiesById: Record<string, readonly string[]> = {};
-      for (const model of discoveredModels) {
-        if (model.label?.trim()) {
-          labelsById[model.id] = model.label.trim();
-        }
-        if (model.capabilities?.length) {
-          capabilitiesById[model.id] = model.capabilities;
-        }
-      }
-
-      if (catalogEntries.length === 0 && discoveredIds.length > 0) {
-        // Catalog unavailable (e.g. older host build) but we have
-        // discovered models — prefer image-like ones in the primary list.
-        const result = matchImageCatalog([], discoveredIds, {
-          labelsById,
-          capabilitiesById,
-        });
-        setMatched([]);
-        setUnmatched([]);
-        // If heuristics find nothing, still offer every discovered id so the
-        // user can pick (better than an empty dropdown).
-        setDiscoveredOnly(
-          result.discoveredOnly.length > 0
-            ? result.discoveredOnly
-            : discoveredModels.map((model) => ({
-                modelId: model.id,
-                label: model.label?.trim() || model.id,
-              })),
-        );
-      } else {
-        const result = matchImageCatalog(catalogEntries, discoveredIds, {
-          labelsById,
-          capabilitiesById,
-        });
-        setMatched(result.matched);
-        setUnmatched(result.unmatched);
-        setDiscoveredOnly(result.discoveredOnly);
-      }
-    }
-
-    void load().finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, provider?.id]);
+  }, [provider?.id]);
 
   // Close on outside click.
   useEffect(() => {
@@ -186,64 +76,36 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [open]);
 
-  // Build the visible items list.
-  const visibleMatched: SuggestionItem[] = matched.map((m) => ({
-    kind: 'matched' as const,
-    entry: m.entry,
-    matchedId: m.matchedId,
-  }));
-  const visibleDiscovered: SuggestionItem[] = discoveredOnly.map((item) => ({
-    kind: 'discovered' as const,
-    modelId: item.modelId,
-    label: item.label,
-  }));
-  const visibleUnmatched: SuggestionItem[] = showAll
-    ? unmatched.map((entry) => ({ kind: 'unmatched' as const, entry }))
-    : [];
-
-  // Apply query filter.
-  const matchedEntries = visibleMatched
-    .filter((m): m is Extract<SuggestionItem, { kind: 'matched' }> => m.kind === 'matched')
-    .map((m) => m.entry);
-  const queryFilteredMatched = filterSuggestions(matchedEntries, value);
-  const filteredMatched: SuggestionItem[] = visibleMatched.filter(
-    (m) => m.kind === 'matched' && queryFilteredMatched.some((e) => e.modelId === m.entry.modelId),
-  );
+  // Filter based on input query.
   const queryLower = value.trim().toLowerCase();
-  const filteredDiscovered: SuggestionItem[] = visibleDiscovered.filter((item) => {
-    if (item.kind !== 'discovered') return false;
-    if (!queryLower) return true;
-    return (
-      item.modelId.toLowerCase().includes(queryLower) ||
-      item.label.toLowerCase().includes(queryLower)
+
+  const filteredImageModels = useMemo(() => {
+    if (!queryLower) return imageModels;
+    return imageModels.filter(
+      (m) =>
+        m.id.toLowerCase().includes(queryLower) ||
+        (m.label ? m.label.toLowerCase().includes(queryLower) : false),
     );
-  });
-  const filteredUnmatched: SuggestionItem[] = showAll
-    ? visibleUnmatched.filter(
-        (m) => m.kind === 'unmatched' && filterSuggestions([m.entry], value).length > 0,
-      )
-    : [];
+  }, [imageModels, queryLower]);
 
-  // Discovered channel models first (what the user can actually call), then
-  // catalog matches, then optional full Pi catalog.
-  const allVisible = [...filteredDiscovered, ...filteredMatched, ...filteredUnmatched];
-  const hasUnmatched = unmatched.length > 0;
-  const hasPrimary =
-    filteredDiscovered.length > 0 || filteredMatched.length > 0;
+  const filteredAllModels = useMemo(() => {
+    if (!queryLower) return providerModels;
+    return providerModels.filter(
+      (m) =>
+        m.id.toLowerCase().includes(queryLower) ||
+        (m.label ? m.label.toLowerCase().includes(queryLower) : false),
+    );
+  }, [providerModels, queryLower]);
 
-  // Reset highlight when the list changes.
+  const allVisible = showAll ? filteredAllModels : filteredImageModels;
+
+  // Reset highlight index when list changes.
   useEffect(() => {
     setHighlightIndex(allVisible.length > 0 ? 0 : -1);
-  }, [matched, unmatched, discoveredOnly, showAll, value]);
+  }, [allVisible.length, showAll, value]);
 
-  function selectItem(item: SuggestionItem): void {
-    if (item.kind === 'matched') {
-      onChange(item.matchedId);
-    } else if (item.kind === 'discovered') {
-      onChange(item.modelId);
-    } else {
-      onChange(item.entry.modelId);
-    }
+  function selectItem(model: ModelConfigEntry): void {
+    onChange(model.id);
     setOpen(false);
   }
 
@@ -281,24 +143,26 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
 
   const t = isChinese
     ? {
-        placeholder: '输入模型 ID，如 gpt-image-1',
-        loading: '正在匹配生图模型…',
-        noMatch: '该通道未发现匹配的生图模型',
-        noChannelImage: '该通道未发现生图相关模型，可展开 Pi 目录或手动输入',
-        showAll: '显示全部生图模型',
-        matched: '已匹配',
-        channel: '通道',
-        all: '全部',
+        placeholder: '输入或选择生图模型 ID',
+        noImageModels: '当前渠道暂无生图模型，可点击下方「查看全部」或手动输入',
+        noModels: '当前渠道暂无已配置的模型，可在「通道与文本」中拉取或手动输入',
+        noMatch: '未找到匹配的模型',
+        showAll: `查看全部渠道模型（${providerModels.length}）`,
+        showOnlyImage: `仅看生图模型（${imageModels.length}）`,
+        image: '生图',
+        video: '视频',
+        chat: '对话',
       }
     : {
-        placeholder: 'Enter model ID, e.g. gpt-image-1',
-        loading: 'Matching image models…',
-        noMatch: 'No matching image models discovered',
-        noChannelImage: 'No image-like models on this channel — expand the Pi catalog or type an ID',
-        showAll: 'Show all image models',
-        matched: 'matched',
-        channel: 'channel',
-        all: 'all',
+        placeholder: 'Enter or select image model ID',
+        noImageModels: 'No image models on this channel — click View all or type an ID',
+        noModels: 'No models configured on this channel — fetch models under Channels & chat or type an ID',
+        noMatch: 'No matching models found',
+        showAll: `View all channel models (${providerModels.length})`,
+        showOnlyImage: `Show only image models (${imageModels.length})`,
+        image: 'Image',
+        video: 'Video',
+        chat: 'Chat',
       };
 
   return (
@@ -332,96 +196,73 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
 
       {open && (
         <div className="image-model-suggest-dropdown" data-testid="image-model-suggest-dropdown">
-          {loading ? (
-            <div className="image-model-suggest-loading">
-              <Spinner />
-              <span className="muted" style={{ marginLeft: 8 }}>{t.loading}</span>
-            </div>
+          {allVisible.length === 0 ? (
+            <p className="image-model-suggest-empty muted">
+              {providerModels.length === 0
+                ? t.noModels
+                : !showAll && imageModels.length === 0
+                  ? t.noImageModels
+                  : t.noMatch}
+            </p>
           ) : (
-            <>
-              {allVisible.length === 0 && !hasUnmatched && discoveredOnly.length === 0 ? (
-                <p className="image-model-suggest-empty muted">{t.noMatch}</p>
-              ) : allVisible.length === 0 && (hasUnmatched || discoveredOnly.length > 0) ? (
-                <p className="image-model-suggest-empty muted">
-                  {hasPrimary ? t.noMatch : t.noChannelImage}
-                </p>
-              ) : (
-                <ul
-                  id={listboxId}
-                  role="listbox"
-                  className="image-model-suggest-list"
-                  data-testid="image-model-suggest-list"
-                >
-                  {allVisible.map((item, index) => {
-                    const active = index === highlightIndex;
-                    const optionId =
-                      item.kind === 'matched'
-                        ? item.matchedId
-                        : item.kind === 'discovered'
-                          ? item.modelId
-                          : item.entry.modelId;
-                    const metaLabel =
-                      item.kind === 'matched'
-                        ? item.entry.name !== item.entry.modelId
-                          ? item.entry.name
-                          : null
-                        : item.kind === 'discovered'
-                          ? item.label !== item.modelId
-                            ? item.label
-                            : null
-                          : item.entry.name !== item.entry.modelId
-                            ? item.entry.name
-                            : null;
-                    return (
-                      <li
-                        key={`${item.kind}:${optionId}:${item.kind === 'matched' ? item.entry.modelId : ''}`}
-                        role="presentation"
-                      >
-                        <button
-                          type="button"
-                          id={`${listboxId}-option-${index}`}
-                          role="option"
-                          aria-selected={active}
-                          className={
-                            active
-                              ? 'image-model-suggest-option is-active'
-                              : 'image-model-suggest-option'
-                          }
-                          onMouseEnter={() => setHighlightIndex(index)}
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            selectItem(item);
-                          }}
-                        >
-                          <div className="image-model-suggest-option-id">
-                            {optionId}
-                          </div>
-                          <div className="image-model-suggest-option-meta muted">
-                            {metaLabel ? <span>{metaLabel}</span> : null}
-                            {item.kind === 'matched' ? (
-                              <span className="image-model-suggest-badge">{t.matched}</span>
-                            ) : item.kind === 'discovered' ? (
-                              <span className="image-model-suggest-badge">{t.channel}</span>
-                            ) : null}
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+            <ul
+              id={listboxId}
+              role="listbox"
+              className="image-model-suggest-list"
+              data-testid="image-model-suggest-list"
+            >
+              {allVisible.map((model, index) => {
+                const active = index === highlightIndex;
+                const isImage = isImageGenerationModel(model);
+                const isVideo = model.capabilities?.includes('video-generation');
+                const isChat = model.capabilities?.includes('chat');
+                const badgeLabel = isImage ? t.image : isVideo ? t.video : isChat ? t.chat : null;
 
-              {!showAll && hasUnmatched && (
-                <button
-                  type="button"
-                  className="image-model-suggest-show-all"
-                  data-testid="image-model-suggest-show-all"
-                  onClick={() => setShowAll(true)}
-                >
-                  {t.showAll}（{unmatched.length}）
-                </button>
-              )}
-            </>
+                return (
+                  <li key={model.id} role="presentation">
+                    <button
+                      type="button"
+                      id={`${listboxId}-option-${index}`}
+                      role="option"
+                      aria-selected={active}
+                      className={
+                        active
+                          ? 'image-model-suggest-option is-active'
+                          : 'image-model-suggest-option'
+                      }
+                      onMouseEnter={() => setHighlightIndex(index)}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectItem(model);
+                      }}
+                    >
+                      <div className="image-model-suggest-option-id">
+                        {model.id}
+                      </div>
+                      <div className="image-model-suggest-option-meta muted">
+                        {model.label && model.label !== model.id ? (
+                          <span>{model.label}</span>
+                        ) : null}
+                        {badgeLabel ? (
+                          <span className="image-model-suggest-badge">{badgeLabel}</span>
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {providerModels.length > 0 && (
+            <button
+              type="button"
+              className="image-model-suggest-show-all"
+              data-testid="image-model-suggest-show-all"
+              onClick={() => setShowAll((prev) => !prev)}
+            >
+              {showAll ? t.showOnlyImage : t.showAll}
+            </button>
           )}
         </div>
       )}

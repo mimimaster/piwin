@@ -133,6 +133,96 @@ describe('HostRuntime', () => {
     await waitForPushType(pushes, 'run/terminal');
     expect(pushes).toContain('run/terminal');
 
+    const resumed = await runtime.handleCommand({
+      id: '4',
+      type: 'session/resume',
+      sessionId,
+    });
+    expect(resumed.success).toBe(true);
+    if (resumed.success) {
+      const data = resumed.data as { messages?: Array<{ role: string; text: string }> };
+      expect(data.messages?.some((message) => message.role === 'assistant' && message.text.length > 0)).toBe(
+        true,
+      );
+    }
+
+    await runtime.dispose();
+  });
+
+  it('applies a Host-owned Run intervention through the mock backend', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-mock-intervention-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: `first request ${'with enough work '.repeat(80)}` },
+    });
+    expect(prompted.success).toBe(true);
+    if (!prompted.success) throw new Error(prompted.error);
+    const runId = (prompted.data as { runId: string }).runId;
+
+    const submitted = await runtime.handleCommand({
+      type: 'run/intervention-submit',
+      sessionId,
+      runId,
+      interventionId: 'intervention-1',
+      userMessageId: 'intervention-user-1',
+      input: { text: 'adjust the answer' },
+    });
+    expect(submitted).toMatchObject({
+      success: true,
+      data: { intervention: { status: 'pending', revision: 1 } },
+    });
+
+    await vi.waitFor(
+      () => {
+        expect(
+          pushes.some(
+            (push) =>
+              push.type === 'run/terminal' &&
+              push.run.runId === runId &&
+              push.run.status === 'completed',
+          ),
+        ).toBe(true);
+      },
+      { timeout: 3_000 },
+    );
+    const statuses = pushes
+      .filter(
+        (push): push is Extract<HostPush, { type: 'run/intervention-updated' }> =>
+          push.type === 'run/intervention-updated' &&
+          push.intervention.interventionId === 'intervention-1',
+      )
+      .map((push) => push.intervention.status);
+    expect(statuses).toEqual(['pending', 'applying', 'applied']);
+
+    const messages = await runtime.handleCommand({ type: 'session/messages', sessionId });
+    expect(messages.success).toBe(true);
+    if (!messages.success) throw new Error(messages.error);
+    const interventionRow = (
+      messages.data as {
+        messages: Array<{
+          id: string;
+          instructionDelivery?: { status: string };
+        }>;
+      }
+    ).messages.find((message) => message.id === 'intervention-user-1');
+    expect(interventionRow?.instructionDelivery?.status).toBe('applied');
+
     await runtime.dispose();
   });
 

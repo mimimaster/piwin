@@ -7,6 +7,8 @@
 import type {
   AgentEvent,
   AgentMessageView,
+  BackendRunInterventionEvent,
+  BackendRunInterventionEventResult,
   CreateSessionInput,
   PromptInput,
   SessionCompactResult,
@@ -16,6 +18,9 @@ import type {
 } from '@piwin/contracts';
 
 type Listener = (event: AgentEvent) => void;
+type InterventionListener = (
+  event: BackendRunInterventionEvent,
+) => Promise<BackendRunInterventionEventResult>;
 
 export type ProductShellSessionOptions = {
   sessionId: string;
@@ -31,8 +36,10 @@ export function createProductShellSession(
   options: ProductShellSessionOptions,
 ): SessionHandle {
   const listeners = new Set<Listener>();
+  const interventionListeners = new Set<InterventionListener>();
   let live: SessionHandle | null = null;
   let liveUnsubscribe: (() => void) | null = null;
+  let liveInterventionUnsubscribe: (() => void) | null = null;
   let aborted = false;
 
   const emit = (event: AgentEvent): void => {
@@ -54,6 +61,20 @@ export function createProductShellSession(
     }
     liveUnsubscribe = handle.subscribe((event) => {
       emit(event);
+    });
+  };
+
+  const attachLiveInterventionSubscription = (handle: SessionHandle): void => {
+    liveInterventionUnsubscribe?.();
+    liveInterventionUnsubscribe = null;
+    if (!handle.subscribeRunInterventions) return;
+    liveInterventionUnsubscribe = handle.subscribeRunInterventions(async (event) => {
+      if (interventionListeners.size === 0) return { accepted: false };
+      for (const listener of interventionListeners) {
+        const result = await listener(event);
+        if (!result.accepted) return result;
+      }
+      return { accepted: true };
     });
   };
 
@@ -81,6 +102,7 @@ export function createProductShellSession(
     const created = await options.createLiveSession(createInput);
     live = created;
     attachLiveSubscription(created);
+    attachLiveInterventionSubscription(created);
     return created;
   };
 
@@ -102,6 +124,29 @@ export function createProductShellSession(
     async followUp(message: string): Promise<void> {
       const handle = await ensureLive();
       await handle.followUp(message);
+    },
+    async armRunIntervention(intervention) {
+      const handle = await ensureLive();
+      if (!handle.armRunIntervention) {
+        throw new Error('live session does not support run interventions');
+      }
+      await handle.armRunIntervention(intervention);
+    },
+    async cancelRunIntervention(interventionId, expectedRevision) {
+      if (!live?.cancelRunIntervention) return false;
+      return live.cancelRunIntervention(interventionId, expectedRevision);
+    },
+    subscribeRunInterventions(listener) {
+      interventionListeners.add(listener);
+      if (live && !liveInterventionUnsubscribe) {
+        attachLiveInterventionSubscription(live);
+      }
+      return () => {
+        interventionListeners.delete(listener);
+        // Keep the backend pipe attached across Host rebinds. A claim received
+        // during a listener gap is rejected instead of being injected without
+        // a durable Host transition.
+      };
     },
     async abort(): Promise<void> {
       aborted = true;

@@ -170,6 +170,12 @@ export type {
   TranscriptStoreMessagePatch,
   TranscriptStoreTruncateResult,
   TranscriptStoreOptions,
+  RunInterventionStoreCreateInput,
+  RunInterventionStoreCreateResult,
+  RunInterventionStoreTransitionInput,
+  QueuedTurnStoreCreateInput,
+  QueuedTurnStoreCreateResult,
+  QueuedTurnStoreTransitionInput,
 } from './transcript-store.js';
 
 export { openModelContextStore, digestContent } from './model-context-store.js';

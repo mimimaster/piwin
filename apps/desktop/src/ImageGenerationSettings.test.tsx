@@ -346,7 +346,7 @@ describe('ImageGenerationSettings', () => {
     });
   });
 
-  it('removes an image model from the provider', async () => {
+  it('removes image-generation capability and route while preserving the model on the provider', async () => {
     const config = makeConfig();
     config.imageGeneration = {
       defaultModel: {
@@ -375,7 +375,65 @@ describe('ImageGenerationSettings', () => {
 
     expect(saved.length).toBeGreaterThan(0);
     const last = saved[saved.length - 1];
-    expect(last?.providers[0]?.models).toHaveLength(0);
+    expect(last?.providers[0]?.models).toHaveLength(1);
+    expect(last?.providers[0]?.models[0]).toMatchObject({
+      id: 'glm-image',
+      label: 'GLM-图像生成',
+    });
+    expect(last?.providers[0]?.models[0]?.capabilities).toBeUndefined();
+    expect(last?.providers[0]?.models[0]?.routes).toBeUndefined();
+    expect(last?.imageGeneration).toBeUndefined();
+  });
+
+  it('preserves other capabilities and routes when image-generation is removed', async () => {
+    const config = makeConfig();
+    config.providers[0]!.models[0] = {
+      id: 'gpt-4o',
+      label: 'GPT-4o Multi',
+      capabilities: ['native-web-search', 'image-generation', 'video-generation'],
+      routes: {
+        'image-generation': { path: '/images/generations', timeoutMs: 300000 },
+        'video-generation': { path: '/video/generations' },
+      },
+    };
+    config.imageGeneration = {
+      defaultModel: {
+        protocol: 'openai-compatible',
+        providerId: 'zhipu',
+        modelId: 'gpt-4o',
+      },
+    };
+    const saved: PiwinConfig[] = [];
+    const saveConfig = vi.fn(async (next: PiwinConfig) => {
+      saved.push(next);
+      return true;
+    });
+    ({ root, container } = renderSettings(config, saveConfig));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const removeButton = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="image-model-remove"]',
+    );
+    expect(removeButton).not.toBeNull();
+    act(() => {
+      removeButton?.click();
+    });
+
+    expect(saved.length).toBeGreaterThan(0);
+    const last = saved[saved.length - 1];
+    expect(last?.providers[0]?.models).toHaveLength(1);
+    expect(last?.providers[0]?.models[0]).toMatchObject({
+      id: 'gpt-4o',
+      label: 'GPT-4o Multi',
+      capabilities: ['native-web-search', 'video-generation'],
+      routes: {
+        'video-generation': { path: '/video/generations' },
+      },
+    });
+    expect(last?.providers[0]?.models[0]?.capabilities).not.toContain('image-generation');
+    expect(last?.providers[0]?.models[0]?.routes?.['image-generation']).toBeUndefined();
     expect(last?.imageGeneration).toBeUndefined();
   });
 
@@ -519,33 +577,43 @@ describe('ImageGenerationSettings', () => {
     });
   });
 
-  it('ImageModelSuggest dropdown shows matched models from Pi catalog', async () => {
-    const config = makeConfig();
-    const saveConfig = vi.fn(async () => true);
-    const discoverProviderModels = vi.fn(async () => ({
-      providerId: 'zhipu',
-      protocol: 'openai-compatible' as const,
-      models: [{ id: 'gpt-image-1', label: 'GPT Image 1' }],
-    }));
-    const searchImageModelCatalog = vi.fn(async () => ({
-      entries: [
+  it('ImageModelSuggest dropdown strictly shows image-capable models from provider.models by default', async () => {
+    const config: PiwinConfig = {
+      ...makeConfig(),
+      providers: [
         {
-          catalogProviderId: 'openrouter',
-          modelId: 'openai/gpt-image-1',
-          name: 'GPT Image 1',
-          input: ['text', 'image'] as const,
-          output: ['image'] as const,
-        },
-        {
-          catalogProviderId: 'openrouter',
-          modelId: 'google/gemini-3-pro-image',
-          name: 'Gemini 3 Pro Image',
-          input: ['image', 'text'] as const,
-          output: ['image', 'text'] as const,
+          id: 'zhipu',
+          protocol: 'openai-compatible',
+          name: 'Zhipu (GLM)',
+          baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+          apiKeyRef: 'zhipu-keychain-ref',
+          models: [
+            {
+              id: 'glm-image',
+              label: 'GLM-图像生成',
+              capabilities: ['image-generation'],
+            },
+            {
+              id: 'glm-video',
+              label: 'GLM-视频生成',
+              capabilities: ['video-generation'],
+            },
+            {
+              id: 'glm-4',
+              label: 'GLM-4 对话',
+              capabilities: ['chat'],
+            },
+            {
+              id: 'glm-disabled-image',
+              label: 'GLM 禁用生图',
+              capabilities: ['image-generation'],
+              enabled: false,
+            },
+          ],
         },
       ],
-      catalogVersion: 'test',
-    }));
+    };
+    const saveConfig = vi.fn(async () => true);
 
     const containerEl = document.createElement('div');
     document.body.appendChild(containerEl);
@@ -559,9 +627,7 @@ describe('ImageGenerationSettings', () => {
         (
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-              <SettingsProvider
-                value={{ ...base, discoverProviderModels, searchImageModelCatalog }}
-              >
+              <SettingsProvider value={base}>
                 <ImageGenerationSettings />
               </SettingsProvider>
             </DesktopLocaleProvider>
@@ -580,56 +646,67 @@ describe('ImageGenerationSettings', () => {
     expect(input).not.toBeNull();
     await act(async () => {
       input?.focus();
-      // Sequential async calls (catalog then discovery) need multiple ticks.
       await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
-    // The dropdown should appear with matched models.
+    // The dropdown should appear.
     const dropdown = containerEl.querySelector('[data-testid="image-model-suggest-dropdown"]');
     expect(dropdown).not.toBeNull();
 
-    // gpt-image-1 should be matched (discovered), gemini should be unmatched.
+    // Default view: ONLY glm-image should be present.
     const list = containerEl.querySelector('[data-testid="image-model-suggest-list"]');
-    expect(list?.textContent ?? '').toContain('gpt-image-1');
+    const text = list?.textContent ?? '';
+    expect(text).toContain('glm-image');
+    expect(text).not.toContain('glm-video');
+    expect(text).not.toContain('glm-4');
+    expect(text).not.toContain('glm-disabled-image');
 
-    // "Show all" button should be present for the unmatched model.
+    // "View all channel models (3)" button should be present.
     const showAllBtn = containerEl.querySelector<HTMLButtonElement>(
       '[data-testid="image-model-suggest-show-all"]',
     );
     expect(showAllBtn).not.toBeNull();
+    expect(showAllBtn?.textContent ?? '').toContain('View all channel models (3)');
+
+    // Click "View all" to expand all enabled models of this provider.
+    await act(async () => {
+      showAllBtn?.click();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    const expandedText = list?.textContent ?? '';
+    expect(expandedText).toContain('glm-image');
+    expect(expandedText).toContain('glm-video');
+    expect(expandedText).toContain('glm-4');
+    expect(expandedText).not.toContain('glm-disabled-image');
   });
 
-  it('surfaces SiliconFlow-style discovered image models even when Pi catalog ids differ', async () => {
-    const config = makeConfig();
+  it('allows clicking an option from the dropdown to select model ID and auto-fill metadata', async () => {
+    const config: PiwinConfig = {
+      ...makeConfig(),
+      providers: [
+        {
+          id: 'xgrok',
+          protocol: 'openai-compatible',
+          name: 'xGrok',
+          baseUrl: 'https://xgrok.planora.chat',
+          models: [
+            {
+              id: 'grok-imagine-image-quality-lite',
+              label: 'Grok Imagine Quality Lite',
+              capabilities: ['image-generation'],
+              routes: {
+                'image-generation': {
+                  path: '/v1/images/generations',
+                  timeoutMs: 120000,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
     const saveConfig = vi.fn(async () => true);
-    const discoverProviderModels = vi.fn(async () => ({
-      providerId: 'siliconflow',
-      protocol: 'openai-compatible' as const,
-      models: [
-        { id: 'black-forest-labs/FLUX.1-schnell', label: 'FLUX.1 Schnell' },
-        { id: 'Kwai-Kolors/Kolors', label: 'Kolors' },
-        { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
-      ],
-    }));
-    const searchImageModelCatalog = vi.fn(async () => ({
-      entries: [
-        {
-          catalogProviderId: 'openrouter',
-          modelId: 'black-forest-labs/flux.2-pro',
-          name: 'FLUX.2 Pro',
-          input: ['text', 'image'] as const,
-          output: ['image'] as const,
-        },
-        {
-          catalogProviderId: 'openrouter',
-          modelId: 'openai/gpt-image-1',
-          name: 'GPT Image 1',
-          input: ['text', 'image'] as const,
-          output: ['image'] as const,
-        },
-      ],
-      catalogVersion: 'test',
-    }));
 
     const containerEl = document.createElement('div');
     document.body.appendChild(containerEl);
@@ -643,9 +720,7 @@ describe('ImageGenerationSettings', () => {
         (
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
-              <SettingsProvider
-                value={{ ...base, discoverProviderModels, searchImageModelCatalog }}
-              >
+              <SettingsProvider value={base}>
                 <ImageGenerationSettings />
               </SettingsProvider>
             </DesktopLocaleProvider>
@@ -663,15 +738,32 @@ describe('ImageGenerationSettings', () => {
     expect(input).not.toBeNull();
     await act(async () => {
       input?.focus();
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
-    const list = containerEl.querySelector('[data-testid="image-model-suggest-list"]');
-    const text = list?.textContent ?? '';
-    // FLUX family-matches catalog; Kolors is discovered-only (channel).
-    expect(text).toContain('FLUX.1-schnell');
-    expect(text).toContain('Kwai-Kolors/Kolors');
-    // Chat models must stay out of the primary image suggestion list.
-    expect(text).not.toContain('DeepSeek-V3');
+    const optionBtn = containerEl.querySelector<HTMLButtonElement>(
+      '.image-model-suggest-option',
+    );
+    expect(optionBtn).not.toBeNull();
+    expect(optionBtn?.textContent ?? '').toContain('grok-imagine-image-quality-lite');
+
+    // Click option
+    await act(async () => {
+      optionBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    expect(input?.value).toBe('grok-imagine-image-quality-lite');
+
+    // Check prefilled route path and timeout
+    const pathInput = containerEl.querySelector<HTMLInputElement>(
+      '[data-testid="image-add-model-path"]',
+    );
+    expect(pathInput?.value).toBe('/v1/images/generations');
+
+    const timeoutInput = containerEl.querySelector<HTMLInputElement>(
+      '[data-testid="image-add-model-timeout"]',
+    );
+    expect(timeoutInput?.value).toBe('120');
   });
 });
