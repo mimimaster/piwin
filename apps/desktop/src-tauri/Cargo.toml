@@ -28,6 +28,8 @@ portable-pty = "0.8"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSString", "NSURL", "NSURLRequest"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["WKFrameInfo", "WKScriptMessage", "WKScriptMessageHandler", "WKUserContentController", "WKWebView"] }
+# host_statistics64/sysctl sampling for the memory-pressure governor feed.
+libc = "0.2"
 
 [profile.release]
 panic = "abort"

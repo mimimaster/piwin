@@ -1,5 +1,6 @@
 mod artifact_bridge;
 mod host_bridge;
+mod memory_pressure;
 mod pet_overlay;
 mod pty_host;
 
@@ -175,6 +176,8 @@ pub fn run() {
         ])
         .setup(|application| {
             install_artifact_bridge(application.handle())?;
+            // Feeds the frontend Memory Governor; no-op on unsupported platforms.
+            memory_pressure::spawn_memory_pressure_monitor(application.handle().clone());
             // macOS may fall back to productName for an empty config title.
             // A zero-width title keeps traffic lights while removing visible chrome text.
             if let Some(main_window) = application.get_webview_window("main") {
