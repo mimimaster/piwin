@@ -3,12 +3,28 @@
  *
  * Desktop must not invent a project root from dirname(absolutePath).
  * Only paths under the active workspace projectPath may use project/read-file.
- * Skill / host absolute paths are classified as legacy until skills/read lands.
+ * Media vault paths / remote-asset refs dispatch to the media viewer by store
+ * identity (ADR 0052). Skill / host absolute paths are classified as legacy.
  */
+import { isPiwinMediaPath, isRemoteMediaAssetRef, REMOTE_MEDIA_ASSET_PREFIX } from './media-path';
 
-export type DocumentOpenPathKind = 'project' | 'skill-legacy' | 'legacy-absolute' | 'relative-outside' | 'empty';
+export type DocumentOpenPathKind =
+  | 'media'
+  | 'project'
+  | 'skill-legacy'
+  | 'trusted-config'
+  | 'legacy-absolute'
+  | 'relative-outside'
+  | 'empty';
 
 export type DocumentOpenPathPlan =
+  | {
+      kind: 'media';
+      absolutePath: string;
+      /** Opaque asset id when the ref came from the remote projection. */
+      assetId: string | null;
+      displayPath: string;
+    }
   | {
       kind: 'project';
       projectPath: string;
@@ -19,6 +35,11 @@ export type DocumentOpenPathPlan =
       kind: 'skill-legacy';
       absolutePath: string;
       skillIdHint: string | null;
+      displayPath: string;
+    }
+  | {
+      kind: 'trusted-config';
+      relativePath: string;
       displayPath: string;
     }
   | {
@@ -102,6 +123,8 @@ function looksLikeSkillPath(filePath: string): boolean {
 export function planDocumentOpenPath(input: {
   path: string;
   projectPath?: string | null | undefined;
+  /** Host config root (`~/.piwin`). Used to classify trusted-config text. */
+  configRoot?: string | null | undefined;
 }): DocumentOpenPathPlan {
   const cleanPath = (input.path || '').replace(/^file:\/\//, '').trim();
   if (!cleanPath) {
@@ -109,6 +132,26 @@ export function planDocumentOpenPath(input: {
   }
 
   const projectPath = input.projectPath?.trim() || null;
+
+  // Media dispatch is by STORE IDENTITY and takes precedence over the project
+  // branch: vault assets always preview through the media viewer, even under
+  // an unusual project root. Extension sniffing never grants read authority.
+  if (isRemoteMediaAssetRef(cleanPath)) {
+    return {
+      kind: 'media',
+      absolutePath: cleanPath,
+      assetId: cleanPath.slice(REMOTE_MEDIA_ASSET_PREFIX.length),
+      displayPath: cleanPath,
+    };
+  }
+  if (isPiwinMediaPath(cleanPath) && /^([A-Za-z]:[\\/]|\/)/.test(cleanPath)) {
+    return {
+      kind: 'media',
+      absolutePath: cleanPath,
+      assetId: null,
+      displayPath: cleanPath,
+    };
+  }
 
   if (projectPath && isPathInsideProjectRoot(projectPath, cleanPath)) {
     const rootNorm = normalizeSeparators(projectPath).replace(/\/+$/, '');
@@ -144,6 +187,14 @@ export function planDocumentOpenPath(input: {
         absolutePath: cleanPath,
         skillIdHint: extractSkillIdHintFromPath(cleanPath),
         displayPath: cleanPath,
+      };
+    }
+    const trustedRelative = trustedConfigRelativeFromPath(cleanPath, input.configRoot);
+    if (trustedRelative) {
+      return {
+        kind: 'trusted-config',
+        relativePath: trustedRelative,
+        displayPath: `~/.piwin/${trustedRelative}`,
       };
     }
     return {
@@ -207,4 +258,43 @@ export function buildDocumentUnavailableStub(input: {
     '',
     `*暂未在路径 \`${input.displayPath}\` 找到文件内容*`,
   ].join('\n');
+}
+
+/**
+ * Config-root-relative path for trusted text preview. Media vault stays on
+ * the media channel; the config root itself is not a file.
+ */
+export function trustedConfigRelativeFromPath(
+  filePath: string,
+  configRoot?: string | null | undefined,
+): string | null {
+  const normalized = normalizeSeparators(filePath).replace(/^file:\/\//, '');
+  const root = configRoot?.trim();
+  if (root) {
+    const rootNorm = normalizeSeparators(root).replace(/\/+$/, '');
+    if (normalized === rootNorm) {
+      return null;
+    }
+    if (!normalized.toLowerCase().startsWith(`${rootNorm.toLowerCase()}/`)) {
+      return null;
+    }
+    const relative = normalized.slice(rootNorm.length).replace(/^\/+/, '');
+    return sanitizeTrustedRelative(relative);
+  }
+  const match = normalized.match(/\/\.piwin\/(.+)$/);
+  if (!match?.[1]) {
+    return null;
+  }
+  return sanitizeTrustedRelative(match[1]);
+}
+
+function sanitizeTrustedRelative(relativePath: string): string | null {
+  const relative = relativePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!relative || relative.includes('..')) {
+    return null;
+  }
+  if (relative === 'media' || relative.startsWith('media/')) {
+    return null;
+  }
+  return relative;
 }

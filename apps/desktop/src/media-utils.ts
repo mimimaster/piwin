@@ -4,6 +4,9 @@ import {
   type AttachmentContentKind,
   type PromptAttachment,
 } from '@piwin/contracts';
+import { isPiwinMediaPath } from './media-path';
+
+export { isPiwinMediaPath };
 
 /**
  * Composer image UX targets (experience-first):
@@ -352,19 +355,6 @@ async function readFileAsBase64WithArrayBuffer(file: Blob): Promise<string> {
     }
   }
   return btoa(binary);
-}
-
-/**
- * Only convert paths that look like piwin media store paths.
- * Prevents turning arbitrary model/path strings into asset URLs.
- */
-export function isPiwinMediaPath(absolutePath: string): boolean {
-  const normalized = absolutePath.replace(/\\/g, '/');
-  return (
-    normalized.includes('/.piwin/media/') ||
-    normalized.includes('/piwin-mock-media/') ||
-    /\/media\/[A-Za-z0-9._-]+\//.test(normalized)
-  );
 }
 
 export async function resolveMediaPreviewUrl(absolutePath: string): Promise<string | null> {

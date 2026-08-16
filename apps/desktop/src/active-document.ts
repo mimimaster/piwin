@@ -9,7 +9,24 @@ export type DocumentProvenance =
   | 'project-current'
   | 'current-resource'
   | 'tool-snapshot'
-  | 'transcript';
+  | 'transcript'
+  | 'session-media'
+  | 'trusted-config';
+
+/**
+ * Media payload on a ready document (ADR 0052). `path` is the vault path or
+ * `remote-asset:<id>` ref. Bytes are resolved lazily: a local vault path goes
+ * through the Tauri asset protocol in the viewer; a remote-asset ref carries
+ * fetched bytes as `dataUrl` (via media/read) so no host path is needed.
+ */
+export type ActiveDocumentMedia = {
+  path: string;
+  assetId?: string;
+  mimeType?: string;
+  byteSize?: number;
+  /** Pre-resolved bytes for remote assets; overrides asset-protocol lookup. */
+  dataUrl?: string;
+};
 
 export type ActiveDocument =
   | {
@@ -31,6 +48,10 @@ export type ActiveDocument =
       warning?: string;
       skillId?: string;
       skillSource?: string;
+      /** Present → render through the media viewer instead of the text viewer. */
+      media?: ActiveDocumentMedia;
+      /** Trusted-domain preview is never writable from the viewer. */
+      readOnly?: true;
     }
   | {
       status: 'unavailable';
@@ -62,6 +83,10 @@ export function provenanceLabel(
         return 'From that tool call (may be truncated)';
       case 'transcript':
         return 'Recovered from conversation (snapshot)';
+      case 'session-media':
+        return 'Session media asset';
+      case 'trusted-config':
+        return 'Outside project · read-only';
       default:
         return provenance;
     }
@@ -77,6 +102,10 @@ export function provenanceLabel(
       return '来自该次工具调用（可能截断）';
     case 'transcript':
       return '来自对话记录（快照）';
+    case 'session-media':
+      return '会话媒体';
+    case 'trusted-config':
+      return '项目外 · 只读';
     default:
       return provenance;
   }
@@ -98,6 +127,14 @@ export function activeDocumentFilePath(
 export function activeDocumentContent(doc: ActiveDocument | null | undefined): string | undefined {
   if (!doc || doc.status !== 'ready') return undefined;
   return doc.content;
+}
+
+/** Media payload when the ready document should render through the media viewer. */
+export function activeDocumentMedia(
+  doc: ActiveDocument | null | undefined,
+): ActiveDocumentMedia | undefined {
+  if (!doc || doc.status !== 'ready') return undefined;
+  return doc.media;
 }
 
 export function isActiveDocumentCopyable(doc: ActiveDocument | null | undefined): boolean {

@@ -73,6 +73,17 @@ describe('ipc types', () => {
     expect(command.type).toBe('media/save');
   });
 
+  it('accepts preview/read-trusted-text command shape', () => {
+    const command: HostCommand = {
+      type: 'preview/read-trusted-text',
+      input: { relativePath: 'config.json' },
+    };
+    expect(command.type).toBe('preview/read-trusted-text');
+    if (command.type === 'preview/read-trusted-text') {
+      expect(command.input.relativePath).toBe('config.json');
+    }
+  });
+
   it('accepts CE process/session command shapes', () => {
     const jobStart: HostCommand = {
       type: 'job/start',

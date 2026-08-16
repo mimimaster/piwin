@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { contentKindForMimeType } from '@piwin/contracts';
-import type { SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
+import type { MediaReadFailureReason, SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
 import { assertAttachmentPayloadSafe } from './attachment-policy.js';
 
 export type MediaServiceOptions = {
@@ -23,10 +23,45 @@ const MIME_TO_EXT: Record<string, string> = {
   'application/pdf': '.pdf',
 };
 
+const EXT_TO_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.pdf': 'application/pdf',
+};
+
+export type ReadMediaInput = {
+  sessionId: string;
+  assetId: string;
+  maxBytes: number;
+};
+
+export type ReadMediaResult =
+  | {
+      status: 'ready';
+      assetId: string;
+      sessionId: string;
+      mimeType: string;
+      byteSize: number;
+      bytes: Uint8Array;
+    }
+  | {
+      status: 'unavailable';
+      reason: MediaReadFailureReason;
+    };
+
 export function createMediaService(options: MediaServiceOptions) {
   return {
     async saveMediaAsset(input: SaveMediaInput): Promise<SavedMediaAsset> {
       return saveMediaAsset(options, input);
+    },
+    async readMediaAsset(input: ReadMediaInput): Promise<ReadMediaResult> {
+      return readMediaAsset(options, input);
     },
     resolveMediaPath(absolutePath: string): string {
       return assertInsideMediaRoot(options.mediaRoot, absolutePath);
@@ -101,6 +136,80 @@ export function assertInsideMediaRoot(mediaRoot: string, absolutePath: string): 
     throw new Error(`path escapes media root: ${absolutePath}`);
   }
   return target;
+}
+
+/**
+ * Read a vault asset by logical identity (ADR 0052). Callers never supply a
+ * host path: the file is located under `<mediaRoot>/<sessionId>/<assetId><ext>`
+ * and every hop is containment-checked (string prefix + realpath), mirroring
+ * the write path's defenses. Oversized assets are rejected whole — a
+ * truncated image would render as corruption, not a preview.
+ */
+export async function readMediaAsset(
+  options: Pick<MediaServiceOptions, 'mediaRoot'>,
+  input: ReadMediaInput,
+): Promise<ReadMediaResult> {
+  if (!Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0) {
+    return { status: 'unavailable', reason: 'invalid-request' };
+  }
+  let sessionId: string;
+  let assetId: string;
+  try {
+    sessionId = sanitizeSegment(input.sessionId);
+    assetId = sanitizeSegment(input.assetId);
+  } catch {
+    return { status: 'unavailable', reason: 'invalid-request' };
+  }
+
+  const root = resolve(options.mediaRoot);
+  let directory: string;
+  try {
+    directory = assertInsideMediaRoot(root, join(root, sessionId));
+  } catch {
+    return { status: 'unavailable', reason: 'outside-media-root' };
+  }
+
+  const entries = await readdir(directory).catch(() => null);
+  if (entries === null) {
+    return { status: 'unavailable', reason: 'not-found' };
+  }
+  const fileName =
+    entries.find((name) => name === assetId) ??
+    entries.find(
+      (name) =>
+        name.startsWith(`${assetId}.`) &&
+        /^[a-zA-Z0-9]{0,12}$/.test(name.slice(assetId.length + 1)),
+    );
+  if (fileName === undefined) {
+    return { status: 'unavailable', reason: 'not-found' };
+  }
+
+  const absolutePath = resolve(directory, fileName);
+  try {
+    assertInsideMediaRoot(root, absolutePath);
+    // A symlinked vault file would pass the string check; realpath re-validates.
+    await assertRealPathInsideMediaRoot(root, absolutePath);
+  } catch {
+    return { status: 'unavailable', reason: 'outside-media-root' };
+  }
+
+  const fileStat = await stat(absolutePath).catch(() => null);
+  if (fileStat === null || !fileStat.isFile()) {
+    return { status: 'unavailable', reason: 'not-found' };
+  }
+  if (fileStat.size > input.maxBytes) {
+    return { status: 'unavailable', reason: 'too-large' };
+  }
+
+  const bytes = await readFile(absolutePath);
+  return {
+    status: 'ready',
+    assetId,
+    sessionId,
+    mimeType: EXT_TO_MIME[extname(fileName).toLowerCase()] ?? 'application/octet-stream',
+    byteSize: bytes.byteLength,
+    bytes,
+  };
 }
 
 /**

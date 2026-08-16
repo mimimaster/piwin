@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/prom
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { assertInsideMediaRoot, saveMediaAsset } from './media-service.js';
+import { assertInsideMediaRoot, readMediaAsset, saveMediaAsset } from './media-service.js';
 import { UnsafeAttachmentError } from './attachment-policy.js';
 import { extractAttachmentText, formatAttachmentTextInjection } from './document-extractor.js';
 
@@ -165,3 +165,97 @@ function createSinglePagePdf(text: string): Uint8Array {
   pdf += `trailer${newline}<< /Size ${objects.length + 1} /Root 1 0 R >>${newline}startxref${newline}${xrefOffset}${newline}%%EOF${newline}`;
   return new TextEncoder().encode(pdf);
 }
+
+describe('readMediaAsset', () => {
+  it('reads a saved asset back by logical id with inferred mime', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
+    const bytes = new Uint8Array([137, 80, 78, 71, 4, 5, 6, 7]);
+    const asset = await saveMediaAsset(
+      { mediaRoot, maxPasteBytes: 1024, allowedMimeTypes: ['image/png'] },
+      { sessionId: 'sess-1', bytes, mimeType: 'image/png', source: 'generated' },
+    );
+    const result = await readMediaAsset(
+      { mediaRoot },
+      { sessionId: 'sess-1', assetId: asset.id, maxBytes: 1024 },
+    );
+    expect(result.status).toBe('ready');
+    if (result.status === 'ready') {
+      expect(result.bytes.byteLength).toBe(bytes.byteLength);
+      expect(result.mimeType).toBe('image/png');
+      expect(result.assetId).toBe(asset.id);
+      expect(result.sessionId).toBe('sess-1');
+    }
+  });
+
+  it('returns not-found for unknown assets and missing sessions', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
+    await saveMediaAsset(
+      { mediaRoot, maxPasteBytes: 1024, allowedMimeTypes: ['image/png'] },
+      {
+        sessionId: 'sess-1',
+        bytes: new Uint8Array([1, 2, 3]),
+        mimeType: 'image/png',
+        source: 'paste',
+      },
+    );
+    expect(
+      (await readMediaAsset({ mediaRoot }, { sessionId: 'sess-1', assetId: 'nope', maxBytes: 100 }))
+        .status,
+    ).toBe('unavailable');
+    expect(
+      (await readMediaAsset({ mediaRoot }, { sessionId: 'ghost', assetId: 'x', maxBytes: 100 }))
+        .status,
+    ).toBe('unavailable');
+  });
+
+  it('rejects traversal session ids and invalid caps', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
+    const traversal = await readMediaAsset(
+      { mediaRoot },
+      { sessionId: '..', assetId: 'x', maxBytes: 100 },
+    );
+    expect(traversal).toMatchObject({ status: 'unavailable', reason: 'outside-media-root' });
+    const badCap = await readMediaAsset(
+      { mediaRoot },
+      { sessionId: 'sess-1', assetId: 'x', maxBytes: 0 },
+    );
+    expect(badCap).toMatchObject({ status: 'unavailable', reason: 'invalid-request' });
+  });
+
+  it('rejects assets over the byte cap whole, not truncated', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
+    const asset = await saveMediaAsset(
+      { mediaRoot, maxPasteBytes: 4096, allowedMimeTypes: ['image/png'] },
+      {
+        sessionId: 'sess-1',
+        bytes: new Uint8Array(64),
+        mimeType: 'image/png',
+        source: 'paste',
+      },
+    );
+    const result = await readMediaAsset(
+      { mediaRoot },
+      { sessionId: 'sess-1', assetId: asset.id, maxBytes: 16 },
+    );
+    expect(result).toMatchObject({ status: 'unavailable', reason: 'too-large' });
+  });
+
+  it('rejects a symlinked vault file that escapes the media root', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-'));
+    const outsideRoot = await mkdtemp(join(tmpdir(), 'piwin-outside-'));
+    const outsideFile = join(outsideRoot, 'evil.png');
+    await writeFile(outsideFile, new Uint8Array([1, 2, 3]));
+    const sessionDir = join(mediaRoot, 'sess-1');
+    await (await import('node:fs/promises')).mkdir(sessionDir, { recursive: true });
+    await symlink(outsideFile, join(sessionDir, '00000000-0000-0000-0000-000000000000.png'));
+    const result = await readMediaAsset(
+      { mediaRoot },
+      {
+        sessionId: 'sess-1',
+        assetId: '00000000-0000-0000-0000-000000000000',
+        maxBytes: 1024,
+      },
+    );
+    expect(result).toMatchObject({ status: 'unavailable', reason: 'outside-media-root' });
+  });
+});

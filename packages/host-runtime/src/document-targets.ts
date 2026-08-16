@@ -14,6 +14,8 @@ export type DocumentTargetEnrichmentContext = {
   projectPath?: string | null;
   /** Skill catalog entries for the current session (kind=skill). */
   skillEntries?: readonly ResourceCatalogEntry[];
+  /** Host config root (`~/.piwin` or override). Used for trusted-config targets. */
+  piwinRoot?: string | null;
 };
 
 /**
@@ -26,6 +28,14 @@ export function buildDocumentTargetsForPath(
 ): DocumentTargetRef[] {
   const clean = filePath.replace(/^file:\/\//, '').trim();
   if (!clean) return [];
+
+  // Media vault assets resolve to a logical media target (ADR 0052): the
+  // click entry point stops carrying host paths, and remote clients address
+  // bytes by sessionId + assetId through media/read.
+  const mediaTarget = mediaTargetFromVaultPath(clean);
+  if (mediaTarget) {
+    return [mediaTarget];
+  }
 
   const skillHit = matchSkillEntry(clean, context.skillEntries ?? []);
   if (skillHit) {
@@ -79,6 +89,11 @@ export function buildDocumentTargetsForPath(
     ];
   }
 
+  const trustedTarget = trustedConfigTargetFromPath(clean, context.piwinRoot);
+  if (trustedTarget) {
+    return [trustedTarget];
+  }
+
   return [];
 }
 
@@ -103,7 +118,11 @@ export function enrichToolPresentationDocumentTargets(
       const key =
         target.kind === 'skill'
           ? `skill:${target.skillId}`
-          : `project:${target.relativePath}`;
+          : target.kind === 'media'
+            ? `media:${target.sessionId}/${target.assetId}`
+            : target.kind === 'trusted-config'
+              ? `trusted:${target.relativePath}`
+              : `project:${target.relativePath}`;
       if (seen.has(key)) continue;
       seen.add(key);
       documentTargets.push(target);
@@ -135,6 +154,61 @@ export function enrichAgentEventDocumentTargets(
     return event;
   }
   return { ...event, presentation };
+}
+
+/** Safe id segment for vault-derived session/asset ids (no traversal). */
+const SAFE_VAULT_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/**
+ * Derive a logical media target from a `~/.piwin/media/<sessionId>/<assetId><ext>`
+ * vault path. Returns null unless both segments are safe ids — never forwards
+ * a host path onward.
+ */
+function mediaTargetFromVaultPath(filePath: string): DocumentTargetRef | null {
+  const normalized = filePath.replace(/\\/g, '/');
+  const match = normalized.match(/\/\.piwin\/media\/([^/]+)\/([^/]+)$/);
+  if (!match?.[1] || !match?.[2]) {
+    return null;
+  }
+  const sessionId = match[1];
+  const assetId = match[2].replace(/\.[a-zA-Z0-9]{1,12}$/, '');
+  if (!SAFE_VAULT_SEGMENT.test(sessionId) || !SAFE_VAULT_SEGMENT.test(assetId)) {
+    return null;
+  }
+  return {
+    kind: 'media',
+    sessionId,
+    assetId,
+    displayRef: match[2],
+  };
+}
+
+/**
+ * Derive a logical trusted-config target from a Host config-root path.
+ * Media vault files stay on the media channel; the config root itself is
+ * not a previewable file.
+ */
+function trustedConfigTargetFromPath(
+  filePath: string,
+  piwinRoot: string | null | undefined,
+): DocumentTargetRef | null {
+  const root = piwinRoot?.trim();
+  if (!root) {
+    return null;
+  }
+  const relative = relativeToProject(root, filePath);
+  if (relative === null || relative === '') {
+    return null;
+  }
+  const posix = relative.replace(/\\/g, '/');
+  if (posix.includes('..') || posix === 'media' || posix.startsWith('media/')) {
+    return null;
+  }
+  return {
+    kind: 'trusted-config',
+    relativePath: posix,
+    displayRef: `~/.piwin/${posix}`,
+  };
 }
 
 function matchSkillEntry(

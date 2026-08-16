@@ -28,8 +28,9 @@ function isVideoMimeType(mimeType: string): boolean {
  * Fullscreen lightbox for media thumbnails. Portaled to document.body so it is
  * not clipped by transcript overflow / collapsed message masks, and so click
  * handlers on parent collapsible bubbles never receive the open/close events.
+ * Shared with the right-panel media document viewer (ADR 0052).
  */
-function MediaLightbox(props: {
+export function MediaLightbox(props: {
   open: boolean;
   url: string;
   label: string;

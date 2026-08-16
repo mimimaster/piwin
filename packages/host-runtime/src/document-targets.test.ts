@@ -136,3 +136,57 @@ describe('enrichAgentEventDocumentTargets', () => {
     }
   });
 });
+
+describe('buildDocumentTargetsForPath media vault dispatch', () => {
+  it('emits a logical media target for vault asset paths', () => {
+    const targets = buildDocumentTargetsForPath(
+      '/Users/t/.piwin/media/sess-1/0b1c2d3e-4f5a-6789-abcd-ef0123456789.png',
+      { projectPath: '/Users/t/project' },
+    );
+    expect(targets).toEqual([
+      {
+        kind: 'media',
+        sessionId: 'sess-1',
+        assetId: '0b1c2d3e-4f5a-6789-abcd-ef0123456789',
+        displayRef: '0b1c2d3e-4f5a-6789-abcd-ef0123456789.png',
+      },
+    ]);
+  });
+
+  it('never emits media targets for traversal-shaped vault paths', () => {
+    expect(
+      buildDocumentTargetsForPath('/Users/t/.piwin/media/../secret/id_rsa', {
+        projectPath: null,
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('buildDocumentTargetsForPath trusted-config dispatch', () => {
+  it('emits a relative trusted-config target for config-root text', () => {
+    const targets = buildDocumentTargetsForPath('/Users/t/.piwin/config.json', {
+      piwinRoot: '/Users/t/.piwin',
+    });
+    expect(targets).toEqual([
+      {
+        kind: 'trusted-config',
+        relativePath: 'config.json',
+        displayRef: '~/.piwin/config.json',
+      },
+    ]);
+  });
+
+  it('does not emit trusted-config for media vault or project files', () => {
+    expect(
+      buildDocumentTargetsForPath('/Users/t/.piwin/media/sess-1/a.png', {
+        piwinRoot: '/Users/t/.piwin',
+      }),
+    ).toMatchObject([{ kind: 'media' }]);
+    expect(
+      buildDocumentTargetsForPath('/workspace/docs/plan.md', {
+        projectPath: '/workspace',
+        piwinRoot: '/Users/t/.piwin',
+      }),
+    ).toMatchObject([{ kind: 'project-file' }]);
+  });
+});

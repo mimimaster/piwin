@@ -16,6 +16,7 @@ import type { ExtensionUiKind } from './extension-ui.js';
 import type { WebElementPickResult } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
+import type { TrustedTextReadCommandInput } from './preview.js';
 import type { SpeechTranscribeInput } from './speech.js';
 import type { SessionListOrder, SessionListPageQuery } from './session-list-page.js';
 import type {
@@ -111,6 +112,17 @@ export type MediaSaveData = {
   asset: SavedMediaAsset;
 };
 
+/**
+ * Addressed by logical identity (sessionId + assetId) — never by a
+ * host-absolute path — so remote clients can fetch vault bytes without
+ * learning or forging host paths (ADR 0052).
+ */
+export type MediaReadCommandInput = {
+  sessionId: string;
+  assetId: string;
+  maxBytes?: number;
+};
+
 /** UI / external client → host */
 export type HostCommand =
   | { id?: string; type: 'host/ping' }
@@ -171,6 +183,8 @@ export type HostCommand =
       projectPath?: string;
       /** Scope-based session listing. When set, filters sessions by scope. */
       scope?: import('./host.js').SessionScope;
+      /** When true, lists sessions across all scopes (general and all projects). */
+      allScopes?: boolean;
       /** When true, include archived sessions (default: active only). */
       includeArchived?: boolean;
       /**
@@ -232,6 +246,11 @@ export type HostCommand =
       when: 'now' | 'after-current-run';
     }
   | { id?: string; type: 'session/messages'; sessionId: string }
+  | {
+      id?: string;
+      type: 'session/foreground-run';
+      sessionId: string;
+    }
   | { id?: string; type: 'session/model-context-summary'; sessionId: string }
   | {
       id?: string;
@@ -301,6 +320,16 @@ export type HostCommand =
       interventionId: string;
       userMessageId: string;
       input: UserInstructionPayload;
+      /**
+       * Explicit user-initiated conversion: adopt a pending queued turn's
+       * durable identity instead of creating a new user row. The Host cancels
+       * the queued turn and creates the intervention in one store transaction
+       * (ADR 0051 §1 — never silent, always a deliberate shell action).
+       */
+      adoptQueuedTurn?: {
+        queuedTurnId: string;
+        expectedRevision: number;
+      };
     }
   | {
       id?: string;
@@ -378,6 +407,12 @@ export type HostCommand =
       refs?: import('./side-chat.js').SideChatContextRef[];
     }
   | { id?: string; type: 'media/save'; input: MediaSaveCommandInput }
+  | { id?: string; type: 'media/read'; input: MediaReadCommandInput }
+  /**
+   * Config-root-relative text preview (ADR 0052 Slice 3). Remote-safe:
+   * callers send a path under `~/.piwin`, never a host-absolute path.
+   */
+  | { id?: string; type: 'preview/read-trusted-text'; input: TrustedTextReadCommandInput }
   /**
    * Transient Desktop audio. Unlike media/save, Host must not write this input
    * to ~/.piwin/media, transcript, prompt attachments, or logs.

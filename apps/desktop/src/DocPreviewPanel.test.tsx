@@ -68,4 +68,22 @@ describe('DocPreviewPanel', () => {
 
     expect(container.querySelector('[data-testid="doc-preview-close"]')).toBeNull();
   });
+
+  it('shows the outside-project read-only badge for trusted-config previews', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DocPreviewPanel
+            title="config.json"
+            content='{"ok":true}'
+            provenance="trusted-config"
+            readOnly
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const badge = container.querySelector('[data-testid="doc-preview-readonly"]');
+    expect(badge?.textContent).toContain('项目外 · 只读');
+  });
 });

@@ -16,6 +16,7 @@ export * from './media.js';
 export * from './attachment.js';
 export * from './artifact.js';
 export * from './ipc.js';
+export * from './preview.js';
 export * from './project.js';
 export * from './session-index.js';
 export * from './session-list-page.js';

@@ -4,6 +4,7 @@ import {
   isPathInsideProjectRoot,
   planDocumentOpenPath,
 } from './document-open-path';
+import { isPiwinMediaPath, isRemoteMediaAssetRef, mediaKindForPath } from './media-path';
 
 describe('isPathInsideProjectRoot', () => {
   it('accepts the root and nested paths', () => {
@@ -20,6 +21,27 @@ describe('isPathInsideProjectRoot', () => {
         '/Applications/piwinwin.app/Contents/Resources/host/skills/executing-plans/SKILL.md',
       ),
     ).toBe(false);
+  });
+});
+
+describe('media reference helpers', () => {
+  it('recognizes media vault paths but not arbitrary model strings', () => {
+    expect(isPiwinMediaPath('/Users/t/.piwin/media/session-1/a.png')).toBe(true);
+    expect(isPiwinMediaPath('/tmp/piwin-mock-media/s/b.jpg')).toBe(true);
+    expect(isPiwinMediaPath('/etc/passwd')).toBe(false);
+    expect(isPiwinMediaPath('docs/readme.md')).toBe(false);
+  });
+
+  it('recognizes opaque remote-asset refs only with a non-empty id', () => {
+    expect(isRemoteMediaAssetRef('remote-asset:asset-42')).toBe(true);
+    expect(isRemoteMediaAssetRef('remote-asset:')).toBe(false);
+    expect(isRemoteMediaAssetRef('/Users/t/.piwin/media/s/a.png')).toBe(false);
+  });
+
+  it('hints render kind by extension only', () => {
+    expect(mediaKindForPath('/x/a.b.jpg')).toBe('image');
+    expect(mediaKindForPath('/x/a.mp4')).toBe('video');
+    expect(mediaKindForPath('/x/a.md')).toBe(null);
   });
 });
 
@@ -75,6 +97,92 @@ describe('planDocumentOpenPath', () => {
       kind: 'legacy-absolute',
       absolutePath: '/tmp/outside.md',
       displayPath: '/tmp/outside.md',
+    });
+  });
+
+  it('classifies config-root text as trusted-config after media and skill', () => {
+    expect(
+      planDocumentOpenPath({
+        path: '/Users/t/.piwin/config.json',
+        projectPath: '/workspace',
+      }),
+    ).toEqual({
+      kind: 'trusted-config',
+      relativePath: 'config.json',
+      displayPath: '~/.piwin/config.json',
+    });
+    expect(
+      planDocumentOpenPath({
+        path: '/Users/t/.piwin/media/sess-1/a.png',
+        projectPath: '/workspace',
+      }).kind,
+    ).toBe('media');
+    expect(
+      planDocumentOpenPath({
+        path: '/Users/t/.piwin/skills/executing-plans/SKILL.md',
+        projectPath: '/workspace',
+      }).kind,
+    ).toBe('skill-legacy');
+  });
+
+  it('classifies a custom config root via configRoot, not the /.piwin/ heuristic', () => {
+    expect(
+      planDocumentOpenPath({
+        path: '/var/piwin-root/permissions.json',
+        projectPath: '/workspace',
+        configRoot: '/var/piwin-root',
+      }),
+    ).toEqual({
+      kind: 'trusted-config',
+      relativePath: 'permissions.json',
+      displayPath: '~/.piwin/permissions.json',
+    });
+    expect(
+      planDocumentOpenPath({
+        path: '/var/piwin-root/permissions.json',
+        projectPath: '/workspace',
+      }).kind,
+    ).toBe('legacy-absolute');
+  });
+
+  it('dispatches media vault paths to the media viewer with and without a project', () => {
+    const vaultPath = '/Users/t/.piwin/media/session-1/0b1c2d.jpg';
+    for (const projectPath of [null, '/workspace', '/Users/t']) {
+      expect(planDocumentOpenPath({ path: vaultPath, projectPath })).toEqual({
+        kind: 'media',
+        absolutePath: vaultPath,
+        assetId: null,
+        displayPath: vaultPath,
+      });
+    }
+  });
+
+  it('dispatches by store identity, not extension: vault .txt is still media', () => {
+    const plan = planDocumentOpenPath({
+      path: '/Users/t/.piwin/media/session-1/notes.txt',
+      projectPath: '/workspace',
+    });
+    expect(plan.kind).toBe('media');
+  });
+
+  it('extracts the asset id from remote-asset refs', () => {
+    const plan = planDocumentOpenPath({ path: 'remote-asset:asset-77', projectPath: '/w' });
+    expect(plan).toEqual({
+      kind: 'media',
+      absolutePath: 'remote-asset:asset-77',
+      assetId: 'asset-77',
+      displayPath: 'remote-asset:asset-77',
+    });
+  });
+
+  it('keeps relative media-looking paths project-relative', () => {
+    // 'media/…' without a vault/absolute prefix is an ordinary project path.
+    const plan = planDocumentOpenPath({ path: 'media/session-1/a.jpg', projectPath: '/w' });
+    expect(plan).toEqual({
+      kind: 'project',
+      projectPath: '/w',
+      relativePath: 'media/session-1/a.jpg',
+      displayPath: 'media/session-1/a.jpg',
     });
   });
 
