@@ -129,12 +129,19 @@ describe('folder-rag', () => {
     rag.close();
   });
 
-  it('scan omits unsupported pdf rather than treating it as success', async () => {
+  it('scan lists pdf as unsupported when MinerU is not configured', async () => {
     await writeFile(join(sourceFolder, 'a.pdf'), 'binary');
     await writeFile(join(sourceFolder, 'a.md'), '# A');
     const rag = createFolderRag({ piwinRoot });
     const result = await rag.scanFolder(sourceFolder);
     expect(result.files.map((file) => file.relativePath)).toEqual(['a.md']);
+    expect(result.unsupported).toEqual([
+      expect.objectContaining({
+        relativePath: 'a.pdf',
+        support: 'unsupported',
+        unsupportedReason: 'MINERU_NOT_CONFIGURED',
+      }),
+    ]);
     rag.close();
   });
 });

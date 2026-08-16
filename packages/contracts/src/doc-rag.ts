@@ -81,7 +81,10 @@ export type RetrieveResult = {
 
 /** Result of `doccards/scan-folder`. */
 export type ScanFolderResult = {
+  /** Currently supported files (checkbox candidates). */
   files: ScannedDocFile[];
+  /** Visible-but-unusable types (PDF without MinerU, Office without Unstructured). */
+  unsupported?: import('./doc-rag-v2.js').ScannedFileV2[];
   supportedExtensions: string[];
 };
 

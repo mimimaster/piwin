@@ -27,6 +27,13 @@ export type { DocIndex } from './doc-index.js';
 
 export { createFolderRag } from './folder-rag.js';
 export type { CreateFolderRagOptions } from './folder-rag.js';
+export { createParserRegistry } from './parsers/registry.js';
+export type { ParserRegistry } from './parsers/registry.js';
+export { createMarkdownParser } from './parsers/markdown-parser.js';
+export { createTextParser } from './parsers/text-parser.js';
+export { chunkParsedDocument } from './chunking/chunk-service.js';
+export { mapUnstructuredElements } from './parsers/unstructured-adapter.js';
+export { mapMineruContentList } from './parsers/mineru-adapter.js';
 
 export { buildFlashcardGenerationPrompt } from './prompt-builder.js';
 export type { BuildFlashcardGenerationPromptInput } from './prompt-builder.js';
