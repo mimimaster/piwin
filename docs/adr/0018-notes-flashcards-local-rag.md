@@ -228,3 +228,14 @@ with source attribution (`sourceFolder`, `sourceFile`, `sourceLine`,
 - Desktop opens source files via `@tauri-apps/plugin-shell` `open()`.
 - The product identity widens further: "agent shell with a personal
   knowledge layer" now includes arbitrary document folders, not just notes.
+
+## Appendix: LanceDB for Doc Cards V2 (2026-08-16)
+
+**Decision:** A
+**Sidecar Node:** v24.11.1
+**Native required:** yes
+**Platform prebuilds:** optional `@lancedb/lancedb-{darwin-arm64,linux-x64-gnu,linux-arm64-gnu,linux-x64-musl,linux-arm64-musl,win32-x64-msvc,win32-arm64-msvc}` in `@lancedb/lancedb@0.37.1`. Verified here: darwin-arm64 only (`lancedb.darwin-arm64.node` ≈ 216 MiB). No `darwin-x64` optional package listed.
+**CJK FTS:** fail with default `simple`/English tokenizer; **pass** with `Index.fts({ baseTokenizer: "icu", stem: false, removeStopWords: false })`. Do not set `language: "Chinese"` (native panic).
+**Packaging impact on ADR 0018 §3:** accepted for Doc Cards V2 only. Sidecar must include the matching platform `.node` and must not pull every optional native package into one bundle. Notes RAG stays on `node:sqlite` + optional brute-force vectors.
+
+Process notes: `docs/notes/2026-08-16-lancedb-sidecar-spike.md`.
