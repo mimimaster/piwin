@@ -227,6 +227,104 @@ describe('SessionTranscriptStore queued turns', () => {
     store.close();
   });
 
+  it('converts a pending queued turn into an intervention atomically', async () => {
+    const { store } = await openStore('queued-conversion');
+    await store.createQueuedTurn({
+      queuedTurnId: 'queued-1',
+      sessionId: 'session-queued-conversion',
+      userMessageId: 'user-queued-1',
+      mode: 'next',
+      input: { text: 'steer instead' },
+      fingerprint: 'queue-fingerprint-1',
+      submittedAt: '2026-08-15T10:00:00.000Z',
+    });
+    const conversion = {
+      queuedTurnId: 'queued-1',
+      expectedRevision: 1,
+      interventionId: 'intervention-1',
+      runId: 'run-9',
+      runtimeGenerationId: 'generation-1',
+      userMessageId: 'user-queued-1',
+      input: { text: 'steer instead' },
+      preparedText: 'steer instead',
+      fingerprint: 'intervention-fingerprint-1',
+      updatedAt: '2026-08-15T10:00:05.000Z',
+    } as const;
+    const converted = await store.convertQueuedTurnToIntervention(conversion);
+    expect(converted).toMatchObject({
+      outcome: 'converted',
+      queuedTurn: {
+        status: 'cancelled',
+        terminalReason: 'converted-to-intervention',
+        revision: 2,
+      },
+      intervention: { interventionId: 'intervention-1', status: 'pending', runId: 'run-9' },
+    });
+    // The queued turn's user row is re-bound in place, never duplicated.
+    expect(await store.count()).toBe(1);
+    expect(await store.getMessage('user-queued-1')).toMatchObject({
+      runId: 'run-9',
+      instructionDelivery: {
+        kind: 'run-intervention',
+        instructionId: 'intervention-1',
+        status: 'pending',
+      },
+    });
+    expect(await store.getQueuedTurn('queued-1')).toMatchObject({ status: 'cancelled' });
+    expect((await store.listQueuedTurns()).queuedTurns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ queuedTurnId: 'queued-1', status: 'cancelled' }),
+      ]),
+    );
+
+    // An ACK-timeout retry replays the durable outcome without new writes.
+    expect((await store.convertQueuedTurnToIntervention(conversion)).outcome).toBe('replayed');
+    expect(await store.count()).toBe(1);
+
+    // A stale revision or a drain-raced turn fails closed.
+    await store.createQueuedTurn({
+      queuedTurnId: 'queued-2',
+      sessionId: 'session-queued-conversion',
+      userMessageId: 'user-queued-2',
+      mode: 'next',
+      input: { text: 'second turn' },
+      fingerprint: 'queue-fingerprint-2',
+      submittedAt: '2026-08-15T10:00:08.000Z',
+    });
+    expect(
+      (
+        await store.convertQueuedTurnToIntervention({
+          ...conversion,
+          queuedTurnId: 'queued-2',
+          userMessageId: 'user-queued-2',
+          interventionId: 'intervention-2',
+          expectedRevision: 7,
+          fingerprint: 'intervention-fingerprint-2',
+        })
+      ).outcome,
+    ).toBe('queued-turn-revision-conflict');
+    await store.transitionQueuedTurn({
+      queuedTurnId: 'queued-2',
+      expectedRevision: 1,
+      from: ['pending'],
+      to: 'starting',
+      updatedAt: '2026-08-15T10:00:09.000Z',
+    });
+    expect(
+      (
+        await store.convertQueuedTurnToIntervention({
+          ...conversion,
+          queuedTurnId: 'queued-2',
+          userMessageId: 'user-queued-2',
+          interventionId: 'intervention-2',
+          expectedRevision: 2,
+          fingerprint: 'intervention-fingerprint-2',
+        })
+      ).outcome,
+    ).toBe('queued-turn-not-pending');
+    store.close();
+  });
+
   it('replays the same queued identity even when PromptInput object keys arrive in another order', async () => {
     const { store } = await openStore('queued-idempotency');
     const first = await store.createQueuedTurn({
