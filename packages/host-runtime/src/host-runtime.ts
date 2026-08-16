@@ -257,6 +257,8 @@ import {
   type WalkthroughCommandContext,
 } from './commands/walkthrough-commands.js';
 import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
+import { createDoccardsGenerationRegistry } from './commands/doccards-generation-jobs.js';
+import { createWalkthroughDraftCards } from './doccards-draft-cards.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import {
   createSessionHostToolExecutionPort,
@@ -547,6 +549,7 @@ export class HostRuntime {
     this.push({ type: 'host/log', level, message }),
   );
   private readonly doccardsIngestion = createDoccardsIngestionRegistry();
+  private readonly doccardsGeneration = createDoccardsGenerationRegistry();
   private petStateStore: PetStateStore | null = null;
   /** Guards first init of `petStateStore` so concurrent callers share one promise. */
   private petStateStoreInit: Promise<PetStateStore> | null = null;
@@ -4756,6 +4759,9 @@ export class HostRuntime {
         loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
         push: (message) => this.push(message),
         ingestionJobs: this.doccardsIngestion,
+        generationJobs: this.doccardsGeneration,
+        draftCards: createWalkthroughDraftCards(() => loadPiwinConfig(this.options.piwinRoot)),
+        ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
       },
       ...(subagentOrchestrator
         ? {

@@ -24,7 +24,9 @@ import {
   type SearchNotesOptions,
 } from '@piwin/notes';
 import { fail, ok } from '../response-helpers.js';
+import type { DraftCardsFn } from '@piwin/doc-rag';
 import type { DoccardsIngestionRegistry } from './doccards-job-commands.js';
+import type { DoccardsGenerationRegistry } from './doccards-generation-jobs.js';
 import type { HostPush } from '@piwin/contracts';
 
 export type KnowledgeCommandContext = {
@@ -38,6 +40,9 @@ export type KnowledgeCommandContext = {
   loadConfig: () => Promise<PiwinConfig>;
   push?: (message: HostPush) => void;
   ingestionJobs?: DoccardsIngestionRegistry;
+  generationJobs?: DoccardsGenerationRegistry;
+  draftCards?: DraftCardsFn;
+  piwinRoot?: string;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -242,6 +247,9 @@ export async function handleKnowledgeCommand(
         ...(command.includeFiles ? { includeFiles: command.includeFiles } : {}),
         rag,
         ...(context.push ? { push: context.push } : {}),
+        ...(context.generationJobs
+          ? { isGenerationRunning: (key) => context.generationJobs!.isRunning(key) }
+          : {}),
       });
       if ('error' in started) {
         return fail(requestId, 'doccards/index-folder', started.error);
@@ -253,7 +261,9 @@ export async function handleKnowledgeCommand(
         return fail(requestId, 'doccards/index-status', 'ingestion jobs are not available');
       }
       const job = await context.ingestionJobs.status(command.folderPath);
-      return ok(requestId, 'doccards/index-status', { job: job ?? null });
+      const rag = await context.getFolderRag();
+      const documents = await rag.listDocuments(command.folderPath);
+      return ok(requestId, 'doccards/index-status', { job: job ?? null, documents });
     }
     case 'doccards/cancel-index': {
       if (!context.ingestionJobs) {
@@ -265,10 +275,46 @@ export async function handleKnowledgeCommand(
       }
       return ok(requestId, 'doccards/cancel-index', { job: result });
     }
-    case 'doccards/generate':
-    case 'doccards/generation-status':
-    case 'doccards/cancel-generation':
-      return fail(requestId, command.type, 'not implemented yet');
+    case 'doccards/generate': {
+      if (!context.generationJobs || !context.draftCards) {
+        return fail(requestId, 'doccards/generate', 'GENERATION_MODEL_NOT_CONFIGURED');
+      }
+      const rag = await context.getFolderRag();
+      const cardStore = await context.getCardStore();
+      const started = await context.generationJobs.startGenerate({
+        folderPath: command.folderPath,
+        ...(command.includeFiles ? { includeFiles: command.includeFiles } : {}),
+        ...(command.topic ? { topic: command.topic } : {}),
+        ...(command.deck ? { deck: command.deck } : {}),
+        rag,
+        cardStore,
+        draftCards: context.draftCards,
+        ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
+        ...(context.push ? { push: context.push } : {}),
+        isIndexRunning: (key) => context.ingestionJobs?.isRunning(key) === true,
+      });
+      if ('error' in started) {
+        return fail(requestId, 'doccards/generate', started.error);
+      }
+      return ok(requestId, 'doccards/generate', started.accepted);
+    }
+    case 'doccards/generation-status': {
+      if (!context.generationJobs) {
+        return fail(requestId, 'doccards/generation-status', 'generation jobs are not available');
+      }
+      const job = await context.generationJobs.status(command.folderPath);
+      return ok(requestId, 'doccards/generation-status', { job: job ?? null });
+    }
+    case 'doccards/cancel-generation': {
+      if (!context.generationJobs) {
+        return fail(requestId, 'doccards/cancel-generation', 'generation jobs are not available');
+      }
+      const result = await context.generationJobs.cancel(command.folderPath);
+      if ('error' in result) {
+        return fail(requestId, 'doccards/cancel-generation', result.error);
+      }
+      return ok(requestId, 'doccards/cancel-generation', { job: result });
+    }
     case 'doccards/retrieve': {
       const rag = await context.getFolderRag();
       const canonical = await canonicalizeFolderPath(command.folderPath);

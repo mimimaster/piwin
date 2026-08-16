@@ -212,4 +212,23 @@ describe('classifyHostPush', () => {
       barrierKeys: [['extensions', 'deployment', 'deploy-1']],
     });
   });
+
+  it('classifies doccards generation progress as a folder projection', () => {
+    expect(
+      classifyHostPush({
+        type: 'doccards/generation-progress',
+        job: {
+          id: 'gen_1',
+          folderKey: 'fk1',
+          folderPath: '/docs',
+          workspaceName: 'docs',
+          includeFiles: ['a.md'],
+          status: 'RETRIEVING',
+        },
+      }),
+    ).toEqual({
+      kind: 'projection',
+      key: ['doccards', 'generation', 'fk1'],
+    });
+  });
 });
