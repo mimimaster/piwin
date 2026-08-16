@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════════════════════════
+   Piwin Mobile Theme Definitions (Dark, Light, Ink-Wash / 水墨画)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Default Dark Theme (深色主题) ── */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #090d12;
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(56, 139, 253, 0.09), transparent 30rem),
+    radial-gradient(circle at 80% 90%, rgba(35, 134, 54, 0.04), transparent 24rem),
+    #090d12;
+  --panel: #131720;
+  --panel2: #1c222e;
+  --border: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.05);
+  --text: #f0f6fc;
+  --text-strong: #ffffff;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-soft: rgba(56, 139, 253, 0.15);
+  --accent-glow: 0 0 12px rgba(88, 166, 255, 0.4);
+  --accent-gradient: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+  --danger: #f85149;
+  --danger-soft: rgba(248, 81, 73, 0.14);
+  --warning: #d29922;
+  --warning-soft: rgba(210, 153, 34, 0.14);
+  --ok: #3fb950;
+  --ok-soft: rgba(63, 185, 80, 0.14);
+  --surface-control: #1c222e;
+  --surface-control-hover: #262e3d;
+  --surface-inset: #06090d;
+  --surface-hover: #171d27;
+  --header-bg: rgba(9, 13, 18, 0.88);
+  --tabbar-bg: rgba(19, 23, 32, 0.94);
+  --composer-bg: rgba(9, 13, 18, 0.96);
+  --user-bubble-bg: linear-gradient(135deg, rgba(56, 139, 253, 0.22) 0%, rgba(31, 111, 235, 0.12) 100%);
+  --user-bubble-border: rgba(88, 166, 255, 0.28);
+  --user-bubble-text: #ffffff;
+  --assistant-bubble-bg: #131720;
+  --assistant-bubble-border: rgba(255, 255, 255, 0.08);
+  --assistant-bubble-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --code-card-bg: #06090d;
+  --code-header-bg: rgba(255, 255, 255, 0.03);
+}
+
+/* ── 2. Pure Light Theme (浅色主题) ── */
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(9, 105, 218, 0.05), transparent 30rem),
+    #f6f8fa;
+  --panel: #ffffff;
+  --panel2: #f0f2f5;
+  --border: rgba(0, 0, 0, 0.09);
+  --line: rgba(0, 0, 0, 0.06);
+  --text: #1f2328;
+  --text-strong: #000000;
+  --muted: #656d76;
+  --accent: #0969da;
+  --accent-soft: rgba(9, 105, 218, 0.1);
+  --accent-glow: 0 0 12px rgba(9, 105, 218, 0.25);
+  --accent-gradient: linear-gradient(135deg, #218bff 0%, #0969da 100%);
+  --danger: #cf222e;
+  --danger-soft: rgba(207, 34, 46, 0.1);
+  --warning: #9a6700;
+  --warning-soft: rgba(154, 103, 0, 0.1);
+  --ok: #1a7f37;
+  --ok-soft: rgba(26, 127, 55, 0.1);
+  --surface-control: #eaeff4;
+  --surface-control-hover: #dfe5eb;
+  --surface-inset: #f3f5f8;
+  --surface-hover: #ebf0f5;
+  --header-bg: rgba(246, 248, 250, 0.88);
+  --tabbar-bg: rgba(255, 255, 255, 0.94);
+  --composer-bg: rgba(246, 248, 250, 0.96);
+  --user-bubble-bg: linear-gradient(135deg, #0969da 0%, #0550ae 100%);
+  --user-bubble-border: transparent;
+  --user-bubble-text: #ffffff;
+  --assistant-bubble-bg: #ffffff;
+  --assistant-bubble-border: rgba(0, 0, 0, 0.08);
+  --assistant-bubble-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --code-card-bg: #f6f8fa;
+  --code-header-bg: rgba(0, 0, 0, 0.03);
+}
+
+/* ── 3. Ink Wash Theme (砚夜泼墨 · 水墨画主题) ── */
+[data-theme='ink-wash'] {
+  color-scheme: dark;
+  --bg: #191a1d;
+  --bg-gradient: radial-gradient(circle at 40% 10%, rgba(112, 166, 180, 0.12), transparent 32rem),
+    radial-gradient(circle at 85% 85%, rgba(194, 77, 67, 0.07), transparent 26rem),
+    linear-gradient(180deg, #161719 0%, #1c1d21 100%);
+  --panel: #212226;
+  --panel2: #282a30;
+  --border: rgba(214, 205, 190, 0.16);
+  --line: rgba(214, 205, 190, 0.09);
+  --text: #f4efe6;
+  --text-strong: #ffffff;
+  --muted: #a49c8f;
+  --accent: #78a9b7;
+  --accent-soft: rgba(120, 169, 183, 0.18);
+  --accent-glow: 0 0 12px rgba(120, 169, 183, 0.35);
+  --accent-gradient: linear-gradient(135deg, #78a9b7 0%, #527c88 100%);
+  --danger: #c24d43;
+  --danger-soft: rgba(194, 77, 67, 0.18);
+  --warning: #d4a359;
+  --warning-soft: rgba(212, 163, 89, 0.18);
+  --ok: #6e9479;
+  --ok-soft: rgba(110, 148, 121, 0.18);
+  --surface-control: #292a30;
+  --surface-control-hover: #33353d;
+  --surface-inset: #131416;
+  --surface-hover: #2d2e35;
+  --header-bg: rgba(25, 26, 29, 0.90);
+  --tabbar-bg: rgba(33, 34, 38, 0.95);
+  --composer-bg: rgba(25, 26, 29, 0.96);
+  --user-bubble-bg: linear-gradient(135deg, rgba(120, 169, 183, 0.25) 0%, rgba(82, 124, 136, 0.15) 100%);
+  --user-bubble-border: rgba(120, 169, 183, 0.35);
+  --user-bubble-text: #ffffff;
+  --assistant-bubble-bg: #212226;
+  --assistant-bubble-border: rgba(214, 205, 190, 0.16);
+  --assistant-bubble-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  --code-card-bg: #141517;
+  --code-header-bg: rgba(214, 205, 190, 0.04);
+}
+
+/* ── Water-Ink Specific Elements (水墨特定印章与宣纸质感) ── */
+[data-theme='ink-wash'] .mobile-status-indicator.success {
+  background: #c24d43;
+  box-shadow: 0 0 8px rgba(194, 77, 67, 0.7);
+}
+
+[data-theme='ink-wash'] .mobile-role-name {
+  font-family: STKaiti, KaiTi, "PingFang SC", serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+[data-theme='ink-wash'] .mobile-header-eyebrow {
+  font-family: STKaiti, KaiTi, "PingFang SC", serif;
+  letter-spacing: 0.15em;
+}
+
+[data-theme='ink-wash'] .mobile-project-chip.active {
+  background: rgba(120, 169, 183, 0.2);
+  border-color: #78a9b7;
+  color: #f4efe6;
+}
+
+[data-theme='ink-wash'] .mobile-tool-card {
+  border-style: dashed;
+  border-color: rgba(214, 205, 190, 0.2);
+}
+
+[data-theme='ink-wash'] .mobile-slice-card {
+  border-color: rgba(214, 205, 190, 0.15);
+  background: rgba(33, 34, 38, 0.85);
+}

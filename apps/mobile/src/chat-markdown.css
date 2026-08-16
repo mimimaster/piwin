@@ -1,0 +1,255 @@
+/* ── Mobile Markdown & Code Styles ── */
+.mobile-markdown-root {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.mobile-markdown-root p {
+  margin: 0 0 10px;
+}
+
+.mobile-markdown-root p:last-child {
+  margin-bottom: 0;
+}
+
+.mobile-markdown-root h1,
+.mobile-markdown-root h2,
+.mobile-markdown-root h3,
+.mobile-markdown-root h4 {
+  margin: 16px 0 8px;
+  font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: -0.015em;
+}
+
+.mobile-markdown-root h1 { font-size: 18px; }
+.mobile-markdown-root h2 { font-size: 16px; }
+.mobile-markdown-root h3 { font-size: 15px; }
+
+.mobile-markdown-root ul,
+.mobile-markdown-root ol {
+  margin: 8px 0 12px;
+  padding-left: 22px;
+}
+
+.mobile-markdown-root li {
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.mobile-markdown-root blockquote {
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-control);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text);
+}
+
+.mobile-inline-code {
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: var(--surface-control);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
+
+/* ── Code Block Card with Mac-like header ── */
+.mobile-code-block-card {
+  margin: 12px 0;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: #0d1117;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.mobile-code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mobile-code-window-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-code-window-dots .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+}
+
+.mobile-code-window-dots .dot.red { background: #ff5f56; }
+.mobile-code-window-dots .dot.yellow { background: #ffbd2e; }
+.mobile-code-window-dots .dot.green { background: #27c93f; }
+
+.mobile-code-block-lang {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 4px;
+}
+
+.mobile-code-copy-button {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #c9d1d9;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all var(--motion-quick) var(--motion-ease);
+}
+
+.mobile-code-copy-button:active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #58a6ff;
+}
+
+.mobile-code-pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-overflow-scrolling: touch;
+  color: #e6edf3;
+}
+
+.mobile-table-wrapper {
+  margin: 10px 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.mobile-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.mobile-table-wrapper th,
+.mobile-table-wrapper td {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.mobile-table-wrapper th {
+  background: var(--surface-control);
+  font-weight: 600;
+}
+
+/* ── Tool Call Card Styles ── */
+.mobile-tool-card {
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-control);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.mobile-tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mobile-tool-header:active {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mobile-tool-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.mobile-tool-name {
+  font-weight: 700;
+  color: var(--accent);
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.mobile-tool-summary {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-tool-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mobile-tool-status-tag {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.mobile-tool-status-tag.running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mobile-tool-status-tag.done {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--ok);
+}
+
+.mobile-tool-status-tag.error {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--danger);
+}
+
+.mobile-tool-body {
+  border-top: 1px solid var(--line);
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  max-height: 220px;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-tool-output {
+  margin: 0;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
