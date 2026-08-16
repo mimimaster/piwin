@@ -57,7 +57,17 @@ export type RunRegistryOptions = {
   onRunUpdated?: (run: ExecutionRunRecord) => void;
   /** Callback when a run becomes terminal (for push emission). */
   onRunTerminal?: (run: ExecutionRunRecord) => void;
+  /**
+   * Terminal run nodes kept resident after termination. Terminal records are
+   * immutable, so older ones are safe to drop: history consumers receive
+   * records via push callbacks, and every host-side query filters by active
+   * status or an active root. Default 128.
+   */
+  maxRetainedTerminalRuns?: number;
 };
+
+/** Default resident terminal run nodes; bounds the Run tree's memory. */
+const DEFAULT_MAX_RETAINED_TERMINAL_RUNS = 128;
 
 /** Result of cancelling a run subtree. */
 export type CancelRunResult = {
@@ -79,6 +89,9 @@ export type CancelRunResult = {
  */
 export class RunRegistry {
   private readonly nodes = new Map<string, RunNode>();
+  /** Terminal run ids in termination order (oldest first), driving eviction. */
+  private readonly terminalOrder: string[] = [];
+  private readonly maxRetainedTerminalRuns: number;
   private readonly createId: () => string;
   private readonly onRunUpdated: ((run: ExecutionRunRecord) => void) | undefined;
   private readonly onRunTerminal: ((run: ExecutionRunRecord) => void) | undefined;
@@ -87,6 +100,12 @@ export class RunRegistry {
     this.createId = options.createId ?? (() => randomUUID());
     this.onRunUpdated = options.onRunUpdated;
     this.onRunTerminal = options.onRunTerminal;
+    this.maxRetainedTerminalRuns =
+      options.maxRetainedTerminalRuns !== undefined &&
+      Number.isInteger(options.maxRetainedTerminalRuns) &&
+      options.maxRetainedTerminalRuns > 0
+        ? options.maxRetainedTerminalRuns
+        : DEFAULT_MAX_RETAINED_TERMINAL_RUNS;
   }
 
   /** Create and register a new run. Returns the run record. */
@@ -367,7 +386,25 @@ export class RunRegistry {
     }
     node.joinResolvers = [];
 
+    this.retainTerminalRun(runId);
     return { ...node.record };
+  }
+
+  /**
+   * Record a freshly terminal run and drop the oldest terminal nodes beyond
+   * the retention window. Terminal records are immutable and every waiter has
+   * joined, so eviction cannot change observable behavior for active runs.
+   */
+  private retainTerminalRun(runId: string): void {
+    this.terminalOrder.push(runId);
+    while (this.terminalOrder.length > this.maxRetainedTerminalRuns) {
+      const evictId = this.terminalOrder.shift();
+      if (evictId === undefined) break;
+      const evicted = this.nodes.get(evictId);
+      if (evicted && isRunTerminal(evicted.record.status)) {
+        this.nodes.delete(evictId);
+      }
+    }
   }
 
   /**
@@ -656,6 +693,7 @@ export class RunRegistry {
   /** Clear all runs (for testing or disposal). */
   clear(): void {
     this.nodes.clear();
+    this.terminalOrder.length = 0;
   }
 }
 

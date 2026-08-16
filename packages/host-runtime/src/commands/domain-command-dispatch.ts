@@ -11,6 +11,7 @@ import { handleJobCommand } from './job-commands.js';
 import { handleAutomationCommand } from './automation-commands.js';
 import { handleResolveCommand } from './resolve-commands.js';
 import { handleProjectCommand } from './project-commands.js';
+import { handlePreviewCommand } from './preview-commands.js';
 import { handleBrowserCommand } from './browser-commands.js';
 import { handlePluginCommand } from './plugin-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
@@ -53,6 +54,9 @@ export async function dispatchDomainCommands(
 
   const project = await handleProjectCommand(command, requestId, context.piwinRoot);
   if (project) return project;
+
+  const preview = await handlePreviewCommand(command, requestId, context.piwinRoot);
+  if (preview) return preview;
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;

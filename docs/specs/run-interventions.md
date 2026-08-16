@@ -101,6 +101,23 @@ The primary Send action remains calm and non-destructive. The intervention
 shortcut is available, but UI copy must say `Adjust after current step`, not
 `Interrupt now` or `Send now`.
 
+### Converting a queued message into an intervention
+
+Each queued message row offers an explicit `Adjust current run after this
+step` action. The action submits `run/intervention-submit` with an
+`adoptQueuedTurn: { queuedTurnId, expectedRevision }` block: the Host cancels
+the queued turn (terminal reason `converted-to-intervention`) and creates the
+intervention bound to the active Run in one store transaction, re-binding the
+already-painted user row instead of appending a second copy. The message then
+follows the normal intervention lifecycle — applied at the next safe
+checkpoint of the current Run, not after the Run ends.
+
+Adoption is a deliberate shell action, never a fallback: the Host rejects it
+when the queued turn is not `pending` (a drain may have won the race), when
+the revision is stale, when the record carries attachments or context refs
+(interventions are text-only today), or when the payload text differs from the
+frozen queued text. An ACK-timeout retry replays the same durable outcome.
+
 ### Pending intervention presentation
 
 An accepted intervention appears as an ordinary user message in conversational
@@ -283,6 +300,12 @@ for one session, and their aggregate text is bounded to 512 KiB. Submit is
 idempotent by `(sessionId, queuedTurnId, userMessageId, mode, replaceRunId,
 fingerprint)`. Edits, cancellation, and reorder use revision compare-and-swap;
 a stale client must list the queue again rather than overwriting newer state.
+An explicit user action may also convert a `pending` `next` record into a Run
+intervention (`adoptQueuedTurn` on `run/intervention-submit`); the conversion
+is one atomic store transaction — cancel with
+`terminalReason: converted-to-intervention`, create the intervention, re-bind
+the existing user row — so a crash can neither lose the message nor admit it
+twice.
 
 The Host owns one drain lock per session. A `next` record is admitted through
 the ordinary `session/prompt` path with an internal `admission: 'queued-turn'`

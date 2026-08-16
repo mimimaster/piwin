@@ -42,6 +42,11 @@ import { isJobTerminal, validateStartJobInput } from '@piwin/contracts';
 import { resolveTrustedCwd } from './cwd-policy.js';
 import { createJobLogStore, type JobLogStore } from './job-log-store.js';
 import {
+  DEFAULT_MAX_RETAINED_TERMINAL_ENTRIES,
+  DEFAULT_MAX_RETAINED_TERMINAL_LOG_JOBS,
+  JobTerminalRetention,
+} from './job-terminal-retention.js';
+import {
   createProcessSupervisor,
   type ProcessSupervisor,
   type ProcessSupervisorOptions,
@@ -92,6 +97,10 @@ export type JobRegistryOptions = {
   processSupervisor?: ProcessSupervisor;
   /** Optional durable store for JobRecord persistence across host restarts. */
   recordStore?: JobRecordStore;
+  /** Terminal entries retained in memory; older ones are evicted. Default 64. */
+  maxRetainedTerminalEntries?: number;
+  /** Terminal jobs whose log buffers stay resident; older buffers are cleared. Default 8. */
+  maxRetainedTerminalLogJobs?: number;
 };
 
 /** Host-composed admission policy for new Jobs. */
@@ -174,65 +183,116 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
     options.processSupervisor ?? createProcessSupervisor(supervisorOptions);
 
   const entries = new Map<string, JobEntry>();
+  const maxRetainedTerminalEntries =
+    options.maxRetainedTerminalEntries !== undefined &&
+    Number.isInteger(options.maxRetainedTerminalEntries) &&
+    options.maxRetainedTerminalEntries > 0
+      ? options.maxRetainedTerminalEntries
+      : DEFAULT_MAX_RETAINED_TERMINAL_ENTRIES;
+  const maxRetainedTerminalLogJobs =
+    options.maxRetainedTerminalLogJobs !== undefined &&
+    Number.isInteger(options.maxRetainedTerminalLogJobs) &&
+    options.maxRetainedTerminalLogJobs > 0
+      ? options.maxRetainedTerminalLogJobs
+      : DEFAULT_MAX_RETAINED_TERMINAL_LOG_JOBS;
+  /**
+   * Bounded retention for terminal jobs: drops old log ring buffers and old
+   * resident entries (records stay durable in the record store).
+   */
+  const terminalRetention = new JobTerminalRetention({
+    maxRetainedTerminalEntries,
+    maxRetainedTerminalLogJobs,
+    dropEntry: (jobId) => {
+      entries.delete(jobId);
+    },
+    clearLogs: (jobId) => {
+      logStore.clear(jobId);
+    },
+  });
   const recordStore = options.recordStore;
   let disposed = false;
 
+  /** Build a non-running registry entry from a persisted record. */
+  function reviveEntry(record: JobRecord): JobEntry {
+    return {
+      record,
+      supervised: null,
+      pendingLogText: '',
+      pendingLogStream: 'stdout',
+      logFlushTimer: null,
+      intentionalStop: false,
+      readinessProbe: { type: 'none' },
+      readinessTimer: null,
+      waitResolvers: [],
+      readinessAbort: null,
+      terminalOverride: null,
+      stopInProgress: false,
+      pendingExitCode: undefined,
+    };
+  }
+
+  function terminalSortTime(record: JobRecord): number {
+    const stamp = record.endedAt ?? record.startedAt ?? '';
+    const parsed = Date.parse(stamp);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
   /**
-   * Reconcile persisted records on startup: load all records from the store
-   * and mark any that were active (starting/running/ready/stopping) when the
-   * host last exited as `interrupted` with terminal reason `host-restarted`.
-   * No PID reattachment is attempted — the OS processes are gone.
+   * Reconcile persisted records on startup: load records from the store,
+   * mark any that were active (starting/running/ready/stopping) when the
+   * host last exited as `interrupted` with terminal reason `host-restarted`,
+   * and retain only the newest terminal records in memory. No PID
+   * reattachment is attempted — the OS processes are gone.
    */
   function reconcilePersistedRecords(): void {
     if (!recordStore) return;
     const stored = recordStore.loadAll();
+    // Bound what stays resident: everything active is always reconciled, but
+    // only the newest terminal records are revived; older ones remain durable
+    // in the store without occupying RAM for the host's whole lifetime.
+    const retainedTerminal = stored
+      .filter((record) => !isStatusActive(record.status))
+      .sort((a, b) => terminalSortTime(b) - terminalSortTime(a))
+      .slice(0, maxRetainedTerminalEntries);
+    const retainedIds = new Set(retainedTerminal.map((record) => record.jobId));
+
     for (const record of stored) {
-      if (isStatusActive(record.status)) {
+      const wasActive = isStatusActive(record.status);
+      if (!wasActive && !retainedIds.has(record.jobId)) {
+        continue;
+      }
+      const revived: JobRecord = wasActive
+        ? {
+            ...record,
+            argv: [...record.argv],
+            status: 'interrupted',
+            terminalReason: 'host-restarted',
+            endedAt: nowIso(now),
+          }
+        : { ...record, argv: [...record.argv] };
+      entries.set(revived.jobId, reviveEntry(revived));
+      if (wasActive) {
         // The host restarted while this job was still active. The OS process
         // is no longer tracked; mark it interrupted so the user sees what
         // happened rather than a stale "running" record.
-        const interrupted: JobRecord = {
-          ...record,
-          argv: [...record.argv],
-          status: 'interrupted',
-          terminalReason: 'host-restarted',
-          endedAt: nowIso(now),
-        };
-        entries.set(record.jobId, {
-          record: interrupted,
-          supervised: null,
-          pendingLogText: '',
-          pendingLogStream: 'stdout',
-          logFlushTimer: null,
-          intentionalStop: false,
-          readinessProbe: { type: 'none' },
-          readinessTimer: null,
-          waitResolvers: [],
-          readinessAbort: null,
-          terminalOverride: null,
-          stopInProgress: false,
-          pendingExitCode: undefined,
-        });
-        recordStore.save(interrupted);
-      } else {
-        // Terminal records are loaded as-is for historical visibility.
-        entries.set(record.jobId, {
-          record: { ...record, argv: [...record.argv] },
-          supervised: null,
-          pendingLogText: '',
-          pendingLogStream: 'stdout',
-          logFlushTimer: null,
-          intentionalStop: false,
-          readinessProbe: { type: 'none' },
-          readinessTimer: null,
-          waitResolvers: [],
-          readinessAbort: null,
-          terminalOverride: null,
-          stopInProgress: false,
-          pendingExitCode: undefined,
-        });
+        recordStore.save(revived);
       }
     }
+    // Retained terminal ids are newest-first; seed oldest-first order. The
+    // freshly-interrupted records go last (most recent) so the interruption
+    // signal survives the longest under the retention cap.
+    for (let index = retainedTerminal.length - 1; index >= 0; index -= 1) {
+      const record = retainedTerminal[index];
+      if (record) {
+        terminalRetention.seed(record.jobId);
+      }
+    }
+    for (const record of stored) {
+      if (isStatusActive(record.status)) {
+        terminalRetention.seed(record.jobId);
+      }
+    }
+    terminalRetention.evictExcess();
   }
 
   /** Persist a record to the store if one is configured. */
@@ -359,6 +419,8 @@ export function createJobRegistry(options: JobRegistryOptions = {}): JobControll
       resolve(record);
     }
     entry.waitResolvers = [];
+
+    terminalRetention.retain(entry.record.jobId);
   }
 
   function scheduleLogFlushEntry(entry: JobEntry): void {

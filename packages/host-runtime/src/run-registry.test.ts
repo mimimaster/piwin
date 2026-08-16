@@ -1141,3 +1141,62 @@ describe('RunRegistry checkpoint pause', () => {
     expect(reg.hasActiveDescendants(parent.runId)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Terminal retention (memory bounds)
+// ---------------------------------------------------------------------------
+
+describe('RunRegistry terminal retention', () => {
+  it('evicts the oldest terminal nodes beyond the retention window', () => {
+    const reg = new RunRegistry({ createId: makeIdGen(), maxRetainedTerminalRuns: 3 });
+
+    const runIds: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const run = reg.create({ kind: 'session-turn', sessionId: `sess-${index}` });
+      reg.start(run.runId);
+      expect(reg.terminate(run.runId, 'completed')).toBeDefined();
+      runIds.push(run.runId);
+    }
+
+    // Oldest two terminal runs are gone; the newest three stay queryable.
+    expect(reg.get(runIds[0]!)).toBeUndefined();
+    expect(reg.get(runIds[1]!)).toBeUndefined();
+    expect(reg.get(runIds[4]!)?.status).toBe('completed');
+    expect(reg.list()).toHaveLength(3);
+  });
+
+  it('never evicts non-terminal runs', () => {
+    const reg = new RunRegistry({ createId: makeIdGen(), maxRetainedTerminalRuns: 2 });
+
+    const active = reg.create({ kind: 'session-turn', sessionId: 'sess-active' });
+    reg.start(active.runId);
+
+    for (let index = 0; index < 4; index += 1) {
+      const run = reg.create({ kind: 'subagent-task', sessionId: 'sess-other' });
+      reg.terminate(run.runId, 'completed');
+    }
+
+    expect(reg.get(active.runId)?.status).toBe('running');
+    expect(reg.getForegroundRun('sess-active')?.runId).toBe(active.runId);
+  });
+
+  it('keeps parent-child termination order intact under eviction', () => {
+    const reg = new RunRegistry({ createId: makeIdGen(), maxRetainedTerminalRuns: 4 });
+
+    const parent = reg.create({ kind: 'subagent-batch', sessionId: 'sess-1' });
+    const children: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      const child = reg.create({
+        kind: 'subagent-task',
+        sessionId: 'sess-1',
+        parentRunId: parent.runId,
+      });
+      children.push(child.runId);
+      reg.terminate(child.runId, 'completed');
+    }
+    // Children joined; parent may terminalize even though an older sibling
+    // batch was already evicted.
+    expect(reg.terminate(parent.runId, 'completed')).toBeDefined();
+    expect(reg.get(parent.runId)?.status).toBe('completed');
+  });
+});

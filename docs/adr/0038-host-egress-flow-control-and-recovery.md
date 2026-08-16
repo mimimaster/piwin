@@ -188,6 +188,17 @@ queue, or JavaScript callback queue as hidden buffering.
 - Emit push batches only to the `main` WebView, not application-wide.
 - Desktop consumes a batch in one client transaction and retains its final rAF
   visual scheduler.
+- The client detects cursor gaps (`afterSeq` beyond the applied cursor) instead
+  of healing over them silently. A gap notifies the UI layer, which reconciles
+  against Host authority — no polling timer; the triggers are the gap itself
+  and window refocus on a thread that still shows a live run.
+- Reconciliation queries `session/foreground-run` (the Run registry is the
+  authority). A terminal record replays the terminal projection; no record at
+  all clears stale streaming state; an active run means do nothing. The
+  transcript tail is re-pulled first because a lost terminal push usually also
+  lost the final assistant text.
+- The JSONL sidecar writer isolates per-line failures: one rejected write must
+  never poison the serialized chain into dropping all later output.
 
 This stage is the incident containment/release gate.
 
