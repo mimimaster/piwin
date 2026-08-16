@@ -1,3 +1,20 @@
+.doc-card-surface {
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0 0 12px;
+}
+
+.doc-card-surface-meta {
+  color: var(--muted, #888);
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.doc-card-surface-face {
+  min-height: 120px;
+}
+
 .doc-card-sequence {
   border: 1px solid var(--border, #444);
   border-radius: 8px;
