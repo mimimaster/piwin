@@ -206,7 +206,18 @@ describe('ImageGenerationSettings', () => {
   });
 
   it('adds an image model with capabilities and an image-generation route', async () => {
-    const config = makeConfig();
+    const config: PiwinConfig = {
+      ...makeConfig(),
+      providers: [
+        {
+          ...makeConfig().providers[0]!,
+          models: [
+            ...makeConfig().providers[0]!.models,
+            { id: 'cogview-3', label: 'CogView 3' },
+          ],
+        },
+      ],
+    };
     const saved: PiwinConfig[] = [];
     const saveConfig = vi.fn(async (next: PiwinConfig) => {
       saved.push(next);
@@ -221,6 +232,7 @@ describe('ImageGenerationSettings', () => {
       '[data-testid="image-add-model-submit"]',
     );
     expect(submit).not.toBeNull();
+    expect(submit?.disabled).toBe(true);
 
     act(() => {
       // Missing leading slash is normalized on save.
@@ -241,6 +253,8 @@ describe('ImageGenerationSettings', () => {
         'CogView 3',
       );
     });
+    expect(submit?.disabled).toBe(false);
+
     await act(async () => {
       submit?.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -262,7 +276,18 @@ describe('ImageGenerationSettings', () => {
   });
 
   it('adds an image model with a Gemini-native apiStyle and path', async () => {
-    const config = makeConfig();
+    const config: PiwinConfig = {
+      ...makeConfig(),
+      providers: [
+        {
+          ...makeConfig().providers[0]!,
+          models: [
+            ...makeConfig().providers[0]!.models,
+            { id: 'gemini-3.1-flash-image', label: 'Gemini Flash Image' },
+          ],
+        },
+      ],
+    };
     const saved: PiwinConfig[] = [];
     const saveConfig = vi.fn(async (next: PiwinConfig) => {
       saved.push(next);
@@ -315,6 +340,33 @@ describe('ImageGenerationSettings', () => {
       path: '/v1beta/models/gemini-3.1-flash-image:generateContent',
       timeoutMs: 180000,
     });
+  });
+
+  it('disables submit and displays warning when model is not configured on provider (3-tier constraint)', async () => {
+    const config = makeConfig();
+    const saveConfig = vi.fn(async () => true);
+    ({ root, container } = renderSettings(config, saveConfig));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const submit = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="image-add-model-submit"]',
+    );
+    expect(submit).not.toBeNull();
+
+    act(() => {
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="image-model-suggest-input"]'),
+        'unconfigured-model-xyz',
+      );
+    });
+
+    expect(submit?.disabled).toBe(true);
+    const hint = container!.querySelector('[data-testid="image-add-model-missing-hint"]');
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toContain('unconfigured-model-xyz');
+    expect(saveConfig).not.toHaveBeenCalled();
   });
 
   it('sets the default image model when set-default is clicked', async () => {
@@ -527,7 +579,18 @@ describe('ImageGenerationSettings', () => {
   });
 
   it('adds a video model with an async API style and polling route', async () => {
-    const config = makeConfig();
+    const config: PiwinConfig = {
+      ...makeConfig(),
+      providers: [
+        {
+          ...makeConfig().providers[0]!,
+          models: [
+            ...makeConfig().providers[0]!.models,
+            { id: 'gen4.5', label: 'Gen 4.5' },
+          ],
+        },
+      ],
+    };
     const saved: PiwinConfig[] = [];
     const saveConfig = vi.fn(async (next: PiwinConfig) => {
       saved.push(next);

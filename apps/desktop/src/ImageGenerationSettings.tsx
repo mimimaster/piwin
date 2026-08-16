@@ -274,18 +274,25 @@ export function ImageGenerationSettings(): ReactElement {
   const [addModelDescription, setAddModelDescription] = useState('');
   const [testingKey, setTestingKey] = useState<string | null>(null);
 
-  // Prefer default chat provider, else first configured provider.
+  // Prefer configured image default provider, else first provider with image-capable models, else first configured provider.
   useEffect(() => {
     if (selectedProviderId && allProviders.some((p) => p.id === selectedProviderId)) {
       return;
     }
-    const preferred = config?.defaultProviderId;
-    if (preferred && allProviders.some((p) => p.id === preferred)) {
-      setSelectedProviderId(preferred);
+    const imageDefaultProvider = config?.imageGeneration?.defaultModel?.providerId;
+    if (imageDefaultProvider && allProviders.some((p) => p.id === imageDefaultProvider)) {
+      setSelectedProviderId(imageDefaultProvider);
+      return;
+    }
+    const providerWithImage = allProviders.find((p) =>
+      p.models.some((m) => isImageGenerationModel(m)),
+    );
+    if (providerWithImage) {
+      setSelectedProviderId(providerWithImage.id);
       return;
     }
     setSelectedProviderId(allProviders[0]?.id ?? '');
-  }, [allProviders, config?.defaultProviderId, selectedProviderId]);
+  }, [allProviders, config?.imageGeneration?.defaultModel?.providerId, selectedProviderId]);
 
   // When editing, pin the form to the model's original provider.
   const effectiveProviderId = useMemo(() => {
@@ -383,67 +390,50 @@ export function ImageGenerationSettings(): ReactElement {
       return;
     }
 
+    const existingModel = selectedProvider.models.find((model) => model.id === id);
+    if (!existingModel) {
+      setError(
+        locale === 'zh-CN'
+          ? `通道「${selectedProvider.name || selectedProvider.id}」中尚未配置模型「${id}」。请先在「通道与文本」中为该通道添加或拉取此模型。`
+          : `Model "${id}" is not configured on channel "${selectedProvider.name || selectedProvider.id}". Please add or fetch it under Channels & chat first.`,
+      );
+      return;
+    }
+
     const updatedModel = buildImageModelEntry({
       id,
       path: addModelPath,
       apiStyle: addModelApiStyle,
       timeoutSeconds: addModelTimeout,
-      label: addModelLabel,
-      description: addModelDescription,
+      label: addModelLabel || existingModel.label || '',
+      description: addModelDescription || existingModel.tooltipMarkdown || '',
     });
 
-    let nextProviders: ModelProviderConfig[];
-
-    if (editingKey) {
-      const [origProviderId, origModelId] = editingKey.split(':');
-      nextProviders = config.providers.map((p) => {
-        let models = p.models;
-        if (p.id === origProviderId) {
-          models = models.filter((m) => m.id !== origModelId);
-        }
-        if (p.id === selectedProvider.id) {
-          models = [...models.filter((m) => m.id !== id), updatedModel];
-        }
-        return { ...p, models };
-      });
-    } else {
-      if (selectedProvider.models.some((model) => model.id === id)) {
-        // If the model already exists, upgrade it to image-capable in place.
-        nextProviders = config.providers.map((provider) => {
-          if (provider.id !== selectedProvider.id) return provider;
-          return {
-            ...provider,
-            models: provider.models.map((model): ModelConfigEntry => {
-              if (model.id !== id) return model;
-              const capabilities = new Set(model.capabilities ?? []);
-              capabilities.add('image-generation');
-              // Start from existing chat model, overlay image route/label fields.
-              // exactOptionalPropertyTypes: only set optional keys when defined.
-              const merged: ModelConfigEntry = {
-                ...model,
-                id: updatedModel.id,
-                capabilities: [...capabilities],
-                routes: {
-                  ...model.routes,
-                  ...updatedModel.routes,
-                },
-              };
-              if (updatedModel.label) merged.label = updatedModel.label;
-              if (updatedModel.tooltipMarkdown) {
-                merged.tooltipMarkdown = updatedModel.tooltipMarkdown;
-              }
-              return merged;
-            }),
+    const nextProviders = config.providers.map((provider) => {
+      if (provider.id !== selectedProvider.id) return provider;
+      return {
+        ...provider,
+        models: provider.models.map((model): ModelConfigEntry => {
+          if (model.id !== id) return model;
+          const capabilities = new Set(model.capabilities ?? []);
+          capabilities.add('image-generation');
+          const merged: ModelConfigEntry = {
+            ...model,
+            id: updatedModel.id,
+            capabilities: [...capabilities],
+            routes: {
+              ...model.routes,
+              ...updatedModel.routes,
+            },
           };
-        });
-      } else {
-        nextProviders = config.providers.map((provider) =>
-          provider.id === selectedProvider.id
-            ? { ...provider, models: [...provider.models, updatedModel] }
-            : provider,
-        );
-      }
-    }
+          if (updatedModel.label) merged.label = updatedModel.label;
+          if (updatedModel.tooltipMarkdown) {
+            merged.tooltipMarkdown = updatedModel.tooltipMarkdown;
+          }
+          return merged;
+        }),
+      };
+    });
 
     const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
     if (!hasUsableImageDefault(nextConfig) && selectedProvider.enabled !== false) {
@@ -671,6 +661,17 @@ export function ImageGenerationSettings(): ReactElement {
                       disabled={Boolean(editingKey)}
                     />
                   </div>
+                  {addModelId.trim() && !selectedProvider?.models.some((m) => m.id === addModelId.trim()) ? (
+                    <p
+                      className="image-gen-model-missing-hint"
+                      style={{ marginTop: 6, fontSize: 12, color: 'var(--warn, #f59e0b)' }}
+                      data-testid="image-add-model-missing-hint"
+                    >
+                      {locale === 'zh-CN'
+                        ? `当前通道尚未配置模型「${addModelId.trim()}」。请先在「通道与文本」中为该通道拉取或添加此模型。`
+                        : `Model "${addModelId.trim()}" is not configured on this channel. Please fetch or add it under Channels & chat first.`}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -782,7 +783,11 @@ export function ImageGenerationSettings(): ReactElement {
                   size="compact"
                   variant="primary"
                   data-testid="image-add-model-submit"
-                  disabled={!addModelId.trim() || !selectedProvider}
+                  disabled={
+                    !addModelId.trim() ||
+                    !selectedProvider ||
+                    !selectedProvider.models.some((m) => m.id === addModelId.trim())
+                  }
                   onClick={() => void handleAddModel()}
                 >
                   {editingKey

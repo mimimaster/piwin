@@ -150,6 +150,17 @@ export function VideoGenerationModelForm(props: VideoGenerationModelFormProps) {
                 {...(onDiscoverError ? { onDiscoverError } : {})}
               />
             </div>
+            {modelId.trim() && !selectedProvider?.models.some((m) => m.id === modelId.trim()) ? (
+              <p
+                className="video-gen-model-missing-hint"
+                style={{ marginTop: 6, fontSize: 12, color: 'var(--warn, #f59e0b)' }}
+                data-testid="video-add-model-missing-hint"
+              >
+                {locale === 'zh-CN'
+                  ? `当前通道尚未配置模型「${modelId.trim()}」。请先在「通道与文本」中为该通道拉取或添加此模型。`
+                  : `Model "${modelId.trim()}" is not configured on this channel. Please fetch or add it under Channels & chat first.`}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -235,7 +246,11 @@ export function VideoGenerationModelForm(props: VideoGenerationModelFormProps) {
           <Button
             size="compact"
             data-testid="video-add-model-submit"
-            disabled={!modelId.trim() || !selectedProvider}
+            disabled={
+              !modelId.trim() ||
+              !selectedProvider ||
+              !selectedProvider.models.some((m) => m.id === modelId.trim())
+            }
             onClick={onSubmit}
           >
             {editingKey ? (locale === 'zh-CN' ? '保存模型修改' : 'Update Model') : copy.addModel}

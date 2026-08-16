@@ -348,7 +348,7 @@ describe('ModelEditInline', () => {
     );
   });
 
-  it('auto-saves a parameter change after the debounce without clicking save', async () => {
+  it('does not auto-save a parameter change without clicking save', async () => {
     const onSave = vi.fn();
     render(
       <ModelEditInline
@@ -363,17 +363,18 @@ describe('ModelEditInline', () => {
     act(() => {
       setInputValue(input('model-edit-context'), '256000');
     });
-    // Let the 700ms auto-save debounce elapse inside act so state updates flush.
+    // Wait to verify that no debounce timer triggers auto-save.
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      await new Promise((resolve) => setTimeout(resolve, 800));
     });
+    expect(onSave).not.toHaveBeenCalled();
+
+    click('[data-testid="model-edit-save"]');
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(onSave.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ contextWindow: '256000' }));
-    // The Save button stays available next to the auto-save behavior.
-    expect(query('[data-testid="model-edit-save"]')).not.toBeNull();
   });
 
-  it('does not auto-save an invalid value but still reports it on manual save', async () => {
+  it('does not save an invalid value and reports validation error on manual save', () => {
     const onSave = vi.fn();
     render(
       <ModelEditInline
@@ -388,18 +389,13 @@ describe('ModelEditInline', () => {
     act(() => {
       setInputValue(input('model-edit-context'), 'not-a-number');
     });
-    // Give the debounce plenty of time — nothing may be persisted.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    });
-    expect(onSave).not.toHaveBeenCalled();
 
     click('[data-testid="model-edit-save"]');
     expect(onSave).not.toHaveBeenCalled();
     expect(query('[data-testid="model-edit-error"]')).not.toBeNull();
   });
 
-  it('flushes a pending edit when the form closes before the debounce elapses', async () => {
+  it('does not save on unmount when save was not clicked', () => {
     const onSave = vi.fn();
     const { root } = render(
       <ModelEditInline
@@ -414,12 +410,9 @@ describe('ModelEditInline', () => {
     act(() => {
       setInputValue(input('model-edit-context'), '256000');
     });
-    // Collapse the row immediately — the debounce never fires, but the change
-    // must still be persisted so auto-save semantics survive quick close.
     act(() => {
       root.unmount();
     });
-    expect(onSave).toHaveBeenCalledTimes(1);
-    expect(onSave.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ contextWindow: '256000' }));
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

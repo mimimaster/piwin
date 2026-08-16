@@ -53,13 +53,20 @@ export function VideoGenerationSettings(): ReactElement {
     if (selectedProviderId && allProviders.some((provider) => provider.id === selectedProviderId)) {
       return;
     }
-    const preferred = config?.defaultProviderId;
-    if (preferred && allProviders.some((provider) => provider.id === preferred)) {
-      setSelectedProviderId(preferred);
+    const videoDefaultProvider = config?.videoGeneration?.defaultModel?.providerId;
+    if (videoDefaultProvider && allProviders.some((p) => p.id === videoDefaultProvider)) {
+      setSelectedProviderId(videoDefaultProvider);
+      return;
+    }
+    const providerWithVideo = allProviders.find((p) =>
+      p.models.some((m) => m.capabilities?.includes('video-generation') || m.routes?.['video-generation']),
+    );
+    if (providerWithVideo) {
+      setSelectedProviderId(providerWithVideo.id);
       return;
     }
     setSelectedProviderId(allProviders[0]?.id ?? '');
-  }, [allProviders, config?.defaultProviderId, selectedProviderId]);
+  }, [allProviders, config?.videoGeneration?.defaultModel?.providerId, selectedProviderId]);
 
   const effectiveProviderId = useMemo(() => {
     const editingProviderId = editingKey?.split(':')[0];
@@ -149,52 +156,37 @@ export function VideoGenerationSettings(): ReactElement {
       return;
     }
 
+    const existingModel = selectedProvider.models.find((model) => model.id === id);
+    if (!existingModel) {
+      setError?.(
+        locale === 'zh-CN'
+          ? `通道「${selectedProvider.name || selectedProvider.id}」中尚未配置模型「${id}」。请先在「通道与文本」中添加该模型。`
+          : `Model "${id}" is not configured in channel "${selectedProvider.name || selectedProvider.id}". Please add it under Channels & chat first.`,
+      );
+      return;
+    }
+
     const updatedModel = buildVideoModelEntry({
       id,
       apiStyle: addApiStyle,
       path: addModelPath,
       timeoutSeconds: addModelTimeout,
       pollIntervalSeconds: addPollInterval,
-      label: addModelLabel,
-      description: addModelDescription,
+      label: addModelLabel || existingModel.label || '',
+      description: addModelDescription || existingModel.tooltipMarkdown || '',
     });
 
-    let nextProviders: ModelProviderConfig[];
-    if (editingKey) {
-      const [originalProviderId, originalModelId] = editingKey.split(':');
-      nextProviders = config.providers.map((provider) => {
-        const withoutOriginal = provider.models.filter(
-          (model) => !(provider.id === originalProviderId && model.id === originalModelId),
-        );
-        if (provider.id !== selectedProvider.id) {
-          return { ...provider, models: withoutOriginal };
-        }
-        const existing = withoutOriginal.find((model) => model.id === id);
-        const nextModel = existing ? mergeVideoModel(existing, updatedModel) : updatedModel;
-        return {
-          ...provider,
-          models: [...withoutOriginal.filter((model) => model.id !== id), nextModel],
-        };
-      });
-    } else if (selectedProvider.models.some((model) => model.id === id)) {
-      nextProviders = config.providers.map((provider) => {
-        if (provider.id !== selectedProvider.id) {
-          return provider;
-        }
-        return {
-          ...provider,
-          models: provider.models.map((model) =>
-            model.id === id ? mergeVideoModel(model, updatedModel) : model,
-          ),
-        };
-      });
-    } else {
-      nextProviders = config.providers.map((provider) =>
-        provider.id === selectedProvider.id
-          ? { ...provider, models: [...provider.models, updatedModel] }
-          : provider,
-      );
-    }
+    const nextProviders = config.providers.map((provider) => {
+      if (provider.id !== selectedProvider.id) {
+        return provider;
+      }
+      return {
+        ...provider,
+        models: provider.models.map((model) =>
+          model.id === id ? mergeVideoModel(model, updatedModel) : model,
+        ),
+      };
+    });
 
     resetAddForm();
     await saveConfig({ ...config, providers: nextProviders });
