@@ -19,6 +19,22 @@ export function encodeCardMarkdown(card: FlashcardRecord): string {
   if (card.sourceFile) lines.push(`sourceFile: ${JSON.stringify(card.sourceFile)}`);
   if (typeof card.sourceLine === 'number') lines.push(`sourceLine: ${card.sourceLine}`);
   if (card.tags && card.tags.length > 0) lines.push(`tags: ${JSON.stringify(card.tags)}`);
+  if (card.sequenceId) lines.push(`sequenceId: ${JSON.stringify(card.sequenceId)}`);
+  if (typeof card.position === 'number') lines.push(`position: ${card.position}`);
+  if (card.cardType) lines.push(`cardType: ${JSON.stringify(card.cardType)}`);
+  if (card.relationFromPrevious) {
+    lines.push(`relationFromPrevious: ${JSON.stringify(card.relationFromPrevious)}`);
+  }
+  if (card.knowledgePointIds && card.knowledgePointIds.length > 0) {
+    lines.push(`knowledgePointIds: ${JSON.stringify(card.knowledgePointIds)}`);
+  }
+  if (card.sourceChunkIds && card.sourceChunkIds.length > 0) {
+    lines.push(`sourceChunkIds: ${JSON.stringify(card.sourceChunkIds)}`);
+  }
+  if (card.generationId) lines.push(`generationId: ${JSON.stringify(card.generationId)}`);
+  if (card.sourceDocumentIds && card.sourceDocumentIds.length > 0) {
+    lines.push(`sourceDocumentIds: ${JSON.stringify(card.sourceDocumentIds)}`);
+  }
   lines.push(`createdAt: ${JSON.stringify(card.createdAt)}`);
   lines.push('---');
   lines.push('');
@@ -69,6 +85,22 @@ export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
   if (sections.source) card.sourceExcerpt = sections.source;
   const tags = asStringArray(fields.tags);
   if (tags) card.tags = tags;
+  const sequenceId = asString(fields.sequenceId);
+  if (sequenceId) card.sequenceId = sequenceId;
+  const position = asNumber(fields.position);
+  if (position !== undefined) card.position = position;
+  const cardType = asString(fields.cardType);
+  if (cardType) card.cardType = cardType;
+  const relationFromPrevious = asString(fields.relationFromPrevious);
+  if (relationFromPrevious) card.relationFromPrevious = relationFromPrevious;
+  const knowledgePointIds = asStringArray(fields.knowledgePointIds);
+  if (knowledgePointIds) card.knowledgePointIds = knowledgePointIds;
+  const sourceChunkIds = asStringArray(fields.sourceChunkIds);
+  if (sourceChunkIds) card.sourceChunkIds = sourceChunkIds;
+  const generationId = asString(fields.generationId);
+  if (generationId) card.generationId = generationId;
+  const sourceDocumentIds = asStringArray(fields.sourceDocumentIds);
+  if (sourceDocumentIds) card.sourceDocumentIds = sourceDocumentIds;
   return card;
 }
 

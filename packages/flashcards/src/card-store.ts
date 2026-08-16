@@ -35,7 +35,12 @@ export class DuplicateCardError extends Error {
 export type CardStore = {
   create: (input: FlashcardCreateInput) => Promise<FlashcardRecord>;
   batchCreate: (input: FlashcardBatchCreateInput, maxBatchSize?: number) => Promise<{ created: FlashcardRecord[]; skipped: FlashcardBatchSkip[] }>;
-  list: (filter?: { deck?: string; sourceNoteId?: string; sourceFolder?: string }) => Promise<FlashcardRecord[]>;
+  list: (filter?: {
+    deck?: string;
+    sourceNoteId?: string;
+    sourceFolder?: string;
+    sequenceId?: string;
+  }) => Promise<FlashcardRecord[]>;
   read: (cardId: string) => Promise<FlashcardRecord>;
   delete: (cardId: string) => Promise<{ deleted: true; id: string }>;
   deleteBySourceFolder: (folderPath: string) => Promise<{ deleted: number }>;
@@ -142,12 +147,16 @@ export function createCardStore(options: CardStoreOptions): CardStore {
         throw new Error('card front and back must be non-empty');
       }
 
-      // Dedup within the same deck (safety net behind LLM-side avoidance).
+      // Folder-sourced cards dedup inside the same sourceFolder so two
+      // workspaces that share a basename do not collide. Open/note cards
+      // stay deck-scoped.
       const existing = await scanCards();
-      const deckFronts = existing
-        .filter((card) => card.deck === deck)
-        .map((card) => card.front);
-      const duplicate = findNearDuplicate(front, deckFronts);
+      const comparable = existing.filter((card) =>
+        input.sourceFolder
+          ? card.sourceFolder === input.sourceFolder
+          : card.deck === deck && !card.sourceFolder,
+      );
+      const duplicate = findNearDuplicate(front, comparable.map((card) => card.front));
       if (duplicate) {
         throw new DuplicateCardError(duplicate);
       }
@@ -166,6 +175,20 @@ export function createCardStore(options: CardStoreOptions): CardStore {
       if (input.sourceFile) card.sourceFile = input.sourceFile;
       if (typeof input.sourceLine === 'number') card.sourceLine = input.sourceLine;
       if (input.tags && input.tags.length > 0) card.tags = input.tags;
+      if (input.sequenceId) card.sequenceId = input.sequenceId;
+      if (typeof input.position === 'number') card.position = input.position;
+      if (input.cardType) card.cardType = input.cardType;
+      if (input.relationFromPrevious) card.relationFromPrevious = input.relationFromPrevious;
+      if (input.knowledgePointIds && input.knowledgePointIds.length > 0) {
+        card.knowledgePointIds = input.knowledgePointIds;
+      }
+      if (input.sourceChunkIds && input.sourceChunkIds.length > 0) {
+        card.sourceChunkIds = input.sourceChunkIds;
+      }
+      if (input.generationId) card.generationId = input.generationId;
+      if (input.sourceDocumentIds && input.sourceDocumentIds.length > 0) {
+        card.sourceDocumentIds = input.sourceDocumentIds;
+      }
 
       await writeFile(cardPath(id), encodeCardMarkdown(card), 'utf8');
       await writeReviewState(createInitialReviewState(id));
@@ -207,6 +230,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
           if (filter?.deck && card.deck !== filter.deck) return false;
           if (filter?.sourceNoteId && card.sourceNoteId !== filter.sourceNoteId) return false;
           if (filter?.sourceFolder && card.sourceFolder !== filter.sourceFolder) return false;
+          if (filter?.sequenceId && card.sequenceId !== filter.sequenceId) return false;
           return true;
         })
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
