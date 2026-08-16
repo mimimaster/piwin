@@ -164,4 +164,112 @@ describe('HostClient', () => {
     expect(pushes.filter((message) => message.type === 'host/status')).toHaveLength(2);
     expect(client.isReady()).toBe(false);
   });
+
+  it('reports a push sequence gap and still applies the closing batch', async () => {
+    const callbacks = new Map<string, (event: { payload: unknown }) => void>();
+    const unlisten = vi.fn();
+    listenMock.mockImplementation(
+      async (eventName: string, callback: (event: { payload: unknown }) => void) => {
+        callbacks.set(eventName, callback);
+        return unlisten;
+      },
+    );
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'host_start') {
+        return { started: true };
+      }
+      if (command === 'host_request') {
+        return {
+          id: 'ui-1',
+          type: 'response',
+          command: 'host/status',
+          success: true,
+          data: { mode: 'sdk', ready: true, mock: false },
+        } satisfies HostResponse;
+      }
+      throw new Error(`Unexpected Tauri command: ${command}`);
+    });
+
+    const client = new HostClient({ transport: 'live' });
+    const gaps: unknown[] = [];
+    client.registerSequenceGapHandler((gap) => gaps.push(gap));
+    await client.connect();
+
+    const firstBatch: HostPushBatchFrame = {
+      type: 'push/batch',
+      hostInstanceId: 'host-test',
+      afterSeq: 0,
+      throughSeq: 2,
+      items: [
+        {
+          seq: 1,
+          eventId: 'event-1',
+          push: { type: 'host/status', mode: 'sdk', ready: true, mock: false },
+        },
+        {
+          seq: 2,
+          eventId: 'event-2',
+          push: {
+            type: 'session/name-updated',
+            sessionId: 'session-1',
+            name: 'Demo',
+            nameSource: 'text',
+          },
+        },
+      ],
+    };
+    callbacks.get('host-message-batch')?.({ payload: firstBatch });
+
+    // Frames 3–5 are lost in transit; the next batch jumps past them.
+    const closingBatch: HostPushBatchFrame = {
+      type: 'push/batch',
+      hostInstanceId: 'host-test',
+      afterSeq: 5,
+      throughSeq: 6,
+      items: [
+        {
+          seq: 6,
+          eventId: 'event-6',
+          push: {
+            type: 'session/name-updated',
+            sessionId: 'session-1',
+            name: 'Renamed',
+            nameSource: 'text',
+          },
+        },
+      ],
+    };
+    callbacks.get('host-message-batch')?.({ payload: closingBatch });
+
+    expect(gaps).toEqual([
+      {
+        hostInstanceId: 'host-test',
+        missedFromSeq: 3,
+        receivedFromSeq: 6,
+      },
+    ]);
+
+    // The cursor closed over the hole: a following contiguous batch reports
+    // no second gap.
+    const nextBatch: HostPushBatchFrame = {
+      type: 'push/batch',
+      hostInstanceId: 'host-test',
+      afterSeq: 6,
+      throughSeq: 7,
+      items: [
+        {
+          seq: 7,
+          eventId: 'event-7',
+          push: {
+            type: 'session/name-updated',
+            sessionId: 'session-1',
+            name: 'Again',
+            nameSource: 'text',
+          },
+        },
+      ],
+    };
+    callbacks.get('host-message-batch')?.({ payload: nextBatch });
+    expect(gaps).toHaveLength(1);
+  });
 });

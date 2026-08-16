@@ -300,6 +300,7 @@ export type DesktopTranslator = {
       artifactPlayground: string;
       sessions: string;
       runtime: string;
+      archive: string;
       rules: string;
       skills: string;
       tools: string;
@@ -1039,6 +1040,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         artifactPlayground: isChinese ? 'Artifact 实验场' : 'Artifact Playground',
         sessions: 'Walkthrough',
         runtime: isChinese ? '会话运行时' : 'Session Runtime',
+        archive: isChinese ? '归档管理' : 'Archive Management',
         rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
         tools: 'MCP',

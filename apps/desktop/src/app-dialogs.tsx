@@ -1,14 +1,21 @@
 /**
- * Modal stack for workspace trust, rename, session menu.
+ * Modal stack for workspace trust, rename, session menu, delete, and continue-in-project.
  * Permission prompts are now rendered inline by GateCard in the chat thread
  * (Task 12); the modal branch has been removed.
  */
 import type { ReactElement } from 'react';
-import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
-import { Button, Dialog } from '@piwin/ui-kit';
+import type {
+  PermissionDecision,
+  PermissionRememberScope,
+  ProjectRecord,
+} from '@piwin/contracts';
+import { Button, ConfirmDialog, Dialog } from '@piwin/ui-kit';
 import { Field } from '@piwin/ui-kit';
 import type { ChatUiState } from './chat-reducer';
 import { SessionRowMenu, type SessionRowMenuAction } from './session-row-menu';
+import { projectDisplayName } from './project-display-name';
+import type { DesktopLocale } from './desktop-locale';
+import type { SessionNamedDraft, SessionRenameDraft } from './hooks/use-session-list-chrome';
 
 export type AppDialogsProps = {
   projectInput: string;
@@ -25,11 +32,22 @@ export type AppDialogsProps = {
   sessions: ChatUiState['sessions'];
   showArchivedSessions: boolean;
   onSessionMenuAction: (sessionId: string, action: SessionRowMenuAction) => void;
-  renameDraft: { sessionId: string; name: string } | null;
-  onRenameDraftChange: (draft: { sessionId: string; name: string } | null) => void;
+  renameDraft: SessionRenameDraft | null;
+  onRenameDraftChange: (draft: SessionRenameDraft | null) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   permissionPrompt: ChatUiState['permissionPrompt'];
   onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
+  deleteConfirm: SessionNamedDraft | null;
+  deleteBusy: boolean;
+  onDeleteOpenChange: (open: boolean) => void;
+  onConfirmDelete: () => void;
+  continueInProject: SessionNamedDraft | null;
+  continueInProjectBusy: boolean;
+  trustedProjects: readonly ProjectRecord[];
+  locale: DesktopLocale;
+  onContinueInProjectOpenChange: (open: boolean) => void;
+  onContinueInProject: (projectPath: string) => void;
+  onCancelContinueInProject: () => void;
 };
 
 export function AppDialogs(props: AppDialogsProps): ReactElement {
@@ -203,6 +221,64 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
           </div>
         </Dialog>
       ) : null}
+
+      <Dialog
+        label={props.locale === 'zh-CN' ? '继续到项目' : 'Continue in project'}
+        open={props.continueInProject !== null}
+        onOpenChange={props.onContinueInProjectOpenChange}
+        testId="continue-session-in-project-dialog"
+      >
+        <h3>{props.locale === 'zh-CN' ? '选择目标项目' : 'Choose a project'}</h3>
+        <p className="muted">
+          {props.locale === 'zh-CN'
+            ? `将“${props.continueInProject?.sessionName ?? ''}”的完整历史复制到项目会话；原会话会保留。`
+            : `Copy the full history of “${props.continueInProject?.sessionName ?? ''}” into a project session. The original remains unchanged.`}
+        </p>
+        <div className="continue-session-project-list">
+          {props.trustedProjects.length > 0 ? (
+            props.trustedProjects.map((project) => (
+              <Button
+                key={project.path}
+                disabled={props.continueInProjectBusy}
+                data-testid="continue-session-project-option"
+                onClick={() => props.onContinueInProject(project.path)}
+              >
+                {projectDisplayName(project.path)}
+              </Button>
+            ))
+          ) : (
+            <p className="muted">
+              {props.locale === 'zh-CN'
+                ? '请先打开并信任一个项目。'
+                : 'Open and trust a project first.'}
+            </p>
+          )}
+        </div>
+        <div className="modal-actions">
+          <Button
+            variant="ghost"
+            disabled={props.continueInProjectBusy}
+            onClick={props.onCancelContinueInProject}
+          >
+            {props.locale === 'zh-CN' ? '取消' : 'Cancel'}
+          </Button>
+        </div>
+      </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(props.deleteConfirm)}
+        onOpenChange={props.onDeleteOpenChange}
+        title="Delete permanently?"
+        description="Transcript files will be removed. This cannot be undone."
+        {...(props.deleteConfirm?.sessionName
+          ? { affectedObject: props.deleteConfirm.sessionName }
+          : {})}
+        confirmLabel="Delete permanently"
+        tone="danger"
+        busy={props.deleteBusy}
+        testId="session-delete-confirm"
+        onConfirm={props.onConfirmDelete}
+      />
     </>
   );
 }

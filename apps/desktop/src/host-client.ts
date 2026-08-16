@@ -110,6 +110,22 @@ function isTauriRuntime(): boolean {
  * - mock: {@link MockHostBackend}
  * - live: Tauri commands → Node `host serve` JSONL sidecar
  */
+/**
+ * A push batch arrived whose `afterSeq` is beyond the applied cursor: frames
+ * between the cursor and the batch never reached the WebView. Detected on the
+ * local Stage 1 bridge too, where a dropped JSONL line otherwise heals over
+ * silently (ADR 0038 §9).
+ */
+export type HostPushSequenceGap = {
+  hostInstanceId: string;
+  /** First sequence number we can no longer account for. */
+  missedFromSeq: number;
+  /** First sequence number this batch proved arrived. */
+  receivedFromSeq: number;
+};
+
+export type HostSequenceGapHandler = (gap: HostPushSequenceGap) => void;
+
 export class HostClient {
   private readonly listeners = new Set<HostClientListener>();
   private readonly transport: TransportMode;
@@ -128,6 +144,7 @@ export class HostClient {
   private pendingConnection: Promise<void> | null = null;
   private mockBackend: MockHostBackend | null = null;
   private pendingMockBackend: Promise<MockHostBackend> | null = null;
+  private sequenceGapHandler: HostSequenceGapHandler | null = null;
 
   constructor(options: HostClientOptions = {}) {
     this.transport = detectTransport(options);
@@ -140,6 +157,14 @@ export class HostClient {
 
   isReady(): boolean {
     return this.ready;
+  }
+
+  /**
+   * Register (or clear) the push-sequence gap handler. Gaps mean pushes were
+   * lost in transit; the handler is expected to resync from Host authority.
+   */
+  registerSequenceGapHandler(handler: HostSequenceGapHandler | null): void {
+    this.sequenceGapHandler = handler;
   }
 
   subscribe(listener: HostClientListener): () => void {
@@ -411,6 +436,14 @@ export class HostClient {
         throughSeq: batch.throughSeq,
       });
       return;
+    }
+
+    if (!hostChanged && previousSeq > 0 && batch.afterSeq > previousSeq) {
+      this.sequenceGapHandler?.({
+        hostInstanceId: batch.hostInstanceId,
+        missedFromSeq: previousSeq + 1,
+        receivedFromSeq: batch.afterSeq + 1,
+      });
     }
 
     // Advance the cursor only after every contained push has been offered to

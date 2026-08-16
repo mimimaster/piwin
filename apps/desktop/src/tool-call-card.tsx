@@ -194,7 +194,9 @@ function ToolDocumentTargetList(props: {
                 const title =
                   target.kind === 'skill'
                     ? target.skillId
-                    : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
+                    : target.kind === 'media'
+                      ? target.displayRef
+                      : target.relativePath.split(/[\\/]/).pop() || target.relativePath;
                 props.onOpenDocument?.({
                   title,
                   target,

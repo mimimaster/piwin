@@ -46,6 +46,11 @@ export const DeferredDocPreviewPanel = lazy(async () => {
   return { default: module.DocPreviewPanel };
 });
 
+export const DeferredMediaDocPreview = lazy(async () => {
+  const module = await import('./MediaDocPreview');
+  return { default: module.MediaDocPreview };
+});
+
 export const DeferredTerminalDock = lazy(async () => {
   const module = await import('./terminal-dock');
   return { default: module.TerminalDock };

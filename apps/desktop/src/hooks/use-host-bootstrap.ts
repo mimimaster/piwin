@@ -172,6 +172,10 @@ export function resolveThemeBootstrapResponse(response: HostResponse): ThemeMani
   return resolveDesktopAppearance(themeData.theme);
 }
 
+/** Retained assembly/context summaries (keyed by runId and userMessageId).
+ * Entries feed summary cards only; older ones are evicted FIFO. */
+const MAX_ASSEMBLY_SUMMARIES = 64;
+
 export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const { locale } = useDesktopLocale();
   const localeRef = useRef(locale);
@@ -192,8 +196,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const [extensionUiInput, setExtensionUiInput] = useState('');
   const [assemblySummariesByRunId, setAssemblySummariesByRunId] = useState<
     Record<string, import('@piwin/contracts').ContextSummaryPush>
-  >({});
-  /**
+  >({});  /**
    * React state can lag behind a push while an extension-ui resolve is in
    * flight. Keep the latest request synchronously so an old resolve cannot
    * clear the next questionnaire page.
@@ -232,6 +235,14 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           const next = { ...current, [message.runId]: message };
           if (message.userMessageId) {
             next[message.userMessageId] = message;
+          }
+          // Bounded FIFO: summaries accumulate for the app's whole lifetime
+          // otherwise; insertion order approximates recency.
+          const keys = Object.keys(next);
+          if (keys.length > MAX_ASSEMBLY_SUMMARIES) {
+            for (const staleKey of keys.slice(0, keys.length - MAX_ASSEMBLY_SUMMARIES)) {
+              delete next[staleKey];
+            }
           }
           return next;
         });

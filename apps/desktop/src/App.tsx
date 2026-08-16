@@ -29,7 +29,6 @@ import type {
   RunInterventionRecord,
   SessionListOrder,
   PromptContextRef,
-  SessionSearchHit,
   SessionScope,
   SettingsMutation,
   ThemeManifest,
@@ -60,23 +59,25 @@ import { ExtensionUiPrompt } from './extension-ui-prompt';
 import { AppDialogs } from './app-dialogs';
 import { createEmptyNotificationState, notificationReducer } from './notification-queue';
 import type { HostLogEntry } from './HostLogPanel';
-import type { SessionDocItem } from './DocPreviewPanel';
-import { resolveDocumentContentFromMessages } from './resolve-document-content';
-import { planDocumentOpenPath } from './document-open-path';
-import type { ActiveDocument } from './active-document';
 import {
   activeDocumentContent,
   activeDocumentFilePath,
-  createDocumentRequestId,
+  activeDocumentMedia,
 } from './active-document';
-import type { DocumentOpenInput } from './tool-call-card';
+import { useActiveDocument } from './hooks/use-active-document';
+import { useTerminalPanelState } from './hooks/use-terminal-panel-state';
+import { useSessionListQuery } from './hooks/use-session-list-query';
+import {
+  resolveSessionDisplayName,
+  routeSessionChromeMenuAction,
+  useSessionListChrome,
+} from './hooks/use-session-list-chrome';
+import { collectSessionDocuments } from './session-documents';
 import type { LineCommentItem } from './EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from './doc-comments';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { collectSessionTools } from './tool-call-card';
-import type { PtyOutputLine } from './terminal-dock';
 import { type AgentModeId } from './agent-mode';
-import { groupSessionsByRecency } from './session-groups';
 import {
   DEFAULT_DARK_THEME_SETTINGS,
   DEFAULT_LIGHT_THEME_SETTINGS,
@@ -95,6 +96,7 @@ import {
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
+import { useRunReconcile } from './hooks/use-run-reconcile';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useComposerContextRefs } from './hooks/use-composer-context-refs';
 import { DesktopContextMenuProvider, type DesktopContextMenuValue } from './context-menu';
@@ -105,7 +107,7 @@ import { SessionLineageHeaderPopover } from './session-lineage-popover';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import { useJobs } from './hooks/use-jobs';
-import { Button, ConfirmDialog, Dialog, IconButton, Notice } from '@piwin/ui-kit';
+import { Button, Dialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
@@ -127,7 +129,6 @@ import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { resolveThinkingLevelForModel } from './model-thinking-policy';
 import { buildEnabledModelOptions } from './model-options';
-import { sessionScopeKey } from './session-scope-key';
 
 import {
   DeferredBrowserSessionPanel,
@@ -137,6 +138,7 @@ import {
   DeferredFlashcardsPanel,
   DeferredGitPanel,
   DeferredKnowledgeCenterPanel,
+  DeferredMediaDocPreview,
   DeferredNotesPanel,
   DeferredReviewPanel,
   DeferredSettingsPanel,
@@ -162,26 +164,6 @@ function mergeSessionsForLookup(
 ): SessionListItemUi[] {
   const seen = new Set(primary.map((session) => session.id));
   return [...primary, ...secondary.filter((session) => !seen.has(session.id))];
-}
-
-function projectSessionSearchHits(
-  hits: readonly SessionSearchHit[],
-  residentSessions: readonly SessionListItemUi[],
-): SessionListItemUi[] {
-  const residentById = new Map(residentSessions.map((session) => [session.id, session]));
-  return hits
-    .map((hit): SessionListItemUi => {
-      const existing = residentById.get(hit.sessionId);
-      return {
-        ...(existing ?? { id: hit.sessionId, name: hit.name?.trim() ?? '' }),
-        ...(hit.name?.trim() ? { name: hit.name.trim() } : {}),
-        ...(hit.snippet ? { lastPreview: hit.snippet } : {}),
-        ...(hit.updatedAt ? { updatedAt: hit.updatedAt } : {}),
-        ...(hit.isPinned === true ? { isPinned: true } : {}),
-        ...(hit.scope ? { scope: hit.scope } : {}),
-      };
-    })
-    .filter((session) => session.name.trim().length > 0);
 }
 
 export function App({ activeTheme, onThemeApplied }: AppProps) {
@@ -247,527 +229,46 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     rightPanelWidthRef.current = rightPanelResize.widthPx;
   }
   const [, setHostLogEntries] = useState<HostLogEntry[]>([]);
-  const [ptyOutput, setPtyOutputBase] = useState<PtyOutputLine[]>([]);
-  /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
-  const [terminalAttention, setTerminalAttention] = useState(false);
   const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
-  const [activeDocument, setActiveDocument] = useState<ActiveDocument | null>(null);
-  /** Guards stale async responses from overwriting a newer document request. */
-  const activeDocumentRequestRef = useRef<string | null>(null);
-
-  /** Recover the persisted tool output snapshot for a historical tool card. */
-  const requestToolSnapshot = useCallback(
-    async (input: {
-      messageId?: string;
-      toolCallId?: string;
-    }): Promise<{
-      content: string;
-      truncated: boolean;
-    } | null> => {
-      if (!state.activeSessionId || !input.messageId || !input.toolCallId) {
-        return null;
-      }
-      const response = await hostClient.request({
-        type: 'session/tool-output',
-        sessionId: state.activeSessionId,
-        messageId: input.messageId,
-        toolCallId: input.toolCallId,
-      });
-      if (!response.success || !response.data) {
-        return null;
-      }
-      const data = response.data as {
-        status?: string;
-        output?: string;
-        truncated?: boolean;
-        reason?: string;
-      };
-      if (data.status !== 'ready' || typeof data.output !== 'string') {
-        return null;
-      }
-      return { content: data.output, truncated: data.truncated === true };
-    },
-    [hostClient, state.activeSessionId],
-  );
-
-  const handleOpenDocument = useCallback(
-    (doc: DocumentOpenInput, target: 'stage' | 'inspector' = 'inspector') => {
-      const filePath = doc.path ?? doc.title;
-      const cleanPath = (filePath || '').replace(/^file:\/\//, '');
-      const rawName = cleanPath ? cleanPath.split(/[\\/]/).pop() || doc.title : doc.title;
-      const cleanTitle = (rawName || 'Implementation Plan').replace(/\.md$/i, '');
-
-      void target;
-      // Every open gets a fresh token; stale responses must not clobber a
-      // newer document the user opened while this one was in flight.
-      const requestId = createDocumentRequestId();
-      activeDocumentRequestRef.current = requestId;
-      const applyDocument = (next: ActiveDocument): void => {
-        if (activeDocumentRequestRef.current === requestId) {
-          setActiveDocument(next);
-        }
-      };
-
-      const inspectorTab = 'docPreview';
-      shell.setInspectorTab(inspectorTab);
-      if (!rightPanelOpen) {
-        shell.openInspector(inspectorTab);
-      }
-
-      // Inline content is authoritative — including an explicit empty string.
-      if (doc.content !== undefined) {
-        applyDocument({
-          status: 'ready',
-          requestId,
-          title: cleanTitle,
-          content: doc.content,
-          displayRef: cleanPath || cleanTitle,
-          provenance: 'inline',
-        });
-        return;
-      }
-
-      if (!cleanPath && !doc.target) {
-        applyDocument({
-          status: 'unavailable',
-          requestId,
-          title: cleanTitle,
-          displayRef: '',
-          reason: 'no-path',
-        });
-        return;
-      }
-
-      // Recover body from transcript when the path was never written (e.g.
-      // write_file permission deny) or host read failed. Must NOT grab the
-      // first bare/ts fence — that produced half-cut plan panels.
-      const searchInMessages = (): string | null =>
-        resolveDocumentContentFromMessages({
-          title: cleanTitle,
-          path: cleanPath,
-          messages: state.messages,
-        });
-
-      const displayRef = doc.target?.displayRef ?? cleanPath;
-
-      // Structured logical target (Host-issued identity).
-      if (doc.target?.kind === 'skill') {
-        const skillId = doc.target.skillId;
-        applyDocument({
-          status: 'loading',
-          requestId,
-          title: cleanTitle,
-          displayRef: displayRef || `skill:${skillId}`,
-          target: doc.target,
-        });
-        void (async () => {
-          // Prefer the snapshot the agent actually read for historical cards.
-          const snapshot = await requestToolSnapshot(doc);
-          if (snapshot) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: cleanTitle,
-              content: snapshot.content,
-              displayRef: displayRef || `skill:${skillId}`,
-              provenance: 'tool-snapshot',
-              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
-            });
-            return;
-          }
-          const response = await hostClient.request({
-            type: 'skills/read',
-            skillId,
-            ...(state.projectPath ? { projectPath: state.projectPath } : {}),
-          });
-          if (response.success && response.data) {
-            const skillData = response.data as {
-              status?: string;
-              content?: string;
-              name?: string;
-              skillId?: string;
-              displayRef?: string;
-              effectiveSource?: string;
-              reason?: string;
-              suggestion?: string;
-            };
-            if (skillData.status === 'ready' && typeof skillData.content === 'string') {
-              applyDocument({
-                status: 'ready',
-                requestId,
-                title: skillData.name?.trim() || skillData.skillId?.trim() || cleanTitle,
-                content: skillData.content,
-                displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
-                provenance: 'current-resource',
-                skillId: skillData.skillId || skillId,
-                ...(skillData.effectiveSource ? { skillSource: skillData.effectiveSource } : {}),
-                warning: '当前安装版本，可能不同于历史读取内容。',
-              });
-              return;
-            }
-            if (skillData.status === 'unavailable') {
-              const msgFallback = searchInMessages();
-              if (msgFallback) {
-                applyDocument({
-                  status: 'ready',
-                  requestId,
-                  title: skillData.skillId || cleanTitle,
-                  content: msgFallback,
-                  displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
-                  provenance: 'transcript',
-                  warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
-                });
-              } else {
-                applyDocument({
-                  status: 'unavailable',
-                  requestId,
-                  title: skillData.skillId || cleanTitle,
-                  displayRef: skillData.displayRef || displayRef || `skill:${skillId}`,
-                  reason: skillData.reason || 'unavailable',
-                  ...(skillData.suggestion ? { suggestion: skillData.suggestion } : {}),
-                });
-              }
-              return;
-            }
-          }
-          const msgFallback = searchInMessages();
-          if (msgFallback) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: cleanTitle,
-              content: msgFallback,
-              displayRef: displayRef || `skill:${skillId}`,
-              provenance: 'transcript',
-              warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
-            });
-            return;
-          }
-          applyDocument({
-            status: 'unavailable',
-            requestId,
-            title: cleanTitle,
-            displayRef: displayRef || `skill:${skillId}`,
-            reason: 'skill-unresolved',
-            suggestion: '打开 Skills 面板或重新同步内置 Skill。',
-          });
-        })();
-        return;
-      }
-
-      if (doc.target?.kind === 'project-file') {
-        const relativePath = doc.target.relativePath;
-        applyDocument({
-          status: 'loading',
-          requestId,
-          title: cleanTitle,
-          displayRef: displayRef || relativePath,
-          target: doc.target,
-        });
-        void (async () => {
-          const snapshot = await requestToolSnapshot(doc);
-          if (snapshot) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: cleanTitle,
-              content: snapshot.content,
-              displayRef: displayRef || relativePath,
-              provenance: 'tool-snapshot',
-              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
-            });
-            return;
-          }
-          if (state.projectPath) {
-            const response = await hostClient.request({
-              type: 'project/read-file',
-              projectPath: state.projectPath,
-              relativePath,
-            });
-            if (response.success && response.data) {
-              const fileData = response.data as { content?: string; isBinary?: boolean };
-              if (typeof fileData.content === 'string' && fileData.isBinary !== true) {
-                applyDocument({
-                  status: 'ready',
-                  requestId,
-                  title: cleanTitle,
-                  content: fileData.content,
-                  displayRef: displayRef || relativePath,
-                  provenance: 'project-current',
-                });
-                return;
-              }
-            }
-          }
-          const msgFallback = searchInMessages();
-          if (msgFallback) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: cleanTitle,
-              content: msgFallback,
-              displayRef: displayRef || relativePath,
-              provenance: 'transcript',
-              warning: '展示来自对话记录的恢复内容，非当前磁盘版本。',
-            });
-          } else {
-            applyDocument({
-              status: 'unavailable',
-              requestId,
-              title: cleanTitle,
-              displayRef: displayRef || relativePath,
-              reason: 'not-found',
-              suggestion: '确认文件仍存在于项目中。',
-            });
-          }
-        })();
-        return;
-      }
-
-      // Legacy local path routing (no structured target).
-      if (!cleanPath) {
-        applyDocument({
-          status: 'unavailable',
-          requestId,
-          title: cleanTitle,
-          displayRef: '',
-          reason: 'no-path',
-        });
-        return;
-      }
-
-      // Only in-project paths may use project/read-file. Never invent a
-      // project root from dirname(absolutePath) (skill / bundle paths).
-      const openPlan = planDocumentOpenPath({
-        path: cleanPath,
-        projectPath: state.projectPath,
-      });
-
-      if (openPlan.kind === 'project' && openPlan.relativePath) {
-        applyDocument({
-          status: 'loading',
-          requestId,
-          title: cleanTitle,
-          displayRef: cleanPath,
-        });
-        void (async () => {
-          const snapshot = await requestToolSnapshot(doc);
-          if (snapshot) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: cleanTitle,
-              content: snapshot.content,
-              displayRef: cleanPath,
-              provenance: 'tool-snapshot',
-              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
-            });
-            return;
-          }
-          const response = await hostClient.request({
-            type: 'project/read-file',
-            projectPath: openPlan.projectPath,
-            relativePath: openPlan.relativePath,
-          });
-          if (response.success && response.data) {
-            const fileData = response.data as { content?: string; isBinary?: boolean };
-            if (typeof fileData.content === 'string' && fileData.isBinary !== true) {
-              applyDocument({
-                status: 'ready',
-                requestId,
-                title: cleanTitle,
-                content: fileData.content,
-                displayRef: cleanPath,
-                provenance: 'project-current',
-              });
-              return;
-            }
-          }
-          const msgFallback = searchInMessages();
-          if (msgFallback) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: cleanTitle,
-              content: msgFallback,
-              displayRef: cleanPath,
-              provenance: 'transcript',
-              warning: '展示来自对话记录的恢复内容，非当前磁盘版本。',
-            });
-          } else {
-            applyDocument({
-              status: 'unavailable',
-              requestId,
-              title: cleanTitle,
-              displayRef: cleanPath,
-              reason: 'not-found',
-              suggestion: '确认文件仍存在于项目中。',
-            });
-          }
-        })();
-        return;
-      }
-
-      if (openPlan.kind === 'skill-legacy') {
-        applyDocument({
-          status: 'loading',
-          requestId,
-          title: openPlan.skillIdHint || cleanTitle,
-          displayRef: cleanPath,
-        });
-        void (async () => {
-          const snapshot = await requestToolSnapshot(doc);
-          if (snapshot) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: openPlan.skillIdHint || cleanTitle,
-              content: snapshot.content,
-              displayRef: cleanPath,
-              provenance: 'tool-snapshot',
-              ...(snapshot.truncated ? { warning: '该次工具输出被截断，只展示部分内容。' } : {}),
-            });
-            return;
-          }
-          const response = await hostClient.request({
-            type: 'skills/read',
-            ...(openPlan.skillIdHint ? { skillId: openPlan.skillIdHint } : {}),
-            legacyPath: openPlan.absolutePath,
-            ...(state.projectPath ? { projectPath: state.projectPath } : {}),
-          });
-          if (response.success && response.data) {
-            const skillData = response.data as {
-              status?: string;
-              content?: string;
-              name?: string;
-              skillId?: string;
-              displayRef?: string;
-              effectiveSource?: string;
-              reason?: string;
-              suggestion?: string;
-            };
-            if (skillData.status === 'ready' && typeof skillData.content === 'string') {
-              applyDocument({
-                status: 'ready',
-                requestId,
-                title: skillData.name?.trim() || skillData.skillId?.trim() || cleanTitle,
-                content: skillData.content,
-                displayRef: skillData.displayRef || cleanPath,
-                provenance: 'current-resource',
-                ...(skillData.skillId ? { skillId: skillData.skillId } : {}),
-                ...(skillData.effectiveSource ? { skillSource: skillData.effectiveSource } : {}),
-                warning: '当前安装版本，可能不同于历史读取内容。',
-              });
-              return;
-            }
-            if (skillData.status === 'unavailable') {
-              const msgFallback = searchInMessages();
-              if (msgFallback) {
-                applyDocument({
-                  status: 'ready',
-                  requestId,
-                  title: skillData.skillId || openPlan.skillIdHint || cleanTitle,
-                  content: msgFallback,
-                  displayRef: skillData.displayRef || cleanPath,
-                  provenance: 'transcript',
-                  warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
-                });
-              } else {
-                applyDocument({
-                  status: 'unavailable',
-                  requestId,
-                  title: skillData.skillId || openPlan.skillIdHint || cleanTitle,
-                  displayRef: skillData.displayRef || cleanPath,
-                  reason: skillData.reason || 'unavailable',
-                  ...(skillData.suggestion ? { suggestion: skillData.suggestion } : {}),
-                });
-              }
-              return;
-            }
-          }
-          const msgFallback = searchInMessages();
-          if (msgFallback) {
-            applyDocument({
-              status: 'ready',
-              requestId,
-              title: openPlan.skillIdHint || cleanTitle,
-              content: msgFallback,
-              displayRef: cleanPath,
-              provenance: 'transcript',
-              warning: '展示来自对话记录的恢复内容，非当前 Skill 版本。',
-            });
-            return;
-          }
-          applyDocument({
-            status: 'unavailable',
-            requestId,
-            title: openPlan.skillIdHint || cleanTitle,
-            displayRef: cleanPath,
-            reason: 'skill-unresolved',
-            suggestion: '打开 Skills 面板或重新同步内置 Skill。',
-          });
-        })();
-        return;
-      }
-
-      const msgFallback = searchInMessages();
-      const reason =
-        openPlan.kind === 'legacy-absolute' || openPlan.kind === 'relative-outside'
-          ? 'outside-project'
-          : 'not-found';
-      if (msgFallback) {
-        applyDocument({
-          status: 'ready',
-          requestId,
-          title: cleanTitle,
-          content: msgFallback,
-          displayRef: cleanPath,
-          provenance: 'transcript',
-          warning: '展示来自对话记录的恢复内容。',
-        });
-      } else {
-        applyDocument({
-          status: 'unavailable',
-          requestId,
-          title: cleanTitle,
-          displayRef: cleanPath,
-          reason,
-          ...(reason === 'outside-project'
-            ? { suggestion: '该位置不在当前工作区内；Skill 预览请通过工具卡中的文档目标打开。' }
-            : {}),
-        });
-      }
-    },
-    [hostClient, requestToolSnapshot, rightPanelOpen, shell, state.messages, state.projectPath],
-  );
+  // Doc Preview orchestration lives in use-active-document (ADR 0052):
+  // request-id guard, tool snapshot recovery, and resource-kind routing.
+  const revealDocPreview = useCallback(() => {
+    const inspectorTab: RightPanelTab = 'docPreview';
+    shell.setInspectorTab(inspectorTab);
+    if (!rightPanelOpen) {
+      shell.openInspector(inspectorTab);
+    }
+  }, [rightPanelOpen, shell]);
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
     rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
-  const [sessionSearch, setSessionSearch] = useState('');
-  const [showArchivedSessions, setShowArchivedSessions] = useState(false);
-  const [sessionListOrder, setSessionListOrder] = useState<SessionListOrder>('updated');
-  const [sessionMenu, setSessionMenu] = useState<{
-    sessionId: string;
-    x: number;
-    y: number;
-  } | null>(null);
-  const [renameDraft, setRenameDraft] = useState<{
-    sessionId: string;
-    name: string;
-  } | null>(null);
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    sessionId: string;
-    sessionName: string;
-  } | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [continueInProject, setContinueInProject] = useState<{
-    sessionId: string;
-    sessionName: string;
-  } | null>(null);
-  const [continueInProjectBusy, setContinueInProjectBusy] = useState(false);
+  const {
+    sessionSearch,
+    setSessionSearch,
+    showArchivedSessions,
+    setShowArchivedSessions,
+    sessionListOrder,
+    setSessionListOrder,
+    sessionMenu,
+    renameDraft,
+    setRenameDraft,
+    projectPickerOpen,
+    setProjectPickerOpen,
+    deleteConfirm,
+    deleteBusy,
+    continueInProject,
+    continueInProjectBusy,
+    openSessionMenu,
+    closeSessionMenu,
+    requestDeleteSession,
+    requestContinueInProject,
+    closeDeleteConfirm,
+    closeContinueInProject,
+    runDeleteConfirm,
+    runContinueInProject,
+  } = useSessionListChrome();
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
     ORCHESTRATION_SCHEME_OFF_ID,
@@ -779,10 +280,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setDelegationDisabled(false);
   }, [state.activeSessionId]);
 
-  const [remoteSearchHitsByScope, setRemoteSearchHitsByScope] = useState<Record<
-    string,
-    SessionSearchHit[]
-  > | null>(null);
+  const {
+    filteredSessions,
+    filteredGeneralSessions,
+    sessionGroups,
+    remoteSearchHitsByScope,
+  } = useSessionListQuery({
+    hostClient,
+    sessionSearch,
+    showArchivedSessions,
+    activeScope: state.activeScope,
+    sessions: state.sessions,
+    generalSessions: state.generalSessions,
+  });
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   /** Filled after useComposerMedia mounts so Revert can restore text without reordering hooks. */
   const composerSetterRef = useRef<(value: SetStateAction<string>) => void>(() => undefined);
@@ -797,13 +307,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     loadDesktopPreferences(),
   );
 
-  // Terminal working directory state.
-  // Initialized from saved preference, then falls back to project path or home.
-  const [terminalCwd, setTerminalCwd] = useState<string>(() => {
-    return preferences.terminalLastCwd || state.projectPath || '';
-  });
-  const [terminalRecentDirs, setTerminalRecentDirs] = useState<string[]>(() => {
-    return preferences.terminalRecentDirs || [];
+  const {
+    ptyOutput,
+    setPtyOutput,
+    terminalAttention,
+    setTerminalAttention,
+    terminalCwd,
+    terminalRecentDirs,
+    handleTerminalCwdChange,
+    markTerminalAttentionIfHidden,
+  } = useTerminalPanelState({
+    projectPath: state.projectPath,
+    watchingTerminalRef,
+    preferences,
+    setPreferences,
   });
 
   // Map DesktopPreferences to CSS custom properties on the app-shell element.
@@ -877,62 +394,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const hasRestoredDesktopSession = useRef(false);
   const configSaveQueue = useRef<Promise<void>>(Promise.resolve());
 
-  // Initialize terminal CWD from home directory when no project/preference is set.
-  useEffect(() => {
-    if (terminalCwd) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const { homeDir } = await import('@tauri-apps/api/path');
-        const home = await homeDir();
-        if (!cancelled && home) {
-          setTerminalCwd(home);
-        }
-      } catch {
-        // Tauri API not available (browser mock) — use '/' as fallback.
-        if (!cancelled) {
-          setTerminalCwd('/');
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [terminalCwd]);
-
-  // Sync terminal CWD with the project path when a project is opened.
-  useEffect(() => {
-    if (state.projectPath && !preferences.terminalLastCwd) {
-      setTerminalCwd(state.projectPath);
-    }
-  }, [state.projectPath, preferences.terminalLastCwd]);
-
-  const handleTerminalCwdChange = useCallback(
-    (cwd: string) => {
-      const resolved = cwd || state.projectPath || '';
-      setTerminalCwd(resolved);
-
-      // Update recent directories.
-      setTerminalRecentDirs((prev) => {
-        const filtered = prev.filter((d) => d !== resolved);
-        return [resolved, ...filtered].slice(0, 5);
-      });
-
-      // Persist to preferences immediately.
-      setPreferences((prev) => {
-        const filtered = (prev.terminalRecentDirs ?? []).filter((d) => d !== resolved);
-        const next: DesktopPreferences = {
-          ...prev,
-          terminalLastCwd: resolved,
-          terminalRecentDirs: [resolved, ...filtered].slice(0, 5),
-        };
-        saveDesktopPreferences(next);
-        return next;
-      });
-    },
-    [state.projectPath],
-  );
-
   useEffect(() => {
     if (state.activeRunStartedAt === null) {
       return;
@@ -1005,35 +466,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     return sessionIds;
   }, [jobs]);
 
-  const markTerminalAttentionIfHidden = useCallback((): void => {
-    // Hard rule: never auto-open the work panel; only pulse chrome.
-    if (!watchingTerminalRef.current) {
-      setTerminalAttention(true);
-    }
-  }, []);
-
   const appendJobLog = useCallback(
     (jobId: string, text: string): void => {
       appendJobLogBase(jobId, text);
       markTerminalAttentionIfHidden();
     },
     [appendJobLogBase, markTerminalAttentionIfHidden],
-  );
-
-  const setPtyOutput = useCallback(
-    (value: SetStateAction<PtyOutputLine[]>): void => {
-      setPtyOutputBase((current) => {
-        const next = typeof value === 'function' ? value(current) : value;
-        // Only new lines (not clear/replace-empty) raise directory attention.
-        if (next.length > current.length) {
-          queueMicrotask(() => {
-            markTerminalAttentionIfHidden();
-          });
-        }
-        return next;
-      });
-    },
-    [markTerminalAttentionIfHidden],
   );
 
   const {
@@ -1058,6 +496,23 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setHostLogEntries,
     setSelectedModelKey,
     onThemeResolved: onThemeApplied,
+  });
+
+  const { activeDocument, openDocument: handleOpenDocument } = useActiveDocument({
+    hostClient,
+    revealPreview: revealDocPreview,
+    activeSessionId: state.activeSessionId,
+    projectPath: state.projectPath,
+    ...(hostStatus?.piwinRoot ? { piwinRoot: hostStatus.piwinRoot } : {}),
+    messages: state.messages,
+  });
+
+  useRunReconcile({
+    hostClient,
+    dispatch,
+    activeSessionId: state.activeSessionId,
+    activeRunId: state.activeRunId,
+    runLive: state.runPhase === 'streaming' || state.runPhase === 'aborting',
   });
 
   const orchestrationSchemeOptions = useMemo(() => {
@@ -1101,58 +556,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     }
   }, [orchestrationSchemeId, orchestrationSchemeOptions]);
 
-  const sessionDocuments = useMemo<SessionDocItem[]>(() => {
-    const items: SessionDocItem[] = [];
-    const seenPaths = new Set<string>();
-
-    const addDoc = (title: string, path?: string, iconKind?: 'doc' | 'book' | 'plan') => {
-      const cleanTitle = (title || 'Document').replace(/\.md$/i, '');
-      const docPath = path || title;
-      if (seenPaths.has(docPath)) return;
-      seenPaths.add(docPath);
-      items.push({
-        id: docPath,
-        title: cleanTitle,
-        ...(path ? { path } : {}),
-        iconKind: iconKind || (cleanTitle.toLowerCase().includes('walkthrough') ? 'book' : 'doc'),
-      });
-    };
-
-    if (sessionPlan) {
-      addDoc(
-        sessionPlan.title || 'Implementation Plan',
-        `plans/${sessionPlan.sessionId}.md`,
-        'plan',
-      );
-    }
-
-    const pathRegex = /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_./-]+\.md\b/g;
-    for (const msg of state.messages) {
-      if (!msg) continue;
-      const mdMatches = msg.text ? msg.text.match(pathRegex) : null;
-      if (mdMatches) {
-        for (const fullPath of mdMatches) {
-          const baseName = fullPath.split(/[\\/]/).pop() || fullPath;
-          addDoc(baseName, fullPath);
-        }
-      }
-    }
-
-    if (activeDocument?.title) {
-      addDoc(activeDocument.title, activeDocument.filePath ?? activeDocument.title);
-    }
-
-    // Walkthrough documents: one virtual markdown doc per ready artifact
-    // (spec §5.4). Path is virtual: walkthroughs/<message-id>.md.
-    for (const messageId of Object.keys(state.walkthroughsByMessageId)) {
-      const artifact = state.walkthroughsByMessageId[messageId];
-      if (artifact && artifact.status === 'ready') {
-        addDoc('Walkthrough', `walkthroughs/${messageId}.md`, 'book');
-      }
-    }
-
-    return items;
-  }, [sessionPlan, state.messages, activeDocument, state.walkthroughsByMessageId]);
+  const sessionDocuments = useMemo(
+    () =>
+      collectSessionDocuments({
+        sessionPlan,
+        messages: state.messages,
+        ...(activeDocument
+          ? {
+              activeDocument: {
+                title: activeDocument.title,
+                ...(activeDocument.filePath !== undefined
+                  ? { filePath: activeDocument.filePath }
+                  : {}),
+              },
+            }
+          : {}),
+        walkthroughsByMessageId: state.walkthroughsByMessageId,
+      }),
+    [sessionPlan, state.messages, activeDocument, state.walkthroughsByMessageId],
+  );
 
   // Remount artifact iframes only when mode/id changes. Sandboxed srcdoc bakes
   // theme vars at build time; full remount is still required for mode flips, but
@@ -2503,88 +1925,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onCommand: runDesktopCommand,
   });
 
-  useEffect(() => {
-    const query = sessionSearch.trim();
-    if (!query) {
-      setRemoteSearchHitsByScope(null);
-      return;
-    }
-    setRemoteSearchHitsByScope(null);
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        const scopes: SessionScope[] =
-          state.activeScope.kind === 'general'
-            ? [{ kind: 'general' }]
-            : [state.activeScope, { kind: 'general' }];
-        const results = await Promise.all(
-          scopes.map(async (scope) => {
-            const searchQuery: import('@piwin/contracts').SessionSearchQuery = {
-              query,
-              scope,
-              lifecycle: showArchivedSessions ? 'archived' : 'active',
-              limit: 30,
-            };
-            const response = await hostClient.request({
-              type: 'session/search',
-              query: searchQuery,
-            });
-            if (!response.success) {
-              return [sessionScopeKey(scope), [] as SessionSearchHit[]] as const;
-            }
-            const data = response.data as { hits?: SessionSearchHit[] } | undefined;
-            return [sessionScopeKey(scope), data?.hits ?? []] as const;
-          }),
-        );
-        if (cancelled) return;
-        const nextHits: Record<string, SessionSearchHit[]> = {};
-        for (const [scopeKey, hits] of results) {
-          nextHits[scopeKey] = hits;
-        }
-        setRemoteSearchHitsByScope(nextHits);
-      })();
-    }, 250);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [hostClient, sessionSearch, showArchivedSessions, state.activeScope]);
-
-  const filteredSessions = useMemo(() => {
-    const query = sessionSearch.trim().toLowerCase();
-    if (!query) {
-      return state.sessions;
-    }
-    const remoteSearchHits = remoteSearchHitsByScope?.[sessionScopeKey(state.activeScope)];
-    if (remoteSearchHits !== undefined) {
-      return projectSessionSearchHits(remoteSearchHits, state.sessions);
-    }
-    return state.sessions.filter((session) => {
-      const haystack = `${session.name} ${session.lastPreview ?? ''}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [remoteSearchHitsByScope, sessionSearch, state.activeScope, state.sessions]);
-
-  // General sessions are maintained independently so the Conversations sidebar
-  // section stays populated even when a project is active. Search owns its own
-  // bounded General result instead of filtering only the resident index page.
-  const filteredGeneralSessions = useMemo(() => {
-    const query = sessionSearch.trim().toLowerCase();
-    if (!query) {
-      return state.generalSessions;
-    }
-    const remoteGeneralHits = remoteSearchHitsByScope?.general;
-    if (remoteGeneralHits !== undefined) {
-      return projectSessionSearchHits(remoteGeneralHits, state.generalSessions);
-    }
-    return state.generalSessions.filter((session) => {
-      const haystack = `${session.name} ${session.lastPreview ?? ''}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [remoteSearchHitsByScope, sessionSearch, state.generalSessions]);
-
-  const sessionGroups = useMemo(() => groupSessionsByRecency(filteredSessions), [filteredSessions]);
-
   const sessionTools = useMemo(() => collectSessionTools(state.messages), [state.messages]);
 
   const runStatus = useMemo(
@@ -2956,7 +2296,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       selectedModelContextWindow,
       selectedModelKey,
       selectedModelLabel,
-      state.activeScope.kind,
       setAgentMode,
       setComposer,
       setDropActive,
@@ -2975,6 +2314,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       state.projectTrusted,
       state.runPhase,
       state.streaming,
+      state.activeScope.kind,
       thinkingLevel,
     ],
   );
@@ -3195,6 +2535,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     saveDesktopLocale(locale);
   }, []);
 
+  // Media documents render through the media viewer; text through DocPreviewPanel.
+  const activeMedia = activeDocumentMedia(activeDocument);
+
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
       <DesktopContextMenuProvider value={desktopContextMenuValue}>
@@ -3276,7 +2619,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onResumeDraft={handleResumeDraft}
                 draftSessions={draftSessions}
                 activeDraftId={activeDraftId}
-                onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
+                onOpenSessionMenu={openSessionMenu}
                 onTogglePin={(sessionId, currentlyPinned) =>
                   void handleSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
                 }
@@ -3285,14 +2628,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   void handleSessionMenuAction(sessionId, 'unarchive')
                 }
                 onDeleteSession={(sessionId) => {
-                  const session = mergeSessionsForLookup(
-                    state.sessions,
-                    state.generalSessions,
-                  ).find((item) => item.id === sessionId);
-                  setDeleteConfirm({
+                  requestDeleteSession(
                     sessionId,
-                    sessionName: session?.name ?? sessionId.slice(0, 8),
-                  });
+                    resolveSessionDisplayName(
+                      sessionId,
+                      mergeSessionsForLookup(state.sessions, state.generalSessions),
+                    ),
+                  );
                 }}
                 onOpenSettings={() => openSettingsSection('general')}
                 knowledgeOpen={knowledgeOpen}
@@ -3817,6 +3159,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     />
                   }
                   docPreviewContent={
+                    activeMedia ? (
+                      <DeferredMediaDocPreview
+                        title={activeDocument?.title}
+                        displayRef={activeDocument?.displayRef}
+                        media={activeMedia}
+                        locale={desktopLocale}
+                      />
+                    ) : (
                     <DeferredDocPreviewPanel
                       title={activeDocument?.title}
                       content={activeDocumentContent(activeDocument)}
@@ -3834,6 +3184,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       }
                       skillSource={
                         activeDocument?.status === 'ready' ? activeDocument.skillSource : undefined
+                      }
+                      readOnly={
+                        activeDocument?.status === 'ready' ? activeDocument.readOnly : undefined
                       }
                       unavailableReason={
                         activeDocument?.status === 'unavailable' ? activeDocument.reason : undefined
@@ -3877,6 +3230,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       }}
                       locale={desktopLocale}
                     />
+                    )
                   }
                   terminalContent={
                     <DeferredTerminalDock
@@ -3938,32 +3292,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             trustDialogOpen={state.trustDialogOpen}
             onTrustProject={(trust) => void handleTrustProject(trust)}
             sessionMenu={sessionMenu}
-            onCloseSessionMenu={() => setSessionMenu(null)}
+            onCloseSessionMenu={closeSessionMenu}
             sessions={mergeSessionsForLookup(state.sessions, state.generalSessions)}
             showArchivedSessions={showArchivedSessions}
             onSessionMenuAction={(sessionId, action) => {
-            if (action === 'delete') {
-              const session = state.sessions.find((item) => item.id === sessionId);
-                setDeleteConfirm({
-                  sessionId,
-                  sessionName: session?.name ?? sessionId.slice(0, 8),
-                });
-              setSessionMenu(null);
-              return;
-            }
-            if (action === 'continue-in-project') {
-              const session = mergeSessionsForLookup(
-                state.sessions,
-                state.generalSessions,
-              ).find((item) => item.id === sessionId);
-              setContinueInProject({
+              routeSessionChromeMenuAction({
                 sessionId,
-                sessionName: session?.name ?? sessionId.slice(0, 8),
+                action,
+                sessions: mergeSessionsForLookup(state.sessions, state.generalSessions),
+                requestDelete: requestDeleteSession,
+                requestContinueInProject,
+                handleHostMenuAction: (nextSessionId, nextAction) => {
+                  void handleSessionMenuAction(nextSessionId, nextAction);
+                },
               });
-              setSessionMenu(null);
-              return;
-            }
-            void handleSessionMenuAction(sessionId, action);
             }}
             renameDraft={renameDraft}
             onRenameDraftChange={setRenameDraft}
@@ -3974,65 +3316,30 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             onPermission={(decision, scope) => {
               void handlePermission(decision, scope);
             }}
-          />
-
-          <Dialog
-            label={desktopLocale === 'zh-CN' ? '继续到项目' : 'Continue in project'}
-            open={continueInProject !== null}
-            onOpenChange={(open) => {
-              if (!open && !continueInProjectBusy) setContinueInProject(null);
+            deleteConfirm={deleteConfirm}
+            deleteBusy={deleteBusy}
+            onDeleteOpenChange={(open) => {
+              if (!open) {
+                closeDeleteConfirm();
+              }
             }}
-            testId="continue-session-in-project-dialog"
-          >
-            <h3>{desktopLocale === 'zh-CN' ? '选择目标项目' : 'Choose a project'}</h3>
-            <p className="muted">
-              {desktopLocale === 'zh-CN'
-                ? `将“${continueInProject?.sessionName ?? ''}”的完整历史复制到项目会话；原会话会保留。`
-                : `Copy the full history of “${continueInProject?.sessionName ?? ''}” into a project session. The original remains unchanged.`}
-            </p>
-            <div className="continue-session-project-list">
-              {recentProjects.filter((project) => project.trust === 'trusted').length > 0 ? (
-                recentProjects
-                  .filter((project) => project.trust === 'trusted')
-                  .map((project) => (
-                    <Button
-                      key={project.path}
-                      disabled={continueInProjectBusy}
-                      data-testid="continue-session-project-option"
-                      onClick={() => {
-                        if (!continueInProject) return;
-                        setContinueInProjectBusy(true);
-                        void handleContinueSessionInProject(
-                          continueInProject.sessionId,
-                          project.path,
-                        )
-                          .then((continued) => {
-                            if (continued) setContinueInProject(null);
-                          })
-                          .finally(() => setContinueInProjectBusy(false));
-                      }}
-                    >
-                      {projectDisplayName(project.path)}
-                    </Button>
-                  ))
-              ) : (
-                <p className="muted">
-                  {desktopLocale === 'zh-CN'
-                    ? '请先打开并信任一个项目。'
-                    : 'Open and trust a project first.'}
-                </p>
-              )}
-            </div>
-            <div className="modal-actions">
-              <Button
-                variant="ghost"
-                disabled={continueInProjectBusy}
-                onClick={() => setContinueInProject(null)}
-              >
-                {desktopLocale === 'zh-CN' ? '取消' : 'Cancel'}
-              </Button>
-            </div>
-          </Dialog>
+            onConfirmDelete={() => {
+              runDeleteConfirm(confirmDeleteSession);
+            }}
+            continueInProject={continueInProject}
+            continueInProjectBusy={continueInProjectBusy}
+            trustedProjects={recentProjects.filter((project) => project.trust === 'trusted')}
+            locale={desktopLocale}
+            onContinueInProjectOpenChange={(open) => {
+              if (!open) {
+                closeContinueInProject();
+              }
+            }}
+            onContinueInProject={(projectPath) => {
+              runContinueInProject(projectPath, handleContinueSessionInProject);
+            }}
+            onCancelContinueInProject={closeContinueInProject}
+          />
 
           <CommandPalette
             open={commandPaletteOpen}
@@ -4041,30 +3348,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             projectTrusted={state.projectTrusted}
             hasActiveSession={Boolean(state.activeSessionId)}
             onRun={runDesktopCommand}
-          />
-
-          <ConfirmDialog
-            open={Boolean(deleteConfirm)}
-            onOpenChange={(open) => {
-              if (!open && !deleteBusy) {
-                setDeleteConfirm(null);
-              }
-            }}
-            title="Delete permanently?"
-            description="Transcript files will be removed. This cannot be undone."
-            {...(deleteConfirm?.sessionName ? { affectedObject: deleteConfirm.sessionName } : {})}
-            confirmLabel="Delete permanently"
-            tone="danger"
-            busy={deleteBusy}
-            testId="session-delete-confirm"
-            onConfirm={() => {
-              if (!deleteConfirm) return;
-              setDeleteBusy(true);
-              void confirmDeleteSession(deleteConfirm.sessionId).finally(() => {
-                setDeleteBusy(false);
-                setDeleteConfirm(null);
-              });
-            }}
           />
 
           {/* Revert checkpoint confirmation dialog matching exact design specifications */}

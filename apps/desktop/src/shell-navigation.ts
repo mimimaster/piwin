@@ -24,6 +24,7 @@ export type ShellSettingsSection =
   | 'subagents'
   | 'session'
   | 'runtime'
+  | 'archive'
   | 'usage'
   | 'shortcuts'
   | 'artifact'

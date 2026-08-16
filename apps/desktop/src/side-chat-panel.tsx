@@ -22,6 +22,10 @@ import type {
   SideChatSyncData,
 } from '@piwin/contracts';
 import type { HostClient } from './host-client';
+import {
+  appendBoundedLiveText,
+  STREAMING_TEXT_RETENTION_OPTIONS,
+} from './chat-reducer';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -33,6 +37,17 @@ type SideChatMessage = {
   text: string;
   at: string;
 };
+
+/** Bounded message history: the panel lives for the whole app session and
+ * only clears on main-session switch, so appends must not grow unbounded. */
+const MAX_SIDE_CHAT_MESSAGES = 200;
+
+function appendBoundedSideChatMessage(
+  current: SideChatMessage[],
+  message: SideChatMessage,
+): SideChatMessage[] {
+  return [...current, message].slice(-MAX_SIDE_CHAT_MESSAGES);
+}
 
 export type SideChatPanelProps = {
   /** Active main session id (the source for side chats). */
@@ -106,7 +121,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
               text: buffer,
               at: new Date().toISOString(),
             };
-            setMessages((current) => [...current, flushedMessage]);
+            setMessages((current) => appendBoundedSideChatMessage(current, flushedMessage));
             return '';
           }
           return buffer;
@@ -130,10 +145,15 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
         setAssistantBuffer('');
         break;
       case 'message/text_delta':
-        setAssistantBuffer((buffer) => buffer + event.delta);
+        setAssistantBuffer((buffer) =>
+          appendBoundedLiveText({ text: buffer }, event.delta, STREAMING_TEXT_RETENTION_OPTIONS)
+            .text,
+        );
         break;
       case 'message/text_snapshot':
-        setAssistantBuffer(event.text);
+        setAssistantBuffer(
+          appendBoundedLiveText({ text: event.text }, '', STREAMING_TEXT_RETENTION_OPTIONS).text,
+        );
         break;
       case 'message/end':
         setAssistantBuffer((buffer) => {
@@ -144,7 +164,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
               text: buffer,
               at: new Date().toISOString(),
             };
-            setMessages((current) => [...current, assistantMessage]);
+            setMessages((current) => appendBoundedSideChatMessage(current, assistantMessage));
           }
           return '';
         });
@@ -255,7 +275,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
       text,
       at: new Date().toISOString(),
     };
-    setMessages((current) => [...current, userMessage]);
+    setMessages((current) => appendBoundedSideChatMessage(current, userMessage));
     setInput('');
     setStreaming(true);
     setError(null);

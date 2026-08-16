@@ -544,19 +544,21 @@ export class MockHostBackend {
             if (isPlaceholderSessionName(session.name)) {
               return false;
             }
-            if (listScope?.kind === 'general') {
-              if (session.scope.kind !== 'general') return false;
-            } else if (listScope?.kind === 'project') {
-              if (
-                session.scope.kind !== 'project' ||
-                session.scope.projectPath !== listScope.projectPath
-              ) {
+            if (command.allScopes !== true) {
+              if (listScope?.kind === 'general') {
+                if (session.scope.kind !== 'general') return false;
+              } else if (listScope?.kind === 'project') {
+                if (
+                  session.scope.kind !== 'project' ||
+                  session.scope.projectPath !== listScope.projectPath
+                ) {
+                  return false;
+                }
+              } else if (typeof listProjectPath === 'string') {
+                if (session.projectPath !== listProjectPath) return false;
+              } else if (session.scope.kind !== 'general') {
                 return false;
               }
-            } else if (typeof listProjectPath === 'string') {
-              if (session.projectPath !== listProjectPath) return false;
-            } else if (session.scope.kind !== 'general') {
-              return false;
             }
             if (includeArchived) {
               return true;
@@ -869,6 +871,20 @@ export class MockHostBackend {
           data: {
             sessionId: command.sessionId,
             messages: session?.transcript ?? [],
+          },
+        };
+      }
+      case 'session/foreground-run': {
+        const activeRunId = this.mockActiveRunIds.get(command.sessionId);
+        const activeRun = activeRunId ? this.mockRuns.get(activeRunId) : undefined;
+        return {
+          id,
+          type: 'response',
+          command: 'session/foreground-run',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            run: activeRun && !isRunTerminal(activeRun.status) ? activeRun : null,
           },
         };
       }
@@ -1293,15 +1309,72 @@ export class MockHostBackend {
         }
         const replay = this.mockRunInterventions.get(command.interventionId);
         if (replay) {
+          const adopted = command.adoptQueuedTurn
+            ? this.mockQueuedTurns
+                .get(command.sessionId)
+                ?.find(
+                  (item) =>
+                    item.queuedTurnId === command.adoptQueuedTurn?.queuedTurnId &&
+                    item.status === 'cancelled' &&
+                    item.terminalReason === 'converted-to-intervention',
+                )
+            : undefined;
           return {
             id,
             type: 'response',
             command: command.type,
             success: true,
-            data: { intervention: replay },
+            ...(adopted ? { data: { intervention: replay, queuedTurn: adopted } } : { data: { intervention: replay } }),
           };
         }
         const now = new Date().toISOString();
+        // Adoption converts a pending queued turn in place: cancel the queue
+        // record and re-bind its already-painted user row instead of appending.
+        let adoptedQueuedTurn: QueuedTurnRecord | undefined;
+        if (command.adoptQueuedTurn) {
+          const queue = this.mockQueuedTurns.get(command.sessionId) ?? [];
+          const target = queue.find(
+            (item) => item.queuedTurnId === command.adoptQueuedTurn?.queuedTurnId,
+          );
+          if (
+            !target ||
+            target.sessionId !== command.sessionId ||
+            target.userMessageId !== command.userMessageId ||
+            target.input.text !== command.input.text
+          ) {
+            return {
+              id,
+              type: 'response',
+              command: command.type,
+              success: false,
+              error: 'queued-turn-not-found',
+            };
+          }
+          if (target.status !== 'pending' || target.revision !== command.adoptQueuedTurn.expectedRevision) {
+            return {
+              id,
+              type: 'response',
+              command: command.type,
+              success: false,
+              error: 'queued-turn-revision-conflict',
+            };
+          }
+          adoptedQueuedTurn = {
+            ...target,
+            revision: target.revision + 1,
+            status: 'cancelled',
+            terminalReason: 'converted-to-intervention',
+            updatedAt: now,
+          };
+          this.mockQueuedTurns.set(
+            command.sessionId,
+            queue.map((item) => (item.queuedTurnId === adoptedQueuedTurn?.queuedTurnId ? adoptedQueuedTurn : item)),
+          );
+          this.emitPush({
+            type: 'session/queued-turn-updated',
+            queuedTurn: adoptedQueuedTurn,
+          });
+        }
         const intervention: RunInterventionRecord = {
           interventionId: command.interventionId,
           revision: 1,
@@ -1319,23 +1392,25 @@ export class MockHostBackend {
           updatedAt: now,
         };
         this.mockRunInterventions.set(intervention.interventionId, intervention);
-        const message: SessionTranscriptMessage = {
-          id: intervention.userMessageId,
-          role: 'user',
-          text: intervention.input.text,
-          createdAt: now,
-          status: 'done',
-          runId: intervention.runId,
-          instructionDelivery: {
-            kind: 'run-intervention',
-            instructionId: intervention.interventionId,
-            status: intervention.status,
-            targetRunId: intervention.runId,
-            revision: intervention.revision,
-          },
-        };
-        session.transcript.push(message);
-        this.emitPush({ type: 'transcript/append', sessionId: command.sessionId, message });
+        if (!adoptedQueuedTurn) {
+          const message: SessionTranscriptMessage = {
+            id: intervention.userMessageId,
+            role: 'user',
+            text: intervention.input.text,
+            createdAt: now,
+            status: 'done',
+            runId: intervention.runId,
+            instructionDelivery: {
+              kind: 'run-intervention',
+              instructionId: intervention.interventionId,
+              status: intervention.status,
+              targetRunId: intervention.runId,
+              revision: intervention.revision,
+            },
+          };
+          session.transcript.push(message);
+          this.emitPush({ type: 'transcript/append', sessionId: command.sessionId, message });
+        }
         this.emitPush({ type: 'run/intervention-updated', intervention });
         globalThis.setTimeout(() => {
           const current = this.mockRunInterventions.get(intervention.interventionId);
@@ -1367,7 +1442,9 @@ export class MockHostBackend {
           type: 'response',
           command: command.type,
           success: true,
-          data: { intervention },
+          ...(adoptedQueuedTurn
+            ? { data: { intervention, queuedTurn: adoptedQueuedTurn } }
+            : { data: { intervention } }),
         };
       }
 
@@ -1804,6 +1881,41 @@ export class MockHostBackend {
           command: 'media/save',
           success: true,
           data: { asset },
+        };
+      }
+      case 'media/read': {
+        const assetId = command.input.assetId;
+        const mimeType = assetId.endsWith('.png') ? 'image/png' : 'image/png';
+        return {
+          id,
+          type: 'response',
+          command: 'media/read',
+          success: true,
+          data: {
+            status: 'ready',
+            assetId,
+            sessionId: command.input.sessionId,
+            mimeType,
+            byteSize: 8,
+            base64Data: Buffer.from('mock-media-bytes').toString('base64'),
+          },
+        };
+      }
+      case 'preview/read-trusted-text': {
+        return {
+          id,
+          type: 'response',
+          command: 'preview/read-trusted-text',
+          success: true,
+          data: {
+            status: 'ready',
+            relativePath: command.input.relativePath,
+            displayRef: command.input.relativePath,
+            content: `# mock trusted text\n\n${command.input.relativePath}\n`,
+            byteSize: 32,
+            truncated: false,
+            readOnly: true,
+          },
         };
       }
       case 'git/stage':

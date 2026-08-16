@@ -354,7 +354,7 @@ export const IconGit = createIcon(
     <circle cx="6.25" cy="18" r="2.1" />
     <circle cx="17.75" cy="8" r="2.1" />
     <path d="M6.25 8.1v7.8" />
-    <path d="M17.75 10.1c0 4.35-5.35 4.3-8.9 6.5" opacity=".45" />
+    <path d="M17.75 10.1c0 4.35-5.35 4.3-8.9 6.5" />
   </>,
 );
 
@@ -464,7 +464,7 @@ export const IconAlertCircle = createIcon(
 export const IconCopy = createIcon(
   <>
     <rect x="8.75" y="8.75" width="11" height="11" rx="2.25" />
-    <path d="M5.4 15.25c-.63 0-1.15-.51-1.15-1.15V5.4c0-.63.51-1.15 1.15-1.15h8.7c.63 0 1.15.51 1.15 1.15" opacity=".45" />
+    <path d="M5.4 15.25c-.63 0-1.15-.51-1.15-1.15V5.4c0-.63.51-1.15 1.15-1.15h8.7c.63 0 1.15.51 1.15 1.15" />
   </>,
 );
 
