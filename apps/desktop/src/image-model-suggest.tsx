@@ -143,21 +143,21 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
 
   const t = isChinese
     ? {
-        placeholder: '输入或选择生图模型 ID',
-        noImageModels: '当前渠道暂无生图模型，可点击下方「查看全部」或手动输入',
-        noModels: '当前渠道暂无已配置的模型，可在「通道与文本」中拉取或手动输入',
-        noMatch: '未找到匹配的模型',
-        showAll: `查看全部渠道模型（${providerModels.length}）`,
+        placeholder: '选择或输入该通道下的模型 ID',
+        noImageModels: '当前通道暂无生图模型，可点击下方「查看全部」选择或输入已有模型',
+        noModels: '当前通道暂无已配置的模型，请先在「通道与文本」中拉取或手动添加',
+        noMatch: '当前通道未找到匹配的模型（请先在「通道与文本」中添加）',
+        showAll: `查看全部通道模型（${providerModels.length}）`,
         showOnlyImage: `仅看生图模型（${imageModels.length}）`,
         image: '生图',
         video: '视频',
         chat: '对话',
       }
     : {
-        placeholder: 'Enter or select image model ID',
-        noImageModels: 'No image models on this channel — click View all or type an ID',
-        noModels: 'No models configured on this channel — fetch models under Channels & chat or type an ID',
-        noMatch: 'No matching models found',
+        placeholder: 'Select or enter a model ID on this channel',
+        noImageModels: 'No image models on this channel — click View all to select from configured models',
+        noModels: 'No models configured on this channel — please fetch or add models under Channels & chat first',
+        noMatch: 'No matching models found in this channel (add it under Channels & chat first)',
         showAll: `View all channel models (${providerModels.length})`,
         showOnlyImage: `Show only image models (${imageModels.length})`,
         image: 'Image',

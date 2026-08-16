@@ -530,7 +530,7 @@ describe('ProviderSettings', () => {
     );
   });
 
-  it('auto-saves a model parameter change from the expanded row without clicking save', async () => {
+  it('saves a model parameter change from the expanded row when clicking save', async () => {
     const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
     const props = makeProps(onSave);
     const { container, root } = renderProviderSettings(props);
@@ -563,9 +563,13 @@ describe('ProviderSettings', () => {
       setInputValue(contextInput, '256000');
     });
 
-    // No Save button click — the debounced auto-save must persist the change.
+    expect(onSave).not.toHaveBeenCalled();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="model-edit-save"]')?.click();
+    });
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(onSave).toHaveBeenCalled();

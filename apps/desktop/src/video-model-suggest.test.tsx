@@ -444,7 +444,7 @@ describe('VideoGenerationSettings discovery wiring', () => {
       saved.push(next);
       return true;
     });
-    renderSettings(makeConfig(), saveConfig, []);
+    renderSettings(makeConfig([{ id: 'custom-video' }]), saveConfig, []);
 
     act(() => {
       setInputValue(
@@ -465,5 +465,24 @@ describe('VideoGenerationSettings discovery wiring', () => {
       apiStyle: 'custom',
       path: '/video/generations',
     });
+  });
+
+  it('disables submit and displays warning when video model is not configured on provider (3-tier constraint)', async () => {
+    const saveConfig = vi.fn(async () => true);
+    renderSettings(makeConfig([]), saveConfig, []);
+
+    act(() => {
+      setInputValue(
+        container?.querySelector<HTMLInputElement>('[data-testid="video-model-id"]') ?? null,
+        'unconfigured-video-xyz',
+      );
+    });
+
+    const submit = container?.querySelector<HTMLButtonElement>('[data-testid="video-add-model-submit"]');
+    expect(submit?.disabled).toBe(true);
+    const hint = container?.querySelector('[data-testid="video-add-model-missing-hint"]');
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toContain('unconfigured-video-xyz');
+    expect(saveConfig).not.toHaveBeenCalled();
   });
 });

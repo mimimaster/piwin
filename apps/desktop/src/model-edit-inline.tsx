@@ -19,9 +19,6 @@ import {
   type ModelConfigurationDraft,
 } from './model-configuration.js';
 
-/** Debounce window before a parameter change is auto-saved. */
-const AUTO_SAVE_DELAY_MS = 700;
-
 export type ModelEditInlineProps = {
   model: ModelConfigEntry;
   providerProtocol: ModelProviderConfig['protocol'];
@@ -38,28 +35,13 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
     createModelConfigurationDraft(model, undefined, props.providerProtocol),
   );
   const [error, setError] = useState<string | null>(null);
-  const [savedFlash, setSavedFlash] = useState<'auto' | 'manual' | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
   const dirtyRef = useRef(false);
-  /** Last draft that was submitted (auto or manual) — used to recognize the
-   * parent's save round-trip so the form does not clobber in-flight edits. */
-  const lastSubmittedDraftRef = useRef<ModelConfigurationDraft | null>(null);
   const savedFlashTimerRef = useRef<number | null>(null);
-  /** Latest draft/onSave, kept in refs so the unmount flush never goes stale. */
-  const latestDraftRef = useRef<ModelConfigurationDraft>(localDraft);
-  latestDraftRef.current = localDraft;
-  const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
 
   useEffect(() => {
-    const incomingDraft = createModelConfigurationDraft(model, undefined, props.providerProtocol);
-    const isOwnSaveRoundTrip =
-      lastSubmittedDraftRef.current !== null &&
-      draftsEqual(lastSubmittedDraftRef.current, incomingDraft);
-    // Preserve user edits made while our own auto-save is being written back;
-    // external model changes (discover/import/delete) still reset the form.
-    if (!dirtyRef.current || !isOwnSaveRoundTrip) {
-      dirtyRef.current = false;
-      setLocalDraft(incomingDraft);
+    if (!dirtyRef.current) {
+      setLocalDraft(createModelConfigurationDraft(model, undefined, props.providerProtocol));
       setError(null);
     }
     if (!searchCatalog) return;
@@ -85,30 +67,12 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [model, searchCatalog]);
-
-  // Auto-save after the user pauses editing. The timer restarts on every
-  // change, so only a settled value is persisted.
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (!dirtyRef.current) return;
-      submitSave(false);
-    }, AUTO_SAVE_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [localDraft]);
+  }, [model, searchCatalog, props.providerProtocol]);
 
   useEffect(() => {
     return () => {
       if (savedFlashTimerRef.current !== null) {
         window.clearTimeout(savedFlashTimerRef.current);
-      }
-      // The row may be collapsed while a change is still inside the debounce
-      // window — persist it so auto-save semantics hold on quick close.
-      if (dirtyRef.current) {
-        const draftToSave = normalizeDraftForSave(latestDraftRef.current);
-        if (!validateModelConfigurationDraft(draftToSave)) {
-          onSaveRef.current(draftToSave);
-        }
       }
     };
   }, []);
@@ -133,31 +97,28 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
     });
   }
 
-  function flashSaved(kind: 'auto' | 'manual'): void {
-    setSavedFlash(kind);
+  function flashSaved(): void {
+    setSavedFlash(true);
     if (savedFlashTimerRef.current !== null) {
       window.clearTimeout(savedFlashTimerRef.current);
     }
     savedFlashTimerRef.current = window.setTimeout(() => {
-      setSavedFlash(null);
+      setSavedFlash(false);
       savedFlashTimerRef.current = null;
     }, 1500);
   }
 
-  function submitSave(isManual: boolean): void {
+  function submitSave(): void {
     const draftToSave = normalizeDraftForSave(localDraft);
     const validation = validateModelConfigurationDraft(draftToSave);
     if (validation) {
-      // Auto-save stays silent while a value is mid-edit; the manual Save
-      // button surfaces the validation message so the user can fix it.
-      if (isManual) setError(validation);
+      setError(validation);
       return;
     }
     setError(null);
     dirtyRef.current = false;
-    lastSubmittedDraftRef.current = { ...draftToSave };
     onSave(draftToSave);
-    flashSaved(isManual ? 'manual' : 'auto');
+    flashSaved();
   }
 
   const providerCopy = getDesktopTranslator(isChinese ? 'zh-CN' : 'en').settings.provider;
@@ -179,8 +140,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         nativeSearch: providerCopy.nativeSearch,
         cancel: '取消',
         save: '保存',
-        savedAuto: '已自动保存',
-        savedManual: '已保存',
+        saved: '已保存',
       }
     : {
         label: 'Label',
@@ -199,8 +159,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         nativeSearch: providerCopy.nativeSearch,
         cancel: 'Cancel',
         save: 'Save',
-        savedAuto: 'Auto-saved',
-        savedManual: 'Saved',
+        saved: 'Saved',
       };
 
   return (
@@ -432,7 +391,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
       <div className="model-edit-inline-footer">
         {savedFlash ? (
           <span className="model-edit-inline-saved" data-testid="model-edit-saved-hint">
-            {savedFlash === 'auto' ? t.savedAuto : t.savedManual}
+            {t.saved}
           </span>
         ) : null}
         <Button
@@ -449,7 +408,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           type="button"
           variant="primary"
           size="compact"
-          onClick={() => submitSave(true)}
+          onClick={submitSave}
           data-testid="model-edit-save"
           disabled={disabled}
         >
@@ -463,25 +422,4 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
 /** Reasoning-off models must not carry thinking levels. */
 function normalizeDraftForSave(draft: ModelConfigurationDraft): ModelConfigurationDraft {
   return draft.reasoning ? draft : { ...draft, thinkingLevel: '', thinkingLevels: [] };
-}
-
-/** True when two drafts carry the same configuration values. */
-function draftsEqual(left: ModelConfigurationDraft, right: ModelConfigurationDraft): boolean {
-  return (
-    left.id === right.id &&
-    left.label === right.label &&
-    left.contextWindow === right.contextWindow &&
-    left.maxOutputTokens === right.maxOutputTokens &&
-    left.tooltipMarkdown === right.tooltipMarkdown &&
-    left.thinkingLevel === right.thinkingLevel &&
-    left.supportsImage === right.supportsImage &&
-    left.supportsImageGeneration === right.supportsImageGeneration &&
-    left.supportsVideoGeneration === right.supportsVideoGeneration &&
-    left.supportsSpeechToText === right.supportsSpeechToText &&
-    left.supportsTextToSpeech === right.supportsTextToSpeech &&
-    left.supportsNativeWebSearch === right.supportsNativeWebSearch &&
-    left.reasoning === right.reasoning &&
-    left.thinkingLevels.length === right.thinkingLevels.length &&
-    left.thinkingLevels.every((level, index) => level === right.thinkingLevels[index])
-  );
 }
