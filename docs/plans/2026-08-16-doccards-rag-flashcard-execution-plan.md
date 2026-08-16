@@ -1273,7 +1273,7 @@ Golden / E2E 绿之后才能删主路径：
 
 保留：scanner 安全、CardStore、open-source、flashcard Agent tools（聊天出卡）、FSRS、Anki。
 
-- [ ] Commit `refactor(doc-rag): remove legacy retrieve and prompt generation path`
+- [x] Commit `refactor(doc-rag): remove legacy retrieve and prompt generation path`
 
 **P7 验收：** 主路径不再 import `rrf.ts` / 旧 prompt-builder。
 

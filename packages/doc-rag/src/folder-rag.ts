@@ -1,16 +1,13 @@
 /**
- * Folder RAG orchestration: scan → chunk → index → retrieve.
+ * Folder RAG orchestration: scan → ingest → retrieve.
  *
- * Spec §8.1, §9.1. The FolderRag instance owns one chunker + optional
- * embedding provider and can serve multiple folders (each gets its own
- * sqlite cache under `~/.piwin/doc-rag/<folder-key>/`).
+ * Index writes LanceDB only. Legacy sqlite / recursive chunker stay unused
+ * on this path.
  */
-import { writeFile, readFile } from 'node:fs/promises';
+import { writeFile, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   ContextPack,
-  DocChunk,
-  DocChunker,
   EmbeddingProvider,
   IndexFolderOptions,
   IndexFolderResult,
@@ -20,12 +17,9 @@ import type {
 } from '@piwin/contracts';
 import type { FolderRag } from './doc-rag-types.js';
 export type { FolderRag };
-import { createDefaultChunker } from './chunker.js';
 import { createParserRegistry, type ParserRegistry } from './parsers/registry.js';
 import { scanFolderFiles } from './scanner.js';
 import { adaptNotesEmbedding } from './embedding-adapter.js';
-import { openDocIndex } from './doc-index.js';
-import type { DocIndex } from './doc-index.js';
 import type { DocIndexStore } from './indexing/doc-index-store.js';
 import { openLanceDocIndex } from './indexing/lancedb-index.js';
 import { ingestSelectedFiles } from './indexing/ingestion-service.js';
@@ -33,7 +27,6 @@ import { openFolderStateStore, type FolderStateStore } from './indexing/state-st
 import {
   canonicalizeFolderPath,
   folderKey,
-  getDocIndexPath,
   getLanceDbPath,
   getStateStorePath,
   getSourcePathSidecar,
@@ -48,7 +41,6 @@ import {
 } from './limits.js';
 
 export type CreateFolderRagOptions = {
-  chunker?: DocChunker;
   embeddingProvider?: EmbeddingProvider;
   /** Default `~/.piwin`. */
   piwinRoot?: string;
@@ -56,16 +48,13 @@ export type CreateFolderRagOptions = {
 };
 
 export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag {
-  const chunker = options.chunker ?? createDefaultChunker();
   const embeddingProvider = options.embeddingProvider;
   const piwinRoot = options.piwinRoot;
   const parserRegistry = options.parserRegistry ?? createParserRegistry();
-  // Open index lazily per folder; cache by canonical path.
-  const indexCache = new Map<string, DocIndex>();
   const lanceCache = new Map<string, DocIndexStore>();
   const stateCache = new Map<string, FolderStateStore>();
-  // Serialize write access per canonical folder key to avoid concurrent
-  // indexing corrupting the sqlite cache.
+  // Serialize write access per folder so concurrent Index jobs do not
+  // interleave LanceDB upserts.
   const indexLocks = new Map<string, Promise<void>>();
 
   async function withIndexLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -81,21 +70,6 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     } finally {
       release();
     }
-  }
-
-  async function getIndex(canonicalPath: string): Promise<DocIndex> {
-    const cached = indexCache.get(canonicalPath);
-    if (cached) return cached;
-    const indexPath = getDocIndexPath(canonicalPath, piwinRoot);
-    const index = await openDocIndex(indexPath);
-    indexCache.set(canonicalPath, index);
-    // Persist the .source-path sidecar for cleanup/debug.
-    try {
-      await writeFile(getSourcePathSidecar(canonicalPath, piwinRoot), canonicalPath, 'utf8');
-    } catch {
-      // Non-fatal — sidecar is a debug aid.
-    }
-    return index;
   }
 
   async function getLance(canonicalPath: string): Promise<DocIndexStore> {
@@ -148,11 +122,9 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       const warnings: string[] = [];
       let totalBytes = 0;
       let skipped = 0;
-      const chunks: DocChunk[] = [];
       const acceptedPaths: string[] = [];
-      let indexed = 0;
       for (const file of files) {
-        if (indexed >= DEFAULT_MAX_FILES) {
+        if (acceptedPaths.length >= DEFAULT_MAX_FILES) {
           warnings.push(`Reached max files (${DEFAULT_MAX_FILES}); stopping.`);
           break;
         }
@@ -167,12 +139,9 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         }
         const absolute = join(canonical, file.relativePath);
         try {
-          const content = await readFile(absolute, 'utf8');
-          const fileChunks = chunker.chunk(file.relativePath, content);
-          chunks.push(...fileChunks);
+          await stat(absolute);
           acceptedPaths.push(file.relativePath);
           totalBytes += file.sizeBytes;
-          indexed += 1;
           if (indexOptions?.signal?.aborted) {
             warnings.push('Aborted by signal.');
             break;
@@ -182,8 +151,6 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
           warnings.push(`Skipped (read error): ${file.relativePath}: ${(error as Error).message}`);
         }
       }
-      const index = await getIndex(canonical);
-      await index.indexChunks(chunks);
       const lance = await getLance(canonical);
       const state = await getState(canonical);
       const ingest = await ingestSelectedFiles({
@@ -293,10 +260,6 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     listDocuments,
     isIndexed,
     close: () => {
-      for (const index of indexCache.values()) {
-        index.close();
-      }
-      indexCache.clear();
       for (const store of lanceCache.values()) {
         void store.close();
       }
