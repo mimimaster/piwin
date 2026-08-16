@@ -48,6 +48,7 @@ export * from './model-context-budget.js';
 export * from './session-ops.js';
 export * from './notes.js';
 export * from './flashcards.js';
+export * from './doc-card-surface.js';
 export * from './doc-rag.js';
 export * from './doc-rag-v2.js';
 export * from './knowledge.js';

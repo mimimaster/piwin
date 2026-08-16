@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactElement } from 're
 import { Button } from '@piwin/ui-kit';
 import type { FlashcardRecord, HostResponse, ReviewRating } from '@piwin/contracts';
 import type { DocCardSequenceView as DocCardSequencePointer } from '@piwin/contracts';
+import { buildDocCardSurface } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type DocCardSequenceRequest = (command: {
@@ -59,9 +60,17 @@ export function DocCardSequenceView(props: DocCardSequenceViewProps): ReactEleme
     void load();
   }, [load]);
 
-  const current = cards[index];
+  const surface = useMemo(
+    () =>
+      buildDocCardSurface({
+        workspaceName: props.sequence.workspaceName,
+        cards,
+      }),
+    [cards, props.sequence.workspaceName],
+  );
+  const current = surface.cards[index];
   const atStart = index <= 0;
-  const atEnd = index >= cards.length - 1;
+  const atEnd = index >= surface.cards.length - 1;
 
   const go = useCallback((nextIndex: number) => {
     setIndex(nextIndex);
@@ -81,41 +90,34 @@ export function DocCardSequenceView(props: DocCardSequenceViewProps): ReactEleme
     await props.request({ type: 'doccards/open-source', cardId: current.id });
   }, [current, props]);
 
-  const summary = useMemo(
-    () =>
-      t(
-        `${props.sequence.workspaceName} · ${cards.length} cards`,
-        `${props.sequence.workspaceName} · ${cards.length} 张`,
-      ),
-    [cards.length, props.sequence.workspaceName, t],
-  );
-
-  if (cards.length === 0) {
+  if (surface.cards.length === 0) {
     return (
-      <div className="doc-card-sequence" data-testid="doc-card-sequence-empty">
+      <section className="doc-card-surface" data-testid="doc-card-sequence-empty" data-slot="empty">
         <p>{t('No cards left in this sequence', '这个序列里已经没有卡片了')}</p>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="doc-card-sequence" data-testid="doc-card-sequence">
-      <p className="doc-card-sequence-meta">
-        {summary} · {index + 1}/{cards.length}
-      </p>
-      <div className="doc-card-sequence-front" data-testid="doc-card-sequence-front">
-        {current?.front}
-      </div>
-      {revealed ? (
-        <div className="doc-card-sequence-back" data-testid="doc-card-sequence-back">
-          {current?.back}
+    <section className="doc-card-surface" data-testid="doc-card-sequence" data-slot="surface">
+      <header className="doc-card-surface-meta" data-slot="progress">
+        {surface.workspaceName} · {current?.position}/{current?.total}
+      </header>
+      <article className="doc-card-surface-face" data-slot="card" data-card-id={current?.id}>
+        <div className="doc-card-sequence-front" data-testid="doc-card-sequence-front" data-slot="front">
+          {current?.front}
         </div>
-      ) : (
-        <Button data-testid="doc-card-sequence-reveal" onClick={() => setRevealed(true)}>
-          {t('Reveal', '显示答案')}
-        </Button>
-      )}
-      <div className="doc-card-sequence-nav">
+        {revealed ? (
+          <div className="doc-card-sequence-back" data-testid="doc-card-sequence-back" data-slot="back">
+            {current?.back}
+          </div>
+        ) : (
+          <Button data-testid="doc-card-sequence-reveal" onClick={() => setRevealed(true)}>
+            {t('Reveal', '显示答案')}
+          </Button>
+        )}
+      </article>
+      <footer className="doc-card-sequence-nav" data-slot="actions">
         <Button
           data-testid="doc-card-sequence-prev"
           disabled={atStart}
@@ -128,18 +130,18 @@ export function DocCardSequenceView(props: DocCardSequenceViewProps): ReactEleme
         </Button>
         {revealed ? (
           <>
-            <Button onClick={() => void rate('again')}>1</Button>
-            <Button onClick={() => void rate('hard')}>2</Button>
-            <Button onClick={() => void rate('good')}>3</Button>
-            <Button onClick={() => void rate('easy')}>4</Button>
+            <Button onClick={() => void rate('again')}>{t('Again', '忘了')}</Button>
+            <Button onClick={() => void rate('hard')}>{t('Hard', '较难')}</Button>
+            <Button onClick={() => void rate('good')}>{t('Good', '记住了')}</Button>
+            <Button onClick={() => void rate('easy')}>{t('Easy', '简单')}</Button>
           </>
         ) : null}
-        {current?.sourceFile ? (
+        {current?.canOpenSource ? (
           <Button data-testid="doc-card-sequence-source" onClick={() => void openSource()}>
-            {t('Open source', '打开源文件')}
+            {current.sourceLabel ?? t('Open source', '打开源文件')}
           </Button>
         ) : null}
-      </div>
-    </div>
+      </footer>
+    </section>
   );
 }
