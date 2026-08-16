@@ -2186,7 +2186,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
           process.exitCode = 1;
           return;
         }
-        const job = (status.data as { job?: { status: string; created?: number; skipped?: number; createdCardIds?: string[] } | null }).job;
+        const job = (status.data as { job?: { status: string; created?: number; skipped?: number; createdCardIds?: string[]; sessionId?: string } | null }).job;
         if (job && ['COMPLETED', 'COMPLETED_DEGRADED', 'FAILED', 'CANCELED'].includes(job.status)) {
           if (job.status === 'FAILED' || job.status === 'CANCELED') {
             console.error(job.status);
@@ -2194,7 +2194,9 @@ async function commandDocCards(argv: string[]): Promise<void> {
             return;
           }
           console.log(
-            `created ${job.created ?? job.createdCardIds?.length ?? 0}, skipped ${job.skipped ?? 0}`,
+            `created ${job.created ?? job.createdCardIds?.length ?? 0}, skipped ${job.skipped ?? 0}${
+              job.sessionId ? `, session ${job.sessionId}` : ''
+            }`,
           );
           if (hasFlag(argv, '--json')) {
             process.stdout.write(`${JSON.stringify(job)}\n`);
