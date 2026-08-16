@@ -5,6 +5,32 @@
  * Secrets stay as env/ref names, never inline keys.
  */
 
+/**
+ * Generic embedding port for notes + doc-rag.
+ * Implementations live in `@piwin/notes`; Host injects them.
+ */
+export type SharedEmbeddingProvider = {
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly dimension?: number;
+  embedDocuments(texts: string[], signal?: AbortSignal): Promise<number[][]>;
+  embedQuery(text: string, signal?: AbortSignal): Promise<number[]>;
+};
+
+/** Reranker over { id, text } — not NoteSearchHit. */
+export type SharedReranker = {
+  readonly providerId: string;
+  readonly modelId: string;
+  rerank(
+    input: {
+      query: string;
+      documents: Array<{ id: string; text: string }>;
+      topK: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<Array<{ id: string; score: number }>>;
+};
+
 export type KnowledgeHttpAuth = {
   /** Env var name holding the API key. */
   apiKeyEnv?: string;
