@@ -3,11 +3,21 @@ export {
   assertRealPathInsideMediaRoot,
   contentHash,
   createMediaService,
+  readMediaAsset,
   saveMediaAsset,
 } from './media-service.js';
-export type { MediaServiceOptions } from './media-service.js';
+export type {
+  MediaServiceOptions,
+  ReadMediaInput,
+  ReadMediaResult,
+} from './media-service.js';
 export { formatTextModelImageInjection } from '@piwin/contracts';
-export type { SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
+export type {
+  MediaReadData,
+  MediaReadFailureReason,
+  SaveMediaInput,
+  SavedMediaAsset,
+} from '@piwin/contracts';
 export {
   ATTACHMENT_DOCUMENT_MIME_TYPES,
   ATTACHMENT_FILE_ACCEPT,

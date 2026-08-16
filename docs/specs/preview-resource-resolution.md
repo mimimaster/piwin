@@ -1,0 +1,119 @@
+# Preview Resource Resolution — Spec
+
+Status: Slices 1–3 implemented.
+ADR: [`../adr/0052-preview-resource-resolution.md`](../adr/0052-preview-resource-resolution.md)
+
+## Problem
+
+Clicking a generated-image path (`~/.piwin/media/<sessionId>/x.jpg`) in the
+transcript opens the right-panel Doc Preview and fails with
+`outside-project`. Root cause chain: single text-only pipeline →
+`project/read-file` root containment → no other preview domain.
+
+## Resource dispatch matrix
+
+| Resource | Identity | Read channel | Renderer |
+|----------|----------|--------------|----------|
+| Project file (text) | registered root + relative path | `project/read-file` | Markdown / code viewer |
+| Project file (binary) | registered root + relative path | Slice 2+ (bounded binary read) | media viewer (deferred) |
+| Skill doc | `skillId` | `skills/read` (+ `session/tool-output` snapshot) | Markdown viewer |
+| Media vault asset | vault path or `remote-asset:<id>` | local: Tauri asset protocol; remote: `media/read` (Slice 2) | media viewer (zoom / video) |
+| Trusted config-root text | config-root-relative path | `preview/read-trusted-text` | text viewer + `[项目外 · 只读]` |
+| Anything else | — | none | `outside-project` card (upgraded copy) |
+
+Classification rule: **store identity, not extension**. `planDocumentOpenPath`
+returns `kind: 'media'` iff `isPiwinMediaPath(path)` or the path is an opaque
+`remote-asset:<id>` ref. The media viewer may use extensions/MIME to pick
+image vs video *rendering*.
+
+## Slice 1 — Desktop dispatch + media viewer (implemented)
+
+- `apps/desktop/src/media-path.ts`: pure helpers — `isPiwinMediaPath`,
+  `REMOTE_MEDIA_ASSET_PREFIX`, `isRemoteMediaAssetRef`,
+  `mediaKindForPath` (`'image' | 'video' | null`). `media-utils` re-exports
+  `isPiwinMediaPath` for existing callers.
+- `document-open-path.ts`: new `media` plan kind, checked before the project
+  branch (vault paths always preview as media, even under a weird project root).
+- `active-document.ts`: ready variant gains optional `media` payload
+  (`{ path, assetId?, mimeType?, byteSize? }`); `content` stays `''` for media.
+- `hooks/use-active-document.ts`: extracted from `App.tsx` (state, request-id
+  guard, `requestToolSnapshot`, `handleOpenDocument`) + media branch:
+  - vault path → `ready` with `media` (viewer resolves bytes);
+  - bare `remote-asset:` path (no session identity) → `unavailable` with
+    reason `media-unavailable`; structured media targets fetch via `media/read`.
+- `MediaDocPreview.tsx`: right-panel media renderer. Image: fit-to-panel,
+  wheel zoom (≤ 8×), drag pan, double-click reset, click-through to fullscreen
+  lightbox. Video: `<video controls>`. Header mirrors DocPreviewPanel
+  (title / displayRef chip / provenance `会话媒体`).
+- `App.tsx` `docPreviewContent` picks `MediaDocPreview` iff
+  `activeDocument.media` is set; otherwise the existing `DocPreviewPanel`.
+- Errors: unresolvable URL (non-Tauri host, moved file) → unavailable card
+  with reason `media-unavailable`, never a broken-image glyph.
+
+### Slice 1 test matrix
+
+- `document-open-path.test.ts`: vault path (with and without project root),
+  `remote-asset:` ref, media beats project classification, non-media
+  extensions in the vault still classify as media.
+- `use-active-document.test.tsx`: media open produces ready-with-media without
+  any host request; a bare `remote-asset:` path produces `media-unavailable`;
+  project text open still issues `project/read-file`.
+- `MediaDocPreview.test.tsx`: image renders from resolved URL; zoom controls;
+  video element for video paths; unavailable state when resolution fails.
+
+## Slice 2 — `media/read` contract + remote enablement (implemented)
+
+- `@piwin/contracts`:
+  - `media/read` command: `{ sessionId, assetId, maxBytes? }` →
+    `MediaReadData = ready { base64Data, mimeType, byteSize } |
+    unavailable { reason }` with stable reasons
+    (`not-found | outside-media-root | too-large | invalid-request`).
+    No `mediaPath`, no `truncated`, no `session-mismatch`. Oversized files
+    are rejected whole (8 MiB hard cap).
+  - `DocumentTargetRef` gains `{ kind: 'media'; sessionId; assetId; displayRef }`.
+- `@piwin/media`: read API alongside `saveMediaAsset`, reusing
+  `assertInsideMediaRoot` / `assertRealPathInsideMediaRoot`; byte cap
+  (initial 8 MiB; video stays local-only until ticketed transfer, ADR 0037 §4).
+- `@piwin/host-runtime`: command dispatch + session-ownership check.
+- `@piwin/host-server`: allowlist `media/read` for remote clients, resolve
+  `remote-asset:<id>` through the existing id→path map (raise the 256-ref cap
+  or persist refs if it proves limiting), advertise `mediaRead: true`
+  capability, keep `sanitizeRemoteValue` masking host paths.
+- `apps/desktop`: media viewer falls back to `media/read` → blob URL when the
+  asset protocol can't serve (remote Host); `host-client-mock.ts` gains the
+  command.
+- Source fix: `image_gen` tool presentation emits `DocumentTargetRef`
+  media targets (via `document-targets.ts` enrichment) instead of bare
+  absolute-path pills.
+
+## Slice 3 — Trusted-domain read-only text preview (implemented)
+
+- Host command `preview/read-trusted-text` accepts a config-root-relative
+  path only (`relativePath`). Remote clients never send host-absolute paths.
+- Reader lives in `@piwin/host-runtime` (`trusted-text-reader.ts`); handler
+  is `preview-commands.ts` (not catalog-commands). Containment reuses
+  `resolveInsideRootWithRealpath`. First path segment `media` is rejected
+  (`media-vault`) so vault bytes cannot bypass `media/read`.
+- Text sniff (NUL in first 8 KiB) + 256 KiB default / 512 KiB hard cap.
+  Oversized **text is truncated** (same policy as `project/read-file`).
+- Ready payload always includes `readOnly: true`. Failure reasons:
+  `not-found | outside-config-root | media-vault | not-a-file | binary |
+  too-large | invalid-request`.
+- `DocumentTargetRef.trusted-config` is the remote-safe click identity.
+  Host advertises `trustedTextPreview`.
+- Desktop: planner classifies `/.piwin/**` (after media / project / skill)
+  as `trusted-config`; Doc Preview shows `[项目外 · 只读]`. Remaining
+  `outside-project` cards mention the Finder/访达 escape hatch.
+- Never accepts arbitrary absolute paths from transcript-emitted chips.
+
+## Security invariants
+
+1. Read authority = store identity. Media vault reads stay inside
+   `~/.piwin/media/` after realpath; project reads stay inside registered
+   roots; no command accepts "any absolute path" for preview.
+2. Remote clients never send host-local absolute paths for media; they send
+   opaque ids. Host absolute paths never appear in remote payloads.
+3. Model-emitted path chips gain no new read authority beyond existing
+   channels (project/skill/media vault). Anything wider requires a user
+   gesture and a local Host.
+4. `project/read-file` semantics are frozen; new domains = new commands.

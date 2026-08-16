@@ -31,6 +31,32 @@ export type TextModelImageInjection = {
   height?: number;
 };
 
+/**
+ * Stable failure reasons for media/read (ADR 0052). Remote-safe: the payload
+ * never carries host-absolute paths in either variant.
+ */
+export type MediaReadFailureReason =
+  | 'not-found'
+  | 'outside-media-root'
+  | 'too-large'
+  | 'invalid-request';
+
+export type MediaReadData =
+  | {
+      status: 'ready';
+      assetId: string;
+      sessionId: string;
+      mimeType: string;
+      byteSize: number;
+      /** Bytes are base64 only while crossing the client-to-host transport. */
+      base64Data: string;
+    }
+  | {
+      status: 'unavailable';
+      reason: MediaReadFailureReason;
+      suggestion?: string;
+    };
+
 export function formatTextModelImageInjection(attachment: TextModelImageInjection): string {
   const dimensionPart =
     attachment.width && attachment.height

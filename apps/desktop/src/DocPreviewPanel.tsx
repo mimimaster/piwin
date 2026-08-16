@@ -47,6 +47,8 @@ export type DocPreviewPanelProps = {
   skillSource?: string | undefined;
   unavailableReason?: string | undefined;
   suggestion?: string | undefined;
+  /** Trusted-domain preview badge (ADR 0052 Slice 3). */
+  readOnly?: boolean | undefined;
   sessionDocuments?: SessionDocItem[] | undefined;
   onSelectDocument?: ((doc: { title: string; path?: string }) => void) | undefined;
   onClose?: (() => void) | undefined;
@@ -72,6 +74,7 @@ export function DocPreviewPanel({
   skillSource,
   unavailableReason,
   suggestion,
+  readOnly = false,
   sessionDocuments,
   onSelectDocument,
   onClose,
@@ -158,6 +161,11 @@ export function DocPreviewPanel({
               {provenance ? (
                 <span className="doc-preview-chip" data-testid="doc-preview-provenance">
                   {provenanceLabel(provenance, locale === 'en' ? 'en' : 'zh-CN')}
+                </span>
+              ) : null}
+              {readOnly || provenance === 'trusted-config' ? (
+                <span className="doc-preview-chip" data-testid="doc-preview-readonly">
+                  {locale === 'zh-CN' ? '项目外 · 只读' : 'Outside project · read-only'}
                 </span>
               ) : null}
               {status === 'loading' ? (

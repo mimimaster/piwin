@@ -4,6 +4,7 @@
 import type {
   HostCommand,
   HostResponse,
+  MediaReadData,
   MediaSaveData,
   SpeechTranscribeData,
 } from '@piwin/contracts';
@@ -68,6 +69,7 @@ const activePetAborts = new Map<string, AbortController>();
 
 const TYPES = new Set<HostCommand['type']>([
   'media/save',
+  'media/read',
   'speech/transcribe',
   'skills/list',
   'skills/read',
@@ -205,6 +207,49 @@ export async function handleCatalogCommand(
       });
       const data: MediaSaveData = { asset };
       return ok(requestId, 'media/save', data);
+    }
+    case 'media/read': {
+      // ADR 0052: preview reads address the vault by logical identity only.
+      // Hard cap keeps one bounded base64 payload per request; oversized
+      // assets surface as an unavailable state, not a truncated image.
+      const DEFAULT_MAX_MEDIA_READ_BYTES = 8 * 1024 * 1024;
+      const maxBytes = Math.min(
+        DEFAULT_MAX_MEDIA_READ_BYTES,
+        Math.max(1024, command.input.maxBytes ?? DEFAULT_MAX_MEDIA_READ_BYTES),
+      );
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const config = await loadPiwinConfig(rootDir);
+      const mediaService = createMediaService({
+        mediaRoot: getPiwinMediaDir(rootDir),
+        maxPasteBytes: config.media.maxPasteBytes,
+        allowedMimeTypes: config.media.allowedMimeTypes,
+      });
+      const result = await mediaService.readMediaAsset({
+        sessionId: command.input.sessionId,
+        assetId: command.input.assetId,
+        maxBytes,
+      });
+      if (result.status === 'unavailable') {
+        const data: MediaReadData = {
+          status: 'unavailable',
+          reason: result.reason,
+          ...(result.reason === 'too-large'
+            ? { suggestion: '媒体文件超出预览大小上限。' }
+            : result.reason === 'not-found'
+              ? { suggestion: '该媒体资源不存在或已被清理。' }
+              : {}),
+        };
+        return ok(requestId, 'media/read', data);
+      }
+      const data: MediaReadData = {
+        status: 'ready',
+        assetId: result.assetId,
+        sessionId: result.sessionId,
+        mimeType: result.mimeType,
+        byteSize: result.byteSize,
+        base64Data: Buffer.from(result.bytes).toString('base64'),
+      };
+      return ok(requestId, 'media/read', data);
     }
     case 'skills/list': {
       const rootDir = getPiwinRoot(context.piwinRoot);
