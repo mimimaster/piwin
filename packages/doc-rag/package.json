@@ -24,12 +24,16 @@
     "lint": "echo \"lint ok (doc-rag)\""
   },
   "dependencies": {
+    "@langchain/textsplitters": "^1.0.1",
     "@piwin/contracts": "workspace:*",
-    "@piwin/notes": "workspace:*"
+    "@piwin/notes": "workspace:*",
+    "js-tiktoken": "^1.0.21",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@types/node": "^22.10.5",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5",
-    "@types/node": "^22.10.5"
+    "vitest": "^3.0.5"
   }
 }
