@@ -1968,12 +1968,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
     return;
   }
 
-  const {
-    createFolderRag,
-    buildFlashcardGenerationPrompt,
-    FLASHCARD_QUALITY_RULES,
-    canonicalizeFolderPath,
-  } = await import('@piwin/doc-rag');
+  const { createFolderRag, canonicalizeFolderPath } = await import('@piwin/doc-rag');
   const { createEmbeddingProvider } = await import('@piwin/notes');
   const { createCardStore } = await import('@piwin/flashcards');
   const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
@@ -2116,30 +2111,23 @@ async function commandDocCards(argv: string[]): Promise<void> {
         return;
       }
 
-      // Step 1: index (optionally limited to selected files), then retrieve.
-      const indexOptions = fileAllowlist?.length ? { includeFiles: fileAllowlist } : undefined;
-      await rag.indexFolder(canonical, indexOptions);
-      const query = topic || canonical;
-      const retrieveOptions = {
-        limit,
-        ...(fileAllowlist?.length ? { fileAllowlist } : {}),
-      };
-      const chunks = await rag.retrieve(canonical, query, retrieveOptions);
-      if (chunks.length === 0) {
-        console.error('No passages retrieved; index the folder first or try a different topic.');
+      const { assembleDoccardsGeneratePrompt } = await import('./doccards-generate.js');
+      let prompt: string;
+      try {
+        prompt = await assembleDoccardsGeneratePrompt({
+          rag,
+          folderPath: canonical,
+          ...(topic ? { topic } : {}),
+          limit,
+          ...(fileAllowlist?.length ? { fileAllowlist } : {}),
+          ...(difficulty ? { difficulty } : {}),
+          ...(count ? { count } : {}),
+        });
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
         process.exitCode = 1;
         return;
       }
-
-      // Step 2: build the flashcard generation prompt.
-      const prompt = buildFlashcardGenerationPrompt({
-        folderPath: canonical,
-        chunks,
-        ...(topic ? { topic } : {}),
-        difficulty: difficulty ?? 'medium',
-        count: count ?? 'standard',
-        qualityRules: FLASHCARD_QUALITY_RULES,
-      });
 
       // Step 3: start a chat session and stream the generation.
       const display = createAssistantCliDisplay();
