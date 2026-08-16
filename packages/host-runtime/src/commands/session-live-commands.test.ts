@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadSessionPlan, openSessionTranscriptStore, saveSessionPlan } from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
-import { getPiwinProjectsPath } from '../paths.js';
+import { getPiwinProjectsPath, getPiwinSessionPlanPath } from '../paths.js';
 import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contracts';
 import { RunRegistry } from '../run-registry.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
@@ -290,6 +290,122 @@ describe('session live control commands', () => {
       success: false,
       error: expect.stringContaining('run-mismatch'),
     });
+  });
+
+  it('adopts a pending queued turn as an exact-Run intervention without duplicating the user row', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-intervention-adopt-'));
+    const baseSession = createDelayedSessionHandle();
+    const armRunIntervention = vi.fn(async () => undefined);
+    const session: SessionHandle = { ...baseSession, armRunIntervention };
+    const control = createControlContext(session);
+    control.registry.attachRuntimeGeneration(control.activeRun.runId, 'generation-1');
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: session.id,
+      projectPath: '/tmp/project',
+    });
+    control.context.getTranscriptStore = async () => store;
+    const pushes: HostPush[] = [];
+    control.context.push = (push) => pushes.push(push);
+
+    try {
+      const created = await store.createQueuedTurn({
+        queuedTurnId: 'queued-1',
+        sessionId: session.id,
+        userMessageId: 'user-queued-1',
+        mode: 'next',
+        input: { text: 'Adjust the model mapping' },
+        fingerprint: 'fingerprint-queued-1',
+        submittedAt: new Date().toISOString(),
+      });
+      expect(created).toMatchObject({ outcome: 'created' });
+
+      const command = {
+        type: 'run/intervention-submit' as const,
+        sessionId: session.id,
+        runId: control.activeRun.runId,
+        interventionId: 'intervention-adopt-1',
+        userMessageId: 'user-queued-1',
+        input: { text: 'Adjust the model mapping' },
+        adoptQueuedTurn: { queuedTurnId: 'queued-1', expectedRevision: 1 },
+      };
+      const response = await handleSessionLiveCommand(command, undefined, control.context);
+
+      expect(response).toMatchObject({
+        success: true,
+        command: 'run/intervention-submit',
+        data: {
+          intervention: { interventionId: 'intervention-adopt-1', status: 'pending', revision: 1 },
+          queuedTurn: { queuedTurnId: 'queued-1', status: 'cancelled' },
+        },
+      });
+      expect(armRunIntervention).toHaveBeenCalledOnce();
+      expect(armRunIntervention).toHaveBeenLastCalledWith(
+        expect.objectContaining({ interventionId: 'intervention-adopt-1', text: 'Adjust the model mapping' }),
+      );
+      expect(pushes.map((push) => push.type)).toContain('session/queued-turn-updated');
+      expect(pushes.map((push) => push.type)).toContain('run/intervention-updated');
+      // The queued turn already painted the user row; adoption must re-bind
+      // it, never append a second copy.
+      expect(pushes.filter((push) => push.type === 'transcript/append')).toEqual([]);
+      expect(await store.getQueuedTurn('queued-1')).toMatchObject({
+        status: 'cancelled',
+        terminalReason: 'converted-to-intervention',
+        revision: 2,
+      });
+      expect(await store.getMessage('user-queued-1')).toMatchObject({
+        id: 'user-queued-1',
+        runId: control.activeRun.runId,
+        instructionDelivery: {
+          kind: 'run-intervention',
+          instructionId: 'intervention-adopt-1',
+          status: 'pending',
+        },
+      });
+
+      // An ACK-timeout retry replays the same atomic outcome.
+      const replay = await handleSessionLiveCommand(command, undefined, control.context);
+      expect(replay).toMatchObject({
+        success: true,
+        data: {
+          intervention: { interventionId: 'intervention-adopt-1' },
+          queuedTurn: { queuedTurnId: 'queued-1', status: 'cancelled' },
+        },
+      });
+      expect(armRunIntervention).toHaveBeenCalledTimes(2);
+
+      // A stale revision against a fresh queued turn fails closed.
+      await store.createQueuedTurn({
+        queuedTurnId: 'queued-2',
+        sessionId: session.id,
+        userMessageId: 'user-queued-2',
+        mode: 'next',
+        input: { text: 'Second adjustment' },
+        fingerprint: 'fingerprint-queued-2',
+        submittedAt: new Date().toISOString(),
+      });
+      const conflict = await handleSessionLiveCommand(
+        {
+          type: 'run/intervention-submit',
+          sessionId: session.id,
+          runId: control.activeRun.runId,
+          interventionId: 'intervention-adopt-2',
+          userMessageId: 'user-queued-2',
+          input: { text: 'Second adjustment' },
+          adoptQueuedTurn: { queuedTurnId: 'queued-2', expectedRevision: 99 },
+        },
+        undefined,
+        control.context,
+      );
+      expect(conflict).toMatchObject({
+        success: false,
+        error: 'queued-turn-revision-conflict',
+      });
+      expect(await store.getQueuedTurn('queued-2')).toMatchObject({ status: 'pending' });
+    } finally {
+      store.close();
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 
   it('edits and cancels only a still-pending intervention revision', async () => {
@@ -832,6 +948,34 @@ describe('session live control commands', () => {
         (message) => message.type === 'run/terminal' && message.run.status === 'completed',
       ),
     ).toBe(true);
+  });
+
+  it('session/foreground-run reports the active run, then null after it terminates', async () => {
+    const session = createDelayedSessionHandle();
+    const { context, registry, activeRun } = createControlContext(session);
+
+    const active = await handleSessionLiveCommand(
+      { type: 'session/foreground-run', sessionId: session.id },
+      undefined,
+      context,
+    );
+    expect(active).toMatchObject({
+      type: 'response',
+      success: true,
+      data: { sessionId: session.id, run: { runId: activeRun.runId } },
+    });
+
+    registry.terminate(activeRun.runId, 'completed');
+    const cleared = await handleSessionLiveCommand(
+      { type: 'session/foreground-run', sessionId: session.id },
+      undefined,
+      context,
+    );
+    expect(cleared).toMatchObject({
+      type: 'response',
+      success: true,
+      data: { sessionId: session.id, run: null },
+    });
   });
 
   it('publishes the replacement generation after reload', async () => {
@@ -1418,6 +1562,329 @@ function createControlContext(
   };
   return { context, registry, activeRun };
 }
+
+function assemblyContributionKinds(events: HostPush[]): string[] {
+  const summary = [...events]
+    .reverse()
+    .find(
+      (item): item is Extract<HostPush, { type: 'agent/context-summary' }> =>
+        item.type === 'agent/context-summary',
+    );
+  return summary?.contributions.map((item) => item.kind) ?? [];
+}
+
+describe('Conversation prompt path (CHT-301~308)', () => {
+  it('CHT-302: ignores a stale orchestration id instead of failing closed', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createPromptContext(session);
+    context.resolveIsConversationChat = async () => true;
+    context.loadConfig = async () =>
+      ({
+        subagents: {
+          profiles: [],
+          maxConcurrency: 4,
+          maxTasksPerRun: 8,
+          processIsolation: 'required',
+          parallelWritePolicy: 'worktree-only',
+          dirtyBasePolicy: 'ask',
+        },
+      }) as any;
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'hello', orchestrationSchemeId: 'nope' },
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true, data: { sessionId: session.id } });
+    await session.promptSettled;
+  });
+
+  it('CHT-303: does not prepare delegation and forces the run to disabled', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createPromptContext(session);
+    context.resolveIsConversationChat = async () => true;
+    const prepared: Array<'auto' | 'disabled'> = [];
+    const bound: Array<'auto' | 'disabled'> = [];
+    context.prepareDelegationRuntime = async (_sessionId, mode) => {
+      prepared.push(mode);
+    };
+    context.setRunDelegationMode = (_runId, mode) => {
+      bound.push(mode);
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'hello', delegationMode: 'auto' },
+      },
+      undefined,
+      context,
+    );
+    expect(response?.success).toBe(true);
+    await session.promptSettled;
+    await vi.waitFor(() => {
+      expect(bound).toEqual(['disabled']);
+    });
+    expect(prepared).toEqual([]);
+  });
+
+  it('CHT-304/305/308: skips agent increments, clears leftover permission, keeps user-only assembly', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-cht-304-'));
+    const session = createDelayedSessionHandle();
+    const { context, events } = createPromptContext(session);
+    context.piwinRoot = rootDir;
+    context.resolveIsConversationChat = async () => true;
+    context.sessionFilesTouched.set(session.id, '### Files touched\n- src/a.ts');
+    const permissionActions: string[] = [];
+    context.setSessionPermissionOverride = (): void => {
+      permissionActions.push('set');
+    };
+    context.clearSessionPermissionOverride = (): void => {
+      permissionActions.push('clear');
+    };
+    context.loadConfig = async () =>
+      ({
+        subagents: {
+          profiles: [],
+          maxConcurrency: 4,
+          maxTasksPerRun: 8,
+          processIsolation: 'required',
+          parallelWritePolicy: 'worktree-only',
+          dirtyBasePolicy: 'ask',
+        },
+      }) as any;
+    let modelFacingText = '';
+    const originalPrompt = session.prompt.bind(session);
+    session.prompt = async (input: PromptInput): Promise<void> => {
+      modelFacingText = input.text;
+      await originalPrompt(input);
+    };
+    const now = new Date().toISOString();
+    await saveSessionPlan(getPiwinSessionPlanPath(rootDir, session.id), {
+      id: 'stale-plan',
+      sessionId: session.id,
+      projectPath: '/tmp/unused-plan-project',
+      status: 'approved',
+      title: 'Should stay hidden',
+      goal: 'Must not leak into chat',
+      steps: [{ id: '1', title: 'Hidden step', status: 'pending' }],
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+      source: 'user',
+    });
+
+    try {
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: {
+            text: 'hello',
+            agentMode: 'plan',
+            orchestrationSchemeId: 'ultra-code',
+            skillId: 'writing-plans',
+          },
+        },
+        undefined,
+        context,
+      );
+      expect(response?.success).toBe(true);
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(modelFacingText).toBe('hello');
+      });
+
+      expect(permissionActions).toEqual(['clear']);
+      expect(modelFacingText).not.toContain('[piwin-mode:');
+      expect(modelFacingText).not.toContain('[piwin-scheme:');
+      expect(modelFacingText).not.toContain('Should stay hidden');
+      expect(modelFacingText).not.toContain('Files touched');
+      expect(assemblyContributionKinds(events)).toEqual(['user']);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('CHT-306: still injects explicit contextRefs', async () => {
+    const session = createDelayedSessionHandle();
+    const { context, events } = createPromptContext(session);
+    context.resolveIsConversationChat = async () => true;
+    let modelFacingText = '';
+    const originalPrompt = session.prompt.bind(session);
+    session.prompt = async (input: PromptInput): Promise<void> => {
+      modelFacingText = input.text;
+      await originalPrompt(input);
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: {
+          text: 'explain this',
+          contextRefs: [
+            {
+              kind: 'selection',
+              relativePath: 'src/a.ts',
+              lineStart: 2,
+              lineEnd: 4,
+              snapshotText: 'const value = 1;',
+              label: 'a.ts selection',
+            },
+          ],
+        },
+      },
+      undefined,
+      context,
+    );
+    expect(response?.success).toBe(true);
+    await session.promptSettled;
+    await vi.waitFor(() => {
+      expect(modelFacingText).toContain('[selection-reference: src/a.ts:2-4]');
+    });
+    expect(modelFacingText).toContain('const value = 1;');
+    expect(modelFacingText).toContain('explain this');
+    expect(assemblyContributionKinds(events)).toEqual(['user', 'context-ref']);
+  });
+
+  it('CHT-307: injects cold product history once and re-resolves persisted refs', async () => {
+    const session = createDelayedSessionHandle();
+    const { context, events } = createPromptContext(session);
+    context.resolveIsConversationChat = async () => true;
+    let historyPending = true;
+    context.needsProductHistoryInjection = () => historyPending;
+    context.markProductHistoryInjected = () => {
+      historyPending = false;
+    };
+    context.getTranscriptStore = async () =>
+      ({
+        buildHistoryWindow: async () => [
+          {
+            role: 'user',
+            text: 'yesterday question',
+            contextRefs: [
+              {
+                kind: 'selection',
+                relativePath: 'notes.md',
+                lineStart: 1,
+                lineEnd: 1,
+                snapshotText: 'remember this line',
+                label: 'notes selection',
+              },
+            ],
+          },
+          { role: 'assistant', text: 'yesterday answer' },
+        ],
+      }) as unknown as import('@piwin/session').SessionTranscriptStore;
+    const modelFacingTexts: string[] = [];
+    const originalPrompt = session.prompt.bind(session);
+    session.prompt = async (input: PromptInput): Promise<void> => {
+      modelFacingTexts.push(input.text);
+      await originalPrompt(input);
+    };
+
+    const first = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'follow up' },
+      },
+      undefined,
+      context,
+    );
+    expect(first?.success).toBe(true);
+    await session.promptSettled;
+    await vi.waitFor(() => {
+      expect(modelFacingTexts[0]).toContain('[piwin-product-history]');
+    });
+    expect(modelFacingTexts[0]).toContain('yesterday question');
+    expect(modelFacingTexts[0]).toContain('remember this line');
+    expect(modelFacingTexts[0]).toContain('follow up');
+    expect(modelFacingTexts[0]).not.toContain('[piwin-mode:');
+    expect(assemblyContributionKinds(events)).toEqual(['user', 'product-history']);
+
+    const second = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'second turn' },
+      },
+      undefined,
+      context,
+    );
+    expect(second?.success).toBe(true);
+    await session.promptSettled;
+    await vi.waitFor(() => {
+      expect(modelFacingTexts).toHaveLength(2);
+    });
+    expect(modelFacingTexts[1]).toBe('second turn');
+    expect(modelFacingTexts[1]).not.toContain('[piwin-product-history]');
+    expect(assemblyContributionKinds(events)).toEqual(['user']);
+  });
+
+  it('Project sessions still inject agent mode, plan, and filesTouched', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-cht-project-'));
+    const session = createDelayedSessionHandle();
+    const { context, events } = createPromptContext(session);
+    context.piwinRoot = rootDir;
+    context.resolveIsConversationChat = async () => false;
+    context.sessionFilesTouched.set(session.id, '### Files touched\n- src/a.ts');
+    let modelFacingText = '';
+    const originalPrompt = session.prompt.bind(session);
+    session.prompt = async (input: PromptInput): Promise<void> => {
+      modelFacingText = input.text;
+      await originalPrompt(input);
+    };
+    const now = new Date().toISOString();
+    await saveSessionPlan(getPiwinSessionPlanPath(rootDir, session.id), {
+      id: 'project-plan',
+      sessionId: session.id,
+      projectPath: '/tmp/project',
+      status: 'approved',
+      title: 'Visible project plan',
+      goal: 'Stay on the agent path',
+      steps: [{ id: '1', title: 'Keep injecting', status: 'pending' }],
+      revision: 1,
+      createdAt: now,
+      updatedAt: now,
+      source: 'user',
+    });
+
+    try {
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'fix the login bug', agentMode: 'agent' },
+        },
+        undefined,
+        context,
+      );
+      expect(response?.success).toBe(true);
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(modelFacingText).toContain('[piwin-mode:agent]');
+      });
+      expect(modelFacingText).toContain('Visible project plan');
+      expect(modelFacingText).toContain('Files touched');
+      expect(assemblyContributionKinds(events)).toEqual([
+        'user',
+        'agent-mode',
+        'active-plan',
+        'files-touched',
+      ]);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('session/tool-output snapshot recovery', () => {
   function snapshotContext(message: import('@piwin/contracts').SessionTranscriptMessage): {

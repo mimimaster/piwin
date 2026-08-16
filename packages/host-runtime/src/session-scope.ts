@@ -60,6 +60,38 @@ export function indexProjectPathForScope(scope: SessionScope): string {
 }
 
 /**
+ * Pure-chat session predicate: a general-scope main session. Side chats keep
+ * their fixed read-only branch and subagent compilations keep their capability
+ * ceiling, so both are excluded before this predicate applies.
+ */
+export function isConversationChatSession(
+  input: Pick<CreateSessionInput, 'sessionKind' | 'subagent'>,
+  scope: SessionScope,
+): boolean {
+  return (
+    input.sessionKind !== 'side-chat' &&
+    input.subagent === undefined &&
+    scope.kind === 'general'
+  );
+}
+
+/**
+ * Prompt-path view of the same rule, applied to a durable session index
+ * record. The compile-time and prompt-time classifications must agree — a
+ * session compiled as pure chat must also prompt as pure chat.
+ */
+export function isConversationIndexRecord(record: {
+  scope?: SessionScope;
+  projectPath: string;
+  kind?: 'main' | 'subagent' | 'side-chat';
+}): boolean {
+  if (record.kind === 'subagent' || record.kind === 'side-chat') {
+    return false;
+  }
+  return isConversationChatSession({ sessionKind: 'main' }, scopeFromIndexRecord(record));
+}
+
+/**
  * Effective agent cwd for tools/Pi: optional override, else resolved working dir.
  */
 export function resolveAgentCwd(

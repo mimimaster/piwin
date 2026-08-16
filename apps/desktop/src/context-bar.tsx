@@ -15,6 +15,10 @@ import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
 import { RunActivityInline } from './RunActivityInline.js';
+import {
+  conversationActivityLabel,
+  resolveConversationActivityKind,
+} from './conversation-activity.js';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import {
   IconChevronLeft,
@@ -261,10 +265,34 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       >
         <i className={phaseDotClass(runState.kind)} aria-hidden />
         {runState.kind !== 'idle' ? (
-          <RunActivityInline
-            runState={runState}
-            {...(props.locale ? { locale: props.locale } : {})}
-          />
+          props.isConversationSession ? (
+            <span className="run-activity-inline" data-testid="conversation-activity">
+              {conversationActivityLabel(
+                resolveConversationActivityKind({
+                  runState,
+                  streaming: runState.kind !== 'complete' && runState.kind !== 'stopped' && runState.kind !== 'failed',
+                  ...(runState.activeToolName
+                    ? {
+                        tools: [
+                          {
+                            toolCallId: 'context-bar-active',
+                            toolName: runState.activeToolName,
+                            status: 'running',
+                            output: '',
+                          },
+                        ],
+                      }
+                    : {}),
+                }) ?? 'thinking',
+                locale === 'en' ? 'en' : 'zh-CN',
+              )}
+            </span>
+          ) : (
+            <RunActivityInline
+              runState={runState}
+              {...(props.locale ? { locale: props.locale } : {})}
+            />
+          )
         ) : null}
         {elapsedText !== null ? (
           <span className="context-bar-elapsed muted" aria-hidden>
@@ -272,17 +300,17 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           </span>
         ) : null}
 
-        {runState.primaryAction === 'view-activity' ? (
+        {runState.primaryAction === 'view-activity' && !props.isConversationSession ? (
           <Button size="compact" onClick={props.onViewActivity}>
             Activity
           </Button>
         ) : null}
-        {runState.primaryAction === 'review-permission' ? (
+        {runState.primaryAction === 'review-permission' && !props.isConversationSession ? (
           <Button size="compact" variant="primary" onClick={props.onReviewPermission}>
             Review request
           </Button>
         ) : null}
-        {runState.primaryAction === 'view-plan' ? (
+        {runState.primaryAction === 'view-plan' && !props.isConversationSession ? (
           <Button size="compact" onClick={props.onViewPlan}>
             View plan
           </Button>

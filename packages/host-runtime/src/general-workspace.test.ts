@@ -6,6 +6,7 @@ import { ensureGeneralWorkspace } from './general-workspace.js';
 import { getPiwinGeneralWorkspacePath } from './paths.js';
 import {
   indexProjectPathForScope,
+  isConversationIndexRecord,
   resolveListFilter,
   resolveSessionLocation,
   resolveSessionScopeFromInput,
@@ -63,5 +64,43 @@ describe('session-scope resolution', () => {
     expect(resolveListFilter({})).toEqual({ kind: 'general' });
     expect(resolveListFilter({ projectPath: '/tmp/p' })).toBe('/tmp/p');
     expect(resolveListFilter({ scope: { kind: 'general' } })).toEqual({ kind: 'general' });
+  });
+});
+
+describe('isConversationIndexRecord', () => {
+  it('matches a general main session, including legacy empty projectPath', () => {
+    expect(
+      isConversationIndexRecord({
+        projectPath: '',
+        scope: { kind: 'general' },
+        kind: 'main',
+      }),
+    ).toBe(true);
+    expect(isConversationIndexRecord({ projectPath: '' })).toBe(true);
+  });
+
+  it('excludes side-chat, subagent, and project records', () => {
+    expect(
+      isConversationIndexRecord({
+        projectPath: '',
+        scope: { kind: 'general' },
+        kind: 'side-chat',
+      }),
+    ).toBe(false);
+    expect(
+      isConversationIndexRecord({
+        projectPath: '',
+        scope: { kind: 'general' },
+        kind: 'subagent',
+      }),
+    ).toBe(false);
+    expect(
+      isConversationIndexRecord({
+        projectPath: '/tmp/project',
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        kind: 'main',
+      }),
+    ).toBe(false);
+    expect(isConversationIndexRecord({ projectPath: '/tmp/project' })).toBe(false);
   });
 });

@@ -74,6 +74,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+button.status-bar-context {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .status-bar-context.tone-ok {
   color: var(--ok);
 }

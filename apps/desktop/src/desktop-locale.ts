@@ -122,6 +122,7 @@ export type DesktopCopy = {
     typeYourAnswer: string;
     chooseOption: string;
     agentPlaceholder: string;
+    chatPlaceholder: string;
     planPlaceholder: string;
     askPlaceholder: string;
     goalPlaceholder: string;
@@ -599,6 +600,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       typeYourAnswer: '输入你的回答',
       chooseOption: '选择上方选项以继续',
       agentPlaceholder: '规划、搜索或构建任何内容',
+      chatPlaceholder: '问任何问题，或粘贴内容开始对话…',
       planPlaceholder: '描述你希望制定的计划…',
       askPlaceholder: '询问有关此项目的任何问题…',
       goalPlaceholder: '设定目标与验收标准并自主运行…',
@@ -847,6 +849,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       typeYourAnswer: 'Type your answer',
       chooseOption: 'Choose an option above to continue',
       agentPlaceholder: 'Plan, search, build anything',
+      chatPlaceholder: 'Ask anything, or paste something to start…',
       planPlaceholder: 'Describe what you want planned…',
       askPlaceholder: 'Ask anything about this project…',
       goalPlaceholder: 'Set an objective & acceptance criteria to run autonomously…',

@@ -231,12 +231,21 @@ export type ComposerDockProps = {
   onStopJob?: (jobId: string) => void;
   /** AJB: open the right Terminal panel with the job's logs. */
   onViewJobLogs?: (jobId: string) => void;
+  /**
+   * CHT-501: general Conversation hides Agent Mode / Run Mode / Orchestration /
+   * Skills-MCP chrome. Default false so Project callers stay unchanged.
+   */
+  isConversationSession?: boolean;
 };
 
 function getAgentPlaceholder(
   mode: AgentModeId,
   copy: ReturnType<typeof getDesktopCopy>['composer'],
+  conversationSession = false,
 ): string {
+  if (conversationSession) {
+    return copy.chatPlaceholder;
+  }
   if (mode === 'plan') return copy.planPlaceholder;
   if (mode === 'ask') return copy.askPlaceholder;
   if (mode === 'goal') return copy.goalPlaceholder;
@@ -373,6 +382,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         projectTrusted: props.projectTrusted,
         agentMode: props.agentMode,
         goalExtensionEnabled: isGoalEnabled,
+        conversationChat: props.isConversationSession === true,
       }),
     [
       props.menuSkills,
@@ -383,6 +393,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       props.projectTrusted,
       props.agentMode,
       isGoalEnabled,
+      props.isConversationSession,
     ],
   );
 
@@ -1119,7 +1130,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               ? (extensionUiRequest?.placeholder ?? copy.typeYourAnswer)
               : isExtensionUiActive
                 ? interruptionCopy.selectOrCustomPlaceholder
-                : getAgentPlaceholder(props.agentMode, copy)
+                : getAgentPlaceholder(props.agentMode, copy, props.isConversationSession === true)
           }
           rows={1}
         />
@@ -1157,6 +1168,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               onOpenMcpPanel={props.onOpenMcpPanel}
               onAttachFile={props.onAttachFile}
               onAttachImage={props.onAttachImage}
+              hideAgentExtras={props.isConversationSession === true}
             />
           </div>
 
@@ -1199,7 +1211,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           ) : null}
 
           {/* Agent mode chip (non-default only) */}
-          {props.agentMode !== 'agent' ? (
+          {props.isConversationSession !== true && props.agentMode !== 'agent' ? (
             <span
               className={`composer-v2-mode-chip mode-${props.agentMode}`}
               data-testid="agent-mode-chip"
@@ -1222,7 +1234,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
         <div className="composer-v2-toolbar-right">
           {/* Run Mode pill (ADR 0024) */}
-          {props.onRunModeChange && props.runModePreset ? (
+          {props.isConversationSession !== true && props.onRunModeChange && props.runModePreset ? (
             <RunModeControl
               disabled={isStreamingRun}
               value={props.runModePreset}
@@ -1237,7 +1249,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
           {/* Always visible: scheme is a mode picker, not a feature switch.
               Default `off` = freehand (no injection); Ultra Code etc. inject on send. */}
-          {props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
+          {props.isConversationSession !== true &&
+          props.onOrchestrationSchemeChange &&
+          props.orchestrationSchemeOptions ? (
             <OrchestrationSchemeControl
               disabled={false}
               value={props.orchestrationSchemeId ?? 'off'}
@@ -1274,6 +1288,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             {...(props.onOpenModelSettings
               ? { onOpenModelSettings: props.onOpenModelSettings }
               : {})}
+            isConversationSession={props.isConversationSession === true}
+            locale={locale === 'en' ? 'en' : 'zh-CN'}
           />
 
           {/* Send / Stop Action Button */}

@@ -40,3 +40,17 @@ describe('buildSlashCatalog — write-plan alias', () => {
     expect(filtered.some((entry) => entry.id === 'skill:writing-plans')).toBe(true);
   });
 });
+
+describe('buildSlashCatalog — Conversation chat', () => {
+  it('keeps compact/stop and omits modes, skills, and orchestration', () => {
+    const catalog = buildSlashCatalog({
+      skills,
+      hasActiveSession: true,
+      projectTrusted: true,
+      conversationChat: true,
+    });
+    expect(catalog.map((item) => item.id)).toEqual(['cmd:compact', 'cmd:stop']);
+    expect(catalog.some((item) => item.kind === 'mode')).toBe(false);
+    expect(catalog.some((item) => item.kind === 'skill')).toBe(false);
+  });
+});

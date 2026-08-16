@@ -57,7 +57,7 @@ export function buildHostToolboxDescriptor(targetNames: readonly string[]) {
   return {
     name: HOST_TOOLBOX_NAME,
     description:
-      'Lazy access to low-frequency Host tools. Use proactively when the task needs browser, process, notes, flashcards, image, or video capabilities. First describe a target to load its exact schema, then call it. Available targets: ' +
+      'Lazy access to selected Host capabilities. First describe a target to load its exact schema, then call it. Available targets: ' +
       exactTargetNames.join(', '),
     parameters: {
       type: 'object',

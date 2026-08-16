@@ -44,6 +44,8 @@ export type ComposerPlusMenuProps = {
   onAttachFile?: () => void;
   /** Optional image-only picker for quick access to screenshots. */
   onAttachImage?: () => void;
+  /** Conversation chat keeps attachments and hides Skills / MCP. */
+  hideAgentExtras?: boolean;
 };
 
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
@@ -82,8 +84,12 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
         </DropdownMenuItem>
       ) : null}
 
-      <DropdownMenuLabel className="plus-menu-caption muted">Skills & MCP</DropdownMenuLabel>
+      {props.hideAgentExtras === true ? null : (
+        <DropdownMenuLabel className="plus-menu-caption muted">Skills & MCP</DropdownMenuLabel>
+      )}
 
+      {props.hideAgentExtras === true ? null : (
+        <>
       <DropdownMenuSub
         open={props.submenu === 'skills'}
         onOpenChange={(open) => props.onSubmenu(open ? 'skills' : 'none')}
@@ -147,6 +153,8 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+        </>
+      )}
     </DropdownMenu>
   );
 }

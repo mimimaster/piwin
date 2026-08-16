@@ -789,4 +789,32 @@ describe('ComposerDock host status', () => {
     expect(activeTrigger?.getAttribute('data-scheme')).toBe('ultra-code');
     expect(activeTrigger?.textContent).toContain('Ultra Code');
   });
+
+  it('hides Agent Mode, Run Mode, and Orchestration in Conversation', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        isConversationSession
+        agentMode="plan"
+        runModePreset="auto"
+        onRunModeChange={vi.fn()}
+        orchestrationSchemeId="ultra-code"
+        orchestrationSchemeOptions={[
+          { id: 'off', name: 'Freehand', description: 'No scheme' },
+          { id: 'ultra-code', name: 'Ultra Code', description: 'Orchestrated' },
+        ]}
+        onOrchestrationSchemeChange={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="agent-mode-chip"]')).toBeNull();
+    expect(container.querySelector('[data-testid="run-mode-trigger"]')).toBeNull();
+    expect(container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
+    expect(textarea.placeholder).toContain('Ask anything');
+  });
 });
