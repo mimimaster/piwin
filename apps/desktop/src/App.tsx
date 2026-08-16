@@ -1451,29 +1451,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [setConfig],
   );
 
-  /**
-   * Ensure a chat session, resume it, then send a prompt for doc-card generation.
-   * Used by DocCardsPanel to trigger flashcard generation via session/prompt.
-   */
-  const sendSessionPrompt = useCallback(
-    async (text: string, title?: string) => {
-      const sessionId = await ensureSession({
-        scope: { kind: 'general' },
-        ...(title ? { sessionName: title } : {}),
-      });
-      if (!sessionId) {
-        throw new Error('Could not create a chat session for doc-card generation.');
-      }
-      await handleResumeSession(sessionId);
-      await hostClient.request({
-        type: 'session/prompt',
-        sessionId,
-        input: { text },
-      });
-    },
-    [ensureSession, handleResumeSession, hostClient],
-  );
-
   // Cold start: hydrate General sessions once the host is ready.
   useEffect(() => {
     if (
@@ -3470,7 +3447,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       <DeferredKnowledgeCenterPanel
                         projectPath={state.projectPath}
                         request={requestKnowledgeCenter}
-                        sendSessionPrompt={sendSessionPrompt}
+                        onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
                       />
                     </DeferredSurfaceBoundary>
                   </div>
@@ -3549,6 +3526,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
                         streaming={!historyViewActive && state.streaming}
                         activeSessionId={state.activeSessionId}
+                        docCardRequest={requestKnowledgeCenter as never}
                         isConversationSession={state.activeScope.kind === 'general'}
                         editingMessageId={editingMessageId}
                         lastUserMessageId={lastUserMessageId}

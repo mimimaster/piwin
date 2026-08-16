@@ -72,6 +72,7 @@ import {
   useDesktopContextMenu,
   type ContextMenuTarget,
 } from './context-menu';
+import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSequenceView';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -257,6 +258,8 @@ export type ChatThreadProps = {
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
   /** Open the read-only subagent session inspector for a transcript card. */
   onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
+  /** Load / rate / open-source for Doc Cards sequence messages. */
+  docCardRequest?: DocCardSequenceRequest;
   /** Child projections bound to delegation tool calls in the transcript. */
   subagentChildren?: Record<string, SessionSummary>;
   subagentInvocations?: Record<string, SubagentInvocation>;
@@ -550,6 +553,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       : {})}
                     onFeedback={props.onFeedback}
                     onInspectSubagent={props.onInspectSubagent}
+                    {...(props.docCardRequest ? { docCardRequest: props.docCardRequest } : {})}
                     {...(props.subagentChildren
                       ? { subagentChildren: props.subagentChildren }
                       : {})}
@@ -673,6 +677,7 @@ type ChatMessageRowProps = {
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
   /** Open the read-only subagent session inspector for a transcript card. */
   onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
+  docCardRequest?: DocCardSequenceRequest;
   subagentChildren?: Record<string, SessionSummary>;
   subagentInvocations?: Record<string, SubagentInvocation>;
   subagentStreams?: Record<string, SubagentStreamState>;
@@ -960,6 +965,14 @@ const ChatMessageRow = memo(
     const videoGenerationStatus =
       message.role === 'assistant' ? getGenerationStatus(message, 'video') : null;
     const contextMenu = useDesktopContextMenu();
+    if (message.docCardSequence && props.docCardRequest) {
+      return (
+        <div id={`msg-${message.id}`} className="chat-doc-card-sequence">
+          <p>{message.text}</p>
+          <DocCardSequenceView sequence={message.docCardSequence} request={props.docCardRequest} />
+        </div>
+      );
+    }
     if (message.subagentActivity) {
       if (props.isConversationSession === true) {
         return null;
