@@ -56,6 +56,19 @@ export type DocumentTargetRef =
       skillId: string;
       displayRef: string;
       effectiveSource?: SkillSource;
+    }
+  | {
+      /** Session media vault asset — logical id only, never a host path. */
+      kind: 'media';
+      sessionId: string;
+      assetId: string;
+      displayRef: string;
+    }
+  | {
+      /** Config-root text under `~/.piwin/**` — relative path only, never a host path. */
+      kind: 'trusted-config';
+      relativePath: string;
+      displayRef: string;
     };
 
 /** Stable failure reasons for skills/read (UI maps to copy; do not parse free text). */

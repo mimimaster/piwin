@@ -99,13 +99,28 @@ export function projectRemoteResponse(
     };
   }
 
+  if (command.type === 'media/read') {
+    // MediaReadData is path-free by contract (logical ids + base64 bytes);
+    // passing it through untouched also keeps the sanitizer from
+    // regex-scanning multi-megabyte base64 payloads.
+    return response;
+  }
+
+  if (command.type === 'preview/read-trusted-text') {
+    // TrustedTextReadData is already path-free (relativePath + text).
+    return response;
+  }
+
   if (
     command.type === 'session/queued-turn-submit' ||
     command.type === 'session/queued-turn-list' ||
     command.type === 'session/queued-turn-edit' ||
     command.type === 'session/queued-turn-cancel' ||
     command.type === 'session/queued-turn-reorder' ||
-    command.type === 'session/replace-run'
+    command.type === 'session/replace-run' ||
+    // Adoption responses echo the cancelled queued turn alongside the
+    // intervention; the record must go through the same media-path scrub.
+    command.type === 'run/intervention-submit'
   ) {
     return {
       ...response,
@@ -158,6 +173,8 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     sessionPause: true,
     permissionResolve: true,
     mediaUpload: true,
+    mediaRead: true,
+    trustedTextPreview: true,
     pushBatching: true,
     cursorBatches: true,
     boundedReplay: true,
