@@ -49,6 +49,7 @@ export * from './session-ops.js';
 export * from './notes.js';
 export * from './flashcards.js';
 export * from './doc-rag.js';
+export * from './knowledge.js';
 export * from './subagent.js';
 export * from './subagent-profile.js';
 export * from './orchestration-scheme.js';
