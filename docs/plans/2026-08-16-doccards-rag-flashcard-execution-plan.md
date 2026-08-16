@@ -1063,7 +1063,7 @@ Host 启动回收遗留 RUNNING。
 
 `list` 过滤需支持 `sequenceId`（P6 翻卡器要用）。去重：有 `sourceFolder` 的卡只跟同一 `sourceFolder` 比 front。
 
-- [ ] Commit `feat(doc-rag): ingestion service with hash skip`
+- [x] Commit `feat(doc-rag): ingestion service with hash skip`
 
 #### Task P4-2: 砍掉 Generate 里的 index
 
@@ -1094,7 +1094,7 @@ it('generate path never calls indexFolder', async () => {
 });
 ```
 
-- [ ] Commit `fix(desktop): stop reindexing inside doccards generate`
+- [x] Commit `fix(desktop): stop reindexing inside doccards generate`
 
 #### Task P4-3: Generation Job 壳 + 写入 CardStore
 
@@ -1107,7 +1107,7 @@ it('generate path never calls indexFolder', async () => {
 - 禁止 `session/prompt` 出卡
 - 还不开展示会话也行（P6 做），但不要把卡写进 transcript
 
-- [ ] Commit `feat(doccards): generation job writes CardStore only`
+- [x] Commit `feat(doccards): generation job writes CardStore only`
 
 #### Task P4-4: CLI generate 改为真出卡
 
@@ -1117,7 +1117,7 @@ it('generate path never calls indexFolder', async () => {
 
 改 P0-3 的冻结测试：默认不再是 prompt-only。
 
-- [ ] Commit `feat(cli): doccards generate writes cards`
+- [x] Commit `feat(cli): doccards generate writes cards`
 
 **P4 验收：** Generate 测试里 `indexFolder` 调用次数 = 0；没入完按钮灭；可再点 Generate 出第二批（不同 sequenceId）。
 
