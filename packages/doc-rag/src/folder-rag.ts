@@ -5,8 +5,8 @@
  * embedding provider and can serve multiple folders (each gets its own
  * sqlite cache under `~/.piwin/doc-rag/<folder-key>/`).
  */
-import { readdir, stat, writeFile, readFile } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
+import { writeFile, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type {
   DocChunk,
   DocChunker,
@@ -16,11 +16,12 @@ import type {
   RetrieveOptions,
   RetrievedChunk,
   ScanFolderResult,
-  ScannedDocFile,
 } from '@piwin/contracts';
 import type { FolderRag } from './doc-rag-types.js';
 export type { FolderRag };
-import { createDefaultChunker, isSupportedExtension, detectLanguage } from './chunker.js';
+import { createDefaultChunker } from './chunker.js';
+import { createParserRegistry, type ParserRegistry } from './parsers/registry.js';
+import { scanFolderFiles } from './scanner.js';
 import { openDocIndex } from './doc-index.js';
 import type { DocIndex } from './doc-index.js';
 import {
@@ -34,9 +35,6 @@ import {
   DEFAULT_MAX_FILES,
   DEFAULT_MAX_FILE_BYTES,
   DEFAULT_MAX_TOTAL_BYTES,
-  DEFAULT_MAX_WALK_DEPTH,
-  SKIP_DIR_NAMES,
-  SKIP_FILE_NAME_PATTERNS,
 } from './limits.js';
 
 export type CreateFolderRagOptions = {
@@ -44,12 +42,14 @@ export type CreateFolderRagOptions = {
   embeddingProvider?: EmbeddingProvider;
   /** Default `~/.piwin`. */
   piwinRoot?: string;
+  parserRegistry?: ParserRegistry;
 };
 
 export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag {
   const chunker = options.chunker ?? createDefaultChunker();
   const embeddingProvider = options.embeddingProvider;
   const piwinRoot = options.piwinRoot;
+  const parserRegistry = options.parserRegistry ?? createParserRegistry();
   // Open index lazily per folder; cache by canonical path.
   const indexCache = new Map<string, DocIndex>();
   // Serialize write access per canonical folder key to avoid concurrent
@@ -87,16 +87,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
   }
 
   async function scanFolder(folderPath: string): Promise<ScanFolderResult> {
-    const canonical = await canonicalizeFolderPath(folderPath);
-    if (!canonical) {
-      throw new Error(`Folder not found: ${folderPath}`);
-    }
-    const files: ScannedDocFile[] = [];
-    await walk(canonical, canonical, 0, files);
-    return {
-      files,
-      supportedExtensions: [...chunker.supportedExtensions],
-    };
+    return scanFolderFiles(folderPath, { registry: parserRegistry });
   }
 
   async function indexFolder(
@@ -225,42 +216,4 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       indexLocks.clear();
     },
   };
-}
-
-/** Recursive walk with skip-dir / skip-file / depth / hidden rules. */
-async function walk(
-  root: string,
-  current: string,
-  depth: number,
-  files: ScannedDocFile[],
-): Promise<void> {
-  if (depth > DEFAULT_MAX_WALK_DEPTH) return;
-  let entries;
-  try {
-    entries = await readdir(current, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue; // hidden
-    const absolute = join(current, entry.name);
-    if (entry.isDirectory()) {
-      if (SKIP_DIR_NAMES.has(entry.name)) continue;
-      await walk(root, absolute, depth + 1, files);
-    } else if (entry.isFile()) {
-      if (SKIP_FILE_NAME_PATTERNS.some((pattern) => pattern.test(entry.name))) continue;
-      if (!isSupportedExtension(entry.name)) continue;
-      try {
-        const stats = await stat(absolute);
-        const relativePath = relative(root, absolute).split(sep).join('/');
-        files.push({
-          relativePath,
-          sizeBytes: stats.size,
-          language: detectLanguage(relativePath),
-        });
-      } catch {
-        // Skip unreadable files silently at scan.
-      }
-    }
-  }
 }

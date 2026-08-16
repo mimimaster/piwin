@@ -2453,7 +2453,7 @@ export class HostRuntime {
     if (!this.folderRag) {
       const rootDir = getPiwinRoot(this.options.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
-      const { createFolderRag } = await import('@piwin/doc-rag');
+      const { createFolderRag, createParserRegistry } = await import('@piwin/doc-rag');
       const { createEmbeddingProvider } = await import('@piwin/notes');
       const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
       let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
@@ -2468,6 +2468,10 @@ export class HostRuntime {
       this.folderRag = createFolderRag({
         piwinRoot: rootDir,
         ...(embeddingProvider ? { embeddingProvider } : {}),
+        parserRegistry: createParserRegistry({
+          mineruEnabled: config.knowledge?.parser?.mineru?.enabled === true,
+          unstructuredEnabled: config.knowledge?.parser?.unstructured?.enabled === true,
+        }),
       });
     }
     return this.folderRag;

@@ -17,6 +17,7 @@ import { Button, ConfirmDialog } from '@piwin/ui-kit';
 import type {
   HostResponse,
   ScannedDocFile,
+  ScannedFileV2,
   FlashcardRecord,
   RetrievedChunk,
   IngestionJob,
@@ -47,6 +48,7 @@ type DocCardsCommand =
 
 type ScanState = {
   files: ScannedDocFile[];
+  unsupported: ScannedFileV2[];
   supportedExtensions: readonly string[];
 } | null;
 
@@ -82,12 +84,28 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         setError(response.error);
         return;
       }
-      const data = response.data as ScanState & { files: ScannedDocFile[]; supportedExtensions: string[] };
+      const data = response.data as {
+        files: ScannedDocFile[];
+        unsupported?: ScannedFileV2[];
+        supportedExtensions: string[];
+      };
       const files = data.files ?? [];
-      setScan({ files, supportedExtensions: data.supportedExtensions ?? [] });
+      const unsupported = data.unsupported ?? [];
+      setScan({
+        files,
+        unsupported,
+        supportedExtensions: data.supportedExtensions ?? [],
+      });
       setSelectedFiles(files.map((file) => file.relativePath));
       setLastIndexJob(null);
-      setInfo(t(`Found ${data.files?.length ?? 0} supported files`, `找到 ${data.files?.length ?? 0} 个支持的文件`));
+      setInfo(
+        t(
+          `Found ${files.length} supported files` +
+            (unsupported.length > 0 ? ` (${unsupported.length} unsupported)` : ''),
+          `找到 ${files.length} 个支持的文件` +
+            (unsupported.length > 0 ? `（${unsupported.length} 个不支持）` : ''),
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -313,6 +331,22 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
               );
             })}
           </ul>
+          {scan.unsupported.length > 0 && (
+            <ul className="doc-cards-unsupported" data-testid="doc-cards-unsupported">
+              {scan.unsupported.map((file) => (
+                <li key={file.relativePath}>
+                  {file.relativePath}
+                  <span className="doc-cards-file-meta">
+                    {file.unsupportedReason === 'MINERU_NOT_CONFIGURED'
+                      ? t('MinerU not configured', '未配置 MinerU')
+                      : file.unsupportedReason === 'UNSTRUCTURED_NOT_CONFIGURED'
+                        ? t('Unstructured not configured', '未配置 Unstructured')
+                        : t('Unsupported type', '不支持的类型')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
