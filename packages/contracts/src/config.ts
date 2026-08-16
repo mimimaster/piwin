@@ -6,6 +6,7 @@ import type { ExtensionsConfig } from './extensions.js';
 import type { PromptsConfig } from './prompts.js';
 import type { NotesConfig } from './notes.js';
 import type { FlashcardsConfig } from './flashcards.js';
+import type { KnowledgeConfig } from './knowledge.js';
 import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
@@ -565,6 +566,8 @@ export type PiwinConfig = {
   notes?: NotesConfig;
   /** Flashcards + FSRS review (ADR 0018). */
   flashcards?: FlashcardsConfig;
+  /** Doc Cards / shared knowledge providers (unwired until runtime maps notes.embedding). */
+  knowledge?: KnowledgeConfig;
   /** CE-CRON / CE-HOOK (default disabled). */
   automation?: AutomationConfig;
   /** CE-HUB registry source toggles. */

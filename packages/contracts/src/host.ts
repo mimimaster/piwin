@@ -216,6 +216,14 @@ export type CreateSessionInput = {
    * @internal
    */
   runtimeSnapshot?: SubagentRuntimeSnapshot;
+  /** Product-owned presentation seeded at create (Doc Cards sequence viewer). */
+  presentation?: {
+    kind: 'doccard-sequence';
+    sequenceId: string;
+    generationId: string;
+    workspaceName: string;
+    cardIds: string[];
+  };
 };
 
 export type ModelRef = {
