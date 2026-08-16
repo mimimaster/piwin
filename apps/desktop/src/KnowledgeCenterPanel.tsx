@@ -51,7 +51,9 @@ type DocCardsCommand =
   | { type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { type: 'doccards/forget-folder'; folderPath: string }
   | { type: 'doccards/open-source'; cardId: string }
-  | { type: 'doccards/index-status'; folderPath: string };
+  | { type: 'doccards/index-status'; folderPath: string }
+  | { type: 'doccards/generate'; folderPath: string; includeFiles?: string[]; topic?: string }
+  | { type: 'doccards/generation-status'; folderPath: string };
 type ConfigCommand = { type: 'config/get' | 'config/set'; config?: unknown };
 type KnowledgeCommand = NotesCommand | FlashcardsCommand | DocCardsCommand | ConfigCommand;
 

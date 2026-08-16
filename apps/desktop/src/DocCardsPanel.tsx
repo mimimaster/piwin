@@ -1,16 +1,6 @@
 /**
- * Doc Cards panel (doc-flashcards §11): scan/index a folder, retrieve
- * passages, and kick off flashcard generation via the agent session.
- *
- * This panel is the folder-mode entry point. It does NOT generate cards
- * itself — generation is agent-driven via the `generate-flashcards` skill.
- * The panel:
- * 1. Lets the user pick a folder (path input + scan).
- * 2. Shows scan results (file count, supported extensions).
- * 3. Indexes the folder (button).
- * 4. Lists cards already sourced from this folder (delete / rebind / forget).
- * 5. Offers a "Generate cards" button that sends a session prompt using the
- *    retrieved passages + `buildFlashcardGenerationPrompt`.
+ * Doc Cards panel: scan/index a folder, then start a Host generation job.
+ * Generate never reindexes — it only calls doccards/generate.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog } from '@piwin/ui-kit';
@@ -19,15 +9,11 @@ import type {
   ScannedDocFile,
   ScannedFileV2,
   FlashcardRecord,
-  RetrievedChunk,
   IngestionJob,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { isIndexJobReady, waitForDoccardsIndexJob } from './doccards-index-job';
-import {
-  buildFlashcardGenerationPrompt,
-  FLASHCARD_QUALITY_RULES,
-} from '@piwin/doc-rag/prompt-rules';
+import { runDoccardsGenerate } from './doccards-generate-client';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type DocCardsPanelProps = {
@@ -44,7 +30,9 @@ type DocCardsCommand =
   | { type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { type: 'doccards/forget-folder'; folderPath: string }
   | { type: 'doccards/open-source'; cardId: string }
-  | { type: 'doccards/index-status'; folderPath: string };
+  | { type: 'doccards/index-status'; folderPath: string }
+  | { type: 'doccards/generate'; folderPath: string; includeFiles?: string[]; topic?: string }
+  | { type: 'doccards/generation-status'; folderPath: string };
 
 type ScanState = {
   files: ScannedDocFile[];
@@ -157,7 +145,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
   }, [folderPath, request]);
 
   const generate = useCallback(async () => {
-    if (!folderPath.trim() || !props.sendSessionPrompt) {
+    if (!folderPath.trim()) {
       setError(t('Index a folder first, then generate', '请先索引文件夹再生成'));
       return;
     }
@@ -169,64 +157,31 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     setError(null);
     setInfo(null);
     try {
-      // P4-2 删除：Generate 不得再调用 index-folder。P1 仍等待这次入库完成再 retrieve。
       const includeFiles =
         scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
-      const indexResponse = await request({
-        type: 'doccards/index-folder',
+      const job = await runDoccardsGenerate(request, {
         folderPath: folderPath.trim(),
         ...(includeFiles ? { includeFiles } : {}),
-      });
-      if (!indexResponse.success) {
-        setError(indexResponse.error);
-        return;
-      }
-      const job = await waitForDoccardsIndexJob(request, folderPath.trim());
-      setLastIndexJob(job);
-      const query = topic.trim() || folderPath.trim();
-      const fileAllowlist =
-        scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
-      const retrieveResponse = await request({
-        type: 'doccards/retrieve',
-        folderPath: folderPath.trim(),
-        query,
-        limit: 10,
-        ...(fileAllowlist ? { fileAllowlist } : {}),
-      });
-      if (!retrieveResponse.success) {
-        setError(retrieveResponse.error);
-        return;
-      }
-      const retrieveData = retrieveResponse.data as {
-        chunks: RetrievedChunk[];
-        canonicalPath: string;
-      };
-      const chunks = retrieveData.chunks ?? [];
-      if (chunks.length === 0) {
-        setError(t('No passages retrieved; try indexing first or a different topic', '未检索到段落；请先索引或换一个主题'));
-        return;
-      }
-      // Use the canonical absolute path so sourceFolder attribution is stable.
-      const canonicalPath = retrieveData.canonicalPath || folderPath.trim();
-      const prompt = buildFlashcardGenerationPrompt({
-        folderPath: canonicalPath,
-        chunks,
         ...(topic.trim() ? { topic: topic.trim() } : {}),
-        difficulty: 'medium',
-        count: 'standard',
-        qualityRules: FLASHCARD_QUALITY_RULES,
       });
-      const folderName = canonicalPath.split(/[\\/]/).pop() ?? canonicalPath;
-      const title = `${t('Doc cards: ', '文档卡片：')}${folderName}`;
-      await props.sendSessionPrompt(prompt, title);
-      setInfo(t('Generation prompt sent to the agent', '已向 Agent 发送生成提示'));
+      void listCards();
+      setInfo(
+        t(
+          job.created === 0
+            ? 'No new cards (possible duplicates)'
+            : `Created ${job.created ?? job.createdCardIds?.length ?? 0} cards`,
+          job.created === 0
+            ? '没有新卡片（可能都是重复）'
+            : `已创建 ${job.created ?? job.createdCardIds?.length ?? 0} 张卡片`,
+        ),
+      );
     } catch (error) {
       const message = formatError(error);
       setError(message);
     } finally {
       setBusy(false);
     }
-  }, [folderPath, topic, request, props.sendSessionPrompt, scan, selectedFiles, t]);
+  }, [folderPath, topic, request, scan, selectedFiles, t, listCards]);
 
   const forgetFolder = useCallback(() => {
     setShowForgetConfirm(true);
@@ -383,7 +338,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         </label>
         <Button
           onClick={generate}
-          disabled={busy || !isIndexJobReady(lastIndexJob) || !props.sendSessionPrompt}
+          disabled={busy || !isIndexJobReady(lastIndexJob)}
           data-testid="doc-cards-generate-btn"
         >
           {t('Generate cards', '生成卡片')}
