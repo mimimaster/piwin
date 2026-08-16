@@ -100,4 +100,41 @@ describe('folder-rag', () => {
     await expect(rag.scanFolder(join(sourceFolder, 'nope'))).rejects.toThrow('not found');
     rag.close();
   });
+
+  it('skips secret-like filenames', async () => {
+    await writeFile(join(sourceFolder, '.env'), 'SECRET=1');
+    await writeFile(join(sourceFolder, 'id_rsa'), '-----BEGIN');
+    await writeFile(join(sourceFolder, 'credentials.json'), '{"token":"x"}');
+    await writeFile(join(sourceFolder, 'ok.md'), '# Ok');
+    const rag = createFolderRag({ piwinRoot });
+    const result = await rag.scanFolder(sourceFolder);
+    expect(result.files.map((file) => file.relativePath)).toEqual(['ok.md']);
+    rag.close();
+  });
+
+  it('does not walk past depth limit', async () => {
+    // Root is depth 0; depth 12 is the last included level (DEFAULT_MAX_WALK_DEPTH).
+    let current = sourceFolder;
+    for (let level = 1; level <= 13; level += 1) {
+      current = join(current, `d${level}`);
+      await mkdir(current);
+      await writeFile(join(current, 'note.md'), `# L${level}`);
+    }
+    const rag = createFolderRag({ piwinRoot });
+    const result = await rag.scanFolder(sourceFolder);
+    const paths = result.files.map((file) => file.relativePath).sort();
+    expect(paths).toContain('d1/note.md');
+    expect(paths).toContain('d1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/note.md');
+    expect(paths).not.toContain('d1/d2/d3/d4/d5/d6/d7/d8/d9/d10/d11/d12/d13/note.md');
+    rag.close();
+  });
+
+  it('scan omits unsupported pdf rather than treating it as success', async () => {
+    await writeFile(join(sourceFolder, 'a.pdf'), 'binary');
+    await writeFile(join(sourceFolder, 'a.md'), '# A');
+    const rag = createFolderRag({ piwinRoot });
+    const result = await rag.scanFolder(sourceFolder);
+    expect(result.files.map((file) => file.relativePath)).toEqual(['a.md']);
+    rag.close();
+  });
 });
