@@ -65,6 +65,7 @@ import type {
   ReviewRating,
 } from './flashcards.js';
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
+import type { GenerationJob, IngestionJob } from './doc-rag-v2.js';
 import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
 import type { PetRuntimeSnapshot, PetStoreQuery } from './pet.js';
 import type {
@@ -607,6 +608,20 @@ export type HostCommand =
   | { id?: string; type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { id?: string; type: 'doccards/forget-folder'; folderPath: string }
   | { id?: string; type: 'doccards/open-source'; cardId: string; openFile?: boolean }
+  | { id?: string; type: 'doccards/index-status'; folderPath: string }
+  | { id?: string; type: 'doccards/cancel-index'; folderPath: string }
+  | {
+      id?: string;
+      type: 'doccards/generate';
+      folderPath: string;
+      includeFiles?: string[];
+      topic?: string;
+      difficulty?: 'easy' | 'medium' | 'hard';
+      density?: 'concise' | 'standard' | 'detailed';
+      deck?: string;
+    }
+  | { id?: string; type: 'doccards/generation-status'; folderPath: string }
+  | { id?: string; type: 'doccards/cancel-generation'; folderPath: string }
   /** CE-CHAT: pin / search / product truncate-resend. */
   | { id?: string; type: 'session/pin'; sessionId: string }
   | { id?: string; type: 'session/unpin'; sessionId: string }
@@ -927,7 +942,16 @@ export type HostPushVariant =
   | JobHostPush
   | RunHostPush
   | { type: 'run/intervention-updated'; intervention: RunInterventionRecord }
-  | { type: 'session/queued-turn-updated'; queuedTurn: QueuedTurnRecord };
+  | { type: 'session/queued-turn-updated'; queuedTurn: QueuedTurnRecord }
+  | { type: 'doccards/index-progress'; job: IngestionJob }
+  | { type: 'doccards/index-terminal'; job: IngestionJob }
+  | { type: 'doccards/generation-progress'; job: GenerationJob }
+  | {
+      type: 'doccards/generation-terminal';
+      job: GenerationJob;
+      sessionId?: string;
+      cardIds?: string[];
+    };
 
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;
