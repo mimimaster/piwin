@@ -30,7 +30,7 @@ describe('doccards ingestion job shell', () => {
       await gate.promise;
       return { indexed: 1, chunks: 1, degraded: true, skipped: 0, warnings: [] };
     });
-    const rag = { indexFolder } as unknown as FolderRag;
+    const rag = { indexFolder, listDocuments: vi.fn(async () => []) } as unknown as FolderRag;
     const ingestionJobs = createDoccardsIngestionRegistry();
     const ctx: KnowledgeCommandContext = {
       getNotesServices: async () => {

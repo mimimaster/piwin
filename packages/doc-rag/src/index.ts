@@ -43,6 +43,15 @@ export { buildFlashcardGenerationPrompt } from './prompt-builder.js';
 export type { BuildFlashcardGenerationPromptInput } from './prompt-builder.js';
 
 export { FLASHCARD_QUALITY_RULES } from './quality-rules.js';
+export {
+  assignPositions,
+  toFlashcardCreateInputs,
+  writeGenerationRecord,
+  buildSinglePassPrompt,
+  parseDraftCardsJson,
+} from './generation/generation-service.js';
+export type { DraftCardsFn, DraftCardsRequest } from './generation/generation-service.js';
+export { getStateStorePath } from './paths.js';
 
 export {
   canonicalizeFolderPath,

@@ -13,9 +13,11 @@ export type DoccardsIngestionRegistry = {
     includeFiles?: string[];
     rag: FolderRag;
     push?: (message: HostPush) => void;
+    isGenerationRunning?: (folderKey: string) => boolean;
   }) => Promise<{ accepted: { jobId: string; status: 'PENDING' | 'RUNNING' } } | { error: string }>;
   status: (folderPath: string) => Promise<IngestionJob | undefined>;
   cancel: (folderPath: string) => Promise<IngestionJob | { error: string }>;
+  isRunning: (folderKey: string) => boolean;
 };
 
 export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
@@ -32,6 +34,11 @@ export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
   }
 
   return {
+    isRunning(folderKeyValue) {
+      const job = byFolder.get(folderKeyValue);
+      return job?.status === 'PENDING' || job?.status === 'RUNNING';
+    },
+
     async startIndex(input) {
       const canonical = await canonicalizeFolderPath(input.folderPath);
       if (!canonical) {
@@ -41,6 +48,9 @@ export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
       const existing = byFolder.get(key);
       if (existing?.status === 'PENDING' || existing?.status === 'RUNNING') {
         return { error: 'INDEX_RUNNING' };
+      }
+      if (input.isGenerationRunning?.(key)) {
+        return { error: 'GENERATION_RUNNING' };
       }
       const now = new Date().toISOString();
       const job: IngestionJob = {
@@ -74,15 +84,19 @@ export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
           const current = byFolder.get(key);
           if (!current || current.id !== job.id) return;
           if (current.status === 'CANCELED') return;
-          const terminalStatus: IngestionJobStatus = result.degraded
-            ? 'COMPLETED_DEGRADED'
-            : 'COMPLETED';
+          const failedFiles = result.failed ?? 0;
+          const terminalStatus: IngestionJobStatus =
+            failedFiles > 0
+              ? 'FAILED'
+              : result.degraded
+                ? 'COMPLETED_DEGRADED'
+                : 'COMPLETED';
           const finished: IngestionJob = {
             ...current,
             status: abort.signal.aborted ? 'CANCELED' : terminalStatus,
             completedFiles: result.indexed,
-            totalFiles: Math.max(current.totalFiles, result.indexed + result.skipped),
-            failedFiles: 0,
+            totalFiles: Math.max(current.totalFiles, result.indexed + result.skipped + failedFiles),
+            failedFiles,
             warnings: result.warnings.map((message) => ({
               file: '',
               code: 'INDEX_WARNING',
