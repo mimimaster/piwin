@@ -21,6 +21,10 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 - Platform deps for Tauri 2 (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
 - Network access once to download the pinned Node LTS used by
   `scripts/fetch-node-runtime.mjs` (cached under `~/.cache/piwin-build/`)
+- Doc Cards V2 ships `@lancedb/lancedb` with **one** platform native
+  (`lancedb.<os>-<arch>.node`, ~216 MiB). Sidecar packaging must not bundle
+  every optional native package. FTS must use the ICU tokenizer (see
+  `docs/notes/2026-08-16-lancedb-sidecar-spike.md`).
 
 ### End-user machine (after S5 passes)
 

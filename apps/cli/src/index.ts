@@ -1968,12 +1968,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
     return;
   }
 
-  const {
-    createFolderRag,
-    buildFlashcardGenerationPrompt,
-    FLASHCARD_QUALITY_RULES,
-    canonicalizeFolderPath,
-  } = await import('@piwin/doc-rag');
+  const { createFolderRag, canonicalizeFolderPath } = await import('@piwin/doc-rag');
   const { createEmbeddingProvider } = await import('@piwin/notes');
   const { createCardStore } = await import('@piwin/flashcards');
   const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
@@ -2024,6 +2019,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
         ?.split(',')
         .map((s) => s.trim())
         .filter(Boolean);
+      // CLI index stays on FolderRag (same process). Desktop HostCommand is async.
       const result = await rag.indexFolder(
         folderPath,
         includeFiles?.length ? { includeFiles } : undefined,
@@ -2087,7 +2083,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
       const folderPath = argv[2];
       if (!folderPath) {
         console.error(
-          'Usage: piwin doccards generate <folder> [--topic t] [--limit n] [--files a,b] [--difficulty easy|medium|hard] [--count fewer|standard|more]',
+          'Usage: piwin doccards generate <folder> [--topic t] [--files a,b] [--dry-run] [--show-context] [--legacy-print-prompt]',
         );
         process.exitCode = 1;
         return;
@@ -2116,67 +2112,99 @@ async function commandDocCards(argv: string[]): Promise<void> {
         return;
       }
 
-      // Step 1: index (optionally limited to selected files), then retrieve.
-      const indexOptions = fileAllowlist?.length ? { includeFiles: fileAllowlist } : undefined;
-      await rag.indexFolder(canonical, indexOptions);
-      const query = topic || canonical;
-      const retrieveOptions = {
-        limit,
-        ...(fileAllowlist?.length ? { fileAllowlist } : {}),
-      };
-      const chunks = await rag.retrieve(canonical, query, retrieveOptions);
-      if (chunks.length === 0) {
-        console.error('No passages retrieved; index the folder first or try a different topic.');
+      if (hasFlag(argv, '--legacy-print-prompt')) {
+        const { assembleDoccardsGeneratePrompt } = await import('./doccards-generate.js');
+        try {
+          const prompt = await assembleDoccardsGeneratePrompt({
+            rag,
+            folderPath: canonical,
+            ...(topic ? { topic } : {}),
+            limit,
+            ...(fileAllowlist?.length ? { fileAllowlist } : {}),
+            ...(difficulty ? { difficulty } : {}),
+            ...(count ? { count } : {}),
+          });
+          process.stdout.write(`${prompt}\n`);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exitCode = 1;
+        }
+        return;
+      }
+
+      if (hasFlag(argv, '--dry-run') || hasFlag(argv, '--show-context')) {
+        const query = topic.trim() || basename(canonical);
+        try {
+          const chunks = await rag.retrieve(canonical, query, {
+            limit,
+            ...(fileAllowlist?.length ? { fileAllowlist } : {}),
+          });
+          console.log(`query: ${query}`);
+          console.log(`passages: ${chunks.length}`);
+          if (hasFlag(argv, '--show-context')) {
+            for (const chunk of chunks) {
+              console.log(`--- ${chunk.filePath}:${chunk.startLine}`);
+              console.log(chunk.content);
+            }
+          }
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exitCode = 1;
+        }
+        return;
+      }
+
+      if (hasFlag(argv, '--show-kp')) {
+        console.error('--show-kp requires the two-stage pipeline (P5).');
         process.exitCode = 1;
         return;
       }
 
-      // Step 2: build the flashcard generation prompt.
-      const prompt = buildFlashcardGenerationPrompt({
-        folderPath: canonical,
-        chunks,
-        ...(topic ? { topic } : {}),
-        difficulty: difficulty ?? 'medium',
-        count: count ?? 'standard',
-        qualityRules: FLASHCARD_QUALITY_RULES,
-      });
-
-      // Step 3: start a chat session and stream the generation.
-      const display = createAssistantCliDisplay();
-      let resolvePromptCompletion: (() => void) | undefined;
-      const promptCompletion = new Promise<void>((resolve) => {
-        resolvePromptCompletion = resolve;
-      });
       host = new HostRuntime({
         mode,
         mock,
         piwinRoot: root,
-        onPush: (push) => {
-          if (push.type === 'run/terminal') {
-            resolvePromptCompletion?.();
+      });
+      const started = await host.handleCommand({
+        type: 'doccards/generate',
+        folderPath: canonical,
+        ...(fileAllowlist?.length ? { includeFiles: fileAllowlist } : {}),
+        ...(topic ? { topic } : {}),
+      });
+      if (!started.success) {
+        console.error(started.error);
+        process.exitCode = 1;
+        return;
+      }
+      for (;;) {
+        const status = await host.handleCommand({
+          type: 'doccards/generation-status',
+          folderPath: canonical,
+        });
+        if (!status.success) {
+          console.error(status.error);
+          process.exitCode = 1;
+          return;
+        }
+        const job = (status.data as { job?: { status: string; created?: number; skipped?: number; createdCardIds?: string[]; sessionId?: string } | null }).job;
+        if (job && ['COMPLETED', 'COMPLETED_DEGRADED', 'FAILED', 'CANCELED'].includes(job.status)) {
+          if (job.status === 'FAILED' || job.status === 'CANCELED') {
+            console.error(job.status);
+            process.exitCode = 1;
             return;
           }
-          if (push.type !== 'event') return;
-          const line = display.feed(push.event);
-          if (line !== null) process.stdout.write(line);
-        },
-      });
-      const sessionName = `Doc cards: ${basename(canonical)}`;
-      const createResponse = await host.handleCommand({
-        type: 'session/create',
-        input: { scope: { kind: 'general' }, sessionName },
-      });
-      if (!createResponse.success) throw new Error(createResponse.error);
-      const sessionId = (createResponse.data as { sessionId: string }).sessionId;
-      const promptResponse = await host.handleCommand({
-        type: 'session/prompt',
-        sessionId,
-        input: { text: prompt },
-      });
-      if (!promptResponse.success) throw new Error(promptResponse.error);
-      await promptCompletion;
-      process.stdout.write('\n');
-      return;
+          console.log(
+            `created ${job.created ?? job.createdCardIds?.length ?? 0}, skipped ${job.skipped ?? 0}${
+              job.sessionId ? `, session ${job.sessionId}` : ''
+            }`,
+          );
+          if (hasFlag(argv, '--json')) {
+            process.stdout.write(`${JSON.stringify(job)}\n`);
+          }
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
     }
 
     if (sub === 'rebind') {

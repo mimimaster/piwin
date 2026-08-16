@@ -256,6 +256,10 @@ import {
   WalkthroughGenerationRegistry,
   type WalkthroughCommandContext,
 } from './commands/walkthrough-commands.js';
+import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
+import { createDoccardsGenerationRegistry } from './commands/doccards-generation-jobs.js';
+import { createTwoStageCompleteJson } from './doccards-draft-cards.js';
+import { openDoccardReviewSession } from './doccards-review-session.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import {
   createSessionHostToolExecutionPort,
@@ -445,6 +449,7 @@ type SessionLineage = {
   subagentRuntime?: import('@piwin/contracts').SubagentRuntimeSnapshot;
   /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
   subagentLifecycle?: import('@piwin/contracts').SubagentLifecycleState;
+  presentation?: import('@piwin/contracts').CreateSessionInput['presentation'];
 };
 
 type ComposedSessionHostTools = {
@@ -545,6 +550,8 @@ export class HostRuntime {
   private readonly walkthroughRegistry = new WalkthroughGenerationRegistry((level, message) =>
     this.push({ type: 'host/log', level, message }),
   );
+  private readonly doccardsIngestion = createDoccardsIngestionRegistry();
+  private readonly doccardsGeneration = createDoccardsGenerationRegistry();
   private petStateStore: PetStateStore | null = null;
   /** Guards first init of `petStateStore` so concurrent callers share one promise. */
   private petStateStoreInit: Promise<PetStateStore> | null = null;
@@ -2451,7 +2458,7 @@ export class HostRuntime {
     if (!this.folderRag) {
       const rootDir = getPiwinRoot(this.options.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
-      const { createFolderRag } = await import('@piwin/doc-rag');
+      const { createFolderRag, createParserRegistry } = await import('@piwin/doc-rag');
       const { createEmbeddingProvider } = await import('@piwin/notes');
       const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
       let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
@@ -2466,6 +2473,10 @@ export class HostRuntime {
       this.folderRag = createFolderRag({
         piwinRoot: rootDir,
         ...(embeddingProvider ? { embeddingProvider } : {}),
+        parserRegistry: createParserRegistry({
+          mineruEnabled: config.knowledge?.parser?.mineru?.enabled === true,
+          unstructuredEnabled: config.knowledge?.parser?.unstructured?.enabled === true,
+        }),
       });
     }
     return this.folderRag;
@@ -4748,6 +4759,20 @@ export class HostRuntime {
         getCardStore: () => this.getCardStore(),
         getFolderRag: () => this.getFolderRag(),
         loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
+        push: (message) => this.push(message),
+        ingestionJobs: this.doccardsIngestion,
+        generationJobs: this.doccardsGeneration,
+        completeJson: createTwoStageCompleteJson(() => loadPiwinConfig(this.options.piwinRoot)),
+        openReviewSession: (input) =>
+          openDoccardReviewSession({
+            ...input,
+            createSession: (createInput) => this.createSession(createInput),
+            bindSession: (session, projectPath, sessionName, lineage) =>
+              this.bindSession(session, projectPath, sessionName, lineage),
+            getTranscriptStore: (sessionId, projectPath) =>
+              this.transcriptStores.get(sessionId, projectPath),
+          }),
+        ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
       },
       ...(subagentOrchestrator
         ? {
@@ -4943,6 +4968,9 @@ export class HostRuntime {
           if (lineage?.task) {
             current.task = lineage.task;
           }
+          if (lineage?.presentation) {
+            current.presentation = lineage.presentation;
+          }
           applySubagentLineage(current, lineage);
           await upsertSessionRecord(indexPath, current);
         } else {
@@ -4974,6 +5002,9 @@ export class HostRuntime {
           }
           if (lineage?.task) {
             recordInput.task = lineage.task;
+          }
+          if (lineage?.presentation) {
+            recordInput.presentation = lineage.presentation;
           }
           copySubagentLineage(recordInput, lineage);
           await upsertSessionRecord(indexPath, createSessionRecord(recordInput));
@@ -6844,6 +6875,7 @@ export class HostRuntime {
     if (record.scope !== undefined) input.scope = record.scope;
     if (record.workingDirectory !== undefined) input.cwd = record.workingDirectory;
     if (record.name !== undefined) input.sessionName = record.name;
+    if (record.presentation) input.presentation = record.presentation;
     const model = this.sessionModels.get(sessionId);
     if (model !== undefined) input.model = model;
     const prepared = await this.host.prepareSession(sessionId, input, generationId);

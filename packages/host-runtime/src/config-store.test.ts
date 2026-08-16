@@ -10,6 +10,38 @@ import {
 } from './config-store.js';
 
 describe('config-store', () => {
+  it('loads config without a knowledge block', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-no-knowledge-'));
+    await writeFile(join(rootDir, 'config.json'), JSON.stringify({ hostMode: 'sdk' }), 'utf8');
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.knowledge).toBeUndefined();
+  });
+
+  it('maps notes.embedding onto knowledge.embedding when knowledge is absent', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-knowledge-map-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        notes: {
+          embedding: {
+            provider: 'openai-compatible',
+            baseUrl: 'http://localhost:11434/v1',
+            model: 'nomic-embed',
+            apiKeyEnv: 'EMBEDDING_API_KEY',
+          },
+        },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.knowledge?.embedding).toMatchObject({
+      enabled: true,
+      provider: 'openai-compatible',
+      model: 'nomic-embed',
+      apiKeyEnv: 'EMBEDDING_API_KEY',
+    });
+  });
+
   it('round-trips config in a temp root', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-'));
     const config = createDefaultPiwinConfig();

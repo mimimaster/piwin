@@ -59,6 +59,12 @@ export type IndexFolderOptions = {
   /** If set, only chunk these relative paths. Empty array is an error. */
   includeFiles?: string[];
   signal?: AbortSignal;
+  onProgress?: (update: {
+    completedFiles: number;
+    totalFiles: number;
+    currentFile?: string;
+    stage: 'parsing' | 'chunking' | 'embedding' | 'indexing';
+  }) => void;
 };
 
 /** Result of `doccards/index-folder`. */
@@ -68,6 +74,8 @@ export type IndexFolderResult = {
   /** True ⇒ FTS-only (no embedding provider configured). */
   degraded: boolean;
   skipped: number;
+  /** Supported files that failed parse/chunk in this run. */
+  failed?: number;
   warnings: string[];
 };
 
@@ -81,7 +89,10 @@ export type RetrieveResult = {
 
 /** Result of `doccards/scan-folder`. */
 export type ScanFolderResult = {
+  /** Currently supported files (checkbox candidates). */
   files: ScannedDocFile[];
+  /** Visible-but-unusable types (PDF without MinerU, Office without Unstructured). */
+  unsupported?: import('./doc-rag-v2.js').ScannedFileV2[];
   supportedExtensions: string[];
 };
 

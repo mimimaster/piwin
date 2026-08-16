@@ -1584,6 +1584,25 @@ describe('conversation fast path (pure chat)', () => {
     expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual(['video_gen']);
   });
 
+  it('session tool policy excludes flashcards-write for doccard presentation', async () => {
+    const result = await compileBlueprintForWorker(
+      {
+        scope: generalScope,
+        presentation: {
+          kind: 'doccard-sequence',
+          sequenceId: 'seq_1',
+          generationId: 'gen_1',
+          workspaceName: 'Notes',
+          cardIds: ['c1'],
+        },
+      },
+      conversationOptions,
+    );
+    const families = result.blueprint.tools.enabledFamilies;
+    expect(families).toContain('flashcards-read');
+    expect(families).not.toContain('flashcards-write');
+  });
+
   it('CHT-205: keeps artifact instructions lazy in the conversation prompt', async () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 

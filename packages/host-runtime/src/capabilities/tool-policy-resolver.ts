@@ -158,13 +158,20 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   ) {
     enabledFamilies.add('notes-write');
   }
-  // Flashcards: agent-create implies read (review) + create.
+  // Flashcards: agent-create implies read + write. agent-read is review-only
+  // (Doc Cards presentation sessions must not grow a second deck).
+  if (
+    input.flashcardsEnabled !== false &&
+    capabilities === undefined &&
+    (input.flashcards === 'agent-create' || input.flashcards === 'agent-read')
+  ) {
+    enabledFamilies.add('flashcards-read');
+  }
   if (
     input.flashcardsEnabled !== false &&
     capabilities === undefined &&
     input.flashcards === 'agent-create'
   ) {
-    enabledFamilies.add('flashcards-read');
     enabledFamilies.add('flashcards-write');
   }
   if (input.artifact === true && capabilities === undefined) {

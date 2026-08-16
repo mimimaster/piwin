@@ -203,6 +203,7 @@ export async function handleSessionLiveCommand(
         depth?: number;
         subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
         task?: string;
+        presentation?: CreateSessionInput['presentation'];
       } = {
         kind: command.input.parentSessionId ? 'subagent' : 'main',
         depth: command.input.parentSessionId ? 1 : 0,
@@ -213,6 +214,9 @@ export async function handleSessionLiveCommand(
       }
       if (command.input.task) {
         lineage.task = command.input.task;
+      }
+      if (command.input.presentation) {
+        lineage.presentation = command.input.presentation;
       }
       try {
         await context.bindSession(

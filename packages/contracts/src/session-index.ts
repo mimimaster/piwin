@@ -1,7 +1,6 @@
 /** Lightweight session index (product-side, not Pi JSONL internals). */
 
-import type { ModelRef, ThinkingLevel } from './host.js';
-import type { SessionScope } from './host.js';
+import type { ModelRef, SessionPresentation, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { SubagentLifecycleState } from './subagent-lifecycle.js';
 import type { ProductSessionOrigin } from './session-origin.js';
@@ -97,6 +96,8 @@ export type SessionIndexRecord = {
   subagentLifecycle?: SubagentLifecycleState;
   /** SF-*: product-level session origin (duplicate or fork). Absent on legacy records. */
   origin?: ProductSessionOrigin;
+  /** Doc Cards review session: write tools stay off for the life of this record. */
+  presentation?: SessionPresentation;
 };
 
 /**

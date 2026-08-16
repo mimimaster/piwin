@@ -55,6 +55,7 @@ import {
   isValidOrchestrationSchemeId,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
+import { normalizeKnowledgeConfig } from './config-store-knowledge.js';
 import {
   isBlockingValidationIssue,
   sanitizeProvidersForSave,
@@ -222,6 +223,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   const flashcards = normalizeFlashcardsConfig(record.flashcards);
   if (flashcards) {
     normalized.flashcards = flashcards;
+  }
+  const knowledge = normalizeKnowledgeConfig(record.knowledge, notes);
+  if (knowledge) {
+    normalized.knowledge = knowledge;
   }
   normalized.session = normalizeSessionConfig(
     record.session,

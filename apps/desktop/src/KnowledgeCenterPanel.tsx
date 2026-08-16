@@ -50,7 +50,11 @@ type DocCardsCommand =
   | { type: 'doccards/list-by-folder'; folderPath: string }
   | { type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { type: 'doccards/forget-folder'; folderPath: string }
-  | { type: 'doccards/open-source'; cardId: string };
+  | { type: 'doccards/open-source'; cardId: string }
+  | { type: 'doccards/index-status'; folderPath: string }
+  | { type: 'doccards/generate'; folderPath: string; includeFiles?: string[]; topic?: string }
+  | { type: 'doccards/generation-status'; folderPath: string }
+  | { type: 'config/get' };
 type ConfigCommand = { type: 'config/get' | 'config/set'; config?: unknown };
 type KnowledgeCommand = NotesCommand | FlashcardsCommand | DocCardsCommand | ConfigCommand;
 
@@ -93,11 +97,7 @@ export type KnowledgeCenterPanelProps = {
   projectPath: string | null;
   /** Single RPC bridge that routes knowledge-host commands. */
   request: (command: KnowledgeCommand) => Promise<HostResponse>;
-  /**
-   * Ensure a chat session and send a prompt. Used by DocCardsPanel to
-   * trigger flashcard generation in chat mode.
-   */
-  sendSessionPrompt?: (text: string, title?: string) => Promise<void> | void;
+  onOpenSession?: (sessionId: string) => void;
 };
 
 export function KnowledgeCenterPanel(
@@ -184,7 +184,7 @@ export function KnowledgeCenterPanel(
               request={
                 docCardsRequest as unknown as Parameters<typeof DocCardsPanel>[0]['request']
               }
-              sendSessionPrompt={props.sendSessionPrompt}
+              {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
             />
           </div>
         </TabsContent>

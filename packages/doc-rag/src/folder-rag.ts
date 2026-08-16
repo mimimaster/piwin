@@ -1,59 +1,60 @@
 /**
- * Folder RAG orchestration: scan → chunk → index → retrieve.
+ * Folder RAG orchestration: scan → ingest → retrieve.
  *
- * Spec §8.1, §9.1. The FolderRag instance owns one chunker + optional
- * embedding provider and can serve multiple folders (each gets its own
- * sqlite cache under `~/.piwin/doc-rag/<folder-key>/`).
+ * Index writes LanceDB only. Legacy sqlite / recursive chunker stay unused
+ * on this path.
  */
-import { readdir, stat, writeFile, readFile } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
+import { writeFile, readFile, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import type {
-  DocChunk,
-  DocChunker,
+  ContextPack,
   EmbeddingProvider,
   IndexFolderOptions,
   IndexFolderResult,
   RetrieveOptions,
   RetrievedChunk,
   ScanFolderResult,
-  ScannedDocFile,
 } from '@piwin/contracts';
 import type { FolderRag } from './doc-rag-types.js';
 export type { FolderRag };
-import { createDefaultChunker, isSupportedExtension, detectLanguage } from './chunker.js';
-import { openDocIndex } from './doc-index.js';
-import type { DocIndex } from './doc-index.js';
+import { createParserRegistry, type ParserRegistry } from './parsers/registry.js';
+import { scanFolderFiles } from './scanner.js';
+import { adaptNotesEmbedding } from './embedding-adapter.js';
+import type { DocIndexStore } from './indexing/doc-index-store.js';
+import { openLanceDocIndex } from './indexing/lancedb-index.js';
+import { ingestSelectedFiles } from './indexing/ingestion-service.js';
+import { openFolderStateStore, type FolderStateStore } from './indexing/state-store.js';
 import {
   canonicalizeFolderPath,
-  getDocIndexPath,
+  folderKey,
+  getLanceDbPath,
+  getStateStorePath,
   getSourcePathSidecar,
   isSafeRelativePath,
   isPathConfined,
 } from './paths.js';
+import { retrieveV2 } from './retrieval/retrieval-service.js';
 import {
   DEFAULT_MAX_FILES,
   DEFAULT_MAX_FILE_BYTES,
   DEFAULT_MAX_TOTAL_BYTES,
-  DEFAULT_MAX_WALK_DEPTH,
-  SKIP_DIR_NAMES,
-  SKIP_FILE_NAME_PATTERNS,
 } from './limits.js';
 
 export type CreateFolderRagOptions = {
-  chunker?: DocChunker;
   embeddingProvider?: EmbeddingProvider;
   /** Default `~/.piwin`. */
   piwinRoot?: string;
+  parserRegistry?: ParserRegistry;
 };
 
 export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag {
-  const chunker = options.chunker ?? createDefaultChunker();
   const embeddingProvider = options.embeddingProvider;
   const piwinRoot = options.piwinRoot;
-  // Open index lazily per folder; cache by canonical path.
-  const indexCache = new Map<string, DocIndex>();
-  // Serialize write access per canonical folder key to avoid concurrent
-  // indexing corrupting the sqlite cache.
+  const parserRegistry = options.parserRegistry ?? createParserRegistry();
+  const lanceCache = new Map<string, DocIndexStore>();
+  const stateCache = new Map<string, FolderStateStore>();
+  // Serialize write access per folder so concurrent Index jobs do not
+  // interleave LanceDB upserts.
   const indexLocks = new Map<string, Promise<void>>();
 
   async function withIndexLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -71,32 +72,29 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }
   }
 
-  async function getIndex(canonicalPath: string): Promise<DocIndex> {
-    const cached = indexCache.get(canonicalPath);
+  async function getLance(canonicalPath: string): Promise<DocIndexStore> {
+    const cached = lanceCache.get(canonicalPath);
     if (cached) return cached;
-    const indexPath = getDocIndexPath(canonicalPath, piwinRoot);
-    const index = await openDocIndex(indexPath);
-    indexCache.set(canonicalPath, index);
-    // Persist the .source-path sidecar for cleanup/debug.
+    const store = await openLanceDocIndex(getLanceDbPath(canonicalPath, piwinRoot));
+    lanceCache.set(canonicalPath, store);
     try {
       await writeFile(getSourcePathSidecar(canonicalPath, piwinRoot), canonicalPath, 'utf8');
     } catch {
-      // Non-fatal — sidecar is a debug aid.
+      // sidecar is a debug aid
     }
-    return index;
+    return store;
+  }
+
+  async function getState(canonicalPath: string): Promise<FolderStateStore> {
+    const cached = stateCache.get(canonicalPath);
+    if (cached) return cached;
+    const store = await openFolderStateStore(getStateStorePath(canonicalPath, piwinRoot));
+    stateCache.set(canonicalPath, store);
+    return store;
   }
 
   async function scanFolder(folderPath: string): Promise<ScanFolderResult> {
-    const canonical = await canonicalizeFolderPath(folderPath);
-    if (!canonical) {
-      throw new Error(`Folder not found: ${folderPath}`);
-    }
-    const files: ScannedDocFile[] = [];
-    await walk(canonical, canonical, 0, files);
-    return {
-      files,
-      supportedExtensions: [...chunker.supportedExtensions],
-    };
+    return scanFolderFiles(folderPath, { registry: parserRegistry });
   }
 
   async function indexFolder(
@@ -118,13 +116,15 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         const include = new Set(includeFiles);
         files = files.filter((file) => include.has(file.relativePath));
       }
+      if (files.length === 0) {
+        throw new Error('NO_SUPPORTED_FILES');
+      }
       const warnings: string[] = [];
       let totalBytes = 0;
       let skipped = 0;
-      const chunks: DocChunk[] = [];
-      let indexed = 0;
+      const acceptedPaths: string[] = [];
       for (const file of files) {
-        if (indexed >= DEFAULT_MAX_FILES) {
+        if (acceptedPaths.length >= DEFAULT_MAX_FILES) {
           warnings.push(`Reached max files (${DEFAULT_MAX_FILES}); stopping.`);
           break;
         }
@@ -139,11 +139,9 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         }
         const absolute = join(canonical, file.relativePath);
         try {
-          const content = await readFile(absolute, 'utf8');
-          const fileChunks = chunker.chunk(file.relativePath, content);
-          chunks.push(...fileChunks);
+          await stat(absolute);
+          acceptedPaths.push(file.relativePath);
           totalBytes += file.sizeBytes;
-          indexed += 1;
           if (indexOptions?.signal?.aborted) {
             warnings.push('Aborted by signal.');
             break;
@@ -153,23 +151,39 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
           warnings.push(`Skipped (read error): ${file.relativePath}: ${(error as Error).message}`);
         }
       }
-      const index = await getIndex(canonical);
-      await index.indexChunks(chunks);
+      const lance = await getLance(canonical);
+      const state = await getState(canonical);
+      const ingest = await ingestSelectedFiles({
+        canonicalPath: canonical,
+        relativePaths: acceptedPaths,
+        registry: parserRegistry,
+        store: lance,
+        state,
+        ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
+        ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
+        ...(indexOptions?.onProgress ? { onProgress: indexOptions.onProgress } : {}),
+      });
+      const failed = ingest.filter((item) => item.status === 'FAILED');
+      const skippedIngest = ingest.filter((item) => item.status === 'SKIPPED').length;
       return {
-        indexed,
-        chunks: chunks.length,
+        indexed: ingest.filter((item) => item.status === 'READY' || item.status === 'SKIPPED').length,
+        chunks: ingest.reduce((sum, item) => sum + item.chunkCount, 0),
         degraded: !embeddingProvider,
-        skipped,
-        warnings,
+        skipped: skipped + skippedIngest,
+        failed: failed.length,
+        warnings: [
+          ...warnings,
+          ...failed.map((item) => `${item.relativePath}: ${item.error ?? 'FAILED'}`),
+        ],
       };
     });
   }
 
-  async function retrieve(
+  async function retrievePack(
     folderPath: string,
     query: string,
     retrieveOptions?: RetrieveOptions,
-  ): Promise<RetrievedChunk[]> {
+  ): Promise<ContextPack> {
     const canonical = await canonicalizeFolderPath(folderPath);
     if (!canonical) {
       throw new Error(`Folder not found: ${folderPath}`);
@@ -188,14 +202,41 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         }
       }
     }
-    const index = await getIndex(canonical);
-    return index.retrieve(query, {
-      ...(embeddingProvider ? { embeddingProvider } : {}),
-      ...(retrieveOptions?.limit !== undefined ? { limit: retrieveOptions.limit } : {}),
+    const lance = await getLance(canonical);
+    const result = await retrieveV2({
+      store: lance,
+      folderKey: folderKey(canonical),
+      query,
       ...(fileAllowlist ? { fileAllowlist } : {}),
-      ...(retrieveOptions?.maxTotalChars !== undefined ? { maxTotalChars: retrieveOptions.maxTotalChars } : {}),
+      ...(retrieveOptions?.limit !== undefined ? { limit: retrieveOptions.limit } : {}),
+      ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
       ...(retrieveOptions?.signal ? { signal: retrieveOptions.signal } : {}),
     });
+    return result.pack;
+  }
+
+  async function retrieve(
+    folderPath: string,
+    query: string,
+    retrieveOptions?: RetrieveOptions,
+  ): Promise<RetrievedChunk[]> {
+    const pack = await retrievePack(folderPath, query, retrieveOptions);
+    return pack.sources.map((source) => ({
+      filePath: source.relativePath,
+      content: source.text,
+      startLine: source.startLine ?? 1,
+      endLine: source.endLine ?? source.startLine ?? 1,
+      language: '',
+      score: source.retrievalScore ?? 0,
+      snippet: source.text.slice(0, 200),
+    }));
+  }
+
+  async function listDocuments(folderPath: string) {
+    const canonical = await canonicalizeFolderPath(folderPath);
+    if (!canonical) return [];
+    const state = await getState(canonical);
+    return state.list();
   }
 
   async function isIndexed(folderPath: string): Promise<boolean> {
@@ -216,51 +257,19 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     scanFolder,
     indexFolder,
     retrieve,
+    retrievePack,
+    listDocuments,
     isIndexed,
     close: () => {
-      for (const index of indexCache.values()) {
-        index.close();
+      for (const store of lanceCache.values()) {
+        void store.close();
       }
-      indexCache.clear();
+      lanceCache.clear();
+      for (const store of stateCache.values()) {
+        store.close();
+      }
+      stateCache.clear();
       indexLocks.clear();
     },
   };
-}
-
-/** Recursive walk with skip-dir / skip-file / depth / hidden rules. */
-async function walk(
-  root: string,
-  current: string,
-  depth: number,
-  files: ScannedDocFile[],
-): Promise<void> {
-  if (depth > DEFAULT_MAX_WALK_DEPTH) return;
-  let entries;
-  try {
-    entries = await readdir(current, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (entry.name.startsWith('.')) continue; // hidden
-    const absolute = join(current, entry.name);
-    if (entry.isDirectory()) {
-      if (SKIP_DIR_NAMES.has(entry.name)) continue;
-      await walk(root, absolute, depth + 1, files);
-    } else if (entry.isFile()) {
-      if (SKIP_FILE_NAME_PATTERNS.some((pattern) => pattern.test(entry.name))) continue;
-      if (!isSupportedExtension(entry.name)) continue;
-      try {
-        const stats = await stat(absolute);
-        const relativePath = relative(root, absolute).split(sep).join('/');
-        files.push({
-          relativePath,
-          sizeBytes: stats.size,
-          language: detectLanguage(relativePath),
-        });
-      } catch {
-        // Skip unreadable files silently at scan.
-      }
-    }
-  }
 }

@@ -1,31 +1,32 @@
 /**
- * Doc Cards panel (doc-flashcards §11): scan/index a folder, retrieve
- * passages, and kick off flashcard generation via the agent session.
- *
- * This panel is the folder-mode entry point. It does NOT generate cards
- * itself — generation is agent-driven via the `generate-flashcards` skill.
- * The panel:
- * 1. Lets the user pick a folder (path input + scan).
- * 2. Shows scan results (file count, supported extensions).
- * 3. Indexes the folder (button).
- * 4. Lists cards already sourced from this folder (delete / rebind / forget).
- * 5. Offers a "Generate cards" button that sends a session prompt using the
- *    retrieved passages + `buildFlashcardGenerationPrompt`.
+ * Doc Cards panel: scan/index a folder, then start a Host generation job.
+ * Generate never reindexes — it only calls doccards/generate.
  */
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog } from '@piwin/ui-kit';
-import type { HostResponse, ScannedDocFile, FlashcardRecord, RetrievedChunk } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
-import {
-  buildFlashcardGenerationPrompt,
-  FLASHCARD_QUALITY_RULES,
-} from '@piwin/doc-rag/prompt-rules';
+import type {
+  HostResponse,
+  ScannedDocFile,
+  ScannedFileV2,
+  FlashcardRecord,
+  IngestionJob,
+  GenerationJob,
+  DocumentManifest,
+  PiwinConfig,
+} from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
+import { waitForDoccardsIndexJob } from './doccards-index-job';
+import { runDoccardsGenerate } from './doccards-generate-client';
 import { useDesktopLocale } from './desktop-locale-context';
+import { knowledgeCapabilityLights } from './knowledge-capabilities';
+import { DocCardsProgressRing } from './DocCardsProgressRing';
+import { generationProgress, ingestionProgress, selectedDocumentsReady } from './doccards-progress';
+import { pickProjectDirectory } from './pick-project-directory';
 
 export type DocCardsPanelProps = {
   request: (command: DocCardsCommand) => Promise<HostResponse>;
-  /** Send a prompt to the active agent session to trigger generation. */
-  sendSessionPrompt?: ((text: string, title?: string) => Promise<void> | void) | undefined;
+  /** Open the review session created by generate. */
+  onOpenSession?: (sessionId: string) => void;
 };
 
 type DocCardsCommand =
@@ -35,19 +36,16 @@ type DocCardsCommand =
   | { type: 'doccards/list-by-folder'; folderPath: string }
   | { type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { type: 'doccards/forget-folder'; folderPath: string }
-  | { type: 'doccards/open-source'; cardId: string };
+  | { type: 'doccards/open-source'; cardId: string }
+  | { type: 'doccards/index-status'; folderPath: string }
+  | { type: 'doccards/generate'; folderPath: string; includeFiles?: string[]; topic?: string }
+  | { type: 'doccards/generation-status'; folderPath: string }
+  | { type: 'config/get' };
 
 type ScanState = {
   files: ScannedDocFile[];
+  unsupported: ScannedFileV2[];
   supportedExtensions: readonly string[];
-} | null;
-
-type IndexState = {
-  indexed: number;
-  chunks: number;
-  degraded: boolean;
-  skipped: number;
-  warnings: string[];
 } | null;
 
 export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
@@ -58,15 +56,24 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
   const [folderPath, setFolderPath] = useState('');
   const [scan, setScan] = useState<ScanState>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const [indexResult, setIndexResult] = useState<IndexState>(null);
+  const [lastIndexJob, setLastIndexJob] = useState<IngestionJob | null>(null);
+  const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
+  const [documents, setDocuments] = useState<DocumentManifest[]>([]);
   const [cards, setCards] = useState<FlashcardRecord[]>([]);
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showForgetConfirm, setShowForgetConfirm] = useState(false);
+  const [config, setConfig] = useState<PiwinConfig | undefined>();
 
   const request = props.request;
+
+  const workspaceName = useMemo(() => {
+    const trimmed = folderPath.trim().replace(/[\\/]+$/, '');
+    const parts = trimmed.split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] ?? '';
+  }, [folderPath]);
 
   const scanFolder = useCallback(async () => {
     if (!folderPath.trim()) {
@@ -82,16 +89,50 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         setError(response.error);
         return;
       }
-      const data = response.data as ScanState & { files: ScannedDocFile[]; supportedExtensions: string[] };
+      const data = response.data as {
+        files: ScannedDocFile[];
+        unsupported?: ScannedFileV2[];
+        supportedExtensions: string[];
+      };
       const files = data.files ?? [];
-      setScan({ files, supportedExtensions: data.supportedExtensions ?? [] });
+      const unsupported = data.unsupported ?? [];
+      setScan({
+        files,
+        unsupported,
+        supportedExtensions: data.supportedExtensions ?? [],
+      });
       setSelectedFiles(files.map((file) => file.relativePath));
-      setIndexResult(null);
-      setInfo(t(`Found ${data.files?.length ?? 0} supported files`, `找到 ${data.files?.length ?? 0} 个支持的文件`));
+      setLastIndexJob(null);
+      setInfo(
+        t(
+          `Found ${files.length} supported files` +
+            (unsupported.length > 0 ? ` (${unsupported.length} unsupported)` : ''),
+          `找到 ${files.length} 个支持的文件` +
+            (unsupported.length > 0 ? `（${unsupported.length} 个不支持）` : ''),
+        ),
+      );
     } finally {
       setBusy(false);
     }
   }, [folderPath, request, t]);
+
+  const refreshIndexStatus = useCallback(async () => {
+    if (!folderPath.trim()) return;
+    const response = await request({ type: 'doccards/index-status', folderPath: folderPath.trim() });
+    if (!response.success) return;
+    const data = response.data as { job?: IngestionJob | null; documents?: DocumentManifest[] };
+    if (data.job) setLastIndexJob(data.job);
+    setDocuments(data.documents ?? []);
+  }, [folderPath, request]);
+
+  const listCards = useCallback(async () => {
+    if (!folderPath.trim()) return;
+    const response = await request({ type: 'doccards/list-by-folder', folderPath: folderPath.trim() });
+    if (response.success) {
+      const data = response.data as { records: FlashcardRecord[] };
+      setCards(data.records ?? []);
+    }
+  }, [folderPath, request]);
 
   const indexFolder = useCallback(async () => {
     if (!folderPath.trim()) return;
@@ -114,38 +155,30 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         setError(response.error);
         return;
       }
-      const data = response.data as IndexState & { indexed: number; chunks: number; degraded: boolean; skipped: number; warnings: string[] };
-      setIndexResult({
-        indexed: data.indexed,
-        chunks: data.chunks,
-        degraded: data.degraded,
-        skipped: data.skipped,
-        warnings: data.warnings ?? [],
-      });
-      setInfo(
-        t(
-          `Indexed ${data.indexed} files (${data.chunks} chunks${data.degraded ? ', FTS-only' : ''})`,
-          `已索引 ${data.indexed} 个文件（${data.chunks} 个分块${data.degraded ? '，仅全文检索' : ''}）`,
-        ),
-      );
-      // Refresh card list for this folder.
+      const poll = window.setInterval(() => {
+        void refreshIndexStatus();
+      }, 200);
+      try {
+        const job = await waitForDoccardsIndexJob(request, folderPath.trim());
+        setLastIndexJob(job);
+        await refreshIndexStatus();
+        setInfo(
+          t(
+            `Indexed ${job.completedFiles} files${job.status === 'COMPLETED_DEGRADED' ? ' (FTS-only)' : ''}`,
+            `已索引 ${job.completedFiles} 个文件${job.status === 'COMPLETED_DEGRADED' ? '（仅全文检索）' : ''}`,
+          ),
+        );
+      } finally {
+        window.clearInterval(poll);
+      }
       void listCards();
     } finally {
       setBusy(false);
     }
-  }, [folderPath, request, scan, selectedFiles, t]);
-
-  const listCards = useCallback(async () => {
-    if (!folderPath.trim()) return;
-    const response = await request({ type: 'doccards/list-by-folder', folderPath: folderPath.trim() });
-    if (response.success) {
-      const data = response.data as { records: FlashcardRecord[] };
-      setCards(data.records ?? []);
-    }
-  }, [folderPath, request]);
+  }, [folderPath, request, scan, selectedFiles, t, refreshIndexStatus, listCards]);
 
   const generate = useCallback(async () => {
-    if (!folderPath.trim() || !props.sendSessionPrompt) {
+    if (!folderPath.trim()) {
       setError(t('Index a folder first, then generate', '请先索引文件夹再生成'));
       return;
     }
@@ -156,77 +189,54 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     setBusy(true);
     setError(null);
     setInfo(null);
+    setGenerationJob({
+      id: 'pending',
+      folderKey: '',
+      folderPath: folderPath.trim(),
+      workspaceName: workspaceName || 'workspace',
+      includeFiles: selectedFiles,
+      status: 'RETRIEVING',
+    });
+    const poll = window.setInterval(() => {
+      void request({ type: 'doccards/generation-status', folderPath: folderPath.trim() }).then(
+        (response) => {
+          if (!response.success) return;
+          const job = (response.data as { job?: GenerationJob | null }).job;
+          if (job) setGenerationJob(job);
+        },
+      );
+    }, 200);
     try {
-      // Re-index with the selected file set so retrieve has fresh chunks.
       const includeFiles =
         scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
-      const indexResponse = await request({
-        type: 'doccards/index-folder',
+      const job = await runDoccardsGenerate(request, {
         folderPath: folderPath.trim(),
         ...(includeFiles ? { includeFiles } : {}),
-      });
-      if (!indexResponse.success) {
-        setError(indexResponse.error);
-        return;
-      }
-      const indexData = indexResponse.data as IndexState & {
-        indexed: number;
-        chunks: number;
-        degraded: boolean;
-        skipped: number;
-        warnings: string[];
-      };
-      setIndexResult({
-        indexed: indexData.indexed,
-        chunks: indexData.chunks,
-        degraded: indexData.degraded,
-        skipped: indexData.skipped,
-        warnings: indexData.warnings ?? [],
-      });
-      const query = topic.trim() || folderPath.trim();
-      const fileAllowlist =
-        scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
-      const retrieveResponse = await request({
-        type: 'doccards/retrieve',
-        folderPath: folderPath.trim(),
-        query,
-        limit: 10,
-        ...(fileAllowlist ? { fileAllowlist } : {}),
-      });
-      if (!retrieveResponse.success) {
-        setError(retrieveResponse.error);
-        return;
-      }
-      const retrieveData = retrieveResponse.data as {
-        chunks: RetrievedChunk[];
-        canonicalPath: string;
-      };
-      const chunks = retrieveData.chunks ?? [];
-      if (chunks.length === 0) {
-        setError(t('No passages retrieved; try indexing first or a different topic', '未检索到段落；请先索引或换一个主题'));
-        return;
-      }
-      // Use the canonical absolute path so sourceFolder attribution is stable.
-      const canonicalPath = retrieveData.canonicalPath || folderPath.trim();
-      const prompt = buildFlashcardGenerationPrompt({
-        folderPath: canonicalPath,
-        chunks,
         ...(topic.trim() ? { topic: topic.trim() } : {}),
-        difficulty: 'medium',
-        count: 'standard',
-        qualityRules: FLASHCARD_QUALITY_RULES,
       });
-      const folderName = canonicalPath.split(/[\\/]/).pop() ?? canonicalPath;
-      const title = `${t('Doc cards: ', '文档卡片：')}${folderName}`;
-      await props.sendSessionPrompt(prompt, title);
-      setInfo(t('Generation prompt sent to the agent', '已向 Agent 发送生成提示'));
+      setGenerationJob(job);
+      void listCards();
+      setInfo(
+        t(
+          job.created === 0
+            ? 'No new cards (possible duplicates)'
+            : `Created ${job.created ?? job.createdCardIds?.length ?? 0} cards`,
+          job.created === 0
+            ? '没有新卡片（可能都是重复）'
+            : `已创建 ${job.created ?? job.createdCardIds?.length ?? 0} 张卡片`,
+        ),
+      );
+      if (job.sessionId) {
+        props.onOpenSession?.(job.sessionId);
+      }
     } catch (error) {
       const message = formatError(error);
       setError(message);
     } finally {
+      window.clearInterval(poll);
       setBusy(false);
     }
-  }, [folderPath, topic, request, props.sendSessionPrompt, scan, selectedFiles, t]);
+  }, [folderPath, topic, request, scan, selectedFiles, t, listCards, props, workspaceName]);
 
   const forgetFolder = useCallback(() => {
     setShowForgetConfirm(true);
@@ -272,8 +282,56 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     void listCards();
   }, [listCards]);
 
+  useEffect(() => {
+    void request({ type: 'config/get' }).then((response) => {
+      if (response.success) {
+        setConfig(response.data as PiwinConfig);
+      }
+    });
+  }, [request]);
+
+  const capabilityLights = useMemo(() => knowledgeCapabilityLights(config), [config]);
+  const canGenerate = selectedDocumentsReady(selectedFiles, documents) && !busy;
+  const liveProgress =
+    lastIndexJob && (lastIndexJob.status === 'PENDING' || lastIndexJob.status === 'RUNNING')
+      ? ingestionProgress(lastIndexJob)
+      : generationJob &&
+          generationJob.status !== 'COMPLETED' &&
+          generationJob.status !== 'COMPLETED_DEGRADED' &&
+          generationJob.status !== 'FAILED' &&
+          generationJob.status !== 'CANCELED'
+        ? generationProgress(generationJob)
+        : null;
+
+  const chooseFolder = useCallback(async () => {
+    const picked = await pickProjectDirectory({
+      title: t('Choose a document folder', '选择文档文件夹'),
+      ...(folderPath.trim() ? { defaultPath: folderPath.trim() } : {}),
+    });
+    if (picked) {
+      setFolderPath(picked);
+      setScan(null);
+      setLastIndexJob(null);
+      setDocuments([]);
+    }
+  }, [folderPath, t]);
+
   return (
     <section className="doc-cards-panel" data-testid="doc-cards-panel">
+      {workspaceName ? (
+        <p className="doc-cards-workspace" data-testid="doc-cards-workspace">
+          {t(`Workspace: ${workspaceName}`, `工作区：${workspaceName}`)}
+        </p>
+      ) : null}
+      <ul className="doc-cards-capabilities" data-testid="doc-cards-capabilities">
+        {capabilityLights.map((light) => (
+          <li key={light.id} data-configured={light.configured ? 'true' : 'false'}>
+            {light.id}
+            {' · '}
+            {light.configured ? t('configured', '已配置') : t('unavailable', '不可用')}
+          </li>
+        ))}
+      </ul>
       <div className="doc-cards-folder-input">
         <label>
           <span className="doc-cards-label">{t('Folder path', '文件夹路径')}</span>
@@ -285,6 +343,9 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
             data-testid="doc-cards-folder-input"
           />
         </label>
+        <Button onClick={() => void chooseFolder()} disabled={busy} data-testid="doc-cards-pick-folder-btn">
+          {t('Choose folder', '选择文件夹')}
+        </Button>
         <Button onClick={scanFolder} disabled={busy} data-testid="doc-cards-scan-btn">
           {t('Scan', '扫描')}
         </Button>
@@ -331,19 +392,43 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
               );
             })}
           </ul>
+          {scan.unsupported.length > 0 && (
+            <ul className="doc-cards-unsupported" data-testid="doc-cards-unsupported">
+              {scan.unsupported.map((file) => (
+                <li key={file.relativePath}>
+                  {file.relativePath}
+                  <span className="doc-cards-file-meta">
+                    {file.unsupportedReason === 'MINERU_NOT_CONFIGURED'
+                      ? t('MinerU not configured', '未配置 MinerU')
+                      : file.unsupportedReason === 'UNSTRUCTURED_NOT_CONFIGURED'
+                        ? t('Unstructured not configured', '未配置 Unstructured')
+                        : t('Unsupported type', '不支持的类型')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
-      {indexResult && (
+      {liveProgress ? (
+        <DocCardsProgressRing progress={liveProgress} locale={isZh ? 'zh-CN' : 'en'} />
+      ) : null}
+
+      {lastIndexJob && lastIndexJob.status !== 'PENDING' && lastIndexJob.status !== 'RUNNING' && (
         <div className="doc-cards-index-result" data-testid="doc-cards-index-result">
           <p>
-            {t(`Indexed ${indexResult.indexed} files, ${indexResult.chunks} chunks`, `已索引 ${indexResult.indexed} 文件，${indexResult.chunks} 分块`)}
-            {indexResult.degraded && ` · ${t('FTS-only (no embeddings)', '仅全文检索（无向量）')}`}
+            {t(
+              `${lastIndexJob.status}: ${lastIndexJob.completedFiles}/${lastIndexJob.totalFiles || lastIndexJob.completedFiles} files`,
+              `${lastIndexJob.status}：${lastIndexJob.completedFiles}/${lastIndexJob.totalFiles || lastIndexJob.completedFiles} 个文件`,
+            )}
+            {lastIndexJob.status === 'COMPLETED_DEGRADED' &&
+              ` · ${t('FTS-only (no embeddings)', '仅全文检索（无向量）')}`}
           </p>
-          {indexResult.warnings.length > 0 && (
+          {lastIndexJob.warnings.length > 0 && (
             <ul className="doc-cards-warnings">
-              {indexResult.warnings.slice(0, 5).map((warning, index) => (
-                <li key={index}>{warning}</li>
+              {lastIndexJob.warnings.slice(0, 5).map((warning, index) => (
+                <li key={index}>{warning.message || warning.code}</li>
               ))}
             </ul>
           )}
@@ -363,7 +448,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         </label>
         <Button
           onClick={generate}
-          disabled={busy || !indexResult || !props.sendSessionPrompt}
+          disabled={!canGenerate}
           data-testid="doc-cards-generate-btn"
         >
           {t('Generate cards', '生成卡片')}

@@ -106,6 +106,7 @@ export type ChatMessageUi = {
   /** True when the message text or thinking exceeded client memory boundaries and is displaying a trailing sliding window. */
   uiTruncated?: boolean;
   instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
+  docCardSequence?: SessionTranscriptMessage['docCardSequence'];
 };
 
 export type TranscriptHistoryViewUi = {
@@ -673,6 +674,7 @@ export function mapTranscriptMessagesToUi(
     ...(message.instructionDelivery
       ? { instructionDelivery: message.instructionDelivery }
       : {}),
+    ...(message.docCardSequence ? { docCardSequence: message.docCardSequence } : {}),
   }));
 }
 

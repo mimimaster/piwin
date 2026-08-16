@@ -99,6 +99,11 @@ export type SessionTranscriptMessage = {
    * id collision from a different generation must never mutate the older row.
    */
   runtimeGenerationId?: string;
+  /**
+   * Doc Cards sequence pointer (ids only). UI reads CardStore; never persist
+   * front/back here.
+   */
+  docCardSequence?: import('./doc-rag-v2.js').DocCardSequenceView;
 };
 
 export type SessionTranscriptDocument = {

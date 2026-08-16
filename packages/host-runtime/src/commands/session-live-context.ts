@@ -171,6 +171,7 @@ export type SessionLiveContext = {
       depth?: number;
       subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
       task?: string;
+      presentation?: import('@piwin/contracts').CreateSessionInput['presentation'];
       subagentMode?: 'readonly' | 'worktree';
       subagentApplyPolicy?: 'none' | 'auto' | 'explicit';
       subagentAllowedOutputPaths?: string[];
