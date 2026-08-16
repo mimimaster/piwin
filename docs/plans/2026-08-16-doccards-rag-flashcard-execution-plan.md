@@ -1213,7 +1213,7 @@ it('generation-status includes sessionId after terminal', …)
 it('host restart marks leftover RUNNING jobs FAILED', …)
 ```
 
-- [ ] Commit `feat(host-runtime): open doccard review session after generate`
+- [x] Commit `feat(host-runtime): open doccard review session after generate`
 
 #### Task P6-2: DocCardSequenceView
 
@@ -1229,7 +1229,7 @@ it('host restart marks leftover RUNNING jobs FAILED', …)
 - 上一张 / 下一张（到头按钮灭）；**不**写 transcript，**不**更新模型上下文
 - 不写任何新文件
 
-- [ ] Commit `feat(desktop): sequential doc card viewer from card ids`
+- [x] Commit `feat(desktop): sequential doc card viewer from card ids`
 
 #### Task P6-3: DocCardsPanel
 
@@ -1243,19 +1243,19 @@ it('host restart marks leftover RUNNING jobs FAILED', …)
 - 出卡完成后：`created>0` 切到新会话；`created=0` 留在面板并提示
 - 去掉失败文件后按钮可重新亮
 
-- [ ] Commit `feat(desktop): doccards panel ready-gate and progress`
+- [x] Commit `feat(desktop): doccards panel ready-gate and progress`
 
 #### Task P6-4: Settings 能力灯
 
 MinerU / Embedding / Reranker / 两套 LLM 的 configured / unavailable。不在业务代码写死模型名。
 
-- [ ] Commit `feat(desktop): knowledge capability indicators`
+- [x] Commit `feat(desktop): knowledge capability indicators`
 
 #### Task P6-5: CLI 与 Desktop 同语义
 
 进度打到 stderr，结果 JSON 可 `--json`。generate 打印 sessionId。
 
-- [ ] Commit `feat(cli): doccards generate reports session id`
+- [x] Commit `feat(cli): doccards generate reports session id`
 
 **P6 验收：** 新会话能翻到第 2 张；`card.id` 和卡片库是同一个；再 Generate 会开第二个会话；`created=0` 不开会话；Forget 一张后重开旧会话能跳过死链；提问不会调用 `flashcard_batch_create`；翻卡不增加 transcript 行。
 
