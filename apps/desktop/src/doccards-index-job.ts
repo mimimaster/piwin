@@ -32,6 +32,7 @@ export async function waitForDoccardsIndexJob(
   }
 }
 
+/** @deprecated Prefer selectedDocumentsReady(); leftover for existing tests. */
 export function isIndexJobReady(job: IngestionJob | null): boolean {
   return job?.status === 'COMPLETED' || job?.status === 'COMPLETED_DEGRADED';
 }
