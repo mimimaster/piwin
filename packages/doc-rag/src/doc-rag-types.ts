@@ -4,6 +4,7 @@
  * `FolderRag` orchestrator surface that ties them together.
  */
 import type {
+  DocumentManifest,
   IndexFolderOptions,
   IndexFolderResult,
   RetrieveOptions,
@@ -22,6 +23,7 @@ export type FolderRag = {
     query: string,
     options?: RetrieveOptions,
   ): Promise<RetrievedChunk[]>;
+  listDocuments(folderPath: string): Promise<DocumentManifest[]>;
   isIndexed(folderPath: string): Promise<boolean>;
   close(): void;
 };

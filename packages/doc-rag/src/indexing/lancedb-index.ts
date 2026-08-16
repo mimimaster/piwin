@@ -181,6 +181,17 @@ export async function openLanceDocIndex(uri: string): Promise<DocIndexStore> {
       }));
     },
 
+    async hasDocument(documentId) {
+      const table = await openTable();
+      if (!table) return false;
+      const rows = (await table
+        .query()
+        .where(`document_id = '${escapeLiteral(documentId)}'`)
+        .limit(1)
+        .toArray()) as LanceRow[];
+      return rows.length > 0;
+    },
+
     async getChunksByIds(ids) {
       if (ids.length === 0) return [];
       const table = await openTable();

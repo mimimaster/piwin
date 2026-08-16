@@ -68,6 +68,8 @@ export type IndexFolderResult = {
   /** True ⇒ FTS-only (no embedding provider configured). */
   degraded: boolean;
   skipped: number;
+  /** Supported files that failed parse/chunk in this run. */
+  failed?: number;
   warnings: string[];
 };
 
