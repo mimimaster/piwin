@@ -15,7 +15,8 @@ export type QueuedTurnTerminalReason =
   | 'runtime-unavailable'
   | 'replacement-target-mismatch'
   | 'replacement-cancellation-timeout'
-  | 'host-restarted';
+  | 'host-restarted'
+  | 'converted-to-intervention';
 
 export type QueuedTurnRecord = {
   queuedTurnId: string;

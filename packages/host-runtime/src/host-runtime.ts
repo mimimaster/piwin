@@ -5096,6 +5096,7 @@ export class HostRuntime {
       const projectPathForTargets = this.sessionProjects.get(session.id) ?? projectPath ?? null;
       const eventForClients = enrichAgentEventDocumentTargets(correlatedEvent, {
         ...(projectPathForTargets ? { projectPath: projectPathForTargets } : {}),
+        piwinRoot: getPiwinRoot(this.options.piwinRoot),
       });
       this.push({ type: 'event', sessionId: session.id, event: eventForClients });
       // Forward child session events to parent for inline subagent stream UX.

@@ -161,14 +161,20 @@ export async function handleSessionProductCommand(
 
   switch (command.type) {
     case 'session/list': {
-      const filter = resolveListFilter({
-        ...(command.scope ? { scope: command.scope } : {}),
-        ...(command.projectPath ? { projectPath: command.projectPath } : {}),
-      });
       const includeArchived = command.includeArchived === true;
-      const indexed = await listSessionsForProject(indexPath, filter, {
-        includeArchived,
-      });
+      let indexed: SessionIndexRecord[];
+      if (command.allScopes === true) {
+        const all = await listAllSessionRecords(indexPath);
+        indexed = all.filter((record) => record.kind !== 'side-chat');
+      } else {
+        const filter = resolveListFilter({
+          ...(command.scope ? { scope: command.scope } : {}),
+          ...(command.projectPath ? { projectPath: command.projectPath } : {}),
+        });
+        indexed = await listSessionsForProject(indexPath, filter, {
+          includeArchived,
+        });
+      }
       const repaired = await repairIndexedNames(indexed);
       try {
         // Listability, order, and truncation belong to @piwin/session.

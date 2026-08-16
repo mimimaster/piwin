@@ -53,6 +53,15 @@ between them:
 
 Pi `steer` and `followUp` are backend mechanisms, not the product vocabulary.
 
+One explicit, user-initiated conversion exists: a queued message row can offer
+an `Adjust current run after this step` action that adopts the pending queued
+turn into a Run intervention on the active Run (`adoptQueuedTurn` on
+`run/intervention-submit`). The Host performs the cancel-plus-create-plus-
+rebind in a single store transaction (terminal reason
+`converted-to-intervention`), so the message is neither lost nor admitted
+twice. This is a deliberate shell action with its own contract — it does not
+weaken the no-silent-conversion rule above.
+
 ### 2. HostRuntime owns intervention authority
 
 Every intervention has a stable `interventionId`, exact `sessionId` and

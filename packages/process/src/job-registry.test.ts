@@ -16,6 +16,7 @@ import type {
 
 import { createJobRegistry, type JobRegistryEvent, type JobPolicy } from './job-registry.js';
 import type { JobLogStore } from './job-log-store.js';
+import type { JobRecordStore } from './job-record-store.js';
 import type {
   ProcessSpawnInput,
   ProcessSupervisor,
@@ -194,6 +195,8 @@ function createMockLogStore(): JobLogStore & {
   seeded: Map<string, JobLogChunk[]>;
   /** Override latest cursor per job. */
   cursors: Map<string, number>;
+  /** Job ids whose buffers were cleared, in clear order. */
+  clearedIds: string[];
 } {
   const mock: JobLogStore & {
     appendCalls: Array<{ jobId: string; stream: string; text: string }>;
@@ -201,12 +204,14 @@ function createMockLogStore(): JobLogStore & {
     disposed: boolean;
     seeded: Map<string, JobLogChunk[]>;
     cursors: Map<string, number>;
+    clearedIds: string[];
   } = {
     appendCalls: [],
     readCalls: 0,
     disposed: false,
     seeded: new Map(),
     cursors: new Map(),
+    clearedIds: [],
 
     append(jobId: string, stream: 'stdout' | 'stderr' | 'system', text: string): string {
       mock.appendCalls.push({ jobId, stream, text });
@@ -262,6 +267,7 @@ function createMockLogStore(): JobLogStore & {
     },
 
     clear(jobId: string): void {
+      mock.clearedIds.push(jobId);
       mock.seeded.delete(jobId);
       mock.cursors.delete(jobId);
     },
@@ -293,6 +299,9 @@ async function createFixture(options?: {
   maxJobs?: number;
   logThrottleMs?: number;
   getJobPolicy?: () => JobPolicy;
+  maxRetainedTerminalEntries?: number;
+  maxRetainedTerminalLogJobs?: number;
+  recordStore?: JobRecordStore;
 }): Promise<Fixture> {
   const trustedDir = await mkdtemp(join(tmpdir(), 'piwin-job-test-'));
   const supervisor = createMockSupervisor();
@@ -313,6 +322,13 @@ async function createFixture(options?: {
     },
     logStore,
     processSupervisor: supervisor,
+    ...(options?.maxRetainedTerminalEntries !== undefined
+      ? { maxRetainedTerminalEntries: options.maxRetainedTerminalEntries }
+      : {}),
+    ...(options?.maxRetainedTerminalLogJobs !== undefined
+      ? { maxRetainedTerminalLogJobs: options.maxRetainedTerminalLogJobs }
+      : {}),
+    ...(options?.recordStore ? { recordStore: options.recordStore } : {}),
   });
 
   return { registry, supervisor, logStore, events, trustedDir, createId };
@@ -1949,5 +1965,93 @@ describe('JobRegistry persistence + reconciliation', () => {
     expect(interrupted).toHaveLength(1);
     expect(interrupted[0]!.jobId).toBe('reconciled-job');
     expect(interrupted[0]!.status).toBe('interrupted');
+  });
+});
+
+describe('JobRegistry terminal retention (memory bounds)', () => {
+  it('clears log buffers and evicts entries beyond the retention caps', async () => {
+    const { registry, supervisor, logStore, trustedDir } = await createFixture({
+      maxRetainedTerminalEntries: 2,
+      maxRetainedTerminalLogJobs: 1,
+    });
+
+    const jobIds: string[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      const started = await registry.start({
+        kind: 'command',
+        lifetime: 'host',
+        command: 'echo',
+        argv: [String(index)],
+        cwd: trustedDir,
+      });
+      logStore.append(started.jobId, 'stdout', `line-${index}\n`);
+      supervisor.children[index]!.emitClose(0);
+      jobIds.push(started.jobId);
+    }
+
+    // Log buffers: only the newest terminal job keeps its buffer.
+    expect(logStore.clearedIds).toEqual([jobIds[0], jobIds[1], jobIds[2]]);
+    // Entries: only the newest two terminal jobs stay resident.
+    expect(await registry.get(jobIds[0]!)).toBeUndefined();
+    expect(await registry.get(jobIds[1]!)).toBeUndefined();
+    expect((await registry.get(jobIds[2]!))?.status).toBe('exited');
+    expect((await registry.get(jobIds[3]!))?.status).toBe('exited');
+    expect(await registry.list()).toHaveLength(2);
+
+    // The retained newest job's logs are still readable; a cleared job's are gone.
+    const logs = await registry.readLogs({ jobId: jobIds[3]! });
+    expect(logs.chunks.some((chunk) => chunk.text === 'line-3\n')).toBe(true);
+    const evictedLogs = await registry.readLogs({ jobId: jobIds[0]! });
+    expect(evictedLogs.chunks).toHaveLength(0);
+  });
+
+  it('reconciles only the newest terminal records into memory', async () => {
+    const recordStore = createMockRecordStore();
+    const terminal = (jobId: string, endedAt: string): JobRecord => ({
+      jobId,
+      kind: 'command',
+      lifetime: 'host',
+      command: 'echo',
+      argv: [],
+      cwd: '/tmp',
+      status: 'exited',
+      startedAt: '2025-01-01T00:00:00.000Z',
+      endedAt,
+      latestLogCursor: 0,
+    });
+    recordStore.seeded = [
+      terminal('old-1', '2025-01-01T01:00:00.000Z'),
+      terminal('old-2', '2025-01-01T02:00:00.000Z'),
+      terminal('recent-1', '2025-01-01T03:00:00.000Z'),
+      terminal('recent-2', '2025-01-01T04:00:00.000Z'),
+      {
+        jobId: 'was-active',
+        kind: 'service',
+        lifetime: 'host',
+        command: 'dev-server',
+        argv: [],
+        cwd: '/tmp',
+        status: 'running',
+        startedAt: '2025-01-01T00:30:00.000Z',
+        latestLogCursor: 0,
+      },
+    ];
+
+    const trustedDir = await mkdtemp(join(tmpdir(), 'piwin-job-test-'));
+    const registry = createJobRegistry({
+      getTrustedProjectRoots: () => [trustedDir],
+      logStore: createMockLogStore(),
+      processSupervisor: createMockSupervisor(),
+      recordStore,
+      maxRetainedTerminalEntries: 2,
+    });
+
+    const all = await registry.list();
+    expect(all).toHaveLength(2);
+    const ids = all.map((record) => record.jobId).sort();
+    expect(ids).toEqual(['recent-2', 'was-active']);
+    const interrupted = await registry.list({ status: 'interrupted' });
+    expect(interrupted).toHaveLength(1);
+    expect(interrupted[0]!.terminalReason).toBe('host-restarted');
   });
 });
