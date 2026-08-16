@@ -1135,7 +1135,7 @@ it('generate path never calls indexFolder', async () => {
 
 从 walkthrough-completion 抽出公共 HTTP/鉴权。Walkthrough 行为不变。
 
-- [ ] Commit `refactor(host-runtime): extract structured completion from walkthrough`
+- [x] Commit `refactor(host-runtime): extract structured completion from walkthrough`
 
 #### Task P5-2: LLM#1 KP
 
@@ -1143,20 +1143,20 @@ Prompt：只抽知识点，不写 front/back。Structured output = Raw KP schema
 
 测试：假 source id 被丢；空 concept 被丢；importance 越界被丢。
 
-- [ ] Commit `feat(doc-rag): knowledge point extraction stage`
+- [x] Commit `feat(doc-rag): knowledge point extraction stage`
 
 #### Task P5-3: KP 后处理
 
 顺序：schema → source ∈ Context Pack → normalize → exact dedup → 可选 embedding 相似去重（阈值 0.90）→ `importance >= 0.50`。默认不第三轮 LLM。Canonical id：`kp_<generationId>_<n>`。
 
-- [ ] Commit `feat(doc-rag): knowledge point postprocess`
+- [x] Commit `feat(doc-rag): knowledge point postprocess`
 
 #### Task P5-4: LLM#2 有序出卡
 
 输入：topic（或 workspaceName）、options、Canonical KPs、被引用 chunk 原文、`FLASHCARD_QUALITY_RULES`、已有卡片 front 摘要（默认最多 50 条 front）。  
 一次输出 ordered array。`position` 从 1 连续。`relationFromPrevious` 在 position=1 必须空。
 
-- [ ] Commit `feat(doc-rag): ordered flashcard generation stage`
+- [x] Commit `feat(doc-rag): ordered flashcard generation stage`
 
 #### Task P5-5: QA + 落库 + GenerationRecord
 
@@ -1167,7 +1167,7 @@ Prompt：只抽知识点，不写 front/back。Structured output = Raw KP schema
 失败：schema/引用坏 → 同 stage repair 1 次 → 仍坏则 FAILED。  
 重复卡：代码 dedup，不重跑模型。
 
-- [ ] Commit `feat(doc-rag): flashcard QA persist and generation record`
+- [x] Commit `feat(doc-rag): flashcard QA persist and generation record`
 
 #### Task P5-6: 旧 Agent 出卡路径不动
 
@@ -1175,7 +1175,7 @@ Prompt：只抽知识点，不写 front/back。Structured output = Raw KP schema
 
 Skill `generate-flashcards` 里 folder 段落改成「走 doccards/generate」，open/notes 段落保持独立。
 
-- [ ] Commit `docs(skills): separate rag generate from chat flashcards`
+- [x] Commit `docs(skills): separate rag generate from chat flashcards`
 
 **P5 验收：** 一张卡能追到 KP → chunk → 文件；position 1..N；聊天出卡工具仍可用。
 
