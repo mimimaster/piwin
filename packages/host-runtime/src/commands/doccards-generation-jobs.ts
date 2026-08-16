@@ -59,6 +59,13 @@ export type DoccardsGenerationRegistry = {
     piwinRoot?: string;
     push?: (message: HostPush) => void;
     isIndexRunning: (folderKey: string) => boolean;
+    openReviewSession?: (input: {
+      workspaceName: string;
+      topic: string;
+      sequenceId: string;
+      generationId: string;
+      cardIds: string[];
+    }) => Promise<{ sessionId: string }>;
   }) => Promise<{ accepted: { generationId: string; status: 'PENDING' | 'RUNNING' } } | { error: string }>;
   status: (folderPath: string) => Promise<GenerationJob | undefined>;
   cancel: (folderPath: string) => Promise<GenerationJob | { error: string }>;
@@ -228,12 +235,51 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
             knowledgePointIds,
             sourceChunkIds: [...new Set(drafts.flatMap((card) => card.sourceChunkIds))],
           });
+          if (persisted.created.length === 0) {
+            update(
+              {
+                status: 'COMPLETED',
+                created: 0,
+                skipped: persisted.skipped,
+                createdCardIds: [],
+              },
+              true,
+            );
+            return;
+          }
+          let sessionId: string | undefined;
+          if (input.openReviewSession) {
+            update({ status: 'OPENING_SESSION' });
+            try {
+              sessionId = (
+                await input.openReviewSession({
+                  workspaceName,
+                  topic,
+                  sequenceId,
+                  generationId,
+                  cardIds: persisted.created,
+                })
+              ).sessionId;
+            } catch {
+              update(
+                {
+                  status: 'COMPLETED_DEGRADED',
+                  created: persisted.created.length,
+                  skipped: persisted.skipped,
+                  createdCardIds: persisted.created,
+                },
+                true,
+              );
+              return;
+            }
+          }
           update(
             {
               status: 'COMPLETED',
               created: persisted.created.length,
               skipped: persisted.skipped,
               createdCardIds: persisted.created,
+              ...(sessionId ? { sessionId } : {}),
             },
             true,
           );

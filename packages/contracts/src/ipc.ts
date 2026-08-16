@@ -584,6 +584,7 @@ export type HostCommand =
       deck?: string;
       sourceNoteId?: string;
       sourceFolder?: string;
+      sequenceId?: string;
     }
   | { id?: string; type: 'flashcards/delete'; cardId: string }
   | { id?: string; type: 'flashcards/decks' }

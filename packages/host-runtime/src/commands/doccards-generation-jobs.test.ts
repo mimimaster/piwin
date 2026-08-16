@@ -288,4 +288,135 @@ describe('doccards generation job', () => {
     expect(cards[0]?.sourceChunkIds?.length).toBeGreaterThan(0);
     rag.close();
   });
+
+  it('opens a review session when cards are created and skips it when created=0', async () => {
+    root = await mkdtemp(join(tmpdir(), 'piwin-gen-root-'));
+    folder = (await canonicalizeFolderPath(await mkdtemp(join(tmpdir(), 'piwin-gen-src-')))) ?? '';
+    await writeFile(join(folder, 'srs.md'), '# SRS\n\nSpaced repetition fights forgetting.');
+    const rag = createFolderRag({ piwinRoot: root });
+    await rag.indexFolder(folder);
+    const cardStore = createCardStore({ piwinRoot: root });
+    const opened: string[] = [];
+    const ctx: KnowledgeCommandContext = {
+      getNotesServices: async () => {
+        throw new Error('notes');
+      },
+      getCardStore: async () => cardStore,
+      getFolderRag: async () => rag,
+      loadConfig: async () => ({ hostMode: 'sdk', providers: [] }) as unknown as PiwinConfig,
+      ingestionJobs: createDoccardsIngestionRegistry(),
+      generationJobs: createDoccardsGenerationRegistry(),
+      draftCards: async () => [
+        {
+          position: 1,
+          front: 'What is spaced repetition?',
+          back: 'A review schedule against forgetting.',
+          cardType: 'definition',
+          knowledgePointIds: [],
+          sourceChunkIds: [],
+        },
+      ],
+      openReviewSession: async (input) => {
+        opened.push(input.sequenceId);
+        return { sessionId: `sess-${opened.length}` };
+      },
+      piwinRoot: root,
+    };
+    const started = await handleKnowledgeCommand(
+      { type: 'doccards/generate', folderPath: folder, topic: 'spaced repetition' },
+      'g-sess',
+      ctx,
+    );
+    expect(started).toMatchObject({ success: true });
+    await vi.waitFor(async () => {
+      const status = await handleKnowledgeCommand(
+        { type: 'doccards/generation-status', folderPath: folder },
+        'g-sess-s',
+        ctx,
+      );
+      expect(status).toMatchObject({
+        success: true,
+        data: { job: { status: 'COMPLETED', sessionId: 'sess-1' } },
+      });
+    });
+    expect(opened).toHaveLength(1);
+
+    const emptyCtx: KnowledgeCommandContext = {
+      ...ctx,
+      draftCards: async () => [],
+      openReviewSession: async () => {
+        throw new Error('should not open');
+      },
+    };
+    const emptyStart = await handleKnowledgeCommand(
+      { type: 'doccards/generate', folderPath: folder, topic: 'spaced repetition' },
+      'g-zero',
+      emptyCtx,
+    );
+    expect(emptyStart).toMatchObject({ success: true });
+    await vi.waitFor(async () => {
+      const status = await handleKnowledgeCommand(
+        { type: 'doccards/generation-status', folderPath: folder },
+        'g-zero-s',
+        emptyCtx,
+      );
+      expect(status).toMatchObject({
+        success: true,
+        data: { job: { status: 'COMPLETED', created: 0 } },
+      });
+    });
+    expect(opened).toHaveLength(1);
+    rag.close();
+  });
+
+  it('keeps cards and marks COMPLETED_DEGRADED when session create fails', async () => {
+    root = await mkdtemp(join(tmpdir(), 'piwin-gen-root-'));
+    folder = (await canonicalizeFolderPath(await mkdtemp(join(tmpdir(), 'piwin-gen-src-')))) ?? '';
+    await writeFile(join(folder, 'srs.md'), '# SRS\n\nSpaced repetition fights forgetting.');
+    const rag = createFolderRag({ piwinRoot: root });
+    await rag.indexFolder(folder);
+    const cardStore = createCardStore({ piwinRoot: root });
+    const ctx: KnowledgeCommandContext = {
+      getNotesServices: async () => {
+        throw new Error('notes');
+      },
+      getCardStore: async () => cardStore,
+      getFolderRag: async () => rag,
+      loadConfig: async () => ({ hostMode: 'sdk', providers: [] }) as unknown as PiwinConfig,
+      ingestionJobs: createDoccardsIngestionRegistry(),
+      generationJobs: createDoccardsGenerationRegistry(),
+      draftCards: async () => [
+        {
+          position: 1,
+          front: 'Session fail card',
+          back: 'Still persisted.',
+          cardType: 'fact',
+          knowledgePointIds: [],
+          sourceChunkIds: [],
+        },
+      ],
+      openReviewSession: async () => {
+        throw new Error('session boom');
+      },
+      piwinRoot: root,
+    };
+    await handleKnowledgeCommand(
+      { type: 'doccards/generate', folderPath: folder, topic: 'spaced repetition' },
+      'g-deg',
+      ctx,
+    );
+    await vi.waitFor(async () => {
+      const status = await handleKnowledgeCommand(
+        { type: 'doccards/generation-status', folderPath: folder },
+        'g-deg-s',
+        ctx,
+      );
+      expect(status).toMatchObject({
+        success: true,
+        data: { job: { status: 'COMPLETED_DEGRADED' } },
+      });
+    });
+    expect((await cardStore.list({ sourceFolder: folder })).length).toBeGreaterThan(0);
+    rag.close();
+  });
 });

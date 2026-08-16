@@ -96,6 +96,7 @@ export type TranscriptStoreMessageInput = {
     subagentActivity?: SessionTranscriptMessage['subagentActivity'];
     searchEvidence?: SessionTranscriptMessage['searchEvidence'];
     instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
+    docCardSequence?: SessionTranscriptMessage['docCardSequence'];
   };
 };
 
@@ -704,6 +705,9 @@ export async function openSessionTranscriptStore(
       }
       if (metadata.instructionDelivery !== undefined) {
         message.instructionDelivery = metadata.instructionDelivery;
+      }
+      if (metadata.docCardSequence !== undefined) {
+        message.docCardSequence = metadata.docCardSequence;
       }
     }
     return message;
@@ -2424,7 +2428,8 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
     message.outcome !== undefined ||
     message.terminalMessage !== undefined ||
     message.subagentActivity !== undefined ||
-    message.searchEvidence !== undefined;
+    message.searchEvidence !== undefined ||
+    message.docCardSequence !== undefined;
   return {
     id: message.id,
     runtimeGenerationId: LEGACY_IMPORT_GENERATION,
@@ -2460,6 +2465,9 @@ function legacyMessageToInput(message: SessionTranscriptMessage): TranscriptStor
               : {}),
             ...(message.searchEvidence !== undefined
               ? { searchEvidence: message.searchEvidence }
+              : {}),
+            ...(message.docCardSequence !== undefined
+              ? { docCardSequence: message.docCardSequence }
               : {}),
           },
         }
