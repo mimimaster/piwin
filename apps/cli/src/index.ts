@@ -2019,6 +2019,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
         ?.split(',')
         .map((s) => s.trim())
         .filter(Boolean);
+      // CLI index stays on FolderRag (same process). Desktop HostCommand is async.
       const result = await rag.indexFolder(
         folderPath,
         includeFiles?.length ? { includeFiles } : undefined,
