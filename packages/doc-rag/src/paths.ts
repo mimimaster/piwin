@@ -38,6 +38,15 @@ export function getSourcePathSidecar(canonicalAbsPath: string, piwinRoot?: strin
   return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), '.source-path');
 }
 
+/** `~/.piwin/doc-rag/<folder-key>/lancedb`. */
+export function getLanceDbPath(canonicalAbsPath: string, piwinRoot?: string): string {
+  return resolve(getDocRagRoot(piwinRoot), folderKey(canonicalAbsPath), 'lancedb');
+}
+
+export function documentIdFor(folderKeyValue: string, relativePath: string): string {
+  return sha256Hex(`${folderKeyValue}\0${relativePath}`);
+}
+
 /**
  * Canonicalize a folder path: resolve → realpath → strip trailing separators
  * (except root). Spec §7.2.

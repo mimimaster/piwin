@@ -24,6 +24,7 @@
     "lint": "echo \"lint ok (doc-rag)\""
   },
   "dependencies": {
+    "@lancedb/lancedb": "^0.37.1",
     "@langchain/textsplitters": "^1.0.1",
     "@piwin/contracts": "workspace:*",
     "@piwin/notes": "workspace:*",
