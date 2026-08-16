@@ -7,38 +7,30 @@
 
 piwin is a **private** coding-agent **shell** on Pi:
 
-- Client shells: Desktop (Tauri 2) and CLI today; Windows/mobile/Web later
-- Host: deployable Node service, local sidecar or private remote machine
+- Client shells: Desktop (Tauri 2) + CLI today; Windows/mobile/Web later
+- Host: deployable Node service — local sidecar or private remote machine
 - CLI: same Host/config/session authority as Desktop when attached to one Host
-- Kernel: Pi (`SDK` + `RPC` dual mode)
-- Config root: `~/.piwin` (maps/overlays Pi resources; does not own Pi upgrades)
+- Kernel: Pi (`SDK` + `RPC` dual mode); config root: `~/.piwin`
 
-Read first:
-
-- `docs/prd.md`
-- `docs/architecture.md`
-- `docs/artifact-research.md`
-- `docs/adr/*`
-- `docs/dev-plan.md`
+Read first: `docs/prd.md`, `docs/architecture.md`, `docs/artifact-research.md`, `docs/adr/*`, `docs/dev-plan.md`.
 
 ---
 
 ## 1. Non-negotiable architecture rules
 
-1. **UI/apps never import Pi packages** (`@earendil-works/pi-*`).
-   - Apps may import public `@piwin/*` packages only, never raw Pi packages.
-2. **Only `packages/agent-host` may depend on Pi**.
+1. **UI/apps never import Pi packages** (`@earendil-works/pi-*`) — public `@piwin/*` only.
+2. **Only `packages/agent-host` may depend on Pi.**
 3. **Contracts first**: new cross-cutting capability starts in `packages/contracts`.
 4. **Adapters over forks**: do not fork Pi core to add product features.
-5. **Artifact**: port pure TS from `openwebui_m`; never paste Svelte components into packages.
-6. **Images for models**: paste/drop → save under `~/.piwin/media/` → pass as native image content (`ImageContent`) into Pi `prompt(text, { images })`. Do **not** inject path strings into prompt text by default. Do **not** dump base64 into the *text* prompt. Path-string injection is a fallback only (e.g. text-only models without vision delegation / extension), not the default.
+5. **Artifact**: port pure TS from `openwebui_m`; never paste Svelte into packages.
+6. **Images for models**: paste/drop → save under `~/.piwin/media/` → pass as native `ImageContent` to Pi `prompt(text, { images })`. No path strings or base64 in the *text* prompt by default (path injection only as fallback for text-only models).
 7. **One config root**: product state under `~/.piwin`; Pi native under `~/.pi/agent`.
 8. **Dual host modes stay real**: `PiSdkAdapter` + `PiRpcAdapter` implement the same contracts.
-9. **No circular package deps**. Dependency direction is one-way downward (see §2).
-10. **No "temporary" cross-layer hacks** that become permanent. Prefer a small contract over a clever shortcut.
-11. **One product composition root**: `@piwin/host-runtime` composes application services and `@piwin/agent-host`; `agent-host` stays a Pi-only backend boundary.
-12. **Host-first deployment**: a Host Server may run as a local sidecar or independently on another machine; multiple shells connect to one Host authority through `HostCommand` / `HostPush`.
-13. **Gateway is transport-only**: optional Gateway/tunnel processes must not import Pi, execute Host tools, own sessions, or store provider secrets.
+9. **No circular deps**: dependency direction is one-way downward (see §2).
+10. **No "temporary" cross-layer hacks** that become permanent — prefer a small contract over a clever shortcut.
+11. **One composition root**: `@piwin/host-runtime` composes application services + `@piwin/agent-host`; agent-host stays a Pi-only backend boundary.
+12. **Host-first deployment**: one Host authority (`HostCommand`/`HostPush`); multiple shells connect to it.
+13. **Gateway is transport-only**: never imports Pi, executes Host tools, owns sessions, or stores provider secrets.
 
 ---
 
@@ -52,43 +44,14 @@ packages/host-runtime        ← product composition root
     └──→ packages/agent-host ← only place that may import Pi
 application packages ──→ packages/contracts
 packages/agent-host ─────→ packages/contracts
-packages/contracts           ← no runtime deps on other @piwin/*
+packages/contracts           ← leaf: no runtime deps on other @piwin/*
     ↓
 Node/OS/Pi (host only)
 ```
 
-Target multi-client deployment adds these boundaries without changing the
-authority direction:
+Target multi-client adds: `apps/* → @piwin/host-client / host-transport → @piwin/contracts`; `apps/host → @piwin/host-server → @piwin/host-runtime`; optional `apps/gateway → host-transport + contracts only`.
 
-```text
-client apps → @piwin/host-client / @piwin/host-transport → @piwin/contracts
-apps/host   → @piwin/host-server → @piwin/host-runtime
-apps/gateway (optional) → host-transport + contracts only
-```
-
-### Allowed
-
-| From | To |
-|------|----|
-| `apps/*` | any `@piwin/*` except raw Pi |
-| `@piwin/*` (not contracts) | `@piwin/contracts` |
-| `@piwin/host-runtime` | application packages + `@piwin/agent-host` + `@piwin/contracts` |
-| `@piwin/agent-host` | `@piwin/contracts` + `@earendil-works/pi-*` |
-| `@piwin/ui-kit` | `@piwin/contracts` only (no host, no FS) |
-
-### Forbidden
-
-| From | To | Why |
-|------|----|-----|
-| `apps/*` | `@earendil-works/pi-*` | breaks host boundary |
-| application packages | `@piwin/host-runtime`, `@piwin/agent-host` | composition and Pi dependencies point downward from the root |
-| `@piwin/agent-host` | application packages such as `process`, `mcp`, `browser`, `media` | keep the Pi boundary backend-only; inject ports from host-runtime |
-| `packages/contracts` | any `@piwin/*` | contracts must stay leaf |
-| `packages/ui-kit` | `agent-host`, `media` FS, Node-only | keep UI pure |
-| `packages/artifact` | Svelte / React / DOM host APIs | runtime must stay portable |
-| any package | deep relative imports into another package `src/` | use package public exports only |
-
-Public API = package `src/index.ts` (and explicitly exported subpaths if added later).
+**Forbidden edges** (everything else): `apps/*` → raw Pi; application packages → `host-runtime`/`agent-host`; `agent-host` → application packages (inject ports from host-runtime); `contracts` → any `@piwin/*`; `ui-kit`/`artifact` → host/Node/DOM APIs (keep UI pure, runtime portable); deep relative imports into another package `src/` (public exports only — `src/index.ts`).
 
 ---
 
@@ -96,69 +59,35 @@ Public API = package `src/index.ts` (and explicitly exported subpaths if added l
 
 ### 3.1 Language & style
 
-- TypeScript **strict** (`tsconfig.base.json`). Do not weaken `strict`, `noUncheckedIndexedAccess`, or `exactOptionalPropertyTypes` without ADR.
-- ESM only (`"type": "module"`). Use `.js` extensions in relative imports for NodeNext.
-- Prefer `type` imports for types (`import type { ... }`).
-- No `any`. If unavoidable, isolate behind a named type + comment **why** + issue/TODO.
-- No non-null assertion (`!`) except after an explicit runtime check in the same block.
-- Prefer `unknown` + narrowing over `any`.
-- Functions are verbs; variables/types are nouns. Avoid 1–2 character names.
-- Keep files focused: one primary export concept per file when practical.
-- Comments explain **why / invariants / non-obvious constraints**, not "set x to y".
+- TypeScript **strict** (`tsconfig.base.json`); never weaken `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` without ADR.
+- ESM only (`"type": "module"`); `.js` extensions in relative imports (NodeNext); `import type` for types.
+- No `any` (isolate behind a named type + why + TODO); no `!` without a runtime check in the same block; prefer `unknown` + narrowing.
+- Functions are verbs, types are nouns; no 1–2 char names; one primary export per file; comments explain **why / invariants**, not "set x to y".
 
-### 3.1.1 UI component reuse
+### 3.2 Reuse & file size
 
-- Unless the user explicitly requests a custom UI treatment, prefer the already-introduced public component libraries and shared components over hand-written UI primitives.
-- In Desktop, use `@piwin/ui-kit` first; use its exported components and styles for buttons, inputs, dialogs, menus, notices, toasts, cards, and other common controls. Reuse Mantine primitives through the existing UI-kit integration where appropriate.
-- Do not create a one-off button, modal, toast, alert, input, dropdown, or similar primitive in an app package merely to avoid using an existing component. If a reusable primitive is genuinely missing, add it deliberately to `@piwin/ui-kit` and expose it through the package public API.
-- Custom CSS should be limited to product-specific layout, theme, and interaction requirements. Do not restyle or fork a shared primitive locally without a clear product reason.
+- **Reuse before writing** — check in order: 1) same package public API → 2) other `@piwin/*` (respecting §2) → 3) `@piwin/ui-kit` primitives → 4) stdlib / existing deps → 5) new code in a named domain module. **Extract before duplicating**: logic appearing in two places becomes a shared module — copy-paste is a violation.
+- **UI**: Desktop uses `@piwin/ui-kit` (Mantine through its integration) for buttons, dialogs, menus, toasts, etc. A genuinely missing primitive is added deliberately to `ui-kit`, never hand-rolled or locally forked in an app. Custom CSS only for product-specific layout/theme.
+- **Hard cap: 1000 lines** for *any* source file (`.ts`/`.tsx`/`.rs`/`.css`…). Split **by responsibility** (parse vs policy vs I/O; state vs view vs effects) *before* adding code to an oversized file — a 900-line file spanning responsibilities is still a violation, not "within cap".
+- **Proactive trigger: ~400 lines** — plan the split when approaching it; the cap is a ceiling, not a goal.
+- **Layout**: `packages/<name>/src/index.ts` (public exports only) + implementation; tests colocated (`foo.test.ts`) — pick one convention per package. No `utils.ts` dumping grounds; name by domain (`permission-policy.ts`, `session-index.ts`).
 
-### 3.2 File & module layout
+### 3.3 Errors, async, events, state
 
-```text
-packages/<name>/
-  package.json
-  tsconfig.json
-  src/
-    index.ts          # public exports only
-    *.ts              # implementation
-  src/**/*.test.ts    # unit tests colocated OR tests/ — pick one per package and stay consistent
-```
+- `Error` subclasses with stable `name` at host/RPC boundaries; never swallow errors — log at boundary or rethrow; user-facing messages ≠ stack traces (map at app/host edge); `await` or explicitly void — no floating promises.
+- Abort paths for long operations (prompt, fetch, tool runs); `subscribe` returns explicit unsubscribe.
+- Adapters translate Pi SDK/RPC payloads → normalized `AgentEvent` only; UI never parses Pi-native shapes. Product transport uses `HostPush` — agent/event is one variant among Job/Run/Plan/subagent/browser/permission/diagnostic pushes, not fake Pi events.
+- Pure logic stays pure and unit-tested; FS/process/network live in dedicated services (`media`, `process`, `mcp`, `browser`, `tools-web`) composed by host-runtime; UI never calls `fs`/`child_process`.
 
-- Default: **colocated** `foo.ts` + `foo.test.ts`.
-- Do not create `utils.ts` dumping grounds. Name by domain: `permission-policy.ts`, `session-index.ts`.
-- Max rough guide: if a file exceeds ~400 lines, split by responsibility before adding more features.
+### 3.4 Security
 
-### 3.3 Error handling
+- Model output and artifact HTML are **untrusted**: sandbox iframe + CSP, block external resources by default.
+- Never log API keys; prefer env/keychain refs in config.
+- Permission policy: layered rule engine with `auto`/`ask-all`/`bypass` + file-write gate (ADR 0019; see [Permissions guide](./docs/guides/permissions.md)) — not an OS sandbox.
+- MCP is outside the permission layer entirely (ADR 0033): servers run with Host user's OS permissions; legacy MCP rules in `permissions.json` silently ignored; user owns MCP risk.
+- Media paths stay under `~/.piwin/media/` (no traversal).
 
-- Throw `Error` subclasses with stable `name` for host/RPC boundaries where useful.
-- Never swallow errors silently. Log at boundary with context, or rethrow.
-- User-facing messages ≠ internal stack traces. Map at app/host edge.
-- Async: always `await` or explicitly void with comment; no floating promises.
-
-### 3.4 Async, events, streams
-
-- Adapters translate Pi SDK / RPC payloads → normalized `AgentEvent` only. UI never parses Pi-native event shapes.
-- Product transport uses `HostPush`: Agent execution is an `agent/event` variant; Job, Run, Plan, subagent, browser, permission, and diagnostic pushes are sibling variants rather than fake Pi events.
-- Prefer explicit unsubscribe functions returned from `subscribe`.
-- Abort paths must be implemented for long operations (prompt, fetch, tool runs).
-
-### 3.5 State & side effects
-
-- Pure logic (parse, security classify, format injection) stays pure and unit-tested.
-- FS / process / network live in dedicated application services (`media`, `process`, `mcp`, `browser`, `tools-web`); `host-runtime` composes them and `agent-host` remains Pi-only.
-- UI components do not call `fs` / `child_process` directly.
-
-### 3.6 Security
-
-- Treat model output and artifact HTML as **untrusted**.
-- Artifact: sandbox iframe + CSP; default block external resources (see artifact research).
-- Secrets: never log API keys; prefer env/keychain refs in config.
-- Permission policy for destructive bash, secret file writes, network tools, force-push — implemented as a layered rule engine with `auto`/`ask-all`/`bypass` modes and a file-write gate (ADR 0019; see [Permissions guide](./docs/guides/permissions.md)). Not an OS sandbox.
-- MCP is outside the permission layer entirely: configured servers run with the Host user's OS permissions and never produce prompts or rules (ADR 0033). Legacy MCP rules in `permissions.json` are silently ignored. The user alone owns MCP risk.
-- Media paths must stay under `~/.piwin/media/` (no path traversal).
-
-### 3.7 Testing requirements
+### 3.5 Testing
 
 | Change type | Required tests |
 |-------------|----------------|
@@ -166,18 +95,16 @@ packages/<name>/
 | contracts type change | update all implementers; typecheck green |
 | adapter event mapping | fixture-based unit/integration |
 | security classifier | golden cases for allow/block |
-| UI only | manual OK early; add e2e later for critical paths |
+| UI only | manual OK early; e2e later for critical paths |
 
-Do not merge "logic changes" with zero tests when the package already has a test runner.
+No "logic changes" merged with zero tests when the package has a test runner.
 
-### 3.8 Git / PR hygiene (private repo still)
+### 3.6 Git / PR hygiene
 
-- Small commits by concern (docs / contracts / host / feature).
-- Do not commit `node_modules`, secrets, `.env`, large media binaries.
-- Prefer one feature vertical slice over drive-by refactors in unrelated packages.
-- If you must refactor, separate commit from behavior change.
+- Small commits by concern; no `node_modules`, secrets, `.env`, large media binaries.
+- One feature vertical slice per PR; refactors in separate commits, never mixed with behavior changes.
 
-### 3.9 Naming conventions
+### 3.7 Naming
 
 | Kind | Convention | Example |
 |------|------------|---------|
@@ -185,29 +112,25 @@ Do not merge "logic changes" with zero tests when the package already has a test
 | files | `kebab-case.ts` | `create-host.ts` |
 | types/interfaces | `PascalCase` | `SessionHandle` |
 | React components (later) | `PascalCase.tsx` | `AgentWindow.tsx` |
-| constants | `SCREAMING_SNAKE` or `const` object | `DEFAULT_MAX_ARTIFACT_BYTES` |
+| constants | `SCREAMING_SNAKE` | `DEFAULT_MAX_ARTIFACT_BYTES` |
 | ADR files | `docs/adr/NNNN-title.md` | `0003-dual-mode-host.md` |
 
-### 3.10 What "done" means for a task
+### 3.8 Done checklist
 
-1. Types compile (`pnpm typecheck`).
-2. Tests pass for touched packages (`pnpm test`).
-3. Public exports updated intentionally (no accidental API leaks).
-4. Docs/ADR updated if architecture or user-visible behavior changed.
-5. No new dependency without justification (prefer stdlib / existing stack).
+1. `pnpm typecheck` green; 2. tests pass for touched packages; 3. public exports updated intentionally; 4. docs/ADR updated if architecture or user-visible behavior changed; 5. no new dep without justification; 6. no file over 1000 lines — verify with a line-count check; 7. reuse before writing (§3.2).
 
 ---
 
 ## 4. Feature playbook (how to add anything)
 
-> **Everything lands on disk**: every plan, design document, and spec produced during work must be saved as a file (`docs/plans/`, `docs/specs/`, `docs/adr/`, …). Nothing exists only in chat — if a decision, plan, or design is worth making, it is worth archiving as a file.
+> **Everything lands on disk** — plans, specs, ADRs go to `docs/plans/`, `docs/specs/`, `docs/adr/`. Nothing exists only in chat.
 
-1. **Spec**: does PRD/dev-plan cover it? If architectural, write/update ADR.
-2. **Contracts**: add/change types in `@piwin/contracts` if cross-boundary.
-3. **Package**: implement in the owning package only.
-4. **Host wiring**: compose product services through `@piwin/host-runtime`; use `@piwin/agent-host` only for Pi backends and Pi event/tool adaptation.
-5. **App**: CLI and/or Desktop consume public APIs only.
-6. **Verify**: typecheck + tests + manual smoke listed in PR/notes.
+1. **Spec** — covered by PRD/dev-plan? If architectural, write/update ADR.
+2. **Contracts** — add/change types in `@piwin/contracts` if cross-boundary.
+3. **Package** — implement in the owning package only.
+4. **Host wiring** — compose through `@piwin/host-runtime`; agent-host only for Pi backends and Pi event/tool adaptation.
+5. **App** — CLI and/or Desktop consume public APIs only.
+6. **Verify** — typecheck + tests + manual smoke listed in PR/notes.
 
 ### Package ownership cheat sheet
 
@@ -228,26 +151,22 @@ Do not merge "logic changes" with zero tests when the package already has a test
 
 ---
 
-## 5. Explicit anti-patterns (ban list)
+## 5. Anti-patterns (ban list)
 
-- God modules: `helpers.ts`, `misc.ts`, `manager.ts` with mixed domains
-- Copy-paste of openwebui Svelte into packages
-- UI importing Pi or spawning `pi` directly (must go through host)
-- Base64 image data stuffed into **text** prompts (native `ImageContent` parts via Pi `prompt(..., { images })` are the correct path)
+Standalone bans (not already stated in §1–§3):
+
 - Silent `catch (e) {}`
 - Adding Electron "just for now" when Tauri is decided
-- Putting product config only in `~/.pi` and skipping `~/.piwin`
-- Implementing features only in Desktop and leaving CLI/host inconsistent without documenting intentional CLI degradation
+- Implementing features only in Desktop while CLI/host stay inconsistent (document intentional CLI degradation)
 - Drive-by dependency upgrades unrelated to the task
+
+Rule violations disguised as "temporary" (see §1–§3): god modules/`utils.ts` dumps, files over 1000 lines, copy-paste reuse avoidance, UI importing Pi, base64 in text prompts, config only in `~/.pi`, openwebui Svelte copied into packages.
 
 ---
 
 ## 6. Environment expectations
 
-- Node `>= 20` (repo tested on Node 24+)
-- pnpm `9.x` (see `packageManager` in root `package.json`)
-- TypeScript project references / workspace packages
-- Rust/cargo required later for Tauri desktop (not blocking CLI/host work)
+- Node `>= 20` (tested on 24+); pnpm `9.x` (see root `package.json`); TS project references/workspace packages; Rust later for Tauri (not blocking CLI/host).
 
 Bootstrap:
 
@@ -261,15 +180,13 @@ pnpm dev:cli
 
 ---
 
-## 7. Agent operating notes (for coding agents)
+## 7. Agent operating notes
 
-When implementing in this repo:
-
-1. Read this file + relevant docs before large changes.
-2. Prefer minimal diffs that preserve architecture boundaries.
-3. Do not create new top-level folders without updating architecture docs.
-4. After scaffolding, keep stubs compiling; prefer `throw new Error('not implemented yet')` over fake success.
-5. Record architectural decisions in `docs/adr/` when changing dual-mode host, config root, protocols, or artifact/media model.
+1. Read this file + relevant docs before large changes; prefer minimal diffs that preserve architecture boundaries.
+2. New top-level folders require architecture doc updates.
+3. Keep stubs compiling: `throw new Error('not implemented yet')` over fake success.
+4. Record ADRs when changing dual-mode host, config root, protocols, or artifact/media model.
+5. Follow §3.2 before writing: check the file's line count, reuse first, split by responsibility — structure optimization is part of done, not deferred cleanup.
 
 ---
 
