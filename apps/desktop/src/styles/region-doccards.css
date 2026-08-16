@@ -1,0 +1,50 @@
+.doc-card-sequence {
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.doc-card-sequence-meta {
+  color: var(--muted, #888);
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.doc-card-sequence-front,
+.doc-card-sequence-back {
+  font-size: 16px;
+  margin: 8px 0;
+}
+
+.doc-card-sequence-back {
+  border-top: 1px dashed var(--border, #444);
+  padding-top: 8px;
+}
+
+.doc-card-sequence-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.doc-cards-workspace {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.doc-cards-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted, #888);
+}
+
+.doc-cards-capabilities [data-configured='true'] {
+  color: inherit;
+}
