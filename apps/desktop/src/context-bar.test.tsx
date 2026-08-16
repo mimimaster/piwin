@@ -295,6 +295,24 @@ describe('ContextBar', () => {
     expect(container.querySelector('[data-testid="right-panel-open-btn"]')).toBeNull();
   });
 
+  it('shows Conversation activity copy and hides Agent actions', () => {
+    renderContextBar(
+      createBaseProps({
+        runState: createWorkingRunStatus(),
+        isConversationSession: true,
+        permissionMode: 'auto',
+      }),
+      root,
+    );
+
+    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
+      'Thinking…',
+    );
+    expect(container.textContent).not.toContain('read_file');
+    expect(container.textContent).not.toContain('Activity');
+    expect(container.querySelector('[data-testid="context-bar-mode-badge"]')).not.toBeNull();
+  });
+
   it('renders a permission mode badge when permissionMode is provided', () => {
     const onOpenPermissions = vi.fn();
     renderContextBar(

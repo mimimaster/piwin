@@ -444,6 +444,33 @@ describe('ContextUsageRing', () => {
     expect(tooltip?.textContent).toContain('Prompt cache has expired.');
     expect(tooltip?.textContent).toContain('Higher cost expected.');
   });
+
+  it('shows Conversation last-turn fields instead of Agent categories', () => {
+    render(
+      createBaseProps({
+        isConversationSession: true,
+        usage: {
+          sessionId: 'session-chat',
+          tokensUsed: 12_400,
+          tokensLimit: 128_000,
+          promptTokens: 700,
+          completionTokens: 200,
+          source: 'host-estimate',
+          updatedAt: '2026-07-26T00:00:00.000Z',
+        },
+      }),
+      root,
+    );
+    activateTrigger();
+    const details = document.querySelector('[data-testid="conversation-usage-details"]');
+    expect(details?.textContent).toContain('Estimated');
+    expect(details?.textContent).toContain('Context occupied');
+    expect(details?.textContent).toContain('Input');
+    expect(details?.textContent).not.toContain('System prompt');
+    expect(details?.textContent).not.toContain('Tool definitions');
+    expect(details?.textContent).not.toContain('Skills');
+    expect(details?.textContent).not.toContain('MCP');
+  });
 });
 
 describe('CACHE_EXPIRY_ESTIMATE_MS', () => {

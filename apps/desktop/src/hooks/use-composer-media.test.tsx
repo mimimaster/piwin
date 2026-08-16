@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PromptContextRef } from '@piwin/contracts';
 import { createInitialChatUiState, type ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
-import { useComposerMedia } from './use-composer-media';
+import {
+  MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS,
+  useComposerMedia,
+} from './use-composer-media';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -164,6 +167,69 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().composer).toBe('unsent text for session B');
     expect(latest().pendingAttachments).toEqual([]);
     expect(latest().draftSessions).toEqual([]);
+  });
+
+  it('caps session composer snapshots and revokes evicted attachment blobs', () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn(),
+    } as unknown as HostClient;
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) {
+        throw new Error('composer media hook was not rendered');
+      }
+      return captured;
+    };
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    const createObjectUrlSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation((obj: Blob | MediaSource) => `blob:mock-${(obj as File).name}`);
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    const stateFor = (sessionId: string): ChatUiState => ({
+      ...createInitialChatUiState(),
+      activeSessionId: sessionId,
+    });
+
+    act(() => root?.render(<Harness state={stateFor('session-s0')} />));
+    pasteImage(latest);
+    act(() => latest().setComposer('unsent text for s0'));
+    expect(latest().pendingAttachments).toHaveLength(1);
+
+    // Leave enough sessions to push session-s0's snapshot past the LRU cap.
+    for (let index = 1; index <= MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS; index += 1) {
+      const sessionId = `session-s${index}`;
+      act(() => root?.render(<Harness state={stateFor(sessionId)} />));
+      act(() => latest().setComposer(`unsent text for ${sessionId}`));
+    }
+    // Snapshots now hold s0..s7 (cap). Leaving s8 evicts s0 and must release
+    // its pinned blob instead of keeping the original image resident forever.
+    act(() => root?.render(<Harness state={stateFor('session-s9')} />));
+
+    expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:mock-screenshot.png');
+
+    // The evicted session restores an empty composer.
+    act(() => root?.render(<Harness state={stateFor('session-s0')} />));
+    expect(latest().composer).toBe('');
+    expect(latest().pendingAttachments).toEqual([]);
+
+    createObjectUrlSpy.mockRestore();
+    revokeObjectUrlSpy.mockRestore();
   });
 
   it('uses a phantom sidebar row only for an unsent New Agent draft', () => {
@@ -853,6 +919,116 @@ describe('useComposerMedia session transitions', () => {
       queuedTurns: [],
     });
   });
+
+  it('converts a queued message into a Run intervention on send-now', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: vi.fn(async () => ({
+        type: 'response' as const,
+        command: 'run/intervention-submit',
+        success: true as const,
+        data: {
+          intervention: {
+            interventionId: 'intervention-1',
+            revision: 1,
+            sessionId: 'session-1',
+            runId: 'run-1',
+            runtimeGenerationId: 'generation-1',
+            sequence: 1,
+            userMessageId: 'user-queued-1',
+            status: 'pending' as const,
+            input: { text: 'Adjust the model mapping' },
+            submittedAt: '2026-08-15T00:00:00.000Z',
+            updatedAt: '2026-08-15T00:00:00.000Z',
+          },
+          queuedTurn: {
+            queuedTurnId: 'queued-1',
+            revision: 4,
+            sessionId: 'session-1',
+            sequence: 1,
+            userMessageId: 'user-queued-1',
+            mode: 'next' as const,
+            status: 'cancelled' as const,
+            input: { text: 'Adjust the model mapping' },
+            submittedAt: '2026-08-15T00:00:00.000Z',
+            updatedAt: '2026-08-15T00:00:00.000Z',
+            terminalReason: 'converted-to-intervention' as const,
+          },
+        },
+      })),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'session-1',
+          activeRunId: 'run-1',
+          runPhase: 'streaming',
+          streaming: true,
+          queuedTurnsBySession: {
+            'session-1': [
+              {
+                queuedTurnId: 'queued-1',
+                revision: 3,
+                sessionId: 'session-1',
+                sequence: 1,
+                userMessageId: 'user-queued-1',
+                mode: 'next',
+                status: 'pending',
+                input: { text: 'Adjust the model mapping' },
+                submittedAt: '2026-08-15T00:00:00.000Z',
+                updatedAt: '2026-08-15T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+    act(() => root?.render(<Harness />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+
+    await act(async () => {
+      await latest().handleSteerQueueSendNow('queued-1');
+    });
+
+    expect(hostClient.request).toHaveBeenCalledTimes(1);
+    const command = vi.mocked(hostClient.request).mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(command).toMatchObject({
+      type: 'run/intervention-submit',
+      sessionId: 'session-1',
+      runId: 'run-1',
+      userMessageId: 'user-queued-1',
+      input: { text: 'Adjust the model mapping' },
+      adoptQueuedTurn: { queuedTurnId: 'queued-1', expectedRevision: 3 },
+    });
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'session/queued-turn-updated',
+        queuedTurn: expect.objectContaining({
+          queuedTurnId: 'queued-1',
+          status: 'cancelled',
+          terminalReason: 'converted-to-intervention',
+        }),
+      }),
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'run/intervention-updated',
+        intervention: expect.objectContaining({ interventionId: 'intervention-1' }),
+      }),
+    );
+  });
 });
 
 describe('useComposerMedia failed attachment policy (Phase 0)', () => {
@@ -1004,5 +1180,128 @@ describe('useComposerMedia failed attachment policy (Phase 0)', () => {
 
     expect(harness.latest().pendingAttachments[0]?.uploadStatus).toBe('error');
     expect(harness.latest().pendingAttachments[0]?.uploadErrorKind).toBe('connection');
+  });
+});
+
+describe('useComposerMedia Conversation send path', () => {
+  let root: Root | null = null;
+  let container: HTMLDivElement | null = null;
+
+  afterEach(() => {
+    if (root) {
+      act(() => root?.unmount());
+    }
+    container?.remove();
+    root = null;
+    container = null;
+  });
+
+  function readPromptInput(hostClient: HostClient): {
+    text?: string;
+    agentMode?: string;
+    orchestrationSchemeId?: string;
+    skillId?: string;
+  } {
+    const requestMock = vi.mocked(hostClient.request);
+    const promptCall = requestMock.mock.calls.find((call) => call[0]?.type === 'session/prompt');
+    const command = promptCall?.[0] as
+      | { type: 'session/prompt'; input?: Record<string, unknown> }
+      | undefined;
+    return (command?.input ?? {}) as {
+      text?: string;
+      agentMode?: string;
+      orchestrationSchemeId?: string;
+      skillId?: string;
+    };
+  }
+
+  it('omits Agent mode, orchestration, and skill from Conversation prompts', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-16T00:00:00.000Z' },
+      }),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'conversation-1',
+          activeScope: { kind: 'general' },
+        },
+        dispatch: vi.fn(),
+        agentMode: 'plan',
+        orchestrationSchemeId: 'ultra-code',
+        conversationChat: true,
+      });
+      return null;
+    }
+
+    act(() => root?.render(<Harness />));
+    act(() => {
+      captured?.setComposer('hello conversation');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    const input = readPromptInput(hostClient);
+    expect(input.text).toBe('hello conversation');
+    expect(input.agentMode).toBeUndefined();
+    expect(input.orchestrationSchemeId).toBeUndefined();
+    expect(input.skillId).toBeUndefined();
+  });
+
+  it('still sends Agent fields for Project sessions', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-16T00:00:00.000Z' },
+      }),
+    } as unknown as HostClient;
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: {
+          ...createInitialChatUiState(),
+          activeSessionId: 'project-1',
+          projectPath: '/tmp/piwin-project',
+          projectTrusted: true,
+          activeScope: { kind: 'project', projectPath: '/tmp/piwin-project' },
+        },
+        dispatch: vi.fn(),
+        agentMode: 'plan',
+        orchestrationSchemeId: 'ultra-code',
+      });
+      return null;
+    }
+
+    act(() => root?.render(<Harness />));
+    act(() => {
+      captured?.setComposer('hello project');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    const input = readPromptInput(hostClient);
+    expect(input.text).toBe('hello project');
+    expect(input.agentMode).toBe('plan');
+    expect(input.orchestrationSchemeId).toBe('ultra-code');
   });
 });

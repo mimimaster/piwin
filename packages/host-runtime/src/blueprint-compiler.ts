@@ -21,11 +21,14 @@ import type {
   ResourceCatalog,
   ResourceInstance,
   ResourceManifest,
+  ResolvedSearchRoute,
+  ResolvedSessionLocation,
   SessionCapabilitySnapshot,
   SessionScope,
   SessionToolFamily,
   SessionToolPolicy,
   ContextPolicy,
+  ContextManifest,
   BackendSessionBlueprint,
   HostToolDescriptor,
   McpConfigDocument,
@@ -36,7 +39,11 @@ import { DEFAULT_AGENT_MODE_SYSTEM_PROMPT } from '@piwin/contracts';
 import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
 import { resolveWebConfig } from '@piwin/tools-web';
 import { loadPiwinConfig } from './config-store.js';
-import { resolveSessionLocation, resolveAgentCwd } from './session-scope.js';
+import {
+  isConversationChatSession,
+  resolveSessionLocation,
+  resolveAgentCwd,
+} from './session-scope.js';
 import { buildResourceShadowDiagnostics, createPiResourceLoader } from './pi-resource-loader.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
 import { getEnabledProviders, resolveDefaultModelRef } from './provider-helpers.js';
@@ -190,6 +197,50 @@ export async function compileBlueprintForWorker(
   const location = await resolveSessionLocation(input, options.piwinRoot);
   const agentCwd = resolveAgentCwd(location, input.cwd);
 
+  // Conversation fast path: pure-chat sessions split before any resource or
+  // context discovery so they never pay agent preparation costs and never
+  // receive implicit workspace context (Pure Chat spec §5.2).
+  const plan = isConversationChatSession(input, location.scope)
+    ? compileConversationPlan(input, options, { config, location })
+    : await compileAgentCapabilityPlan(input, options, {
+        config,
+        mcpConfig,
+        mcpEnabledServerIds,
+        location,
+        agentCwd,
+      });
+
+  return assembleCompiledBlueprint(input, options, { config, location, plan });
+}
+
+// Session classification lives in session-scope.ts so the compile path and
+// the prompt path share one rule; re-exported here for existing callers.
+export { isConversationChatSession };
+
+/** Capability decisions shared by both compile paths. */
+type CapabilityCompilePlan = {
+  snapshot: SessionCapabilitySnapshot;
+  resourceManifest: ResourceManifest;
+  contextManifest: ContextManifest;
+  hostToolboxTargetNames: string[];
+  appendSystemPrompt?: string;
+};
+
+type AgentCompileContext = {
+  config: PiwinConfig;
+  mcpConfig: McpConfigDocument;
+  mcpEnabledServerIds: string[];
+  location: ResolvedSessionLocation;
+  agentCwd: string;
+};
+
+async function compileAgentCapabilityPlan(
+  input: CreateSessionInput,
+  options: CompileBlueprintOptions,
+  ctx: AgentCompileContext,
+): Promise<CapabilityCompilePlan> {
+  const { config, mcpConfig, mcpEnabledServerIds, location, agentCwd } = ctx;
+
   // Discover resource paths (same logic as SDK adapter).
   const resources = options.discoverResources
     ? await options.discoverResources({
@@ -304,9 +355,6 @@ export async function compileBlueprintForWorker(
   };
 
   const snapshot = compileSessionCapabilitySnapshot(compileInput);
-  const model = input.model
-    ? { providerId: input.model.providerId, modelId: input.model.modelId }
-    : undefined;
 
   // Keep only a compact routing hint resident. The full configurable decision
   // policy + runtime contract is loaded through artifact_instructions on demand.
@@ -344,12 +392,41 @@ export async function compileBlueprintForWorker(
   const appendSystemPrompt =
     appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
 
-  const blueprint = projectBlueprintForWorker(snapshot, {
+  return {
+    snapshot,
+    resourceManifest,
+    contextManifest,
+    hostToolboxTargetNames,
+    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
+  };
+}
+
+/**
+ * Shared tail for both compile paths: provider envelope + wire projections.
+ * Conversation and Agent sessions differ only in their capability plan, never
+ * in session identity, provider handling, or backend blueprint structure.
+ */
+async function assembleCompiledBlueprint(
+  input: CreateSessionInput,
+  options: CompileBlueprintOptions,
+  ctx: {
+    config: PiwinConfig;
+    location: ResolvedSessionLocation;
+    plan: CapabilityCompilePlan;
+  },
+): Promise<CompiledBlueprint> {
+  const { config, location, plan } = ctx;
+  const settingsRevision = createSettingsSnapshot(config).runtimeRevision;
+  const model = input.model
+    ? { providerId: input.model.providerId, modelId: input.model.modelId }
+    : undefined;
+
+  const blueprint = projectBlueprintForWorker(plan.snapshot, {
     ...(input.model
       ? { model: { providerId: input.model.providerId, modelId: input.model.modelId } }
       : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
-    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
+    ...(plan.appendSystemPrompt ? { appendSystemPrompt: plan.appendSystemPrompt } : {}),
   });
 
   // Build provider envelope from live config.
@@ -370,10 +447,10 @@ export async function compileBlueprintForWorker(
     version: 1,
     sessionId: productSessionId,
     runtimeGenerationId: options.runtimeGenerationId ?? `generation-${randomUUID()}`,
-    capabilitySnapshot: snapshot,
+    capabilitySnapshot: plan.snapshot,
     ...(model ? { model: input.model } : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
-    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
+    ...(plan.appendSystemPrompt ? { appendSystemPrompt: plan.appendSystemPrompt } : {}),
   };
 
   const sessionBlueprint: SessionBlueprint = {
@@ -381,11 +458,11 @@ export async function compileBlueprintForWorker(
     runtimeGenerationId: backendBlueprint.runtimeGenerationId,
     scope: location.scope,
     workingDirectory: location.workingDirectory,
-    capabilitySnapshot: snapshot,
-    resourceManifest,
-    contextManifest,
-    hostToolDescriptors: [...snapshot.tools.hostTools],
-    hostToolboxTargetNames,
+    capabilitySnapshot: plan.snapshot,
+    resourceManifest: plan.resourceManifest,
+    contextManifest: plan.contextManifest,
+    hostToolDescriptors: [...plan.snapshot.tools.hostTools],
+    hostToolboxTargetNames: plan.hostToolboxTargetNames,
     backendBlueprint,
   };
 
@@ -406,6 +483,230 @@ export async function compileBlueprintForWorker(
 function computeMcpRevision(document: McpConfigDocument): string {
   const payload = JSON.stringify(document);
   return createHash('sha256').update(payload).digest('hex').slice(0, 12);
+}
+
+/** Toolbox target families a pure-chat session may route to (spec §7.1). */
+const CONVERSATION_TOOLBOX_FAMILIES: ReadonlySet<SessionToolFamily> = new Set([
+  'flashcards-read',
+  'flashcards-write',
+  'image-generation',
+  'video-generation',
+]);
+
+const CONVERSATION_CHAT_SYSTEM_PROMPT = `## Piwin Chat operating contract
+
+You are Piwin Chat, a general-purpose conversational assistant. Answer the user directly.
+Do not assume access to project or workspace files or state. Treat only content the user explicitly attached, referenced, or provided as external context.
+Use the available web or creation capabilities when they genuinely help, and present the result to the user rather than the internal tool mechanics.`;
+
+/** Resident system contract for pure-chat sessions: identity + boundary + routing. */
+export function formatConversationSystemPrompt(): string {
+  return CONVERSATION_CHAT_SYSTEM_PROMPT;
+}
+
+/**
+ * Pure-chat compile path (spec §5). Runs no resource or context discovery and
+ * builds an explicitly empty resource/context surface instead of scanning and
+ * filtering results.
+ */
+function compileConversationPlan(
+  input: CreateSessionInput,
+  options: CompileBlueprintOptions,
+  ctx: {
+    config: PiwinConfig;
+    location: ResolvedSessionLocation;
+  },
+): CapabilityCompilePlan {
+  const { config, location } = ctx;
+
+  const contextPolicy: ContextPolicy = {
+    allowPiNativeInstructions: false,
+    allowProjectAgentsFiles: false,
+    allowProjectSystemPrompts: false,
+  };
+  const resourceManifest: ResourceManifest = {
+    skills: [],
+    extensions: [],
+    prompts: [],
+    diagnostics: [],
+  };
+  const contextManifest: ContextManifest = { agentsFiles: [] };
+
+  // Resolve the resource policy from an explicitly empty catalog. The
+  // resolver is pure — no scanner runs — and yields a coherent empty policy.
+  const emptyCatalog: ResourceCatalog = { version: 1, entries: [], diagnostics: [] };
+  const resourcePolicy = resolveResourceActivations({
+    catalog: emptyCatalog,
+    disabledIdsByKind: { skill: [], extension: [], prompt: [] },
+    familyDisabled: {},
+    projectTrusted: false,
+  }).policy;
+
+  const compiledTools = compileConversationToolPolicy(config, input, options);
+  const tools = compiledTools.tools;
+  const searchRoute = compiledTools.searchRoute;
+  const hostToolboxTargetNames = compiledTools.hostToolboxTargetNames;
+
+  // Snapshot identity stays deterministic: MCP and resource revisions are
+  // stable hashes of empty inputs because those surfaces cannot change a
+  // conversation's capabilities.
+  const settingsRevision = createSettingsSnapshot(config).runtimeRevision;
+  const rulesRevision =
+    options.rulesRevision ?? computePermissionRulesRevision(createBundledRuleSet());
+  const snapshot = compileSessionCapabilitySnapshot({
+    inputs: {
+      rulesRevision,
+      settingsRevision,
+      projectRevision: computeProjectRevision(location.scope),
+      mcpRevision: computeMcpRevision({ mcpServers: {} }),
+      resourceCatalogRevision: computeResourceRevision(emptyCatalog),
+      extensionSetRevision: computeExtensionSetRevision([]),
+    },
+    scope: location.scope,
+    workingDirectory: location.workingDirectory,
+    trust: { kind: 'general' },
+    resources: resourcePolicy,
+    resourceManifest,
+    context: contextPolicy,
+    contextManifest,
+    tools,
+    searchRoute,
+  });
+
+  // Same lazy Artifact rule as the Agent path: compact routing hint only,
+  // the full runtime contract loads through artifact_instructions on demand.
+  const hasArtifactInstructions = snapshot.tools.hostTools.some(
+    (tool) => tool.name === 'artifact_instructions',
+  );
+  const artifactAppendPrompt = hasArtifactInstructions
+    ? formatArtifactCapabilityPrompt(config.artifact)
+    : undefined;
+  const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
+
+  const appendSystemPromptParts = [
+    formatConversationSystemPrompt(),
+    artifactAppendPrompt,
+    searchRouteAppendPrompt,
+  ].filter((prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0);
+  const appendSystemPrompt =
+    appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
+
+  return {
+    snapshot,
+    resourceManifest,
+    contextManifest,
+    hostToolboxTargetNames,
+    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
+  };
+}
+
+/**
+ * Conversation tool policy: web/artifact/toolbox-routable creation families
+ * only. Availability still flows through the shared resolver intersected with
+ * the concrete registration index, so no second availability rule exists.
+ */
+function compileConversationToolPolicy(
+  config: PiwinConfig,
+  input: CreateSessionInput,
+  options: CompileBlueprintOptions,
+): {
+  tools: SessionToolPolicy;
+  searchRoute: ResolvedSearchRoute;
+  hostToolboxTargetNames: string[];
+} {
+  const resolvedWebConfig = config.web ? resolveWebConfig(config.web) : undefined;
+  const configuredModel = findConfiguredModel(config, input.model);
+  const searchRoute = resolveSearchRoute({
+    model: configuredModel?.model ?? null,
+    web: resolvedWebConfig ?? config.web,
+    adapter: resolveNativeSearchAdapterSupport(
+      configuredModel?.provider.protocol,
+      configuredModel?.model.nativeSearchAdapter,
+    ),
+    externalDelegateReady: Boolean(findReadyWebSearchDelegate(config)),
+  });
+  const webSearchReady = shouldExposeExternalWebSearch(searchRoute);
+  const webFetchReady = resolvedWebConfig !== undefined;
+  const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
+  const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
+  const flashcardsEnabled = config.flashcards?.enabled !== false;
+
+  const resolvedToolPolicy = resolveToolPolicyDetails({
+    webSearch: webSearchReady,
+    webFetch: webFetchReady,
+    mcp: false,
+    imageGeneration: !imagegenDisabled,
+    videoGeneration: !videogenDisabled,
+    process: 'off',
+    browser: 'off',
+    subagents: 'off',
+    notes: 'off',
+    flashcards: flashcardsEnabled ? 'agent-create' : 'off',
+    artifact: config.artifact.enabled,
+    availability: {
+      webSearchReady,
+      webFetchReady,
+      mcpEnabledServerIds: [],
+      processReady: false,
+      browserReady: false,
+      imageGenerationReady: true,
+      videoGenerationReady: true,
+    },
+    filesystemRead: false,
+    filesystemWrite: false,
+    shell: false,
+    planning: false,
+    delegate: false,
+    notesEnabled: false,
+    flashcardsEnabled,
+    imageGenerationEnabled: !imagegenDisabled,
+    videoGenerationEnabled: !videogenDisabled,
+    ...(options.hostToolFamilyIndex
+      ? { availableFamilies: new Set(options.hostToolFamilyIndex.keys()) }
+      : {}),
+  });
+
+  const resolvedPolicy = resolvedToolPolicy.policy;
+  const hostToolFamilyIndex = options.hostToolFamilyIndex;
+  const customToolNames = hostToolFamilyIndex
+    ? resolvedPolicy.enabledFamilies.flatMap((family) => hostToolFamilyIndex.get(family) ?? [])
+    : resolvedToolPolicy.customToolNames;
+  const composedToolNames = options.hostToolDescriptors?.map((descriptor) => descriptor.name);
+  const effectiveToolNames = composedToolNames
+    ? customToolNames.filter((name) => composedToolNames.includes(name))
+    : customToolNames;
+
+  const hostToolboxTargetNames = hostToolFamilyIndex
+    ? resolvedPolicy.enabledFamilies
+        .filter((family) => CONVERSATION_TOOLBOX_FAMILIES.has(family))
+        .flatMap((family) => hostToolFamilyIndex.get(family) ?? [])
+        .sort()
+    : [];
+  // Target schemas stay behind the toolbox: the model-visible manifest keeps
+  // only the routing shell with a conversation-restricted target enum.
+  const hiddenBehindToolbox = new Set(hostToolboxTargetNames);
+  const modelVisibleToolNames = effectiveToolNames.filter(
+    (name) => !hiddenBehindToolbox.has(name),
+  );
+  const modelHostTools = buildHostToolsForPolicy(
+    modelVisibleToolNames,
+    options.hostToolDescriptors,
+  ).map((descriptor) =>
+    descriptor.name === HOST_TOOLBOX_NAME
+      ? buildHostToolboxDescriptor(hostToolboxTargetNames)
+      : descriptor,
+  );
+
+  return {
+    tools: {
+      enabledFamilies: resolvedPolicy.enabledFamilies,
+      piBuiltinToolNames: resolvedPolicy.piBuiltinToolNames,
+      hostTools: modelHostTools,
+      enabledMcpServerIds: [],
+    },
+    searchRoute,
+    hostToolboxTargetNames,
+  };
 }
 
 function computeProjectRevision(scope: SessionScope): string {

@@ -112,6 +112,8 @@ export type UseComposerMediaArgs = {
     absolutePath: string;
     relativePath: string;
   }) => boolean;
+  /** Conversation chat ignores Agent slash modes, skills, and orchestration. */
+  conversationChat?: boolean;
 };
 
 type SessionComposerSnapshot = {
@@ -119,6 +121,14 @@ type SessionComposerSnapshot = {
   attachments: PendingComposerAttachment[];
   contextRefs: PromptContextRef[];
 };
+
+/**
+ * Cap on per-session unsent composer snapshots. Each snapshot pins its
+ * attachments' object URLs and source Files until disposed, so an uncapped
+ * map grows without bound while the user hops between sessions with pasted
+ * media. Evicted (and cleared) snapshots dispose their attachments.
+ */
+export const MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS = 8;
 
 export function useComposerMedia(args: UseComposerMediaArgs) {
   const { locale } = useDesktopLocale();
@@ -240,34 +250,77 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     [readVisibleContextRefs, setActiveDraft],
   );
 
+  /**
+   * Release the local resources of detached attachments: object URL, retained
+   * source File, and any parked media/save result. Called after `session/prompt`
+   * ACKs, on snapshot eviction/clear, and on teardown.
+   */
+  const disposeComposerAttachments = useCallback(
+    (attachments: PendingComposerAttachment[]): void => {
+      for (const item of attachments) {
+        cancelledAttachmentIdsRef.current.add(item.localId);
+        sourceFilesRef.current.delete(item.localId);
+        mediaSaveResultsRef.current.delete(item.localId);
+        if (item.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      }
+    },
+    [],
+  );
+
   const removeCurrentDraft = useCallback((): void => {
     const draftId = currentDraftIdRef.current ?? activeDraftIdRef.current;
     currentDraftIdRef.current = null;
     setActiveDraft(null);
     draftTextRef.current = '';
     if (!draftId) return;
+    const droppedSnapshot = draftComposerSnapshotsRef.current.get(draftId);
     draftComposerSnapshotsRef.current.delete(draftId);
+    if (droppedSnapshot) {
+      disposeComposerAttachments(droppedSnapshot.attachments);
+    }
     const next = draftSessionsRef.current.filter((draft) => draft.id !== draftId);
     draftSessionsRef.current = next;
     setDraftSessions(next);
-  }, [setActiveDraft]);
+  }, [disposeComposerAttachments, setActiveDraft]);
 
-  const saveSessionComposerSnapshot = useCallback((sessionId: string): void => {
-    const snapshot: SessionComposerSnapshot = {
-      text: composerRef.current,
-      attachments: [...pendingAttachmentsRef.current],
-      contextRefs: readVisibleContextRefs(),
-    };
-    if (
-      snapshot.text.trim().length === 0 &&
-      snapshot.attachments.length === 0 &&
-      snapshot.contextRefs.length === 0
-    ) {
+  const saveSessionComposerSnapshot = useCallback(
+    (sessionId: string): void => {
+      const snapshot: SessionComposerSnapshot = {
+        text: composerRef.current,
+        attachments: [...pendingAttachmentsRef.current],
+        contextRefs: readVisibleContextRefs(),
+      };
+      if (
+        snapshot.text.trim().length === 0 &&
+        snapshot.attachments.length === 0 &&
+        snapshot.contextRefs.length === 0
+      ) {
+        const previous = sessionComposerSnapshotsRef.current.get(sessionId);
+        sessionComposerSnapshotsRef.current.delete(sessionId);
+        if (previous) {
+          disposeComposerAttachments(previous.attachments);
+        }
+        return;
+      }
+      // Delete-then-set refreshes LRU recency for the just-saved session.
       sessionComposerSnapshotsRef.current.delete(sessionId);
-      return;
-    }
-    sessionComposerSnapshotsRef.current.set(sessionId, snapshot);
-  }, [readVisibleContextRefs]);
+      sessionComposerSnapshotsRef.current.set(sessionId, snapshot);
+      while (sessionComposerSnapshotsRef.current.size > MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS) {
+        const oldest = sessionComposerSnapshotsRef.current.entries().next();
+        const [oldestId, oldestSnapshot] = oldest.value ?? [];
+        if (oldest.done || oldestId === undefined || oldestSnapshot === undefined) break;
+        sessionComposerSnapshotsRef.current.delete(oldestId);
+        // The active session's chips may still be live in the composer; only
+        // dispose attachments that no other holder can reach.
+        if (oldestId !== activeSessionIdRef.current) {
+          disposeComposerAttachments(oldestSnapshot.attachments);
+        }
+      }
+    },
+    [disposeComposerAttachments, readVisibleContextRefs],
+  );
 
   const restoreSessionComposerSnapshot = useCallback(
     (sessionId: string): void => {
@@ -303,6 +356,24 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       args.restorePendingContextRefs?.([...snapshot.contextRefs]);
     },
     [args, setComposer],
+  );
+
+  // Teardown sweep: no holder may outlive the hook, so every retained blob
+  // URL and source File (session snapshots, draft snapshots, live chips) is
+  // released here instead of leaking until page reload.
+  useEffect(
+    () => () => {
+      for (const snapshot of sessionComposerSnapshotsRef.current.values()) {
+        disposeComposerAttachments(snapshot.attachments);
+      }
+      sessionComposerSnapshotsRef.current.clear();
+      for (const snapshot of draftComposerSnapshotsRef.current.values()) {
+        disposeComposerAttachments(snapshot.attachments);
+      }
+      draftComposerSnapshotsRef.current.clear();
+      disposeComposerAttachments(pendingAttachmentsRef.current);
+    },
+    [disposeComposerAttachments],
   );
 
   /** Start an empty composer without restoring the previously selected draft. */
@@ -977,24 +1048,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     [attachmentCopy, runMediaSave],
   );
 
-  /**
-   * Release the local resources of sent attachments. Called only after
-   * `session/prompt` ACKs, so a failed prompt can restore the chips intact.
-   */
-  const disposeComposerAttachments = useCallback(
-    (attachments: PendingComposerAttachment[]): void => {
-      for (const item of attachments) {
-        cancelledAttachmentIdsRef.current.add(item.localId);
-        sourceFilesRef.current.delete(item.localId);
-        mediaSaveResultsRef.current.delete(item.localId);
-        if (item.previewUrl) {
-          URL.revokeObjectURL(item.previewUrl);
-        }
-      }
-    },
-    [],
-  );
-
   const handleComposerPaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>): void => {
       const items = event.clipboardData?.items;
@@ -1197,16 +1250,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         skillId?: string;
       } = {
         text: params.text,
-        agentMode: params.agentMode,
       };
+      if (args.conversationChat !== true) {
+        input.agentMode = params.agentMode;
+      }
       if (params.clientMessageId && params.clientMessageId.trim().length > 0) {
         input.clientMessageId = params.clientMessageId.trim();
       }
-      if (params.skillId && params.skillId.trim().length > 0) {
+      if (args.conversationChat !== true && params.skillId && params.skillId.trim().length > 0) {
         input.skillId = params.skillId.trim();
       }
       const schemeId = args.orchestrationSchemeId?.trim();
-      if (schemeId && schemeId !== 'off') {
+      if (args.conversationChat !== true && schemeId && schemeId !== 'off') {
         input.orchestrationSchemeId = schemeId;
       }
       if (params.attachments && params.attachments.length > 0) {
@@ -1237,6 +1292,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       args.orchestrationSchemeId,
       args.selectedModelKey,
       args.thinkingLevel,
+      args.conversationChat,
 
       resolveTurnModel,
     ],
@@ -1514,18 +1570,27 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           return;
         }
         if (parsed.kind === 'scheme') {
+          if (args.conversationChat === true) {
+            return;
+          }
           args.onOrchestrationSchemeChange?.(parsed.schemeId);
           setComposer('');
           clearPendingAttachments();
           return;
         }
         if (parsed.kind === 'mode' && !parsed.args) {
+          if (args.conversationChat === true) {
+            return;
+          }
           args.onAgentModeChange?.(parsed.modeId);
           setComposer('');
           clearPendingAttachments();
           return;
         }
         if (parsed.kind === 'skill') {
+          if (args.conversationChat === true) {
+            return;
+          }
           const skillEnabled =
             skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
           if (!skillEnabled) {
@@ -1555,12 +1620,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }));
         const parsed = parseComposerSlashSubmit(text, skills);
         if (parsed.kind === 'mode' && parsed.args) {
+          if (args.conversationChat === true) {
+            return;
+          }
           args.onAgentModeChange?.(parsed.modeId);
           displayText = parsed.args;
           hostPromptText = parsed.args;
           promptAgentMode = parsed.modeId;
           promptAttachments = [];
         } else if (parsed.kind === 'skill') {
+          if (args.conversationChat === true) {
+            return;
+          }
           hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
           promptAttachments = [];
           skillActivity = { skillId: parsed.skillId, name: parsed.skillName };
@@ -1944,32 +2015,47 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         (item) => item.queuedTurnId === messageId && item.status === 'pending',
       );
       if (!target) return;
-      const ordered = queuedTurns
-        .filter((item) => item.status === 'pending')
-        .sort((left, right) => left.sequence - right.sequence)
-        .map((item) => item.queuedTurnId)
-        .filter((id) => id !== messageId);
-      ordered.unshift(messageId);
-      const response = await args.hostClient.request({
-        type: 'session/queued-turn-reorder',
+      // The arrow action is a real steer: convert the queued turn into a Run
+      // intervention on the active Run. Without a foreground Run there is
+      // nothing to steer — the Host drain admits the queue on its own.
+      if (!args.state.activeRunId || !args.state.streaming) return;
+      if ((target.input.attachments?.length ?? 0) > 0 || (target.input.contextRefs?.length ?? 0) > 0) {
+        args.dispatch({
+          type: 'error',
+          message: '带附件或上下文引用的消息暂不支持调整为当前任务',
+        });
+        return;
+      }
+      const command = {
+        type: 'run/intervention-submit',
         sessionId,
-        expectedQueueRevision: args.state.queuedTurnQueueRevisions[sessionId] ?? 0,
-        orderedQueuedTurnIds: ordered,
-      });
+        runId: args.state.activeRunId,
+        interventionId: crypto.randomUUID(),
+        userMessageId: target.userMessageId,
+        input: { text: target.input.text },
+        adoptQueuedTurn: {
+          queuedTurnId: target.queuedTurnId,
+          expectedRevision: target.revision,
+        },
+      } as const;
+      let response = await args.hostClient.request(command);
+      if (!response.success && response.error.toLowerCase().includes('host request timed out')) {
+        // Conversion is atomic in the Host store; retrying the same identities
+        // replays the durable outcome instead of converting twice.
+        response = await args.hostClient.request(command);
+      }
       if (!response.success) {
         args.dispatch({ type: 'error', message: response.error });
         return;
       }
       const data = response.data as
-        | { queueRevision?: number; queuedTurns?: QueuedTurnRecord[] }
+        | { intervention?: RunInterventionRecord; queuedTurn?: QueuedTurnRecord }
         | undefined;
-      if (data?.queuedTurns && typeof data.queueRevision === 'number') {
-        args.dispatch({
-          type: 'session/queued-turns-hydrate',
-          sessionId,
-          queueRevision: data.queueRevision,
-          queuedTurns: data.queuedTurns,
-        });
+      if (data?.queuedTurn) {
+        args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: data.queuedTurn });
+      }
+      if (data?.intervention) {
+        args.dispatch({ type: 'run/intervention-updated', intervention: data.intervention });
       }
     },
     [args],

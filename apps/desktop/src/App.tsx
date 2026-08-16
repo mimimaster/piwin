@@ -2030,6 +2030,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onOrchestrationSchemeChange: setOrchestrationSchemeId,
     onAgentModeChange: setAgentMode,
     menuSkills,
+    conversationChat: state.activeScope.kind === 'general',
     onCompact: handleCompact,
     onAbort: handleAbort,
     ensureSession,
@@ -2907,6 +2908,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onDelegationDisabledChange: setDelegationDisabled,
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
+      isConversationSession: state.activeScope.kind === 'general',
       branchRequest: requestGit as ComposerDockProps['branchRequest'],
       recentProjects,
       onOpenProject: (path) => {
@@ -2977,6 +2979,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       selectedModelContextWindow,
       selectedModelKey,
       selectedModelLabel,
+      state.activeScope.kind,
       setAgentMode,
       setComposer,
       setDropActive,
@@ -3400,8 +3403,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       },
                     }
                   : {})}
-                permissionMode={config?.permissions?.preset ?? configPreset}
-                onOpenPermissions={() => openSettingsSection('permissions')}
+                {...(state.activeScope.kind === 'general'
+                  ? {}
+                  : {
+                      permissionMode: config?.permissions?.preset ?? configPreset,
+                      onOpenPermissions: () => openSettingsSection('permissions'),
+                    })}
                 locale={desktopLocale}
                 appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
                 sessionsExpanded={navDrawerOpen}
@@ -3542,6 +3549,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
                         streaming={!historyViewActive && state.streaming}
                         activeSessionId={state.activeSessionId}
+                        isConversationSession={state.activeScope.kind === 'general'}
                         editingMessageId={editingMessageId}
                         lastUserMessageId={lastUserMessageId}
                         activeTheme={activeTheme}
@@ -3675,7 +3683,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               </>
             }
             permissionBar={
-              state.permissionPrompt ? (
+              state.activeScope.kind !== 'general' && state.permissionPrompt ? (
                 <PermissionBar
                   prompt={state.permissionPrompt}
                   projectPath={state.projectPath}
@@ -3683,7 +3691,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     void handlePermission(decision, scope);
                   }}
                 />
-              ) : extensionUiRequest ? (
+              ) : state.activeScope.kind !== 'general' && extensionUiRequest ? (
                 <ExtensionUiPrompt
                   request={extensionUiRequest}
                   onResolve={(payload) => void handleExtensionUiResolve(payload)}
@@ -3701,12 +3709,23 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             statusBar={
               <StatusBar
                 modelLabel={selectedModelLabel}
-                skillsCount={menuSkills.filter((s) => s.enabled).length}
-                mcpCount={menuMcp.filter((m) => m.running).length}
                 agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
                 terminalAttention={terminalAttention}
+                isConversationSession={state.activeScope.kind === 'general'}
+                {...(state.activeScope.kind === 'general'
+                  ? {}
+                  : {
+                      skillsCount: menuSkills.filter((s) => s.enabled).length,
+                      mcpCount: menuMcp.filter((m) => m.running).length,
+                    })}
                 {...(typeof contextUsagePercent === 'number'
                   ? { contextPercent: contextUsagePercent }
+                  : {})}
+                {...(state.contextUsage
+                  ? { contextUsage: state.contextUsage }
+                  : {})}
+                {...(typeof selectedModelContextWindow === 'number'
+                  ? { modelContextWindow: selectedModelContextWindow }
                   : {})}
                 onOpenSkills={() => openSettingsSection('skills')}
                 onOpenMcp={() => openSettingsSection('tools')}

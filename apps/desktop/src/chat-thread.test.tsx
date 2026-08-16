@@ -1756,3 +1756,139 @@ describe('ChatThread render isolation (E1)', () => {
 function noop(): void {
   /* intentional noop for callback props */
 }
+
+describe('Conversation ChatThread presentation (CHT-401~407)', () => {
+  let container: HTMLElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  function renderConversation(messages: ChatMessageUi[], extras: Partial<Parameters<typeof ChatThread>[0]> = {}): void {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={messages}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={messages.find((message) => message.role === 'user')?.id ?? null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+            isConversationSession
+            {...extras}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+  }
+
+  it('renders content-first Conversation answers without Agent work details', () => {
+    const userMessage = createUserMessage('u-chat', 'search this');
+    const assistant: ChatMessageUi = {
+      id: 'a-chat',
+      role: 'assistant',
+      text: 'Here is the answer.',
+      thinking: 'I should search first',
+      tools: [
+        { toolCallId: 'tool-web', toolName: 'web_search', status: 'done', output: 'hits' },
+      ],
+      attachments: [],
+      status: 'done',
+      searchEvidence: {
+        query: 'search this',
+        provenance: 'external',
+        citations: [
+          {
+            title: 'Example',
+            url: 'https://example.com',
+            provenance: 'external',
+          },
+        ],
+      },
+    };
+    renderConversation([userMessage, assistant], {
+      plan: {
+        id: 'plan-1',
+        sessionId: 's-chat',
+        projectPath: '/tmp/unused',
+        title: 'Hidden plan',
+        status: 'approved',
+        steps: [],
+        goal: 'unused',
+        revision: 1,
+        createdAt: '2026-08-16T00:00:00.000Z',
+        updatedAt: '2026-08-16T00:00:00.000Z',
+        source: 'user',
+      },
+    });
+
+    expect(container.querySelector('[data-testid="conversation-response"]')).not.toBeNull();
+    expect(container.textContent).toContain('Here is the answer.');
+    expect(container.querySelector('[data-testid="turn-work-details"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-tool-group"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
+    expect(container.querySelector('[data-testid="files-changed-bar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="plan-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="assembly-summary-capsule"]')).toBeNull();
+    expect(container.textContent).toContain('Example');
+    expect(assistant.tools).toHaveLength(1);
+  });
+
+  it('hides thinking-only historical rows but keeps generation progress', () => {
+    const userMessage = createUserMessage('u-legacy', 'draw something');
+    const thinkingOnly: ChatMessageUi = {
+      id: 'a-legacy-think',
+      role: 'assistant',
+      text: '',
+      thinking: 'raw thought that must stay in the reducer',
+      tools: [{ toolCallId: 'tool-bash', toolName: 'bash', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+    };
+    const generated: ChatMessageUi = {
+      id: 'a-legacy-image',
+      role: 'assistant',
+      text: 'Here is the image.',
+      thinking: '',
+      tools: [{ toolCallId: 'tool-image', toolName: 'image_gen', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+    };
+    renderConversation([userMessage, thinkingOnly, generated]);
+
+    expect(container.querySelector('#msg-a-legacy-think')).toBeNull();
+    expect(container.querySelector('#msg-a-legacy-image')).not.toBeNull();
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
+    expect(thinkingOnly.tools).toHaveLength(1);
+    expect(thinkingOnly.thinking).toBe('raw thought that must stay in the reducer');
+  });
+
+  it('shows Conversation activity instead of AgentLocator while waiting', () => {
+    renderConversation([createUserMessage('u-wait', 'hello')], { streaming: true });
+    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
+      'Thinking…',
+    );
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
+  });
+});

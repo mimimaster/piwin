@@ -23,6 +23,8 @@ export type BuildSlashCatalogOptions = {
   agentMode?: AgentModeId;
   /** Whether the goal extension is enabled (defaults to true). */
   goalExtensionEnabled?: boolean;
+  /** Conversation chat hides Agent modes, skills, and orchestration commands. */
+  conversationChat?: boolean;
 };
 
 /**
@@ -58,6 +60,7 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   const hasActiveSession = options.hasActiveSession === true;
   const projectTrusted = options.projectTrusted === true;
   const interactive = hasActiveSession && projectTrusted;
+  const conversationChat = options.conversationChat === true;
 
   const items: SlashItem[] = [];
 
@@ -128,7 +131,7 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   }
 
   // --- Orchestration scheme (per-send opt-in) ---
-  {
+  if (!conversationChat) {
     let available = true;
     let unavailableReason: string | undefined;
     if (!interactive) {
@@ -163,6 +166,7 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
   }
 
   // --- Modes ---
+  if (!conversationChat) {
   for (const mode of AGENT_MODES) {
     const isGoalDisabled = mode.id === 'goal' && options.goalExtensionEnabled === false;
     const available = interactive && !isGoalDisabled;
@@ -186,8 +190,10 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       ...(unavailableReason ? { unavailableReason } : {}),
     });
   }
+  }
 
   // --- Skills (skip names reserved by commands/modes) ---
+  if (!conversationChat) {
   for (const skill of options.skills) {
     const token = skill.name.trim() || skill.id;
     const lower = token.toLowerCase();
@@ -233,6 +239,7 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       skillItem.unavailableReason = unavailableReason;
     }
     items.push(skillItem);
+  }
   }
 
   return items;

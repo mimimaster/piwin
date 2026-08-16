@@ -232,6 +232,7 @@ import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { SessionAllowlist } from './session-allowlist.js';
 import { fail, ok } from './response-helpers.js';
 import { indexRecordToSummary } from './session-summary-map.js';
+import { isConversationIndexRecord } from './session-scope.js';
 import { RunRegistry } from './run-registry.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
 import {
@@ -4279,6 +4280,13 @@ export class HostRuntime {
           return undefined;
         }
         return record.sideChatContext;
+      },
+      resolveIsConversationChat: async (sessionId) => {
+        const record = await getSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(this.options.piwinRoot)),
+          sessionId,
+        );
+        return record !== undefined && isConversationIndexRecord(record);
       },
       stopProcessesForSession: (sessionId) => this.stopProcessesForSession(sessionId),
       recordUserPrompt: (sessionId, input) => this.recordUserPrompt(sessionId, input),

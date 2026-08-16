@@ -7,6 +7,8 @@ import { IconButton, Popover } from '@piwin/ui-kit';
 import type { ContextUsageSnapshot } from '@piwin/contracts';
 import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
 import { IconClose } from './shell-icons';
+import { ConversationUsageDetails } from './conversation-usage-details.js';
+import type { ConversationUsageLocale } from './conversation-usage-copy.js';
 
 /**
  * Product-defined window used to *estimate* when the host's cached context
@@ -69,6 +71,9 @@ export type ContextUsageRingProps = {
     source?: 'pi' | 'host-estimate';
   };
   onOpenModelSettings?: () => void;
+  /** Conversation popover shows occupancy / last-turn fields, not Agent categories. */
+  isConversationSession?: boolean;
+  locale?: ConversationUsageLocale;
 };
 
 /**
@@ -329,21 +334,30 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement | n
         <div className="context-usage-bar" aria-hidden>
           <i style={{ width: `${percent}%` }} />
         </div>
-        <ul className="context-usage-rows">
-          {rows.map((row) => (
-            <li key={row.label}>
-              <span className="context-usage-row-label">
-                <i style={{ background: row.color }} aria-hidden />
-                {row.label}
-              </span>
-              <span className="context-usage-row-value muted">
-                {typeof row.tokens === 'number'
-                  ? `${breakdownIsEstimated ? '~' : ''}${formatTokens(row.tokens)}`
-                  : '—'}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {props.isConversationSession === true ? (
+          <ConversationUsageDetails
+            usage={props.usage}
+            used={used}
+            limit={limit}
+            locale={props.locale ?? 'en'}
+          />
+        ) : (
+          <ul className="context-usage-rows">
+            {rows.map((row) => (
+              <li key={row.label}>
+                <span className="context-usage-row-label">
+                  <i style={{ background: row.color }} aria-hidden />
+                  {row.label}
+                </span>
+                <span className="context-usage-row-value muted">
+                  {typeof row.tokens === 'number'
+                    ? `${breakdownIsEstimated ? '~' : ''}${formatTokens(row.tokens)}`
+                    : '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {props.onOpenModelSettings ? (
           <footer className="context-usage-popover-footer muted">
             <button

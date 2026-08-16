@@ -255,9 +255,9 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('composer plus menu selects Plan mode', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await page.getByTestId('composer-plus-btn').click();
-    await expect(page.getByTestId('composer-plus-menu')).toBeVisible();
-    await page.getByRole('menuitem', { name: 'Plan' }).click();
+    await openTrustedSession(page, '/tmp/piwin-e2e-plan-mode');
+    await page.getByTestId('composer-input').fill('/plan');
+    await page.getByTestId('send-btn').click();
     await expect(page.getByTestId('agent-mode-chip')).toContainText('Plan');
     await page.getByTestId('agent-mode-dismiss').click();
     await expect(page.getByTestId('agent-mode-chip')).toHaveCount(0);
