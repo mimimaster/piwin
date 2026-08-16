@@ -52,6 +52,9 @@ export type SettingsConfigRequest = (command: {
     | 'session/compact-export'
     | 'session/lifecycle-plan'
     | 'session/lifecycle-apply'
+    | 'session/list'
+    | 'session/unarchive'
+    | 'session/delete'
     | 'host/runtime-resources'
     | 'theme/list'
     | 'theme/set-active';
@@ -66,6 +69,11 @@ export type SettingsConfigRequest = (command: {
   key?: string;
   scope?: import('@piwin/contracts').SessionScope;
   projectPath?: string;
+  allScopes?: boolean;
+  includeArchived?: boolean;
+  order?: import('@piwin/contracts').SessionListOrder;
+  maxItems?: number;
+  force?: boolean;
   window?: { from?: string; to?: string };
   topSessions?: number;
   sessionId?: string;

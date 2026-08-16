@@ -26,6 +26,7 @@ export type SettingsSectionId =
   | 'web'
   | 'session'
   | 'runtime'
+  | 'archive'
   | 'automation'
   | 'subagents'
   | 'pets'
@@ -66,6 +67,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'artifact-playground', group: 'agent', labelKey: 'artifactPlayground', beta: true },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
   { id: 'runtime', group: 'agent', labelKey: 'runtime' },
+  { id: 'archive', group: 'agent', labelKey: 'archive' },
   { id: 'skills', group: 'integrations', labelKey: 'skills' },
   { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'tools', group: 'integrations', labelKey: 'tools' },

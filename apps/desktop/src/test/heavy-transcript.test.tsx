@@ -5,13 +5,15 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
 import {
-  appendBoundedStreamingText,
-  appendBoundedThinkingText,
+  appendBoundedLiveText,
   calculateUtf8ByteLength,
   chatUiReducer,
   createInitialChatUiState,
   MAX_LIVE_ASSISTANT_TEXT_BYTES,
   MAX_LIVE_THINKING_BYTES,
+  STREAMING_TEXT_RETENTION_OPTIONS,
+  STREAMING_TEXT_TRUNCATION_MARKER,
+  STREAMING_THINKING_RETENTION_OPTIONS,
 } from '../chat-reducer';
 import { MarkdownView } from '../MarkdownView';
 import {
@@ -75,20 +77,46 @@ describe('Plan A: Desktop Hard Memory Bounds & Incident Defense', () => {
       expect(calculateUtf8ByteLength(chinese)).toBe(12);
     });
 
-    it('bounds streaming text to MAX_LIVE_ASSISTANT_TEXT_BYTES and sets uiTruncated flag', () => {
+    it('bounds streaming text with head retention, marker, and freezes after truncation', () => {
       const current = 'x'.repeat(MAX_LIVE_ASSISTANT_TEXT_BYTES - 10);
       const delta = 'y'.repeat(50);
-      const result = appendBoundedStreamingText(current, delta);
-      expect(calculateUtf8ByteLength(result.text)).toBe(MAX_LIVE_ASSISTANT_TEXT_BYTES);
+      const result = appendBoundedLiveText(
+        { text: current },
+        delta,
+        STREAMING_TEXT_RETENTION_OPTIONS,
+      );
       expect(result.truncated).toBe(true);
+      expect(calculateUtf8ByteLength(result.text)).toBeLessThanOrEqual(
+        MAX_LIVE_ASSISTANT_TEXT_BYTES,
+      );
+      expect(result.text.endsWith(STREAMING_TEXT_TRUNCATION_MARKER)).toBe(true);
+      expect(result.text.startsWith('xxx')).toBe(true);
+      // Once truncated, every later append is a constant-time no-op.
+      const frozen = appendBoundedLiveText(
+        result,
+        'z'.repeat(1_000),
+        STREAMING_TEXT_RETENTION_OPTIONS,
+      );
+      expect(frozen.text).toBe(result.text);
+    });
+
+    it('accounts bytes incrementally on the below-cap path', () => {
+      const first = appendBoundedLiveText({ text: '' }, 'abc', STREAMING_TEXT_RETENTION_OPTIONS);
+      expect(first).toEqual({ text: 'abc', retainedBytes: 3, truncated: false });
+      const second = appendBoundedLiveText(first, 'def', STREAMING_TEXT_RETENTION_OPTIONS);
+      expect(second).toEqual({ text: 'abcdef', retainedBytes: 6, truncated: false });
     });
 
     it('bounds streaming thinking to MAX_LIVE_THINKING_BYTES with UTF-8 precision', () => {
       const current = 't'.repeat(MAX_LIVE_THINKING_BYTES - 20);
-      const delta = 'thinking more... '.repeat(10);
-      const result = appendBoundedThinkingText(current, delta);
-      expect(calculateUtf8ByteLength(result.text)).toBe(MAX_LIVE_THINKING_BYTES);
+      const delta = '思考中... '.repeat(10);
+      const result = appendBoundedLiveText(
+        { text: current },
+        delta,
+        STREAMING_THINKING_RETENTION_OPTIONS,
+      );
       expect(result.truncated).toBe(true);
+      expect(calculateUtf8ByteLength(result.text)).toBeLessThanOrEqual(MAX_LIVE_THINKING_BYTES);
     });
 
     it('enforces bounded transcript retention and sets uiTruncated on message state', () => {

@@ -37,6 +37,7 @@ import {
   appendBoundedText,
   createBoundedTextAccumulator,
   type BoundedTextAccumulator,
+  type BoundedTextAccumulatorOptions,
 } from './bounded-text-accumulator';
 import {
   adjustSessionListScopeTotal,
@@ -64,6 +65,13 @@ const TOOL_OUTPUT_RETENTION_OPTIONS = {
   maximumBytes: MAX_RETAINED_TOOL_OUTPUT_BYTES,
   truncationMarker: TOOL_OUTPUT_TRUNCATION_MARKER,
 } as const;
+/**
+ * Per-message tool card cap. Live streaming/running messages bypass the
+ * transcript window budget, so the card array itself must stay bounded;
+ * beyond the cap further tool/start events are dropped (their tool/end
+ * updates no-op on the missing id).
+ */
+export const MAX_TOOL_CARDS_PER_MESSAGE = 128;
 
 /** C1: maximum event ids retained for replay detection per session. */
 const MAX_RETAINED_EVENT_IDS = 10_000;
@@ -103,8 +111,14 @@ export type ChatMessageUi = {
   /** Run that produced this assistant message when host provided run identity. */
   runId?: string;
   subagentActivity?: SubagentActivityView;
-  /** True when the message text or thinking exceeded client memory boundaries and is displaying a trailing sliding window. */
+  /** True when the message text or thinking exceeded client memory boundaries and is head-truncated with a retention marker. */
   uiTruncated?: boolean;
+  /** Internal incremental UTF-8 accounting for `text`; omitted by legacy fixtures. */
+  textRetainedBytes?: number;
+  textTruncated?: boolean;
+  /** Internal incremental UTF-8 accounting for `thinking`; omitted by legacy fixtures. */
+  thinkingRetainedBytes?: number;
+  thinkingTruncated?: boolean;
   instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
   docCardSequence?: SessionTranscriptMessage['docCardSequence'];
 };
@@ -141,6 +155,8 @@ export type SubagentStreamSegment = {
   tools: SubagentStreamTool[];
   attachments?: PromptAttachment[];
   searchEvidence?: SearchEvidence;
+  /** True when segment text/thinking was head-truncated at settle time. */
+  truncated?: boolean;
 };
 
 /**
@@ -149,6 +165,11 @@ export type SubagentStreamSegment = {
  * hundreds of messages while the window stays open.
  */
 export const MAX_SUBAGENT_STREAM_SEGMENTS = 30;
+/** Head-retention caps applied when a completed segment is settled into the
+ * retained window; tighter than the live caps so MAX_SUBAGENT_STREAM_SEGMENTS
+ * segments cannot each pin half a megabyte. */
+export const MAX_RETAINED_SUBAGENT_SEGMENT_TEXT_BYTES = 64 * 1024;
+export const MAX_RETAINED_SUBAGENT_SEGMENT_THINKING_BYTES = 32 * 1024;
 
 export type SubagentStreamState = {
   childSessionId: string;
@@ -167,8 +188,16 @@ export type SubagentStreamState = {
   completionRevision: number;
   /** Accumulated assistant text deltas of the current live message. */
   text: string;
+  /** Incremental UTF-8 accounting for `text`; undefined on legacy state. */
+  textRetainedBytes?: number;
+  textTruncated?: boolean;
   /** Accumulated thinking deltas of the current live message. */
   thinking: string;
+  /** Incremental UTF-8 accounting for `thinking`; undefined on legacy state. */
+  thinkingRetainedBytes?: number;
+  thinkingTruncated?: boolean;
+  /** True when live text or thinking exceeded client memory boundaries. */
+  truncated?: boolean;
   /** Tool calls attributed to the current live message. */
   tools: SubagentStreamTool[];
   attachments?: PromptAttachment[];
@@ -354,11 +383,11 @@ export type ChatUiState = {
   contextUsage: ContextUsageSnapshot | null;
   /**
    * C1: bounded ordered ring of received eventIds for replay detection.
-   * New entries are appended; when the array exceeds MAX_RETAINED_EVENT_IDS
-   * the oldest EVENT_ID_TRIM_BATCH entries are dropped.
+   * Insertion-ordered Set for O(1) membership; when it exceeds
+   * MAX_RETAINED_EVENT_IDS the oldest EVENT_ID_TRIM_BATCH entries are dropped.
    * Cleared on session switch.
    */
-  receivedEventIds: string[];
+  receivedEventIds: Set<string>;
   /**
    * C1: last accepted envelope sequence per run (keyed by runId or "_global").
    * A new event with a sequence <= the stored value is stale.
@@ -493,6 +522,12 @@ export type ChatUiAction =
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
   | { type: 'run/updated'; run: ExecutionRunRecord }
   | { type: 'run/terminal'; run: ExecutionRunRecord }
+  | {
+      /** ADR 0038 reconciliation: Host authority says no run exists, but the
+       * UI still shows one streaming (lost terminal push). */
+      type: 'run/stale-clear';
+      sessionId: string;
+    }
   | { type: 'run/intervention-updated'; intervention: RunInterventionRecord }
   | { type: 'session/queued-turn-updated'; queuedTurn: QueuedTurnRecord }
   | { type: 'run/terminal-dismiss' }
@@ -604,7 +639,7 @@ export function createInitialChatUiState(): ChatUiState {
     lastCompactionDurationMs: null,
     lastCompactionFileOps: null,
     contextUsage: null,
-    receivedEventIds: [],
+    receivedEventIds: new Set<string>(),
     lastAcceptedSequenceByRun: {},
     runRecordsById: {},
     subagentStreams: {},
@@ -680,46 +715,51 @@ export function mapTranscriptMessagesToUi(
 
 export const MAX_LIVE_ASSISTANT_TEXT_BYTES = 500_000;
 export const MAX_LIVE_THINKING_BYTES = 200_000;
+export const STREAMING_TEXT_TRUNCATION_MARKER = '\n[display truncated: retention limit reached]';
+export const STREAMING_THINKING_TRUNCATION_MARKER =
+  '\n[reasoning truncated: retention limit reached]';
+export const STREAMING_TEXT_RETENTION_OPTIONS: BoundedTextAccumulatorOptions = {
+  maximumBytes: MAX_LIVE_ASSISTANT_TEXT_BYTES,
+  truncationMarker: STREAMING_TEXT_TRUNCATION_MARKER,
+};
+export const STREAMING_THINKING_RETENTION_OPTIONS: BoundedTextAccumulatorOptions = {
+  maximumBytes: MAX_LIVE_THINKING_BYTES,
+  truncationMarker: STREAMING_THINKING_TRUNCATION_MARKER,
+};
 const TRANSCRIPT_LIVE_TAIL_PIN_COUNT = 3;
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder('utf-8', { fatal: false });
 
 export function calculateUtf8ByteLength(text: string): number {
   return textEncoder.encode(text).byteLength;
 }
 
-export function sliceTrailingUtf8Bytes(
-  text: string,
-  maxBytes: number,
-): { text: string; truncated: boolean } {
-  const bytes = textEncoder.encode(text);
-  if (bytes.byteLength <= maxBytes) {
-    return { text, truncated: false };
-  }
-  const sliced = bytes.subarray(bytes.byteLength - maxBytes);
-  return {
-    text: textDecoder.decode(sliced),
-    truncated: true,
-  };
-}
-
-export function appendBoundedStreamingText(
-  current: string,
+/**
+ * Append a delta to live streamed text with incremental UTF-8 accounting.
+ * The ordinary path encodes only the delta; retained state that predates the
+ * accounting fields (legacy fixtures, hydrated history) is normalized once
+ * with a single full encode before the first append. Once truncated, every
+ * later append is a constant-time no-op — the head is kept and marked.
+ */
+export function appendBoundedLiveText(
+  accumulator: { text: string; retainedBytes?: number | undefined; truncated?: boolean | undefined },
   delta: string,
-  maxBytes = MAX_LIVE_ASSISTANT_TEXT_BYTES,
-): { text: string; truncated: boolean } {
-  const combined = current + delta;
-  return sliceTrailingUtf8Bytes(combined, maxBytes);
-}
-
-export function appendBoundedThinkingText(
-  current: string,
-  delta: string,
-  maxBytes = MAX_LIVE_THINKING_BYTES,
-): { text: string; truncated: boolean } {
-  const combined = current + delta;
-  return sliceTrailingUtf8Bytes(combined, maxBytes);
+  options: BoundedTextAccumulatorOptions,
+): BoundedTextAccumulator {
+  const normalized: BoundedTextAccumulator = accumulator.truncated
+    ? {
+        text: accumulator.text,
+        retainedBytes: accumulator.retainedBytes ?? calculateUtf8ByteLength(accumulator.text),
+        truncated: true,
+      }
+    : accumulator.retainedBytes === undefined
+      ? createBoundedTextAccumulator(accumulator.text, options)
+      : {
+          text: accumulator.text,
+          retainedBytes: accumulator.retainedBytes,
+          truncated: false,
+        };
+  return appendBoundedText(normalized, delta, options);
 }
 
 function collectLiveTranscriptMessageIds(
@@ -1135,7 +1175,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         transcriptOwnerSessionId,
         runTerminal: { kind: 'none' },
         // C1: clear event id ring for the new session
-        receivedEventIds: [],
+        receivedEventIds: new Set<string>(),
         lastAcceptedSequenceByRun: {},
         runRecordsById: warmHit
           ? warmHit.runRecordsById
@@ -1901,6 +1941,35 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         };
       }
       return enforceBoundedTranscriptWindow(applyRunRecord(state, action.run, true));
+    case 'run/stale-clear': {
+      // Reconciliation only ever clears stale liveness; it never invents a
+      // terminal outcome. Without an authoritative record the thread returns
+      // to its resting state and the sidebar marker drops.
+      if (state.activeSessionId !== null && state.activeSessionId !== action.sessionId) {
+        return {
+          ...state,
+          workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
+        };
+      }
+      if (state.runPhase === 'idle') {
+        return {
+          ...state,
+          workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
+        };
+      }
+      return {
+        ...state,
+        runPhase: 'idle',
+        streaming: false,
+        activeRunId: null,
+        activeRunPhase: null,
+        activeRunPhaseDetail: null,
+        activeRunStartedAt: null,
+        lastTerminalRunId: null,
+        activeSkill: null,
+        workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
+      };
+    }
     case 'run/intervention-updated': {
       if (state.activeSessionId !== action.intervention.sessionId) return state;
       const delivery: NonNullable<SessionTranscriptMessage['instructionDelivery']> = {
@@ -2255,11 +2324,20 @@ function finishCurrentSubagentSegment(stream: SubagentStreamState): SubagentStre
   if (stream.currentMessageId === null) {
     return stream;
   }
+  const boundedText = createBoundedTextAccumulator(stream.text, {
+    maximumBytes: MAX_RETAINED_SUBAGENT_SEGMENT_TEXT_BYTES,
+    truncationMarker: STREAMING_TEXT_TRUNCATION_MARKER,
+  });
+  const boundedThinking = createBoundedTextAccumulator(stream.thinking, {
+    maximumBytes: MAX_RETAINED_SUBAGENT_SEGMENT_THINKING_BYTES,
+    truncationMarker: STREAMING_THINKING_TRUNCATION_MARKER,
+  });
   const segment: SubagentStreamSegment = {
     messageId: stream.currentMessageId,
-    text: stream.text,
-    thinking: stream.thinking,
+    text: boundedText.text,
+    thinking: boundedThinking.text,
     tools: stream.tools,
+    ...(boundedText.truncated || boundedThinking.truncated ? { truncated: true } : {}),
     ...(stream.attachments && stream.attachments.length > 0
       ? { attachments: stream.attachments }
       : {}),
@@ -2273,7 +2351,12 @@ function finishCurrentSubagentSegment(stream: SubagentStreamState): SubagentStre
     ),
     completionRevision: stream.completionRevision + 1,
     text: '',
+    textRetainedBytes: 0,
+    textTruncated: false,
     thinking: '',
+    thinkingRetainedBytes: 0,
+    thinkingTruncated: false,
+    truncated: false,
     tools: [],
     attachments: [],
   };
@@ -2380,7 +2463,12 @@ function applySubagentStreamEvent(
     completedSegments: [],
     completionRevision: 0,
     text: '',
+    textRetainedBytes: 0,
+    textTruncated: false,
     thinking: '',
+    thinkingRetainedBytes: 0,
+    thinkingTruncated: false,
+    truncated: false,
     tools: [],
     attachments: [],
     streaming: false,
@@ -2399,7 +2487,12 @@ function applySubagentStreamEvent(
         streaming: true,
         currentMessageId: event.messageId,
         text: '',
+        textRetainedBytes: 0,
+        textTruncated: false,
         thinking: '',
+        thinkingRetainedBytes: 0,
+        thinkingTruncated: false,
+        truncated: false,
         tools: [],
         attachments: [],
       };
@@ -2409,10 +2502,22 @@ function applySubagentStreamEvent(
       };
     }
     case 'message/text_delta': {
+      const nextText = appendBoundedLiveText(
+        {
+          text: existing.text,
+          retainedBytes: existing.textRetainedBytes,
+          truncated: existing.textTruncated,
+        },
+        event.delta,
+        STREAMING_TEXT_RETENTION_OPTIONS,
+      );
       const updated: SubagentStreamState = {
         ...existing,
         streaming: true,
-        text: existing.text + event.delta,
+        text: nextText.text,
+        textRetainedBytes: nextText.retainedBytes,
+        textTruncated: nextText.truncated,
+        ...(nextText.truncated || existing.truncated ? { truncated: true } : {}),
       };
       return {
         ...state,
@@ -2420,10 +2525,17 @@ function applySubagentStreamEvent(
       };
     }
     case 'message/text_snapshot': {
+      const boundedText = createBoundedTextAccumulator(
+        event.text,
+        STREAMING_TEXT_RETENTION_OPTIONS,
+      );
       const updated: SubagentStreamState = {
         ...existing,
         streaming: true,
-        text: event.text,
+        text: boundedText.text,
+        textRetainedBytes: boundedText.retainedBytes,
+        textTruncated: boundedText.truncated,
+        ...(boundedText.truncated || existing.truncated ? { truncated: true } : {}),
       };
       return {
         ...state,
@@ -2431,10 +2543,22 @@ function applySubagentStreamEvent(
       };
     }
     case 'message/thinking_delta': {
+      const nextThinking = appendBoundedLiveText(
+        {
+          text: existing.thinking,
+          retainedBytes: existing.thinkingRetainedBytes,
+          truncated: existing.thinkingTruncated,
+        },
+        event.delta,
+        STREAMING_THINKING_RETENTION_OPTIONS,
+      );
       const updated: SubagentStreamState = {
         ...existing,
         streaming: true,
-        thinking: existing.thinking + event.delta,
+        thinking: nextThinking.text,
+        thinkingRetainedBytes: nextThinking.retainedBytes,
+        thinkingTruncated: nextThinking.truncated,
+        ...(nextThinking.truncated || existing.truncated ? { truncated: true } : {}),
       };
       return {
         ...state,
@@ -2626,7 +2750,7 @@ function envelopeRunKey(envelope: AgentEventEnvelope): string {
  */
 function isEnvelopeStale(state: ChatUiState, envelope: AgentEventEnvelope): boolean {
   // Replay: eventId already seen
-  if (state.receivedEventIds.includes(envelope.eventId)) {
+  if (state.receivedEventIds.has(envelope.eventId)) {
     return true;
   }
   // Stale: sequence not advancing
@@ -2646,11 +2770,17 @@ function recordEnvelope(state: ChatUiState, envelope: AgentEventEnvelope): ChatU
   const lastSeq = state.lastAcceptedSequenceByRun[runKey] ?? 0;
 
   let nextReceivedEventIds = state.receivedEventIds;
-  if (!nextReceivedEventIds.includes(envelope.eventId)) {
-    nextReceivedEventIds = [...nextReceivedEventIds, envelope.eventId];
-    // Bounded ring: drop oldest when over limit
-    if (nextReceivedEventIds.length > MAX_RETAINED_EVENT_IDS) {
-      nextReceivedEventIds = nextReceivedEventIds.slice(EVENT_ID_TRIM_BATCH);
+  if (!nextReceivedEventIds.has(envelope.eventId)) {
+    nextReceivedEventIds = new Set(nextReceivedEventIds);
+    nextReceivedEventIds.add(envelope.eventId);
+    // Bounded ring: drop oldest when over limit (Set keeps insertion order).
+    if (nextReceivedEventIds.size > MAX_RETAINED_EVENT_IDS) {
+      let toDrop = EVENT_ID_TRIM_BATCH;
+      for (const oldestId of nextReceivedEventIds) {
+        if (toDrop <= 0) break;
+        nextReceivedEventIds.delete(oldestId);
+        toDrop -= 1;
+      }
     }
   }
 
@@ -2761,11 +2891,21 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.delta.length > 0 ? finishMessageThinking(message, Date.now()) : message;
-        const { text, truncated } = appendBoundedStreamingText(message.text, event.delta);
+        const nextText = appendBoundedLiveText(
+          {
+            text: message.text,
+            retainedBytes: message.textRetainedBytes,
+            truncated: message.textTruncated,
+          },
+          event.delta,
+          STREAMING_TEXT_RETENTION_OPTIONS,
+        );
         return {
           ...nextMessage,
-          text,
-          ...(truncated || message.uiTruncated ? { uiTruncated: true } : {}),
+          text: nextText.text,
+          textRetainedBytes: nextText.retainedBytes,
+          textTruncated: nextText.truncated,
+          ...(nextText.truncated || message.uiTruncated ? { uiTruncated: true } : {}),
           status: 'streaming',
         };
       });
@@ -2780,14 +2920,16 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.text.length > 0 ? finishMessageThinking(message, Date.now()) : message;
-        const { text: boundedText, truncated } = sliceTrailingUtf8Bytes(
+        const boundedText = createBoundedTextAccumulator(
           event.text,
-          MAX_LIVE_ASSISTANT_TEXT_BYTES,
+          STREAMING_TEXT_RETENTION_OPTIONS,
         );
         return {
           ...nextMessage,
-          text: boundedText,
-          ...(truncated ? { uiTruncated: true } : {}),
+          text: boundedText.text,
+          textRetainedBytes: boundedText.retainedBytes,
+          textTruncated: boundedText.truncated,
+          ...(boundedText.truncated || message.uiTruncated ? { uiTruncated: true } : {}),
           status: message.status,
         };
       });
@@ -2801,14 +2943,21 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       return updateMessage(state, event.messageId, (message) => {
         const nextMessage =
           event.delta.length > 0 ? startMessageThinking(message, Date.now()) : message;
-        const { text: thinking, truncated } = appendBoundedThinkingText(
-          message.thinking,
+        const nextThinking = appendBoundedLiveText(
+          {
+            text: message.thinking,
+            retainedBytes: message.thinkingRetainedBytes,
+            truncated: message.thinkingTruncated,
+          },
           event.delta,
+          STREAMING_THINKING_RETENTION_OPTIONS,
         );
         return {
           ...nextMessage,
-          thinking,
-          ...(truncated || message.uiTruncated ? { uiTruncated: true } : {}),
+          thinking: nextThinking.text,
+          thinkingRetainedBytes: nextThinking.retainedBytes,
+          thinkingTruncated: nextThinking.truncated,
+          ...(nextThinking.truncated || message.uiTruncated ? { uiTruncated: true } : {}),
         };
       });
     case 'message/search_evidence': {
@@ -2926,6 +3075,11 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         return state;
       }
       return updateMessage(state, ownerMessage.id, (message) => {
+        if (message.tools.length >= MAX_TOOL_CARDS_PER_MESSAGE) {
+          // Card budget exhausted: skip this card rather than grow a
+          // protected live message without bound.
+          return message;
+        }
         const output = createBoundedToolOutput(event.presentation?.output?.text ?? '');
         return {
           ...finishMessageThinking(message, Date.now()),

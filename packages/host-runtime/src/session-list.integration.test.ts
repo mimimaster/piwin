@@ -57,6 +57,34 @@ async function createSeededRuntime(sessions: SessionIndexRecord[]): Promise<{
   };
 }
 
+function projectRecord(
+  id: string,
+  name: string,
+  projectPath: string,
+  updatedAt: string,
+  extras: Partial<SessionIndexRecord> = {},
+): SessionIndexRecord {
+  const record = createSessionRecord({
+    id,
+    projectPath,
+    scope: { kind: 'project', projectPath },
+    workingDirectory: projectPath,
+    name,
+    nameSource: extras.nameSource ?? 'user',
+  });
+  record.createdAt = updatedAt;
+  record.updatedAt = updatedAt;
+  if (extras.isPinned === true) {
+    record.isPinned = true;
+    record.pinnedAt = extras.pinnedAt ?? updatedAt;
+  }
+  if (extras.isArchived === true) {
+    record.isArchived = true;
+    record.archivedAt = extras.archivedAt ?? updatedAt;
+  }
+  return record;
+}
+
 const ORDER_FIXTURE: SessionIndexRecord[] = [
   generalRecord('id-alpha', 'Alpha', '2026-08-01T00:00:00.000Z'),
   generalRecord('id-bravo', 'Bravo', '2026-08-05T00:00:00.000Z'),
@@ -67,6 +95,10 @@ const ORDER_FIXTURE: SessionIndexRecord[] = [
   generalRecord('id-archived', 'Archived', '2026-08-12T00:00:00.000Z', {
     isArchived: true,
     archivedAt: '2026-08-12T00:00:00.000Z',
+  }),
+  projectRecord('id-project-1', 'Project Alpha', '/tmp/proj-1', '2026-08-13T00:00:00.000Z', {
+    isArchived: true,
+    archivedAt: '2026-08-13T00:00:00.000Z',
   }),
   generalRecord('id-placeholder', 'session-placeholder', '2026-08-09T00:00:00.000Z', {
     nameSource: 'default',
@@ -141,6 +173,31 @@ describe('HostRuntime session/list', () => {
       ]);
       expect(withArchived.totalCount).toBe(4);
       expect(withArchived.truncated).toBe(false);
+    } finally {
+      await dispose();
+    }
+  });
+
+  it('lists sessions across all scopes when allScopes is true', async () => {
+    const { runtime, dispose } = await createSeededRuntime(ORDER_FIXTURE);
+    try {
+      const all = listData(
+        await runtime.handleCommand({
+          type: 'session/list',
+          allScopes: true,
+          includeArchived: true,
+          order: 'alphabetical',
+        }),
+      );
+      expect(all.sessions.map((session) => session.name)).toEqual([
+        'Alpha',
+        'Archived',
+        'Bravo',
+        'Project Alpha',
+        'Zulu',
+      ]);
+      expect(all.totalCount).toBe(5);
+      expect(all.truncated).toBe(false);
     } finally {
       await dispose();
     }

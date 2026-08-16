@@ -636,7 +636,8 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
+  opacity: 0.88;
   border-radius: 0;
   cursor: pointer;
   transition:
@@ -646,10 +647,11 @@
 }
 .assistant-response-actions .msg-action-btn:hover:not(:disabled) {
   color: var(--text);
+  opacity: 1;
   transform: translateY(-1px);
 }
 .assistant-response-actions .msg-action-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
 }
 .assistant-response-actions .msg-action-btn:focus-visible {
@@ -662,7 +664,10 @@
 }
 .assistant-response-actions .fork-count-badge {
   gap: 2px;
-  opacity: 0.7;
+  opacity: 0.88;
+}
+.assistant-response-actions .fork-count-badge:hover:not(:disabled) {
+  opacity: 1;
 }
 
 /* Small, product-styled tooltip shown when an action icon is hovered. */

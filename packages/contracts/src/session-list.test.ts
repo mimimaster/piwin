@@ -58,4 +58,16 @@ describe('session/list contracts', () => {
     expect(data.truncated).toBe(true);
     expect(data.sessions).toHaveLength(1);
   });
+
+  it('round-trips an allScopes query', () => {
+    const query: SessionListCommand = {
+      type: 'session/list',
+      allScopes: true,
+      includeArchived: true,
+    };
+
+    expect(JSON.parse(JSON.stringify(query))).toEqual(query);
+    expect(query.allScopes).toBe(true);
+    expect(query.includeArchived).toBe(true);
+  });
 });

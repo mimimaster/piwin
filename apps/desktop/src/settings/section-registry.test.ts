@@ -25,6 +25,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'web',
   'session',
   'runtime',
+  'archive',
   'automation',
   'subagents',
   'pets',

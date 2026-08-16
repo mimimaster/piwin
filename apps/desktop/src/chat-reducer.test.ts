@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ExecutionRunRecord, QueuedTurnRecord } from '@piwin/contracts';
-import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
+import {
+  chatUiReducer,
+  createInitialChatUiState,
+  mapTranscriptMessagesToUi,
+  MAX_TOOL_CARDS_PER_MESSAGE,
+} from './chat-reducer';
 
 function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): ExecutionRunRecord {
   return {
@@ -332,6 +337,46 @@ describe('chatUiReducer', () => {
     expect(state.workingSessionIds).toEqual({});
     expect(state.completedAttentionSessionIds).toEqual({});
     expect(state.streaming).toBe(false);
+  });
+
+  it('run/stale-clear returns a stuck streaming thread to its resting state', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'run this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    expect(state.runPhase).toBe('streaming');
+    expect(state.workingSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, { type: 'run/stale-clear', sessionId: 's1' });
+
+    expect(state.runPhase).toBe('idle');
+    expect(state.streaming).toBe(false);
+    expect(state.activeRunId).toBeNull();
+    expect(state.workingSessionIds).toEqual({});
+  });
+
+  it('run/stale-clear keeps an already-resting thread unchanged apart from markers', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    const before = state;
+    state = chatUiReducer(state, { type: 'run/stale-clear', sessionId: 's1' });
+    expect(state).toEqual(before);
+  });
+
+  it('run/stale-clear only drops the background marker for a non-active session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'background run' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'foreground run' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-2' });
+
+    state = chatUiReducer(state, { type: 'run/stale-clear', sessionId: 's1' });
+
+    expect(state.workingSessionIds).toEqual({ s2: true });
+    expect(state.runPhase).toBe('streaming');
+    expect(state.activeRunId).toBe('run-2');
   });
 
   it('does not mark the active session when a terminal-shaped run update precedes the terminal push', () => {
@@ -3361,4 +3406,44 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.activeSessionMetadata).toMatchObject({ id: 'session-a', name: 'Named session A' });
   });
 
+});
+
+describe('tool card retention cap', () => {
+  it('drops tool/start events beyond MAX_TOOL_CARDS_PER_MESSAGE', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'assistant-1', role: 'assistant', runId: 'run-1' },
+    });
+
+    for (let index = 0; index < MAX_TOOL_CARDS_PER_MESSAGE + 10; index += 1) {
+      state = chatUiReducer(state, {
+        type: 'event',
+        sessionId: 's1',
+        event: {
+          type: 'tool/start',
+          toolCallId: `tool-${index}`,
+          toolName: 'probe',
+          runId: 'run-1',
+        },
+      });
+    }
+
+    expect(state.messages[0]?.tools).toHaveLength(MAX_TOOL_CARDS_PER_MESSAGE);
+    // tool/end for a dropped card is a no-op, not a crash.
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/end',
+        toolCallId: `tool-${MAX_TOOL_CARDS_PER_MESSAGE + 9}`,
+        isError: false,
+        runId: 'run-1',
+      },
+    });
+    expect(state.messages[0]?.tools).toHaveLength(MAX_TOOL_CARDS_PER_MESSAGE);
+  });
 });

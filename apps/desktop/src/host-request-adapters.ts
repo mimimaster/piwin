@@ -39,6 +39,9 @@ export type HostRequestAdapters = {
       | 'session/compact-export'
       | 'session/lifecycle-plan'
       | 'session/lifecycle-apply'
+      | 'session/list'
+      | 'session/unarchive'
+      | 'session/delete'
       | 'host/runtime-resources'
       | 'theme/list'
       | 'theme/set-active';
@@ -53,6 +56,11 @@ export type HostRequestAdapters = {
     key?: string;
     scope?: import('@piwin/contracts').SessionScope;
     projectPath?: string;
+    allScopes?: boolean;
+    includeArchived?: boolean;
+    order?: import('@piwin/contracts').SessionListOrder;
+    maxItems?: number;
+    force?: boolean;
     window?: { from?: string; to?: string };
     topSessions?: number;
     sessionId?: string;
@@ -446,6 +454,32 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         return hostClient.request({
           type: 'session/lifecycle-apply',
           planId: command.planId ?? '',
+        });
+      }
+      if (command.type === 'session/list') {
+        return hostClient.request({
+          type: 'session/list',
+          ...(command.scope ? { scope: command.scope } : {}),
+          ...(command.projectPath ? { projectPath: command.projectPath } : {}),
+          ...(command.allScopes !== undefined ? { allScopes: command.allScopes } : {}),
+          ...(command.includeArchived !== undefined
+            ? { includeArchived: command.includeArchived }
+            : {}),
+          ...(command.order ? { order: command.order } : {}),
+          ...(command.maxItems !== undefined ? { maxItems: command.maxItems } : {}),
+        });
+      }
+      if (command.type === 'session/unarchive') {
+        return hostClient.request({
+          type: 'session/unarchive',
+          sessionId: command.sessionId ?? '',
+        });
+      }
+      if (command.type === 'session/delete') {
+        return hostClient.request({
+          type: 'session/delete',
+          sessionId: command.sessionId ?? '',
+          ...(command.force !== undefined ? { force: command.force } : {}),
         });
       }
       if (!command.config) {
