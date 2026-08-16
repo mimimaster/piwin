@@ -24,6 +24,8 @@ import {
   type SearchNotesOptions,
 } from '@piwin/notes';
 import { fail, ok } from '../response-helpers.js';
+import type { DoccardsIngestionRegistry } from './doccards-job-commands.js';
+import type { HostPush } from '@piwin/contracts';
 
 export type KnowledgeCommandContext = {
   getNotesServices: () => Promise<{
@@ -34,6 +36,8 @@ export type KnowledgeCommandContext = {
   getCardStore: () => Promise<CardStore>;
   getFolderRag: () => Promise<FolderRag>;
   loadConfig: () => Promise<PiwinConfig>;
+  push?: (message: HostPush) => void;
+  ingestionJobs?: DoccardsIngestionRegistry;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -61,6 +65,11 @@ const TYPES = new Set<HostCommand['type']>([
   'doccards/rebind-folder',
   'doccards/forget-folder',
   'doccards/open-source',
+  'doccards/index-status',
+  'doccards/cancel-index',
+  'doccards/generate',
+  'doccards/generation-status',
+  'doccards/cancel-generation',
 ]);
 
 export function isKnowledgeCommand(command: HostCommand): boolean {
@@ -224,13 +233,42 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/scan-folder', result);
     }
     case 'doccards/index-folder': {
+      if (!context.ingestionJobs) {
+        return fail(requestId, 'doccards/index-folder', 'ingestion jobs are not available');
+      }
       const rag = await context.getFolderRag();
-      const result = await rag.indexFolder(
-        command.folderPath,
-        command.includeFiles ? { includeFiles: command.includeFiles } : undefined,
-      );
-      return ok(requestId, 'doccards/index-folder', result);
+      const started = await context.ingestionJobs.startIndex({
+        folderPath: command.folderPath,
+        ...(command.includeFiles ? { includeFiles: command.includeFiles } : {}),
+        rag,
+        ...(context.push ? { push: context.push } : {}),
+      });
+      if ('error' in started) {
+        return fail(requestId, 'doccards/index-folder', started.error);
+      }
+      return ok(requestId, 'doccards/index-folder', started.accepted);
     }
+    case 'doccards/index-status': {
+      if (!context.ingestionJobs) {
+        return fail(requestId, 'doccards/index-status', 'ingestion jobs are not available');
+      }
+      const job = await context.ingestionJobs.status(command.folderPath);
+      return ok(requestId, 'doccards/index-status', { job: job ?? null });
+    }
+    case 'doccards/cancel-index': {
+      if (!context.ingestionJobs) {
+        return fail(requestId, 'doccards/cancel-index', 'ingestion jobs are not available');
+      }
+      const result = await context.ingestionJobs.cancel(command.folderPath);
+      if ('error' in result) {
+        return fail(requestId, 'doccards/cancel-index', result.error);
+      }
+      return ok(requestId, 'doccards/cancel-index', { job: result });
+    }
+    case 'doccards/generate':
+    case 'doccards/generation-status':
+    case 'doccards/cancel-generation':
+      return fail(requestId, command.type, 'not implemented yet');
     case 'doccards/retrieve': {
       const rag = await context.getFolderRag();
       const canonical = await canonicalizeFolderPath(command.folderPath);
