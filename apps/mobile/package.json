@@ -23,9 +23,14 @@
     "@piwin/host-client": "workspace:*",
     "@piwin/host-transport": "workspace:*",
     "@piwin/ui-kit": "workspace:*",
+    "@streamdown/cjk": "1.0.3",
+    "@streamdown/math": "1.0.2",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-barcode-scanner": "^2.4.5",
+    "katex": "0.16.47",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "streamdown": "2.5.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

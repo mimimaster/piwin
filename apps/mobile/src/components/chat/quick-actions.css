@@ -1,0 +1,54 @@
+/* ── Modern Mobile Quick Actions Bar ── */
+.modern-quick-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 4px 8px 6px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.modern-quick-actions-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  border-radius: var(--radius-full);
+  background: var(--surface-control);
+  border: 1px solid var(--border);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--motion-quick) var(--motion-ease);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.quick-action-pill:active {
+  transform: scale(0.95);
+  background: var(--surface-control-hover);
+}
+
+.quick-action-pill.accent-pill {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.quick-action-pill .pill-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.quick-action-pill .pill-label {
+  line-height: 1.2;
+}

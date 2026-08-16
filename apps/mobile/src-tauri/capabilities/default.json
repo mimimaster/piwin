@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Minimal Piwin Mobile shell capabilities.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "barcode-scanner:default"]
 }
