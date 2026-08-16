@@ -43,6 +43,37 @@ class FakeRuntime implements HostRuntimePort {
         },
       };
     }
+    if (command.type === 'media/read') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          status: 'ready',
+          assetId: command.input.assetId,
+          sessionId: command.input.sessionId,
+          mimeType: 'image/png',
+          byteSize: 4,
+          base64Data: 'AQIDBA==',
+        },
+      };
+    }
+    if (command.type === 'preview/read-trusted-text') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          status: 'ready',
+          relativePath: command.input.relativePath,
+          displayRef: command.input.relativePath,
+          content: '# trusted\n',
+          byteSize: 10,
+          truncated: false,
+          readOnly: true,
+        },
+      };
+    }
     if (command.type === 'session/tool-output') {
       return {
         type: 'response',
@@ -865,6 +896,144 @@ describe('HostServer', () => {
       type: 'error',
       code: 'command-not-allowed',
     });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('serves media/read by logical id and rejects traversal ids (ADR 0052)', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-media-read-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-media-read-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'media-read-request',
+        command: {
+          type: 'media/read',
+          id: 'media-read-request',
+          input: { sessionId: 'session-1', assetId: 'asset-42' },
+        },
+      }),
+    );
+    const mediaRead = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'media-read-request',
+    );
+    // base64 bytes pass through untouched; no host path is present.
+    expect(JSON.stringify(mediaRead)).not.toContain('/Users/private');
+    expect(mediaRead).toMatchObject({
+      type: 'response',
+      response: { success: true, data: { status: 'ready', mimeType: 'image/png' } },
+    });
+
+    // Traversal-shaped ids must not reach the runtime.
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'media-read-traversal',
+        command: {
+          type: 'media/read',
+          id: 'media-read-traversal',
+          input: { sessionId: '..', assetId: 'id_rsa' },
+        },
+      }),
+    );
+    const rejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'media-read-traversal',
+    );
+    expect(rejected).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('serves preview/read-trusted-text by relative path and rejects traversal or media vault', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-trusted-text-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-trusted-text-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'trusted-ok',
+        command: {
+          type: 'preview/read-trusted-text',
+          input: { relativePath: 'config.json' },
+        },
+      }),
+    );
+    const trustedOk = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'trusted-ok',
+    );
+    expect(JSON.stringify(trustedOk)).not.toContain('/Users/private');
+    expect(trustedOk).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: { status: 'ready', relativePath: 'config.json', readOnly: true },
+      },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'trusted-traversal',
+        command: {
+          type: 'preview/read-trusted-text',
+          input: { relativePath: '../etc/passwd' },
+        },
+      }),
+    );
+    const traversal = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'trusted-traversal',
+    );
+    expect(traversal).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'trusted-media',
+        command: {
+          type: 'preview/read-trusted-text',
+          input: { relativePath: 'media/sess-1/a.png' },
+        },
+      }),
+    );
+    const mediaDenied = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'trusted-media',
+    );
+    expect(mediaDenied).toMatchObject({ type: 'error', code: 'command-not-allowed' });
 
     socket.close();
     await server.stop();

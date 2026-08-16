@@ -250,11 +250,52 @@ describe('remote skills/read + tool-output projection', () => {
     });
   });
 
-  it('declares skillPreview and toolOutputRead capabilities', () => {
+  it('declares skillPreview, toolOutputRead and mediaRead capabilities', () => {
     expect(createRemoteCapabilities()).toMatchObject({
       skillPreview: true,
       toolOutputRead: true,
+      mediaRead: true,
+      trustedTextPreview: true,
       contextSummary: true,
+    });
+  });
+
+  it('passes media/read base64 payloads through untouched', () => {
+    const context: Parameters<typeof projectRemoteResponse>[2] = {
+      hostInstanceId: 'host-1',
+      mode: 'sdk',
+      capabilities: createRemoteCapabilities(),
+      remoteMediaPaths: new Map<string, string>(),
+    };
+    const projected = projectRemoteResponse(
+      { type: 'media/read', input: { sessionId: 'sess-1', assetId: 'asset-1' } },
+      {
+        type: 'response',
+        command: 'media/read',
+        success: true,
+        data: {
+          status: 'ready',
+          assetId: 'asset-1',
+          sessionId: 'sess-1',
+          mimeType: 'image/png',
+          byteSize: 4,
+          base64Data: 'AQIDBA==',
+        },
+      },
+      context,
+    );
+    expect(projected).toEqual({
+      type: 'response',
+      command: 'media/read',
+      success: true,
+      data: {
+        status: 'ready',
+        assetId: 'asset-1',
+        sessionId: 'sess-1',
+        mimeType: 'image/png',
+        byteSize: 4,
+        base64Data: 'AQIDBA==',
+      },
     });
   });
 });

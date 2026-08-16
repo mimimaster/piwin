@@ -47,6 +47,10 @@ export type RemoteCapabilitySummary = {
   sessionPause?: boolean;
   permissionResolve: boolean;
   mediaUpload: boolean;
+  /** Remote-safe media vault byte fetch by logical asset id (ADR 0052). */
+  mediaRead?: boolean;
+  /** Remote-safe config-root text preview by relative path (ADR 0052 Slice 3). */
+  trustedTextPreview?: boolean;
   pushBatching?: boolean;
   cursorBatches?: boolean;
   boundedReplay?: boolean;

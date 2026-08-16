@@ -5,6 +5,7 @@ import type {
   HostCommand,
   HostHello,
   HostMode,
+  HostPush,
   MediaAttachmentRef,
   HostHydrationFrame,
   HostReplayDoneFrame,
@@ -138,9 +139,12 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/rename',
   'session/archive',
   'session/unarchive',
+  'session/delete',
   'session/tool-output',
   'permission/resolve',
   'media/save',
+  'media/read',
+  'preview/read-trusted-text',
   'skills/read',
   'extensions/list',
 ]);
@@ -196,7 +200,10 @@ export class HostServer {
         this.runtime.attachPushSink({
           id: sink.id,
           sequenced: false,
-          push: (message) => sink.push(projectRemotePush(message, this.projectionContext())),
+          push: (message) => {
+            this.rememberRemoteMediaRefsFromPush(message);
+            sink.push(projectRemotePush(message, this.projectionContext()));
+          },
         }),
       ...(options.maxReplay === undefined
         ? {}
@@ -476,6 +483,24 @@ export class HostServer {
         toError(error, 'Host command failed').message,
         frame.requestId,
       );
+    }
+  }
+
+  /**
+   * Host-generated assets (image_gen, video) reach remote clients through
+   * pushes, not media/save responses. Register their logical ids so outbound
+   * projection can rewrite vault paths to `remote-asset:<id>` refs (ADR 0052).
+   */
+  private rememberRemoteMediaRefsFromPush(message: HostPush): void {
+    collectMediaRefs(message, (id, path) => {
+      this.remoteMediaPaths.set(id, path);
+    });
+    while (this.remoteMediaPaths.size > MAX_REMOTE_MEDIA_REFS) {
+      const oldestId = this.remoteMediaPaths.keys().next().value;
+      if (typeof oldestId !== 'string') {
+        break;
+      }
+      this.remoteMediaPaths.delete(oldestId);
     }
   }
 
@@ -881,7 +906,12 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         command.userMessageId.length <= 256 &&
         command.input.text.length <= 64 * 1024 &&
         (command.input.attachments === undefined || command.input.attachments.length === 0) &&
-        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0)
+        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0) &&
+        (command.adoptQueuedTurn === undefined ||
+          (command.adoptQueuedTurn.queuedTurnId.length > 0 &&
+            command.adoptQueuedTurn.queuedTurnId.length <= 256 &&
+            Number.isSafeInteger(command.adoptQueuedTurn.expectedRevision) &&
+            command.adoptQueuedTurn.expectedRevision > 0))
       );
     case 'run/intervention-edit':
       return (
@@ -917,6 +947,25 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         command.input.base64Data.length > 0 &&
         command.input.base64Data.length <= MAX_REMOTE_MEDIA_BASE64_CHARS
       );
+    case 'media/read':
+      // Logical-id addressing only; charset matches the media vault's safe
+      // segment domain so traversal-shaped ids never reach the runtime.
+      return (
+        /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.sessionId) &&
+        /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.assetId) &&
+        (command.input.maxBytes === undefined ||
+          (Number.isSafeInteger(command.input.maxBytes) &&
+            command.input.maxBytes >= 1024 &&
+            command.input.maxBytes <= 8 * 1024 * 1024))
+      );
+    case 'preview/read-trusted-text':
+      // Config-root-relative only. Reject absolute paths, traversal, and
+      // media-vault prefixes before the command reaches the runtime.
+      return isSafeTrustedTextRelativePath(command.input.relativePath) &&
+        (command.input.maxBytes === undefined ||
+          (Number.isSafeInteger(command.input.maxBytes) &&
+            command.input.maxBytes >= 1024 &&
+            command.input.maxBytes <= 512 * 1024));
     case 'skills/read':
       // Remote clients may only use the logical skillId; legacyPath and
       // projectPath are Host-local compatibility hints and stay disabled.
@@ -1014,8 +1063,62 @@ function isSafeQueuedTurnCommand(
   );
 }
 
+/** Walk a push payload for `{ kind: 'media', id, path }` attachment refs. */
+function collectMediaRefs(
+  value: unknown,
+  visit: (id: string, path: string) => void,
+  depth = 0,
+): void {
+  if (depth > 12 || value === null || typeof value !== 'object') {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectMediaRefs(item, visit, depth + 1);
+    }
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    record.kind === 'media' &&
+    typeof record.id === 'string' &&
+    typeof record.path === 'string' &&
+    record.id.length > 0 &&
+    record.id.length <= 256 &&
+    record.path.length > 0
+  ) {
+    visit(record.id, record.path);
+  }
+  for (const child of Object.values(record)) {
+    if (child !== null && typeof child === 'object') {
+      collectMediaRefs(child, visit, depth + 1);
+    }
+  }
+}
+
 function isSafeRemoteId(value: string): boolean {
   return value.length > 0 && value.length <= 256;
+}
+
+/**
+ * Remote preview paths must be config-root-relative, posix, and never the
+ * media vault. Absolute / traversal shapes stay at the guard so they never
+ * become a Host filesystem probe.
+ */
+function isSafeTrustedTextRelativePath(relativePath: string): boolean {
+  if (typeof relativePath !== 'string' || relativePath.length === 0 || relativePath.length > 512) {
+    return false;
+  }
+  if (relativePath.includes('\\') || relativePath.includes('..')) {
+    return false;
+  }
+  if (relativePath.startsWith('/') || /^[A-Za-z]:/.test(relativePath)) {
+    return false;
+  }
+  if (relativePath === 'media' || relativePath.startsWith('media/')) {
+    return false;
+  }
+  return /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/.test(relativePath);
 }
 
 function isSafeRemoteAttachment(attachment: PromptAttachment): boolean {
