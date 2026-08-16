@@ -61,6 +61,9 @@ describe('folder-rag', () => {
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0]?.filePath).toBe('srs.md');
     expect(hits[0]?.content).toContain('Spaced repetition');
+    const pack = await rag.retrievePack(sourceFolder, 'spaced repetition forgetting');
+    expect(pack.sources[0]?.chunkId).toBeTruthy();
+    expect(pack.sources[0]?.relativePath).toBe('srs.md');
     rag.close();
   });
 

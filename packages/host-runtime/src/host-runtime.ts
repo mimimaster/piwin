@@ -258,7 +258,7 @@ import {
 } from './commands/walkthrough-commands.js';
 import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
 import { createDoccardsGenerationRegistry } from './commands/doccards-generation-jobs.js';
-import { createWalkthroughDraftCards } from './doccards-draft-cards.js';
+import { createTwoStageCompleteJson } from './doccards-draft-cards.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import {
   createSessionHostToolExecutionPort,
@@ -4760,7 +4760,7 @@ export class HostRuntime {
         push: (message) => this.push(message),
         ingestionJobs: this.doccardsIngestion,
         generationJobs: this.doccardsGeneration,
-        draftCards: createWalkthroughDraftCards(() => loadPiwinConfig(this.options.piwinRoot)),
+        completeJson: createTwoStageCompleteJson(() => loadPiwinConfig(this.options.piwinRoot)),
         ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
       },
       ...(subagentOrchestrator

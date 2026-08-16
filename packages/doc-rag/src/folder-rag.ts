@@ -8,6 +8,7 @@
 import { writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
+  ContextPack,
   DocChunk,
   DocChunker,
   EmbeddingProvider,
@@ -210,11 +211,11 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     });
   }
 
-  async function retrieve(
+  async function retrievePack(
     folderPath: string,
     query: string,
     retrieveOptions?: RetrieveOptions,
-  ): Promise<RetrievedChunk[]> {
+  ): Promise<ContextPack> {
     const canonical = await canonicalizeFolderPath(folderPath);
     if (!canonical) {
       throw new Error(`Folder not found: ${folderPath}`);
@@ -243,7 +244,16 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
       ...(retrieveOptions?.signal ? { signal: retrieveOptions.signal } : {}),
     });
-    return result.pack.sources.map((source) => ({
+    return result.pack;
+  }
+
+  async function retrieve(
+    folderPath: string,
+    query: string,
+    retrieveOptions?: RetrieveOptions,
+  ): Promise<RetrievedChunk[]> {
+    const pack = await retrievePack(folderPath, query, retrieveOptions);
+    return pack.sources.map((source) => ({
       filePath: source.relativePath,
       content: source.text,
       startLine: source.startLine ?? 1,
@@ -279,6 +289,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     scanFolder,
     indexFolder,
     retrieve,
+    retrievePack,
     listDocuments,
     isIndexed,
     close: () => {

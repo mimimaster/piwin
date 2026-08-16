@@ -1,5 +1,5 @@
 /**
- * P4 generation job: retrieve V2 → single-pass cards → CardStore.
+ * Generation job: retrieve V2 → two-stage LLM (or test draftCards) → CardStore.
  * Persist lives here so @piwin/doc-rag stays free of @piwin/flashcards.
  */
 import { randomUUID } from 'node:crypto';
@@ -11,8 +11,10 @@ import {
   canonicalizeFolderPath,
   FLASHCARD_QUALITY_RULES,
   folderKey,
+  runTwoStageGeneration,
   toFlashcardCreateInputs,
   writeGenerationRecord,
+  type CompleteJsonFn,
   type DraftCardsFn,
   type FolderRag,
 } from '@piwin/doc-rag';
@@ -52,7 +54,8 @@ export type DoccardsGenerationRegistry = {
     deck?: string;
     rag: FolderRag;
     cardStore: CardStore;
-    draftCards: DraftCardsFn;
+    draftCards?: DraftCardsFn;
+    completeJson?: CompleteJsonFn;
     piwinRoot?: string;
     push?: (message: HostPush) => void;
     isIndexRunning: (folderKey: string) => boolean;
@@ -135,40 +138,67 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
           emit(input.push, next, terminal);
         };
         try {
-          const chunks = await input.rag.retrieve(canonical, topic, {
-            fileAllowlist: selected,
-            signal: abort.signal,
-          });
-          if (chunks.length === 0) {
+          const pack = input.rag.retrievePack
+            ? await input.rag.retrievePack(canonical, topic, {
+                fileAllowlist: selected,
+                signal: abort.signal,
+              })
+            : {
+                query: topic,
+                folderKey: key,
+                retrievalMode: 'fts_only' as const,
+                degraded: !input.rag.hasEmbeddingProvider,
+                sources: (
+                  await input.rag.retrieve(canonical, topic, {
+                    fileAllowlist: selected,
+                    signal: abort.signal,
+                  })
+                ).map((chunk, index) => ({
+                  chunkId: `ret-${index}`,
+                  documentId: chunk.filePath,
+                  relativePath: chunk.filePath,
+                  text: chunk.content,
+                  startLine: chunk.startLine,
+                  endLine: chunk.endLine,
+                  retrievedBy: 'fts' as const,
+                })),
+              };
+          if (pack.sources.length === 0) {
             update({ status: 'FAILED' }, true);
             return;
           }
-          update({ status: 'GENERATING_CARDS' });
-          const pack = {
-            query: topic,
-            folderKey: key,
-            retrievalMode: 'fts_only' as const,
-            degraded: !input.rag.hasEmbeddingProvider,
-            sources: chunks.map((chunk, index) => ({
-              chunkId: `ret-${index}`,
-              documentId: chunk.filePath,
-              relativePath: chunk.filePath,
-              text: chunk.content,
-              startLine: chunk.startLine,
-              endLine: chunk.endLine,
-              retrievedBy: 'fts' as const,
-            })),
-          };
           const existing = await input.cardStore.list({ sourceFolder: canonical });
-          const drafts = assignPositions(
-            await input.draftCards({
+          let drafts;
+          let pipelineVersion = 'v2-single-llm-legacy';
+          let knowledgePointIds: string[] = [];
+          if (input.completeJson) {
+            update({ status: 'EXTRACTING_KNOWLEDGE' });
+            const staged = await runTwoStageGeneration({
               topic,
               workspaceName,
               pack,
               existingFronts: existing.map((card) => card.front),
-              qualityRules: FLASHCARD_QUALITY_RULES,
-            }),
-          );
+              generationId,
+              completeJson: input.completeJson,
+              signal: abort.signal,
+            });
+            drafts = staged.cards;
+            pipelineVersion = staged.pipelineVersion;
+            knowledgePointIds = staged.knowledgePoints.map((kp) => kp.id);
+          } else if (input.draftCards) {
+            update({ status: 'GENERATING_CARDS' });
+            drafts = assignPositions(
+              await input.draftCards({
+                topic,
+                workspaceName,
+                pack,
+                existingFronts: existing.map((card) => card.front),
+                qualityRules: FLASHCARD_QUALITY_RULES,
+              }),
+            );
+          } else {
+            throw new Error('GENERATION_MODEL_NOT_CONFIGURED');
+          }
           if (drafts.length === 0) {
             update({ status: 'COMPLETED', created: 0, skipped: 0, createdCardIds: [] }, true);
             return;
@@ -194,6 +224,9 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
             createdCardIds: persisted.created,
             retrievalMode: pack.retrievalMode,
             degraded: pack.degraded,
+            pipelineVersion,
+            knowledgePointIds,
+            sourceChunkIds: [...new Set(drafts.flatMap((card) => card.sourceChunkIds))],
           });
           update(
             {

@@ -83,8 +83,15 @@ export function toFlashcardCreateInputs(input: {
   pack: ContextPack;
 }): FlashcardCreateInput[] {
   return input.cards.map((card) => {
-    const first = input.pack.sources.find((source) => card.sourceChunkIds.includes(source.chunkId))
-      ?? input.pack.sources[0];
+    const first =
+      pickLegacySource(card.sourceChunkIds, input.pack) ?? input.pack.sources[0];
+    const sourceDocumentIds = [
+      ...new Set(
+        input.pack.sources
+          .filter((source) => card.sourceChunkIds.includes(source.chunkId))
+          .map((source) => source.documentId),
+      ),
+    ];
     return {
       deck: input.deck,
       front: card.front,
@@ -97,8 +104,14 @@ export function toFlashcardCreateInputs(input: {
       ...(card.cardType ? { cardType: card.cardType } : {}),
       generationId: input.generationId,
       ...(card.sourceChunkIds.length > 0 ? { sourceChunkIds: card.sourceChunkIds } : {}),
+      ...(card.knowledgePointIds.length > 0 ? { knowledgePointIds: card.knowledgePointIds } : {}),
+      ...(sourceDocumentIds.length > 0 ? { sourceDocumentIds } : {}),
     };
   });
+}
+
+function pickLegacySource(sourceChunkIds: string[], pack: ContextPack) {
+  return pack.sources.find((source) => sourceChunkIds.includes(source.chunkId));
 }
 
 export async function writeGenerationRecord(input: {
@@ -111,6 +124,9 @@ export async function writeGenerationRecord(input: {
   createdCardIds: string[];
   retrievalMode: string;
   degraded: boolean;
+  pipelineVersion?: string;
+  knowledgePointIds?: string[];
+  sourceChunkIds?: string[];
 }): Promise<void> {
   const path = join(input.flashcardsRoot, 'generations', `${input.generationId}.json`);
   await mkdir(dirname(path), { recursive: true });
@@ -126,7 +142,9 @@ export async function writeGenerationRecord(input: {
         createdCardIds: input.createdCardIds,
         retrievalMode: input.retrievalMode,
         degraded: input.degraded,
-        pipelineVersion: SINGLE_PASS_PIPELINE,
+        pipelineVersion: input.pipelineVersion ?? SINGLE_PASS_PIPELINE,
+        ...(input.knowledgePointIds ? { knowledgePointIds: input.knowledgePointIds } : {}),
+        ...(input.sourceChunkIds ? { sourceChunkIds: input.sourceChunkIds } : {}),
         createdAt: new Date().toISOString(),
       },
       null,

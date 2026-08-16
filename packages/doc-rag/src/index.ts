@@ -51,6 +51,12 @@ export {
   parseDraftCardsJson,
 } from './generation/generation-service.js';
 export type { DraftCardsFn, DraftCardsRequest } from './generation/generation-service.js';
+export { runTwoStageGeneration, TWO_STAGE_PIPELINE } from './generation/generation-pipeline.js';
+export type { CompleteJsonFn, TwoStageGenerationResult } from './generation/generation-pipeline.js';
+export { parseRawKnowledgePoints, RAW_KNOWLEDGE_POINT_SCHEMA } from './generation/kp-schema.js';
+export { postprocessKnowledgePoints } from './generation/kp-postprocess.js';
+export { parseGeneratedFlashcards } from './generation/flashcard-schema.js';
+export { qaGeneratedFlashcards } from './generation/flashcard-qa.js';
 export { getStateStorePath } from './paths.js';
 
 export {
