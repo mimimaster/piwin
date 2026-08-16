@@ -34,6 +34,10 @@ export { createTextParser } from './parsers/text-parser.js';
 export { chunkParsedDocument } from './chunking/chunk-service.js';
 export { mapUnstructuredElements } from './parsers/unstructured-adapter.js';
 export { mapMineruContentList } from './parsers/mineru-adapter.js';
+export { openLanceDocIndex } from './indexing/lancedb-index.js';
+export type { DocIndexStore } from './indexing/doc-index-store.js';
+export { retrieveV2 } from './retrieval/retrieval-service.js';
+export { adaptNotesEmbedding } from './embedding-adapter.js';
 
 export { buildFlashcardGenerationPrompt } from './prompt-builder.js';
 export type { BuildFlashcardGenerationPromptInput } from './prompt-builder.js';
@@ -46,6 +50,8 @@ export {
   folderKey,
   getDocRagRoot,
   getDocIndexPath,
+  getLanceDbPath,
+  documentIdFor,
   getSourcePathSidecar,
   isSafeRelativePath,
   isPathConfined,
