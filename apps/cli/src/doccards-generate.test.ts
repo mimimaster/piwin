@@ -25,12 +25,13 @@ function createRag(chunks: Array<{ filePath: string; content: string }>): Folder
         snippet: chunk.content.slice(0, 40),
       })),
     ),
+    listDocuments: vi.fn(async () => []),
     isIndexed: vi.fn(async () => true),
     close: vi.fn(),
   };
 }
 
-describe('assembleDoccardsGeneratePrompt (current CLI default)', () => {
+describe('assembleDoccardsGeneratePrompt (--legacy-print-prompt)', () => {
   it('indexes then retrieves and returns a prompt, without touching CardStore', async () => {
     const create = vi.fn();
     const rag = createRag([{ filePath: 'srs.md', content: 'Spaced repetition fights forgetting.' }]);
@@ -39,7 +40,7 @@ describe('assembleDoccardsGeneratePrompt (current CLI default)', () => {
       folderPath: '/docs/Notes',
       topic: '间隔重复',
     });
-    expect(rag.indexFolder).toHaveBeenCalledWith('/docs/Notes', undefined);
+    expect(rag.indexFolder).not.toHaveBeenCalled();
     expect(rag.retrieve).toHaveBeenCalledWith(
       '/docs/Notes',
       '间隔重复',
@@ -55,7 +56,7 @@ describe('assembleDoccardsGeneratePrompt (current CLI default)', () => {
     await assembleDoccardsGeneratePrompt({ rag, folderPath: '/abs/Notes' });
     expect(rag.retrieve).toHaveBeenCalledWith(
       '/abs/Notes',
-      '/abs/Notes',
+      'Notes',
       expect.objectContaining({ limit: 10 }),
     );
   });

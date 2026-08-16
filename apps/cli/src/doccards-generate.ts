@@ -1,8 +1,6 @@
 /**
- * Current CLI doccards generate assembly (P0 freeze).
- *
- * Default still indexes, retrieves, and returns a prompt for session/prompt.
- * P4 will replace this with a Host generation job that writes CardStore.
+ * Legacy prompt assembly for `--legacy-print-prompt`.
+ * Default generate writes CardStore via doccards/generate (P4).
  */
 import {
   buildFlashcardGenerationPrompt,
@@ -24,10 +22,8 @@ export async function assembleDoccardsGeneratePrompt(
   input: AssembleDoccardsGeneratePromptInput,
 ): Promise<string> {
   const fileAllowlist = input.fileAllowlist;
-  const indexOptions = fileAllowlist?.length ? { includeFiles: fileAllowlist } : undefined;
-  await input.rag.indexFolder(input.folderPath, indexOptions);
   const topic = input.topic?.trim() ?? '';
-  const query = topic || input.folderPath;
+  const query = topic || input.folderPath.split(/[\\/]/).pop() || input.folderPath;
   const chunks = await input.rag.retrieve(input.folderPath, query, {
     limit: input.limit ?? 10,
     ...(fileAllowlist?.length ? { fileAllowlist } : {}),
