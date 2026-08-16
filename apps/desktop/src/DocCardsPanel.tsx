@@ -2,7 +2,7 @@
  * Doc Cards panel: scan/index a folder, then start a Host generation job.
  * Generate never reindexes — it only calls doccards/generate.
  */
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog } from '@piwin/ui-kit';
 import type {
   HostResponse,
@@ -10,16 +10,18 @@ import type {
   ScannedFileV2,
   FlashcardRecord,
   IngestionJob,
+  PiwinConfig,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { isIndexJobReady, waitForDoccardsIndexJob } from './doccards-index-job';
 import { runDoccardsGenerate } from './doccards-generate-client';
 import { useDesktopLocale } from './desktop-locale-context';
+import { knowledgeCapabilityLights } from './knowledge-capabilities';
 
 export type DocCardsPanelProps = {
   request: (command: DocCardsCommand) => Promise<HostResponse>;
-  /** Send a prompt to the active agent session to trigger generation. */
-  sendSessionPrompt?: ((text: string, title?: string) => Promise<void> | void) | undefined;
+  /** Open the review session created by generate. */
+  onOpenSession?: (sessionId: string) => void;
 };
 
 type DocCardsCommand =
@@ -32,7 +34,8 @@ type DocCardsCommand =
   | { type: 'doccards/open-source'; cardId: string }
   | { type: 'doccards/index-status'; folderPath: string }
   | { type: 'doccards/generate'; folderPath: string; includeFiles?: string[]; topic?: string }
-  | { type: 'doccards/generation-status'; folderPath: string };
+  | { type: 'doccards/generation-status'; folderPath: string }
+  | { type: 'config/get' };
 
 type ScanState = {
   files: ScannedDocFile[];
@@ -55,6 +58,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showForgetConfirm, setShowForgetConfirm] = useState(false);
+  const [config, setConfig] = useState<PiwinConfig | undefined>();
 
   const request = props.request;
 
@@ -175,13 +179,16 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
             : `已创建 ${job.created ?? job.createdCardIds?.length ?? 0} 张卡片`,
         ),
       );
+      if (job.sessionId) {
+        props.onOpenSession?.(job.sessionId);
+      }
     } catch (error) {
       const message = formatError(error);
       setError(message);
     } finally {
       setBusy(false);
     }
-  }, [folderPath, topic, request, scan, selectedFiles, t, listCards]);
+  }, [folderPath, topic, request, scan, selectedFiles, t, listCards, props]);
 
   const forgetFolder = useCallback(() => {
     setShowForgetConfirm(true);
@@ -227,8 +234,38 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     void listCards();
   }, [listCards]);
 
+  useEffect(() => {
+    void request({ type: 'config/get' }).then((response) => {
+      if (response.success) {
+        setConfig(response.data as PiwinConfig);
+      }
+    });
+  }, [request]);
+
+  const workspaceName = useMemo(() => {
+    const trimmed = folderPath.trim().replace(/[\\/]+$/, '');
+    const parts = trimmed.split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] ?? '';
+  }, [folderPath]);
+
+  const capabilityLights = useMemo(() => knowledgeCapabilityLights(config), [config]);
+
   return (
     <section className="doc-cards-panel" data-testid="doc-cards-panel">
+      {workspaceName ? (
+        <p className="doc-cards-workspace" data-testid="doc-cards-workspace">
+          {t(`Workspace: ${workspaceName}`, `工作区：${workspaceName}`)}
+        </p>
+      ) : null}
+      <ul className="doc-cards-capabilities" data-testid="doc-cards-capabilities">
+        {capabilityLights.map((light) => (
+          <li key={light.id} data-configured={light.configured ? 'true' : 'false'}>
+            {light.id}
+            {' · '}
+            {light.configured ? t('configured', '已配置') : t('unavailable', '不可用')}
+          </li>
+        ))}
+      </ul>
       <div className="doc-cards-folder-input">
         <label>
           <span className="doc-cards-label">{t('Folder path', '文件夹路径')}</span>
@@ -338,7 +375,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         </label>
         <Button
           onClick={generate}
-          disabled={busy || !isIndexJobReady(lastIndexJob)}
+          disabled={busy || selectedCount === 0 || !isIndexJobReady(lastIndexJob)}
           data-testid="doc-cards-generate-btn"
         >
           {t('Generate cards', '生成卡片')}
