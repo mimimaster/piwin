@@ -32,6 +32,13 @@ export function ingestionConfigHash(input: {
     .digest('hex');
 }
 
+export type IngestProgress = {
+  completedFiles: number;
+  totalFiles: number;
+  currentFile: string;
+  stage: 'parsing' | 'chunking' | 'embedding' | 'indexing';
+};
+
 export async function ingestSelectedFiles(input: {
   canonicalPath: string;
   relativePaths: string[];
@@ -40,6 +47,7 @@ export async function ingestSelectedFiles(input: {
   state: FolderStateStore;
   embedding?: SharedEmbeddingProvider;
   signal?: AbortSignal;
+  onProgress?: (update: IngestProgress) => void;
 }): Promise<IngestFileResult[]> {
   if (input.relativePaths.length === 0) {
     throw new Error('NO_SUPPORTED_FILES');
@@ -82,7 +90,19 @@ export async function ingestSelectedFiles(input: {
 
     const fileSize = (await stat(absolute)).size;
     try {
+      input.onProgress?.({
+        completedFiles: results.length,
+        totalFiles: input.relativePaths.length,
+        currentFile: relativePath,
+        stage: 'parsing',
+      });
       const parsed = await parser.parse({ relativePath, extension, content, documentId });
+      input.onProgress?.({
+        completedFiles: results.length,
+        totalFiles: input.relativePaths.length,
+        currentFile: relativePath,
+        stage: 'chunking',
+      });
       const chunks = await chunkParsedDocument({ parsed, folderKey: key });
       if (chunks.length === 0) {
         input.state.upsert({
@@ -104,6 +124,12 @@ export async function ingestSelectedFiles(input: {
       await input.store.deleteByDocumentId(documentId);
       const indexed: IndexedChunk[] = [];
       if (input.embedding) {
+        input.onProgress?.({
+          completedFiles: results.length,
+          totalFiles: input.relativePaths.length,
+          currentFile: relativePath,
+          stage: 'embedding',
+        });
         const vectors = await input.embedding.embedDocuments(
           chunks.map((chunk) => chunk.content),
           input.signal,
@@ -115,6 +141,12 @@ export async function ingestSelectedFiles(input: {
       } else {
         indexed.push(...chunks);
       }
+      input.onProgress?.({
+        completedFiles: results.length,
+        totalFiles: input.relativePaths.length,
+        currentFile: relativePath,
+        stage: 'indexing',
+      });
       await input.store.upsertChunks(indexed);
       input.state.upsert({
         documentId,

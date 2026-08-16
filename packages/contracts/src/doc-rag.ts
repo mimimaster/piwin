@@ -59,6 +59,12 @@ export type IndexFolderOptions = {
   /** If set, only chunk these relative paths. Empty array is an error. */
   includeFiles?: string[];
   signal?: AbortSignal;
+  onProgress?: (update: {
+    completedFiles: number;
+    totalFiles: number;
+    currentFile?: string;
+    stage: 'parsing' | 'chunking' | 'embedding' | 'indexing';
+  }) => void;
 };
 
 /** Result of `doccards/index-folder`. */

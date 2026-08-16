@@ -161,6 +161,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         state,
         ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
         ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
+        ...(indexOptions?.onProgress ? { onProgress: indexOptions.onProgress } : {}),
       });
       const failed = ingest.filter((item) => item.status === 'FAILED');
       const skippedIngest = ingest.filter((item) => item.status === 'SKIPPED').length;

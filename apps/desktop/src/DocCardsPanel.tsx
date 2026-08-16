@@ -10,13 +10,18 @@ import type {
   ScannedFileV2,
   FlashcardRecord,
   IngestionJob,
+  GenerationJob,
+  DocumentManifest,
   PiwinConfig,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import { isIndexJobReady, waitForDoccardsIndexJob } from './doccards-index-job';
+import { waitForDoccardsIndexJob } from './doccards-index-job';
 import { runDoccardsGenerate } from './doccards-generate-client';
 import { useDesktopLocale } from './desktop-locale-context';
 import { knowledgeCapabilityLights } from './knowledge-capabilities';
+import { DocCardsProgressRing } from './DocCardsProgressRing';
+import { generationProgress, ingestionProgress, selectedDocumentsReady } from './doccards-progress';
+import { pickProjectDirectory } from './pick-project-directory';
 
 export type DocCardsPanelProps = {
   request: (command: DocCardsCommand) => Promise<HostResponse>;
@@ -52,6 +57,8 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
   const [scan, setScan] = useState<ScanState>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [lastIndexJob, setLastIndexJob] = useState<IngestionJob | null>(null);
+  const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
+  const [documents, setDocuments] = useState<DocumentManifest[]>([]);
   const [cards, setCards] = useState<FlashcardRecord[]>([]);
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,6 +68,12 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
   const [config, setConfig] = useState<PiwinConfig | undefined>();
 
   const request = props.request;
+
+  const workspaceName = useMemo(() => {
+    const trimmed = folderPath.trim().replace(/[\\/]+$/, '');
+    const parts = trimmed.split(/[\\/]/).filter(Boolean);
+    return parts[parts.length - 1] ?? '';
+  }, [folderPath]);
 
   const scanFolder = useCallback(async () => {
     if (!folderPath.trim()) {
@@ -103,6 +116,24 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     }
   }, [folderPath, request, t]);
 
+  const refreshIndexStatus = useCallback(async () => {
+    if (!folderPath.trim()) return;
+    const response = await request({ type: 'doccards/index-status', folderPath: folderPath.trim() });
+    if (!response.success) return;
+    const data = response.data as { job?: IngestionJob | null; documents?: DocumentManifest[] };
+    if (data.job) setLastIndexJob(data.job);
+    setDocuments(data.documents ?? []);
+  }, [folderPath, request]);
+
+  const listCards = useCallback(async () => {
+    if (!folderPath.trim()) return;
+    const response = await request({ type: 'doccards/list-by-folder', folderPath: folderPath.trim() });
+    if (response.success) {
+      const data = response.data as { records: FlashcardRecord[] };
+      setCards(data.records ?? []);
+    }
+  }, [folderPath, request]);
+
   const indexFolder = useCallback(async () => {
     if (!folderPath.trim()) return;
     if (selectedFiles.length === 0 && scan) {
@@ -124,29 +155,27 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         setError(response.error);
         return;
       }
-      const job = await waitForDoccardsIndexJob(request, folderPath.trim());
-      setLastIndexJob(job);
-      setInfo(
-        t(
-          `Indexed ${job.completedFiles} files${job.status === 'COMPLETED_DEGRADED' ? ' (FTS-only)' : ''}`,
-          `已索引 ${job.completedFiles} 个文件${job.status === 'COMPLETED_DEGRADED' ? '（仅全文检索）' : ''}`,
-        ),
-      );
-      // Refresh card list for this folder.
+      const poll = window.setInterval(() => {
+        void refreshIndexStatus();
+      }, 200);
+      try {
+        const job = await waitForDoccardsIndexJob(request, folderPath.trim());
+        setLastIndexJob(job);
+        await refreshIndexStatus();
+        setInfo(
+          t(
+            `Indexed ${job.completedFiles} files${job.status === 'COMPLETED_DEGRADED' ? ' (FTS-only)' : ''}`,
+            `已索引 ${job.completedFiles} 个文件${job.status === 'COMPLETED_DEGRADED' ? '（仅全文检索）' : ''}`,
+          ),
+        );
+      } finally {
+        window.clearInterval(poll);
+      }
       void listCards();
     } finally {
       setBusy(false);
     }
-  }, [folderPath, request, scan, selectedFiles, t]);
-
-  const listCards = useCallback(async () => {
-    if (!folderPath.trim()) return;
-    const response = await request({ type: 'doccards/list-by-folder', folderPath: folderPath.trim() });
-    if (response.success) {
-      const data = response.data as { records: FlashcardRecord[] };
-      setCards(data.records ?? []);
-    }
-  }, [folderPath, request]);
+  }, [folderPath, request, scan, selectedFiles, t, refreshIndexStatus, listCards]);
 
   const generate = useCallback(async () => {
     if (!folderPath.trim()) {
@@ -160,6 +189,23 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     setBusy(true);
     setError(null);
     setInfo(null);
+    setGenerationJob({
+      id: 'pending',
+      folderKey: '',
+      folderPath: folderPath.trim(),
+      workspaceName: workspaceName || 'workspace',
+      includeFiles: selectedFiles,
+      status: 'RETRIEVING',
+    });
+    const poll = window.setInterval(() => {
+      void request({ type: 'doccards/generation-status', folderPath: folderPath.trim() }).then(
+        (response) => {
+          if (!response.success) return;
+          const job = (response.data as { job?: GenerationJob | null }).job;
+          if (job) setGenerationJob(job);
+        },
+      );
+    }, 200);
     try {
       const includeFiles =
         scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
@@ -168,6 +214,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         ...(includeFiles ? { includeFiles } : {}),
         ...(topic.trim() ? { topic: topic.trim() } : {}),
       });
+      setGenerationJob(job);
       void listCards();
       setInfo(
         t(
@@ -186,9 +233,10 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
       const message = formatError(error);
       setError(message);
     } finally {
+      window.clearInterval(poll);
       setBusy(false);
     }
-  }, [folderPath, topic, request, scan, selectedFiles, t, listCards, props]);
+  }, [folderPath, topic, request, scan, selectedFiles, t, listCards, props, workspaceName]);
 
   const forgetFolder = useCallback(() => {
     setShowForgetConfirm(true);
@@ -242,13 +290,31 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     });
   }, [request]);
 
-  const workspaceName = useMemo(() => {
-    const trimmed = folderPath.trim().replace(/[\\/]+$/, '');
-    const parts = trimmed.split(/[\\/]/).filter(Boolean);
-    return parts[parts.length - 1] ?? '';
-  }, [folderPath]);
-
   const capabilityLights = useMemo(() => knowledgeCapabilityLights(config), [config]);
+  const canGenerate = selectedDocumentsReady(selectedFiles, documents) && !busy;
+  const liveProgress =
+    lastIndexJob && (lastIndexJob.status === 'PENDING' || lastIndexJob.status === 'RUNNING')
+      ? ingestionProgress(lastIndexJob)
+      : generationJob &&
+          generationJob.status !== 'COMPLETED' &&
+          generationJob.status !== 'COMPLETED_DEGRADED' &&
+          generationJob.status !== 'FAILED' &&
+          generationJob.status !== 'CANCELED'
+        ? generationProgress(generationJob)
+        : null;
+
+  const chooseFolder = useCallback(async () => {
+    const picked = await pickProjectDirectory({
+      title: t('Choose a document folder', '选择文档文件夹'),
+      ...(folderPath.trim() ? { defaultPath: folderPath.trim() } : {}),
+    });
+    if (picked) {
+      setFolderPath(picked);
+      setScan(null);
+      setLastIndexJob(null);
+      setDocuments([]);
+    }
+  }, [folderPath, t]);
 
   return (
     <section className="doc-cards-panel" data-testid="doc-cards-panel">
@@ -277,6 +343,9 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
             data-testid="doc-cards-folder-input"
           />
         </label>
+        <Button onClick={() => void chooseFolder()} disabled={busy} data-testid="doc-cards-pick-folder-btn">
+          {t('Choose folder', '选择文件夹')}
+        </Button>
         <Button onClick={scanFolder} disabled={busy} data-testid="doc-cards-scan-btn">
           {t('Scan', '扫描')}
         </Button>
@@ -342,7 +411,11 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         </div>
       )}
 
-      {lastIndexJob && (
+      {liveProgress ? (
+        <DocCardsProgressRing progress={liveProgress} locale={isZh ? 'zh-CN' : 'en'} />
+      ) : null}
+
+      {lastIndexJob && lastIndexJob.status !== 'PENDING' && lastIndexJob.status !== 'RUNNING' && (
         <div className="doc-cards-index-result" data-testid="doc-cards-index-result">
           <p>
             {t(
@@ -375,7 +448,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
         </label>
         <Button
           onClick={generate}
-          disabled={busy || selectedCount === 0 || !isIndexJobReady(lastIndexJob)}
+          disabled={!canGenerate}
           data-testid="doc-cards-generate-btn"
         >
           {t('Generate cards', '生成卡片')}

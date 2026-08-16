@@ -80,6 +80,21 @@ export function createDoccardsIngestionRegistry(): DoccardsIngestionRegistry {
               ? { includeFiles: input.includeFiles }
               : {}),
             signal: abort.signal,
+            onProgress: (update) => {
+              const current = byFolder.get(key);
+              if (!current || current.id !== job.id || current.status !== 'RUNNING') return;
+              const next: IngestionJob = {
+                ...current,
+                completedFiles: update.completedFiles,
+                totalFiles: Math.max(current.totalFiles, update.totalFiles),
+                stageCounts: {
+                  ...current.stageCounts,
+                  [update.stage]: (current.stageCounts[update.stage] ?? 0) + 1,
+                },
+              };
+              byFolder.set(key, next);
+              emit(input.push, next, false);
+            },
           });
           const current = byFolder.get(key);
           if (!current || current.id !== job.id) return;

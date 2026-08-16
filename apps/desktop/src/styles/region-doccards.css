@@ -48,3 +48,34 @@
 .doc-cards-capabilities [data-configured='true'] {
   color: inherit;
 }
+
+.doc-cards-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.doc-cards-progress-ring {
+  flex: 0 0 auto;
+}
+
+.doc-cards-progress-track {
+  stroke: var(--border, #444);
+}
+
+.doc-cards-progress-fill {
+  stroke: var(--accent, #6ea8fe);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 180ms ease;
+}
+
+.doc-cards-progress-ring text {
+  fill: currentColor;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-cards-progress-label {
+  font-size: 13px;
+}
