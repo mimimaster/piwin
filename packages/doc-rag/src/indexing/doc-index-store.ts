@@ -31,5 +31,6 @@ export type DocIndexStore = {
   hybridSearch(query: HybridQuery): Promise<RetrievalHit[]>;
   ftsSearch(query: FtsQuery): Promise<RetrievalHit[]>;
   getChunksByIds(ids: string[]): Promise<IndexedChunk[]>;
+  hasDocument(documentId: string): Promise<boolean>;
   close(): Promise<void>;
 };

@@ -27,12 +27,14 @@ import { openDocIndex } from './doc-index.js';
 import type { DocIndex } from './doc-index.js';
 import type { DocIndexStore } from './indexing/doc-index-store.js';
 import { openLanceDocIndex } from './indexing/lancedb-index.js';
-import { writeParsedFolderIndex } from './indexing/write-folder-index.js';
+import { ingestSelectedFiles } from './indexing/ingestion-service.js';
+import { openFolderStateStore, type FolderStateStore } from './indexing/state-store.js';
 import {
   canonicalizeFolderPath,
   folderKey,
   getDocIndexPath,
   getLanceDbPath,
+  getStateStorePath,
   getSourcePathSidecar,
   isSafeRelativePath,
   isPathConfined,
@@ -60,6 +62,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
   // Open index lazily per folder; cache by canonical path.
   const indexCache = new Map<string, DocIndex>();
   const lanceCache = new Map<string, DocIndexStore>();
+  const stateCache = new Map<string, FolderStateStore>();
   // Serialize write access per canonical folder key to avoid concurrent
   // indexing corrupting the sqlite cache.
   const indexLocks = new Map<string, Promise<void>>();
@@ -107,6 +110,14 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     return store;
   }
 
+  async function getState(canonicalPath: string): Promise<FolderStateStore> {
+    const cached = stateCache.get(canonicalPath);
+    if (cached) return cached;
+    const store = await openFolderStateStore(getStateStorePath(canonicalPath, piwinRoot));
+    stateCache.set(canonicalPath, store);
+    return store;
+  }
+
   async function scanFolder(folderPath: string): Promise<ScanFolderResult> {
     return scanFolderFiles(folderPath, { registry: parserRegistry });
   }
@@ -129,6 +140,9 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       if (includeFiles) {
         const include = new Set(includeFiles);
         files = files.filter((file) => include.has(file.relativePath));
+      }
+      if (files.length === 0) {
+        throw new Error('NO_SUPPORTED_FILES');
       }
       const warnings: string[] = [];
       let totalBytes = 0;
@@ -170,20 +184,28 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       const index = await getIndex(canonical);
       await index.indexChunks(chunks);
       const lance = await getLance(canonical);
-      await writeParsedFolderIndex({
+      const state = await getState(canonical);
+      const ingest = await ingestSelectedFiles({
         canonicalPath: canonical,
         relativePaths: acceptedPaths,
         registry: parserRegistry,
         store: lance,
+        state,
         ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
         ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
       });
+      const failed = ingest.filter((item) => item.status === 'FAILED');
+      const skippedIngest = ingest.filter((item) => item.status === 'SKIPPED').length;
       return {
-        indexed,
-        chunks: chunks.length,
+        indexed: ingest.filter((item) => item.status === 'READY' || item.status === 'SKIPPED').length,
+        chunks: ingest.reduce((sum, item) => sum + item.chunkCount, 0),
         degraded: !embeddingProvider,
-        skipped,
-        warnings,
+        skipped: skipped + skippedIngest,
+        failed: failed.length,
+        warnings: [
+          ...warnings,
+          ...failed.map((item) => `${item.relativePath}: ${item.error ?? 'FAILED'}`),
+        ],
       };
     });
   }
@@ -232,6 +254,13 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     }));
   }
 
+  async function listDocuments(folderPath: string) {
+    const canonical = await canonicalizeFolderPath(folderPath);
+    if (!canonical) return [];
+    const state = await getState(canonical);
+    return state.list();
+  }
+
   async function isIndexed(folderPath: string): Promise<boolean> {
     const canonical = await canonicalizeFolderPath(folderPath);
     if (!canonical) return false;
@@ -250,6 +279,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     scanFolder,
     indexFolder,
     retrieve,
+    listDocuments,
     isIndexed,
     close: () => {
       for (const index of indexCache.values()) {
@@ -260,6 +290,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         void store.close();
       }
       lanceCache.clear();
+      for (const store of stateCache.values()) {
+        store.close();
+      }
+      stateCache.clear();
       indexLocks.clear();
     },
   };
