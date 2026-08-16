@@ -22,9 +22,6 @@ export {
   isSupportedExtension,
 } from './chunker.js';
 
-export { openDocIndex } from './doc-index.js';
-export type { DocIndex } from './doc-index.js';
-
 export { createFolderRag } from './folder-rag.js';
 export type { CreateFolderRagOptions } from './folder-rag.js';
 export { createParserRegistry } from './parsers/registry.js';
