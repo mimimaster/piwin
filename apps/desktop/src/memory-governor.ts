@@ -71,3 +71,26 @@ if (typeof window !== 'undefined') {
     globalMemoryGovernor.setLevel(level);
   }) as EventListener);
 }
+
+/**
+ * Bridge the Rust-side `desktop:memory-pressure` Tauri event (emitted by
+ * src-tauri/src/memory_pressure.rs) onto the DOM event the governor listens
+ * for. Without this bridge the governor never hears about OS pressure and the
+ * degradation tiers stay dead code. Non-Tauri harnesses (tests, browser dev)
+ * have no event channel and intentionally keep the governor at `normal`.
+ */
+async function bridgeTauriMemoryPressureEvents(): Promise<void> {
+  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+    return;
+  }
+  const { listen } = await import('@tauri-apps/api/event');
+  await listen<{ level?: MemoryPressureLevel }>('desktop:memory-pressure', (event) => {
+    window.dispatchEvent(
+      new CustomEvent('desktop:memory-pressure', { detail: event.payload }),
+    );
+  });
+}
+
+void bridgeTauriMemoryPressureEvents().catch((error) => {
+  console.warn('[memory-governor] native pressure bridge unavailable:', error);
+});

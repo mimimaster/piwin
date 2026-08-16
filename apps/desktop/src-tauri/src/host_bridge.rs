@@ -418,6 +418,15 @@ fn host_start_blocking(
     );
 
     let mut command = Command::new(&program);
+
+    // Force dev and packaged builds to use the same user-level config root.
+    // Tauri-hosted apps can inherit a different effective home from the shell;
+    // setting PIWIN_ROOT explicitly keeps ~/.piwin consistent for both modes.
+    if let Ok(home) = std::env::var("HOME") {
+        let piwin_root = std::path::PathBuf::from(home).join(".piwin");
+        command.env("PIWIN_ROOT", piwin_root.as_os_str());
+    }
+
     command
         .args(&args)
         .current_dir(&cwd)
