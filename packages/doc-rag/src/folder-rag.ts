@@ -22,15 +22,22 @@ export type { FolderRag };
 import { createDefaultChunker } from './chunker.js';
 import { createParserRegistry, type ParserRegistry } from './parsers/registry.js';
 import { scanFolderFiles } from './scanner.js';
+import { adaptNotesEmbedding } from './embedding-adapter.js';
 import { openDocIndex } from './doc-index.js';
 import type { DocIndex } from './doc-index.js';
+import type { DocIndexStore } from './indexing/doc-index-store.js';
+import { openLanceDocIndex } from './indexing/lancedb-index.js';
+import { writeParsedFolderIndex } from './indexing/write-folder-index.js';
 import {
   canonicalizeFolderPath,
+  folderKey,
   getDocIndexPath,
+  getLanceDbPath,
   getSourcePathSidecar,
   isSafeRelativePath,
   isPathConfined,
 } from './paths.js';
+import { retrieveV2 } from './retrieval/retrieval-service.js';
 import {
   DEFAULT_MAX_FILES,
   DEFAULT_MAX_FILE_BYTES,
@@ -52,6 +59,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
   const parserRegistry = options.parserRegistry ?? createParserRegistry();
   // Open index lazily per folder; cache by canonical path.
   const indexCache = new Map<string, DocIndex>();
+  const lanceCache = new Map<string, DocIndexStore>();
   // Serialize write access per canonical folder key to avoid concurrent
   // indexing corrupting the sqlite cache.
   const indexLocks = new Map<string, Promise<void>>();
@@ -86,6 +94,19 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
     return index;
   }
 
+  async function getLance(canonicalPath: string): Promise<DocIndexStore> {
+    const cached = lanceCache.get(canonicalPath);
+    if (cached) return cached;
+    const store = await openLanceDocIndex(getLanceDbPath(canonicalPath, piwinRoot));
+    lanceCache.set(canonicalPath, store);
+    try {
+      await writeFile(getSourcePathSidecar(canonicalPath, piwinRoot), canonicalPath, 'utf8');
+    } catch {
+      // sidecar is a debug aid
+    }
+    return store;
+  }
+
   async function scanFolder(folderPath: string): Promise<ScanFolderResult> {
     return scanFolderFiles(folderPath, { registry: parserRegistry });
   }
@@ -113,6 +134,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       let totalBytes = 0;
       let skipped = 0;
       const chunks: DocChunk[] = [];
+      const acceptedPaths: string[] = [];
       let indexed = 0;
       for (const file of files) {
         if (indexed >= DEFAULT_MAX_FILES) {
@@ -133,6 +155,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
           const content = await readFile(absolute, 'utf8');
           const fileChunks = chunker.chunk(file.relativePath, content);
           chunks.push(...fileChunks);
+          acceptedPaths.push(file.relativePath);
           totalBytes += file.sizeBytes;
           indexed += 1;
           if (indexOptions?.signal?.aborted) {
@@ -146,6 +169,15 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       }
       const index = await getIndex(canonical);
       await index.indexChunks(chunks);
+      const lance = await getLance(canonical);
+      await writeParsedFolderIndex({
+        canonicalPath: canonical,
+        relativePaths: acceptedPaths,
+        registry: parserRegistry,
+        store: lance,
+        ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
+        ...(indexOptions?.signal ? { signal: indexOptions.signal } : {}),
+      });
       return {
         indexed,
         chunks: chunks.length,
@@ -179,14 +211,25 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         }
       }
     }
-    const index = await getIndex(canonical);
-    return index.retrieve(query, {
-      ...(embeddingProvider ? { embeddingProvider } : {}),
-      ...(retrieveOptions?.limit !== undefined ? { limit: retrieveOptions.limit } : {}),
+    const lance = await getLance(canonical);
+    const result = await retrieveV2({
+      store: lance,
+      folderKey: folderKey(canonical),
+      query,
       ...(fileAllowlist ? { fileAllowlist } : {}),
-      ...(retrieveOptions?.maxTotalChars !== undefined ? { maxTotalChars: retrieveOptions.maxTotalChars } : {}),
+      ...(retrieveOptions?.limit !== undefined ? { limit: retrieveOptions.limit } : {}),
+      ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
       ...(retrieveOptions?.signal ? { signal: retrieveOptions.signal } : {}),
     });
+    return result.pack.sources.map((source) => ({
+      filePath: source.relativePath,
+      content: source.text,
+      startLine: source.startLine ?? 1,
+      endLine: source.endLine ?? source.startLine ?? 1,
+      language: '',
+      score: source.retrievalScore ?? 0,
+      snippet: source.text.slice(0, 200),
+    }));
   }
 
   async function isIndexed(folderPath: string): Promise<boolean> {
@@ -213,6 +256,10 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
         index.close();
       }
       indexCache.clear();
+      for (const store of lanceCache.values()) {
+        void store.close();
+      }
+      lanceCache.clear();
       indexLocks.clear();
     },
   };
