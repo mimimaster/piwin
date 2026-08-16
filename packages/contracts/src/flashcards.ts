@@ -28,6 +28,16 @@ export type FlashcardRecord = {
   sourceLine?: number;
   tags?: string[];
   createdAt: string;
+  /** RAG generation sequence; display order only, not FSRS. */
+  sequenceId?: string;
+  /** 1-based position within `sequenceId`. */
+  position?: number;
+  cardType?: string;
+  relationFromPrevious?: string;
+  knowledgePointIds?: string[];
+  sourceChunkIds?: string[];
+  generationId?: string;
+  sourceDocumentIds?: string[];
 };
 
 export type FlashcardCreateInput = {
@@ -41,6 +51,14 @@ export type FlashcardCreateInput = {
   sourceFile?: string;
   sourceLine?: number;
   tags?: string[];
+  sequenceId?: string;
+  position?: number;
+  cardType?: string;
+  relationFromPrevious?: string;
+  knowledgePointIds?: string[];
+  sourceChunkIds?: string[];
+  generationId?: string;
+  sourceDocumentIds?: string[];
 };
 
 /** Batch creation input — the schema `flashcard_batch_create` fills in. */

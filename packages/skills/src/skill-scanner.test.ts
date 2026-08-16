@@ -45,7 +45,7 @@ describe('scanSkills', () => {
     expect(content).toContain('sourceFile');
     expect(content).toContain('sourceLine');
     expect(content).toContain('sourceExcerpt');
-    expect(content).toContain('doccards/');
+    expect(content).toContain('doccards/generate');
   });
 
   it('discovers the bundled writing-plans skill', async () => {

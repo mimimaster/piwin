@@ -72,6 +72,7 @@ import {
   useDesktopContextMenu,
   type ContextMenuTarget,
 } from './context-menu';
+import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSequenceView';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -257,6 +258,8 @@ export type ChatThreadProps = {
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
   /** Open the read-only subagent session inspector for a transcript card. */
   onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
+  /** Load / rate / open-source for Doc Cards sequence messages. */
+  docCardRequest?: DocCardSequenceRequest;
   /** Child projections bound to delegation tool calls in the transcript. */
   subagentChildren?: Record<string, SessionSummary>;
   subagentInvocations?: Record<string, SubagentInvocation>;
@@ -359,6 +362,14 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
       }),
     [props.messages],
   );
+  const docCardSequence = useMemo(
+    () => transcriptMessages.find((message) => message.docCardSequence)?.docCardSequence,
+    [transcriptMessages],
+  );
+  const chatMessages = useMemo(
+    () => (docCardSequence ? transcriptMessages.filter((message) => !message.docCardSequence) : transcriptMessages),
+    [docCardSequence, transcriptMessages],
+  );
 
   const activeToolName = useMemo(() => {
     for (let i = transcriptMessages.length - 1; i >= 0; i--) {
@@ -372,8 +383,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   }, [transcriptMessages]);
 
   const turnGroups = useMemo(
-    () => groupTranscriptTurns(transcriptMessages),
-    [transcriptMessages],
+    () => groupTranscriptTurns(chatMessages),
+    [chatMessages],
   );
   const currentResponseTurnId = turnGroups[turnGroups.length - 1]?.id ?? null;
   const showRunActivity =
@@ -445,6 +456,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   );
   return (
     <div className="chat-thread">
+      {docCardSequence && props.docCardRequest ? (
+        <DocCardSequenceView sequence={docCardSequence} request={props.docCardRequest} />
+      ) : null}
       {props.plan && !conversationSession ? (
         <PlanCard
           plan={props.plan}
@@ -550,6 +564,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       : {})}
                     onFeedback={props.onFeedback}
                     onInspectSubagent={props.onInspectSubagent}
+                    {...(props.docCardRequest ? { docCardRequest: props.docCardRequest } : {})}
                     {...(props.subagentChildren
                       ? { subagentChildren: props.subagentChildren }
                       : {})}
@@ -673,6 +688,7 @@ type ChatMessageRowProps = {
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
   /** Open the read-only subagent session inspector for a transcript card. */
   onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
+  docCardRequest?: DocCardSequenceRequest;
   subagentChildren?: Record<string, SessionSummary>;
   subagentInvocations?: Record<string, SubagentInvocation>;
   subagentStreams?: Record<string, SubagentStreamState>;

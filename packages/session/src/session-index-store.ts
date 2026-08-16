@@ -12,6 +12,7 @@ import type {
   SubagentRuntimeSnapshot,
   ThinkingLevel,
   ModelRef,
+  SessionPresentation,
 } from '@piwin/contracts';
 import { isLegacyInternalSessionName, isPlaceholderSessionName } from './session-display-name.js';
 
@@ -309,6 +310,7 @@ export function createSessionRecord(input: {
   model?: ModelRef;
   /** Last composer thinking level paired with `model`. */
   thinkingLevel?: ThinkingLevel;
+  presentation?: SessionPresentation;
 }): SessionIndexRecord {
   const timestamp = nowIso();
   const resolvedScope: SessionScope = input.scope ?? {
@@ -405,6 +407,9 @@ export function createSessionRecord(input: {
   }
   if (input.thinkingLevel !== undefined) {
     record.thinkingLevel = input.thinkingLevel;
+  }
+  if (input.presentation) {
+    record.presentation = input.presentation;
   }
   return record;
 }

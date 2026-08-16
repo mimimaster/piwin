@@ -105,6 +105,58 @@ describe('card-store', () => {
     expect(read.sourceExcerpt).toBe('RAG combines retrieval with generation.');
   });
 
+  it('persists sequence lineage fields and filters by sequenceId', async () => {
+    const card = await store.create({
+      front: 'What is a sequence?',
+      back: 'A display order for generated cards.',
+      deck: 'Notes',
+      sourceFolder: '/docs/notes',
+      sourceFile: 'a.md',
+      sourceLine: 1,
+      sequenceId: 'seq_a',
+      position: 1,
+      generationId: 'gen_a',
+    });
+    await store.create({
+      front: 'Unrelated card',
+      back: 'other',
+      deck: 'Notes',
+      sourceFolder: '/docs/notes',
+      sourceFile: 'b.md',
+      sourceLine: 1,
+      sequenceId: 'seq_b',
+      position: 1,
+      generationId: 'gen_b',
+    });
+    const read = await store.read(card.id);
+    expect(read.sequenceId).toBe('seq_a');
+    expect(read.position).toBe(1);
+    expect(read.generationId).toBe('gen_a');
+    expect(await store.list({ sequenceId: 'seq_a' })).toHaveLength(1);
+    expect((await store.list({ sequenceId: 'seq_a' }))[0]?.id).toBe(card.id);
+  });
+
+  it('allows the same front in two source folders', async () => {
+    await store.create({
+      front: 'What is FSRS scheduling?',
+      back: 'b',
+      deck: 'Notes',
+      sourceFolder: '/a/Notes',
+      sourceFile: 'a.md',
+      sourceLine: 1,
+    });
+    await expect(
+      store.create({
+        front: 'What is FSRS scheduling?',
+        back: 'b',
+        deck: 'Notes',
+        sourceFolder: '/b/Notes',
+        sourceFile: 'a.md',
+        sourceLine: 1,
+      }),
+    ).resolves.toBeTruthy();
+  });
+
   it('list filters by sourceFolder', async () => {
     await store.create({
       front: 'q1',

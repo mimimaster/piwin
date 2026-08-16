@@ -14,7 +14,7 @@ export type CapabilityExposure = 'off' | 'manual-only' | 'agent';
 
 export type NotesAccess = 'off' | 'manual-only' | 'agent-read' | 'agent-read-write';
 
-export type FlashcardsAccess = 'off' | 'manual-review' | 'agent-create';
+export type FlashcardsAccess = 'off' | 'manual-review' | 'agent-read' | 'agent-create';
 
 /**
  * Host custom tool families. The resolver converts product capability

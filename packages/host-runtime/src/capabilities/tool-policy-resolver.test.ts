@@ -123,6 +123,10 @@ describe('resolveToolPolicy', () => {
     const agent = resolveToolPolicy(baseExposure({ flashcards: 'agent-create' }));
     expect(agent.enabledFamilies).toContain('flashcards-write');
     expect(agent.enabledFamilies).toContain('flashcards-read');
+
+    const readOnly = resolveToolPolicy(baseExposure({ flashcards: 'agent-read' }));
+    expect(readOnly.enabledFamilies).toContain('flashcards-read');
+    expect(readOnly.enabledFamilies).not.toContain('flashcards-write');
   });
 
   it('Artifact instructions are main-session only', () => {

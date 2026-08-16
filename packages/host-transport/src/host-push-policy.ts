@@ -157,6 +157,14 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       }
     case 'run/terminal':
       return control([deliveryKey('run', push.run.runId)], push.run.runId);
+    case 'doccards/index-progress':
+      return projection(deliveryKey('doccards', 'index', push.job.folderKey));
+    case 'doccards/index-terminal':
+      return control([deliveryKey('doccards', 'index', push.job.folderKey)]);
+    case 'doccards/generation-progress':
+      return projection(deliveryKey('doccards', 'generation', push.job.folderKey));
+    case 'doccards/generation-terminal':
+      return control([deliveryKey('doccards', 'generation', push.job.folderKey)]);
     default:
       return assertNever(push);
   }

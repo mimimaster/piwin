@@ -22,16 +22,39 @@ export {
   isSupportedExtension,
 } from './chunker.js';
 
-export { openDocIndex } from './doc-index.js';
-export type { DocIndex } from './doc-index.js';
-
 export { createFolderRag } from './folder-rag.js';
 export type { CreateFolderRagOptions } from './folder-rag.js';
+export { createParserRegistry } from './parsers/registry.js';
+export type { ParserRegistry } from './parsers/registry.js';
+export { createMarkdownParser } from './parsers/markdown-parser.js';
+export { createTextParser } from './parsers/text-parser.js';
+export { chunkParsedDocument } from './chunking/chunk-service.js';
+export { mapUnstructuredElements } from './parsers/unstructured-adapter.js';
+export { mapMineruContentList } from './parsers/mineru-adapter.js';
+export { openLanceDocIndex } from './indexing/lancedb-index.js';
+export type { DocIndexStore } from './indexing/doc-index-store.js';
+export { retrieveV2 } from './retrieval/retrieval-service.js';
+export { adaptNotesEmbedding } from './embedding-adapter.js';
 
 export { buildFlashcardGenerationPrompt } from './prompt-builder.js';
 export type { BuildFlashcardGenerationPromptInput } from './prompt-builder.js';
 
 export { FLASHCARD_QUALITY_RULES } from './quality-rules.js';
+export {
+  assignPositions,
+  toFlashcardCreateInputs,
+  writeGenerationRecord,
+  buildSinglePassPrompt,
+  parseDraftCardsJson,
+} from './generation/generation-service.js';
+export type { DraftCardsFn, DraftCardsRequest } from './generation/generation-service.js';
+export { runTwoStageGeneration, TWO_STAGE_PIPELINE } from './generation/generation-pipeline.js';
+export type { CompleteJsonFn, TwoStageGenerationResult } from './generation/generation-pipeline.js';
+export { parseRawKnowledgePoints, RAW_KNOWLEDGE_POINT_SCHEMA } from './generation/kp-schema.js';
+export { postprocessKnowledgePoints } from './generation/kp-postprocess.js';
+export { parseGeneratedFlashcards } from './generation/flashcard-schema.js';
+export { qaGeneratedFlashcards } from './generation/flashcard-qa.js';
+export { getStateStorePath } from './paths.js';
 
 export {
   canonicalizeFolderPath,
@@ -39,6 +62,8 @@ export {
   folderKey,
   getDocRagRoot,
   getDocIndexPath,
+  getLanceDbPath,
+  documentIdFor,
   getSourcePathSidecar,
   isSafeRelativePath,
   isPathConfined,

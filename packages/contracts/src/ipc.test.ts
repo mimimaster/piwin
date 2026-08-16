@@ -17,6 +17,33 @@ describe('ipc types', () => {
     expect(push.type).toBe('host/status');
   });
 
+  it('allows async doccards job commands and pushes', () => {
+    const index: HostCommand = { type: 'doccards/index-folder', folderPath: '/docs' };
+    const status: HostCommand = { type: 'doccards/index-status', folderPath: '/docs' };
+    const generate: HostCommand = { type: 'doccards/generate', folderPath: '/docs', topic: 'srs' };
+    const push: HostPush = {
+      type: 'doccards/index-progress',
+      job: {
+        id: 'job-1',
+        folderKey: 'abc',
+        workspaceName: 'docs',
+        folderPath: '/docs',
+        includeFiles: [],
+        status: 'RUNNING',
+        totalFiles: 1,
+        completedFiles: 0,
+        failedFiles: 0,
+        skippedUnsupported: 0,
+        stageCounts: { parsing: 0, chunking: 0, embedding: 0, indexing: 0 },
+        warnings: [],
+      },
+    };
+    expect(index.type).toBe('doccards/index-folder');
+    expect(status.type).toBe('doccards/index-status');
+    expect(generate.type).toBe('doccards/generate');
+    expect(push.type).toBe('doccards/index-progress');
+  });
+
   it('maps saved media assets to prompt attachments', () => {
     const attachment = toMediaAttachmentRef(
       {
