@@ -25,6 +25,13 @@ function createRag(chunks: Array<{ filePath: string; content: string }>): Folder
         snippet: chunk.content.slice(0, 40),
       })),
     ),
+    retrievePack: vi.fn(async () => ({
+      query: '',
+      folderKey: '',
+      retrievalMode: 'fts_only' as const,
+      degraded: true,
+      sources: [],
+    })),
     listDocuments: vi.fn(async () => []),
     isIndexed: vi.fn(async () => true),
     close: vi.fn(),

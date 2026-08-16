@@ -167,17 +167,23 @@ describe('doccards generation job', () => {
     await writeFile(join(folder, 'srs.md'), '# SRS\n\nSpaced repetition fights forgetting.');
     const rag = createFolderRag({ piwinRoot: root });
     await rag.indexFolder(folder);
-    vi.spyOn(rag, 'retrieve').mockResolvedValue([
-      {
-        filePath: 'srs.md',
-        content: 'Spaced repetition fights forgetting.',
-        startLine: 1,
-        endLine: 3,
-        language: 'markdown',
-        score: 1,
-        snippet: 'Spaced repetition fights forgetting.',
-      },
-    ]);
+    vi.spyOn(rag, 'retrievePack').mockResolvedValue({
+      query: 'workspace',
+      folderKey: 'fk',
+      retrievalMode: 'fts_only',
+      degraded: true,
+      sources: [
+        {
+          chunkId: 'chk-1',
+          documentId: 'doc-1',
+          relativePath: 'srs.md',
+          text: 'Spaced repetition fights forgetting.',
+          startLine: 1,
+          endLine: 3,
+          retrievedBy: 'fts',
+        },
+      ],
+    });
     const seen: string[] = [];
     const ctx: KnowledgeCommandContext = {
       getNotesServices: async () => {
@@ -212,6 +218,74 @@ describe('doccards generation job', () => {
       });
     });
     expect(seen[0]).toBe(folder.split(/[\\/]/).pop());
+    rag.close();
+  });
+
+  it('two-stage generate writes knowledgePointIds onto cards', async () => {
+    root = await mkdtemp(join(tmpdir(), 'piwin-gen-root-'));
+    folder = (await canonicalizeFolderPath(await mkdtemp(join(tmpdir(), 'piwin-gen-src-')))) ?? '';
+    await writeFile(join(folder, 'srs.md'), '# SRS\n\nSpaced repetition fights forgetting.');
+    const rag = createFolderRag({ piwinRoot: root });
+    await rag.indexFolder(folder);
+    const cardStore = createCardStore({ piwinRoot: root });
+    const ctx: KnowledgeCommandContext = {
+      getNotesServices: async () => {
+        throw new Error('notes');
+      },
+      getCardStore: async () => cardStore,
+      getFolderRag: async () => rag,
+      loadConfig: async () => ({ hostMode: 'sdk', providers: [] }) as unknown as PiwinConfig,
+      ingestionJobs: createDoccardsIngestionRegistry(),
+      generationJobs: createDoccardsGenerationRegistry(),
+      completeJson: async (request) => {
+        if (request.schemaName === 'knowledge_points') {
+          const packChunk = /\[chunk ([^\]]+)\]/.exec(request.userPrompt)?.[1] ?? 'missing';
+          return {
+            knowledgePoints: [
+              {
+                tempId: 't1',
+                concept: 'SRS',
+                statement: 'A review schedule.',
+                type: 'definition',
+                importance: 0.9,
+                sourceChunkIds: [packChunk],
+              },
+            ],
+          };
+        }
+        const kp = /\[(kp_[^\]]+)\]/.exec(request.userPrompt)?.[1] ?? 'kp_missing';
+        const chunk = /\[chunk ([^\]]+)\]/.exec(request.userPrompt)?.[1] ?? 'missing';
+        return {
+          cards: [
+            {
+              front: 'What is SRS?',
+              back: 'A review schedule.',
+              cardType: 'definition',
+              knowledgePointIds: [kp],
+              sourceChunkIds: [chunk],
+            },
+          ],
+        };
+      },
+      piwinRoot: root,
+    };
+    const started = await handleKnowledgeCommand(
+      { type: 'doccards/generate', folderPath: folder, topic: 'spaced repetition' },
+      'g-two',
+      ctx,
+    );
+    expect(started).toMatchObject({ success: true });
+    await vi.waitFor(async () => {
+      const status = await handleKnowledgeCommand(
+        { type: 'doccards/generation-status', folderPath: folder },
+        'g-two-s',
+        ctx,
+      );
+      expect(status).toMatchObject({ success: true, data: { job: { status: 'COMPLETED' } } });
+    });
+    const cards = await cardStore.list({ sourceFolder: folder });
+    expect(cards[0]?.knowledgePointIds?.[0]).toMatch(/^kp_gen_/);
+    expect(cards[0]?.sourceChunkIds?.length).toBeGreaterThan(0);
     rag.close();
   });
 });

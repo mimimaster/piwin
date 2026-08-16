@@ -24,7 +24,7 @@ import {
   type SearchNotesOptions,
 } from '@piwin/notes';
 import { fail, ok } from '../response-helpers.js';
-import type { DraftCardsFn } from '@piwin/doc-rag';
+import type { CompleteJsonFn, DraftCardsFn } from '@piwin/doc-rag';
 import type { DoccardsIngestionRegistry } from './doccards-job-commands.js';
 import type { DoccardsGenerationRegistry } from './doccards-generation-jobs.js';
 import type { HostPush } from '@piwin/contracts';
@@ -42,6 +42,7 @@ export type KnowledgeCommandContext = {
   ingestionJobs?: DoccardsIngestionRegistry;
   generationJobs?: DoccardsGenerationRegistry;
   draftCards?: DraftCardsFn;
+  completeJson?: CompleteJsonFn;
   piwinRoot?: string;
 };
 
@@ -276,7 +277,7 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/cancel-index', { job: result });
     }
     case 'doccards/generate': {
-      if (!context.generationJobs || !context.draftCards) {
+      if (!context.generationJobs || (!context.draftCards && !context.completeJson)) {
         return fail(requestId, 'doccards/generate', 'GENERATION_MODEL_NOT_CONFIGURED');
       }
       const rag = await context.getFolderRag();
@@ -288,7 +289,8 @@ export async function handleKnowledgeCommand(
         ...(command.deck ? { deck: command.deck } : {}),
         rag,
         cardStore,
-        draftCards: context.draftCards,
+        ...(context.draftCards ? { draftCards: context.draftCards } : {}),
+        ...(context.completeJson ? { completeJson: context.completeJson } : {}),
         ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
         ...(context.push ? { push: context.push } : {}),
         isIndexRunning: (key) => context.ingestionJobs?.isRunning(key) === true,
