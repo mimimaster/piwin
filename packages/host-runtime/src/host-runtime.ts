@@ -259,6 +259,7 @@ import {
 import { createDoccardsIngestionRegistry } from './commands/doccards-job-commands.js';
 import { createDoccardsGenerationRegistry } from './commands/doccards-generation-jobs.js';
 import { createTwoStageCompleteJson } from './doccards-draft-cards.js';
+import { openDoccardReviewSession } from './doccards-review-session.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import {
   createSessionHostToolExecutionPort,
@@ -448,6 +449,7 @@ type SessionLineage = {
   subagentRuntime?: import('@piwin/contracts').SubagentRuntimeSnapshot;
   /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
   subagentLifecycle?: import('@piwin/contracts').SubagentLifecycleState;
+  presentation?: import('@piwin/contracts').CreateSessionInput['presentation'];
 };
 
 type ComposedSessionHostTools = {
@@ -4761,6 +4763,15 @@ export class HostRuntime {
         ingestionJobs: this.doccardsIngestion,
         generationJobs: this.doccardsGeneration,
         completeJson: createTwoStageCompleteJson(() => loadPiwinConfig(this.options.piwinRoot)),
+        openReviewSession: (input) =>
+          openDoccardReviewSession({
+            ...input,
+            createSession: (createInput) => this.createSession(createInput),
+            bindSession: (session, projectPath, sessionName, lineage) =>
+              this.bindSession(session, projectPath, sessionName, lineage),
+            getTranscriptStore: (sessionId, projectPath) =>
+              this.transcriptStores.get(sessionId, projectPath),
+          }),
         ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
       },
       ...(subagentOrchestrator
@@ -4957,6 +4968,9 @@ export class HostRuntime {
           if (lineage?.task) {
             current.task = lineage.task;
           }
+          if (lineage?.presentation) {
+            current.presentation = lineage.presentation;
+          }
           applySubagentLineage(current, lineage);
           await upsertSessionRecord(indexPath, current);
         } else {
@@ -4988,6 +5002,9 @@ export class HostRuntime {
           }
           if (lineage?.task) {
             recordInput.task = lineage.task;
+          }
+          if (lineage?.presentation) {
+            recordInput.presentation = lineage.presentation;
           }
           copySubagentLineage(recordInput, lineage);
           await upsertSessionRecord(indexPath, createSessionRecord(recordInput));
@@ -6858,6 +6875,7 @@ export class HostRuntime {
     if (record.scope !== undefined) input.scope = record.scope;
     if (record.workingDirectory !== undefined) input.cwd = record.workingDirectory;
     if (record.name !== undefined) input.sessionName = record.name;
+    if (record.presentation) input.presentation = record.presentation;
     const model = this.sessionModels.get(sessionId);
     if (model !== undefined) input.model = model;
     const prepared = await this.host.prepareSession(sessionId, input, generationId);

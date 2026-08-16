@@ -630,6 +630,11 @@ function compileConversationToolPolicy(
   const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
   const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
   const flashcardsEnabled = config.flashcards?.enabled !== false;
+  const flashcardsAccess = input.presentation?.kind === 'doccard-sequence'
+    ? 'agent-read'
+    : flashcardsEnabled
+      ? 'agent-create'
+      : 'off';
 
   const resolvedToolPolicy = resolveToolPolicyDetails({
     webSearch: webSearchReady,
@@ -641,7 +646,7 @@ function compileConversationToolPolicy(
     browser: 'off',
     subagents: 'off',
     notes: 'off',
-    flashcards: flashcardsEnabled ? 'agent-create' : 'off',
+    flashcards: flashcardsAccess,
     artifact: config.artifact.enabled,
     availability: {
       webSearchReady,
@@ -658,7 +663,7 @@ function compileConversationToolPolicy(
     planning: false,
     delegate: false,
     notesEnabled: false,
-    flashcardsEnabled,
+    flashcardsEnabled: flashcardsEnabled && flashcardsAccess !== 'off',
     imageGenerationEnabled: !imagegenDisabled,
     videoGenerationEnabled: !videogenDisabled,
     ...(options.hostToolFamilyIndex
@@ -848,7 +853,12 @@ function compileToolPolicy(
     browser: 'agent',
     subagents: 'agent',
     notes: config.notes?.enabled === false ? 'off' : 'agent-read-write',
-    flashcards: config.flashcards?.enabled === false ? 'off' : 'agent-create',
+    flashcards:
+      input.presentation?.kind === 'doccard-sequence'
+        ? 'agent-read'
+        : config.flashcards?.enabled === false
+          ? 'off'
+          : 'agent-create',
     artifact: config.artifact.enabled,
     availability: {
       webSearchReady,

@@ -43,6 +43,13 @@ export type KnowledgeCommandContext = {
   generationJobs?: DoccardsGenerationRegistry;
   draftCards?: DraftCardsFn;
   completeJson?: CompleteJsonFn;
+  openReviewSession?: (input: {
+    workspaceName: string;
+    topic: string;
+    sequenceId: string;
+    generationId: string;
+    cardIds: string[];
+  }) => Promise<{ sessionId: string }>;
   piwinRoot?: string;
 };
 
@@ -177,10 +184,16 @@ export async function handleKnowledgeCommand(
     }
     case 'flashcards/list': {
       const store = await context.getCardStore();
-      const filter: { deck?: string; sourceNoteId?: string; sourceFolder?: string } = {};
+      const filter: {
+        deck?: string;
+        sourceNoteId?: string;
+        sourceFolder?: string;
+        sequenceId?: string;
+      } = {};
       if (command.deck) filter.deck = command.deck;
       if (command.sourceNoteId) filter.sourceNoteId = command.sourceNoteId;
       if (command.sourceFolder) filter.sourceFolder = command.sourceFolder;
+      if (command.sequenceId) filter.sequenceId = command.sequenceId;
       const cards = await store.list(filter);
       return ok(requestId, 'flashcards/list', { cards });
     }
@@ -294,6 +307,7 @@ export async function handleKnowledgeCommand(
         ...(context.piwinRoot ? { piwinRoot: context.piwinRoot } : {}),
         ...(context.push ? { push: context.push } : {}),
         isIndexRunning: (key) => context.ingestionJobs?.isRunning(key) === true,
+        ...(context.openReviewSession ? { openReviewSession: context.openReviewSession } : {}),
       });
       if ('error' in started) {
         return fail(requestId, 'doccards/generate', started.error);
