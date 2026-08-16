@@ -1,4 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { FlashcardRecord } from '@piwin/contracts';
+import type { CardStore } from '@piwin/flashcards';
 import type { NoteIndex, NoteStore } from '@piwin/notes';
 import type { KnowledgeCommandContext } from './knowledge-commands.js';
 import { handleKnowledgeCommand, isKnowledgeCommand } from './knowledge-commands.js';
@@ -19,6 +24,32 @@ function createContext(store: NoteStore): KnowledgeCommandContext {
     loadConfig: async () => {
       throw new Error('config should not be called');
     },
+  };
+}
+
+function createCardContext(store: Pick<CardStore, 'read'>): KnowledgeCommandContext {
+  return {
+    getNotesServices: async () => {
+      throw new Error('notes should not be called');
+    },
+    getCardStore: async () => store as CardStore,
+    getFolderRag: async () => {
+      throw new Error('folder rag should not be called');
+    },
+    loadConfig: async () => {
+      throw new Error('config should not be called');
+    },
+  };
+}
+
+function folderCard(overrides: Partial<FlashcardRecord> & Pick<FlashcardRecord, 'sourceFolder' | 'sourceFile'>): FlashcardRecord {
+  return {
+    id: 'c1',
+    deck: 'docs',
+    front: 'q',
+    back: 'a',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
   };
 }
 
@@ -57,6 +88,51 @@ describe('knowledge command handlers', () => {
       type: 'response',
       command: 'notes/list',
       success: false,
+    });
+  });
+
+  describe('doccards/open-source', () => {
+    let folder: string;
+
+    afterEach(async () => {
+      if (folder) await rm(folder, { recursive: true, force: true });
+    });
+
+    it('resolves the path from store fields only', async () => {
+      folder = await mkdtemp(join(tmpdir(), 'piwin-open-source-'));
+      await writeFile(join(folder, 'a.md'), '# A');
+      const read = vi.fn(async (cardId: string) => {
+        expect(cardId).toBe('c1');
+        return folderCard({ sourceFolder: folder, sourceFile: 'a.md', sourceLine: 1 });
+      });
+      const response = await handleKnowledgeCommand(
+        { type: 'doccards/open-source', cardId: 'c1' },
+        'r1',
+        createCardContext({ read }),
+      );
+      expect(response).toMatchObject({
+        id: 'r1',
+        command: 'doccards/open-source',
+        success: true,
+        data: { opened: true },
+      });
+      const path = (response as { data: { path: string } }).data.path;
+      expect(path.endsWith('/a.md')).toBe(true);
+    });
+
+    it('rejects a store sourceFile that escapes the folder', async () => {
+      folder = await mkdtemp(join(tmpdir(), 'piwin-open-source-'));
+      await mkdir(join(folder, 'docs'));
+      const read = vi.fn(async () =>
+        folderCard({ sourceFolder: folder, sourceFile: '../etc/passwd' }),
+      );
+      await expect(
+        handleKnowledgeCommand(
+          { type: 'doccards/open-source', cardId: 'c1' },
+          'r1',
+          createCardContext({ read }),
+        ),
+      ).rejects.toThrow(/not confined/);
     });
   });
 });
