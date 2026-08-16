@@ -1,7 +1,58 @@
 /**
  * Doc Cards V2 job / generation types.
- * Scan still returns the v1 `ScannedDocFile` until P2.
+ * Scan returns supported `ScannedDocFile`s plus optional `unsupported`.
  */
+
+export type ParsedBlockType =
+  | 'title'
+  | 'heading'
+  | 'paragraph'
+  | 'list'
+  | 'table'
+  | 'code'
+  | 'quote';
+
+export type ParsedBlock = {
+  blockId: string;
+  order: number;
+  type: ParsedBlockType;
+  text: string;
+  headingPath?: string[];
+  page?: number;
+  startLine?: number;
+  endLine?: number;
+};
+
+export type ParsedDocument = {
+  documentId: string;
+  relativePath: string;
+  title?: string;
+  blocks: ParsedBlock[];
+  parser: { id: string; version: string };
+};
+
+export type DocChunkV2 = {
+  chunkId: string;
+  documentId: string;
+  folderKey: string;
+  relativePath: string;
+  content: string;
+  contentHash: string;
+  headingPath?: string[];
+  sourceOrder: number;
+  startLine?: number;
+  endLine?: number;
+  pageStart?: number;
+  pageEnd?: number;
+  previousChunkId?: string;
+  nextChunkId?: string;
+  language?: string;
+  tokenCount: number;
+  parserId: string;
+  parserVersion: string;
+  chunkerId: string;
+  chunkerVersion: string;
+};
 
 export type ScannedFileV2 = {
   relativePath: string;
