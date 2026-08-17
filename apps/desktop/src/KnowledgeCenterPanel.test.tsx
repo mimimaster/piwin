@@ -20,9 +20,68 @@ describe('KnowledgeCenterPanel', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    window.localStorage.clear();
   });
 
-  it('renders master-detail layout with selected project', async () => {
+  function seedRecent(path: string): void {
+    window.localStorage.setItem('piwin.doccards.recent_folders', JSON.stringify([path]));
+  }
+
+  it('does not auto-select the current git project', async () => {
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel
+            projectPath="/Users/test/piwin"
+            request={vi.fn(async () => ({ success: true, data: {} })) as any}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="hero-pick-folder-btn"]')).not.toBeNull();
+    expect(container.textContent).toContain('从文件夹学习');
+    expect(container.querySelector('[data-testid="tab-wiki-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tab-cards-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="use-current-project-btn"]')).not.toBeNull();
+  });
+
+  it('selects a recent document folder instead of projectPath', async () => {
+    seedRecent('/notes/os');
+    const request = vi.fn(async (cmd: { type: string; folderPath?: string }) => {
+      if (cmd.type === 'doccards/scan-folder') {
+        return {
+          success: true,
+          data: { files: [{ relativePath: 'a.md', sizeBytes: 10, language: 'markdown' }], unsupported: [] },
+        };
+      }
+      if (cmd.type === 'doccards/list-by-folder') {
+        return { success: true, data: { records: [] } };
+      }
+      if (cmd.type === 'doccards/index-status') {
+        return {
+          success: true,
+          data: {
+            job: { status: 'COMPLETED', completedFiles: 1, totalFiles: 1, warnings: [] },
+            documents: [{ status: 'READY', relativePath: 'a.md' }],
+          },
+        };
+      }
+      return { success: true, data: {} };
+    });
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel projectPath="/Users/test/piwin" request={request as any} />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.textContent).toContain('os');
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ type: 'doccards/scan-folder', folderPath: '/notes/os' }));
+    expect(request.mock.calls.some((call) => call[0]?.folderPath === '/Users/test/piwin')).toBe(false);
+  });
+
+  it('renders master-detail layout with a recent folder', async () => {
+    seedRecent('/Users/test/piwin');
     const mockRequest = vi.fn().mockImplementation((cmd) => {
       if (cmd.type === 'doccards/scan-folder') {
         return Promise.resolve({
@@ -122,7 +181,14 @@ describe('KnowledgeCenterPanel', () => {
       configBtn?.click();
     });
     expect(onConfigureEmbedding).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[data-testid="tab-wiki-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tab-wiki-btn"]')).toBeNull();
+    const searchBtn = container.querySelector<HTMLButtonElement>('[data-testid="open-folder-search-btn"]');
+    expect(searchBtn).not.toBeNull();
+    await act(async () => {
+      searchBtn?.click();
+    });
+    expect(container.querySelector('[data-testid="knowledge-search-drawer"]')).not.toBeNull();
+    expect(container.textContent).toContain('这个文件夹还没有检索结果。');
   });
 
   it('opens the review session only after the user clicks the result button', async () => {
@@ -168,6 +234,7 @@ describe('KnowledgeCenterPanel', () => {
       }
       return { success: true, data: {} };
     });
+    seedRecent('/docs');
     await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -229,6 +296,7 @@ describe('KnowledgeCenterPanel', () => {
       }
       return { success: true, data: {} };
     });
+    seedRecent('/docs');
     await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -290,6 +358,7 @@ describe('KnowledgeCenterPanel', () => {
       }
       return { success: true, data: {} };
     });
+    seedRecent('/docs');
     await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -346,6 +415,7 @@ describe('KnowledgeCenterPanel', () => {
       }
       return { success: true, data: {} };
     });
+    seedRecent('/docs');
     await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -366,7 +436,7 @@ describe('KnowledgeCenterPanel', () => {
       );
     });
     expect(container.querySelector('[data-testid="hero-pick-folder-btn"]')).not.toBeNull();
-    expect(container.textContent).toContain('先选一个文档文件夹');
+    expect(container.textContent).toContain('从文件夹学习');
   });
 
   it('shows a single compact prompt pill when embedding is unconfigured', async () => {
@@ -391,6 +461,7 @@ describe('KnowledgeCenterPanel', () => {
       return Promise.resolve({ success: true, data: {} });
     });
 
+    seedRecent('/Users/test/piwin');
     await act(async () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>

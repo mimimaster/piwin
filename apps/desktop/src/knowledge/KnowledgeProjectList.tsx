@@ -6,7 +6,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { Button, IconButton, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
-import { IconFolder, IconFolderOpen, IconPlus, IconSettings } from '../shell-icons.js';
+import { IconFolder, IconFolderOpen, IconPlus } from '../shell-icons.js';
 import { pickProjectDirectory } from '../pick-project-directory.js';
 
 export type KnowledgeProjectItem = {
@@ -14,19 +14,17 @@ export type KnowledgeProjectItem = {
   name: string;
   isActiveProject: boolean;
   status: 'ready' | 'indexing' | 'unindexed';
-  sliceCount?: number | undefined;
+  fileCount?: number | undefined;
   cardCount?: number | undefined;
 };
 
 export type KnowledgeProjectListProps = {
-  activeProjectPath: string | null;
-  recentProjects: Array<{ path: string; name?: string }>;
-  mountedFolders: string[];
+  folders: string[];
   selectedPath: string;
-  projectStats?: Record<string, { status: 'ready' | 'indexing' | 'unindexed'; sliceCount?: number | undefined; cardCount?: number | undefined }> | undefined;
+  activeProjectPath: string | null;
+  projectStats?: Record<string, { status: 'ready' | 'indexing' | 'unindexed'; fileCount?: number | undefined; cardCount?: number | undefined }> | undefined;
   onSelectProject: (path: string) => void;
   onMountFolder: (path: string) => void;
-  onConfigureEmbedding?: (() => void) | undefined;
 };
 
 function getFolderBasename(folderPath: string): string {
@@ -41,53 +39,19 @@ export function KnowledgeProjectList(props: KnowledgeProjectListProps): ReactEle
 
   const [query, setQuery] = useState('');
 
-  // Assemble unique projects list: active project first, then recent, then mounted
   const projectItems: KnowledgeProjectItem[] = useMemo(() => {
-    const map = new Map<string, KnowledgeProjectItem>();
-
-    if (props.activeProjectPath) {
-      const p = props.activeProjectPath;
-      const stats = props.projectStats?.[p];
-      map.set(p, {
-        path: p,
-        name: getFolderBasename(p),
-        isActiveProject: true,
+    return props.folders.map((folder) => {
+      const stats = props.projectStats?.[folder];
+      return {
+        path: folder,
+        name: getFolderBasename(folder),
+        isActiveProject: folder === props.activeProjectPath,
         status: stats?.status ?? 'unindexed',
-        sliceCount: stats?.sliceCount,
+        fileCount: stats?.fileCount,
         cardCount: stats?.cardCount,
-      });
-    }
-
-    for (const recent of props.recentProjects) {
-      if (!map.has(recent.path)) {
-        const stats = props.projectStats?.[recent.path];
-        map.set(recent.path, {
-          path: recent.path,
-          name: recent.name || getFolderBasename(recent.path),
-          isActiveProject: recent.path === props.activeProjectPath,
-          status: stats?.status ?? 'unindexed',
-          sliceCount: stats?.sliceCount,
-          cardCount: stats?.cardCount,
-        });
-      }
-    }
-
-    for (const folder of props.mountedFolders) {
-      if (!map.has(folder)) {
-        const stats = props.projectStats?.[folder];
-        map.set(folder, {
-          path: folder,
-          name: getFolderBasename(folder),
-          isActiveProject: folder === props.activeProjectPath,
-          status: stats?.status ?? 'unindexed',
-          sliceCount: stats?.sliceCount,
-          cardCount: stats?.cardCount,
-        });
-      }
-    }
-
-    return Array.from(map.values());
-  }, [props.activeProjectPath, props.recentProjects, props.mountedFolders, props.projectStats]);
+      };
+    });
+  }, [props.folders, props.activeProjectPath, props.projectStats]);
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -108,17 +72,8 @@ export function KnowledgeProjectList(props: KnowledgeProjectListProps): ReactEle
   return (
     <aside className="knowledge-master-sidebar" data-testid="knowledge-project-list">
       <div className="knowledge-sidebar-header">
-        <span className="knowledge-sidebar-title">{t('Knowledge Bases', '知识库 / 目录')}</span>
+        <span className="knowledge-sidebar-title">{t('Document folders', '文档文件夹')}</span>
         <div className="knowledge-sidebar-header-actions">
-          {props.onConfigureEmbedding ? (
-            <IconButton
-              label={t('Embedding settings…', '设置 Embedding 模型…')}
-              onClick={props.onConfigureEmbedding}
-              data-testid="configure-embedding-btn"
-            >
-              <IconSettings width={13} height={13} />
-            </IconButton>
-          ) : null}
           <IconButton
             label={t('Mount local directory', '挂载本地目录')}
             onClick={() => void handlePickFolder()}
@@ -131,7 +86,7 @@ export function KnowledgeProjectList(props: KnowledgeProjectListProps): ReactEle
 
       <div className="knowledge-sidebar-search">
         <TextInput
-          placeholder={t('Filter repositories...', '过滤项目与知识库...')}
+          placeholder={t('Filter folders…', '过滤文档文件夹…')}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
           className="knowledge-search-input"
@@ -141,7 +96,7 @@ export function KnowledgeProjectList(props: KnowledgeProjectListProps): ReactEle
       <div className="knowledge-project-scroll">
         {filteredItems.length === 0 ? (
           <div className="knowledge-empty-hint muted">
-            {t('No matching repositories', '暂无匹配的项目')}
+            {t('No matching folders', '暂无匹配的文件夹')}
           </div>
         ) : (
           <ul className="knowledge-project-items">
@@ -174,8 +129,8 @@ export function KnowledgeProjectList(props: KnowledgeProjectListProps): ReactEle
                       <div className="knowledge-project-meta">
                         {item.status === 'ready' ? (
                           <span className="meta-ready">
-                            {typeof item.sliceCount === 'number'
-                              ? `${item.sliceCount} ${t('slices', '切片')} · `
+                            {typeof item.fileCount === 'number'
+                              ? `${item.fileCount} ${t('files', '个文件')} · `
                               : ''}
                             {typeof item.cardCount === 'number'
                               ? `${item.cardCount} ${t('cards', '闪卡')}`
@@ -205,7 +160,7 @@ export function KnowledgeProjectList(props: KnowledgeProjectListProps): ReactEle
           data-testid="sidebar-add-folder-btn"
         >
           <IconPlus width={12} height={12} />
-          <span>{t('Mount Local Directory...', '挂载其他本地目录...')}</span>
+          <span>{t('Add a document folder…', '添加文档文件夹')}</span>
         </Button>
       </div>
     </aside>

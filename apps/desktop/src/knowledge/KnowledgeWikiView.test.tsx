@@ -22,44 +22,22 @@ describe('KnowledgeWikiView', () => {
     container.remove();
   });
 
-  it('renders wiki article content and sends prompt to chat', () => {
-    const onSend = vi.fn();
-    const props: KnowledgeWikiViewProps = {
-      folderPath: '/Users/test/piwin',
-      folderName: 'piwin',
-      notes: [
-        {
-          id: 'note-1',
-          title: 'Architecture Overview',
-          content: 'Piwin is built with Node Host and Tauri Desktop.',
-          collection: 'piwin',
-          relativePath: 'arch.md',
-          contentHash: 'hash123',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-      request: vi.fn().mockResolvedValue({ success: true, data: {} }),
-      onSendToChat: onSend,
-    };
-
+  it('does not pretend a folder wiki exists when there are no notes', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <KnowledgeWikiView {...props} />
+          <KnowledgeWikiView
+            folderPath="/Users/test/piwin"
+            folderName="piwin"
+            notes={[]}
+            request={vi.fn().mockResolvedValue({ success: true, data: {} })}
+          />
         </PiwinUiProvider>,
       );
     });
-
-    expect(container.textContent).toContain('Architecture Overview');
-    expect(container.textContent).toContain('Piwin is built with Node Host and Tauri Desktop.');
-
-    const askBtn = container.querySelector<HTMLButtonElement>('[data-testid="wiki-send-to-chat-btn"]');
-    expect(askBtn).not.toBeNull();
-    act(() => {
-      askBtn?.click();
-    });
-    expect(onSend).toHaveBeenCalledWith('请围绕项目「piwin」的知识库与架构设计，深入讲解以下内容：');
+    expect(container.textContent).toContain('这个文件夹还没有检索结果。');
+    expect(container.textContent).not.toContain('项目知识库已就绪');
+    expect(container.textContent).not.toContain('All source files have been parsed');
   });
 
   it('maps Host retrieve chunks onto visible passages', async () => {

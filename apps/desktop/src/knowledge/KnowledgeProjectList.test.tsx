@@ -26,15 +26,14 @@ describe('KnowledgeProjectList', () => {
     container.remove();
   });
 
-  it('renders active project and recent projects', () => {
+  it('lists only document folders and uses file counts', () => {
     const onSelect = vi.fn();
     const props: KnowledgeProjectListProps = {
+      folders: ['/notes/os'],
+      selectedPath: '/notes/os',
       activeProjectPath: '/Users/test/piwin',
-      recentProjects: [{ path: '/Users/test/pi', name: 'pi' }],
-      mountedFolders: [],
-      selectedPath: '/Users/test/piwin',
       projectStats: {
-        '/Users/test/piwin': { status: 'ready', sliceCount: 12, cardCount: 8 },
+        '/notes/os': { status: 'ready', fileCount: 12, cardCount: 8 },
       },
       onSelectProject: onSelect,
       onMountFolder: vi.fn(),
@@ -48,43 +47,10 @@ describe('KnowledgeProjectList', () => {
       );
     });
 
-    const piwinBtn = container.querySelector<HTMLButtonElement>('[data-testid="project-item-piwin"]');
-    const piBtn = container.querySelector<HTMLButtonElement>('[data-testid="project-item-pi"]');
-    expect(piwinBtn).not.toBeNull();
-    expect(piBtn).not.toBeNull();
-    expect(container.textContent).toContain('12 切片 · 8 闪卡');
-
-    act(() => {
-      piBtn?.click();
-    });
-    expect(onSelect).toHaveBeenCalledWith('/Users/test/pi');
+    expect(container.querySelector('[data-testid="project-item-os"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="project-item-piwin"]')).toBeNull();
+    expect(container.textContent).toContain('12 个文件 · 8 闪卡');
+    expect(container.textContent).not.toContain('切片');
     expect(container.querySelector('[data-testid="configure-embedding-btn"]')).toBeNull();
-  });
-
-  it('shows the embedding settings control when provided', () => {
-    const onConfigure = vi.fn();
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <KnowledgeProjectList
-            activeProjectPath="/Users/test/piwin"
-            recentProjects={[]}
-            mountedFolders={[]}
-            selectedPath="/Users/test/piwin"
-            onSelectProject={vi.fn()}
-            onMountFolder={vi.fn()}
-            onConfigureEmbedding={onConfigure}
-          />
-        </PiwinUiProvider>,
-      );
-    });
-    const button = container.querySelector<HTMLButtonElement>(
-      '[data-testid="configure-embedding-btn"]',
-    );
-    expect(button).not.toBeNull();
-    act(() => {
-      button?.click();
-    });
-    expect(onConfigure).toHaveBeenCalledTimes(1);
   });
 });
