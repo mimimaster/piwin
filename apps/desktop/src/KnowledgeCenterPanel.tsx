@@ -1,16 +1,9 @@
 /**
- * Knowledge Center — Master-Detail Architecture.
+ * Knowledge Center — folder-scoped learning loop.
  *
- * Core Mental Model:
- * 1. Single RAG Engine (Scan → Chunk → FTS5/Vector Index → Retrieve)
- * 2. Attached Flashcard Pipeline (Distill Q&A → FSRS Spaced-Repetition Review → Export)
- *
- * Left Master Column: Project & Knowledge Base Selector
- * Right Detail Stage:
- *   - Unindexed: Hero onboarding & progress ring
- *   - Ready:
- *     - View A: 📄 Repo Wiki & RAG Hybrid Search
- *     - View B: 🗂️ Flashcards & FSRS Review
+ * Pick a document folder → check files → Index → Generate → result page.
+ * New-batch review opens a chat session flipper. Scheduled FSRS lives in
+ * FlashcardsPanel, not this overlay.
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
@@ -18,7 +11,6 @@ import type {
   DocumentManifest,
   FlashcardRecord,
   GenerationJob,
-  HostResponse,
   IngestionJob,
   PiwinConfig,
   ScannedDocFile,
@@ -26,6 +18,7 @@ import type {
 } from '@piwin/contracts';
 import { IconButton } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context.js';
+import type { DoccardsHostRequest } from './knowledge/knowledge-host-request.js';
 import { KnowledgeProjectList } from './knowledge/KnowledgeProjectList.js';
 import { KnowledgeUnindexedHero } from './knowledge/KnowledgeUnindexedHero.js';
 import { KnowledgeWikiView } from './knowledge/KnowledgeWikiView.js';
@@ -56,7 +49,7 @@ export type KnowledgeCenterPanelProps = {
   /** Recent projects list from shell state. */
   recentProjects?: Array<{ path: string; name?: string }>;
   /** Single RPC bridge for knowledge-host commands. */
-  request: (command: any) => Promise<HostResponse>;
+  request: DoccardsHostRequest;
   onClose?: (() => void) | undefined;
   onOpenSession?: (sessionId: string) => void;
   onConfigureEmbedding?: () => void;
@@ -121,12 +114,11 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
     if (recent[0]) setSelectedPath(recent[0]);
   }, []);
 
-  // Load project status & scan whenever selectedPath changes
-  const loadProjectData = useCallback(async (folderPath: string) => {
+  const loadProjectData = useCallback(async (folderPath: string, options?: { resetSelection?: boolean }) => {
     if (!folderPath) return;
+    const resetSelection = options?.resetSelection === true;
     setBusy(true);
     try {
-      // 1. Scan folder
       const scanRes = await props.request({
         type: 'doccards/scan-folder',
         folderPath,
@@ -136,19 +128,24 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         const files = scanData.files ?? [];
         setScannedFiles(files);
         setUnsupportedFiles(scanData.unsupported ?? []);
-        setSelectedSupported(files.map((file) => file.relativePath));
+        if (resetSelection) {
+          setSelectedSupported(files.map((file) => file.relativePath));
+        } else {
+          setSelectedSupported((current) => {
+            const allowed = new Set(files.map((file) => file.relativePath));
+            const kept = current.filter((path) => allowed.has(path));
+            return kept.length > 0 ? kept : files.map((file) => file.relativePath);
+          });
+        }
       }
 
-      // 2. Fetch cards for this folder
       const cardsRes = await props.request({
         type: 'doccards/list-by-folder',
         folderPath,
       });
-      let loadedCards: FlashcardRecord[] = [];
       if (cardsRes.success && cardsRes.data) {
         const cData = cardsRes.data as { records?: FlashcardRecord[]; cards?: FlashcardRecord[] };
-        loadedCards = cData.records ?? cData.cards ?? [];
-        setCards(loadedCards);
+        setCards(cData.records ?? cData.cards ?? []);
       }
 
       const statusRes = await props.request({
@@ -160,9 +157,10 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
           job?: IngestionJob | null;
           documents?: DocumentManifest[];
         };
-        if (statusData.job) setIndexingJob(statusData.job);
+        setIndexingJob(statusData.job ?? null);
         setDocuments(statusData.documents ?? []);
       } else {
+        setIndexingJob(null);
         setDocuments([]);
       }
 
@@ -171,9 +169,13 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         folderPath,
       });
       if (genRes.success && genRes.data) {
-        const genData = genRes.data as { job?: GenerationJob | null };
-        setGenerationJob(genData.job ?? null);
-        setDismissedGenerationId(null);
+        const nextJob = (genRes.data as { job?: GenerationJob | null }).job ?? null;
+        setGenerationJob((current) => {
+          if (current && nextJob && current.id === nextJob.id) {
+            return { ...current, ...nextJob };
+          }
+          return nextJob;
+        });
       }
     } finally {
       setBusy(false);
@@ -181,9 +183,23 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   }, [props.request]);
 
   useEffect(() => {
-    if (selectedPath) {
-      void loadProjectData(selectedPath);
+    if (!selectedPath) {
+      setScannedFiles([]);
+      setUnsupportedFiles([]);
+      setDocuments([]);
+      setSelectedSupported([]);
+      setCards([]);
+      setIndexingJob(null);
+      setGenerationJob(null);
+      setDismissedGenerationId(null);
+      setUserView('loop');
+      return;
     }
+    setIndexingJob(null);
+    setGenerationJob(null);
+    setDismissedGenerationId(null);
+    setUserView('loop');
+    void loadProjectData(selectedPath, { resetSelection: true });
   }, [selectedPath, loadProjectData]);
 
   // Handle building RAG Index
@@ -251,10 +267,6 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
       });
       setGenerationJob(job);
       setDismissedGenerationId(null);
-      if (job.status === 'FAILED' || job.status === 'CANCELED') {
-        setActionError(job.error ?? job.status);
-        return;
-      }
       void loadProjectData(selectedPath);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));

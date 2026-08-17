@@ -36,9 +36,6 @@ export async function runDoccardsGenerate(
     const job = (status.data as { job?: GenerationJob | null }).job;
     if (job) input.onProgress?.(job);
     if (job && TERMINAL.has(job.status)) {
-      if (job.status === 'FAILED' || job.status === 'CANCELED') {
-        throw new Error(job.error ?? job.status);
-      }
       return job;
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
