@@ -24,7 +24,7 @@ export const RIGHT_PANEL_STATE_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.v1';
 export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
 /** Kinds that can be stored/restored as open right-panel tabs. */
-const ALLOWED_KINDS: RightPanelTabKind[] = ['files', 'terminal', 'review', 'browser', 'docPreview'];
+const ALLOWED_KINDS: RightPanelTabKind[] = ['files', 'terminal', 'review', 'browser', 'cards', 'docPreview'];
 
 function isAllowedKind(value: unknown): value is RightPanelTabKind {
   return typeof value === 'string' && (ALLOWED_KINDS as string[]).includes(value);

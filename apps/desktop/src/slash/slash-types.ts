@@ -74,6 +74,11 @@ export type ParsedSlashSubmit =
       args: string;
     }
   | {
+      kind: 'cards-panel';
+      name: string;
+      args: string;
+    }
+  | {
       kind: 'unknown';
       name: string;
       args: string;
