@@ -13,40 +13,53 @@ import type { DesktopTranslator } from '../desktop-locale';
 
 export type SettingsSectionId =
   | 'general'
-  | 'appearance'
   | 'permissions'
   | 'models'
-  | 'vision'
-  | 'artifact'
-  | 'skills'
+  | 'agent'
   | 'extensions'
-  | 'plugins'
-  | 'prompts'
-  | 'tools'
-  | 'web'
-  | 'session'
-  | 'runtime'
-  | 'archive'
-  | 'automation'
-  | 'subagents'
-  | 'pets'
-  | 'usage'
-  | 'shortcuts'
-  | 'artifact-playground'
-  | 'animations'
-  | 'knowledge';
+  | 'knowledge'
+  | 'session';
 
 /** Legacy settings deep links that now redirect to a canonical section. */
 export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
-  rules: 'skills',
-  agents: 'automation',
+  // Alias redirects
+  rules: 'extensions',
+  agents: 'agent',
   'image-generation': 'models',
+
+  // Consolidated sections into General
+  appearance: 'general',
+  shortcuts: 'general',
+  pets: 'general',
+  animations: 'general',
+
+  // Consolidated sections into Models
+  vision: 'models',
+
+  // Consolidated sections into Extensions
+  skills: 'extensions',
+  tools: 'extensions',
+  plugins: 'extensions',
+  prompts: 'extensions',
+
+  // Consolidated sections into Agent
+  subagents: 'agent',
+  automation: 'agent',
+  artifact: 'agent',
+  'artifact-playground': 'agent',
+
+  // Consolidated sections into Knowledge
+  web: 'knowledge',
+
+  // Consolidated sections into Session
+  runtime: 'session',
+  archive: 'session',
+  usage: 'session',
 } as const;
 
 export type LegacySettingsSectionId = keyof typeof LEGACY_SETTINGS_REDIRECTS;
 
-export type SettingsGroupId =
-  'application' | 'agent' | 'integrations' | 'system' | 'personalization';
+export type SettingsGroupId = 'application' | 'agent' | 'integrations' | 'system';
 
 export type SettingsSectionMeta = {
   id: SettingsSectionId;
@@ -60,27 +73,11 @@ export type SettingsSectionMeta = {
 export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'general', group: 'application', labelKey: 'general' },
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
-  { id: 'appearance', group: 'application', labelKey: 'appearance' },
-  { id: 'shortcuts', group: 'application', labelKey: 'shortcuts' },
   { id: 'models', group: 'agent', labelKey: 'models' },
-  { id: 'knowledge', group: 'agent', labelKey: 'knowledge' },
-  { id: 'vision', group: 'agent', labelKey: 'vision' },
-  { id: 'artifact', group: 'agent', labelKey: 'artifact' },
-  { id: 'artifact-playground', group: 'agent', labelKey: 'artifactPlayground', beta: true },
-  { id: 'session', group: 'agent', labelKey: 'sessions' },
-  { id: 'runtime', group: 'agent', labelKey: 'runtime' },
-  { id: 'archive', group: 'agent', labelKey: 'archive' },
-  { id: 'skills', group: 'integrations', labelKey: 'skills' },
-  { id: 'web', group: 'integrations', labelKey: 'web' },
-  { id: 'tools', group: 'integrations', labelKey: 'tools' },
-  { id: 'extensions', group: 'integrations', labelKey: 'extensions', beta: true },
-  { id: 'plugins', group: 'integrations', labelKey: 'plugins', beta: true },
-  { id: 'prompts', group: 'integrations', labelKey: 'prompts' },
-  { id: 'automation', group: 'system', labelKey: 'automation', beta: true },
-  { id: 'subagents', group: 'system', labelKey: 'subagents', beta: true },
-  { id: 'usage', group: 'system', labelKey: 'usage' },
-  { id: 'pets', group: 'personalization', labelKey: 'pets' },
-  { id: 'animations', group: 'personalization', labelKey: 'animations' },
+  { id: 'agent', group: 'agent', labelKey: 'agent' },
+  { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
+  { id: 'knowledge', group: 'integrations', labelKey: 'knowledge' },
+  { id: 'session', group: 'system', labelKey: 'session' },
 ] as const;
 
 /** Group display order for the settings nav. */
@@ -88,14 +85,13 @@ export const SETTINGS_GROUPS: readonly {
   id: SettingsGroupId;
   labelKey: keyof Pick<
     DesktopTranslator['settings'],
-    'application' | 'agent' | 'integrations' | 'system' | 'personalization'
+    'application' | 'agent' | 'integrations' | 'system'
   >;
 }[] = [
   { id: 'application', labelKey: 'application' },
   { id: 'agent', labelKey: 'agent' },
   { id: 'integrations', labelKey: 'integrations' },
   { id: 'system', labelKey: 'system' },
-  { id: 'personalization', labelKey: 'personalization' },
 ] as const;
 
 export function isSettingsSectionId(value: string): value is SettingsSectionId {

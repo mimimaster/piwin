@@ -147,7 +147,7 @@ describe('SettingsShell', () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <SettingsShell
-            activeSection="web"
+            activeSection="knowledge"
             onSelectSection={vi.fn()}
             contextValue={createContextValue(vi.fn())}
             onClose={vi.fn()}
@@ -160,7 +160,7 @@ describe('SettingsShell', () => {
     expect(container.querySelector('.settings-main-content > .settings-card-heading')).toBeNull();
     expect(container.querySelector('[data-testid="settings-close-button"]')).toBeNull();
     expect(container.querySelector('[data-testid="settings-back-button"]')).not.toBeNull();
-    expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('Web 工具');
+    expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('检索与知识库');
   });
 
   it('returns to the workspace from the sidebar back action', () => {
@@ -214,13 +214,11 @@ describe('SettingsShell', () => {
 
   it('switches content when a nav item is clicked', () => {
     act(() => {
-      root.render(<ShellHarness initialSection="skills" />);
+      root.render(<ShellHarness initialSection="extensions" />);
     });
-    // Registered Wave-1 page (skills) renders through the registry; it also
-    // carries the merged rules placeholder.
-    expect(container.querySelector('[data-testid="settings-rules-empty"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
 
-    // Models (Wave 3) renders through the registry; config is null in this
+    // Models renders through the registry; config is null in this
     // harness, so the page shows its loading state.
     const modelsNav = container.querySelector<HTMLButtonElement>(
       '[data-testid="settings-nav-models"]',
@@ -230,7 +228,7 @@ describe('SettingsShell', () => {
       modelsNav?.click();
     });
     expect(container.querySelector('[data-testid="settings-models-loading"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="settings-rules-empty"]')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-extensions-hub"]')).toBeNull();
 
     // Registered page again: sessions.
     const sessionNav = container.querySelector<HTMLButtonElement>(
@@ -294,29 +292,28 @@ describe('SettingsShell', () => {
     ).not.toBeNull();
   });
 
-  it('renders Wave-2 sections through the registry, not the legacy fallback', async () => {
+  it('renders consolidated sections through the registry, not the legacy fallback', async () => {
     act(() => {
       root.render(<ShellHarness />);
     });
-    const skillsNav = container.querySelector<HTMLButtonElement>(
-      '[data-testid="settings-nav-skills"]',
+    const extensionsNav = container.querySelector<HTMLButtonElement>(
+      '[data-testid="settings-nav-extensions"]',
     );
-    expect(skillsNav).not.toBeNull();
-    // Async act flushes SkillsPanel's on-mount host requests.
+    expect(extensionsNav).not.toBeNull();
     await act(async () => {
-      skillsNav?.click();
+      extensionsNav?.click();
     });
-    expect(container.querySelector('[data-testid="settings-skills"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="settings-extensions-hub"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
   });
 
-  it('renders the Code-first mode switch on the Appearance page and toggles it', () => {
+  it('updates artifact code-first preference through the checkbox', () => {
     const contextValue = createContextValue(vi.fn());
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <SettingsShell
-            activeSection="appearance"
+            activeSection="general"
             onSelectSection={vi.fn()}
             contextValue={contextValue}
           />
@@ -348,7 +345,7 @@ describe('SettingsShell', () => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <SettingsShell
-            activeSection="appearance"
+            activeSection="general"
             onSelectSection={vi.fn()}
             contextValue={contextValueOn}
           />

@@ -1,18 +1,25 @@
 /**
- * Settings → General page (Wave 1 migration from SettingsPanel).
- * Language select + host capability matrix. Reads state via useSettings().
+ * Settings → General page.
+ * Unified application preferences: Appearance & Themes, General & Host Capabilities,
+ * Keyboard Shortcuts, and Companion (Pet).
  */
-import type { ReactElement } from 'react';
-import { useState } from 'react';
-import { buildCapabilityMatrix } from '@piwin/contracts';
-import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
+import { useState, type ReactElement } from 'react';
+import { SegmentedControl } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import { useSettings } from '../settings-context';
+import { AppearancePage } from './appearance-page';
+import { ShortcutsPage } from './shortcuts-page';
+import { PetPanel } from '../../PetPanel';
 import { Collapse, Select } from '@piwin/ui-kit';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
-import { useSettings } from '../settings-context';
+import { buildCapabilityMatrix } from '@piwin/contracts';
+import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
+import { AgentLocator } from '../../agent-locator.js';
+import type { AgentLocatorAnimation } from '../../ui-preferences.js';
 
-/** Desktop Settings is zh-CN; capability matrix English labels stay for CLI. */
+type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'pets';
+
 const CAPABILITY_LABEL_ZH: Record<string, string> = {
   customTools: '自定义工具（Web / MCP / 记忆 / 进程）',
   productTranscript: '产品层会话恢复',
@@ -68,19 +75,19 @@ function getCapabilityLabel(capabilityId: string, fallback: string, locale: Desk
   return CAPABILITY_LABEL_ZH[capabilityId] ?? fallback;
 }
 
-export function GeneralPage(): ReactElement {
+function GeneralPreferencesSection(): ReactElement {
   const { locale, setLocale } = useDesktopLocale();
   const copy = getDesktopCopy(locale);
   const { hostStatus } = useSettings();
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
 
   return (
-    <div className="settings-card">
-      <div className="settings-section settings-section-card">
+    <>
+      <div className="settings-section settings-section-card" data-testid="settings-general-base">
         <PageTitle
-          title={locale === 'zh-CN' ? '基础与运行' : 'General & Runtime'}
+          title={locale === 'zh-CN' ? '基础偏好' : 'General Preferences'}
           description={
-            locale === 'zh-CN' ? '管理界面显示语言。' : 'Manage display language.'
+            locale === 'zh-CN' ? '管理界面显示语言与基础配置。' : 'Manage display language and basic configuration.'
           }
         />
         <FieldRow label={copy.language} description={copy.languageDescription}>
@@ -153,6 +160,111 @@ export function GeneralPage(): ReactElement {
           </Collapse>
         </div>
       ) : null}
+    </>
+  );
+}
+
+function AnimationLocatorCard(): ReactElement {
+  const { locale } = useDesktopLocale();
+  const { preferences, onPreferencesChange } = useSettings();
+  const isChinese = locale === 'zh-CN';
+  const locatorAnimation = preferences.agentLocatorAnimation ?? 'radial-bellow';
+
+  return (
+    <div className="settings-section settings-section-card animation-locator-config" data-testid="settings-locator-animation">
+      <PageTitle
+        title={isChinese ? 'Agent 定位动效' : 'Agent locator animation'}
+        description={
+          isChinese
+            ? '运行中只显示一个轻量定位标记和动态文字；它会出现在对话区域底部或当前工作行。'
+            : 'While a run is active, show one lightweight marker and changing text in the transcript locator.'
+        }
+      />
+      <div className="animation-locator-config-row" style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>
+        <SegmentedControl
+          value={locatorAnimation}
+          onChange={(value) => {
+            if (
+              value === 'radial-bellow' ||
+              value === 'asterisk-breath' ||
+              value === 'breath-dot' ||
+              value === 'none'
+            ) {
+              const nextAnimation: AgentLocatorAnimation = value;
+              onPreferencesChange({
+                ...preferences,
+                agentLocatorAnimation: nextAnimation,
+              });
+            }
+          }}
+          aria-label={isChinese ? 'Agent 定位动效' : 'Agent locator animation'}
+          data={[
+            { value: 'radial-bellow', label: isChinese ? '辐射风箱' : 'Radial bellow' },
+            { value: 'asterisk-breath', label: isChinese ? '星芒呼吸' : 'Asterisk' },
+            { value: 'breath-dot', label: isChinese ? '圆点呼吸' : 'Breath dot' },
+            { value: 'none', label: isChinese ? '仅文字' : 'Text only' },
+          ]}
+          testId="agent-locator-animation-control"
+        />
+        <div className="animation-locator-preview" data-testid="agent-locator-preview">
+          <AgentLocator
+            input={{ kind: 'waiting-first-token', locale }}
+            animation={locatorAnimation}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function GeneralPage(): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+  const { requestPet, onPetActiveChanged } = useSettings();
+  const [activeTab, setActiveTab] = useState<GeneralSubTab>('appearance');
+
+  return (
+    <div className="settings-card general-hub-page" data-testid="settings-general">
+      <div style={{ marginBottom: 16 }}>
+        <SegmentedControl
+          value={activeTab}
+          onChange={(val) => setActiveTab(val as GeneralSubTab)}
+          data={[
+            { value: 'appearance', label: isChinese ? '外观与主题' : 'Appearance' },
+            { value: 'general', label: isChinese ? '基础设置' : 'General' },
+            { value: 'shortcuts', label: isChinese ? '快捷键' : 'Shortcuts' },
+            { value: 'pets', label: isChinese ? '灵动伴侣 (桌宠)' : 'Companion' },
+          ]}
+          testId="general-subtabs-control"
+        />
+      </div>
+
+      {activeTab === 'appearance' && (
+        <div data-testid="general-tab-appearance">
+          <AppearancePage />
+          <div style={{ marginTop: 16 }}>
+            <AnimationLocatorCard />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'general' && (
+        <div data-testid="general-tab-base">
+          <GeneralPreferencesSection />
+        </div>
+      )}
+
+      {activeTab === 'shortcuts' && (
+        <div data-testid="general-tab-shortcuts">
+          <ShortcutsPage />
+        </div>
+      )}
+
+      {activeTab === 'pets' && (
+        <div className="settings-card" data-testid="general-tab-pets">
+          <PetPanel request={requestPet} onActiveChanged={onPetActiveChanged} variant="inline" />
+        </div>
+      )}
     </div>
   );
 }

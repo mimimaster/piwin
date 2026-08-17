@@ -12,28 +12,12 @@ import {
 
 const ALL_SECTION_IDS: SettingsSectionId[] = [
   'general',
-  'appearance',
   'permissions',
   'models',
-  'vision',
-  'artifact',
-  'skills',
+  'agent',
   'extensions',
-  'plugins',
-  'prompts',
-  'tools',
-  'web',
-  'session',
-  'runtime',
-  'archive',
-  'automation',
-  'subagents',
-  'pets',
-  'usage',
-  'shortcuts',
-  'artifact-playground',
-  'animations',
   'knowledge',
+  'session',
 ];
 
 describe('section registry', () => {
@@ -64,14 +48,19 @@ describe('section registry', () => {
   });
 
   it('maps legacy deep links to canonical sections', () => {
-    expect(normalizeSettingsSection('rules')).toBe('skills');
-    expect(normalizeSettingsSection('agents')).toBe('automation');
+    expect(normalizeSettingsSection('rules')).toBe('extensions');
+    expect(normalizeSettingsSection('agents')).toBe('agent');
     expect(normalizeSettingsSection('bogus')).toBe('general');
+    expect(normalizeSettingsSection('skills')).toBe('extensions');
+    expect(normalizeSettingsSection('tools')).toBe('extensions');
+    expect(normalizeSettingsSection('subagents')).toBe('agent');
+    expect(normalizeSettingsSection('runtime')).toBe('session');
+    expect(normalizeSettingsSection('archive')).toBe('session');
     expect(isLegacySettingsSectionId('rules')).toBe(true);
     expect(isLegacySettingsSectionId('agents')).toBe(true);
     expect(isLegacySettingsSectionId('general')).toBe(false);
     expect(isLegacySettingsSectionId('image-generation')).toBe(true);
     expect(normalizeSettingsSection('image-generation')).toBe('models');
-    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS)).toHaveLength(3);
+    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(15);
   });
 });

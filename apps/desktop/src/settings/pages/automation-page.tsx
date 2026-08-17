@@ -1,7 +1,5 @@
 /**
- * Settings → Automation page (Wave 2 migration from SettingsPanel).
- * Sub-agents are merged into Automation as a separate section until a tabbed
- * refactor lands in Phase 5.
+ * Settings → Automation component.
  */
 import { type ReactElement } from 'react';
 import { AutomationPanel } from '../../AutomationPanel';
@@ -28,7 +26,7 @@ export function AutomationPage(): ReactElement {
       : undefined;
 
   return (
-    <div className="settings-card">
+    <div className="settings-card" data-testid="settings-automation">
       <AutomationPanel projectPath={projectPath} request={requestAutomation} variant="inline" />
 
       {requestSubAgent && (
@@ -57,3 +55,5 @@ export function AutomationPage(): ReactElement {
     </div>
   );
 }
+
+
