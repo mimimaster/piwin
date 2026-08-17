@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { Button } from './button.js';
 import { Dialog } from './dialog.js';
 
@@ -18,6 +18,10 @@ export type ConfirmDialogProps = {
   error?: string | null | undefined;
   onConfirm: () => void;
   testId?: string;
+  /** When set, renders a "don't ask again" checkbox with this label. */
+  dontAskAgainLabel?: string | undefined;
+  /** Fired when the user toggles the "don't ask again" checkbox. */
+  onDontAskAgainChange?: ((checked: boolean) => void) | undefined;
 };
 
 /**
@@ -29,6 +33,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactElement {
   const confirmLabel = props.confirmLabel ?? 'Confirm';
   const cancelLabel = props.cancelLabel ?? 'Cancel';
   const busy = props.busy === true;
+  const [dontAskChecked, setDontAskChecked] = useState(false);
 
   return (
     <Dialog
@@ -54,6 +59,23 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactElement {
           {props.error}
         </div>
       ) : null}
+      {props.dontAskAgainLabel ? (
+        <label
+          className="ui-confirm-dont-ask"
+          data-testid="confirm-dialog-dont-ask"
+        >
+          <input
+            type="checkbox"
+            checked={dontAskChecked}
+            onChange={(e) => {
+              const next = e.currentTarget.checked;
+              setDontAskChecked(next);
+              props.onDontAskAgainChange?.(next);
+            }}
+          />
+          <span>{props.dontAskAgainLabel}</span>
+        </label>
+      ) : null}
       <div className="modal-actions">
         <Button
           data-testid="confirm-dialog-cancel"
@@ -78,3 +100,4 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactElement {
     </Dialog>
   );
 }
+

@@ -42,6 +42,31 @@
   margin-top: 16px;
 }
 
+.ui-confirm-dont-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  margin-top: 12px;
+  transition: color 140ms ease;
+}
+
+.ui-confirm-dont-ask:hover {
+  color: var(--text);
+}
+
+.ui-confirm-dont-ask input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+
 /* ─── Checkpoint Revert Modal ────────────────────────────────────────── */
 
 .revert-modal-content {

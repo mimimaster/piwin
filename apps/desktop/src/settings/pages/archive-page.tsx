@@ -267,6 +267,8 @@ export function ArchivePage(): ReactElement {
         confirmLabel: isZh ? '彻底删除' : 'Delete permanently',
         tone: 'danger',
         affectedObject: name,
+        skipKey: 'archive-delete',
+        dontAskAgainLabel: isZh ? '不再询问' : "Don't ask again",
       });
       if (!confirmed) return;
 
@@ -375,6 +377,8 @@ export function ArchivePage(): ReactElement {
         : `Are you sure you want to permanently delete the ${count} selected archived sessions? This action cannot be undone.`,
       confirmLabel: isZh ? `彻底删除 (${count})` : `Delete (${count})`,
       tone: 'danger',
+      skipKey: 'archive-delete',
+      dontAskAgainLabel: isZh ? '不再询问' : "Don't ask again",
     });
     if (!confirmed) return;
 
