@@ -240,10 +240,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [rightPanelOpen, shell]);
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [knowledgeInitialTab, setKnowledgeInitialTab] = useState<'doccards' | 'cards' | 'wiki'>('doccards');
   const handleOpenKnowledge = useCallback(
-    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
-      setKnowledgeInitialTab(subTab);
+    (_subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
       setKnowledgeOpen(true);
     },
     [],
@@ -2803,7 +2801,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       projectPath={state.projectPath}
                       recentProjects={recentProjects}
                       request={requestKnowledgeCenter}
-                      initialSubTab={knowledgeInitialTab}
                       onClose={() => setKnowledgeOpen(false)}
                       onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
                       onConfigureEmbedding={() => openSettingsSection('knowledge')}

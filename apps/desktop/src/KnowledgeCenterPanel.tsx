@@ -41,7 +41,6 @@ import { generationProgress, ingestionProgress } from './doccards-progress.js';
 import { DocCardsProgressRing } from './DocCardsProgressRing.js';
 import { knowledgeCapabilityLights } from './knowledge-capabilities.js';
 import {
-  IconCards,
   IconClose,
   IconDocument,
   IconFolder,
@@ -73,12 +72,9 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   const isZh = locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
 
-  const initialSelected = props.projectPath || (props.recentProjects?.[0]?.path ?? '');
-  const [selectedPath, setSelectedPath] = useState<string>(initialSelected);
+  const [selectedPath, setSelectedPath] = useState('');
   const [mountedFolders, setMountedFolders] = useState<string[]>([]);
-  const [viewTab, setViewTab] = useState<'wiki' | 'cards'>(
-    props.initialSubTab === 'wiki' ? 'wiki' : 'cards',
-  );
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // System config & capability lights
   const [config, setConfig] = useState<PiwinConfig | null>(null);
@@ -116,26 +112,11 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
     [capabilityLights],
   );
 
-  // Sync initial subTab
   useEffect(() => {
-    if (props.initialSubTab === 'wiki') {
-      setViewTab('wiki');
-    } else if (props.initialSubTab === 'cards' || props.initialSubTab === 'doccards') {
-      setViewTab('cards');
-    }
-  }, [props.initialSubTab]);
-
-  // Load custom mounted folders
-  useEffect(() => {
-    setMountedFolders(loadRecentFolders());
+    const recent = loadRecentFolders();
+    setMountedFolders(recent);
+    if (recent[0]) setSelectedPath(recent[0]);
   }, []);
-
-  // Update selectedPath when props.projectPath transitions from null → path
-  useEffect(() => {
-    if (props.projectPath && !selectedPath) {
-      setSelectedPath(props.projectPath);
-    }
-  }, [props.projectPath, selectedPath]);
 
   // Load project status & scan whenever selectedPath changes
   const loadProjectData = useCallback(async (folderPath: string) => {
@@ -258,7 +239,6 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
     }
     setBusy(true);
     setActionError(null);
-    setViewTab('cards');
     try {
       const job = await runDoccardsGenerate(props.request, {
         folderPath: selectedPath,
@@ -326,6 +306,13 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
           onPickFolder={() => {
             void pickAndMountFolder();
           }}
+          onUseCurrentProject={
+            props.projectPath
+              ? () => {
+                  handleMountFolder(props.projectPath!);
+                }
+              : undefined
+          }
           onConfigureEmbedding={props.onConfigureEmbedding}
         />
       );
@@ -424,10 +411,9 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
     <div className="knowledge-master-detail-layout" data-testid="knowledge-center-panel">
       {/* ◀ Left Master Column: Projects & Repositories */}
       <KnowledgeProjectList
-        activeProjectPath={props.projectPath}
-        recentProjects={props.recentProjects ?? []}
-        mountedFolders={mountedFolders}
+        folders={mountedFolders}
         selectedPath={selectedPath}
+        activeProjectPath={props.projectPath}
         projectStats={
           selectedPath
             ? {
@@ -438,7 +424,7 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
                       : view.stage === 'indexing'
                         ? 'indexing'
                         : 'unindexed',
-                  sliceCount: scannedFiles.length,
+                  fileCount: scannedFiles.length,
                   cardCount: cards.length,
                 },
               }
@@ -454,32 +440,22 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         <header className="knowledge-stage-topbar">
           <div className="stage-project-identity">
             <IconFolder width={16} height={16} className="stage-project-icon" />
-            <span className="stage-project-kicker muted">{t('Knowledge /', '知识中心 /')}</span>
-            <h2 className="stage-project-title">{selectedName || t('Select repository', '选择项目')}</h2>
-          </div>
-
-          <div className="stage-tab-switcher">
-            <button
-              type="button"
-              className={`stage-tab-btn${viewTab === 'wiki' ? ' active' : ''}`}
-              onClick={() => setViewTab('wiki')}
-              data-testid="tab-wiki-btn"
-            >
-              <IconDocument width={14} height={14} />
-              <span>{t('Docs & Search', '文档与检索')}</span>
-            </button>
-            <button
-              type="button"
-              className={`stage-tab-btn${viewTab === 'cards' ? ' active' : ''}`}
-              onClick={() => setViewTab('cards')}
-              data-testid="tab-cards-btn"
-            >
-              <IconCards width={14} height={14} />
-              <span>{t(`Flashcards (${cards.length})`, `知识闪卡 (${cards.length})`)}</span>
-            </button>
+            <span className="stage-project-kicker muted">{t('Learn from folder /', '从文件夹学习 /')}</span>
+            <h2 className="stage-project-title">{selectedName || t('Choose a document folder', '选择文档文件夹')}</h2>
           </div>
 
           <div className="stage-global-actions">
+            {view.stage !== 'pick-folder' ? (
+              <button
+                type="button"
+                className="knowledge-search-toggle"
+                onClick={() => setSearchOpen((open) => !open)}
+                data-testid="open-folder-search-btn"
+              >
+                <IconDocument width={14} height={14} />
+                <span>{t('Search this folder', '搜索此文件夹')}</span>
+              </button>
+            ) : null}
             {props.onConfigureEmbedding && !isEmbeddingConfigured ? (
               <button
                 type="button"
@@ -534,19 +510,20 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
               {actionError}
             </p>
           ) : null}
-          {viewTab === 'wiki' && view.stage !== 'pick-folder' ? (
-            <KnowledgeWikiView
-              folderPath={selectedPath}
-              folderName={selectedName}
-              notes={[]}
-              request={props.request}
-              onSendToChat={props.onSendToChat}
-              isEmbeddingConfigured={isEmbeddingConfigured}
-              onConfigureEmbedding={props.onConfigureEmbedding}
-            />
-          ) : (
-            renderStage()
-          )}
+          {searchOpen && view.stage !== 'pick-folder' ? (
+            <div className="knowledge-search-drawer" data-testid="knowledge-search-drawer">
+              <KnowledgeWikiView
+                folderPath={selectedPath}
+                folderName={selectedName}
+                notes={[]}
+                request={props.request}
+                onSendToChat={props.onSendToChat}
+                isEmbeddingConfigured={isEmbeddingConfigured}
+                onConfigureEmbedding={props.onConfigureEmbedding}
+              />
+            </div>
+          ) : null}
+          {renderStage()}
         </div>
       </main>
     </div>
