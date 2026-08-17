@@ -26,6 +26,7 @@ import {
   setActiveTheme,
 } from '@piwin/theme';
 import {
+  deletePet,
   installPetFromLocalPath,
   installPetFromLocalPaths,
   installPetFromRegistry,
@@ -100,6 +101,7 @@ const TYPES = new Set<HostCommand['type']>([
   'pet/store-query',
   'pet/install-registry',
   'pet/cancel',
+  'pet/delete',
   'config/get',
   'settings/get',
   'settings/apply',
@@ -538,6 +540,14 @@ export async function handleCatalogCommand(
         activePetAborts.delete(command.requestId);
       }
       return ok(requestId, 'pet/cancel', { cancelled: true });
+    }
+    case 'pet/delete': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const result = await deletePet(rootDir, command.petId);
+      if (result.fallbackPet) {
+        context.petStateStore.setBase(result.fallbackPet);
+      }
+      return ok(requestId, 'pet/delete', { deleted: true, fallbackPet: result.fallbackPet });
     }
 
     case 'config/get': {

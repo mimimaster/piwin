@@ -21,6 +21,7 @@ export {
   loadPetManifest,
   getActivePet,
   setActivePet,
+  deletePet,
   installPetFromLocalPath,
   installPetFromLocalPaths,
   scanLocalPets,
