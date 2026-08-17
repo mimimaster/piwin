@@ -240,11 +240,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [rightPanelOpen, shell]);
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const handleOpenCardsPanel = useCallback(() => {
+    shell.openInspector('cards');
+  }, [shell]);
   const handleOpenKnowledge = useCallback(
-    (_subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+      if (subTab === 'cards') {
+        handleOpenCardsPanel();
+        return;
+      }
       setKnowledgeOpen(true);
     },
-    [],
+    [handleOpenCardsPanel],
   );
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
@@ -1451,6 +1458,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     menuSkills,
     conversationChat: state.activeScope.kind === 'general',
     onOpenKnowledge: handleOpenKnowledge,
+    onOpenCardsPanel: handleOpenCardsPanel,
     onCompact: handleCompact,
     onAbort: handleAbort,
     ensureSession,
@@ -2202,6 +2210,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onOpenSkillsPanel: handleOpenSkillsPanel,
       onOpenMcpPanel: handleOpenMcpPanel,
       onOpenKnowledge: handleOpenKnowledge,
+      onOpenCardsPanel: handleOpenCardsPanel,
       onAttachFile: handleComposerAttachFile,
       onAttachImage: handleComposerAttachImage,
       onPaste: handleComposerPasteEvent,

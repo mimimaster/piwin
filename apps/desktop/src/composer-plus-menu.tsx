@@ -13,7 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@piwin/ui-kit';
-import { IconBook, IconBrain, IconCards, IconDocument, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
+import { IconBook, IconCards, IconDocument, IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
 
 export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'knowledge';
 
@@ -40,8 +40,10 @@ export type ComposerPlusMenuProps = {
   onOpenSkillsPanel: () => void;
   mcpServers: ComposerMcpOption[];
   onOpenMcpPanel: () => void;
-  /** Open Knowledge Center sub-tab directly from composer menu. */
+  /** Open Knowledge Center overlay from composer menu. */
   onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
+  /** Open the right-panel Flashcards due queue. */
+  onOpenCardsPanel?: (() => void) | undefined;
   /** Optional for isolated menu consumers that do not expose file uploads. */
   onAttachFile?: () => void;
   /** Optional image-only picker for quick access to screenshots. */
@@ -109,25 +111,16 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
                 <span className="plus-menu-icon">
                   <IconDocument width={14} height={14} />
                 </span>
-                <span className="plus-menu-label">Doc Cards (文档闪卡)</span>
+                <span className="plus-menu-label">Learn from folder</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onSelect={() => props.onOpenKnowledge?.('cards')}
+                onSelect={() => props.onOpenCardsPanel?.()}
                 testId="plus-menu-open-flashcards"
               >
                 <span className="plus-menu-icon">
                   <IconCards width={14} height={14} />
                 </span>
                 <span className="plus-menu-label">Flashcards (知识卡片复习)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => props.onOpenKnowledge?.('wiki')}
-                testId="plus-menu-open-wiki"
-              >
-                <span className="plus-menu-icon">
-                  <IconBrain width={14} height={14} />
-                </span>
-                <span className="plus-menu-label">Repo Wiki (项目知识笔记)</span>
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
