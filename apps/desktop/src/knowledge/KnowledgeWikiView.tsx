@@ -6,7 +6,8 @@
 import { useState, type ReactElement } from 'react';
 import { Button, IconButton, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
-import type { HostResponse, NoteRecord } from '@piwin/contracts';
+import type { NoteRecord } from '@piwin/contracts';
+import type { DoccardsHostRequest } from './knowledge-host-request.js';
 import { copyToClipboard, downloadFile } from '../knowledge-export.js';
 import {
   IconCommentAction,
@@ -28,7 +29,7 @@ export type KnowledgeWikiViewProps = {
   folderPath: string;
   folderName: string;
   notes: NoteRecord[];
-  request: (command: any) => Promise<HostResponse>;
+  request: DoccardsHostRequest;
   onSendToChat?: ((text: string) => void) | undefined;
   onOpenSourceFile?: ((filePath: string) => void) | undefined;
   isEmbeddingConfigured?: boolean | undefined;

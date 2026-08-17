@@ -62,7 +62,7 @@ describe('runDoccardsGenerate', () => {
     expect(job.sessionId).toBe('sess-1');
   });
 
-  it('throws the job error instead of a bare FAILED status', async () => {
+  it('returns a FAILED job so the result page can render it', async () => {
     const request = vi.fn(async (command: { type: string }) => {
       if (command.type === 'doccards/generate') {
         return {
@@ -76,11 +76,11 @@ describe('runDoccardsGenerate', () => {
         type: 'response' as const,
         command: command.type,
         success: true as const,
-        data: { job: { status: 'FAILED', error: 'NO_VALID_FLASHCARDS' } },
+        data: { job: { id: 'gen_1', status: 'FAILED', error: 'NO_VALID_FLASHCARDS' } },
       };
     });
-    await expect(runDoccardsGenerate(request, { folderPath: '/docs' })).rejects.toThrow(
-      'NO_VALID_FLASHCARDS',
-    );
+    const job = await runDoccardsGenerate(request, { folderPath: '/docs' });
+    expect(job.status).toBe('FAILED');
+    expect(job.error).toBe('NO_VALID_FLASHCARDS');
   });
 });

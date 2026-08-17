@@ -437,6 +437,49 @@ describe('KnowledgeCenterPanel', () => {
     expect(container.querySelector('[data-testid="generate-cards-btn"]')).toBeNull();
   });
 
+  it('keeps unchecked files unchecked after a rescan', async () => {
+    const request = vi.fn(async (cmd: { type: string }) => {
+      if (cmd.type === 'doccards/scan-folder') {
+        return {
+          success: true,
+          data: {
+            files: [
+              { relativePath: 'a.md', sizeBytes: 10, language: 'markdown' },
+              { relativePath: 'b.md', sizeBytes: 10, language: 'markdown' },
+            ],
+            unsupported: [],
+          },
+        };
+      }
+      if (cmd.type === 'doccards/list-by-folder') {
+        return { success: true, data: { records: [] } };
+      }
+      if (cmd.type === 'doccards/index-status') {
+        return { success: true, data: { job: null, documents: [] } };
+      }
+      return { success: true, data: {} };
+    });
+    seedRecent('/docs');
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel projectPath="/docs" request={request as any} />
+        </PiwinUiProvider>,
+      );
+    });
+    const b = container.querySelector<HTMLInputElement>('input[data-path="b.md"]');
+    expect(b?.checked).toBe(true);
+    await act(async () => {
+      b?.click();
+    });
+    expect(container.querySelector<HTMLInputElement>('input[data-path="b.md"]')?.checked).toBe(false);
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="rescan-btn"]')?.click();
+    });
+    expect(container.querySelector<HTMLInputElement>('input[data-path="b.md"]')?.checked).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[data-path="a.md"]')?.checked).toBe(true);
+  });
+
   it('asks for a folder when none is selected', async () => {
     await act(async () => {
       root.render(
