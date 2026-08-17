@@ -45,7 +45,8 @@ describe('KnowledgeUnindexedHero', () => {
       );
     });
 
-    expect(container.textContent).toContain('为「piwin」构建知识库');
+    expect(container.textContent).toContain('入库这些文件');
+    expect(container.textContent).not.toContain('构建知识库');
     expect(container.textContent).toContain('1.0 KB');
 
     const startBtn = container.querySelector<HTMLButtonElement>('[data-testid="start-indexing-btn"]');
@@ -106,7 +107,7 @@ describe('KnowledgeUnindexedHero', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.textContent).toContain('先选一个文档文件夹');
+    expect(container.textContent).toContain('从文件夹学习');
     const button = container.querySelector<HTMLButtonElement>('[data-testid="hero-pick-folder-btn"]');
     expect(button).not.toBeNull();
     act(() => {

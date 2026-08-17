@@ -114,8 +114,10 @@ export type UseComposerMediaArgs = {
   }) => boolean;
   /** Conversation chat ignores Agent slash modes, skills, and orchestration. */
   conversationChat?: boolean;
-  /** Open Knowledge Center overlay on slash command submit (/knowledge, /flashcards, /notes). */
+  /** Open Knowledge Center overlay on slash command submit (/knowledge, /notes). */
   onOpenKnowledge?: (subTab?: 'doccards' | 'cards' | 'wiki') => void;
+  /** Open the right-panel Flashcards due queue (/flashcards). */
+  onOpenCardsPanel?: () => void;
 };
 
 type SessionComposerSnapshot = {
@@ -1584,6 +1586,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           setComposer('');
           clearPendingAttachments();
           args.onOpenKnowledge?.(parsed.subTab);
+          return;
+        }
+        if (parsed.kind === 'cards-panel') {
+          setComposer('');
+          clearPendingAttachments();
+          args.onOpenCardsPanel?.();
           return;
         }
         if (parsed.kind === 'mode' && !parsed.args) {

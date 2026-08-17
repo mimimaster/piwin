@@ -111,7 +111,7 @@ export function parseComposerSlashSubmit(
     return { kind: 'knowledge', subTab: 'doccards', name, args };
   }
   if (name === 'flashcards' || name === 'cards') {
-    return { kind: 'knowledge', subTab: 'cards', name, args };
+    return { kind: 'cards-panel', name, args };
   }
   if (name === 'notes' || name === 'wiki') {
     return { kind: 'knowledge', subTab: 'wiki', name, args };
