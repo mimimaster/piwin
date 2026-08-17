@@ -113,7 +113,7 @@ describe('KnowledgeCenterPanel', () => {
 
     expect(container.querySelector('[data-testid="knowledge-center-panel"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="knowledge-project-list"]')).not.toBeNull();
-    expect(container.textContent).toContain('Core concept');
+    expect(container.querySelector('[data-testid="generate-cards-btn"]')).not.toBeNull();
     const configBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="knowledge-config-btn"]',
     );
@@ -122,17 +122,10 @@ describe('KnowledgeCenterPanel', () => {
       configBtn?.click();
     });
     expect(onConfigureEmbedding).toHaveBeenCalledTimes(1);
-
-    // Switch to Wiki view
-    const wikiBtn = container.querySelector<HTMLButtonElement>('[data-testid="tab-wiki-btn"]');
-    expect(wikiBtn).not.toBeNull();
-    await act(async () => {
-      wikiBtn?.click();
-    });
-    expect(container.textContent).toContain('Architecture Overview');
+    expect(container.querySelector('[data-testid="tab-wiki-btn"]')).not.toBeNull();
   });
 
-  it('opens the review session after generate completes', async () => {
+  it('opens the review session only after the user clicks the result button', async () => {
     const onOpenSession = vi.fn();
     const request = vi.fn(async (cmd: { type: string }) => {
       if (cmd.type === 'doccards/scan-folder') {
@@ -157,10 +150,14 @@ describe('KnowledgeCenterPanel', () => {
         return { success: true, data: { generationId: 'gen_1', status: 'RUNNING' } };
       }
       if (cmd.type === 'doccards/generation-status') {
+        if (!request.mock.calls.some((call) => call[0]?.type === 'doccards/generate')) {
+          return { success: true, data: { job: null } };
+        }
         return {
           success: true,
           data: {
             job: {
+              id: 'gen_1',
               status: 'COMPLETED',
               created: 2,
               createdCardIds: ['c1', 'c2'],
@@ -187,7 +184,177 @@ describe('KnowledgeCenterPanel', () => {
     await act(async () => {
       generate?.click();
     });
+    expect(onOpenSession).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="knowledge-result-view"]')).not.toBeNull();
+    const open = container.querySelector<HTMLButtonElement>('[data-testid="open-review-session-btn"]');
+    expect(open).not.toBeNull();
+    await act(async () => {
+      open?.click();
+    });
     expect(onOpenSession).toHaveBeenCalledWith('session-review');
+  });
+
+  it('treats created=0 as status, not an action error', async () => {
+    const onOpenSession = vi.fn();
+    const request = vi.fn(async (cmd: { type: string }) => {
+      if (cmd.type === 'doccards/scan-folder') {
+        return {
+          success: true,
+          data: { files: [{ relativePath: 'a.md', sizeBytes: 10, language: 'markdown' }], unsupported: [] },
+        };
+      }
+      if (cmd.type === 'doccards/list-by-folder') {
+        return { success: true, data: { records: [] } };
+      }
+      if (cmd.type === 'doccards/index-status') {
+        return {
+          success: true,
+          data: {
+            job: { status: 'COMPLETED', completedFiles: 1, totalFiles: 1, warnings: [] },
+            documents: [{ status: 'READY', relativePath: 'a.md' }],
+          },
+        };
+      }
+      if (cmd.type === 'doccards/generate') {
+        return { success: true, data: { generationId: 'gen_0', status: 'RUNNING' } };
+      }
+      if (cmd.type === 'doccards/generation-status') {
+        if (!request.mock.calls.some((call) => call[0]?.type === 'doccards/generate')) {
+          return { success: true, data: { job: null } };
+        }
+        return {
+          success: true,
+          data: { job: { id: 'gen_0', status: 'COMPLETED', created: 0, createdCardIds: [] } },
+        };
+      }
+      return { success: true, data: {} };
+    });
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel
+            projectPath="/docs"
+            request={request as any}
+            onOpenSession={onOpenSession}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="generate-cards-btn"]')?.click();
+    });
+    expect(onOpenSession).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="knowledge-action-error"]')).toBeNull();
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+  });
+
+  it('keeps the overlay open on COMPLETED_DEGRADED without auto-opening a session', async () => {
+    const onOpenSession = vi.fn();
+    const request = vi.fn(async (cmd: { type: string }) => {
+      if (cmd.type === 'doccards/scan-folder') {
+        return {
+          success: true,
+          data: { files: [{ relativePath: 'a.md', sizeBytes: 10, language: 'markdown' }], unsupported: [] },
+        };
+      }
+      if (cmd.type === 'doccards/list-by-folder') {
+        return { success: true, data: { records: [] } };
+      }
+      if (cmd.type === 'doccards/index-status') {
+        return {
+          success: true,
+          data: {
+            job: { status: 'COMPLETED', completedFiles: 1, totalFiles: 1, warnings: [] },
+            documents: [{ status: 'READY', relativePath: 'a.md' }],
+          },
+        };
+      }
+      if (cmd.type === 'doccards/generate') {
+        return { success: true, data: { generationId: 'gen_d', status: 'RUNNING' } };
+      }
+      if (cmd.type === 'doccards/generation-status') {
+        if (!request.mock.calls.some((call) => call[0]?.type === 'doccards/generate')) {
+          return { success: true, data: { job: null } };
+        }
+        return {
+          success: true,
+          data: {
+            job: {
+              id: 'gen_d',
+              status: 'COMPLETED_DEGRADED',
+              created: 2,
+              createdCardIds: ['c1', 'c2'],
+            },
+          },
+        };
+      }
+      return { success: true, data: {} };
+    });
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel
+            projectPath="/docs"
+            request={request as any}
+            onOpenSession={onOpenSession}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="generate-cards-btn"]')?.click();
+    });
+    expect(onOpenSession).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="knowledge-center-panel"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="knowledge-result-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="open-review-session-btn"]')).toBeNull();
+  });
+
+  it('restores a terminal generation job as the result page on mount', async () => {
+    const request = vi.fn(async (cmd: { type: string }) => {
+      if (cmd.type === 'doccards/scan-folder') {
+        return {
+          success: true,
+          data: { files: [{ relativePath: 'a.md', sizeBytes: 10, language: 'markdown' }], unsupported: [] },
+        };
+      }
+      if (cmd.type === 'doccards/list-by-folder') {
+        return { success: true, data: { records: [] } };
+      }
+      if (cmd.type === 'doccards/index-status') {
+        return {
+          success: true,
+          data: {
+            job: { status: 'COMPLETED', completedFiles: 1, totalFiles: 1, warnings: [] },
+            documents: [{ status: 'READY', relativePath: 'a.md' }],
+          },
+        };
+      }
+      if (cmd.type === 'doccards/generation-status') {
+        return {
+          success: true,
+          data: {
+            job: {
+              id: 'gen_restored',
+              status: 'COMPLETED',
+              created: 2,
+              createdCardIds: ['c1', 'c2'],
+              sessionId: 'session-restored',
+            },
+          },
+        };
+      }
+      return { success: true, data: {} };
+    });
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel projectPath="/docs" request={request as any} />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="knowledge-result-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="generate-cards-btn"]')).toBeNull();
   });
 
   it('asks for a folder when none is selected', async () => {

@@ -20,7 +20,6 @@ import type {
   GenerationJob,
   HostResponse,
   IngestionJob,
-  NoteRecord,
   PiwinConfig,
   ScannedDocFile,
   ScannedFileV2,
@@ -30,14 +29,15 @@ import { useDesktopLocale } from './desktop-locale-context.js';
 import { KnowledgeProjectList } from './knowledge/KnowledgeProjectList.js';
 import { KnowledgeUnindexedHero } from './knowledge/KnowledgeUnindexedHero.js';
 import { KnowledgeWikiView } from './knowledge/KnowledgeWikiView.js';
-import { KnowledgeCardsView } from './knowledge/KnowledgeCardsView.js';
 import { KnowledgeFileChecklist } from './knowledge/KnowledgeFileChecklist.js';
+import { KnowledgeReadyView } from './knowledge/KnowledgeReadyView.js';
+import { KnowledgeResultView } from './knowledge/KnowledgeResultView.js';
+import { deriveKnowledgeLoop, generateDisabledCopy } from './knowledge/knowledge-loop-state.js';
 import { loadRecentFolders, saveRecentFolder } from './doccards-recent-folders.js';
 import { pickProjectDirectory } from './pick-project-directory.js';
 import { waitForDoccardsIndexJob } from './doccards-index-job.js';
 import { runDoccardsGenerate } from './doccards-generate-client.js';
-import { formatCardMarkdown } from './knowledge-export.js';
-import { generationProgress } from './doccards-progress.js';
+import { generationProgress, ingestionProgress } from './doccards-progress.js';
 import { DocCardsProgressRing } from './DocCardsProgressRing.js';
 import { knowledgeCapabilityLights } from './knowledge-capabilities.js';
 import {
@@ -89,10 +89,11 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   const [documents, setDocuments] = useState<DocumentManifest[]>([]);
   const [selectedSupported, setSelectedSupported] = useState<string[]>([]);
   const [cards, setCards] = useState<FlashcardRecord[]>([]);
-  const [notes, setNotes] = useState<NoteRecord[]>([]);
-  const [isReady, setIsReady] = useState(false);
   const [indexingJob, setIndexingJob] = useState<IngestionJob | null>(null);
   const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
+  const [dismissedGenerationId, setDismissedGenerationId] = useState<string | null>(null);
+  const [userView] = useState<'loop' | 'library'>('loop');
+  const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -166,15 +167,6 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         setCards(loadedCards);
       }
 
-      // 3. Fetch notes for this project
-      const notesRes = await props.request({
-        type: 'notes/list',
-      });
-      if (notesRes.success && notesRes.data) {
-        const nData = notesRes.data as { records?: NoteRecord[] };
-        setNotes(nData.records ?? []);
-      }
-
       const statusRes = await props.request({
         type: 'doccards/index-status',
         folderPath,
@@ -186,14 +178,18 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         };
         if (statusData.job) setIndexingJob(statusData.job);
         setDocuments(statusData.documents ?? []);
-        const indexed =
-          statusData.job?.status === 'COMPLETED' ||
-          statusData.job?.status === 'COMPLETED_DEGRADED' ||
-          (statusData.documents ?? []).some((document) => document.status === 'READY');
-        setIsReady(indexed || loadedCards.length > 0);
       } else {
         setDocuments([]);
-        setIsReady(loadedCards.length > 0);
+      }
+
+      const genRes = await props.request({
+        type: 'doccards/generation-status',
+        folderPath,
+      });
+      if (genRes.success && genRes.data) {
+        const genData = genRes.data as { job?: GenerationJob | null };
+        setGenerationJob(genData.job ?? null);
+        setDismissedGenerationId(null);
       }
     } finally {
       setBusy(false);
@@ -242,7 +238,6 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
           selectedPath,
         );
         setIndexingJob(job);
-        setIsReady(true);
       } finally {
         window.clearInterval(poll);
       }
@@ -272,23 +267,12 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         onProgress: setGenerationJob,
       });
       setGenerationJob(job);
+      setDismissedGenerationId(null);
       if (job.status === 'FAILED' || job.status === 'CANCELED') {
         setActionError(job.error ?? job.status);
         return;
       }
-      if ((job.created ?? job.createdCardIds?.length ?? 0) === 0) {
-        setActionError(
-          t(
-            'No new cards (they may already exist for this folder).',
-            '没有新卡片（这个文件夹里可能都是重复的）。',
-          ),
-        );
-      }
-      setIsReady(true);
       void loadProjectData(selectedPath);
-      if (job.sessionId && props.onOpenSession) {
-        props.onOpenSession(job.sessionId);
-      }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -309,14 +293,132 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
     if (picked) handleMountFolder(picked);
   }
 
-  function handleOpenSourceFile(cardIdOrFile: string): void {
-    void props.request({
-      type: 'doccards/open-source',
-      cardId: cardIdOrFile,
-    });
-  }
-
   const selectedName = selectedPath ? getFolderBasename(selectedPath) : '';
+  const view = deriveKnowledgeLoop({
+    folderPath: selectedPath || null,
+    selectedSupported,
+    documents,
+    indexJob: indexingJob,
+    generationJob,
+    userView,
+    dismissedGenerationId,
+  });
+  const generateReason = generateDisabledCopy(
+    view.generateBlockReason,
+    { mineruMissing: unsupportedFiles.some((file) => file.unsupportedReason === 'MINERU_NOT_CONFIGURED') },
+    isZh ? 'zh-CN' : 'en',
+  );
+
+  function renderStage(): ReactElement {
+    if (view.stage === 'pick-folder') {
+      return (
+        <KnowledgeUnindexedHero
+          folderPath=""
+          folderName=""
+          scannedFiles={[]}
+          unsupportedFiles={[]}
+          indexingJob={null}
+          busy={busy}
+          empty
+          isEmbeddingConfigured={isEmbeddingConfigured}
+          onStartIndexing={() => undefined}
+          onRescan={() => undefined}
+          onPickFolder={() => {
+            void pickAndMountFolder();
+          }}
+          onConfigureEmbedding={props.onConfigureEmbedding}
+        />
+      );
+    }
+    if (view.stage === 'select-files' || view.stage === 'indexing') {
+      return (
+        <>
+          {view.stage === 'indexing' && indexingJob ? (
+            <DocCardsProgressRing progress={ingestionProgress(indexingJob)} locale={isZh ? 'zh-CN' : 'en'} />
+          ) : null}
+          <KnowledgeFileChecklist
+            files={scannedFiles}
+            unsupported={unsupportedFiles}
+            selected={selectedSupported}
+            documents={documents}
+            disabled={busy || view.stage === 'indexing'}
+            onChange={setSelectedSupported}
+          />
+          <KnowledgeUnindexedHero
+            folderPath={selectedPath}
+            folderName={selectedName}
+            scannedFiles={scannedFiles}
+            unsupportedFiles={unsupportedFiles}
+            indexingJob={indexingJob}
+            busy={busy}
+            isEmbeddingConfigured={isEmbeddingConfigured}
+            onStartIndexing={() => void handleStartIndexing()}
+            onRescan={() => void loadProjectData(selectedPath)}
+            onPickFolder={() => {
+              void pickAndMountFolder();
+            }}
+            onConfigureEmbedding={props.onConfigureEmbedding}
+          />
+        </>
+      );
+    }
+    if (view.stage === 'ready' || view.stage === 'generating') {
+      return (
+        <>
+          {view.stage === 'generating' && generationJob ? (
+            <DocCardsProgressRing progress={generationProgress(generationJob)} locale={isZh ? 'zh-CN' : 'en'} />
+          ) : null}
+          <KnowledgeReadyView
+            folderName={selectedName}
+            topic={topic}
+            onTopicChange={setTopic}
+            onGenerate={() => void handleStartGeneration(topic || undefined)}
+            generateEnabled={view.generateEnabled}
+            disabledReason={generateReason}
+            busy={busy || view.stage === 'generating'}
+            retrievalLine={
+              isEmbeddingConfigured
+                ? t('Search quality: vector + full-text', '检索质量：向量 + 全文')
+                : t('Search quality: keyword-only (no embedding)', '检索质量：仅关键词（无向量）')
+            }
+          />
+        </>
+      );
+    }
+    if (view.stage === 'result' && view.resultKind !== 'none') {
+      return (
+        <KnowledgeResultView
+          resultKind={view.resultKind}
+          created={generationJob?.created ?? generationJob?.createdCardIds?.length ?? 0}
+          skipped={generationJob?.skipped}
+          sessionId={generationJob?.sessionId}
+          error={generationJob?.error}
+          onOpenSession={props.onOpenSession}
+          onGenerateAgain={() => void handleStartGeneration(topic || undefined)}
+          onDismiss={() => {
+            if (generationJob) setDismissedGenerationId(generationJob.id);
+          }}
+        />
+      );
+    }
+    return (
+      <KnowledgeUnindexedHero
+        folderPath={selectedPath}
+        folderName={selectedName}
+        scannedFiles={scannedFiles}
+        unsupportedFiles={unsupportedFiles}
+        indexingJob={indexingJob}
+        busy={busy}
+        isEmbeddingConfigured={isEmbeddingConfigured}
+        onStartIndexing={() => void handleStartIndexing()}
+        onRescan={() => void loadProjectData(selectedPath)}
+        onPickFolder={() => {
+          void pickAndMountFolder();
+        }}
+        onConfigureEmbedding={props.onConfigureEmbedding}
+      />
+    );
+  }
 
   return (
     <div className="knowledge-master-detail-layout" data-testid="knowledge-center-panel">
@@ -330,7 +432,12 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
           selectedPath
             ? {
                 [selectedPath]: {
-                  status: isReady ? 'ready' : indexingJob ? 'indexing' : 'unindexed',
+                  status:
+                    view.stage === 'ready' || view.stage === 'result' || view.stage === 'generating'
+                      ? 'ready'
+                      : view.stage === 'indexing'
+                        ? 'indexing'
+                        : 'unindexed',
                   sliceCount: scannedFiles.length,
                   cardCount: cards.length,
                 },
@@ -403,7 +510,7 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
             <IconButton
               label={t('Reindex repository', '重新索引项目')}
               onClick={() => void handleStartIndexing()}
-              disabled={busy}
+              disabled={busy || !view.reindexEnabled}
               data-testid="reindex-btn"
             >
               <IconRefresh width={14} height={14} />
@@ -427,86 +534,18 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
               {actionError}
             </p>
           ) : null}
-          {generationJob &&
-          generationJob.status !== 'COMPLETED' &&
-          generationJob.status !== 'COMPLETED_DEGRADED' &&
-          generationJob.status !== 'FAILED' &&
-          generationJob.status !== 'CANCELED' ? (
-            <DocCardsProgressRing
-              progress={generationProgress(generationJob)}
-              locale={isZh ? 'zh-CN' : 'en'}
-            />
-          ) : null}
-          {!selectedPath ? (
-            <KnowledgeUnindexedHero
-              folderPath=""
-              folderName=""
-              scannedFiles={[]}
-              unsupportedFiles={[]}
-              indexingJob={null}
-              busy={busy}
-              empty
-              isEmbeddingConfigured={isEmbeddingConfigured}
-              onStartIndexing={() => undefined}
-              onRescan={() => undefined}
-              onPickFolder={() => {
-                void pickAndMountFolder();
-              }}
-              onConfigureEmbedding={props.onConfigureEmbedding}
-            />
-          ) : !isReady && cards.length === 0 ? (
-            <>
-              <KnowledgeFileChecklist
-                files={scannedFiles}
-                unsupported={unsupportedFiles}
-                selected={selectedSupported}
-                documents={documents}
-                disabled={busy}
-                onChange={setSelectedSupported}
-              />
-              <KnowledgeUnindexedHero
-                folderPath={selectedPath}
-                folderName={selectedName}
-                scannedFiles={scannedFiles}
-                unsupportedFiles={unsupportedFiles}
-                indexingJob={indexingJob}
-                busy={busy}
-                isEmbeddingConfigured={isEmbeddingConfigured}
-                onStartIndexing={() => void handleStartIndexing()}
-                onRescan={() => void loadProjectData(selectedPath)}
-                onPickFolder={() => {
-                  void pickAndMountFolder();
-                }}
-                onConfigureEmbedding={props.onConfigureEmbedding}
-              />
-            </>
-          ) : viewTab === 'wiki' ? (
+          {viewTab === 'wiki' && view.stage !== 'pick-folder' ? (
             <KnowledgeWikiView
               folderPath={selectedPath}
               folderName={selectedName}
-              notes={notes}
+              notes={[]}
               request={props.request}
               onSendToChat={props.onSendToChat}
               isEmbeddingConfigured={isEmbeddingConfigured}
               onConfigureEmbedding={props.onConfigureEmbedding}
             />
           ) : (
-            <KnowledgeCardsView
-              folderPath={selectedPath}
-              folderName={selectedName}
-              cards={cards}
-              generationJob={generationJob}
-              busy={busy}
-              request={props.request}
-              onStartGeneration={(topic) => void handleStartGeneration(topic)}
-              onSendToChat={
-                props.onSendToChat
-                  ? (card) => props.onSendToChat?.(formatCardMarkdown(card))
-                  : undefined
-              }
-              onOpenSourceFile={handleOpenSourceFile}
-              onOpenSession={props.onOpenSession}
-            />
+            renderStage()
           )}
         </div>
       </main>

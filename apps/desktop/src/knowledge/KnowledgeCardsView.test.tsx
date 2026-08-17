@@ -105,39 +105,4 @@ describe('KnowledgeCardsView', () => {
     expect(container.textContent).toContain('简单');
   });
 
-  it('offers opening the review session created by generate', () => {
-    const onOpenSession = vi.fn();
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <KnowledgeCardsView
-            folderPath="/docs"
-            folderName="docs"
-            cards={mockCards}
-            generationJob={{
-              id: 'gen_1',
-              folderKey: 'k',
-              folderPath: '/docs',
-              workspaceName: 'docs',
-              includeFiles: [],
-              status: 'COMPLETED',
-              sessionId: 'session-1',
-            }}
-            busy={false}
-            request={vi.fn().mockResolvedValue({ success: true, data: {} })}
-            onStartGeneration={vi.fn()}
-            onOpenSession={onOpenSession}
-          />
-        </PiwinUiProvider>,
-      );
-    });
-    const button = container.querySelector<HTMLButtonElement>(
-      '[data-testid="open-review-session-btn"]',
-    );
-    expect(button).not.toBeNull();
-    act(() => {
-      button?.click();
-    });
-    expect(onOpenSession).toHaveBeenCalledWith('session-1');
-  });
 });
