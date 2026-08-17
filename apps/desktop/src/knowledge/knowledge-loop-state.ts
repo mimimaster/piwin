@@ -48,7 +48,7 @@ const GENERATION_TERMINAL: ReadonlySet<GenerationJob['status']> = new Set([
 ]);
 
 function isGenerationRunning(job: GenerationJob | null): boolean {
-  return Boolean(job) && !GENERATION_TERMINAL.has(job.status);
+  return job !== null && !GENERATION_TERMINAL.has(job.status);
 }
 
 function createdCount(job: GenerationJob): number {

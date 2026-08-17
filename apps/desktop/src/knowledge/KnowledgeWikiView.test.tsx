@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens.js';
-import { KnowledgeWikiView, type KnowledgeWikiViewProps } from './KnowledgeWikiView.js';
+import { KnowledgeWikiView } from './KnowledgeWikiView.js';
 
 describe('KnowledgeWikiView', () => {
   let container: HTMLElement;

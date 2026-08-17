@@ -45,7 +45,7 @@
 ## 3. 已落地架构
 
 ```text
-Desktop DocCardsPanel / CLI `piwin doccards`
+Desktop Knowledge Center / CLI `piwin doccards`
         │
         │  HostCommand: doccards/scan|index|retrieve|list|rebind|forget|open-source
         ▼
@@ -96,7 +96,7 @@ Desktop DocCardsPanel / CLI `piwin doccards`
 
 | 位置 | 做什么 |
 |------|--------|
-| `apps/desktop/src/DocCardsPanel.tsx` | 选文件夹、勾选文件、Index、Generate、Forget |
+| `apps/desktop/src/KnowledgeCenterPanel.tsx` | 选文件夹、勾选文件、Index、Generate、结果页 |
 | `apps/desktop/src/KnowledgeCenterPanel.tsx` | Knowledge Center 第四 tab「文档卡片」 |
 | `apps/desktop/src/FlashcardsPanel.tsx` | 复习队列、评分 |
 | `apps/desktop/src/flashcard-artifact.ts` | 聊天里识别/渲染翻转卡 |
@@ -257,7 +257,7 @@ query
 
 ### 8.2 生成编排（规范路径，已实现）
 
-Desktop `DocCardsPanel.generate()`：
+Desktop Knowledge Center generate：
 
 1. **再次 `doccards/index-folder`**（即使用户刚 index 过）
 2. `doccards/retrieve`（query = topic 或文件夹路径）
@@ -501,7 +501,7 @@ Embedding / rerank 在 **notes** 配置上，不在 flashcards / doc-rag 上。
 | IPC | `packages/contracts/src/ipc.ts` |
 | Host 命令 | `packages/host-runtime/src/commands/knowledge-commands.ts` |
 | Agent tools | `packages/host-runtime/src/flashcard-tools.ts` |
-| Desktop 面板 | `apps/desktop/src/DocCardsPanel.tsx` |
+| Desktop 面板 | `apps/desktop/src/KnowledgeCenterPanel.tsx` |
 | 功能 spec | `docs/specs/doc-flashcards.md` |
 | ADR | `docs/adr/0018-notes-flashcards-local-rag.md` |
 

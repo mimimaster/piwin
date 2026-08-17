@@ -12,6 +12,7 @@ export type KnowledgeResultViewProps = {
   onOpenSession: ((sessionId: string) => void) | undefined;
   onGenerateAgain: () => void;
   onDismiss: () => void;
+  onBrowseLibrary?: (() => void) | undefined;
 };
 
 export function KnowledgeResultView(props: KnowledgeResultViewProps): ReactElement {
@@ -65,6 +66,16 @@ export function KnowledgeResultView(props: KnowledgeResultViewProps): ReactEleme
         <Button variant="ghost" size="compact" onClick={props.onDismiss} data-testid="dismiss-result-btn">
           {t('Stay in this folder', '留在此文件夹')}
         </Button>
+        {props.onBrowseLibrary ? (
+          <Button
+            variant="secondary"
+            size="compact"
+            onClick={props.onBrowseLibrary}
+            data-testid="browse-library-btn"
+          >
+            {t('Browse card library', '浏览卡片库')}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

@@ -259,6 +259,16 @@ describe('KnowledgeCenterPanel', () => {
       open?.click();
     });
     expect(onOpenSession).toHaveBeenCalledWith('session-review');
+    const browse = container.querySelector<HTMLButtonElement>('[data-testid="browse-library-btn"]');
+    expect(browse).not.toBeNull();
+    await act(async () => {
+      browse?.click();
+    });
+    expect(container.querySelector('[data-testid="knowledge-library-view"]')).not.toBeNull();
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="library-back-btn"]')?.click();
+    });
+    expect(container.querySelector('[data-testid="knowledge-result-view"]')).not.toBeNull();
   });
 
   it('treats created=0 as status, not an action error', async () => {

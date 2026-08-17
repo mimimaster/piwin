@@ -12,6 +12,7 @@ export type KnowledgeReadyViewProps = {
   disabledReason: string | null;
   busy: boolean;
   retrievalLine: string | null;
+  onBrowseLibrary?: (() => void) | undefined;
 };
 
 export function KnowledgeReadyView(props: KnowledgeReadyViewProps): ReactElement {
@@ -50,6 +51,16 @@ export function KnowledgeReadyView(props: KnowledgeReadyViewProps): ReactElement
         <p className="muted" data-testid="generate-disabled-reason">
           {props.disabledReason}
         </p>
+      ) : null}
+      {props.onBrowseLibrary ? (
+        <Button
+          variant="secondary"
+          size="compact"
+          onClick={props.onBrowseLibrary}
+          data-testid="browse-library-btn"
+        >
+          {t('Browse card library', '浏览卡片库')}
+        </Button>
       ) : null}
     </div>
   );
