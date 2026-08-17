@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type {
+  DocumentManifest,
   FlashcardRecord,
   GenerationJob,
   HostResponse,
@@ -30,6 +31,7 @@ import { KnowledgeProjectList } from './knowledge/KnowledgeProjectList.js';
 import { KnowledgeUnindexedHero } from './knowledge/KnowledgeUnindexedHero.js';
 import { KnowledgeWikiView } from './knowledge/KnowledgeWikiView.js';
 import { KnowledgeCardsView } from './knowledge/KnowledgeCardsView.js';
+import { KnowledgeFileChecklist } from './knowledge/KnowledgeFileChecklist.js';
 import { loadRecentFolders, saveRecentFolder } from './doccards-recent-folders.js';
 import { pickProjectDirectory } from './pick-project-directory.js';
 import { waitForDoccardsIndexJob } from './doccards-index-job.js';
@@ -84,6 +86,8 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   // Per-project data state
   const [scannedFiles, setScannedFiles] = useState<ScannedDocFile[]>([]);
   const [unsupportedFiles, setUnsupportedFiles] = useState<ScannedFileV2[]>([]);
+  const [documents, setDocuments] = useState<DocumentManifest[]>([]);
+  const [selectedSupported, setSelectedSupported] = useState<string[]>([]);
   const [cards, setCards] = useState<FlashcardRecord[]>([]);
   const [notes, setNotes] = useState<NoteRecord[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -144,8 +148,10 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
       });
       if (scanRes.success && scanRes.data) {
         const scanData = scanRes.data as { files?: ScannedDocFile[]; unsupported?: ScannedFileV2[] };
-        setScannedFiles(scanData.files ?? []);
+        const files = scanData.files ?? [];
+        setScannedFiles(files);
         setUnsupportedFiles(scanData.unsupported ?? []);
+        setSelectedSupported(files.map((file) => file.relativePath));
       }
 
       // 2. Fetch cards for this folder
@@ -176,15 +182,17 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
       if (statusRes.success && statusRes.data) {
         const statusData = statusRes.data as {
           job?: IngestionJob | null;
-          documents?: Array<{ status?: string }>;
+          documents?: DocumentManifest[];
         };
         if (statusData.job) setIndexingJob(statusData.job);
+        setDocuments(statusData.documents ?? []);
         const indexed =
           statusData.job?.status === 'COMPLETED' ||
           statusData.job?.status === 'COMPLETED_DEGRADED' ||
           (statusData.documents ?? []).some((document) => document.status === 'READY');
         setIsReady(indexed || loadedCards.length > 0);
       } else {
+        setDocuments([]);
         setIsReady(loadedCards.length > 0);
       }
     } finally {
@@ -201,12 +209,17 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   // Handle building RAG Index
   async function handleStartIndexing(): Promise<void> {
     if (!selectedPath || busy) return;
+    if (selectedSupported.length === 0) {
+      setActionError(t('Select at least one supported file', '请至少选择一个支持的文件'));
+      return;
+    }
     setBusy(true);
     setActionError(null);
     try {
       const started = await props.request({
         type: 'doccards/index-folder',
         folderPath: selectedPath,
+        includeFiles: selectedSupported,
       });
       if (!started.success) {
         setActionError(started.error);
@@ -215,8 +228,12 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
       const poll = window.setInterval(() => {
         void props.request({ type: 'doccards/index-status', folderPath: selectedPath }).then((response) => {
           if (!response.success) return;
-          const job = (response.data as { job?: IngestionJob | null }).job;
-          if (job) setIndexingJob(job);
+          const statusData = response.data as {
+            job?: IngestionJob | null;
+            documents?: DocumentManifest[];
+          };
+          if (statusData.job) setIndexingJob(statusData.job);
+          if (statusData.documents) setDocuments(statusData.documents);
         });
       }, 200);
       try {
@@ -240,12 +257,17 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   // Handle generating flashcards
   async function handleStartGeneration(topic?: string): Promise<void> {
     if (!selectedPath || busy) return;
+    if (selectedSupported.length === 0) {
+      setActionError(t('Select at least one supported file', '请至少选择一个支持的文件'));
+      return;
+    }
     setBusy(true);
     setActionError(null);
     setViewTab('cards');
     try {
       const job = await runDoccardsGenerate(props.request, {
         folderPath: selectedPath,
+        includeFiles: selectedSupported,
         ...(topic ? { topic } : {}),
         onProgress: setGenerationJob,
       });
@@ -433,21 +455,31 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
               onConfigureEmbedding={props.onConfigureEmbedding}
             />
           ) : !isReady && cards.length === 0 ? (
-            <KnowledgeUnindexedHero
-              folderPath={selectedPath}
-              folderName={selectedName}
-              scannedFiles={scannedFiles}
-              unsupportedFiles={unsupportedFiles}
-              indexingJob={indexingJob}
-              busy={busy}
-              isEmbeddingConfigured={isEmbeddingConfigured}
-              onStartIndexing={() => void handleStartIndexing()}
-              onRescan={() => void loadProjectData(selectedPath)}
-              onPickFolder={() => {
-                void pickAndMountFolder();
-              }}
-              onConfigureEmbedding={props.onConfigureEmbedding}
-            />
+            <>
+              <KnowledgeFileChecklist
+                files={scannedFiles}
+                unsupported={unsupportedFiles}
+                selected={selectedSupported}
+                documents={documents}
+                disabled={busy}
+                onChange={setSelectedSupported}
+              />
+              <KnowledgeUnindexedHero
+                folderPath={selectedPath}
+                folderName={selectedName}
+                scannedFiles={scannedFiles}
+                unsupportedFiles={unsupportedFiles}
+                indexingJob={indexingJob}
+                busy={busy}
+                isEmbeddingConfigured={isEmbeddingConfigured}
+                onStartIndexing={() => void handleStartIndexing()}
+                onRescan={() => void loadProjectData(selectedPath)}
+                onPickFolder={() => {
+                  void pickAndMountFolder();
+                }}
+                onConfigureEmbedding={props.onConfigureEmbedding}
+              />
+            </>
           ) : viewTab === 'wiki' ? (
             <KnowledgeWikiView
               folderPath={selectedPath}
