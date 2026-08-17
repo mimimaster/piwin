@@ -3,12 +3,13 @@
  * Models-page inspired two-column workspace with capability metrics, status beacons, and tab navigation.
  */
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
-import { Button, Notice, Select, StatusBadge, Switch, TextInput } from '@piwin/ui-kit';
+import { Button, Notice, SegmentedControl, Select, StatusBadge, Switch, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context.js';
 import { FieldRow } from '../field-row.js';
 import { PageTitle } from '../page-title.js';
 import { useSettings } from '../settings-context.js';
 import { WebSecretEditor } from '../web-secret-editor.js';
+import { WebPage } from './web-page.js';
 import {
   DEFAULT_EMBEDDING_API_KEY_ENV,
   DEFAULT_OLLAMA_EMBEDDING_URL,
@@ -43,7 +44,7 @@ const PROVIDER_OPTIONS: Array<{
   { value: 'ollama', labelEn: 'Ollama', labelZh: 'Ollama' },
 ];
 
-export function KnowledgePage(): ReactElement {
+function KnowledgeBaseWorkspace(): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
@@ -670,3 +671,29 @@ function validationMessageFor(code: string | null, isZh: boolean): string | null
   }
   return null;
 }
+
+export function KnowledgePage(): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+  const [hubTab, setHubTab] = useState<'knowledge' | 'search'>('knowledge');
+
+  return (
+    <div className="settings-card knowledge-hub-page" data-testid="settings-knowledge-hub">
+      <div style={{ marginBottom: 16 }}>
+        <SegmentedControl
+          value={hubTab}
+          onChange={(val) => setHubTab(val as 'knowledge' | 'search')}
+          data={[
+            { value: 'knowledge', label: isChinese ? '知识库与向量 (Knowledge & Embeddings)' : 'Knowledge & Embeddings' },
+            { value: 'search', label: isChinese ? '网络搜索与抓取 (Web Search & Fetch)' : 'Web Search & Fetch' },
+          ]}
+          testId="knowledge-subtabs-control"
+        />
+      </div>
+
+      {hubTab === 'knowledge' && <KnowledgeBaseWorkspace />}
+      {hubTab === 'search' && <WebPage />}
+    </div>
+  );
+}
+

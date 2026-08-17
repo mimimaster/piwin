@@ -1,52 +1,21 @@
 /**
- * Settings page registration. Importing this module registers every section
- * page; the registry covers all sections (no legacy fallback remains).
+ * Settings page registration. Importing this module registers every canonical section
+ * page; the registry covers all 7 core sections.
  */
 import { registerSettingsSection } from '../section-registry';
 import { GeneralPage } from './general-page';
-import { AppearancePage } from './appearance-page';
 import { PermissionsPage } from './permissions-page';
-import { SessionPage } from './session-page';
-import { SessionRuntimePage } from './session-runtime-page';
-import { ArchivePage } from './archive-page';
-import { WebPage } from './web-page';
 import { ModelsPage } from './models-page';
-import { VisionPage } from './vision-page';
-import { ArtifactPage } from './artifact-page';
-import { ArtifactPlaygroundPage } from './artifact-playground-page';
-import { ToolsPage } from './tools-page';
-import { SkillsPage } from './skills-page';
+import { AgentPage } from './agent-page';
 import { ExtensionsPage } from './extensions-page';
-import { PluginsPage } from './plugins-page';
-import { PromptsPage } from './prompts-page';
-import { AutomationPage } from './automation-page';
-import { SubagentProfilesPage } from './subagents-page';
-import { PetsPage } from './pets-page';
-import { UsagePage } from './usage-page';
-import { ShortcutsPage } from './shortcuts-page';
-import { AnimationsPage } from './animations-page';
 import { KnowledgePage } from './knowledge-page';
+import { SessionPage } from './session-page';
 
 registerSettingsSection('general', GeneralPage);
-registerSettingsSection('appearance', AppearancePage);
 registerSettingsSection('permissions', PermissionsPage);
-registerSettingsSection('session', SessionPage);
-registerSettingsSection('runtime', SessionRuntimePage);
-registerSettingsSection('archive', ArchivePage);
-registerSettingsSection('web', WebPage);
-registerSettingsSection('knowledge', KnowledgePage);
 registerSettingsSection('models', ModelsPage);
-registerSettingsSection('vision', VisionPage);
-registerSettingsSection('artifact', ArtifactPage);
-registerSettingsSection('artifact-playground', ArtifactPlaygroundPage);
-registerSettingsSection('tools', ToolsPage);
-registerSettingsSection('skills', SkillsPage);
+registerSettingsSection('agent', AgentPage);
 registerSettingsSection('extensions', ExtensionsPage);
-registerSettingsSection('plugins', PluginsPage);
-registerSettingsSection('prompts', PromptsPage);
-registerSettingsSection('automation', AutomationPage);
-registerSettingsSection('subagents', SubagentProfilesPage);
-registerSettingsSection('pets', PetsPage);
-registerSettingsSection('usage', UsagePage);
-registerSettingsSection('shortcuts', ShortcutsPage);
-registerSettingsSection('animations', AnimationsPage);
+registerSettingsSection('knowledge', KnowledgePage);
+registerSettingsSection('session', SessionPage);
+

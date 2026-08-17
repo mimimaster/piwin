@@ -291,9 +291,13 @@ export type DesktopTranslator = {
     configuredLocally: string;
     nav: {
       general: string;
-      appearance: string;
-      permissions: string;
       models: string;
+      extensions: string;
+      agent: string;
+      knowledge: string;
+      session: string;
+      permissions: string;
+      appearance: string;
       vision: string;
       imageGeneration: string;
       artifact: string;
@@ -305,7 +309,6 @@ export type DesktopTranslator = {
       skills: string;
       tools: string;
       web: string;
-      extensions: string;
       plugins: string;
       prompts: string;
       automation: string;
@@ -315,7 +318,6 @@ export type DesktopTranslator = {
       usage: string;
       shortcuts: string;
       animations: string;
-      knowledge: string;
     };
     web: {
       searchRoute: string;
@@ -1031,10 +1033,14 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       backToWorkspace: isChinese ? '返回工作区' : 'Back to workspace',
       configuredLocally: isChinese ? '已保存在本地' : 'Saved locally',
       nav: {
-        general: isChinese ? '通用' : 'General',
+        general: isChinese ? '通用与外观' : 'General & Appearance',
+        models: isChinese ? '模型与服务商' : 'Models & Providers',
+        extensions: isChinese ? '技能与扩展' : 'Skills & Extensions',
+        agent: isChinese ? '智能体策略' : 'Agent & Workflows',
+        knowledge: isChinese ? '检索与知识库' : 'Search & Knowledge',
+        session: isChinese ? '会话与运行时' : 'Sessions & Runtime',
+        permissions: isChinese ? '权限与安全' : 'Security & Permissions',
         appearance: isChinese ? '外观' : 'Appearance',
-        permissions: isChinese ? '权限' : 'Permissions',
-        models: isChinese ? '模型配置' : 'Model Configuration',
         vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
         artifact: isChinese ? 'Artifact' : 'Artifact',
@@ -1046,7 +1052,6 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         skills: 'Skills',
         tools: 'MCP',
         web: isChinese ? 'Web 工具' : 'Web tools',
-        extensions: isChinese ? '扩展' : 'Extensions',
         plugins: isChinese ? '插件' : 'Plugins',
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',
@@ -1056,7 +1061,6 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         usage: isChinese ? '用量统计' : 'Usage',
         shortcuts: isChinese ? '快捷键' : 'Shortcuts',
         animations: isChinese ? '动效' : 'Animations',
-        knowledge: isChinese ? 'Embedding / 知识检索' : 'Embedding / Knowledge',
       },
       web: {
         searchRoute: isChinese ? '搜索路由' : 'Search route',

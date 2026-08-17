@@ -19,12 +19,17 @@ import {
   type SessionLifecyclePlan,
   type WalkthroughConfig,
 } from '@piwin/contracts';
-import { Button, Switch, TextArea, TextInput } from '@piwin/ui-kit';
+import { Button, SegmentedControl, Switch, TextArea, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 import { chooseSessionExportPath } from '../../session-export-dialog';
+import { SessionRuntimePage } from './session-runtime-page.js';
+import { UsagePage } from './usage-page.js';
+import { ArchivePage } from './archive-page.js';
+
+type SessionSubTab = 'lifecycle' | 'runtime' | 'usage' | 'archive';
 
 function parseOptionalPositiveInt(raw: string): number | undefined {
   const trimmed = raw.trim();
@@ -56,7 +61,7 @@ function archiveReasonLabel(
   return isZh ? '超过活跃数量上限' : 'Active limit';
 }
 
-export function SessionPage(): ReactElement {
+function SessionLifecycleSection(): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const { config, saveConfig, setError, setInfo, request, hostStatus, activeSessionId } =
@@ -605,3 +610,33 @@ export function SessionPage(): ReactElement {
     </div>
   );
 }
+
+export function SessionPage(): ReactElement {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
+  const [activeTab, setActiveTab] = useState<SessionSubTab>('lifecycle');
+
+  return (
+    <div className="settings-card session-hub-page" data-testid="settings-session-hub">
+      <div style={{ marginBottom: 16 }}>
+        <SegmentedControl
+          value={activeTab}
+          onChange={(val) => setActiveTab(val as SessionSubTab)}
+          data={[
+            { value: 'lifecycle', label: isZh ? '会话策略 (Policy & Walkthrough)' : 'Policy & Walkthrough' },
+            { value: 'runtime', label: isZh ? '运行时驻留 (Runtime)' : 'Runtime' },
+            { value: 'usage', label: isZh ? '用量统计 (Usage)' : 'Usage' },
+            { value: 'archive', label: isZh ? '归档管理 (Archive)' : 'Archive' },
+          ]}
+          testId="session-subtabs-control"
+        />
+      </div>
+
+      {activeTab === 'lifecycle' && <SessionLifecycleSection />}
+      {activeTab === 'runtime' && <SessionRuntimePage />}
+      {activeTab === 'usage' && <UsagePage />}
+      {activeTab === 'archive' && <ArchivePage />}
+    </div>
+  );
+}
+

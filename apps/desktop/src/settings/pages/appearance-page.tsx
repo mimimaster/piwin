@@ -169,7 +169,7 @@ function ThemeLibraryCard(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale).appearance;
-  const { request, activeTheme, onThemeApplied, setError, setInfo } = useSettings();
+  const { request, activeTheme, onThemeApplied, preferences, setError, setInfo } = useSettings();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -184,12 +184,34 @@ function ThemeLibraryCard(): ReactElement {
     };
   }, [request]);
 
+  const selectValue = activeTheme.id === 'piwin-ink-wash' ? 'piwin-ink-wash' : 'system';
+  const activeLabel = selectValue === 'piwin-ink-wash' ? (isChinese ? '砚夜泼墨' : 'Ink Wash') : (isChinese ? '系统' : 'System');
+
   async function handleThemeChange(targetValue: string): Promise<void> {
-    const targetThemeId = targetValue === 'system' ? 'piwin-dark' : targetValue;
-    if (!targetThemeId || (targetValue === 'system' && activeTheme.id === 'piwin-dark') || (targetValue === 'piwin-ink-wash' && activeTheme.id === 'piwin-ink-wash')) {
+    if (targetValue === selectValue) {
       return;
     }
-    const response = await request({ type: 'theme/set-active', themeId: targetThemeId });
+    if (targetValue === 'system') {
+      const activeMode =
+        preferences.appearanceMode === 'system'
+          ? resolveSystemThemeMode()
+          : preferences.appearanceMode;
+      const baseThemeId = activeMode === 'light' ? 'piwin-light' : 'piwin-dark';
+      const response = await request({ type: 'theme/set-active', themeId: baseThemeId });
+      if (!response.success) {
+        setError(response.error);
+        return;
+      }
+      onThemeApplied(
+        buildAppearanceTheme(activeMode, getAppearanceThemeSettings(preferences, activeMode)),
+      );
+      setInfo(
+        isChinese ? '已恢复系统外观。' : 'Switched to system appearance.',
+        'success',
+      );
+      return;
+    }
+    const response = await request({ type: 'theme/set-active', themeId: targetValue });
     if (!response.success) {
       setError(response.error);
       return;
@@ -205,9 +227,6 @@ function ThemeLibraryCard(): ReactElement {
       'success',
     );
   }
-
-  const selectValue = activeTheme.id === 'piwin-ink-wash' ? 'piwin-ink-wash' : 'system';
-  const activeLabel = selectValue === 'piwin-ink-wash' ? (isChinese ? '砚夜泼墨' : 'Ink Wash') : (isChinese ? '系统' : 'System');
 
   return (
     <section className="settings-section settings-section-card appearance-theme-library">

@@ -4,13 +4,14 @@ import { isModelEnabled, isProviderEnabled, modelSupportsCapability } from '@piw
 import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
 import { StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import { ProviderSettings } from '../../ProviderSettings';
+import { VisionDelegationSettings } from '../../VisionDelegationSettings';
 import { ImageGenerationSettings } from '../../ImageGenerationSettings';
 import { VideoGenerationSettings } from '../../VideoGenerationSettings';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { AsrModelSettings } from '../asr-model-settings.js';
 
-type ModelTab = 'text' | 'image' | 'video' | 'speech';
+type ModelTab = 'text' | 'vision' | 'image' | 'video' | 'speech';
 type CapabilityKind = ModelTab;
 
 type ModelTarget = {
@@ -269,6 +270,17 @@ export function ModelsPage(): ReactElement {
               testId="model-config-tab-text"
             />
             <WorkspaceNavItem
+              value="vision"
+              kind="vision"
+              title={isChinese ? '视觉委派' : 'Vision'}
+              description={
+                isChinese ? '纯文本模型的多模态图片转写' : 'Multimodal description for text models'
+              }
+              count={config.visionDelegation?.enabled ? 1 : 0}
+              defaultLabel={config.visionDelegation?.enabled ? (isChinese ? '已启用' : 'Enabled') : (isChinese ? '未启用' : 'Disabled')}
+              testId="model-config-tab-vision"
+            />
+            <WorkspaceNavItem
               value="image"
               kind="image"
               title={isChinese ? '图片生成' : 'Images'}
@@ -319,6 +331,16 @@ export function ModelsPage(): ReactElement {
                   return result.entries;
                 }}
               />
+            </div>
+          </TabsContent>
+
+          <TabsContent
+            value="vision"
+            className="model-management-tab-content"
+            testId="model-config-panel-vision"
+          >
+            <div className="settings-section settings-section-card" data-testid="settings-vision-page">
+              <VisionDelegationSettings />
             </div>
           </TabsContent>
 
@@ -402,6 +424,12 @@ function ModelCapabilityIcon(props: { kind: CapabilityKind }): ReactElement {
       <>
         <path d="M5 6.5h14M5 11.5h9M5 16.5h6" />
         <path d="M4 3.5h16a1.5 1.5 0 0 1 1.5 1.5v14A1.5 1.5 0 0 1 20 20.5H4A1.5 1.5 0 0 1 2.5 19V5A1.5 1.5 0 0 1 4 3.5Z" />
+      </>
+    ),
+    vision: (
+      <>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
       </>
     ),
     image: (
