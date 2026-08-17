@@ -2,7 +2,7 @@
  * Pet store facade: preference persistence + provider registry.
  * All enumeration/resolution/install is delegated to PetSourceRegistry.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import type {
@@ -242,4 +242,44 @@ export async function queryRemotePetStore(
 ): Promise<PetStoreQueryResult[]> {
   const ctx = buildContext(piwinRoot);
   return queryPetStore(getRegistry(), ctx, query, signal);
+}
+
+/**
+ * Delete a user-installed pet package from the local pets directory.
+ * Bundled pets (`piwin-default` etc.) cannot be deleted.
+ * If the deleted pet is currently active, automatically falls back to
+ * `piwin-default` and returns the new active snapshot.
+ */
+export async function deletePet(
+  piwinRoot: string,
+  petId: string,
+): Promise<{ fallbackPet?: PetRuntimeSnapshot }> {
+  // Resolve the pet to verify it exists and check its source.
+  const ctx = buildContext(piwinRoot);
+  const entries = await discoverAllPets(getRegistry(), ctx);
+  const entry = entries.find((e) => e.petId === petId);
+  if (!entry) {
+    throw new Error(`Pet "${petId}" not found`);
+  }
+  if (entry.source === 'bundled') {
+    throw new Error(`Cannot delete bundled pet "${petId}"`);
+  }
+
+  // Only delete pets whose files live under ~/.piwin/pets/.
+  const petsDir = getPetsDir(piwinRoot);
+  const petDir = join(petsDir, petId);
+  if (!entry.location.startsWith(petsDir)) {
+    throw new Error(
+      `Pet "${petId}" is located outside the managed pets directory and cannot be deleted from here`,
+    );
+  }
+  await rm(petDir, { recursive: true, force: true });
+
+  // If the deleted pet was active, fall back to the default.
+  const preference = await loadPetPreference(piwinRoot);
+  if (preference.activePetId === petId) {
+    const fallbackPet = await setActivePet(piwinRoot, 'piwin-default');
+    return { fallbackPet };
+  }
+  return {};
 }

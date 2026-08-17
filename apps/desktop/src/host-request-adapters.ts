@@ -154,7 +154,8 @@ export type HostRequestAdapters = {
       | 'pet/install-local-batch'
       | 'pet/store-query'
       | 'pet/install-registry'
-      | 'pet/cancel';
+      | 'pet/cancel'
+      | 'pet/delete';
     petId?: string;
     sourcePath?: string;
     sourcePaths?: string[];

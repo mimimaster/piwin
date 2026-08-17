@@ -7,8 +7,9 @@ import type {
   PetStoreQueryResult,
   PetSummary,
 } from '@piwin/contracts';
-import { Button, Notice, Switch } from '@piwin/ui-kit';
+import { Button, IconButton, Notice, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
+import { useConfirmDialog } from './use-confirm-dialog';
 import {
   loadPetOverlayVisibility,
   subscribePetOverlayVisibility,
@@ -30,7 +31,8 @@ export type PetPanelProps = {
       | 'pet/install-local-batch'
       | 'pet/store-query'
       | 'pet/install-registry'
-      | 'pet/cancel';
+      | 'pet/cancel'
+      | 'pet/delete';
     petId?: string;
     sourcePath?: string;
     sourcePaths?: string[];
@@ -55,6 +57,7 @@ export function PetPanel(props: PetPanelProps) {
   const [activeId, setActiveId] = useState('piwin-default');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const { confirm, dialog: confirmModal, setBusy: setConfirmBusy } = useConfirmDialog();
   const [installPath, setInstallPath] = useState('');
   const [localImportPreview, setLocalImportPreview] = useState<PetLocalImportPreview | null>(null);
   const [selectedLocalPaths, setSelectedLocalPaths] = useState<string[]>([]);
@@ -94,6 +97,44 @@ export function PetPanel(props: PetPanelProps) {
     props.onActiveChanged(pet);
     setInfo(isChinese ? `当前伙伴：${pet.displayName}` : `Active companion: ${pet.displayName}`);
     await reload();
+  }
+
+  async function handleDelete(pet: PetSummary): Promise<void> {
+    const name = pet.displayName;
+    const confirmed = await confirm({
+      title: isChinese ? '删除桌面宠物' : 'Delete Companion',
+      description: isChinese
+        ? `确定要删除伙伴「${name}」吗？此操作不可撤销。`
+        : `Are you sure you want to delete companion "${name}"? This action cannot be undone.`,
+      confirmLabel: isChinese ? '删除' : 'Delete',
+      tone: 'danger',
+      affectedObject: pet.id,
+      skipKey: 'pet-delete',
+      dontAskAgainLabel: isChinese ? '不再询问' : "Don't ask again",
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    setConfirmBusy(true);
+    try {
+      const response = await props.request({ type: 'pet/delete', petId: pet.id });
+      if (!response.success) {
+        setError(response.error);
+        return;
+      }
+      const data = response.data as { deleted: boolean; fallbackPet?: PetRuntimeSnapshot };
+      if (data.fallbackPet) {
+        props.onActiveChanged(data.fallbackPet);
+      }
+      setInfo(isChinese ? `已删除「${name}」` : `Deleted "${name}"`);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+      setConfirmBusy(false);
+    }
   }
 
   async function handleOverlayVisibility(visible: boolean): Promise<void> {
@@ -405,20 +446,45 @@ export function PetPanel(props: PetPanelProps) {
                   </div>
                 </div>
               </div>
-              <Button
-                variant={activeId === pet.id ? 'primary' : 'ghost'}
-                size="compact"
-                disabled={busy || activeId === pet.id}
-                onClick={() => void handleActivate(pet.id)}
-              >
-                {activeId === pet.id
-                  ? isChinese
-                    ? '已激活'
-                    : 'Active'
-                  : isChinese
-                    ? '选择'
-                    : 'Select'}
-              </Button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Button
+                  variant={activeId === pet.id ? 'primary' : 'ghost'}
+                  size="compact"
+                  disabled={busy || activeId === pet.id}
+                  onClick={() => void handleActivate(pet.id)}
+                >
+                  {activeId === pet.id
+                    ? isChinese
+                      ? '已激活'
+                      : 'Active'
+                    : isChinese
+                      ? '选择'
+                      : 'Select'}
+                </Button>
+                {pet.source !== 'bundled' && activeId !== pet.id ? (
+                  <IconButton
+                    label={isChinese ? '删除' : 'Delete'}
+                    disabled={busy}
+                    onClick={() => void handleDelete(pet)}
+                    data-testid={`pet-delete-${pet.id}`}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </IconButton>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
@@ -573,6 +639,7 @@ export function PetPanel(props: PetPanelProps) {
           </ul>
         </div>
       </div>
+      {confirmModal}
     </div>
   );
 }
