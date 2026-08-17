@@ -4,6 +4,7 @@ import {
   clusterToolCalls,
   resolveToolClusterKind,
   computeBatchSummary,
+  isExploratoryKind,
 } from './tool-group-clustering';
 
 function makeTool(
@@ -46,6 +47,16 @@ describe('resolveToolClusterKind', () => {
   it('identifies subagent tools', () => {
     expect(resolveToolClusterKind(makeTool('piwin_subagent_run'))).toBe('subagent');
   });
+
+  it('identifies exploratory kinds', () => {
+    expect(isExploratoryKind('explore')).toBe(true);
+    expect(isExploratoryKind('read')).toBe(true);
+    expect(isExploratoryKind('search')).toBe(true);
+    expect(isExploratoryKind('web')).toBe(true);
+    expect(isExploratoryKind('edit')).toBe(false);
+    expect(isExploratoryKind('command')).toBe(false);
+    expect(isExploratoryKind('subagent')).toBe(false);
+  });
 });
 
 describe('clusterToolCalls', () => {
@@ -53,55 +64,63 @@ describe('clusterToolCalls', () => {
     expect(clusterToolCalls([])).toEqual([]);
   });
 
-  it('leaves a single search call as a single item', () => {
+  it('leaves an isolated single search call as a single item', () => {
     const tools = [makeTool('grep_search')];
     const clustered = clusterToolCalls(tools);
     expect(clustered).toHaveLength(1);
     expect(clustered[0]?.kind).toBe('single');
   });
 
-  it('groups consecutive search calls into a batch', () => {
+  it('groups consecutive exploratory calls (search + read) into a unified explore batch', () => {
     const tools = [
       makeTool('grep_search', { presentation: { kind: 'filesystem', title: 'grep 1', durationMs: 100 } }),
       makeTool('grep_search', { presentation: { kind: 'filesystem', title: 'grep 2', durationMs: 150 } }),
-      makeTool('find_by_name', { presentation: { kind: 'filesystem', title: 'find 3', durationMs: 200 } }),
+      makeTool('view_file', { presentation: { kind: 'filesystem', title: 'read 3', targetPaths: ['/src/main.ts'], durationMs: 200 } }),
     ];
     const clustered = clusterToolCalls(tools);
     expect(clustered).toHaveLength(1);
     expect(clustered[0]?.kind).toBe('batch');
     if (clustered[0]?.kind === 'batch') {
-      expect(clustered[0].clusterKind).toBe('search');
+      expect(clustered[0].clusterKind).toBe('explore');
       expect(clustered[0].tools).toHaveLength(3);
       expect(clustered[0].summary.totalCount).toBe(3);
+      expect(clustered[0].summary.searchCount).toBe(2);
+      expect(clustered[0].summary.fileCount).toBe(1);
       expect(clustered[0].summary.totalDurationMs).toBe(450);
       expect(clustered[0].summary.hasError).toBe(false);
     }
   });
 
-  it('groups distinct clusters separated by different tool types', () => {
+  it('groups distinct clusters separated by edit / command tool types', () => {
     const tools = [
       makeTool('grep_search'),
       makeTool('grep_search'),
       makeTool('view_file'),
-      makeTool('run_command'),
+      makeTool('replace_file_content'), // Standalone edit
       makeTool('run_command'),
       makeTool('run_command'),
     ];
     const clustered = clusterToolCalls(tools);
     expect(clustered).toHaveLength(3);
 
+    // First batch: 3 exploratory tools (grep + grep + view)
     expect(clustered[0]?.kind).toBe('batch');
     if (clustered[0]?.kind === 'batch') {
-      expect(clustered[0].clusterKind).toBe('search');
-      expect(clustered[0].tools).toHaveLength(2);
+      expect(clustered[0].clusterKind).toBe('explore');
+      expect(clustered[0].tools).toHaveLength(3);
     }
 
-    expect(clustered[1]?.kind).toBe('single'); // 1 view_file stays single
+    // Second: single edit item (never clustered into exploration)
+    expect(clustered[1]?.kind).toBe('single');
+    if (clustered[1]?.kind === 'single') {
+      expect(clustered[1].tool.toolName).toBe('replace_file_content');
+    }
 
+    // Third batch: 2 command tools
     expect(clustered[2]?.kind).toBe('batch');
     if (clustered[2]?.kind === 'batch') {
       expect(clustered[2].clusterKind).toBe('command');
-      expect(clustered[2].tools).toHaveLength(3);
+      expect(clustered[2].tools).toHaveLength(2);
     }
   });
 

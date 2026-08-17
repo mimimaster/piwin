@@ -34,6 +34,22 @@
   flex: 0 0 auto;
 }
 
+.model-workspace-knowledge-link {
+  flex: 0 0 auto;
+  border: 1px solid var(--line-soft);
+  background: var(--surface-inset);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.model-workspace-knowledge-link:hover {
+  border-color: var(--accent);
+}
+
 .model-workspace-overview {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

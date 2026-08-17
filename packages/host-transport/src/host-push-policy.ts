@@ -65,6 +65,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return append(deliveryKey('session', push.sessionId, 'transcript', push.message.id));
     case 'permission/request':
       return control([], push.runId);
+    case 'permission/resolved':
+      return control([], push.runId);
     case 'host/status':
       return control([deliveryKey('host', 'status')]);
     case 'host/log':

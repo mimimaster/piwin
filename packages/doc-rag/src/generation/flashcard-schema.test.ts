@@ -95,8 +95,8 @@ describe('parseGeneratedFlashcards', () => {
         },
         pack,
         kps,
-      ),
-    ).toHaveLength(0);
+      )[0]?.sourceChunkIds,
+    ).toEqual(['chk-1']);
   });
 });
 

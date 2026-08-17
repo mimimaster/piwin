@@ -27,11 +27,11 @@ export function PromptsPanel(props: PromptsPanelProps) {
   const loadPrompts = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const command: { type: 'skills/list'; projectPath?: string } = { type: 'prompts/list' as any };
+    const command: { type: 'prompts/list'; projectPath?: string } = { type: 'prompts/list' };
     if (props.projectPath) {
       command.projectPath = props.projectPath;
     }
-    const response = await props.request(command as any);
+    const response = await props.request(command);
     setLoading(false);
     if (!response.success) {
       setError(response.error);

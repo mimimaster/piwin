@@ -3198,6 +3198,12 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         },
       };
     }
+    case 'permission/resolved': {
+      if (state.permissionPrompt?.requestId !== event.requestId) {
+        return state;
+      }
+      return { ...state, permissionPrompt: null };
+    }
     case 'compaction/start':
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -3406,6 +3412,8 @@ function applyRunRecord(
     runPhase: 'idle',
     streaming: false,
     activeSkill: null,
+    permissionPrompt:
+      state.permissionPrompt?.runId === run.runId ? null : state.permissionPrompt,
     error: outcome === 'failed' ? (run.error ?? 'Run failed') : state.error,
     runTerminal:
       outcome === 'paused'

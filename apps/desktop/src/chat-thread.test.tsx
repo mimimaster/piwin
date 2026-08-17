@@ -1747,6 +1747,51 @@ describe('ChatThread render isolation (E1)', () => {
       className: expect.stringContaining('ui-anim--sm'),
     });
   });
+
+  it('Goal Abort stops the in-flight run and exits goal mode', () => {
+    const onAbort = vi.fn();
+    const onAgentModeChange = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[createUserMessage('u-goal', 'Ship it')]}
+            streaming
+            editingMessageId={null}
+            lastUserMessageId="u-goal"
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={{
+              ...composerCard,
+              agentMode: 'goal',
+              streaming: true,
+              onAbort,
+              onAgentModeChange,
+            }}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="goal-sticky-strip"]')).not.toBeNull();
+    const abortButton =
+      container.querySelector('[data-testid="goal-abort-btn"]') ??
+      Array.from(container.querySelectorAll('button')).find((element) =>
+        /Abort|终止/.test(element.textContent ?? ''),
+      );
+    expect(abortButton).toBeTruthy();
+    act(() => {
+      (abortButton as HTMLButtonElement).click();
+    });
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    expect(onAgentModeChange).toHaveBeenCalledWith('agent');
+  });
 });
 
 // ---------------------------------------------------------------------------

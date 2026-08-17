@@ -597,7 +597,15 @@ describe('HostRuntime', () => {
 
   it('denies a pending permission when its run signal is aborted', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perm-abort-'));
-    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        pushes.push(message);
+      },
+    });
     const abortController = new AbortController();
     const decisionPromise = runtime.requestPermission({
       sessionId: 'sess-abort',
@@ -610,6 +618,21 @@ describe('HostRuntime', () => {
     abortController.abort();
 
     await expect(decisionPromise).resolves.toBe('deny');
+    expect(pushes.some((message) => message.type === 'permission/resolved' && message.decision === 'deny')).toBe(
+      true,
+    );
+    await runtime.dispose();
+  });
+
+  it('fails permission/resolve when the request is unknown', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perm-unknown-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const resolved = await runtime.handleCommand({
+      type: 'permission/resolve',
+      requestId: 'missing',
+      decision: 'allow',
+    });
+    expect(resolved.success).toBe(false);
     await runtime.dispose();
   });
 

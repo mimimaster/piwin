@@ -1,0 +1,256 @@
+/* ── Flashcards Panel & Review Stage Styling ────────────────────────── */
+
+.flashcards-panel-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flashcards-toolbar-card {
+  background: var(--surface, #1e1e24);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flashcards-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flashcards-deck-select-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text, #eee);
+  font-weight: 500;
+}
+
+.flashcards-deck-select {
+  background: var(--surface-inset, #141418);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
+  color: var(--text, #eee);
+  border-radius: var(--radius-sm, 6px);
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.flashcards-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flashcards-stats-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--muted, #888);
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.08));
+}
+
+.flashcards-review-stage {
+  background: var(--surface, #1e1e24);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 14px);
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.flashcards-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+}
+
+.flashcards-review-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flashcards-progress-badge {
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 20%, transparent);
+  color: var(--accent, #6ea8fe);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flashcards-new-badge {
+  padding: 3px 8px;
+  background: color-mix(in srgb, #4caf50 20%, transparent);
+  color: #81c784;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.flashcards-deck-tag {
+  font-size: 12px;
+  color: var(--muted, #aaa);
+}
+
+.flashcards-keyboard-hints {
+  font-size: 11.5px;
+  color: var(--muted, #777);
+  display: flex;
+  gap: 6px;
+}
+
+.flashcards-card-box {
+  background: var(--surface-inset, #141418);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 10px);
+  padding: 20px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.flashcards-question-side,
+.flashcards-answer-side {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.flashcards-box-side-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 20%, transparent);
+  color: var(--accent, #6ea8fe);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.flashcards-box-side-tag.is-answer {
+  background: color-mix(in srgb, #4caf50 20%, transparent);
+  color: #81c784;
+}
+
+.flashcards-box-content {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text, #eee);
+}
+
+.flashcards-box-source-quote {
+  font-size: 12px;
+  color: var(--muted, #888);
+  font-style: italic;
+  margin: 6px 0 0 34px;
+}
+
+.flashcards-review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flashcards-rate-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.flashcards-empty-card {
+  background: var(--surface, #1e1e24);
+  border: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 12px);
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.flashcards-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flashcards-grid-item {
+  background: var(--surface-inset, #141418);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 10px);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all var(--motion-quick, 120ms) ease;
+}
+
+.flashcards-grid-item:hover {
+  border-color: var(--accent, #6ea8fe);
+  transform: translateY(-1px);
+}
+
+.flashcards-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.06));
+  padding-bottom: 6px;
+}
+
+.flashcards-item-deck {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent, #6ea8fe);
+}
+
+.flashcards-item-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.flashcards-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flashcards-item-front {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text, #eee);
+  line-height: 1.4;
+}
+
+.flashcards-item-back {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted, #aaa);
+  line-height: 1.4;
+}
+
+.flashcards-item-footer {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.06));
+  cursor: pointer;
+}

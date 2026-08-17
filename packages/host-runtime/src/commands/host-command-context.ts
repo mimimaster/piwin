@@ -79,9 +79,11 @@ export type HostCommandContext = {
     {
       resolve: (decision: PermissionDecision) => void;
       sessionId: string;
+      runId?: string;
       projectPath?: string;
       action: string;
       detail: string;
+      defaultDecision?: PermissionDecision;
     }
   >;
   pendingExtensionUi: Map<

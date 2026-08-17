@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from 'react';
 import type {
+  ConfiguredChatModel,
+  ConfiguredChatModelsData,
   HostPush,
   HostResponse,
   MediaAttachmentRef,
+  ModelRef,
   RemoteHostStatusData,
   RemoteMediaAsset,
   RemoteProjectSummary,
   RemoteSessionSummary,
   RemoteTranscriptMessage,
+  ThinkingLevel,
 } from '@piwin/contracts';
+import { isThinkingLevel } from '@piwin/contracts';
 import { HostClient, type HostClientState } from '@piwin/host-client';
 import {
   createMobileHostClient,
@@ -42,6 +47,21 @@ export type MobileTranscriptMessage = RemoteTranscriptMessage & {
 };
 
 const MAX_MOBILE_IMAGE_BYTES = 700_000;
+const MOBILE_SESSION_LIST_MAX_ITEMS = 80;
+
+function mobileSessionListCommand(): {
+  type: 'session/list';
+  allScopes: true;
+  order: 'updated';
+  maxItems: number;
+} {
+  return {
+    type: 'session/list',
+    allScopes: true,
+    order: 'updated',
+    maxItems: MOBILE_SESSION_LIST_MAX_ITEMS,
+  };
+}
 
 export function useMobileHost() {
   const [endpoint, setEndpoint] = useState(getDefaultHostEndpoint);
@@ -61,6 +81,9 @@ export function useMobileHost() {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [isResolvingPermission, setIsResolvingPermission] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [configuredModels, setConfiguredModels] = useState<ConfiguredChatModel[]>([]);
+  const [defaultProviderId, setDefaultProviderId] = useState<string | undefined>();
+  const [defaultModelId, setDefaultModelId] = useState<string | undefined>();
 
   const clientRef = useRef<HostClient | undefined>(undefined);
   const activeSessionRef = useRef<string | undefined>(undefined);
@@ -76,10 +99,11 @@ export function useMobileHost() {
 
   const refreshRemoteReadModel = async (client: HostClient): Promise<void> => {
     try {
-      const [statusResponse, projectsResponse, sessionsResponse] = await Promise.all([
+      const [statusResponse, projectsResponse, sessionsResponse, modelsResponse] = await Promise.all([
         client.request({ type: 'host/status' }),
         client.request({ type: 'project/list' }),
-        client.request({ type: 'session/list' }),
+        client.request(mobileSessionListCommand()),
+        client.request({ type: 'models/configured' }),
       ]);
       if (clientRef.current !== client) {
         return;
@@ -88,6 +112,7 @@ export function useMobileHost() {
       setProjects(readProjects(projectsResponse));
       const sessionList = readSessions(sessionsResponse);
       setSessions(sessionList);
+      applyConfiguredModels(modelsResponse, setConfiguredModels, setDefaultProviderId, setDefaultModelId);
 
       let targetSessionId = activeSessionRef.current;
       if (targetSessionId === undefined && sessionList.length > 0 && sessionList[0] !== undefined) {
@@ -205,7 +230,7 @@ export function useMobileHost() {
     }
   };
 
-  const handleCreateSession = async (_projectId?: string): Promise<string | undefined> => {
+  const handleCreateSession = async (projectId?: string): Promise<string | undefined> => {
     const client = clientRef.current;
     if (client === undefined) {
       return undefined;
@@ -214,8 +239,10 @@ export function useMobileHost() {
       const response = await client.request({
         type: 'session/create',
         input: {
-          scope: { kind: 'general' },
           sessionName: 'Mobile session',
+          ...(projectId === undefined || projectId.length === 0
+            ? { scope: { kind: 'general' as const } }
+            : { projectId }),
         },
       });
       if (
@@ -227,7 +254,7 @@ export function useMobileHost() {
         return undefined;
       }
       const newSessionId = response.data.sessionId;
-      const nextSessionsResponse = await client.request({ type: 'session/list' });
+      const nextSessionsResponse = await client.request(mobileSessionListCommand());
       const nextSessions = readSessions(nextSessionsResponse);
       setSessions(nextSessions);
       await handleSelectSession(newSessionId);
@@ -246,7 +273,7 @@ export function useMobileHost() {
         type: isPinned ? 'session/unpin' : 'session/pin',
         sessionId,
       });
-      const nextSessionsResponse = await client.request({ type: 'session/list' });
+      const nextSessionsResponse = await client.request(mobileSessionListCommand());
       setSessions(readSessions(nextSessionsResponse));
     } catch (error) {
       setErrorMessage(toError(error, '置顶操作失败。').message);
@@ -262,7 +289,7 @@ export function useMobileHost() {
         sessionId,
         name: newName.trim(),
       });
-      const nextSessionsResponse = await client.request({ type: 'session/list' });
+      const nextSessionsResponse = await client.request(mobileSessionListCommand());
       setSessions(readSessions(nextSessionsResponse));
     } catch (error) {
       setErrorMessage(toError(error, '重命名失败。').message);
@@ -277,7 +304,7 @@ export function useMobileHost() {
         type: 'session/archive',
         sessionId,
       });
-      const nextSessionsResponse = await client.request({ type: 'session/list' });
+      const nextSessionsResponse = await client.request(mobileSessionListCommand());
       const nextSessions = readSessions(nextSessionsResponse);
       setSessions(nextSessions);
       if (activeSessionId === sessionId) {
@@ -293,7 +320,10 @@ export function useMobileHost() {
     }
   };
 
-  const handleSend = async (): Promise<void> => {
+  const handleSend = async (turn?: {
+    model?: ModelRef;
+    thinkingLevel?: ThinkingLevel;
+  }): Promise<void> => {
     const client = clientRef.current;
     const sessionId = activeSessionRef.current;
     const text = composerText.trim();
@@ -320,6 +350,8 @@ export function useMobileHost() {
         input: {
           text,
           ...(attachments.length === 0 ? {} : { attachments }),
+          ...(turn?.model ? { model: turn.model } : {}),
+          ...(turn?.thinkingLevel ? { thinkingLevel: turn.thinkingLevel } : {}),
         },
       });
       if (!response.success) {
@@ -477,6 +509,9 @@ export function useMobileHost() {
     isResolvingPermission,
     errorMessage,
     setErrorMessage,
+    configuredModels,
+    defaultProviderId,
+    defaultModelId,
     handleConnect,
     handleDisconnect,
     handleSelectSession,
@@ -505,6 +540,63 @@ function applyHostStatus(
     return;
   }
   setStatus(response.data);
+}
+
+function applyConfiguredModels(
+  response: HostResponse,
+  setModels: (models: ConfiguredChatModel[]) => void,
+  setDefaultProviderId: (providerId: string | undefined) => void,
+  setDefaultModelId: (modelId: string | undefined) => void,
+): void {
+  const data = readConfiguredChatModels(response);
+  setModels(data.models);
+  setDefaultProviderId(data.defaultProviderId);
+  setDefaultModelId(data.defaultModelId);
+}
+
+function readConfiguredChatModels(response: HostResponse): ConfiguredChatModelsData {
+  if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.models)) {
+    return { models: [] };
+  }
+  const models: ConfiguredChatModel[] = [];
+  for (const item of response.data.models) {
+    if (!isRecord(item) || typeof item.providerId !== 'string' || typeof item.modelId !== 'string') {
+      continue;
+    }
+    if (
+      item.protocol !== 'openai-compatible' &&
+      item.protocol !== 'anthropic-compatible' &&
+      item.protocol !== 'google-gemini'
+    ) {
+      continue;
+    }
+    const model: ConfiguredChatModel = {
+      providerId: item.providerId,
+      protocol: item.protocol,
+      modelId: item.modelId,
+    };
+    if (typeof item.label === 'string' && item.label.length > 0) {
+      model.label = item.label;
+    }
+    if (isThinkingLevel(item.thinkingLevel)) {
+      model.thinkingLevel = item.thinkingLevel;
+    }
+    if (Array.isArray(item.thinkingLevels)) {
+      model.thinkingLevels = item.thinkingLevels.filter(isThinkingLevel);
+    }
+    if (typeof item.reasoning === 'boolean') {
+      model.reasoning = item.reasoning;
+    }
+    models.push(model);
+  }
+  const data: ConfiguredChatModelsData = { models };
+  if (typeof response.data.defaultProviderId === 'string') {
+    data.defaultProviderId = response.data.defaultProviderId;
+  }
+  if (typeof response.data.defaultModelId === 'string') {
+    data.defaultModelId = response.data.defaultModelId;
+  }
+  return data;
 }
 
 function readProjects(response: HostResponse): RemoteProjectSummary[] {

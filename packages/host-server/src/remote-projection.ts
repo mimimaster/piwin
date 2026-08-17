@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type {
   HostCommand,
@@ -20,8 +19,11 @@ import type {
   RemoteSessionTranscriptPageData,
   RemoteSessionTranscriptPageInfo,
   RemoteTranscriptMessage,
+  RemoteTranscriptTool,
   QueuedTurnRecord,
 } from '@piwin/contracts';
+import { createRemoteProjectId } from '@piwin/host-runtime';
+import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
 
 export type RemoteProjectionContext = {
   hostInstanceId: string;
@@ -61,6 +63,13 @@ export function projectRemoteResponse(
     return {
       ...response,
       data: projectSessionList(response.data),
+    };
+  }
+
+  if (command.type === 'models/configured') {
+    return {
+      ...response,
+      data: projectConfiguredChatModelsResponse(response.data),
     };
   }
 
@@ -265,7 +274,7 @@ function projectProjects(data: unknown): RemoteProjectSummary[] {
     const trust =
       record.trust === 'trusted' || record.trust === 'untrusted' ? record.trust : 'unknown';
     const summary: RemoteProjectSummary = {
-      projectId: createProjectId(record.path),
+      projectId: createRemoteProjectId(record.path),
       displayName,
       trust,
     };
@@ -320,6 +329,12 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
     }
     if (record.isArchived === true) {
       summary.archived = true;
+    }
+    if (scopeIsProject(record)) {
+      const projectPath = projectPathFromSessionRecord(record);
+      if (projectPath !== undefined) {
+        summary.projectId = createRemoteProjectId(projectPath);
+      }
     }
     projected.push(summary);
   }
@@ -574,7 +589,44 @@ function projectTranscriptMessages(messagesValue: unknown): RemoteTranscriptMess
           : {}),
       };
     }
+    const tools = projectRemoteTranscriptTools(item.tools);
+    if (tools.length > 0) {
+      transcript.tools = tools;
+    }
     projected.push(transcript);
+  }
+  return projected;
+}
+
+const MAX_REMOTE_TRANSCRIPT_TOOLS = 24;
+const MAX_REMOTE_TOOL_OUTPUT_BYTES = 16_384;
+
+function projectRemoteTranscriptTools(value: unknown): RemoteTranscriptTool[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const projected: RemoteTranscriptTool[] = [];
+  for (const item of value) {
+    if (projected.length >= MAX_REMOTE_TRANSCRIPT_TOOLS) {
+      break;
+    }
+    const record = asRecord(item);
+    if (
+      record === undefined ||
+      typeof record.toolCallId !== 'string' ||
+      typeof record.toolName !== 'string' ||
+      (record.status !== 'running' && record.status !== 'done' && record.status !== 'error')
+    ) {
+      continue;
+    }
+    const tool: RemoteTranscriptTool = {
+      toolCallId: boundedString(record.toolCallId, 256),
+      toolName: boundedString(record.toolName, 256),
+      status: record.status,
+      output: redactHostError(boundedString(record.output, MAX_REMOTE_TOOL_OUTPUT_BYTES)),
+    };
+    copyBoundedString(record, 'runId', tool, 'runId', 256);
+    projected.push(tool);
   }
   return projected;
 }
@@ -590,8 +642,19 @@ function projectSessionScope(value: unknown): RemoteSessionScopeKind {
   return 'unknown';
 }
 
-function createProjectId(projectPath: string): string {
-  return `project-${createHash('sha256').update(projectPath).digest('hex').slice(0, 24)}`;
+function scopeIsProject(record: Record<string, unknown>): boolean {
+  return projectSessionScope(record.scope) === 'project';
+}
+
+function projectPathFromSessionRecord(record: Record<string, unknown>): string | undefined {
+  const scope = asRecord(record.scope);
+  if (typeof scope?.projectPath === 'string' && scope.projectPath.length > 0) {
+    return scope.projectPath;
+  }
+  if (typeof record.projectPath === 'string' && record.projectPath.length > 0) {
+    return record.projectPath;
+  }
+  return undefined;
 }
 
 function copyString<T extends Record<string, unknown>>(
@@ -660,8 +723,12 @@ function isTranscriptOutcome(
   return value === 'completed' || value === 'cancelled' || value === 'failed';
 }
 
+export function redactRemoteHostPaths(value: string): string {
+  return value.replace(/(?:\/Users\/|\/home\/|[A-Za-z]:[\\/])[^\s'"`]+/g, '[host-path]');
+}
+
 function redactHostError(error: string): string {
-  return error.replace(/(?:\/Users\/|\/home\/|[A-Za-z]:[\\/])[^\s'"`]+/g, '[host-path]');
+  return redactRemoteHostPaths(error);
 }
 
 const REMOTE_PATH_KEYS = new Set([

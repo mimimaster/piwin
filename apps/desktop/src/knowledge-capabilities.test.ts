@@ -17,4 +17,17 @@ describe('knowledgeCapabilityLights', () => {
     expect(lights.find((light) => light.id === 'extractionLlm')?.configured).toBe(true);
     expect(JSON.stringify(lights)).not.toContain('gpt-4o');
   });
+
+  it('treats notes.embedding as a configured shared provider', () => {
+    const lights = knowledgeCapabilityLights({
+      notes: {
+        embedding: {
+          provider: 'openai-compatible',
+          baseUrl: 'http://127.0.0.1:11434/v1',
+          model: 'nomic-embed-text',
+        },
+      },
+    } as PiwinConfig);
+    expect(lights.find((light) => light.id === 'embedding')?.configured).toBe(true);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePairingString } from './barcode-pairing.js';
+import { isNativeBarcodeAvailable, parsePairingString, scanPairingQrCode } from './barcode-pairing.js';
 
 describe('Barcode Pairing String Parser', () => {
   it('parses raw WebSocket URL', () => {
@@ -30,5 +30,10 @@ describe('Barcode Pairing String Parser', () => {
 
   it('throws on invalid non-URL string', () => {
     expect(() => parsePairingString('hello world')).toThrowError('二维码格式无法识别');
+  });
+
+  it('does not call Tauri invoke outside a native runtime', async () => {
+    expect(isNativeBarcodeAvailable()).toBe(false);
+    await expect(scanPairingQrCode()).rejects.toThrow('扫码仅在 iOS / Android App 内可用');
   });
 });

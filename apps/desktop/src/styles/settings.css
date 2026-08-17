@@ -5,6 +5,7 @@
 @import './region-settings-speech.css';
 @import './region-settings-vision.css';
 @import './region-settings-archive.css';
+@import './region-settings-knowledge.css';
 @import './settings-resources.css';
 .appearance-theme-library-note {
   margin: 10px 0 0;

@@ -14,6 +14,7 @@ import type {
   RetrieveOptions,
   RetrievedChunk,
   ScanFolderResult,
+  SharedReranker,
 } from '@piwin/contracts';
 import type { FolderRag } from './doc-rag-types.js';
 export type { FolderRag };
@@ -42,6 +43,7 @@ import {
 
 export type CreateFolderRagOptions = {
   embeddingProvider?: EmbeddingProvider;
+  reranker?: SharedReranker;
   /** Default `~/.piwin`. */
   piwinRoot?: string;
   parserRegistry?: ParserRegistry;
@@ -49,6 +51,7 @@ export type CreateFolderRagOptions = {
 
 export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag {
   const embeddingProvider = options.embeddingProvider;
+  const reranker = options.reranker;
   const piwinRoot = options.piwinRoot;
   const parserRegistry = options.parserRegistry ?? createParserRegistry();
   const lanceCache = new Map<string, DocIndexStore>();
@@ -210,6 +213,7 @@ export function createFolderRag(options: CreateFolderRagOptions = {}): FolderRag
       ...(fileAllowlist ? { fileAllowlist } : {}),
       ...(retrieveOptions?.limit !== undefined ? { limit: retrieveOptions.limit } : {}),
       ...(embeddingProvider ? { embedding: adaptNotesEmbedding(embeddingProvider) } : {}),
+      ...(reranker ? { reranker } : {}),
       ...(retrieveOptions?.signal ? { signal: retrieveOptions.signal } : {}),
     });
     return result.pack;

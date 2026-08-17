@@ -1,0 +1,353 @@
+/* Region: Settings Knowledge & RAG Workspace
+   Two-column workspace matching the layout and design rhythm of Models Page. */
+
+.knowledge-workspace-page {
+  min-width: 0;
+  padding-bottom: var(--space-6, 24px);
+}
+
+.knowledge-management {
+  min-width: 0;
+  margin: 0;
+}
+
+/* ── Intro Header ───────────────────────────────────────────────────────── */
+.knowledge-workspace-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+}
+
+.knowledge-workspace-intro p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--content-secondary, var(--text-secondary));
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.knowledge-workspace-intro .ui-status-badge {
+  flex: 0 0 auto;
+}
+
+/* ── Overview Metrics Row ───────────────────────────────────────────────── */
+.knowledge-workspace-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2, 8px);
+  margin: var(--space-4, 16px) 0 var(--space-5, 20px);
+}
+
+.knowledge-workspace-metric {
+  display: flex;
+  min-width: 0;
+  min-height: 80px;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-3, 12px);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface, 10px);
+  background: var(--surface-raised, var(--panel));
+  cursor: pointer;
+  transition: all var(--motion-quick, 120ms) ease;
+}
+
+.knowledge-workspace-metric:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover, var(--panel));
+  transform: translateY(-1px);
+}
+
+.knowledge-metric-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.knowledge-workspace-metric-label {
+  color: var(--content-secondary, var(--text-secondary));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.knowledge-workspace-metric strong {
+  margin-top: 5px;
+  color: var(--content-primary, var(--text));
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.knowledge-workspace-metric strong.is-compact {
+  overflow: hidden;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-workspace-metric small {
+  margin-top: 4px;
+  color: var(--content-muted, var(--text-muted));
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+/* ── Status Dots ────────────────────────────────────────────────────────── */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.green {
+  background: var(--success, #16a34a);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--success, #16a34a) 60%, transparent);
+}
+
+.status-dot.amber {
+  background: var(--warning, #eab308);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--warning, #eab308) 60%, transparent);
+}
+
+.status-dot.gray {
+  background: var(--text-muted, #71717a);
+  opacity: 0.6;
+}
+
+/* ── Two-Column Tabs Layout ─────────────────────────────────────────────── */
+.knowledge-workspace-tabs {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4, 16px);
+  min-width: 0;
+}
+
+.knowledge-workspace-nav {
+  position: sticky;
+  top: var(--space-3, 12px);
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface, 10px);
+  background: var(--surface-inset, var(--panel));
+}
+
+.knowledge-workspace-nav-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2, 8px);
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control, 8px);
+  background: transparent;
+  color: var(--content-secondary, var(--text-secondary));
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--motion-quick, 120ms) ease;
+}
+
+.knowledge-workspace-nav-item:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.04));
+  color: var(--content-primary, var(--text));
+}
+
+.knowledge-workspace-nav-item.is-active {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line-soft));
+  background: var(--surface-raised, var(--panel));
+  color: var(--content-primary, var(--text));
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.05));
+}
+
+.knowledge-workspace-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
+  color: var(--content-secondary, var(--text-secondary));
+  flex-shrink: 0;
+}
+
+.knowledge-workspace-nav-item.is-active .knowledge-workspace-nav-icon {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 15%, transparent));
+  color: var(--accent);
+}
+
+.knowledge-workspace-nav-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.knowledge-workspace-nav-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.knowledge-workspace-nav-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.knowledge-workspace-nav-title strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--content-primary, var(--text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.knowledge-workspace-nav-copy small {
+  margin-top: 1px;
+  color: var(--content-muted, var(--text-muted));
+  font-size: 10.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.knowledge-workspace-nav-copy em {
+  margin-top: 3px;
+  color: var(--content-secondary, var(--text-secondary));
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Content Panels ─────────────────────────────────────────────────────── */
+.knowledge-workspace-content {
+  min-width: 0;
+}
+
+.knowledge-tab-panel {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface, 10px);
+  background: var(--surface-raised, var(--panel));
+  padding: 16px 20px;
+}
+
+.knowledge-tab-panel.is-hidden {
+  display: none;
+}
+
+.knowledge-tab-panel.is-active {
+  display: block;
+  animation: knowledge-panel-fade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes knowledge-panel-fade {
+  from {
+    opacity: 0.7;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.knowledge-workspace-content .settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 0 0;
+}
+
+/* ==========================================================================
+   THEME ADAPTATIONS
+   ========================================================================== */
+
+/* 水墨 (Ink Wash) Theme */
+html[data-theme-visual-style='ink-wash'] .knowledge-workspace-metric,
+html[data-theme-visual-style='ink-wash'] .knowledge-tab-panel {
+  background: rgba(22, 24, 29, 0.55) !important;
+  border-color: rgba(214, 205, 190, 0.1) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .knowledge-workspace-nav {
+  background: rgba(18, 20, 26, 0.45) !important;
+  border-color: rgba(214, 205, 190, 0.08) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .knowledge-workspace-nav-item.is-active {
+  background: rgba(112, 145, 156, 0.18) !important;
+  border-color: #70919c !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .status-dot.green {
+  background: #70919c !important;
+  box-shadow: 0 0 6px #70919c !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .status-dot.amber {
+  background: #c24d43 !important;
+  box-shadow: 0 0 6px #c24d43 !important;
+}
+
+/* 橙白 (Orange White) Theme */
+html[data-theme-id='piwin-orange-white'] .knowledge-workspace-metric,
+html[data-theme-id='piwin-orange-white'] .knowledge-tab-panel {
+  background: #ffffff !important;
+  border-color: rgba(80, 60, 40, 0.12) !important;
+}
+
+html[data-theme-id='piwin-orange-white'] .knowledge-workspace-nav {
+  background: #fdfbf8 !important;
+  border-color: rgba(80, 60, 40, 0.1) !important;
+}
+
+html[data-theme-id='piwin-orange-white'] .knowledge-workspace-nav-item.is-active {
+  border-color: #e85d1f !important;
+  background: #ffffff !important;
+}
+
+/* Paper (Light) Theme */
+html[data-theme-id='piwin-light'] .knowledge-workspace-metric,
+html[data-theme-id='piwin-light'] .knowledge-tab-panel {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-theme-id='piwin-light'] .knowledge-workspace-nav {
+  background: #fbfbfc !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Noir (Dark) Theme */
+html[data-theme-id='piwin-dark'] .knowledge-workspace-metric,
+html[data-theme-id='piwin-dark'] .knowledge-tab-panel {
+  background: #1c1c20 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme-id='piwin-dark'] .knowledge-workspace-nav {
+  background: #202024 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}

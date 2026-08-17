@@ -153,13 +153,11 @@ export function SkillsPanel(props: SkillsPanelProps) {
     setInstalling(true);
     setError(null);
     setInfo(null);
-    const command: any = {
-      type: 'skills/install',
-      source: { kind: 'local', path: installPath.trim() },
+    const command = {
+      type: 'skills/install' as const,
+      source: { kind: 'local' as const, path: installPath.trim() },
+      ...(installName.trim() ? { name: installName.trim() } : {}),
     };
-    if (installName.trim()) {
-      command.name = installName.trim();
-    }
     const response = await props.request(command);
     setInstalling(false);
     if (!response.success) {
@@ -180,20 +178,17 @@ export function SkillsPanel(props: SkillsPanelProps) {
     setInstalling(true);
     setError(null);
     setInfo(null);
-    const source: any = {
-      kind: 'git',
+    const source = {
+      kind: 'git' as const,
       url: installGitUrl.trim(),
+      ...(installGitRef.trim() ? { ref: installGitRef.trim() } : {}),
+      ...(installGitSubdir.trim() ? { subdir: installGitSubdir.trim() } : {}),
     };
-    if (installGitRef.trim()) source.ref = installGitRef.trim();
-    if (installGitSubdir.trim()) source.subdir = installGitSubdir.trim();
-
-    const command: any = {
-      type: 'skills/install',
+    const command = {
+      type: 'skills/install' as const,
       source,
+      ...(installName.trim() ? { name: installName.trim() } : {}),
     };
-    if (installName.trim()) {
-      command.name = installName.trim();
-    }
 
     const response = await props.request(command);
     setInstalling(false);

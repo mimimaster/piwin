@@ -52,6 +52,7 @@ describe('Desktop renderer resource boundaries', () => {
       'region-settings-models.css',
       'region-settings-speech.css',
       'region-settings-vision.css',
+      'region-settings-knowledge.css',
       'settings-resources.css',
     ]) {
       expect(mainStyles).not.toContain(settingsSheet);

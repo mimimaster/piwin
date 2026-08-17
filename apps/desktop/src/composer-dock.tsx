@@ -209,6 +209,8 @@ export type ComposerDockProps = {
   recentProjects?: readonly ProjectRecord[];
   /** Switch directly to a project selected from the path dropdown. */
   onOpenProject?: ((path: string) => void) | undefined;
+  /** Open Knowledge Center sub-tab from plus menu or UI. */
+  onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
   /** True when the configured ASR provider/model is currently usable. */
   speechConfigured?: boolean;
   /** Transient Desktop → Host ASR request; audio is never saved by the composer. */
@@ -1168,6 +1170,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               onOpenMcpPanel={props.onOpenMcpPanel}
               onAttachFile={props.onAttachFile}
               onAttachImage={props.onAttachImage}
+              onOpenKnowledge={props.onOpenKnowledge}
               hideAgentExtras={props.isConversationSession === true}
             />
           </div>

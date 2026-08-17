@@ -2240,59 +2240,7 @@
   flex-direction: column;
   min-height: 0;
   background: var(--canvas);
-  backdrop-filter: blur(2px);
-}
-
-.knowledge-stage-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--line-soft);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-}
-
-.knowledge-stage-kicker {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.knowledge-stage-body {
-  flex: 1;
-  min-height: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Stage variant of the panel: drop the inner header (the stage header
-   already announces the surface) and let the sub-tabs own the top row. */
-.knowledge-stage-body .knowledge-center-panel {
-  height: 100%;
-}
-
-.knowledge-stage-body .knowledge-center-header {
-  display: none;
-}
-
-.knowledge-stage-body .knowledge-center-panel .ui-tabs {
-  padding: 0;
-}
-
-.knowledge-stage-body .knowledge-center-panel .ui-tabs-list {
-  padding: 8px 14px 6px;
-}
-
-.knowledge-stage-body .knowledge-center-panel .ui-tabs-content {
-  padding: 14px 14px 0;
-}
-
-.knowledge-stage-body .knowledge-center-panel .right-panel-section {
-  padding: 0 14px 24px;
 }
 
 /* Hide the chat column when the knowledge overlay is open so it doesn't

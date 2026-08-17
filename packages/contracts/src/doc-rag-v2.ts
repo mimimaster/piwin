@@ -150,6 +150,8 @@ export type GenerationJob = {
   skipped?: number;
   startedAt?: string;
   completedAt?: string;
+  /** Safe failure reason for FAILED / CANCELED. Never a secret. */
+  error?: string;
 };
 
 export type FlashcardGenerationRequest = {

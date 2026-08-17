@@ -107,8 +107,7 @@ import { SessionLineageHeaderPopover } from './session-lineage-popover';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import { useJobs } from './hooks/use-jobs';
-import { Button, Dialog, IconButton, Notice } from '@piwin/ui-kit';
-import { IconClose } from './shell-icons';
+import { Button, Dialog, Notice } from '@piwin/ui-kit';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
 import { useDesktopShortcuts } from './use-desktop-shortcuts';
@@ -241,6 +240,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [rightPanelOpen, shell]);
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [knowledgeInitialTab, setKnowledgeInitialTab] = useState<'doccards' | 'cards' | 'wiki'>('doccards');
+  const handleOpenKnowledge = useCallback(
+    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+      setKnowledgeInitialTab(subTab);
+      setKnowledgeOpen(true);
+    },
+    [],
+  );
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
     rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
@@ -730,9 +737,24 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // Knowledge Center forwards commands to the same host transport; the panel
   // accepts a union type internally.
   const requestKnowledgeCenter = useCallback(
-    (
+    async (
       command: Parameters<import('./KnowledgeCenterPanel').KnowledgeCenterPanelProps['request']>[0],
-    ) => hostClient.request(command as unknown as Parameters<typeof hostClient.request>[0]),
+    ) => {
+      const response = await hostClient.request(
+        command as unknown as Parameters<typeof hostClient.request>[0],
+      );
+      if (command.type === 'doccards/open-source' && response.success) {
+        const data = response.data as { path?: string } | undefined;
+        if (data?.path) {
+          void import('@tauri-apps/plugin-shell')
+            .then(({ open }) => open(data.path as string))
+            .catch((err: unknown) => {
+              console.warn(`[piwin] open-source failed: ${formatError(err)}`);
+            });
+        }
+      }
+      return response;
+    },
     [hostClient],
   );
   // File tree reloads on request identity change — keep this stable so right-panel
@@ -1430,6 +1452,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onAgentModeChange: setAgentMode,
     menuSkills,
     conversationChat: state.activeScope.kind === 'general',
+    onOpenKnowledge: handleOpenKnowledge,
     onCompact: handleCompact,
     onAbort: handleAbort,
     ensureSession,
@@ -2180,6 +2203,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onRefreshComposerMenus: handleRefreshComposerMenus,
       onOpenSkillsPanel: handleOpenSkillsPanel,
       onOpenMcpPanel: handleOpenMcpPanel,
+      onOpenKnowledge: handleOpenKnowledge,
       onAttachFile: handleComposerAttachFile,
       onAttachImage: handleComposerAttachImage,
       onPaste: handleComposerPasteEvent,
@@ -2772,27 +2796,29 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   data-testid="knowledge-stage"
                   aria-label={desktopCopy.knowledgeCenter}
                 >
-                  <header className="knowledge-stage-header">
-                    <span className="knowledge-stage-kicker">{desktopCopy.knowledgeCenter}</span>
-                    <IconButton
-                      label={desktopLocale === 'zh-CN' ? '关闭知识中心' : 'Close Knowledge Center'}
-                      data-testid="knowledge-stage-close-btn"
-                      onClick={() => setKnowledgeOpen(false)}
-                    >
-                      <IconClose />
-                    </IconButton>
-                  </header>
-                  <div className="knowledge-stage-body">
-                    <DeferredSurfaceBoundary
-                      label={desktopLocale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
-                    >
-                      <DeferredKnowledgeCenterPanel
-                        projectPath={state.projectPath}
-                        request={requestKnowledgeCenter}
-                        onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
-                      />
-                    </DeferredSurfaceBoundary>
-                  </div>
+                  <DeferredSurfaceBoundary
+                    label={desktopLocale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
+                  >
+                    <DeferredKnowledgeCenterPanel
+                      projectPath={state.projectPath}
+                      recentProjects={recentProjects}
+                      request={requestKnowledgeCenter}
+                      initialSubTab={knowledgeInitialTab}
+                      onClose={() => setKnowledgeOpen(false)}
+                      onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
+                      onConfigureEmbedding={() => openSettingsSection('knowledge')}
+                      onSendToChat={(text) => {
+                        setKnowledgeOpen(false);
+                        setComposer((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+                        window.setTimeout(() => {
+                          const el = document.querySelector<HTMLTextAreaElement>(
+                            '[data-testid="composer-input"]',
+                          );
+                          el?.focus();
+                        }, 50);
+                      }}
+                    />
+                  </DeferredSurfaceBoundary>
                 </section>
               ) : undefined
             }

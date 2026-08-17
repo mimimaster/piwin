@@ -6,7 +6,15 @@ export type ParsedPairingData = {
   name?: string | undefined;
 };
 
+export function isNativeBarcodeAvailable(): boolean {
+  return typeof globalThis !== 'undefined' && '__TAURI_INTERNALS__' in globalThis;
+}
+
 export async function scanPairingQrCode(): Promise<ParsedPairingData> {
+  if (!isNativeBarcodeAvailable()) {
+    throw new Error('扫码仅在 iOS / Android App 内可用，请手动填写 Host 地址。');
+  }
+
   const result = await scan({
     windowed: false,
     formats: [Format.QRCode],

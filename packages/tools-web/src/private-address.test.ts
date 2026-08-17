@@ -15,6 +15,14 @@ describe('isPrivateOrLocalIpAddress', () => {
     expect(isPrivateOrLocalIpAddress('::1')).toBe(true);
     expect(isPrivateOrLocalIpAddress('fd12::1')).toBe(true);
   });
+
+  it('flags IPv4-mapped IPv6 in both dotted and hex forms', () => {
+    expect(isPrivateOrLocalIpAddress('::ffff:127.0.0.1')).toBe(true);
+    expect(isPrivateOrLocalIpAddress('::ffff:7f00:1')).toBe(true);
+    expect(isPrivateOrLocalIpAddress('::ffff:a9fe:a9fe')).toBe(true);
+    expect(isPrivateOrLocalIpAddress('0:0:0:0:0:ffff:c0a8:1')).toBe(true);
+    expect(isPrivateOrLocalIpAddress('::ffff:808:808')).toBe(false);
+  });
 });
 
 describe('isPrivateOrLocalHostname', () => {

@@ -39,7 +39,26 @@ describe('parseRawKnowledgePoints', () => {
     ).toHaveLength(1);
   });
 
-  it('drops fake source ids', () => {
+  it('maps 1-based chunk indexes onto pack ids', () => {
+    expect(
+      parseRawKnowledgePoints(
+        {
+          knowledgePoints: [
+            {
+              concept: 'SRS',
+              statement: 'A review schedule.',
+              type: 'definition',
+              importance: 0.8,
+              sourceChunkIds: ['1'],
+            },
+          ],
+        },
+        pack,
+      )[0]?.sourceChunkIds,
+    ).toEqual(['chk-1']);
+  });
+
+  it('falls back to the first pack source when the model invents an id', () => {
     expect(
       parseRawKnowledgePoints(
         {
@@ -54,8 +73,8 @@ describe('parseRawKnowledgePoints', () => {
           ],
         },
         pack,
-      ),
-    ).toEqual([]);
+      )[0]?.sourceChunkIds,
+    ).toEqual(['chk-1']);
   });
 
   it('drops an empty concept', () => {
@@ -75,6 +94,33 @@ describe('parseRawKnowledgePoints', () => {
         pack,
       ),
     ).toEqual([]);
+  });
+
+  it('maps high/medium labels and unknown types', () => {
+    const parsed = parseRawKnowledgePoints(
+      {
+        knowledgePoints: [
+          {
+            concept: 'SRS',
+            statement: 'A review schedule.',
+            type: 'principle',
+            importance: 'high',
+            sourceChunkIds: ['chk-1'],
+          },
+          {
+            concept: 'Rule',
+            statement: 'Stay in the file.',
+            type: 'rule',
+            importance: 'low',
+            sourceChunkIds: ['chk-1'],
+          },
+        ],
+      },
+      pack,
+    );
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]).toMatchObject({ type: 'reason', importance: 0.9 });
+    expect(parsed[1]).toMatchObject({ type: 'property', importance: 0.55 });
   });
 
   it('drops importance outside 0..1', () => {

@@ -112,6 +112,7 @@ export function GoalStickyStrip({
             size="compact"
             variant="ghost"
             onClick={onAbort}
+            data-testid="goal-abort-btn"
             aria-label={isZh ? '终止目标' : 'Abort Goal'}
           >
             {isZh ? '终止' : 'Abort'}

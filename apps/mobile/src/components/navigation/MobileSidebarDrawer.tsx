@@ -71,7 +71,7 @@ export function MobileSidebarDrawer({
   };
 
   const filteredSessions = sessions.filter((s) => {
-    if (selectedProjectId !== undefined && s.scope !== 'project') {
+    if (selectedProjectId !== undefined && s.projectId !== selectedProjectId) {
       return false;
     }
     if (searchQuery.trim().length > 0) {

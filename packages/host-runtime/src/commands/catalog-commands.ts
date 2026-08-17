@@ -8,7 +8,12 @@ import type {
   MediaSaveData,
   SpeechTranscribeData,
 } from '@piwin/contracts';
-import { SPEECH_MAX_DURATION_MS, formatError, modelSupportsCapability } from '@piwin/contracts';
+import {
+  SPEECH_MAX_DURATION_MS,
+  formatError,
+  modelSupportsCapability,
+  projectConfiguredChatModels,
+} from '@piwin/contracts';
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
 import { createExtensionRevisionStore } from '@piwin/extensions';
@@ -100,6 +105,7 @@ const TYPES = new Set<HostCommand['type']>([
   'settings/apply',
   'models/discover',
   'models/catalog/search',
+  'models/configured',
   'models/image-catalog/search',
   'models/test',
   'models/image-test',
@@ -600,6 +606,10 @@ export async function handleCatalogCommand(
         const message = formatError(error);
         return fail(requestId, 'models/catalog/search', message);
       }
+    }
+    case 'models/configured': {
+      const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
+      return ok(requestId, 'models/configured', projectConfiguredChatModels(config));
     }
     case 'models/image-catalog/search': {
       // Pi maintains a separate ImagesModel catalog from the chat Model catalog.

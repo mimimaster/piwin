@@ -18,6 +18,9 @@
 @import './styles/region-composer.css';
 @import './styles/region-transcript.css';
 @import './styles/region-doccards.css';
+@import './styles/region-flashcards.css';
+@import './styles/region-notes.css';
+@import './styles/region-knowledge.css';
 @import './styles/run-activity.css';
 @import './styles/region-inspector.css';
 @import './styles/usage-panel.css';

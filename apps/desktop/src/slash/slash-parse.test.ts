@@ -170,3 +170,42 @@ describe('applySkillToPrompt', () => {
       schemeId: 'ultra-code',
     });
   });
+
+  it('parses /knowledge, /flashcards, and /notes as knowledge submits', () => {
+    expect(parseComposerSlashSubmit('/knowledge', skills)).toEqual({
+      kind: 'knowledge',
+      subTab: 'doccards',
+      name: 'knowledge',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/doccards', skills)).toEqual({
+      kind: 'knowledge',
+      subTab: 'doccards',
+      name: 'doccards',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/flashcards', skills)).toEqual({
+      kind: 'knowledge',
+      subTab: 'cards',
+      name: 'flashcards',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/cards', skills)).toEqual({
+      kind: 'knowledge',
+      subTab: 'cards',
+      name: 'cards',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/notes', skills)).toEqual({
+      kind: 'knowledge',
+      subTab: 'wiki',
+      name: 'notes',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/wiki', skills)).toEqual({
+      kind: 'knowledge',
+      subTab: 'wiki',
+      name: 'wiki',
+      args: '',
+    });
+  });

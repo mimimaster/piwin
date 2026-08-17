@@ -73,7 +73,13 @@ type PendingRequest = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-const READ_ONLY_COMMANDS = new Set(['host/ping', 'host/status', 'project/list', 'session/list']);
+const READ_ONLY_COMMANDS = new Set([
+  'host/ping',
+  'host/status',
+  'project/list',
+  'session/list',
+  'models/configured',
+]);
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 

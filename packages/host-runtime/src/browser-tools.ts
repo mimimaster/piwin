@@ -20,7 +20,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
-import { isPrivateOrLocalHostname } from '@piwin/tools-web';
+import { isPrivateOrLocalHostname, mappedIpv4FromIpv6 } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
 import { applyModeToMatchedRule, type PermissionEvaluation } from './permission-policy.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
@@ -44,10 +44,10 @@ function isLoopbackHost(host: string): boolean {
   if (/^127\.\d{1,3}(\.\d{1,3}){2}$/.test(value)) return true;
   // IPv6 loopback
   if (value === '::1' || value === '0:0:0:0:0:0:0:1') return true;
-  // IPv4-mapped IPv6 loopback
-  const mappedV4 = value.match(/::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
-  if (mappedV4?.[1]) {
-    return /^127\./.test(mappedV4[1]);
+  // IPv4-mapped IPv6 loopback (dotted or hex, e.g. ::ffff:127.0.0.1 / ::ffff:7f00:1)
+  const mappedV4 = mappedIpv4FromIpv6(value);
+  if (mappedV4) {
+    return /^127\./.test(mappedV4);
   }
   return false;
 }

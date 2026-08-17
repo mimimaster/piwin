@@ -8,6 +8,7 @@ import {
   type DocumentOpenInput,
 } from './tool-call-card';
 import type { ToolClusterKind, BatchClusterSummary } from './tool-group-clustering';
+import { ActionMarquee } from './action-marquee';
 import {
   IconChevronDown,
   IconFile,
@@ -40,6 +41,7 @@ function formatDuration(ms: number): string {
 
 function getClusterIcon(kind: ToolClusterKind): ReactElement {
   switch (kind) {
+    case 'explore':
     case 'search':
       return <IconSearch className="tool-batch-kind-icon" />;
     case 'read':
@@ -53,17 +55,76 @@ function getClusterIcon(kind: ToolClusterKind): ReactElement {
   }
 }
 
+function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
+  const verb = tool.presentation?.actionVerb || tool.toolName;
+  const target =
+    tool.presentation?.targetPaths?.[0]?.split(/[/\\]/).pop() ||
+    tool.presentation?.summary ||
+    tool.presentation?.title ||
+    tool.toolName;
+
+  if (isChinese) {
+    if (verb === 'Read' || verb.includes('read') || verb.includes('view')) {
+      return `正在读取: ${target}`;
+    }
+    if (verb === 'Searched' || verb.includes('grep') || verb.includes('search')) {
+      return `正在检索: ${target}`;
+    }
+    if (verb.includes('command') || verb.includes('bash') || verb.includes('terminal')) {
+      return `正在执行: ${target}`;
+    }
+    return `正在执行: ${target}`;
+  }
+
+  if (verb === 'Read' || verb.includes('read') || verb.includes('view')) {
+    return `Reading ${target}`;
+  }
+  if (verb === 'Searched' || verb.includes('grep') || verb.includes('search')) {
+    return `Searching ${target}`;
+  }
+  if (verb.includes('command') || verb.includes('bash') || verb.includes('terminal')) {
+    return `Running ${target}`;
+  }
+  return `Executing ${target}`;
+}
+
 function getBatchTitle(
   kind: ToolClusterKind,
-  count: number,
+  summary: BatchClusterSummary,
   isChinese: boolean,
 ): string {
+  const count = summary.totalCount;
+  const fileCount = summary.fileCount ?? 0;
+  const searchCount = summary.searchCount ?? 0;
+
+  if (kind === 'explore' || kind === 'read' || kind === 'search') {
+    if (isChinese) {
+      if (fileCount > 0 && searchCount > 0) {
+        return `已探索 ${fileCount} 个文件，${searchCount} 次检索`;
+      }
+      if (searchCount > 0 && fileCount === 0) {
+        return `检索了 ${searchCount} 处代码与定义`;
+      }
+      if (fileCount > 0) {
+        return `查看了 ${fileCount} 个文件与目录`;
+      }
+      return `已探索 ${count} 项上下文`;
+    }
+
+    if (fileCount > 0 && searchCount > 0) {
+      return `Explored ${fileCount} files, ${searchCount} searches`;
+    }
+    if (searchCount > 0 && fileCount === 0) {
+      return `Searched ${searchCount} code locations`;
+    }
+    if (fileCount > 0) {
+      return `Read ${fileCount} files`;
+    }
+    return `Explored ${count} context items`;
+  }
+
   if (isChinese) {
     switch (kind) {
-      case 'search':
-        return `检索了 ${count} 处代码与定义`;
-      case 'read':
-        return `查看了 ${count} 个文件与目录`;
       case 'command':
         return `执行了 ${count} 条排查命令`;
       case 'web':
@@ -72,11 +133,8 @@ function getBatchTitle(
         return `执行了 ${count} 项操作`;
     }
   }
+
   switch (kind) {
-    case 'search':
-      return `Searched ${count} code locations`;
-    case 'read':
-      return `Read ${count} files`;
     case 'command':
       return `Executed ${count} diagnostic commands`;
     case 'web':
@@ -86,13 +144,45 @@ function getBatchTitle(
   }
 }
 
+function getRunningBatchTitle(
+  kind: ToolClusterKind,
+  summary: BatchClusterSummary,
+  isChinese: boolean,
+): string {
+  const fileCount = summary.fileCount ?? 0;
+  const searchCount = summary.searchCount ?? 0;
+
+  if (kind === 'explore' || kind === 'read' || kind === 'search') {
+    if (isChinese) {
+      if (fileCount > 0 || searchCount > 0) {
+        return `正在探索 ${fileCount} 个文件，${searchCount} 次检索`;
+      }
+      return `正在检索与读取上下文…`;
+    }
+    if (fileCount > 0 || searchCount > 0) {
+      return `Exploring ${fileCount} files, ${searchCount} searches`;
+    }
+    return `Exploring codebase…`;
+  }
+
+  if (isChinese) {
+    return `正在执行 ${summary.totalCount} 项操作…`;
+  }
+  return `Executing ${summary.totalCount} actions…`;
+}
+
 export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
   const [expanded, setExpanded] = useState(false);
   const summary = props.summary;
 
-  const defaultTitle = getBatchTitle(props.clusterKind, summary.totalCount, isChinese);
-  const activeLabel = summary.activeTool?.presentation?.title || summary.activeTool?.toolName;
+  const defaultTitle = summary.hasRunning
+    ? getRunningBatchTitle(props.clusterKind, summary, isChinese)
+    : getBatchTitle(props.clusterKind, summary, isChinese);
+
+  const activeLabel = summary.activeTool
+    ? formatActiveToolLabel(summary.activeTool, isChinese)
+    : undefined;
 
   return (
     <div
@@ -114,15 +204,17 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
           {getClusterIcon(props.clusterKind)}
         </span>
 
-        <span className="tool-batch-title">
-          {summary.hasRunning && activeLabel
-            ? isChinese
-              ? `正在执行: ${activeLabel}`
-              : `Executing: ${activeLabel}`
-            : defaultTitle}
-        </span>
+        <div className="tool-batch-title-group">
+          <span className="tool-batch-title">{defaultTitle}</span>
+          {summary.hasRunning && activeLabel ? (
+            <ActionMarquee
+              className="tool-batch-marquee"
+              activeText={activeLabel}
+            />
+          ) : null}
+        </div>
 
-        {summary.keyTargets.length > 0 ? (
+        {!summary.hasRunning && summary.keyTargets.length > 0 ? (
           <span className="tool-batch-pills" data-testid="tool-batch-pills">
             {summary.keyTargets.map((target, idx) => (
               <span key={`${target}-${idx}`} className="tool-batch-pill">

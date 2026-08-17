@@ -338,6 +338,7 @@ describe('evaluateBrowserNavigatePermission', () => {
 
   it('allows ::1 by default', () => {
     expect(evaluateBrowserNavigatePermission('http://[::1]:8080').decision).toBe('allow');
+    expect(evaluateBrowserNavigatePermission('http://[::ffff:7f00:1]:8080').decision).toBe('allow');
   });
 
   it('allows *.localhost by default', () => {

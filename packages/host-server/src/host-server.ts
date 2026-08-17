@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type {
@@ -15,6 +15,7 @@ import type {
   PromptAttachment,
   RemoteCapabilitySummary,
   RemoteHostStatusData,
+  RemotePendingPermission,
   RemoteSessionMessagesData,
   RemoteSessionSummary,
   RemoteTranscriptMessage,
@@ -32,6 +33,7 @@ import {
   isSupportedAttachmentMimeType,
 } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
+import { isRemoteProjectId } from '@piwin/host-runtime';
 import { WebSocket, WebSocketServer } from 'ws';
 import { decodeHostWireMessage, encodeHostWireMessage } from '@piwin/host-transport';
 import {
@@ -39,6 +41,7 @@ import {
   projectRemotePush,
   projectRemoteResponse,
   projectRemoteStatusData,
+  redactRemoteHostPaths,
   type RemoteProjectionContext,
 } from './remote-projection.js';
 import { HostEgressChannel } from './host-egress-channel.js';
@@ -124,6 +127,7 @@ const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'session/queued-turn-reorder',
   'session/replace-run',
   'session/model-context-summary',
+  'models/configured',
   'session/prompt',
   'session/pause',
   'session/resume-run',
@@ -331,9 +335,14 @@ export class HostServer {
   }
 
   private isAllowedOrigin(origin: string | string[] | undefined): boolean {
-    if (this.allowedOrigins === undefined || origin === undefined) return true;
     const normalized = Array.isArray(origin) ? origin[0] : origin;
-    return normalized !== undefined && this.allowedOrigins.has(normalized);
+    if (normalized === undefined || normalized.length === 0) {
+      return true;
+    }
+    if (this.allowedOrigins !== undefined) {
+      return this.allowedOrigins.has(normalized);
+    }
+    return isLoopbackBrowserOrigin(normalized);
   }
 
   private async handleWireMessage(connection: ClientConnection, serialized: string): Promise<void> {
@@ -377,7 +386,7 @@ export class HostServer {
       connection.socket.close(4003, 'Invalid client ID');
       return;
     }
-    if (this.authToken !== undefined && message.authToken !== this.authToken) {
+    if (this.authToken !== undefined && !authTokensEqual(this.authToken, message.authToken)) {
       this.sendError(connection, 'authentication-required', 'Host authentication failed');
       connection.socket.close(4004, 'Authentication failed');
       return;
@@ -462,6 +471,9 @@ export class HostServer {
 
     try {
       const remoteCommand = resolveRemoteCommand(frame.command, this.remoteMediaPaths);
+      if (await this.rejectBusyRemotePrompt(connection, frame, remoteCommand)) {
+        return;
+      }
       const response = await this.runtime.handleCommand(remoteCommand);
       this.rememberRemoteMediaAsset(remoteCommand, response);
       const safeResponse = projectRemoteResponse(frame.command, response, this.projectionContext());
@@ -627,6 +639,7 @@ export class HostServer {
       import('@piwin/contracts').QueuedTurnRecord[]
     > = {};
     const truncatedSessionIds: string[] = [];
+    const pendingPermissions = await this.loadHydrationPendingPermissions(requestedSessionIds);
 
     for (const sessionId of requestedSessionIds) {
       try {
@@ -667,6 +680,7 @@ export class HostServer {
       sessions,
       messagesBySession,
       queuedTurnsBySession,
+      pendingPermissions,
       truncatedSessionIds,
     };
     return fitHydrationFrame({ type: 'hydration', reason, snapshot });
@@ -698,6 +712,102 @@ export class HostServer {
       capabilities: this.capabilities,
       remoteMediaPaths: this.remoteMediaPaths,
     };
+  }
+
+  /**
+   * Remote `session/prompt` must not silently supersede an in-flight run.
+   * Clients already have `session/replace-run` and queued turns.
+   */
+  private async rejectBusyRemotePrompt(
+    connection: ClientConnection,
+    frame: Extract<HostWireMessage, { type: 'command' }>,
+    command: HostCommand,
+  ): Promise<boolean> {
+    if (command.type !== 'session/prompt') {
+      return false;
+    }
+    try {
+      const foreground = await this.runtime.handleCommand({
+        type: 'session/foreground-run',
+        sessionId: command.sessionId,
+      });
+      if (!foreground.success || !isRecord(foreground.data)) {
+        return false;
+      }
+      const run = foreground.data.run;
+      if (!isRecord(run)) {
+        return false;
+      }
+      const status = run.status;
+      if (status !== 'queued' && status !== 'running' && status !== 'cancelling') {
+        return false;
+      }
+    } catch (error) {
+      this.onError(toError(error, 'Unable to inspect remote session foreground run'));
+      return false;
+    }
+    this.send(connection, {
+      type: 'response',
+      requestId: frame.requestId,
+      response: {
+        type: 'response',
+        command: 'session/prompt',
+        success: false,
+        error: 'A run is already active; use session/replace-run or wait for it to finish.',
+      },
+    });
+    return true;
+  }
+
+  private async loadHydrationPendingPermissions(
+    sessionIds: string[],
+  ): Promise<RemotePendingPermission[]> {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+    const allowed = new Set(sessionIds);
+    try {
+      const command = { type: 'permission/pending-list' as const };
+      const response = await this.runtime.handleCommand(command);
+      if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.permissions)) {
+        return [];
+      }
+      const projected: RemotePendingPermission[] = [];
+      for (const item of response.data.permissions) {
+        if (projected.length >= 32) {
+          break;
+        }
+        const record = isRecord(item) ? item : undefined;
+        if (
+          record === undefined ||
+          typeof record.sessionId !== 'string' ||
+          !allowed.has(record.sessionId) ||
+          typeof record.requestId !== 'string' ||
+          typeof record.action !== 'string' ||
+          typeof record.detail !== 'string' ||
+          (record.defaultDecision !== 'allow' &&
+            record.defaultDecision !== 'deny' &&
+            record.defaultDecision !== 'ask')
+        ) {
+          continue;
+        }
+        const permission: RemotePendingPermission = {
+          sessionId: record.sessionId,
+          requestId: record.requestId,
+          action: record.action,
+          detail: redactRemoteHostPaths(truncateUtf8(record.detail, 4 * 1024)),
+          defaultDecision: record.defaultDecision,
+        };
+        if (typeof record.runId === 'string') {
+          permission.runId = record.runId;
+        }
+        projected.push(permission);
+      }
+      return projected;
+    } catch (error) {
+      this.onError(toError(error, 'Unable to hydrate pending permissions'));
+      return [];
+    }
   }
 
   private send(connection: ClientConnection, message: HostWireMessage): void {
@@ -743,6 +853,40 @@ function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
 }
 
+function isLoopbackBrowserOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol === 'tauri:') {
+      return host === 'localhost' || host === '127.0.0.1';
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false;
+    }
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host === '[::1]' ||
+      host === 'tauri.localhost'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function authTokensEqual(expected: string, provided: string | undefined): boolean {
+  if (provided === undefined) {
+    return false;
+  }
+  const left = Buffer.from(expected, 'utf8');
+  const right = Buffer.from(provided, 'utf8');
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
+
 function formatWebSocketUrl(host: string, port: number): string {
   const displayHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
   return `ws://${displayHost}:${port}`;
@@ -754,6 +898,7 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
       return (
         command.projectPath === undefined &&
         (command.scope === undefined || command.scope.kind === 'general') &&
+        (command.allScopes === undefined || command.allScopes === true || command.allScopes === false) &&
         (command.order === undefined ||
           command.order === 'updated' ||
           command.order === 'alphabetical') &&
@@ -844,7 +989,8 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         command.input.cwd === undefined &&
         command.input.parentSessionId === undefined &&
         command.input.subagent === undefined &&
-        (command.input.scope === undefined || command.input.scope.kind === 'general')
+        (command.input.scope === undefined || command.input.scope.kind === 'general') &&
+        (command.input.projectId === undefined || isRemoteProjectId(command.input.projectId))
       );
     case 'session/prompt':
       return (
@@ -1163,6 +1309,12 @@ function limitHydrationMessage(message: RemoteTranscriptMessage): RemoteTranscri
   };
   if (message.thinking !== undefined) {
     limited.thinking = truncateUtf8(message.thinking, MAX_HYDRATION_THINKING_BYTES);
+  }
+  if (message.tools !== undefined && message.tools.length > 0) {
+    limited.tools = message.tools.slice(0, 8).map((tool) => ({
+      ...tool,
+      output: truncateUtf8(tool.output, 2 * 1024),
+    }));
   }
   return limited;
 }

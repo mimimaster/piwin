@@ -148,4 +148,16 @@ describe('ComposerPlusMenu', () => {
       'No servers configured',
     );
   });
+
+  it('renders Knowledge submenu when onOpenKnowledge is provided', () => {
+    const onOpenKnowledge = vi.fn();
+    render(createBaseProps({ submenu: 'knowledge', onOpenKnowledge }), root);
+
+    const flyout = document.querySelector('[aria-label="Knowledge Center"]');
+    expect(flyout).not.toBeNull();
+    expect(flyout?.textContent).toContain('Doc Cards');
+
+    clickItem('plus-menu-open-doccards');
+    expect(onOpenKnowledge).toHaveBeenCalledWith('doccards');
+  });
 });

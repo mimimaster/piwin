@@ -107,6 +107,16 @@ export function parseComposerSlashSubmit(
     return { kind: 'command', commandId, name, args };
   }
 
+  if (name === 'knowledge' || name === 'doccards') {
+    return { kind: 'knowledge', subTab: 'doccards', name, args };
+  }
+  if (name === 'flashcards' || name === 'cards') {
+    return { kind: 'knowledge', subTab: 'cards', name, args };
+  }
+  if (name === 'notes' || name === 'wiki') {
+    return { kind: 'knowledge', subTab: 'wiki', name, args };
+  }
+
   if (MODE_NAMES.has(name)) {
     return {
       kind: 'mode',
