@@ -17,7 +17,7 @@ import { PromptsPanel } from '../../PromptsPanel';
 import { PluginsPanel } from '../../PluginsPanel';
 import { ExtensionsPanel } from '../../ExtensionsPanel';
 
-type ExtensionsSubTab = 'skills' | 'tools' | 'prompts' | 'plugins' | 'extensions';
+type ExtensionsSubTab = 'extensions' | 'skills' | 'tools' | 'prompts' | 'plugins';
 
 export function ExtensionsPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -32,7 +32,7 @@ export function ExtensionsPage(): ReactElement {
     requestExtensions,
   } = useSettings();
 
-  const [activeTab, setActiveTab] = useState<ExtensionsSubTab>('skills');
+  const [activeTab, setActiveTab] = useState<ExtensionsSubTab>('extensions');
 
   return (
     <div className="settings-card extensions-hub-page" data-testid="settings-extensions-hub">
@@ -41,15 +41,26 @@ export function ExtensionsPage(): ReactElement {
           value={activeTab}
           onChange={(val) => setActiveTab(val as ExtensionsSubTab)}
           data={[
+            { value: 'extensions', label: isChinese ? '扩展 (Extensions)' : 'Extensions' },
             { value: 'skills', label: isChinese ? '技能 (Skills)' : 'Skills' },
             { value: 'tools', label: isChinese ? 'MCP 工具 (Tools)' : 'MCP Tools' },
             { value: 'prompts', label: isChinese ? '提示词模板 (Prompts)' : 'Prompts' },
             { value: 'plugins', label: isChinese ? '插件 (Plugins)' : 'Plugins' },
-            { value: 'extensions', label: isChinese ? '扩展 (Extensions)' : 'Extensions' },
           ]}
           testId="extensions-subtabs-control"
         />
       </div>
+
+      {activeTab === 'extensions' && (
+        <div className="settings-card" data-testid="settings-extensions">
+          <ExtensionsPanel
+            projectPath={projectPath}
+            sessionId={activeSessionId}
+            request={requestExtensions}
+            variant="inline"
+          />
+        </div>
+      )}
 
       {activeTab === 'skills' && (
         <div className="settings-card settings-card-flush" data-testid="settings-skills">
@@ -72,17 +83,6 @@ export function ExtensionsPage(): ReactElement {
       {activeTab === 'plugins' && (
         <div className="settings-card" data-testid="settings-plugins">
           <PluginsPanel request={requestPlugins} variant="inline" />
-        </div>
-      )}
-
-      {activeTab === 'extensions' && (
-        <div className="settings-card" data-testid="settings-extensions">
-          <ExtensionsPanel
-            projectPath={projectPath}
-            sessionId={activeSessionId}
-            request={requestExtensions}
-            variant="inline"
-          />
         </div>
       )}
     </div>
