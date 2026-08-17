@@ -185,14 +185,12 @@ describe('applySkillToPrompt', () => {
       args: '',
     });
     expect(parseComposerSlashSubmit('/flashcards', skills)).toEqual({
-      kind: 'knowledge',
-      subTab: 'cards',
+      kind: 'cards-panel',
       name: 'flashcards',
       args: '',
     });
     expect(parseComposerSlashSubmit('/cards', skills)).toEqual({
-      kind: 'knowledge',
-      subTab: 'cards',
+      kind: 'cards-panel',
       name: 'cards',
       args: '',
     });

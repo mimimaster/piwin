@@ -240,13 +240,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [rightPanelOpen, shell]);
 
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
-  const [knowledgeInitialTab, setKnowledgeInitialTab] = useState<'doccards' | 'cards' | 'wiki'>('doccards');
+  const handleOpenCardsPanel = useCallback(() => {
+    shell.openInspector('cards');
+  }, [shell]);
   const handleOpenKnowledge = useCallback(
     (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
-      setKnowledgeInitialTab(subTab);
+      if (subTab === 'cards') {
+        handleOpenCardsPanel();
+        return;
+      }
       setKnowledgeOpen(true);
     },
-    [],
+    [handleOpenCardsPanel],
   );
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
@@ -1453,6 +1458,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     menuSkills,
     conversationChat: state.activeScope.kind === 'general',
     onOpenKnowledge: handleOpenKnowledge,
+    onOpenCardsPanel: handleOpenCardsPanel,
     onCompact: handleCompact,
     onAbort: handleAbort,
     ensureSession,
@@ -2204,6 +2210,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onOpenSkillsPanel: handleOpenSkillsPanel,
       onOpenMcpPanel: handleOpenMcpPanel,
       onOpenKnowledge: handleOpenKnowledge,
+      onOpenCardsPanel: handleOpenCardsPanel,
       onAttachFile: handleComposerAttachFile,
       onAttachImage: handleComposerAttachImage,
       onPaste: handleComposerPasteEvent,
@@ -2803,9 +2810,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       projectPath={state.projectPath}
                       recentProjects={recentProjects}
                       request={requestKnowledgeCenter}
-                      initialSubTab={knowledgeInitialTab}
                       onClose={() => setKnowledgeOpen(false)}
                       onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
+                      onOpenCardsPanel={handleOpenCardsPanel}
                       onConfigureEmbedding={() => openSettingsSection('knowledge')}
                       onSendToChat={(text) => {
                         setKnowledgeOpen(false);

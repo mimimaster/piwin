@@ -22,6 +22,7 @@ export type KnowledgeUnindexedHeroProps = {
   onStartIndexing: () => void;
   onRescan: () => void;
   onPickFolder?: (() => void) | undefined;
+  onUseCurrentProject?: (() => void) | undefined;
   onConfigureEmbedding?: (() => void) | undefined;
 };
 
@@ -61,22 +62,24 @@ export function KnowledgeUnindexedHero(props: KnowledgeUnindexedHeroProps): Reac
 
         <h2 className="unindexed-hero-title">
           {props.empty
-            ? t('Choose a document folder first', '先选一个文档文件夹')
+            ? t('Learn from folder', '从文件夹学习')
             : isIndexing
-              ? t(`Indexing ${props.folderName}...`, `正在为「${props.folderName}」构建知识库...`)
-              : t(`Build Knowledge Base for ${props.folderName}`, `为「${props.folderName}」构建知识库`)}
+              ? t(`Indexing ${props.folderName}…`, `正在入库「${props.folderName}」…`)
+              : t(`Index files in ${props.folderName}`, `入库「${props.folderName}」里的文件`)}
         </h2>
 
         <p className="unindexed-hero-desc muted">
-          {isIndexing
+          {props.empty
             ? t(
-                'Parsing code and documentation files, generating structure-aware chunks and vector embeddings.',
-                '正在解析代码与文档、建立结构化切片与向量索引...',
+                'Pick a local folder of notes or documents. Index the files you want, then generate cards.',
+                '选一个本地文档文件夹。先入库所选文件，再生成闪卡。',
               )
-            : t(
-                'Scan and index Markdown documents, architectural design, and core source code into a local-first RAG knowledge base.',
-                '自动扫描并索引项目中的 Markdown 文档、架构说明与核心源码，构建本地私有化 RAG 知识底座与全景 Wiki。',
-              )}
+            : isIndexing
+              ? t('Parsing and indexing the selected files.', '正在解析并入库所选文件。')
+              : t(
+                  'Choose which supported files to index. Generate is available after those files are ready.',
+                  '勾选要入库的支持文件。这些文件就绪后才能生成闪卡。',
+                )}
         </p>
 
         <div className="unindexed-hero-stats">
@@ -121,21 +124,33 @@ export function KnowledgeUnindexedHero(props: KnowledgeUnindexedHeroProps): Reac
             <div className="indexing-status-indicator">
               <StatusBadge
                 tone="running"
-                label={t('Processing chunks...', '正在处理切片...')}
+                label={t('Indexing files…', '正在入库文件…')}
               />
             </div>
           ) : (
             <>
               {props.empty && props.onPickFolder ? (
-                <Button
-                  variant="primary"
-                  size="default"
-                  onClick={props.onPickFolder}
-                  data-testid="hero-pick-folder-btn"
-                  className="hero-primary-btn"
-                >
-                  <span>{t('Choose folder…', '选择文件夹…')}</span>
-                </Button>
+                <>
+                  <Button
+                    variant="primary"
+                    size="default"
+                    onClick={props.onPickFolder}
+                    data-testid="hero-pick-folder-btn"
+                    className="hero-primary-btn"
+                  >
+                    <span>{t('Choose folder…', '选择文件夹…')}</span>
+                  </Button>
+                  {props.onUseCurrentProject ? (
+                    <Button
+                      variant="secondary"
+                      size="default"
+                      onClick={props.onUseCurrentProject}
+                      data-testid="use-current-project-btn"
+                    >
+                      <span>{t('Use current project (optional)', '使用当前项目（可选）')}</span>
+                    </Button>
+                  ) : null}
+                </>
               ) : (
                 <Button
                   variant="primary"
@@ -145,7 +160,7 @@ export function KnowledgeUnindexedHero(props: KnowledgeUnindexedHeroProps): Reac
                   data-testid="start-indexing-btn"
                   className="hero-primary-btn"
                 >
-                  <span>{t('🚀 Build Knowledge Base', '🚀 立即开始分析与构建索引')}</span>
+                  <span>{t('Index these files', '入库这些文件')}</span>
                 </Button>
               )}
               <Button

@@ -6,7 +6,8 @@
 import { useState, type ReactElement } from 'react';
 import { Button, IconButton, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
-import type { HostResponse, NoteRecord } from '@piwin/contracts';
+import type { NoteRecord } from '@piwin/contracts';
+import type { DoccardsHostRequest } from './knowledge-host-request.js';
 import { copyToClipboard, downloadFile } from '../knowledge-export.js';
 import {
   IconCommentAction,
@@ -28,7 +29,7 @@ export type KnowledgeWikiViewProps = {
   folderPath: string;
   folderName: string;
   notes: NoteRecord[];
-  request: (command: any) => Promise<HostResponse>;
+  request: DoccardsHostRequest;
   onSendToChat?: ((text: string) => void) | undefined;
   onOpenSourceFile?: ((filePath: string) => void) | undefined;
   isEmbeddingConfigured?: boolean | undefined;
@@ -239,7 +240,7 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
             ) : null}
             {hits.length === 0 && !searchError ? (
               <p className="muted" data-testid="wiki-search-empty">
-                {t('No matching passages in this folder.', '这个目录里没有匹配的切片。')}
+                {t('No matching passages in this folder.', '这个文件夹还没有检索结果。')}
               </p>
             ) : null}
             <div className="search-hits-list">
@@ -265,11 +266,11 @@ export function KnowledgeWikiView(props: KnowledgeWikiViewProps): ReactElement {
                   <div className="wiki-hero-icon-bubble">
                     <IconDocument width={28} height={28} />
                   </div>
-                  <h3>{t('Project Wiki & Knowledge Ready', '项目知识库已就绪')}</h3>
+                  <h3>{t('Search this folder', '搜索此文件夹')}</h3>
                   <p className="muted">
                     {t(
-                      'All source files have been parsed and indexed. You can ask queries above or generate flashcards in the cards tab.',
-                      '所有代码与文档切片已建立 RAG 混合索引。您可在上方输入问题即时检索，或切换到「知识闪卡」生成原子问答卡片。',
+                      'No matching passages in this folder.',
+                      '这个文件夹还没有检索结果。',
                     )}
                   </p>
                 </div>
