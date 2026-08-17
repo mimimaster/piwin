@@ -138,6 +138,105 @@ describe('remote session/list projection', () => {
       truncated: false,
     });
   });
+
+  it('attaches opaque projectId for project-scoped sessions and keeps paths out', () => {
+    const projected = projectRemoteResponse(
+      { type: 'session/list', allScopes: true },
+      {
+        type: 'response',
+        command: 'session/list',
+        success: true,
+        data: {
+          sessions: [
+            {
+              id: 'session-project',
+              name: 'Piwin work',
+              scope: { kind: 'project', projectPath: '/Users/private/Projects/piwin' },
+              workingDirectory: '/Users/private/Projects/piwin',
+              projectPath: '/Users/private/Projects/piwin',
+              updatedAt: '2026-08-17T00:00:00.000Z',
+              messageCount: 3,
+            },
+          ],
+          totalCount: 1,
+          truncated: false,
+        },
+      },
+      context,
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    const serialized = JSON.stringify(projected.data);
+    expect(serialized).not.toContain('/Users/private');
+    expect(serialized).not.toContain('projectPath');
+    expect(projected.data).toMatchObject({
+      sessions: [
+        {
+          sessionId: 'session-project',
+          name: 'Piwin work',
+          scope: 'project',
+          projectId: expect.stringMatching(/^project-[a-f0-9]{24}$/),
+        },
+      ],
+    });
+  });
+});
+
+describe('remote models/configured projection', () => {
+  it('keeps model ids and drops secret-like extras', () => {
+    const projected = projectRemoteResponse(
+      { type: 'models/configured' },
+      {
+        type: 'response',
+        command: 'models/configured',
+        success: true,
+        data: {
+          defaultProviderId: 'custom-anthropic',
+          defaultModelId: 'deepseek-v4-flash',
+          models: [
+            {
+              providerId: 'custom-anthropic',
+              protocol: 'openai-compatible',
+              modelId: 'deepseek-v4-flash',
+              label: 'Flash',
+              apiKey: 'sk-leak',
+            },
+          ],
+          apiKey: 'sk-root',
+          baseUrl: 'http://127.0.0.1:8317/v1',
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    const serialized = JSON.stringify(projected.data);
+    expect(serialized).not.toContain('apiKey');
+    expect(serialized).not.toContain('8317');
+    expect(serialized).not.toContain('sk-');
+    expect(projected.data).toEqual({
+      defaultProviderId: 'custom-anthropic',
+      defaultModelId: 'deepseek-v4-flash',
+      models: [
+        {
+          providerId: 'custom-anthropic',
+          protocol: 'openai-compatible',
+          modelId: 'deepseek-v4-flash',
+          label: 'Flash',
+        },
+      ],
+    });
+  });
 });
 
 describe('remote skills/read + tool-output projection', () => {
@@ -356,6 +455,72 @@ describe('remote queued-turn projection', () => {
     expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
     expect(projected.data).toMatchObject({
       queuedTurn: { input: { attachments: [{ path: 'remote-asset:asset-1' }] } },
+    });
+  });
+});
+
+describe('remote transcript tool projection', () => {
+  it('keeps slim tool cards and drops host paths from tool output', () => {
+    const projected = projectRemoteResponse(
+      { type: 'session/messages', sessionId: 'session-1' },
+      {
+        type: 'response',
+        command: 'session/messages',
+        success: true,
+        data: {
+          sessionId: 'session-1',
+          messages: [
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              text: 'done',
+              createdAt: '2026-08-17T00:00:00.000Z',
+              status: 'done',
+              tools: [
+                {
+                  toolCallId: 'call-1',
+                  toolName: 'read',
+                  status: 'done',
+                  output: 'contents of /Users/private/.piwin/secret.txt',
+                  runId: 'run-1',
+                  presentation: {
+                    kind: 'read',
+                    title: 'Read',
+                    targetPaths: ['/Users/private/Projects/example/src/a.ts'],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
+    expect(JSON.stringify(projected.data)).not.toContain('targetPaths');
+    expect(projected.data).toMatchObject({
+      messages: [
+        {
+          id: 'assistant-1',
+          tools: [
+            {
+              toolCallId: 'call-1',
+              toolName: 'read',
+              status: 'done',
+              runId: 'run-1',
+            },
+          ],
+        },
+      ],
     });
   });
 });

@@ -5,16 +5,15 @@
  * request time with a clear message if the endpoint requires auth.
  */
 import { spawn } from 'node:child_process';
-import type { NotesEmbeddingConfig } from '@piwin/contracts';
+import type { KnowledgeHttpAuth, NotesEmbeddingConfig } from '@piwin/contracts';
 
-export async function resolveNotesEmbeddingApiKey(
-  config: NotesEmbeddingConfig,
+export async function resolveKnowledgeHttpApiKey(
+  config: KnowledgeHttpAuth | undefined,
 ): Promise<string | undefined> {
+  if (!config) return undefined;
   if (config.apiKeyRef?.trim()) {
     const fromKeychain = await readKeychain(config.apiKeyRef.trim());
-    if (fromKeychain) {
-      return fromKeychain;
-    }
+    if (fromKeychain) return fromKeychain;
   }
   if (config.apiKeyEnv?.trim()) {
     const fromEnv = process.env[config.apiKeyEnv.trim()];
@@ -23,6 +22,12 @@ export async function resolveNotesEmbeddingApiKey(
     }
   }
   return undefined;
+}
+
+export async function resolveNotesEmbeddingApiKey(
+  config: NotesEmbeddingConfig,
+): Promise<string | undefined> {
+  return resolveKnowledgeHttpApiKey(config);
 }
 
 function readKeychain(ref: string): Promise<string | undefined> {

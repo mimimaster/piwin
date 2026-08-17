@@ -33,6 +33,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'shortcuts',
   'artifact-playground',
   'animations',
+  'knowledge',
 ];
 
 describe('section registry', () => {

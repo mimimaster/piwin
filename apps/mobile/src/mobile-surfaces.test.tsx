@@ -77,7 +77,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             onClose={onClose}
             projects={[{ projectId: 'p1', displayName: 'Project 1', trust: 'trusted' }]}
             sessions={[
-              { sessionId: 's1', name: 'Refactor Core', updatedAt: '2026-08-16T12:00:00Z', scope: 'project', messageCount: 5 },
+              { sessionId: 's1', name: 'Refactor Core', updatedAt: '2026-08-16T12:00:00Z', scope: 'project', projectId: 'p1', messageCount: 5 },
               { sessionId: 's2', name: 'Fix Bug', updatedAt: '2026-08-16T12:05:00Z', scope: 'project', messageCount: 2 },
             ]}
             activeSessionId="s1"
@@ -152,8 +152,24 @@ describe('Mobile Shell Navigation & Surfaces', () => {
           <ModelPickerModal
             isOpen={true}
             onClose={onClose}
-            selectedModelId="claude-3-7-sonnet"
-            selectedThinkingLevel="medium"
+            models={[
+              {
+                providerId: 'custom-anthropic',
+                protocol: 'openai-compatible',
+                modelId: 'deepseek-v4-flash',
+                label: 'DeepSeek V4 Flash',
+                thinkingLevels: ['off', 'max'],
+              },
+              {
+                providerId: 'custom-openai',
+                protocol: 'openai-compatible',
+                modelId: 'gpt-4o',
+                label: 'GPT-4o',
+              },
+            ]}
+            selectedProviderId="custom-anthropic"
+            selectedModelId="deepseek-v4-flash"
+            selectedThinkingLevel="max"
             onSelectModel={onSelectModel}
             onSelectThinkingLevel={onSelectThinkingLevel}
           />
@@ -162,16 +178,16 @@ describe('Mobile Shell Navigation & Surfaces', () => {
     });
 
     expect(container.textContent).toContain('模型与推理配置');
-    expect(container.textContent).toContain('Claude 3.7 Sonnet');
+    expect(container.textContent).toContain('DeepSeek V4 Flash');
     expect(container.textContent).toContain('GPT-4o');
 
     const modelCards = container.querySelectorAll('.mobile-model-card-item');
-    expect(modelCards.length).toBeGreaterThanOrEqual(4);
+    expect(modelCards.length).toBe(2);
 
     act(() => {
-      (modelCards[2] as HTMLButtonElement).click();
+      (modelCards[1] as HTMLButtonElement).click();
     });
-    expect(onSelectModel).toHaveBeenCalledWith('gpt-4o', 'openai');
+    expect(onSelectModel).toHaveBeenCalledWith('gpt-4o', 'custom-openai');
   });
 
   it('renders MobileQuickActionsBar and triggers prompt fills', () => {

@@ -78,6 +78,8 @@ import {
 } from './vision-delegation.js';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { enrichAgentEventDocumentTargets } from './document-targets.js';
+import { permissionResolvedPushes } from './permission-resolved-push.js';
+import { effectivePermissionMode } from './effective-permission-mode.js';
 import { installSkill, installExtension } from '@piwin/marketplace';
 import { createExtensionRevisionStore } from '@piwin/extensions';
 import { scanExtensions } from './extension-scanner.js';
@@ -570,6 +572,7 @@ export class HostRuntime {
       projectPath?: string;
       action: string;
       detail: string;
+      defaultDecision?: PermissionDecision;
       cleanup?: () => void;
     }
   >();
@@ -1950,6 +1953,7 @@ export class HostRuntime {
       const executionRunId = this.runExecutionContext.getStore();
       const permissionRunId = executionRunId ?? activeRun?.runId;
       let settled = false;
+      let published = false;
       const cleanup = (): void => {
         input.signal?.removeEventListener('abort', abortHandler);
       };
@@ -1960,6 +1964,16 @@ export class HostRuntime {
         settled = true;
         cleanup();
         this.pendingPermissions.delete(requestId);
+        if (published) {
+          for (const message of permissionResolvedPushes({
+            sessionId: input.sessionId,
+            requestId,
+            decision,
+            ...(permissionRunId ? { runId: permissionRunId } : {}),
+          })) {
+            this.push(message);
+          }
+        }
         resolve(decision);
       };
       const abortHandler = (): void => {
@@ -1972,6 +1986,7 @@ export class HostRuntime {
         ...(input.projectPath ? { projectPath: input.projectPath } : {}),
         action: input.action,
         detail: input.detail,
+        defaultDecision: input.defaultDecision,
         cleanup,
       };
       this.pendingPermissions.set(requestId, pendingPermission);
@@ -1980,6 +1995,7 @@ export class HostRuntime {
         return;
       }
       input.signal?.addEventListener('abort', abortHandler, { once: true });
+      published = true;
       this.push({
         type: 'permission/request',
         sessionId: input.sessionId,
@@ -2458,9 +2474,11 @@ export class HostRuntime {
     if (!this.folderRag) {
       const rootDir = getPiwinRoot(this.options.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
-      const { createFolderRag, createParserRegistry } = await import('@piwin/doc-rag');
+      const { createFolderRag, createHttpReranker, createParserRegistry } = await import('@piwin/doc-rag');
       const { createEmbeddingProvider } = await import('@piwin/notes');
-      const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
+      const { resolveKnowledgeHttpApiKey, resolveNotesEmbeddingApiKey } = await import(
+        './notes-embedding-secret.js'
+      );
       let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
       if (config.notes?.embedding) {
         const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
@@ -2470,9 +2488,23 @@ export class HostRuntime {
         });
         if (provider) embeddingProvider = provider;
       }
+      let reranker: import('@piwin/contracts').SharedReranker | undefined;
+      const rerankConfig = config.knowledge?.reranker;
+      if (rerankConfig?.enabled === true && rerankConfig.baseUrl && rerankConfig.model) {
+        const apiKey = await resolveKnowledgeHttpApiKey(rerankConfig);
+        reranker = createHttpReranker({
+          providerId: rerankConfig.provider ?? 'openai-compatible',
+          modelId: rerankConfig.model,
+          baseUrl: rerankConfig.baseUrl,
+          ...(apiKey ? { apiKey } : {}),
+          ...(typeof rerankConfig.topK === 'number' ? { topK: rerankConfig.topK } : {}),
+          ...(typeof rerankConfig.timeoutMs === 'number' ? { timeoutMs: rerankConfig.timeoutMs } : {}),
+        });
+      }
       this.folderRag = createFolderRag({
         piwinRoot: rootDir,
         ...(embeddingProvider ? { embeddingProvider } : {}),
+        ...(reranker ? { reranker } : {}),
         parserRegistry: createParserRegistry({
           mineruEnabled: config.knowledge?.parser?.mineru?.enabled === true,
           unstructuredEnabled: config.knowledge?.parser?.unstructured?.enabled === true,
@@ -3662,8 +3694,8 @@ export class HostRuntime {
     this.generationMcpSnapshots.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot);
     let rules = createBundledRuleSet();
     let mcpCapabilityBrief: McpCapabilityBrief | undefined;
+    let projectTrusted = false;
     try {
-      let projectTrusted = false;
       if (projectPath) {
         const projects = await listProjects(getPiwinProjectsPath(rootDir));
         projectTrusted = projects.some(
@@ -3717,10 +3749,18 @@ export class HostRuntime {
     // PermissionMode on every call. Executors never re-derive a decision.
     const permissionGate = createHostToolAdmission({
       rules,
-      getPermissionMode: () =>
-        this.sessionPermissionOverrides.get(sessionId) ??
-        this.options.permissionModeOverride ??
-        this.permissionModeFromConfig,
+      getPermissionMode: () => {
+        const sessionOverride = this.sessionPermissionOverrides.get(sessionId);
+        return effectivePermissionMode({
+          ...(sessionOverride !== undefined ? { sessionOverride } : {}),
+          ...(this.options.permissionModeOverride !== undefined
+            ? { cliOverride: this.options.permissionModeOverride }
+            : {}),
+          configMode: this.permissionModeFromConfig,
+          ...(projectPath !== undefined ? { projectPath } : {}),
+          projectTrusted,
+        });
+      },
       getSessionAllowlist: (currentSessionId) => this.sessionAllowlists.get(currentSessionId),
       requestPermission: (input) =>
         this.requestPermission({

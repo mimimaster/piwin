@@ -25,6 +25,7 @@ import { PetsPage } from './pets-page';
 import { UsagePage } from './usage-page';
 import { ShortcutsPage } from './shortcuts-page';
 import { AnimationsPage } from './animations-page';
+import { KnowledgePage } from './knowledge-page';
 
 registerSettingsSection('general', GeneralPage);
 registerSettingsSection('appearance', AppearancePage);
@@ -33,6 +34,7 @@ registerSettingsSection('session', SessionPage);
 registerSettingsSection('runtime', SessionRuntimePage);
 registerSettingsSection('archive', ArchivePage);
 registerSettingsSection('web', WebPage);
+registerSettingsSection('knowledge', KnowledgePage);
 registerSettingsSection('models', ModelsPage);
 registerSettingsSection('vision', VisionPage);
 registerSettingsSection('artifact', ArtifactPage);

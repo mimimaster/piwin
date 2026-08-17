@@ -393,6 +393,13 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'permission/resolved') {
+        dispatch({
+          type: 'permission/clear',
+          requestId: message.requestId,
+        });
+        return;
+      }
       if (message.type === 'extension/ui_request') {
         const nextRequest: ExtensionUiRequestState = {
           sessionId: message.sessionId,
@@ -499,15 +506,22 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           message: formatError(error),
         });
       }
-      const configResponse = await hostClient.request({ type: 'config/get' });
-      if (configResponse.success) {
-        const data = configResponse.data as { config: PiwinConfig };
-        setConfig(data.config);
-        if (data.config.defaultProviderId && data.config.defaultModelId) {
-          args.setSelectedModelKey(
-            `${data.config.defaultProviderId}::${data.config.defaultModelId}`,
-          );
+      try {
+        const configResponse = await hostClient.request({ type: 'config/get' });
+        if (configResponse.success) {
+          const data = configResponse.data as { config?: PiwinConfig } | undefined;
+          const nextConfig = data?.config;
+          if (nextConfig !== undefined) {
+            setConfig(nextConfig);
+            if (nextConfig.defaultProviderId && nextConfig.defaultModelId) {
+              args.setSelectedModelKey(
+                `${nextConfig.defaultProviderId}::${nextConfig.defaultModelId}`,
+              );
+            }
+          }
         }
+      } catch {
+        // Retry on hostReadyEpoch below; do not take down the shell.
       }
       const themeResponse = await hostClient.request({ type: 'theme/get-active' });
       // DesktopThemeRoot already applied Appearance prefs at mount. Only push
@@ -540,6 +554,38 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     // Bootstrap once per hostClient instance; setters are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args.hostClient]);
+
+  // Same class of bug as project/list: a cold sidecar makes the first
+  // config/get fail. Retry when Host actually becomes ready.
+  useEffect(() => {
+    if (hostReadyEpoch === 0) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const configResponse = await args.hostClient.request({ type: 'config/get' });
+        if (cancelled || !configResponse.success) {
+          return;
+        }
+        const data = configResponse.data as { config?: PiwinConfig } | undefined;
+        const nextConfig = data?.config;
+        if (nextConfig === undefined) {
+          return;
+        }
+        setConfig(nextConfig);
+        if (nextConfig.defaultProviderId && nextConfig.defaultModelId) {
+          args.setSelectedModelKey(`${nextConfig.defaultProviderId}::${nextConfig.defaultModelId}`);
+        }
+      } catch {
+        // Keep the shell up; the next ready epoch retries.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [args.hostClient, hostReadyEpoch]);
 
   useEffect(() => {
     const sessionId = args.activeSessionId;

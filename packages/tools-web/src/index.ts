@@ -14,5 +14,5 @@ export { createDefaultFetchConfig, validateFetchUrl, webFetch } from './web-fetc
 export type { WebFetchOptions } from './web-fetch.js';
 export { createWebToolDefinitions } from './tool-definitions.js';
 export type { WebRuntimeCredentials } from './runtime-credentials.js';
-export { isPrivateOrLocalHostname, isPrivateOrLocalIpAddress } from './private-address.js';
+export { isPrivateOrLocalHostname, isPrivateOrLocalIpAddress, mappedIpv4FromIpv6 } from './private-address.js';
 export { assertSafeFetchUrl } from './web-fetch.js';

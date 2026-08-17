@@ -47,7 +47,7 @@ test.describe('desktop shell (vite + host mock)', () => {
   test('loads shell with host ready and mock transport', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);
-    await expect(page.getByTestId('sessions-empty')).toBeVisible();
+    await expect(page.getByTestId('sidebar-empty-hint')).toBeVisible();
     await expect(page.getByTestId('chat-empty-state')).toBeVisible();
   });
 

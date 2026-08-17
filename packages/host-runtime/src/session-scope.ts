@@ -7,8 +7,10 @@ import type {
   ResolvedSessionLocation,
   SessionScope,
 } from '@piwin/contracts';
+import { listProjects } from '@piwin/project';
 import { ensureGeneralWorkspace } from './general-workspace.js';
-import { getPiwinGeneralWorkspacePath, getPiwinRoot } from './paths.js';
+import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from './paths.js';
+import { createRemoteProjectId } from './remote-project-id.js';
 
 /**
  * Derive SessionScope from create input.
@@ -43,7 +45,8 @@ export async function resolveSessionLocation(
   input: CreateSessionInput,
   piwinRoot?: string,
 ): Promise<ResolvedSessionLocation> {
-  const scope = resolveSessionScopeFromInput(input);
+  const resolvedInput = await bindProjectIdToScope(input, piwinRoot);
+  const scope = resolveSessionScopeFromInput(resolvedInput);
   if (scope.kind === 'general') {
     const workingDirectory = await ensureGeneralWorkspace(piwinRoot);
     return { scope, workingDirectory };
@@ -51,6 +54,28 @@ export async function resolveSessionLocation(
   return {
     scope,
     workingDirectory: scope.projectPath,
+  };
+}
+
+async function bindProjectIdToScope(
+  input: CreateSessionInput,
+  piwinRoot?: string,
+): Promise<CreateSessionInput> {
+  const projectId = input.projectId?.trim();
+  if (!projectId) {
+    return input;
+  }
+  if (input.scope?.kind === 'project' || (input.projectPath?.trim().length ?? 0) > 0) {
+    throw new Error('projectId cannot be combined with projectPath');
+  }
+  const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(piwinRoot)));
+  const match = projects.find((project) => createRemoteProjectId(project.path) === projectId);
+  if (match === undefined) {
+    throw new Error('Unknown project');
+  }
+  return {
+    ...input,
+    scope: { kind: 'project', projectPath: match.path },
   };
 }
 

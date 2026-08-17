@@ -86,4 +86,19 @@ describe('runTwoStageGeneration', () => {
     ).rejects.toThrow('NO_VALID_FLASHCARDS');
     expect(attempts).toBe(2);
   });
+
+  it('does not swallow a missing-model error as NO_VALID_FLASHCARDS', async () => {
+    await expect(
+      runTwoStageGeneration({
+        topic: 'srs',
+        workspaceName: 'Notes',
+        pack,
+        existingFronts: [],
+        generationId: 'gen_1',
+        completeJson: async () => {
+          throw new Error('GENERATION_MODEL_NOT_CONFIGURED');
+        },
+      }),
+    ).rejects.toThrow('GENERATION_MODEL_NOT_CONFIGURED');
+  });
 });

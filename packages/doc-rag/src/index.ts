@@ -34,6 +34,7 @@ export { mapMineruContentList } from './parsers/mineru-adapter.js';
 export { openLanceDocIndex } from './indexing/lancedb-index.js';
 export type { DocIndexStore } from './indexing/doc-index-store.js';
 export { retrieveV2 } from './retrieval/retrieval-service.js';
+export { createHttpReranker } from './retrieval/http-reranker.js';
 export { adaptNotesEmbedding } from './embedding-adapter.js';
 
 export { buildFlashcardGenerationPrompt } from './prompt-builder.js';
@@ -51,6 +52,7 @@ export type { DraftCardsFn, DraftCardsRequest } from './generation/generation-se
 export { runTwoStageGeneration, TWO_STAGE_PIPELINE } from './generation/generation-pipeline.js';
 export type { CompleteJsonFn, TwoStageGenerationResult } from './generation/generation-pipeline.js';
 export { parseRawKnowledgePoints, RAW_KNOWLEDGE_POINT_SCHEMA } from './generation/kp-schema.js';
+export { resolveSourceIds } from './generation/resolve-source-ids.js';
 export { postprocessKnowledgePoints } from './generation/kp-postprocess.js';
 export { parseGeneratedFlashcards } from './generation/flashcard-schema.js';
 export { qaGeneratedFlashcards } from './generation/flashcard-qa.js';

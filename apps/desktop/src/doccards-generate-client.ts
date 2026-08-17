@@ -11,7 +11,12 @@ const TERMINAL = new Set(['COMPLETED', 'COMPLETED_DEGRADED', 'FAILED', 'CANCELED
 
 export async function runDoccardsGenerate(
   request: DoccardsGenerateRequest,
-  input: { folderPath: string; includeFiles?: string[]; topic?: string },
+  input: {
+    folderPath: string;
+    includeFiles?: string[];
+    topic?: string;
+    onProgress?: (job: GenerationJob) => void;
+  },
 ): Promise<GenerationJob> {
   const started = await request({
     type: 'doccards/generate',
@@ -29,9 +34,10 @@ export async function runDoccardsGenerate(
     });
     if (!status.success) throw new Error(status.error);
     const job = (status.data as { job?: GenerationJob | null }).job;
+    if (job) input.onProgress?.(job);
     if (job && TERMINAL.has(job.status)) {
       if (job.status === 'FAILED' || job.status === 'CANCELED') {
-        throw new Error(job.status);
+        throw new Error(job.error ?? job.status);
       }
       return job;
     }

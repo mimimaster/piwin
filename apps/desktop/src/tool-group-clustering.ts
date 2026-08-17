@@ -1,6 +1,7 @@
 import type { ToolCardUi } from './chat-reducer';
 
 export type ToolClusterKind =
+  | 'explore'
   | 'search'
   | 'read'
   | 'command'
@@ -17,6 +18,8 @@ export type BatchClusterSummary = {
   errorCount: number;
   totalDurationMs?: number;
   keyTargets: string[];
+  fileCount?: number;
+  searchCount?: number;
 };
 
 export type ClusteredToolItem =
@@ -106,21 +109,27 @@ export function resolveToolClusterKind(tool: ToolCardUi): ToolClusterKind {
   }
 }
 
+/** Check if a cluster kind is considered part of the read-only exploratory phase. */
+export function isExploratoryKind(kind: ToolClusterKind): boolean {
+  return kind === 'explore' || kind === 'read' || kind === 'search' || kind === 'web';
+}
+
 /** Extract human-friendly target previews from tools in a batch. */
-function extractKeyTargets(clusterKind: ToolClusterKind, tools: ToolCardUi[]): string[] {
+function extractKeyTargets(tools: ToolCardUi[]): string[] {
   const targets = new Set<string>();
 
   for (const tool of tools) {
-    if (targets.size >= 3) break;
+    if (targets.size >= 4) break;
+    const kind = resolveToolClusterKind(tool);
 
-    if (clusterKind === 'read') {
+    if (kind === 'read' || kind === 'explore') {
       const paths = tool.presentation?.targetPaths ?? [];
       for (const path of paths) {
         const basename = path.split(/[/\\]/).pop()?.trim();
         if (basename) targets.add(basename);
-        if (targets.size >= 3) break;
+        if (targets.size >= 4) break;
       }
-    } else if (clusterKind === 'search') {
+    } else if (kind === 'search') {
       const summary = tool.presentation?.summary?.trim();
       const countTag = tool.presentation?.countTag?.trim();
       if (countTag) {
@@ -128,16 +137,15 @@ function extractKeyTargets(clusterKind: ToolClusterKind, tools: ToolCardUi[]): s
       } else if (summary && !summary.startsWith('{') && !summary.startsWith('[')) {
         targets.add(summary.length > 20 ? `${summary.slice(0, 18)}…` : summary);
       }
-    } else if (clusterKind === 'command') {
+    } else if (kind === 'command') {
       const cmd = tool.presentation?.command?.trim();
       if (cmd) {
-        // Extract command name / first couple arguments
         const firstPart = cmd.split(/\s+/).slice(0, 2).join(' ');
         if (firstPart) {
           targets.add(firstPart.length > 20 ? `${firstPart.slice(0, 18)}…` : firstPart);
         }
       }
-    } else if (clusterKind === 'web') {
+    } else if (kind === 'web') {
       const summary = tool.presentation?.summary?.trim();
       if (summary && !summary.startsWith('{')) {
         targets.add(summary.length > 20 ? `${summary.slice(0, 18)}…` : summary);
@@ -150,7 +158,7 @@ function extractKeyTargets(clusterKind: ToolClusterKind, tools: ToolCardUi[]): s
 
 /** Compute aggregate summary for a batch of tools. */
 export function computeBatchSummary(
-  clusterKind: ToolClusterKind,
+  _clusterKind: ToolClusterKind,
   tools: ToolCardUi[],
 ): BatchClusterSummary {
   let hasDuration = false;
@@ -158,6 +166,9 @@ export function computeBatchSummary(
   let errorCount = 0;
   let hasRunning = false;
   let activeTool: ToolCardUi | undefined;
+
+  const uniqueFiles = new Set<string>();
+  let searchCount = 0;
 
   for (const tool of tools) {
     if (typeof tool.presentation?.durationMs === 'number') {
@@ -173,7 +184,18 @@ export function computeBatchSummary(
         activeTool = tool;
       }
     }
+
+    const subKind = resolveToolClusterKind(tool);
+    if (subKind === 'search') {
+      searchCount += 1;
+    }
+    const paths = tool.presentation?.targetPaths ?? [];
+    for (const p of paths) {
+      if (p) uniqueFiles.add(p);
+    }
   }
+
+  const fileCount = uniqueFiles.size > 0 ? uniqueFiles.size : tools.length - searchCount;
 
   return {
     totalCount: tools.length,
@@ -182,15 +204,16 @@ export function computeBatchSummary(
     hasError: errorCount > 0,
     errorCount,
     ...(hasDuration ? { totalDurationMs } : {}),
-    keyTargets: extractKeyTargets(clusterKind, tools),
+    keyTargets: extractKeyTargets(tools),
+    fileCount: Math.max(0, fileCount),
+    searchCount,
   };
 }
 
-const BATCHABLE_KINDS = new Set<ToolClusterKind>(['search', 'read', 'command', 'web']);
-
 /**
- * Cluster consecutive tool calls of the same category into a batch capsule.
- * Isolated single calls or non-batchable tools (like subagents or edits) remain single.
+ * Cluster consecutive exploratory tool calls (read, search, web) into an 'explore' capsule.
+ * Other tools like commands form their own consecutive batches.
+ * Edits, subagents, and custom tools remain standalone single items.
  */
 export function clusterToolCalls(tools: ToolCardUi[]): ClusteredToolItem[] {
   if (!tools || tools.length === 0) {
@@ -219,16 +242,26 @@ export function clusterToolCalls(tools: ToolCardUi[]): ClusteredToolItem[] {
   }
 
   for (const tool of tools) {
-    const clusterKind = resolveToolClusterKind(tool);
+    const rawKind = resolveToolClusterKind(tool);
 
-    if (BATCHABLE_KINDS.has(clusterKind)) {
-      if (currentBatch && currentBatch.kind === clusterKind) {
+    if (isExploratoryKind(rawKind)) {
+      // Group all exploratory actions together into a unified 'explore' cluster
+      if (currentBatch && currentBatch.kind === 'explore') {
         currentBatch.tools.push(tool);
       } else {
         flushBatch();
-        currentBatch = { kind: clusterKind, tools: [tool] };
+        currentBatch = { kind: 'explore', tools: [tool] };
+      }
+    } else if (rawKind === 'command') {
+      // Group consecutive commands together
+      if (currentBatch && currentBatch.kind === 'command') {
+        currentBatch.tools.push(tool);
+      } else {
+        flushBatch();
+        currentBatch = { kind: 'command', tools: [tool] };
       }
     } else {
+      // Edits, subagents, and other side-effect tools are standalone
       flushBatch();
       clustered.push({ kind: 'single', tool });
     }

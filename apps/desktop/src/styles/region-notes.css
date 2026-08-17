@@ -1,0 +1,203 @@
+/* ── Notes Panel (Repo Wiki) Styling ─────────────────────────────────── */
+
+.notes-panel-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-toolbar-card {
+  background: var(--surface, #1e1e24);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px;
+}
+
+.notes-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-search-input-wrap {
+  flex: 1;
+}
+
+.notes-search-input-wrap input {
+  margin-bottom: 0 !important;
+}
+
+.notes-mode-select {
+  background: var(--surface-inset, #141418);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
+  color: var(--text, #eee);
+  border-radius: var(--radius-sm, 6px);
+  padding: 6px 10px;
+  font-size: 12px;
+  height: 36px;
+}
+
+.notes-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.08));
+}
+
+.notes-advanced-card {
+  background: var(--surface-inset, #141418);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 10px);
+  padding: 12px;
+}
+
+.notes-eval-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.notes-eval-results {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.notes-eval-results ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.notes-detail-card,
+.notes-editor-card {
+  background: var(--surface, #1e1e24);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.notes-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.notes-detail-header h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--text, #eee);
+}
+
+.notes-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted, #888);
+}
+
+.notes-detail-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notes-content-body pre {
+  margin: 0;
+  font-family: var(--font-sans, inherit);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--text, #ddd);
+}
+
+.notes-grid-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notes-item-card {
+  background: var(--surface-inset, #141418);
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 10px);
+  overflow: hidden;
+  transition: all var(--motion-quick, 120ms) ease;
+}
+
+.notes-item-card:hover {
+  border-color: var(--accent, #6ea8fe);
+  transform: translateY(-1px);
+}
+
+.notes-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 12px;
+  color: inherit;
+  cursor: pointer;
+}
+
+.notes-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.notes-item-title {
+  font-size: 13.5px;
+  color: var(--text, #eee);
+}
+
+.notes-item-coll {
+  font-size: 11px;
+  color: var(--muted, #777);
+  margin-left: auto;
+}
+
+.doc-cards-channel-tag {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 20%, transparent);
+  color: var(--accent, #6ea8fe);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.notes-item-preview {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted, #aaa);
+  line-height: 1.4;
+}
+
+.notes-empty-state {
+  background: var(--surface, #1e1e24);
+  border: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 12px);
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.notes-editor-title-wrap {
+  margin: 12px 0 10px;
+}
+
+.notes-editor-content-wrap {
+  margin-bottom: 12px;
+}
+
+.notes-editor-actions {
+  display: flex;
+  gap: 8px;
+}

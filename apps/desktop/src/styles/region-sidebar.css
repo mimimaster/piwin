@@ -748,7 +748,7 @@
 
 .session-item-name {
   /* Keep conversation titles readable in both project and general lists. */
-  font-size: 15px;
+  font-size: 12.5px;
   font-weight: 500;
   letter-spacing: -0.012em;
   line-height: 1.3;
@@ -954,7 +954,7 @@
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 13.5px;
+  font-size: 11px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -1683,15 +1683,4 @@ html[data-theme-visual-style='ink-wash'] .session-item-completed-mark [data-test
   font-weight: 700 !important;
   color: #f8f6f0 !important;
   line-height: 1 !important;
-}
-
-/* ── Ink Wash Sidebar Session Title Font Size Adjustment (侧边栏历史会话标题字号调小) ── */
-html[data-theme-visual-style='ink-wash'] .session-item-name,
-html[data-theme-visual-style='ink-wash'] .session-item-title-text {
-  font-size: 12.5px !important;
-  font-weight: 500 !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .session-item-time {
-  font-size: 11px !important;
 }

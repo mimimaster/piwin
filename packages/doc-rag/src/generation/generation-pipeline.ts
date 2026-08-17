@@ -125,9 +125,17 @@ async function tryCall<T>(input: {
 }): Promise<T | undefined> {
   try {
     return (await call(input)).parsed;
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (isRepairableJsonError(error)) return undefined;
+    throw error;
   }
+}
+
+function isRepairableJsonError(error: unknown): boolean {
+  if (!(error instanceof Error)) return true;
+  // completeStructured uses name === schema-failed when the model did not
+  // return JSON. Transport / missing-model errors must surface as-is.
+  return error.name === 'schema-failed' || error.message === 'NO_VALID_FLASHCARDS';
 }
 
 async function call<T>(input: {

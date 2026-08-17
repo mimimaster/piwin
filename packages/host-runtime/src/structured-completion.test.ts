@@ -72,6 +72,38 @@ describe('completeStructuredText', () => {
     expect(body.response_format?.type).toBe('json_schema');
     expect(body.response_format?.json_schema?.name).toBe('probe');
   });
+
+  it('retries without json_schema when the provider rejects the format', async () => {
+    const fetchSpy = vi.fn(async (_url: string | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        response_format?: { type?: string };
+      };
+      if (body.response_format?.type === 'json_schema') {
+        return createJsonResponse({ error: 'unsupported response_format' }, 400);
+      }
+      return createJsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] });
+    }) as unknown as FetchMock;
+    const result = await completeStructuredText(
+      {
+        provider: createProvider(),
+        modelId: 'm',
+        systemPrompt: 'sys',
+        userPrompt: 'user',
+        jsonSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+        schemaName: 'probe',
+        maxOutputTokens: 16,
+        temperature: 0,
+        signal: new AbortController().signal,
+      },
+      { fetch: fetchSpy, resolveSecret: async () => 'k' },
+    );
+    expect(result.text).toBe('{"ok":true}');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const second = JSON.parse(String(fetchSpy.mock.calls[1]?.[1]?.body ?? '{}')) as {
+      response_format?: unknown;
+    };
+    expect(second.response_format).toBeUndefined();
+  });
 });
 
 describe('completeStructured', () => {

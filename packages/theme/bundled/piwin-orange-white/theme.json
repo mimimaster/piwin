@@ -16,7 +16,7 @@
     "danger": "#d64541",
     "ok": "#1f9d63",
     "radius": "10px",
-    "font": "Inter, -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Segoe UI\", system-ui, sans-serif"
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Inter, sans-serif"
   },
   "artifact": {
     "bg": "transparent",
@@ -26,6 +26,6 @@
     "accent": "#e85d1f",
     "border": "rgba(80, 60, 40, 0.12)",
     "radius": "0.625rem",
-    "font": "Inter, -apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", \"Segoe UI\", system-ui, sans-serif"
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\", Inter, sans-serif"
   }
 }

@@ -419,4 +419,44 @@ describe('doccards generation job', () => {
     expect((await cardStore.list({ sourceFolder: folder })).length).toBeGreaterThan(0);
     rag.close();
   });
+
+  it('surfaces the thrown generation error on the FAILED job', async () => {
+    root = await mkdtemp(join(tmpdir(), 'piwin-gen-root-'));
+    folder = (await canonicalizeFolderPath(await mkdtemp(join(tmpdir(), 'piwin-gen-src-')))) ?? '';
+    await writeFile(join(folder, 'srs.md'), '# SRS\n\nSpaced repetition fights forgetting.');
+    const rag = createFolderRag({ piwinRoot: root });
+    await rag.indexFolder(folder);
+    const cardStore = createCardStore({ piwinRoot: root });
+    const ctx: KnowledgeCommandContext = {
+      getNotesServices: async () => {
+        throw new Error('notes');
+      },
+      getCardStore: async () => cardStore,
+      getFolderRag: async () => rag,
+      loadConfig: async () => ({ hostMode: 'sdk', providers: [] }) as unknown as PiwinConfig,
+      ingestionJobs: createDoccardsIngestionRegistry(),
+      generationJobs: createDoccardsGenerationRegistry(),
+      completeJson: async () => {
+        throw new Error('GENERATION_MODEL_NOT_CONFIGURED');
+      },
+      piwinRoot: root,
+    };
+    await handleKnowledgeCommand(
+      { type: 'doccards/generate', folderPath: folder, topic: 'spaced repetition' },
+      'g-err',
+      ctx,
+    );
+    await vi.waitFor(async () => {
+      const status = await handleKnowledgeCommand(
+        { type: 'doccards/generation-status', folderPath: folder },
+        'g-err-s',
+        ctx,
+      );
+      expect(status).toMatchObject({
+        success: true,
+        data: { job: { status: 'FAILED', error: 'GENERATION_MODEL_NOT_CONFIGURED' } },
+      });
+    });
+    rag.close();
+  });
 });

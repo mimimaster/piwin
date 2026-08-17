@@ -1,4 +1,4 @@
-import type { AgentMessageRole, HostMode } from './host.js';
+import type { AgentMessageRole, HostMode, PermissionDecision } from './host.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
 import type { QueuedTurnRecord } from './queued-turn.js';
@@ -102,6 +102,8 @@ export type RemoteSessionSummary = {
   sessionId: string;
   name?: string;
   scope: RemoteSessionScopeKind;
+  /** Opaque id from `project/list`. Present when `scope` is `project`. */
+  projectId?: string;
   kind?: string;
   updatedAt?: string;
   messageCount?: number;
@@ -121,6 +123,14 @@ export type RemoteSessionListData = {
 
 export type RemoteSessionListPageData = SessionListPageResult<RemoteSessionSummary>;
 
+export type RemoteTranscriptTool = {
+  toolCallId: string;
+  toolName: string;
+  status: 'running' | 'done' | 'error';
+  output: string;
+  runId?: string;
+};
+
 export type RemoteTranscriptMessage = {
   id: string;
   role: AgentMessageRole;
@@ -133,6 +143,7 @@ export type RemoteTranscriptMessage = {
   outcome?: 'completed' | 'cancelled' | 'failed';
   terminalMessage?: string;
   thinking?: string;
+  tools?: RemoteTranscriptTool[];
   attachmentCount?: number;
   instructionDelivery?: import('./session-transcript.js').SessionTranscriptMessage['instructionDelivery'];
 };
@@ -254,7 +265,17 @@ export type HostHydrationSnapshot = {
   sessions: RemoteSessionSummary[];
   messagesBySession: Record<string, RemoteTranscriptMessage[]>;
   queuedTurnsBySession?: Record<string, QueuedTurnRecord[]>;
+  pendingPermissions?: RemotePendingPermission[];
   truncatedSessionIds: string[];
+};
+
+export type RemotePendingPermission = {
+  sessionId: string;
+  requestId: string;
+  action: string;
+  detail: string;
+  defaultDecision: PermissionDecision;
+  runId?: string;
 };
 
 export type HostHydrationFrame = {

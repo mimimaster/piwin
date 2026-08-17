@@ -25,6 +25,9 @@ export function createDoccardsCompleteJson(
         maxOutputTokens: llm?.maxOutputTokens ?? 4000,
         temperature: llm?.temperature ?? 0.2,
         signal: request.signal ?? new AbortController().signal,
+        // Two-stage generate plus a repair pass needs more than the
+        // walkthrough default; local proxies often queue past 60s.
+        timeoutMs: 180_000,
         label: 'Doc Cards',
       },
       (value) => value,

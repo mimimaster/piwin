@@ -9,7 +9,7 @@ const KIND_RANK: Record<SlashItemKind, number> = {
   skill: 2,
 };
 
-export const SLASH_MENU_MAX_ITEMS = 12;
+export const SLASH_MENU_MAX_ITEMS = 24;
 
 /**
  * Score an item against query (lower is better). Returns null if no match.

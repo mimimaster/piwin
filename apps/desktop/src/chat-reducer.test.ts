@@ -1149,6 +1149,31 @@ describe('chatUiReducer', () => {
     expect(state.permissionPrompt?.requestId).toBe('mcp-connect-second');
   });
 
+  it('clears the permission prompt when the host settles the request', () => {
+    let state = createInitialChatUiState();
+    state = { ...state, activeSessionId: 'session-1' };
+    state = chatUiReducer(state, {
+      type: 'permission/show',
+      prompt: {
+        requestId: 'mcp-connect-first',
+        sessionId: 'session-1',
+        action: 'mcp:tool-call',
+        detail: 'first-server/tool',
+        defaultDecision: 'ask',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 'session-1',
+      event: {
+        type: 'permission/resolved',
+        requestId: 'mcp-connect-first',
+        decision: 'deny',
+      },
+    });
+    expect(state.permissionPrompt).toBeNull();
+  });
+
   it('hydrates history from session/load-messages including attachments', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, {

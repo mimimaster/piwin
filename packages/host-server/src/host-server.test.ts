@@ -14,6 +14,8 @@ class FakeRuntime implements HostRuntimePort {
   private readonly sinks = new Map<string, PushSink>();
   public lastPrompt: HostCommand | undefined;
   public sessionListData: unknown = { sessions: [], totalCount: 0, truncated: false };
+  public foregroundRun: { status: string } | null = null;
+  public pendingPermissions: unknown[] = [];
 
   public async handleCommand(command: HostCommand): Promise<HostResponse> {
     if (command.type === 'host/ping') {
@@ -230,6 +232,43 @@ class FakeRuntime implements HostRuntimePort {
         data: { sessionId: command.sessionId, runId: 'run-1' },
       };
     }
+    if (command.type === 'session/foreground-run') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { sessionId: command.sessionId, run: this.foregroundRun },
+      };
+    }
+    if (command.type === 'permission/pending-list') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: { permissions: this.pendingPermissions },
+      };
+    }
+    if (command.type === 'models/configured') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          defaultProviderId: 'custom-anthropic',
+          defaultModelId: 'deepseek-v4-flash',
+          models: [
+            {
+              providerId: 'custom-anthropic',
+              protocol: 'openai-compatible',
+              modelId: 'deepseek-v4-flash',
+              label: 'Flash',
+            },
+          ],
+          apiKey: 'sk-leak',
+          baseUrl: 'http://127.0.0.1:8317/v1',
+        },
+      };
+    }
     return {
       type: 'response',
       command: command.type,
@@ -393,6 +432,121 @@ describe('HostServer', () => {
       type: 'error',
       code: 'command-not-allowed',
     });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('allows all-scope session/list, opaque project create, and models/configured', async () => {
+    const runtime = new FakeRuntime();
+    runtime.sessionListData = {
+      sessions: [
+        {
+          id: 'session-project',
+          scope: { kind: 'project', projectPath: '/Users/private/Projects/piwin' },
+          workingDirectory: '/Users/private/Projects/piwin',
+          projectPath: '/Users/private/Projects/piwin',
+          name: 'Piwin work',
+          updatedAt: '2026-08-17T00:00:00.000Z',
+          messageCount: 1,
+        },
+      ],
+      totalCount: 1,
+      truncated: false,
+    };
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-mobile-allow' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-allow-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'list-all',
+        command: { type: 'session/list', allScopes: true, maxItems: 80 },
+      }),
+    );
+    const listAll = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'list-all',
+    );
+    expect(JSON.stringify(listAll)).not.toContain('/Users/private');
+    expect(listAll).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: {
+          sessions: [
+            {
+              sessionId: 'session-project',
+              scope: 'project',
+              projectId: expect.stringMatching(/^project-[a-f0-9]{24}$/),
+            },
+          ],
+        },
+      },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'create-project',
+        command: {
+          type: 'session/create',
+          input: {
+            projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+            sessionName: 'Mobile session',
+          },
+        },
+      }),
+    );
+    const created = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'create-project',
+    );
+    expect(created).toMatchObject({ type: 'response', response: { success: true } });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'create-path-rejected',
+        command: {
+          type: 'session/create',
+          input: {
+            scope: { kind: 'project', projectPath: '/Users/private/Projects/piwin' },
+          },
+        },
+      }),
+    );
+    const pathRejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'create-path-rejected',
+    );
+    expect(pathRejected).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'models-configured',
+        command: { type: 'models/configured' },
+      }),
+    );
+    const models = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'models-configured',
+    );
+    expect(JSON.stringify(models)).not.toContain('apiKey');
+    expect(JSON.stringify(models)).not.toContain('8317');
 
     socket.close();
     await server.stop();
@@ -1174,6 +1328,70 @@ describe('HostServer', () => {
     );
     await waitForOpen(socket);
     await expect(closeCode).resolves.toBe(4009);
+    await server.stop();
+  });
+
+  it('rejects a non-loopback Origin when no allowlist is configured', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({
+      runtime,
+      port: 0,
+      instanceId: 'host-origin-default-test',
+    });
+    const address = await server.start();
+    const socket = new WebSocket(address.url, { origin: 'http://evil.invalid' });
+    const closeCode = new Promise<number>((resolve) =>
+      socket.once('close', (code) => resolve(code)),
+    );
+    await waitForOpen(socket);
+    await expect(closeCode).resolves.toBe(4009);
+    await server.stop();
+  });
+
+  it('rejects a remote session/prompt while a foreground run is active', async () => {
+    const runtime = new FakeRuntime();
+    runtime.foregroundRun = { status: 'running' };
+    const server = new HostServer({
+      runtime,
+      port: 0,
+      instanceId: 'host-prompt-idle-test',
+    });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-prompt-idle-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'busy-prompt',
+        command: {
+          type: 'session/prompt',
+          sessionId: 'session-1',
+          input: { text: 'hello' },
+        },
+      }),
+    );
+    const busy = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'busy-prompt',
+    );
+    expect(busy).toMatchObject({
+      type: 'response',
+      response: { success: false },
+    });
+    expect(runtime.lastPrompt).toBeUndefined();
+    socket.close();
     await server.stop();
   });
 });

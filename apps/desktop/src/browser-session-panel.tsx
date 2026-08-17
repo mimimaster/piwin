@@ -57,6 +57,8 @@ type HighlightBox = {
 
 /** User-facing message for pick failures (mapped — never a raw host error). */
 const PICK_FAILED_MESSAGE = 'Could not resolve element. Please try again.';
+const MIRROR_START_FAILED_MESSAGE = 'Could not start the browser mirror.';
+const MIRROR_STOP_FAILED_MESSAGE = 'Could not stop the browser mirror.';
 
 export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactElement {
   const { hostClient, onAddWebElement, agentRunning } = props;
@@ -74,6 +76,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   const [highlight, setHighlight] = useState<HighlightBox | null>(null);
   const [pickPending, setPickPending] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
+  const [mirrorError, setMirrorError] = useState<string | null>(null);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -115,12 +118,12 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       .browserStart(mirrorLeaseId)
       .then((response) => {
         if (!cancelled && !response.success) {
-          console.warn('[piwin] browser mirror start failed', response.error);
+          setMirrorError(MIRROR_START_FAILED_MESSAGE);
         }
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (!cancelled) {
-          console.warn('[piwin] browser mirror start failed', error);
+          setMirrorError(MIRROR_START_FAILED_MESSAGE);
         }
       });
 
@@ -134,11 +137,11 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         .browserStop(mirrorLeaseId)
         .then((response) => {
           if (!response.success) {
-            console.warn('[piwin] browser mirror stop failed', response.error);
+            setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
           }
         })
-        .catch((error: unknown) => {
-          console.warn('[piwin] browser mirror stop failed', error);
+        .catch(() => {
+          setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
         });
     };
   }, [hostClient, onAddWebElement]);
@@ -309,6 +312,11 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         {pickError ? (
           <span className="browser-session-pick-error" data-testid="browser-session-pick-error">
             {pickError}
+          </span>
+        ) : null}
+        {mirrorError ? (
+          <span className="browser-session-pick-error" data-testid="browser-session-mirror-error">
+            {mirrorError}
           </span>
         ) : null}
         {highlight ? (

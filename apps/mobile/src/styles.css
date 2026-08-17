@@ -50,6 +50,7 @@ textarea {
 
 /* ── App Container & Shell ── */
 .mobile-shell {
+  --mobile-top-bar-offset: calc(max(58px, env(safe-area-inset-top, 58px)) + 52px);
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -83,7 +84,8 @@ textarea {
   backdrop-filter: blur(28px);
   -webkit-backdrop-filter: blur(28px);
   border-bottom: 1px solid var(--line);
-  z-index: 30;
+  position: relative;
+  z-index: 60;
   flex-shrink: 0;
 }
 

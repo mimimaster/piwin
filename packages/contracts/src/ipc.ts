@@ -544,6 +544,7 @@ export type HostCommand =
       type: 'models/catalog/search';
       input?: import('./model-catalog.js').ModelCatalogSearchRequest;
     }
+  | { id?: string; type: 'models/configured' }
   | {
       id?: string;
       type: 'models/image-catalog/search';
@@ -601,6 +602,7 @@ export type HostCommand =
       /** When decision is allow, optionally remember for this project (network tools). */
       rememberScope?: PermissionRememberScope;
     }
+  | { id?: string; type: 'permission/pending-list' }
   /** Notes library (ADR 0018): CRUD + hybrid search + recall eval. */
   | { id?: string; type: 'notes/list'; collection?: string; tags?: string[] }
   | { id?: string; type: 'notes/read'; noteId: string }
@@ -922,6 +924,13 @@ export type HostPushVariant =
       detail: string;
       defaultDecision: PermissionDecision;
       context?: import('./host.js').PermissionRequestContext;
+      runId?: string;
+    }
+  | {
+      type: 'permission/resolved';
+      sessionId: string;
+      requestId: string;
+      decision: PermissionDecision;
       runId?: string;
     }
   | { type: 'host/status'; mode: HostMode; ready: boolean; mock: boolean }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, TextInput, TextArea } from '@piwin/ui-kit';
 import type {
   HostResponse,
   NoteRecord,
@@ -7,6 +7,8 @@ import type {
   NoteSearchMode,
   RecallEvalReport,
 } from '@piwin/contracts';
+import { useDesktopLocale } from './desktop-locale-context';
+import { copyToClipboard, downloadFile } from './knowledge-export';
 
 export type NotesPanelProps = {
   request: (command:
@@ -20,6 +22,7 @@ export type NotesPanelProps = {
     | { type: 'notes/eval-run'; k?: number }
     | { type: 'notes/eval-history' }
   ) => Promise<HostResponse>;
+  onSendToChat?: (text: string) => void;
 };
 
 /**
@@ -27,6 +30,10 @@ export type NotesPanelProps = {
  * view / edit / create / delete / reindex / retrieval-quality report.
  */
 export function NotesPanel(props: NotesPanelProps) {
+  const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
+  const t = (en: string, zh: string) => (isZh ? zh : en);
+
   const [records, setRecords] = useState<NoteRecord[]>([]);
   const [hits, setHits] = useState<NoteSearchHit[] | null>(null);
   const [selected, setSelected] = useState<NoteRecord | null>(null);
@@ -36,6 +43,7 @@ export function NotesPanel(props: NotesPanelProps) {
   const [searchMode, setSearchMode] = useState<NoteSearchMode>('auto');
   const [evalReports, setEvalReports] = useState<RecallEvalReport[] | null>(null);
   const [evalHistory, setEvalHistory] = useState<RecallEvalReport[] | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,7 +117,7 @@ export function NotesPanel(props: NotesPanelProps) {
     setSelected(data.record);
     setEditing(false);
     setCreating(false);
-    setInfo(creating ? 'Note created' : 'Note saved');
+    setInfo(creating ? t('Note created', '笔记已创建') : t('Note saved', '笔记已保存'));
     await loadNotes();
   }
 
@@ -123,7 +131,7 @@ export function NotesPanel(props: NotesPanelProps) {
       return;
     }
     setSelected(null);
-    setInfo('Note deleted');
+    setInfo(t('Note deleted', '笔记已删除'));
     await loadNotes();
   }
 
@@ -136,7 +144,7 @@ export function NotesPanel(props: NotesPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo('Index rebuilt');
+    setInfo(t('Index rebuilt successfully', '知识索引已重建完成'));
   }
 
   async function handleEvalRun(): Promise<void> {
@@ -154,7 +162,7 @@ export function NotesPanel(props: NotesPanelProps) {
 
   async function handleEvalHistory(): Promise<void> {
     if (evalHistory !== null) {
-      setEvalHistory(null); // toggle off
+      setEvalHistory(null);
       return;
     }
     setError(null);
@@ -167,118 +175,160 @@ export function NotesPanel(props: NotesPanelProps) {
     setEvalHistory(data.runs ?? []);
   }
 
+  const handleCopyNote = async () => {
+    if (!selected) return;
+    const md = `# ${selected.title}\n\n${selected.content}`;
+    const ok = await copyToClipboard(md);
+    if (ok) setInfo(t('Note copied to clipboard', '已复制笔记内容到剪贴板'));
+  };
+
+  const handleDownloadNote = () => {
+    if (!selected) return;
+    const md = `# ${selected.title}\n\n${selected.content}`;
+    downloadFile(md, `${selected.title}.md`, 'text/markdown');
+    setInfo(t('Note exported as .md file', '已导出为 .md 文件'));
+  };
+
+  const handleSendNoteToChat = () => {
+    if (!selected || !props.onSendToChat) return;
+    const prompt = isZh
+      ? `请围绕以下笔记内容进行分析与解答：\n\n### 笔记：《${selected.title}》\n${selected.content}\n\n我的问题：`
+      : `Based on this note "${selected.title}":\n\n${selected.content}\n\nMy question: `;
+    props.onSendToChat(prompt);
+  };
+
   const displayList = hits !== null ? hits.map((hit) => hit.note) : records;
 
   return (
-    <div className="settings-section" data-testid="notes-panel">
-      <div className="settings-card-heading">
-        <div>
-          <h4>Notes</h4>
-          <p>Local-first notes under ~/.piwin/notes (markdown is truth; index is cache).</p>
-        </div>
-      </div>
-
-      {error ? <div className="error-banner">{error}</div> : null}
-      {info ? <p className="muted">{info}</p> : null}
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <input
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void handleSearch();
-          }}
-          placeholder="Search notes… (CJK-aware, hybrid when embedding configured)"
-          data-testid="notes-search-input"
-          style={{ flex: 1 }}
-        />
-        <select
-          value={searchMode}
-          onChange={(event) => setSearchMode(event.target.value as NoteSearchMode)}
-          data-testid="notes-search-mode"
-          title="Retrieval mode"
-        >
-          <option value="auto">auto</option>
-          <option value="fts">fts</option>
-          <option value="vector">vector</option>
-          <option value="hybrid">hybrid</option>
-        </select>
-        <Button onClick={() => void handleSearch()}>Search</Button>
-        <Button
-          onClick={() => {
-            setHits(null);
-            setSearchQuery('');
-            void loadNotes();
-          }}
-        >
-          Refresh
-        </Button>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <Button
-          data-testid="notes-new"
-          onClick={() => {
-            setSelected(null);
-            setCreating(true);
-            setEditing(true);
-          }}
-        >
-          New note
-        </Button>
-        <Button disabled={busy} onClick={() => void handleReindex()}>
-          Rebuild index
-        </Button>
-        <Button disabled={busy} onClick={() => void handleEvalRun()}>
-          Run recall eval
-        </Button>
-        <Button onClick={() => void handleEvalHistory()}>
-          {evalHistory !== null ? 'Hide history' : 'Eval history'}
-        </Button>
-      </div>
-
-      {evalHistory !== null ? (
-        <div data-testid="notes-eval-history" style={{ marginTop: 10 }}>
-          <strong>Eval run history</strong>
-          {evalHistory.length === 0 ? (
-            <p className="muted">No runs yet — run a recall eval first.</p>
-          ) : (
-            <ul className="muted">
-              {evalHistory.map((run, index) => (
-                <li key={`${run.runAt}-${index}`}>
-                  {run.runAt.slice(0, 16).replace('T', ' ')} · {run.mode} · recall@{run.k}{' '}
-                  {run.recallAtK.toFixed(3)} · mrr {run.mrr.toFixed(3)}
-                </li>
-              ))}
-            </ul>
+    <div className="notes-panel-container" data-testid="notes-panel">
+      {/* Top Search & Actions Bar */}
+      <div className="notes-toolbar-card">
+        <div className="notes-search-row">
+          <div className="notes-search-input-wrap">
+            <TextInput
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void handleSearch();
+              }}
+              placeholder={t('Search notes… (CJK hybrid vector & keyword)', '搜索本地笔记… (支持 CJK 向量与全文混合检索)')}
+              data-testid="notes-search-input"
+            />
+          </div>
+          <select
+            className="notes-mode-select"
+            value={searchMode}
+            onChange={(event) => setSearchMode(event.target.value as NoteSearchMode)}
+            data-testid="notes-search-mode"
+            title={t('Retrieval mode', '检索模式')}
+          >
+            <option value="auto">{t('Auto (Hybrid)', '智能混合 (Auto)')}</option>
+            <option value="fts">{t('Full-text (FTS)', '仅全文 (FTS)')}</option>
+            <option value="vector">{t('Vector Only', '仅向量 (Vector)')}</option>
+            <option value="hybrid">{t('Force Hybrid', '强制混合 (Hybrid)')}</option>
+          </select>
+          <Button variant="primary" onClick={() => void handleSearch()}>
+            🔍 {t('Search', '检索')}
+          </Button>
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setHits(null);
+                setSearchQuery('');
+                void loadNotes();
+              }}
+            >
+              {t('Clear', '重置')}
+            </Button>
           )}
         </div>
-      ) : null}
 
-      {evalReports ? (
-        <div data-testid="notes-eval-report" style={{ marginTop: 10 }}>
-          <strong>Retrieval quality (recall@5 / MRR)</strong>
-          <ul className="muted">
-            {evalReports.map((report) => (
-              <li key={report.mode}>
-                {report.mode}: recall {report.recallAtK.toFixed(3)} · mrr {report.mrr.toFixed(3)} ·{' '}
-                {report.cases} case(s)
-                {report.degraded ? (
-                  <span className="pill" title="Embedding failed; numbers are FTS results">
-                    {' '}degraded
-                  </span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+        <div className="notes-actions-row">
+          <Button
+            variant="primary"
+            data-testid="notes-new"
+            onClick={() => {
+              setSelected(null);
+              setCreating(true);
+              setEditing(true);
+            }}
+          >
+            📝 {t('New Note', '新建笔记')}
+          </Button>
+          <Button disabled={busy} variant="secondary" onClick={() => void handleReindex()}>
+            ⚡ {t('Rebuild Index', '重建索引')}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setShowAdvanced((prev) => !prev)}
+          >
+            🛠️ {showAdvanced ? t('Hide Advanced', '收起高级') : t('Advanced / Eval', '高级 / 召回评测')}
+          </Button>
         </div>
-      ) : null}
+      </div>
 
+      {/* Advanced Eval collapsible */}
+      {showAdvanced && (
+        <div className="notes-advanced-card">
+          <div className="notes-eval-buttons">
+            <Button size="compact" disabled={busy} onClick={() => void handleEvalRun()}>
+              ▶️ {t('Run Recall Benchmark (k=5)', '运行召回质量评测')}
+            </Button>
+            <Button size="compact" variant="ghost" onClick={() => void handleEvalHistory()}>
+              📊 {evalHistory !== null ? t('Hide History', '隐藏历史') : t('Eval History', '评测历史记录')}
+            </Button>
+          </div>
+
+          {evalReports && (
+            <div data-testid="notes-eval-report" className="notes-eval-results">
+              <strong>{t('Retrieval Quality (recall@5 / MRR):', '检索质量报告 (recall@5 / MRR)：')}</strong>
+              <ul>
+                {evalReports.map((report) => (
+                  <li key={report.mode}>
+                    <span>{report.mode}</span>: recall {report.recallAtK.toFixed(3)} · mrr {report.mrr.toFixed(3)} ·{' '}
+                    {report.cases} {t('cases', '个用例')}
+                    {report.degraded ? (
+                      <span className="doc-cards-degraded-tag" title={t('Embedding failed; numbers are FTS results', '向量失败；降级为全文检索')}>
+                        {t('Degraded', '已降级')}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {evalHistory !== null && (
+            <div data-testid="notes-eval-history" className="notes-eval-results">
+              <strong>{t('Benchmark Run History:', '历史评测运行记录：')}</strong>
+              {evalHistory.length === 0 ? (
+                <p className="muted">{t('No runs yet — run a recall eval first.', '暂无记录，请先点击运行召回质量评测。')}</p>
+              ) : (
+                <ul>
+                  {evalHistory.map((run, index) => (
+                    <li key={`${run.runAt}-${index}`}>
+                      {run.runAt.slice(0, 16).replace('T', ' ')} · {run.mode} · recall@{run.k}{' '}
+                      {run.recallAtK.toFixed(3)} · mrr {run.mrr.toFixed(3)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && <div className="doc-cards-error-banner" role="alert">⚠️ {error}</div>}
+      {info && <div className="doc-cards-info-banner" role="status">ℹ️ {info}</div>}
+
+      {/* Note Editor */}
       {editing ? (
         <NoteEditor
           initialTitle={creating ? '' : selected?.title ?? ''}
           initialContent={creating ? '' : selected?.content ?? ''}
           busy={busy}
+          isZh={isZh}
           onSave={(input) => void handleSave(input)}
           onCancel={() => {
             setEditing(false);
@@ -286,58 +336,90 @@ export function NotesPanel(props: NotesPanelProps) {
           }}
         />
       ) : selected ? (
-        <div className="settings-card" data-testid="notes-detail" style={{ marginTop: 10 }}>
-          <strong>{selected.title}</strong>
-          <span className="muted">
-            {' '}
-            · {selected.collection} · {(selected.tags ?? []).join(', ')}
-          </span>
-          <pre style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{selected.content}</pre>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button onClick={() => setEditing(true)}>Edit</Button>
-            <Button disabled={busy} onClick={() => void handleDelete(selected.id)}>
-              Delete
-            </Button>
-            <Button onClick={() => setSelected(null)}>Close</Button>
+        /* Note Detail View */
+        <div className="notes-detail-card" data-testid="notes-detail">
+          <header className="notes-detail-header">
+            <div>
+              <h3>{selected.title}</h3>
+              <div className="notes-detail-meta">
+                <span className="notes-collection-badge">📁 {selected.collection || 'default'}</span>
+                {selected.tags && selected.tags.length > 0 && (
+                  <span className="notes-tags-list">🏷️ {selected.tags.join(', ')}</span>
+                )}
+              </div>
+            </div>
+            <div className="notes-detail-actions">
+              {props.onSendToChat && (
+                <Button size="compact" variant="primary" onClick={handleSendNoteToChat} title={t('Discuss in Chat', '在对话中讨论此笔记')}>
+                  💬 {t('Discuss in Chat', '在对话中研讨')}
+                </Button>
+              )}
+              <Button size="compact" variant="secondary" onClick={handleCopyNote} title={t('Copy Markdown', '复制 Markdown')}>
+                📋 {t('Copy', '复制')}
+              </Button>
+              <Button size="compact" variant="secondary" onClick={handleDownloadNote} title={t('Export as Markdown', '导出为 Markdown')}>
+                📄 {t('Export .MD', '导出 MD')}
+              </Button>
+              <Button size="compact" variant="secondary" onClick={() => setEditing(true)}>
+                ✏️ {t('Edit', '编辑')}
+              </Button>
+              <Button size="compact" variant="ghost" disabled={busy} onClick={() => void handleDelete(selected.id)}>
+                🗑️ {t('Delete', '删除')}
+              </Button>
+              <Button size="compact" variant="ghost" onClick={() => setSelected(null)}>
+                ✖️ {t('Close', '关闭')}
+              </Button>
+            </div>
+          </header>
+          <div className="notes-content-body">
+            <pre>{selected.content}</pre>
           </div>
         </div>
       ) : null}
 
-      {loading ? (
-        <p className="muted">Loading…</p>
-      ) : displayList.length === 0 ? (
-        <p className="muted">
-          No notes yet. Create one here, via chat (note_write), or drop .md files into
-          ~/.piwin/notes/.
-        </p>
-      ) : (
-        <ul className="provider-list" data-testid="notes-list" style={{ marginTop: 10 }}>
-          {displayList.map((record, index) => {
-            const hit = hits?.[index];
-            return (
-              <li key={record.id}>
-                <Button
-                  variant="ghost"
-                  style={{ textAlign: 'left', width: '100%' }}
-                  onClick={() => void handleOpen(record.id)}
-                >
-                  <strong>{record.title}</strong>
-                  <span className="muted"> · {record.collection}</span>
-                  {hit ? (
-                    <span className="pill" style={{ marginLeft: 6 }}>
-                      {hit.channels.join('+')}
-                    </span>
-                  ) : null}
-                  <br />
-                  <span className="muted">
-                    {(hit?.snippet ?? record.content).slice(0, 140)}
-                  </span>
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {/* Notes List */}
+      <div className="notes-list-section">
+        {loading ? (
+          <p className="muted">{t('Loading notes…', '正在加载笔记…')}</p>
+        ) : displayList.length === 0 ? (
+          <div className="notes-empty-state">
+            <p className="muted">
+              {t(
+                'No notes yet. Create one here, via chat with agent (note_write), or place .md files in ~/.piwin/notes/.',
+                '暂无笔记。可点击上方「新建笔记」、在对话中让 Agent 记录，或直接将 .md 文件放入 ~/.piwin/notes/ 目录。',
+              )}
+            </p>
+          </div>
+        ) : (
+          <ul className="notes-grid-list" data-testid="notes-list">
+            {displayList.map((record, index) => {
+              const hit = hits?.[index];
+              return (
+                <li key={record.id} className="notes-item-card">
+                  <button
+                    type="button"
+                    className="notes-item-btn"
+                    onClick={() => void handleOpen(record.id)}
+                  >
+                    <div className="notes-item-top">
+                      <strong className="notes-item-title">{record.title}</strong>
+                      <span className="notes-item-coll">📁 {record.collection || 'default'}</span>
+                      {hit && (
+                        <span className="doc-cards-channel-tag">
+                          {hit.channels.join('+')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="notes-item-preview">
+                      {(hit?.snippet ?? record.content).slice(0, 140)}
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -346,38 +428,46 @@ function NoteEditor(props: {
   initialTitle: string;
   initialContent: string;
   busy: boolean;
+  isZh: boolean;
   onSave: (input: { title: string; content: string }) => void;
   onCancel: () => void;
 }) {
   const [title, setTitle] = useState(props.initialTitle);
   const [content, setContent] = useState(props.initialContent);
+  const isZh = props.isZh;
+
   return (
-    <div className="settings-card" data-testid="notes-editor" style={{ marginTop: 10 }}>
-      <input
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        placeholder="Title"
-        data-testid="notes-editor-title"
-        style={{ width: '100%', marginBottom: 8 }}
-      />
-      <textarea
-        value={content}
-        onChange={(event) => setContent(event.target.value)}
-        placeholder="Markdown content…"
-        data-testid="notes-editor-content"
-        rows={10}
-        style={{ width: '100%' }}
-      />
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+    <div className="notes-editor-card" data-testid="notes-editor">
+      <h4>{props.initialTitle ? (isZh ? '编辑笔记' : 'Edit Note') : (isZh ? '新建笔记' : 'New Note')}</h4>
+      <div className="notes-editor-title-wrap">
+        <TextInput
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder={isZh ? '笔记标题…' : 'Title…'}
+          data-testid="notes-editor-title"
+        />
+      </div>
+      <div className="notes-editor-content-wrap">
+        <TextArea
+          value={content}
+          onChange={(val) => setContent(val)}
+          placeholder={isZh ? '输入 Markdown 格式内容…' : 'Markdown content…'}
+          data-testid="notes-editor-content"
+          rows={12}
+        />
+      </div>
+      <div className="notes-editor-actions">
         <Button
           variant="primary"
           disabled={props.busy || !title.trim() || !content.trim()}
           data-testid="notes-editor-save"
           onClick={() => props.onSave({ title: title.trim(), content })}
         >
-          Save
+          💾 {isZh ? '保存笔记' : 'Save'}
         </Button>
-        <Button onClick={props.onCancel}>Cancel</Button>
+        <Button variant="secondary" onClick={props.onCancel}>
+          {isZh ? '取消' : 'Cancel'}
+        </Button>
       </div>
     </div>
   );

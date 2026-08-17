@@ -1,198 +1,483 @@
 /**
- * Knowledge Center — four sub-tabs visible from the right panel directory.
+ * Knowledge Center — Master-Detail Architecture.
  *
- * - Repo Wiki  → NotesPanel (RAG over repo / project notes)
- * - 知识卡片   → FlashcardsPanel (spaced-repetition deck review)
- * - 文档卡片   → DocCardsPanel (folder RAG → flashcard generation)
+ * Core Mental Model:
+ * 1. Single RAG Engine (Scan → Chunk → FTS5/Vector Index → Retrieve)
+ * 2. Attached Flashcard Pipeline (Distill Q&A → FSRS Spaced-Repetition Review → Export)
  *
- * Each sub-tab mounts the existing product panel so the per-tab capabilities
- * (search, host commands, settings integrations) stay identical to the
- * dedicated inspector entries. This panel only changes the surface so the
- * knowledge flows are discoverable from a single entry.
+ * Left Master Column: Project & Knowledge Base Selector
+ * Right Detail Stage:
+ *   - Unindexed: Hero onboarding & progress ring
+ *   - Ready:
+ *     - View A: 📄 Repo Wiki & RAG Hybrid Search
+ *     - View B: 🗂️ Flashcards & FSRS Review
  */
-import { useCallback, useState, type ReactElement } from 'react';
-import type { HostResponse } from '@piwin/contracts';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
-import { useDesktopLocale } from './desktop-locale-context';
-import { NotesPanel } from './NotesPanel';
-import { FlashcardsPanel } from './FlashcardsPanel';
-import { DocCardsPanel } from './DocCardsPanel';
 
-/**
- * Commands used across the three knowledge surfaces. Hand-rolled union so
- * the request callback surfaces every knowledge-related host command without
- * pulling in code from the individual panel files.
- */
-type NotesCommand = {
-  type: 'notes/list' | 'notes/index' | 'notes/search' | 'notes/delete' | 'notes/reindex';
-  projectPath?: string;
-  query?: string;
-  noteId?: string;
-  limit?: number;
-};
-type FlashcardsCommand = {
-  type:
-    | 'flashcards/list'
-    | 'flashcards/export'
-    | 'flashcards/import'
-    | 'flashcards/decks'
-    | 'flashcards/review-next'
-    | 'flashcards/rate';
-  deck?: string;
-  format?: 'tsv' | 'markdown';
-  cardId?: string;
-  rating?: 0 | 1 | 2 | 3;
-};
-type DocCardsCommand =
-  | { type: 'doccards/scan-folder'; folderPath: string }
-  | { type: 'doccards/index-folder'; folderPath: string; includeFiles?: string[] }
-  | { type: 'doccards/retrieve'; folderPath: string; query: string; limit?: number }
-  | { type: 'doccards/list-by-folder'; folderPath: string }
-  | { type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
-  | { type: 'doccards/forget-folder'; folderPath: string }
-  | { type: 'doccards/open-source'; cardId: string }
-  | { type: 'doccards/index-status'; folderPath: string }
-  | { type: 'doccards/generate'; folderPath: string; includeFiles?: string[]; topic?: string }
-  | { type: 'doccards/generation-status'; folderPath: string }
-  | { type: 'config/get' };
-type ConfigCommand = { type: 'config/get' | 'config/set'; config?: unknown };
-type KnowledgeCommand = NotesCommand | FlashcardsCommand | DocCardsCommand | ConfigCommand;
-
-type KnowledgeSubTab = 'wiki' | 'cards' | 'doccards';const SUB_TABS = [
-  {
-    id: 'wiki',
-    labelEn: 'Repo Wiki',
-    labelZh: 'Repo Wiki',
-    testid: 'knowledge-tab-wiki',
-    descriptionEn: 'RAG index over your project notes',
-    descriptionZh: '项目笔记的 RAG 检索',
-  },
-  {
-    id: 'cards',
-    labelEn: 'Flashcards',
-    labelZh: '知识卡片',
-    testid: 'knowledge-tab-cards',
-    descriptionEn: 'Spaced-repetition review decks',
-    descriptionZh: '间隔重复卡组',
-  },
-  {
-    id: 'doccards',
-    labelEn: 'Doc Cards',
-    labelZh: '文档卡片',
-    testid: 'knowledge-tab-doccards',
-    descriptionEn: 'Generate flashcards from a document folder',
-    descriptionZh: '从文档文件夹生成闪卡',
-  },
-] as const satisfies ReadonlyArray<{
-  id: KnowledgeSubTab;
-  labelEn: string;
-  labelZh: string;
-  testid: string;
-  descriptionEn: string;
-  descriptionZh: string;
-}>;
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import type {
+  FlashcardRecord,
+  GenerationJob,
+  HostResponse,
+  IngestionJob,
+  NoteRecord,
+  PiwinConfig,
+  ScannedDocFile,
+  ScannedFileV2,
+} from '@piwin/contracts';
+import { IconButton } from '@piwin/ui-kit';
+import { useDesktopLocale } from './desktop-locale-context.js';
+import { KnowledgeProjectList } from './knowledge/KnowledgeProjectList.js';
+import { KnowledgeUnindexedHero } from './knowledge/KnowledgeUnindexedHero.js';
+import { KnowledgeWikiView } from './knowledge/KnowledgeWikiView.js';
+import { KnowledgeCardsView } from './knowledge/KnowledgeCardsView.js';
+import { loadRecentFolders, saveRecentFolder } from './doccards-recent-folders.js';
+import { pickProjectDirectory } from './pick-project-directory.js';
+import { waitForDoccardsIndexJob } from './doccards-index-job.js';
+import { runDoccardsGenerate } from './doccards-generate-client.js';
+import { formatCardMarkdown } from './knowledge-export.js';
+import { generationProgress } from './doccards-progress.js';
+import { DocCardsProgressRing } from './DocCardsProgressRing.js';
+import { knowledgeCapabilityLights } from './knowledge-capabilities.js';
+import {
+  IconCards,
+  IconClose,
+  IconDocument,
+  IconFolder,
+  IconRefresh,
+  IconSettings,
+} from './shell-icons.js';
 
 export type KnowledgeCenterPanelProps = {
-  /** Currently trusted project, passed to knowledge panels. */
+  /** Currently active/trusted project path. */
   projectPath: string | null;
-  /** Single RPC bridge that routes knowledge-host commands. */
-  request: (command: KnowledgeCommand) => Promise<HostResponse>;
+  /** Recent projects list from shell state. */
+  recentProjects?: Array<{ path: string; name?: string }>;
+  /** Single RPC bridge for knowledge-host commands. */
+  request: (command: any) => Promise<HostResponse>;
+  onClose?: (() => void) | undefined;
   onOpenSession?: (sessionId: string) => void;
+  onConfigureEmbedding?: () => void;
+  onSendToChat?: (text: string) => void;
+  initialSubTab?: 'wiki' | 'cards' | 'doccards';
 };
 
-export function KnowledgeCenterPanel(
-  props: KnowledgeCenterPanelProps,
-): ReactElement {
+function getFolderBasename(folderPath: string): string {
+  const parts = folderPath.replace(/[/\\]+$/, '').split(/[/\\]/);
+  return parts[parts.length - 1] || folderPath;
+}
+
+export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
-  const [subTab, setSubTab] = useState<KnowledgeSubTab>('wiki');
+  const t = (en: string, zh: string) => (isZh ? zh : en);
 
-  // Stable identities: panels reload via useEffect([request]) — a fresh
-  // closure per render would re-fire full loads.
-  const request = useCallback(
-    (command: KnowledgeCommand) => props.request(command),
-    [props.request],
-  );
-  // Per-surface narrowed callbacks keep each panel's typed request contract.
-  const notesRequest = useCallback(
-    (command: NotesCommand) => props.request(command),
-    [props.request],
-  );
-  const cardsRequest = useCallback(
-    (command: FlashcardsCommand) => props.request(command),
-    [props.request],
-  );
-  const docCardsRequest = useCallback(
-    (command: DocCardsCommand) => props.request(command),
-    [props.request],
+  const initialSelected = props.projectPath || (props.recentProjects?.[0]?.path ?? '');
+  const [selectedPath, setSelectedPath] = useState<string>(initialSelected);
+  const [mountedFolders, setMountedFolders] = useState<string[]>([]);
+  const [viewTab, setViewTab] = useState<'wiki' | 'cards'>(
+    props.initialSubTab === 'wiki' ? 'wiki' : 'cards',
   );
 
-  const current: (typeof SUB_TABS)[number] = SUB_TABS.find((t) => t.id === subTab) ?? SUB_TABS[0];
-  const kicker = isZh ? '知识中心' : 'Knowledge Center';
-  const subtitle = isZh ? current.descriptionZh : current.descriptionEn;
+  // System config & capability lights
+  const [config, setConfig] = useState<PiwinConfig | null>(null);
+
+  // Per-project data state
+  const [scannedFiles, setScannedFiles] = useState<ScannedDocFile[]>([]);
+  const [unsupportedFiles, setUnsupportedFiles] = useState<ScannedFileV2[]>([]);
+  const [cards, setCards] = useState<FlashcardRecord[]>([]);
+  const [notes, setNotes] = useState<NoteRecord[]>([]);
+  const [isReady, setIsReady] = useState(false);
+  const [indexingJob, setIndexingJob] = useState<IngestionJob | null>(null);
+  const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Load config on mount
+  useEffect(() => {
+    let active = true;
+    void props.request({ type: 'config/get' }).then((res) => {
+      if (!active || !res.success || !res.data) return;
+      const c = (res.data as { config?: PiwinConfig }).config ?? (res.data as PiwinConfig);
+      if (c && typeof c === 'object') setConfig(c);
+    });
+    return () => {
+      active = false;
+    };
+  }, [props.request]);
+
+  const capabilityLights = useMemo(() => knowledgeCapabilityLights(config ?? undefined), [config]);
+  const isEmbeddingConfigured = useMemo(
+    () => capabilityLights.find((item) => item.id === 'embedding')?.configured ?? false,
+    [capabilityLights],
+  );
+
+  // Sync initial subTab
+  useEffect(() => {
+    if (props.initialSubTab === 'wiki') {
+      setViewTab('wiki');
+    } else if (props.initialSubTab === 'cards' || props.initialSubTab === 'doccards') {
+      setViewTab('cards');
+    }
+  }, [props.initialSubTab]);
+
+  // Load custom mounted folders
+  useEffect(() => {
+    setMountedFolders(loadRecentFolders());
+  }, []);
+
+  // Update selectedPath when props.projectPath transitions from null → path
+  useEffect(() => {
+    if (props.projectPath && !selectedPath) {
+      setSelectedPath(props.projectPath);
+    }
+  }, [props.projectPath, selectedPath]);
+
+  // Load project status & scan whenever selectedPath changes
+  const loadProjectData = useCallback(async (folderPath: string) => {
+    if (!folderPath) return;
+    setBusy(true);
+    try {
+      // 1. Scan folder
+      const scanRes = await props.request({
+        type: 'doccards/scan-folder',
+        folderPath,
+      });
+      if (scanRes.success && scanRes.data) {
+        const scanData = scanRes.data as { files?: ScannedDocFile[]; unsupported?: ScannedFileV2[] };
+        setScannedFiles(scanData.files ?? []);
+        setUnsupportedFiles(scanData.unsupported ?? []);
+      }
+
+      // 2. Fetch cards for this folder
+      const cardsRes = await props.request({
+        type: 'doccards/list-by-folder',
+        folderPath,
+      });
+      let loadedCards: FlashcardRecord[] = [];
+      if (cardsRes.success && cardsRes.data) {
+        const cData = cardsRes.data as { records?: FlashcardRecord[]; cards?: FlashcardRecord[] };
+        loadedCards = cData.records ?? cData.cards ?? [];
+        setCards(loadedCards);
+      }
+
+      // 3. Fetch notes for this project
+      const notesRes = await props.request({
+        type: 'notes/list',
+      });
+      if (notesRes.success && notesRes.data) {
+        const nData = notesRes.data as { records?: NoteRecord[] };
+        setNotes(nData.records ?? []);
+      }
+
+      const statusRes = await props.request({
+        type: 'doccards/index-status',
+        folderPath,
+      });
+      if (statusRes.success && statusRes.data) {
+        const statusData = statusRes.data as {
+          job?: IngestionJob | null;
+          documents?: Array<{ status?: string }>;
+        };
+        if (statusData.job) setIndexingJob(statusData.job);
+        const indexed =
+          statusData.job?.status === 'COMPLETED' ||
+          statusData.job?.status === 'COMPLETED_DEGRADED' ||
+          (statusData.documents ?? []).some((document) => document.status === 'READY');
+        setIsReady(indexed || loadedCards.length > 0);
+      } else {
+        setIsReady(loadedCards.length > 0);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }, [props.request]);
+
+  useEffect(() => {
+    if (selectedPath) {
+      void loadProjectData(selectedPath);
+    }
+  }, [selectedPath, loadProjectData]);
+
+  // Handle building RAG Index
+  async function handleStartIndexing(): Promise<void> {
+    if (!selectedPath || busy) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const started = await props.request({
+        type: 'doccards/index-folder',
+        folderPath: selectedPath,
+      });
+      if (!started.success) {
+        setActionError(started.error);
+        return;
+      }
+      const poll = window.setInterval(() => {
+        void props.request({ type: 'doccards/index-status', folderPath: selectedPath }).then((response) => {
+          if (!response.success) return;
+          const job = (response.data as { job?: IngestionJob | null }).job;
+          if (job) setIndexingJob(job);
+        });
+      }, 200);
+      try {
+        const job = await waitForDoccardsIndexJob(
+          props.request,
+          selectedPath,
+        );
+        setIndexingJob(job);
+        setIsReady(true);
+      } finally {
+        window.clearInterval(poll);
+      }
+      void loadProjectData(selectedPath);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Handle generating flashcards
+  async function handleStartGeneration(topic?: string): Promise<void> {
+    if (!selectedPath || busy) return;
+    setBusy(true);
+    setActionError(null);
+    setViewTab('cards');
+    try {
+      const job = await runDoccardsGenerate(props.request, {
+        folderPath: selectedPath,
+        ...(topic ? { topic } : {}),
+        onProgress: setGenerationJob,
+      });
+      setGenerationJob(job);
+      if (job.status === 'FAILED' || job.status === 'CANCELED') {
+        setActionError(job.error ?? job.status);
+        return;
+      }
+      if ((job.created ?? job.createdCardIds?.length ?? 0) === 0) {
+        setActionError(
+          t(
+            'No new cards (they may already exist for this folder).',
+            '没有新卡片（这个文件夹里可能都是重复的）。',
+          ),
+        );
+      }
+      setIsReady(true);
+      void loadProjectData(selectedPath);
+      if (job.sessionId && props.onOpenSession) {
+        props.onOpenSession(job.sessionId);
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleMountFolder(folder: string): void {
+    setMountedFolders((prev) => (prev.includes(folder) ? prev : [...prev, folder]));
+    saveRecentFolder(folder);
+    setSelectedPath(folder);
+  }
+
+  async function pickAndMountFolder(): Promise<void> {
+    const picked = await pickProjectDirectory({
+      title: t('Choose a document folder', '选择文档文件夹'),
+    });
+    if (picked) handleMountFolder(picked);
+  }
+
+  function handleOpenSourceFile(cardIdOrFile: string): void {
+    void props.request({
+      type: 'doccards/open-source',
+      cardId: cardIdOrFile,
+    });
+  }
+
+  const selectedName = selectedPath ? getFolderBasename(selectedPath) : '';
 
   return (
-    <section
-      className="knowledge-center-panel"
-      data-testid="knowledge-center-panel"
-      data-sub-tab={subTab}
-    >
-      <header className="knowledge-center-header">
-        <span className="knowledge-center-kicker">{kicker}</span>
-        <h3 className="knowledge-center-subtitle">{subtitle}</h3>
-      </header>
-      <Tabs
-        value={subTab}
-        onValueChange={(next) => {
-          if (next === 'wiki' || next === 'cards' || next === 'doccards') {
-            setSubTab(next);
-          }
-        }}
-      >
-        <TabsList label={isZh ? '知识中心子分类' : 'Knowledge sub-categories'}>
-          {SUB_TABS.map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              testId={tab.testid}
-            >
-              {isZh ? tab.labelZh : tab.labelEn}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent value="wiki" data-testid="knowledge-pane-wiki">
-          <div className="right-panel-section">
-            <NotesPanel
-              request={
-                notesRequest as unknown as Parameters<typeof NotesPanel>[0]['request']
+    <div className="knowledge-master-detail-layout" data-testid="knowledge-center-panel">
+      {/* ◀ Left Master Column: Projects & Repositories */}
+      <KnowledgeProjectList
+        activeProjectPath={props.projectPath}
+        recentProjects={props.recentProjects ?? []}
+        mountedFolders={mountedFolders}
+        selectedPath={selectedPath}
+        projectStats={
+          selectedPath
+            ? {
+                [selectedPath]: {
+                  status: isReady ? 'ready' : indexingJob ? 'indexing' : 'unindexed',
+                  sliceCount: scannedFiles.length,
+                  cardCount: cards.length,
+                },
               }
-            />
-          </div>
-        </TabsContent>
-        <TabsContent value="cards" data-testid="knowledge-pane-cards">
-          <div className="right-panel-section">
-            <FlashcardsPanel
-              request={
-                cardsRequest as unknown as Parameters<typeof FlashcardsPanel>[0]['request']
-              }
-            />
-          </div>
-        </TabsContent>
-        <TabsContent value="doccards" data-testid="knowledge-pane-doccards">
-          <div className="right-panel-section">
-            <DocCardsPanel
-              request={
-                docCardsRequest as unknown as Parameters<typeof DocCardsPanel>[0]['request']
-              }
-              {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
+            : undefined
+        }
+        onSelectProject={setSelectedPath}
+        onMountFolder={handleMountFolder}
+      />
 
-      {/* Reference the request union so it stays in sync with panel props
-          when knowledge surfaces gain commands. (lint-friendly noop) */}
-      <span hidden>{request === notesRequest ? 'ok' : 'stale'}</span>
-    </section>
+      {/* ▶ Right Detail Stage: Documentation & Flashcards Workbench */}
+      <main className="knowledge-detail-stage">
+        {/* Topbar: Project Name & View Switcher */}
+        <header className="knowledge-stage-topbar">
+          <div className="stage-project-identity">
+            <IconFolder width={16} height={16} className="stage-project-icon" />
+            <span className="stage-project-kicker muted">{t('Knowledge /', '知识中心 /')}</span>
+            <h2 className="stage-project-title">{selectedName || t('Select repository', '选择项目')}</h2>
+          </div>
+
+          <div className="stage-tab-switcher">
+            <button
+              type="button"
+              className={`stage-tab-btn${viewTab === 'wiki' ? ' active' : ''}`}
+              onClick={() => setViewTab('wiki')}
+              data-testid="tab-wiki-btn"
+            >
+              <IconDocument width={14} height={14} />
+              <span>{t('Docs & Search', '文档与检索')}</span>
+            </button>
+            <button
+              type="button"
+              className={`stage-tab-btn${viewTab === 'cards' ? ' active' : ''}`}
+              onClick={() => setViewTab('cards')}
+              data-testid="tab-cards-btn"
+            >
+              <IconCards width={14} height={14} />
+              <span>{t(`Flashcards (${cards.length})`, `知识闪卡 (${cards.length})`)}</span>
+            </button>
+          </div>
+
+          <div className="stage-global-actions">
+            {props.onConfigureEmbedding && !isEmbeddingConfigured ? (
+              <button
+                type="button"
+                className="knowledge-config-prompt-pill unconfigured"
+                onClick={props.onConfigureEmbedding}
+                data-testid="knowledge-config-prompt-pill"
+                title={t(
+                  'Embedding model not configured (using full-text search). Click to configure.',
+                  '未配置向量模型（当前降级为全文检索）。点击前往配置。',
+                )}
+              >
+                <span className="config-prompt-dot" />
+                <span className="config-prompt-text">{t('Embedding unconfigured', '未配置向量模型')}</span>
+                <span className="config-prompt-action">{t('Configure', '去配置')} →</span>
+              </button>
+            ) : null}
+
+            {props.onConfigureEmbedding ? (
+              <IconButton
+                label={t('Knowledge & Embedding Settings', '知识库与模型设置')}
+                onClick={props.onConfigureEmbedding}
+                data-testid="knowledge-config-btn"
+                className={`knowledge-settings-icon-btn${!isEmbeddingConfigured ? ' has-badge-dot' : ''}`}
+              >
+                <IconSettings width={14} height={14} />
+              </IconButton>
+            ) : null}
+            <IconButton
+              label={t('Reindex repository', '重新索引项目')}
+              onClick={() => void handleStartIndexing()}
+              disabled={busy}
+              data-testid="reindex-btn"
+            >
+              <IconRefresh width={14} height={14} />
+            </IconButton>
+            {props.onClose ? (
+              <IconButton
+                label={t('Close Knowledge Center', '关闭知识中心')}
+                onClick={props.onClose}
+                data-testid="knowledge-stage-close-btn"
+              >
+                <IconClose width={14} height={14} />
+              </IconButton>
+            ) : null}
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <div className="knowledge-stage-content">
+          {actionError ? (
+            <p className="knowledge-action-error" role="alert" data-testid="knowledge-action-error">
+              {actionError}
+            </p>
+          ) : null}
+          {generationJob &&
+          generationJob.status !== 'COMPLETED' &&
+          generationJob.status !== 'COMPLETED_DEGRADED' &&
+          generationJob.status !== 'FAILED' &&
+          generationJob.status !== 'CANCELED' ? (
+            <DocCardsProgressRing
+              progress={generationProgress(generationJob)}
+              locale={isZh ? 'zh-CN' : 'en'}
+            />
+          ) : null}
+          {!selectedPath ? (
+            <KnowledgeUnindexedHero
+              folderPath=""
+              folderName=""
+              scannedFiles={[]}
+              unsupportedFiles={[]}
+              indexingJob={null}
+              busy={busy}
+              empty
+              isEmbeddingConfigured={isEmbeddingConfigured}
+              onStartIndexing={() => undefined}
+              onRescan={() => undefined}
+              onPickFolder={() => {
+                void pickAndMountFolder();
+              }}
+              onConfigureEmbedding={props.onConfigureEmbedding}
+            />
+          ) : !isReady && cards.length === 0 ? (
+            <KnowledgeUnindexedHero
+              folderPath={selectedPath}
+              folderName={selectedName}
+              scannedFiles={scannedFiles}
+              unsupportedFiles={unsupportedFiles}
+              indexingJob={indexingJob}
+              busy={busy}
+              isEmbeddingConfigured={isEmbeddingConfigured}
+              onStartIndexing={() => void handleStartIndexing()}
+              onRescan={() => void loadProjectData(selectedPath)}
+              onPickFolder={() => {
+                void pickAndMountFolder();
+              }}
+              onConfigureEmbedding={props.onConfigureEmbedding}
+            />
+          ) : viewTab === 'wiki' ? (
+            <KnowledgeWikiView
+              folderPath={selectedPath}
+              folderName={selectedName}
+              notes={notes}
+              request={props.request}
+              onSendToChat={props.onSendToChat}
+              isEmbeddingConfigured={isEmbeddingConfigured}
+              onConfigureEmbedding={props.onConfigureEmbedding}
+            />
+          ) : (
+            <KnowledgeCardsView
+              folderPath={selectedPath}
+              folderName={selectedName}
+              cards={cards}
+              generationJob={generationJob}
+              busy={busy}
+              request={props.request}
+              onStartGeneration={(topic) => void handleStartGeneration(topic)}
+              onSendToChat={
+                props.onSendToChat
+                  ? (card) => props.onSendToChat?.(formatCardMarkdown(card))
+                  : undefined
+              }
+              onOpenSourceFile={handleOpenSourceFile}
+              onOpenSession={props.onOpenSession}
+            />
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

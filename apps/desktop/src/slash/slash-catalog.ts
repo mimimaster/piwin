@@ -42,6 +42,12 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'goal',
   'scheme',
   'ultra-code',
+  'knowledge',
+  'doccards',
+  'flashcards',
+  'cards',
+  'notes',
+  'wiki',
 ]);
 
 /**
@@ -128,6 +134,43 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       stopItem.unavailableReason = unavailableReason;
     }
     items.push(stopItem);
+  }
+
+  // --- Knowledge Center & Flashcards ---
+  if (!conversationChat) {
+    items.push({
+      id: 'cmd:knowledge',
+      kind: 'command',
+      name: 'knowledge',
+      aliases: ['doccards'],
+      label: 'Knowledge Center',
+      description: 'Open Doc Cards & Knowledge Base / 打开文档闪卡与知识中心',
+      keywords: ['knowledge', 'doccards', 'rag', 'docs', 'flashcards', '知识中心', '闪卡'],
+      groupLabel: 'Command',
+      available: true,
+    });
+    items.push({
+      id: 'cmd:flashcards',
+      kind: 'command',
+      name: 'flashcards',
+      aliases: ['cards'],
+      label: 'Flashcards Review',
+      description: 'Open spaced-repetition card decks (FSRS) / 打开知识卡片复习',
+      keywords: ['flashcards', 'cards', 'fsrs', 'review', 'anki', '卡片', '复习'],
+      groupLabel: 'Command',
+      available: true,
+    });
+    items.push({
+      id: 'cmd:notes',
+      kind: 'command',
+      name: 'notes',
+      aliases: ['wiki'],
+      label: 'Repo Wiki Notes',
+      description: 'Open local markdown notes & search / 打开项目知识笔记与检索',
+      keywords: ['notes', 'wiki', 'repo', 'markdown', '笔记'],
+      groupLabel: 'Command',
+      available: true,
+    });
   }
 
   // --- Orchestration scheme (per-send opt-in) ---

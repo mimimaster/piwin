@@ -2186,10 +2186,10 @@ async function commandDocCards(argv: string[]): Promise<void> {
           process.exitCode = 1;
           return;
         }
-        const job = (status.data as { job?: { status: string; created?: number; skipped?: number; createdCardIds?: string[]; sessionId?: string } | null }).job;
+        const job = (status.data as { job?: { status: string; created?: number; skipped?: number; createdCardIds?: string[]; sessionId?: string; error?: string } | null }).job;
         if (job && ['COMPLETED', 'COMPLETED_DEGRADED', 'FAILED', 'CANCELED'].includes(job.status)) {
           if (job.status === 'FAILED' || job.status === 'CANCELED') {
-            console.error(job.status);
+            console.error(job.error ? `${job.status}: ${job.error}` : job.status);
             process.exitCode = 1;
             return;
           }

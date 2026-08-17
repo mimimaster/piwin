@@ -32,4 +32,55 @@ describe('runDoccardsGenerate', () => {
       true,
     );
   });
+
+  it('reports live job progress before completing', async () => {
+    const seen: string[] = [];
+    const request = vi.fn(async (command: { type: string }) => {
+      if (command.type === 'doccards/generate') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: { generationId: 'gen_1', status: 'RUNNING' },
+        };
+      }
+      const status = seen.length === 0 ? 'EXTRACTING_KNOWLEDGE' : 'COMPLETED';
+      return {
+        type: 'response' as const,
+        command: command.type,
+        success: true as const,
+        data: { job: { status, created: 1, createdCardIds: ['c1'], sessionId: 'sess-1' } },
+      };
+    });
+    const job = await runDoccardsGenerate(request, {
+      folderPath: '/docs',
+      onProgress: (current) => {
+        seen.push(current.status);
+      },
+    });
+    expect(seen).toContain('EXTRACTING_KNOWLEDGE');
+    expect(job.sessionId).toBe('sess-1');
+  });
+
+  it('throws the job error instead of a bare FAILED status', async () => {
+    const request = vi.fn(async (command: { type: string }) => {
+      if (command.type === 'doccards/generate') {
+        return {
+          type: 'response' as const,
+          command: command.type,
+          success: true as const,
+          data: { generationId: 'gen_1', status: 'RUNNING' },
+        };
+      }
+      return {
+        type: 'response' as const,
+        command: command.type,
+        success: true as const,
+        data: { job: { status: 'FAILED', error: 'NO_VALID_FLASHCARDS' } },
+      };
+    });
+    await expect(runDoccardsGenerate(request, { folderPath: '/docs' })).rejects.toThrow(
+      'NO_VALID_FLASHCARDS',
+    );
+  });
 });

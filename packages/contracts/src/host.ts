@@ -191,6 +191,12 @@ export type CreateSessionInput = {
   scope?: SessionScope;
   /** @deprecated Use `scope: { kind: 'project', projectPath }` instead. */
   projectPath?: string;
+  /**
+   * Opaque id from remote `project/list`. Host resolves it to a registered
+   * project path. Remote clients must send this instead of `projectPath`.
+   * Must not be combined with `scope: { kind: 'project' }` or `projectPath`.
+   */
+  projectId?: string;
   sessionName?: string;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;

@@ -33,7 +33,8 @@ export type SettingsSectionId =
   | 'usage'
   | 'shortcuts'
   | 'artifact-playground'
-  | 'animations';
+  | 'animations'
+  | 'knowledge';
 
 /** Legacy settings deep links that now redirect to a canonical section. */
 export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
@@ -62,6 +63,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'appearance', group: 'application', labelKey: 'appearance' },
   { id: 'shortcuts', group: 'application', labelKey: 'shortcuts' },
   { id: 'models', group: 'agent', labelKey: 'models' },
+  { id: 'knowledge', group: 'agent', labelKey: 'knowledge' },
   { id: 'vision', group: 'agent', labelKey: 'vision' },
   { id: 'artifact', group: 'agent', labelKey: 'artifact' },
   { id: 'artifact-playground', group: 'agent', labelKey: 'artifactPlayground', beta: true },

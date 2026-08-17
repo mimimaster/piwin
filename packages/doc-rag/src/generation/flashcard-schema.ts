@@ -1,4 +1,5 @@
 import type { ContextPack, GeneratedFlashcard, KnowledgePoint } from '@piwin/contracts';
+import { fallbackPackSourceId, resolveSourceIds } from './resolve-source-ids.js';
 
 export const GENERATED_FLASHCARD_SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -45,13 +46,18 @@ export function parseGeneratedFlashcards(
     const allowedChunks = new Set(
       knowledgePointIds.flatMap((id) => kpById.get(id)?.sourceChunkIds ?? []),
     );
-    const sourceChunkIds = asStringArray(raw.sourceChunkIds).filter(
+    const sourceChunkIds = resolveSourceIds(asStringArray(raw.sourceChunkIds), pack).filter(
       (id) => packIds.has(id) && (allowedChunks.size === 0 || allowedChunks.has(id)),
     );
     if (sourceChunkIds.length === 0) {
-      const fallback = knowledgePointIds.flatMap((id) => kpById.get(id)?.sourceChunkIds ?? [])
+      const fromKp = knowledgePointIds
+        .flatMap((id) => kpById.get(id)?.sourceChunkIds ?? [])
         .find((id) => packIds.has(id));
-      if (fallback) sourceChunkIds.push(fallback);
+      if (fromKp) sourceChunkIds.push(fromKp);
+    }
+    const packFallback = fallbackPackSourceId(pack);
+    if (sourceChunkIds.length === 0 && packFallback && packIds.has(packFallback)) {
+      sourceChunkIds.push(packFallback);
     }
     if (sourceChunkIds.length === 0) continue;
     const next: GeneratedFlashcard = {

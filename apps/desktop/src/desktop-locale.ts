@@ -315,6 +315,7 @@ export type DesktopTranslator = {
       usage: string;
       shortcuts: string;
       animations: string;
+      knowledge: string;
     };
     web: {
       searchRoute: string;
@@ -1055,6 +1056,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         usage: isChinese ? '用量统计' : 'Usage',
         shortcuts: isChinese ? '快捷键' : 'Shortcuts',
         animations: isChinese ? '动效' : 'Animations',
+        knowledge: isChinese ? 'Embedding / 知识检索' : 'Embedding / Knowledge',
       },
       web: {
         searchRoute: isChinese ? '搜索路由' : 'Search route',

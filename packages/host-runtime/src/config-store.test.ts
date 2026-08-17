@@ -42,6 +42,33 @@ describe('config-store', () => {
     });
   });
 
+  it('round-trips parser, reranker, and generation model refs', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-knowledge-extras-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        knowledge: {
+          parser: { mineru: { enabled: true }, unstructured: { enabled: false } },
+          reranker: {
+            enabled: true,
+            baseUrl: 'https://router.example/v1',
+            model: 'rerank-english-v3.0',
+            apiKeyEnv: 'RERANKER_API_KEY',
+          },
+          extractionLlm: { modelRef: 'primary/chat' },
+        },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.knowledge?.parser?.mineru?.enabled).toBe(true);
+    expect(loaded.knowledge?.reranker).toMatchObject({
+      enabled: true,
+      model: 'rerank-english-v3.0',
+    });
+    expect(loaded.knowledge?.extractionLlm?.modelRef).toBe('primary/chat');
+  });
+
   it('round-trips config in a temp root', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-'));
     const config = createDefaultPiwinConfig();

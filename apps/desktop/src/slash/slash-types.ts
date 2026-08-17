@@ -68,6 +68,12 @@ export type ParsedSlashSubmit =
       args: string;
     }
   | {
+      kind: 'knowledge';
+      subTab: 'doccards' | 'cards' | 'wiki';
+      name: string;
+      args: string;
+    }
+  | {
       kind: 'unknown';
       name: string;
       args: string;

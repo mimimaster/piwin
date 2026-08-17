@@ -176,6 +176,7 @@ export function ModelsPage(): ReactElement {
     testProviderModel,
     searchModelCatalog,
     storeProviderSecret,
+    selectSection,
   } = useSettings();
   const [activeTab, setActiveTab] = useState<ModelTab>('text');
 
@@ -196,9 +197,17 @@ export function ModelsPage(): ReactElement {
         <div className="model-workspace-intro">
           <p>
             {isChinese
-              ? '先配置接口通道，再为文本、图片、视频和语音选择模型与默认值。所有能力共用同一套通道。'
-              : 'Configure provider channels once, then choose models and defaults for chat, images, video, and speech.'}
+              ? '先配置接口通道，再为文本、图片、视频和语音选择模型与默认值。所有能力共用同一套通道。笔记检索和文档卡片的 Embedding 在「Embedding / 知识检索」。'
+              : 'Configure provider channels once, then choose models and defaults for chat, images, video, and speech. Notes search and Doc Cards embedding live under Embedding / Knowledge.'}
           </p>
+          <button
+            type="button"
+            className="model-workspace-knowledge-link"
+            onClick={() => selectSection('knowledge')}
+            data-testid="models-open-knowledge"
+          >
+            {isChinese ? '打开 Embedding / 知识检索' : 'Open Embedding / Knowledge'}
+          </button>
           <StatusBadge
             tone={summary.issueCount === 0 ? 'success' : 'warning'}
             label={

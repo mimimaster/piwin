@@ -1,4 +1,5 @@
 import type { ContextPack, KnowledgePointType, RawKnowledgePoint } from '@piwin/contracts';
+import { fallbackPackSourceId, resolveSourceIds } from './resolve-source-ids.js';
 
 export const KNOWLEDGE_POINT_TYPES: readonly KnowledgePointType[] = [
   'definition',
@@ -57,20 +58,25 @@ export function parseRawKnowledgePoints(
     const concept = typeof raw.concept === 'string' ? raw.concept.trim() : '';
     const statement = typeof raw.statement === 'string' ? raw.statement.trim() : '';
     if (!concept || !statement) continue;
-    if (typeof raw.type !== 'string' || !TYPE_SET.has(raw.type)) continue;
-    if (typeof raw.importance !== 'number' || !Number.isFinite(raw.importance)) continue;
-    if (raw.importance < 0 || raw.importance > 1) continue;
-    const sourceChunkIds = Array.isArray(raw.sourceChunkIds)
+    const type = coerceKnowledgePointType(raw.type);
+    if (!type) continue;
+    const importance = coerceImportance(raw.importance);
+    if (importance === undefined) continue;
+    const rawSourceIds = Array.isArray(raw.sourceChunkIds)
       ? raw.sourceChunkIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
       : [];
+    const sourceChunkIds = resolveSourceIds(rawSourceIds, pack).filter((id) => allowed.has(id));
+    const fallback = fallbackPackSourceId(pack);
+    if (sourceChunkIds.length === 0 && fallback && allowed.has(fallback)) {
+      sourceChunkIds.push(fallback);
+    }
     if (sourceChunkIds.length === 0) continue;
-    if (!sourceChunkIds.every((id) => allowed.has(id))) continue;
     parsed.push({
       tempId: typeof raw.tempId === 'string' && raw.tempId.trim() ? raw.tempId.trim() : `tmp_${index + 1}`,
       concept,
       statement,
-      type: raw.type as KnowledgePointType,
-      importance: raw.importance,
+      type,
+      importance,
       sourceChunkIds,
     });
   }
@@ -80,4 +86,52 @@ export function parseRawKnowledgePoints(
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
+}
+
+const IMPORTANCE_LABELS: Record<string, number> = {
+  high: 0.9,
+  medium: 0.7,
+  med: 0.7,
+  mid: 0.7,
+  low: 0.55,
+  critical: 1,
+  important: 0.85,
+};
+
+function coerceImportance(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (value >= 0 && value <= 1) return value;
+    if (value >= 2 && value <= 10) return value / 10;
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (IMPORTANCE_LABELS[trimmed] !== undefined) return IMPORTANCE_LABELS[trimmed];
+    const numeric = Number(trimmed);
+    if (Number.isFinite(numeric)) return coerceImportance(numeric);
+  }
+  return undefined;
+}
+
+const TYPE_ALIASES: Record<string, KnowledgePointType> = {
+  principle: 'reason',
+  rule: 'property',
+  concept: 'definition',
+  idea: 'definition',
+  process: 'procedure',
+  step: 'procedure',
+  why: 'reason',
+  how: 'procedure',
+  cause: 'reason',
+  effect: 'relationship',
+  note: 'fact',
+};
+
+function coerceKnowledgePointType(value: unknown): KnowledgePointType | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (TYPE_SET.has(trimmed)) return trimmed as KnowledgePointType;
+  const aliased = TYPE_ALIASES[trimmed.toLowerCase()];
+  if (aliased) return aliased;
+  return 'fact';
 }

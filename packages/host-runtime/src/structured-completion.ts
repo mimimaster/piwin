@@ -48,7 +48,6 @@ export async function completeStructuredText(
   const endpoint = buildCompletionEndpoint(request.provider, request.modelId, label);
   const headers = await buildProviderRequestHeaders(request.provider, resolveSecret);
   headers.set('content-type', 'application/json');
-  const body = buildCompletionBody(request);
   const timeoutMs = request.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const externalSignal = request.signal;
@@ -61,19 +60,7 @@ export async function completeStructuredText(
   const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
 
   try {
-    const response = await fetchImplementation(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: timeoutController.signal,
-    });
-    if (!response.ok) {
-      throw new StructuredCompletionError(
-        'provider-request-failed',
-        `${label} generation failed (${response.status} ${response.statusText || 'request rejected'})`,
-      );
-    }
-    const payload: unknown = await response.json();
+    const payload = await postCompletion(fetchImplementation, endpoint, headers, request, timeoutController.signal);
     return { text: parseCompletionResponse(request.provider.protocol, payload, label) };
   } catch (error) {
     if (error instanceof StructuredCompletionError) throw error;
@@ -118,6 +105,61 @@ export async function completeStructured<T>(
       `${label} generation JSON did not match the expected schema: ${formatError(error)}`,
     );
   }
+}
+
+async function postCompletion(
+  fetchImplementation: typeof globalThis.fetch,
+  endpoint: string,
+  headers: Headers,
+  request: StructuredCompletionRequest,
+  signal: AbortSignal,
+): Promise<unknown> {
+  const body = buildCompletionBody(request);
+  const response = await fetchImplementation(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (response.ok) {
+    return response.json();
+  }
+  // Many local / aggregator proxies reject OpenAI json_schema. The prompt
+  // already carries the schema text; retry once as plain JSON.
+  if (request.jsonSchema && shouldRetryWithoutJsonSchema(response.status)) {
+    const withoutSchema: StructuredCompletionRequest = {
+      provider: request.provider,
+      modelId: request.modelId,
+      systemPrompt: request.systemPrompt,
+      userPrompt: request.userPrompt,
+      temperature: request.temperature,
+      maxOutputTokens: request.maxOutputTokens,
+      signal: request.signal,
+      ...(request.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
+      ...(request.label ? { label: request.label } : {}),
+    };
+    const fallback = await fetchImplementation(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(buildCompletionBody(withoutSchema)),
+      signal,
+    });
+    if (fallback.ok) {
+      return fallback.json();
+    }
+    throw new StructuredCompletionError(
+      'provider-request-failed',
+      `${completionLabel(request)} generation failed (${fallback.status} ${fallback.statusText || 'request rejected'})`,
+    );
+  }
+  throw new StructuredCompletionError(
+    'provider-request-failed',
+    `${completionLabel(request)} generation failed (${response.status} ${response.statusText || 'request rejected'})`,
+  );
+}
+
+function shouldRetryWithoutJsonSchema(status: number): boolean {
+  return status === 400 || status === 404 || status === 415 || status === 422;
 }
 
 function createCompletionSecretResolver(

@@ -171,7 +171,7 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
                 })),
               };
           if (pack.sources.length === 0) {
-            update({ status: 'FAILED' }, true);
+            update({ status: 'FAILED', error: 'NO_RETRIEVED_SOURCES' }, true);
             return;
           }
           const existing = await input.cardStore.list({ sourceFolder: canonical });
@@ -283,10 +283,15 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
             },
             true,
           );
-        } catch {
+        } catch (error) {
           update(
             {
               status: abort.signal.aborted ? 'CANCELED' : 'FAILED',
+              error: abort.signal.aborted
+                ? 'CANCELED'
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
             },
             true,
           );

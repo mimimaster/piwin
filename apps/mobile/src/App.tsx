@@ -1,35 +1,36 @@
 import { useState, useEffect, type ReactElement } from 'react';
+import type { ConfiguredChatModel, ModelRef, ThinkingLevel } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { MobileTopBar } from './components/navigation/MobileTopBar.js';
 import { MobileSidebarDrawer } from './components/navigation/MobileSidebarDrawer.js';
 import { SettingsModal } from './components/modals/SettingsModal.js';
 import { InboxModal } from './components/modals/InboxModal.js';
-import { ModelPickerModal, type ThinkingLevel } from './components/modals/ModelPickerModal.js';
+import { ModelPickerModal } from './components/modals/ModelPickerModal.js';
 import { MobileShareModal } from './components/modals/MobileShareModal.js';
 import { ConnectionSurface } from './surfaces/connection/ConnectionSurface.js';
 import { ConversationSurface } from './surfaces/conversation/ConversationSurface.js';
 import { useMobileHost } from './hooks/use-mobile-host.js';
 import { useTheme } from './hooks/use-theme.js';
+import { readMobileOverlayHash, setMobileOverlayHash } from './mobile-overlay-hash.js';
 import { MOBILE_THEME } from './mobile-theme.js';
 
+function modelDisplayName(model: ConfiguredChatModel | undefined): string | undefined {
+  if (model === undefined) {
+    return undefined;
+  }
+  return model.label?.trim() || model.modelId;
+}
+
 export function App(): ReactElement {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isInboxOpen, setIsInboxOpen] = useState(false);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState('claude-3-7-sonnet');
-  const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<ThinkingLevel>('medium');
+  const [overlayHash, setOverlayHash] = useState(readMobileOverlayHash);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | undefined>();
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>();
+  const [selectedThinkingLevel, setSelectedThinkingLevel] = useState<ThinkingLevel | undefined>();
   const [showConnectionConfig, setShowConnectionConfig] = useState(false);
 
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.toLowerCase();
-      setIsSidebarOpen(hash === '#sidebar');
-      setIsModelPickerOpen(hash === '#model-picker' || hash === '#model');
-      setIsShareOpen(hash === '#share');
-      setIsSettingsOpen(hash === '#settings');
-      setIsInboxOpen(hash === '#inbox');
+      setOverlayHash(readMobileOverlayHash());
     };
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
@@ -40,15 +41,60 @@ export function App(): ReactElement {
   const host = useMobileHost();
   const isConnected = host.connectionState.kind === 'ready';
 
+  useEffect(() => {
+    if (host.configuredModels.length === 0) {
+      return;
+    }
+    const selected = host.configuredModels.find(
+      (model) => model.providerId === selectedProviderId && model.modelId === selectedModelId,
+    );
+    if (selected !== undefined) {
+      return;
+    }
+    const fallback =
+      host.configuredModels.find(
+        (model) =>
+          model.providerId === host.defaultProviderId && model.modelId === host.defaultModelId,
+      ) ?? host.configuredModels[0];
+    if (fallback === undefined) {
+      return;
+    }
+    setSelectedProviderId(fallback.providerId);
+    setSelectedModelId(fallback.modelId);
+    if (fallback.thinkingLevel !== undefined) {
+      setSelectedThinkingLevel(fallback.thinkingLevel);
+    }
+  }, [
+    host.configuredModels,
+    host.defaultModelId,
+    host.defaultProviderId,
+    selectedModelId,
+    selectedProviderId,
+  ]);
+
+  const selectedModel = host.configuredModels.find(
+    (model) => model.providerId === selectedProviderId && model.modelId === selectedModelId,
+  );
+  const selectedModelRef: ModelRef | undefined =
+    selectedModel === undefined
+      ? undefined
+      : {
+          protocol: selectedModel.protocol,
+          providerId: selectedModel.providerId,
+          modelId: selectedModel.modelId,
+        };
+
   const activeSession = host.sessions.find((s) => s.sessionId === host.activeSessionId);
-  const activeProject = activeSession?.scope === 'project'
-    ? host.projects[0]?.displayName
-    : undefined;
+  const activeProject =
+    activeSession?.projectId !== undefined
+      ? host.projects.find((project) => project.projectId === activeSession.projectId)?.displayName
+      : undefined;
+
+  const closeOverlay = () => setMobileOverlayHash('');
 
   return (
     <PiwinUiProvider manifest={MOBILE_THEME}>
       <main className="mobile-shell">
-        {/* 1. If not connected or explicitly opened pairing, show ConnectionSurface */}
         {!isConnected || showConnectionConfig ? (
           <div className="mobile-view-wrapper">
             <MobileTopBar
@@ -76,21 +122,20 @@ export function App(): ReactElement {
           </div>
         ) : (
           <div className="mobile-view-wrapper">
-            {/* 2. Sleek 44px ChatGPT-Style Top Navigation Bar */}
             <MobileTopBar
               sessionTitle={activeSession?.name}
               projectName={activeProject}
-              activeModelName={selectedModelId === 'claude-3-7-sonnet' ? 'Claude 3.7' : selectedModelId}
+              activeModelName={modelDisplayName(selectedModel)}
               connectionState={host.connectionState}
-              onToggleSidebar={() => setIsSidebarOpen(true)}
-              onOpenModelPicker={() => setIsModelPickerOpen(true)}
+              onToggleSidebar={() => setMobileOverlayHash('#sidebar')}
+              onOpenModelPicker={() => setMobileOverlayHash('#model-picker')}
               onNewChat={() => {
+                setMobileOverlayHash('');
                 void host.handleCreateSession(undefined);
               }}
-              onOpenSettings={() => setIsSettingsOpen(true)}
+              onOpenSettings={() => setMobileOverlayHash('#settings')}
             />
 
-            {/* 3. Main Full-Screen Fluid Conversation Canvas */}
             <ConversationSurface
               activeSessionId={host.activeSessionId}
               sessions={host.sessions}
@@ -100,7 +145,12 @@ export function App(): ReactElement {
               attachments={host.attachments}
               onRemoveAttachment={host.removeAttachment}
               onFileSelected={(e) => void host.handleFileSelected(e)}
-              onSend={() => void host.handleSend()}
+              onSend={() =>
+                void host.handleSend({
+                  ...(selectedModelRef ? { model: selectedModelRef } : {}),
+                  ...(selectedThinkingLevel ? { thinkingLevel: selectedThinkingLevel } : {}),
+                })
+              }
               onAbort={() => void host.handleAbort()}
               isSending={host.isSending}
               isUploadingMedia={host.isUploadingMedia}
@@ -108,14 +158,13 @@ export function App(): ReactElement {
               permissionRequest={host.permissionRequest}
               isResolvingPermission={host.isResolvingPermission}
               onResolvePermission={(decision) => void host.handleResolvePermission(decision)}
-              onNavigateToSessions={() => setIsSidebarOpen(true)}
+              onNavigateToSessions={() => setMobileOverlayHash('#sidebar')}
               projectName={activeProject}
             />
 
-            {/* 4. Slide-out Left Sidebar Drawer */}
             <MobileSidebarDrawer
-              isOpen={isSidebarOpen}
-              onClose={() => setIsSidebarOpen(false)}
+              isOpen={overlayHash === '#sidebar'}
+              onClose={closeOverlay}
               projects={host.projects}
               sessions={host.sessions}
               activeSessionId={host.activeSessionId}
@@ -134,18 +183,17 @@ export function App(): ReactElement {
               onDeleteSession={(id) => {
                 void host.handleDeleteSession(id);
               }}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-              onOpenInbox={() => setIsInboxOpen(true)}
-              onOpenShare={() => setIsShareOpen(true)}
+              onOpenSettings={() => setMobileOverlayHash('#settings')}
+              onOpenInbox={() => setMobileOverlayHash('#inbox')}
+              onOpenShare={() => setMobileOverlayHash('#share')}
               activeRunCount={host.activeRunId !== undefined ? 1 : 0}
               endpoint={host.endpoint}
               isConnected={isConnected}
             />
 
-            {/* 5. Theme & Settings Modal Sheet */}
             <SettingsModal
-              isOpen={isSettingsOpen}
-              onClose={() => setIsSettingsOpen(false)}
+              isOpen={overlayHash === '#settings'}
+              onClose={closeOverlay}
               hostStatus={host.hostStatus}
               connectionState={host.connectionState}
               endpoint={host.endpoint}
@@ -157,32 +205,40 @@ export function App(): ReactElement {
               onOpenConnection={() => setShowConnectionConfig(true)}
             />
 
-            {/* 6. Tasks & Permissions Inbox Modal Sheet */}
             <InboxModal
-              isOpen={isInboxOpen}
-              onClose={() => setIsInboxOpen(false)}
+              isOpen={overlayHash === '#inbox'}
+              onClose={closeOverlay}
               activeRunId={host.activeRunId}
               permissionRequest={host.permissionRequest}
               isResolvingPermission={host.isResolvingPermission}
               onResolvePermission={(decision) => void host.handleResolvePermission(decision)}
               onAbortRun={() => void host.handleAbort()}
-              onNavigateToChat={() => setIsInboxOpen(false)}
+              onNavigateToChat={closeOverlay}
             />
 
-            {/* 7. Model & Reasoning Picker Modal Sheet */}
             <ModelPickerModal
-              isOpen={isModelPickerOpen}
-              onClose={() => setIsModelPickerOpen(false)}
+              isOpen={overlayHash === '#model-picker'}
+              onClose={closeOverlay}
+              models={host.configuredModels}
+              selectedProviderId={selectedProviderId}
               selectedModelId={selectedModelId}
               selectedThinkingLevel={selectedThinkingLevel}
-              onSelectModel={(modelId) => setSelectedModelId(modelId)}
-              onSelectThinkingLevel={(level) => setSelectedThinkingLevel(level)}
+              onSelectModel={(modelId, providerId) => {
+                setSelectedProviderId(providerId);
+                setSelectedModelId(modelId);
+                const next = host.configuredModels.find(
+                  (model) => model.providerId === providerId && model.modelId === modelId,
+                );
+                if (next?.thinkingLevel !== undefined) {
+                  setSelectedThinkingLevel(next.thinkingLevel);
+                }
+              }}
+              onSelectThinkingLevel={setSelectedThinkingLevel}
             />
 
-            {/* 8. Share & Export Modal Sheet */}
             <MobileShareModal
-              isOpen={isShareOpen}
-              onClose={() => setIsShareOpen(false)}
+              isOpen={overlayHash === '#share'}
+              onClose={closeOverlay}
               sessionTitle={activeSession?.name}
               messages={host.messages}
             />
