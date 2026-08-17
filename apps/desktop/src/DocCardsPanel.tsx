@@ -23,6 +23,7 @@ import { DocCardsProgressRing } from './DocCardsProgressRing';
 import { generationProgress, ingestionProgress, selectedDocumentsReady } from './doccards-progress';
 import { pickProjectDirectory } from './pick-project-directory';
 import { DocCardItem } from './DocCardItem';
+import { KnowledgeFileChecklist } from './knowledge/KnowledgeFileChecklist';
 import { loadRecentFolders, saveRecentFolder } from './doccards-recent-folders';
 import {
   downloadFile,
@@ -70,12 +71,6 @@ const TOPIC_SUGGESTIONS = [
   { labelZh: '问答速记', labelEn: 'Q&A Summary' },
   { labelZh: '技术要点', labelEn: 'Technical Points' },
 ];
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
   const { locale } = useDesktopLocale();
@@ -200,12 +195,10 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     setError(null);
     setInfo(null);
     try {
-      const includeFiles =
-        scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
       const response = await request({
         type: 'doccards/index-folder',
         folderPath: folderPath.trim(),
-        ...(includeFiles ? { includeFiles } : {}),
+        includeFiles: selectedFiles,
       });
       if (!response.success) {
         setError(response.error);
@@ -263,11 +256,9 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
       );
     }, 200);
     try {
-      const includeFiles =
-        scan && selectedFiles.length < scan.files.length ? selectedFiles : undefined;
       const job = await runDoccardsGenerate(request, {
         folderPath: folderPath.trim(),
-        ...(includeFiles ? { includeFiles } : {}),
+        includeFiles: selectedFiles,
         ...(topic.trim() ? { topic: topic.trim() } : {}),
       });
       setGenerationJob(job);
@@ -411,22 +402,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
     return scan.files.filter((f) => f.relativePath.toLowerCase().includes(q));
   }, [scan, fileFilter]);
 
-  const allFilesSelected = Boolean(scan && selectedFiles.length === scan.files.length);
   const selectedCount = selectedFiles.length;
-
-  const toggleFileSelection = useCallback((relativePath: string, checked: boolean) => {
-    setSelectedFiles((current) =>
-      checked ? [...current, relativePath] : current.filter((path) => path !== relativePath),
-    );
-  }, []);
-
-  const selectAllFiles = useCallback(() => {
-    setSelectedFiles(scan?.files.map((file) => file.relativePath) ?? []);
-  }, [scan]);
-
-  const deselectAllFiles = useCallback(() => {
-    setSelectedFiles([]);
-  }, []);
 
   return (
     <section className="doc-cards-panel" data-testid="doc-cards-panel">
@@ -602,62 +578,16 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
                   value={fileFilter}
                   onChange={(e) => setFileFilter(e.target.value)}
                 />
-                <Button size="compact" variant="ghost" onClick={selectAllFiles} disabled={busy || allFilesSelected}>
-                  {t('Select all', '全选')}
-                </Button>
-                <Button size="compact" variant="ghost" onClick={deselectAllFiles} disabled={busy || selectedCount === 0}>
-                  {t('Deselect all', '全不选')}
-                </Button>
               </div>
             </div>
-
-            <ul className="doc-cards-file-list">
-              {filteredFiles.map((file) => {
-                const selected = selectedFiles.includes(file.relativePath);
-                return (
-                  <li key={file.relativePath} className="doc-cards-file-item">
-                    <label className="doc-cards-file-label">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(event) => toggleFileSelection(file.relativePath, event.target.checked)}
-                        disabled={busy}
-                      />
-                      <span className="doc-cards-file-path">{file.relativePath}</span>
-                      <span className="doc-cards-file-ext">{file.language || 'text'}</span>
-                      <span className="doc-cards-file-size">{formatBytes(file.sizeBytes)}</span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {scan.unsupported.length > 0 && (
-              <div className="doc-cards-unsupported-card" data-testid="doc-cards-unsupported">
-                <span className="doc-cards-unsupported-title">
-                  ⚠️ {t(`${scan.unsupported.length} files skipped:`, `跳过 ${scan.unsupported.length} 个不支持的文件：`)}
-                </span>
-                <ul className="doc-cards-unsupported-list">
-                  {scan.unsupported.slice(0, 5).map((file) => (
-                    <li key={file.relativePath}>
-                      <span>{file.relativePath}</span>
-                      <span className="doc-cards-unsupported-reason">
-                        {file.unsupportedReason === 'MINERU_NOT_CONFIGURED'
-                          ? t('MinerU not configured', '未配置 MinerU')
-                          : file.unsupportedReason === 'UNSTRUCTURED_NOT_CONFIGURED'
-                            ? t('Unstructured not configured', '未配置 Unstructured')
-                            : t('Unsupported type', '不支持的格式')}
-                      </span>
-                    </li>
-                  ))}
-                  {scan.unsupported.length > 5 && (
-                    <li className="doc-cards-more-unsupported">
-                      +{scan.unsupported.length - 5} {t('more', '项')}
-                    </li>
-                  )}
-                </ul>
-              </div>
-            )}
+            <KnowledgeFileChecklist
+              files={filteredFiles}
+              unsupported={scan.unsupported}
+              selected={selectedFiles}
+              documents={documents}
+              disabled={busy}
+              onChange={setSelectedFiles}
+            />
           </div>
 
           {/* Step 2: Indexing Action & Status */}
