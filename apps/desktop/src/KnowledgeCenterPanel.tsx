@@ -30,6 +30,7 @@ import { KnowledgeProjectList } from './knowledge/KnowledgeProjectList.js';
 import { KnowledgeUnindexedHero } from './knowledge/KnowledgeUnindexedHero.js';
 import { KnowledgeWikiView } from './knowledge/KnowledgeWikiView.js';
 import { KnowledgeFileChecklist } from './knowledge/KnowledgeFileChecklist.js';
+import { KnowledgeLibraryView } from './knowledge/KnowledgeLibraryView.js';
 import { KnowledgeReadyView } from './knowledge/KnowledgeReadyView.js';
 import { KnowledgeResultView } from './knowledge/KnowledgeResultView.js';
 import { deriveKnowledgeLoop, generateDisabledCopy } from './knowledge/knowledge-loop-state.js';
@@ -37,6 +38,7 @@ import { loadRecentFolders, saveRecentFolder } from './doccards-recent-folders.j
 import { pickProjectDirectory } from './pick-project-directory.js';
 import { waitForDoccardsIndexJob } from './doccards-index-job.js';
 import { runDoccardsGenerate } from './doccards-generate-client.js';
+import { formatCardMarkdown } from './knowledge-export.js';
 import { generationProgress, ingestionProgress } from './doccards-progress.js';
 import { DocCardsProgressRing } from './DocCardsProgressRing.js';
 import { knowledgeCapabilityLights } from './knowledge-capabilities.js';
@@ -59,6 +61,7 @@ export type KnowledgeCenterPanelProps = {
   onOpenSession?: (sessionId: string) => void;
   onConfigureEmbedding?: () => void;
   onSendToChat?: (text: string) => void;
+  onOpenCardsPanel?: () => void;
   initialSubTab?: 'wiki' | 'cards' | 'doccards';
 };
 
@@ -88,7 +91,7 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   const [indexingJob, setIndexingJob] = useState<IngestionJob | null>(null);
   const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
   const [dismissedGenerationId, setDismissedGenerationId] = useState<string | null>(null);
-  const [userView] = useState<'loop' | 'library'>('loop');
+  const [userView, setUserView] = useState<'loop' | 'library'>('loop');
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -349,6 +352,30 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         </>
       );
     }
+    if (view.stage === 'library') {
+      return (
+        <KnowledgeLibraryView
+          folderPath={selectedPath}
+          folderName={selectedName}
+          cards={cards}
+          request={props.request}
+          onBack={() => setUserView('loop')}
+          onOpenCardsPanel={props.onOpenCardsPanel}
+          onSendToChat={
+            props.onSendToChat
+              ? (card) => props.onSendToChat?.(formatCardMarkdown(card))
+              : undefined
+          }
+          onOpenSourceFile={(cardId) => {
+            void props.request({ type: 'doccards/open-source', cardId });
+          }}
+          onForgot={() => {
+            void loadProjectData(selectedPath);
+            setUserView('loop');
+          }}
+        />
+      );
+    }
     if (view.stage === 'ready' || view.stage === 'generating') {
       return (
         <>
@@ -368,6 +395,9 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
                 ? t('Search quality: vector + full-text', '检索质量：向量 + 全文')
                 : t('Search quality: keyword-only (no embedding)', '检索质量：仅关键词（无向量）')
             }
+            onBrowseLibrary={
+              cards.length > 0 || view.resultKind !== 'none' ? () => setUserView('library') : undefined
+            }
           />
         </>
       );
@@ -385,6 +415,7 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
           onDismiss={() => {
             if (generationJob) setDismissedGenerationId(generationJob.id);
           }}
+          onBrowseLibrary={() => setUserView('library')}
         />
       );
     }

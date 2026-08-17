@@ -60,7 +60,7 @@ behind a small, mode-scoped tool surface.**
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
 │ Presentation                                                      │
-│  Desktop DocCardsPanel · CLI `piwin doccards …`                   │
+│  Desktop Knowledge Center · CLI `piwin doccards …`                   │
 │  (pick folder, select files, params, trigger generate, rebind)    │
 ├──────────────────────────────────────────────────────────────────┤
 │ Orchestration (app-owned, pure + IPC)                             │
@@ -701,7 +701,7 @@ canonicalize + confine → open via Tauri/shell at `sourceLine` when possible.
 Fourth sub-tab `docs` (“Doc Cards” / “文档卡片”) on existing
 `KnowledgeCenterPanel`. Tabs `wiki` / `cards` / `memory` unchanged.
 
-### 13.2 DocCardsPanel
+### 13.2 Knowledge Center loop (replaces the unmounted DocCardsPanel sketch)
 
 ```
 ┌─────────────────────────────────────────────┐

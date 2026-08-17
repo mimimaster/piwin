@@ -2812,6 +2812,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       request={requestKnowledgeCenter}
                       onClose={() => setKnowledgeOpen(false)}
                       onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
+                      onOpenCardsPanel={handleOpenCardsPanel}
                       onConfigureEmbedding={() => openSettingsSection('knowledge')}
                       onSendToChat={(text) => {
                         setKnowledgeOpen(false);
