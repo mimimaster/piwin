@@ -46,7 +46,7 @@ export function AgentPage(): ReactElement {
           data={[
             { value: 'subagents', label: isChinese ? '子代理编排 (Schemes)' : 'Orchestration' },
             { value: 'automation', label: isChinese ? '自动化与任务 (Automation)' : 'Automation' },
-            { value: 'artifact', label: isChinese ? '产物与渲染 (Artifacts)' : 'Artifacts' },
+            { value: 'artifact', label: isChinese ? '渲染 (Artifact)' : 'Artifact' },
             { value: 'playground', label: isChinese ? 'Artifact 实验场' : 'Playground' },
           ]}
           testId="agent-subtabs-control"
