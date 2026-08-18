@@ -13,6 +13,7 @@ import type {
 } from '@piwin/contracts';
 import { buildSettingsDomainMutations } from '@piwin/contracts';
 import type { HostClient } from './host-client';
+import { sessionListCommandForTransport } from './remote-session-hydrate';
 
 export type HostRequestAdapters = {
   requestSubAgent: (command: Parameters<HostClient['request']>[0]) => Promise<HostResponse>;
@@ -458,17 +459,22 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         });
       }
       if (command.type === 'session/list') {
-        return hostClient.request({
-          type: 'session/list',
-          ...(command.scope ? { scope: command.scope } : {}),
-          ...(command.projectPath ? { projectPath: command.projectPath } : {}),
-          ...(command.allScopes !== undefined ? { allScopes: command.allScopes } : {}),
-          ...(command.includeArchived !== undefined
-            ? { includeArchived: command.includeArchived }
-            : {}),
-          ...(command.order ? { order: command.order } : {}),
-          ...(command.maxItems !== undefined ? { maxItems: command.maxItems } : {}),
-        });
+        return hostClient.request(
+          sessionListCommandForTransport({
+            transport: hostClient.getTransport(),
+            scope:
+              command.scope ??
+              (command.projectPath
+                ? { kind: 'project', projectPath: command.projectPath }
+                : { kind: 'general' }),
+            ...(command.includeArchived !== undefined
+              ? { includeArchived: command.includeArchived }
+              : {}),
+            ...(command.order ? { order: command.order } : {}),
+            ...(command.maxItems !== undefined ? { maxItems: command.maxItems } : {}),
+            ...(command.allScopes !== undefined ? { allScopes: command.allScopes } : {}),
+          }),
+        );
       }
       if (command.type === 'session/unarchive') {
         return hostClient.request({

@@ -70,6 +70,15 @@ describe('resolveToolPolicy', () => {
     );
     expect(gatewayOnly.enabledFamilies).toContain('mcp');
     expect(gatewayOnly.enabledMcpServerIds).toEqual([]);
+    const catalogViaToolbox = resolveToolPolicy(
+      baseExposure({ mcp: true, availableFamilies: new Set(['toolbox']) }),
+    );
+    expect(catalogViaToolbox.enabledFamilies).toContain('mcp');
+    expect(catalogViaToolbox.enabledFamilies).toContain('toolbox');
+    const conversationCatalog = resolveToolPolicy(
+      baseExposure({ mcp: false, availableFamilies: new Set(['toolbox']) }),
+    );
+    expect(conversationCatalog.enabledFamilies).not.toContain('mcp');
     const withServer = resolveToolPolicy(
       baseExposure({
         mcp: true,

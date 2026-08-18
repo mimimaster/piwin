@@ -651,9 +651,7 @@ html[data-theme-visual-style='ink-wash'] .mcp-server-card,
 html[data-theme-visual-style='ink-wash'] .model-card,
 html[data-theme-visual-style='ink-wash'] .model-dir,
 html[data-theme-visual-style='ink-wash'] .permission-mode-pills {
-  background: rgba(18, 19, 22, 0.75) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(18, 19, 22, 0.92) !important;
   border: 1px solid rgba(214, 205, 190, 0.08) !important;
   border-radius: 8px !important;
   color: #d8d3cb !important;

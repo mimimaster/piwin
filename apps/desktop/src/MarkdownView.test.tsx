@@ -684,3 +684,30 @@ describe('MarkdownView file references', () => {
     expect(container.querySelector('script[data-untrusted="true"]')).toBeNull();
   });
 });
+
+describe('MarkdownView local media images', () => {
+  afterEach(() => {
+    cleanupMountedMarkdownRenders();
+  });
+
+  it('does not render host filesystem image paths', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={'这是生成的结果：\n\n![cat](/Users/me/.piwin/media/session/a.jpg)'}
+        renderingPhase="completed"
+      />,
+    );
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('这是生成的结果');
+  });
+
+  it('still renders remote images', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={'![cat](https://example.com/cat.jpg)'}
+        renderingPhase="completed"
+      />,
+    );
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/cat.jpg');
+  });
+});

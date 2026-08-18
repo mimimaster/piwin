@@ -15,3 +15,5 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-barcode-scanner = "2"
+tauri-plugin-keyring-store = "0.2.0"
+sha2 = "0.10"

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { openOrCreateProject } from '@piwin/project';
 import { getPiwinProjectsPath, getPiwinRoot } from './paths.js';
 import { createRemoteProjectId } from './remote-project-id.js';
-import { resolveSessionLocation } from './session-scope.js';
+import { resolveSessionLocation, resolveScopeRefToListIntent } from './session-scope.js';
 
 describe('resolveSessionLocation projectId', () => {
   it('binds a remote projectId to the registered project path', async () => {
@@ -29,5 +29,40 @@ describe('resolveSessionLocation projectId', () => {
         projectPath: '/tmp/repo',
       }),
     ).rejects.toThrow('projectId cannot be combined with projectPath');
+  });
+});
+
+describe('resolveScopeRefToListIntent', () => {
+  it('maps general and all-authorized without touching the project store', async () => {
+    await expect(resolveScopeRefToListIntent({ kind: 'general' })).resolves.toEqual({
+      scope: { kind: 'general' },
+    });
+    await expect(resolveScopeRefToListIntent({ kind: 'all-authorized' })).resolves.toEqual({
+      allScopes: true,
+    });
+  });
+
+  it('resolves a Host-issued projectId to the registered path', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-scope-ref-'));
+    const projectPath = join(rootDir, 'repo');
+    const created = await openOrCreateProject(getPiwinProjectsPath(getPiwinRoot(rootDir)), projectPath, {
+      displayName: 'repo',
+    });
+    await expect(
+      resolveScopeRefToListIntent(
+        { kind: 'project', projectId: createRemoteProjectId(created.path) },
+        rootDir,
+      ),
+    ).resolves.toEqual({ scope: { kind: 'project', projectPath: created.path } });
+  });
+
+  it('rejects an unknown projectId', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-scope-ref-unknown-'));
+    await expect(
+      resolveScopeRefToListIntent(
+        { kind: 'project', projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa' },
+        rootDir,
+      ),
+    ).rejects.toThrow('Unknown project');
   });
 });

@@ -126,7 +126,13 @@ import {
   type PromptCommand,
   throwIfPromptPreparationAborted,
 } from './prompt-preparation.js';
-import { finalizeAbortedRun, finalizeCancelledRun } from './run-control-commands.js';
+import { finalizeAbortedRun, finalizeCancelledRun, finalizeSupersededTurn } from './run-control-commands.js';
+import {
+  createForegroundRunMismatch,
+  evaluatePromptForegroundAdmission,
+  formatForegroundRunMismatchError,
+  isForegroundRunActiveError,
+} from './session-prompt-admission.js';
 import { listKnownChatModelKeys } from './prompt-preparation.js';
 
 export async function handleSessionPromptCommand(
@@ -174,33 +180,13 @@ export async function handleSessionPromptCommand(
         }
       }
       // Product: a newer user message supersedes an in-flight run (Stop is
-      // optional). Still one *registered* foreground run after this block.
+      // optional) unless a remote shell sent an explicit foreground gate.
       const existingRun = context.getForegroundRun(command.sessionId);
-      if (existingRun) {
-        if (command.admission === 'queued-turn') {
-          return fail(
-            requestId,
-            'session/prompt',
-            `run-active: queued turn cannot admit while ${existingRun.runId} is foreground`,
-          );
-        }
-        const supersedeReason = createSupersededByNewPromptAbortReason();
-        context.updateRunPhase(
-          existingRun.runId,
-          'cancelling',
-          'Superseded by a newer user message',
-        );
-        context.requestCancelRun(command.sessionId, existingRun.runId, supersedeReason);
-        context.settlePendingPermissionsForSession(command.sessionId);
-        context.settlePendingExtensionUiForSession(command.sessionId);
-        // Join the cancelled session operation and cleanup before publishing
-        // terminal state. This keeps the old run exact while the new prompt
-        // waits for ownership to be released.
-        await finalizeCancelledRun(
-          context,
-          command.sessionId,
-          existingRun.runId,
-          formatRunAbortReason(supersedeReason),
+      if (existingRun && command.admission === 'queued-turn') {
+        return fail(
+          requestId,
+          'session/prompt',
+          `run-active: queued turn cannot admit while ${existingRun.runId} is foreground`,
         );
       }
 
@@ -282,16 +268,106 @@ export async function handleSessionPromptCommand(
         context.sessions.has(command.sessionId) &&
         (previousModel === undefined ||
           previousModel.providerId !== command.input.model.providerId);
+      const explicitForeground = command.foreground;
+      let reservedAdmission = false;
+      if (explicitForeground !== undefined) {
+        if (!context.tryReservePromptAdmission(command.sessionId)) {
+          const transitioning = evaluatePromptForegroundAdmission({
+            admission: explicitForeground,
+            existingRun: context.getForegroundRun(command.sessionId),
+            reserved: true,
+          });
+          if (transitioning === undefined) {
+            return fail(requestId, 'session/prompt', 'foreground-run-mismatch: transitioning');
+          }
+          return fail(
+            requestId,
+            'session/prompt',
+            formatForegroundRunMismatchError(transitioning),
+            transitioning,
+          );
+        }
+        reservedAdmission = true;
+      }
+
       let run: ExecutionRunRecord;
+      let supersededRun: ExecutionRunRecord | undefined;
       try {
-        run = context.registerForegroundRun(
-          command.sessionId,
-          command.input.source === 'resume' ? command.input.resumeCheckpointId : undefined,
-          requiresModelRuntimeReplacement ? { deferRuntimeGeneration: true } : undefined,
-        );
-      } catch (error) {
-        const message = formatError(error);
-        return fail(requestId, 'session/prompt', message);
+        const liveRun = context.getForegroundRun(command.sessionId);
+        if (explicitForeground !== undefined) {
+          const admissionProblem = evaluatePromptForegroundAdmission({
+            admission: explicitForeground,
+            existingRun: liveRun,
+            reserved: false,
+          });
+          if (admissionProblem !== undefined) {
+            return fail(
+              requestId,
+              'session/prompt',
+              formatForegroundRunMismatchError(admissionProblem),
+              admissionProblem,
+            );
+          }
+          if (explicitForeground.kind === 'replace-run') {
+            supersededRun = liveRun;
+          }
+        } else if (liveRun) {
+          const supersedeReason = createSupersededByNewPromptAbortReason();
+          context.updateRunPhase(
+            liveRun.runId,
+            'cancelling',
+            'Superseded by a newer user message',
+          );
+          context.requestCancelRun(command.sessionId, liveRun.runId, supersedeReason);
+          context.settlePendingPermissionsForSession(command.sessionId);
+          context.settlePendingExtensionUiForSession(command.sessionId);
+          await finalizeCancelledRun(
+            context,
+            command.sessionId,
+            liveRun.runId,
+            formatRunAbortReason(supersedeReason),
+            'superseded-by-new-prompt',
+          );
+        }
+        const resumeCheckpointId =
+          command.input.source === 'resume' ? command.input.resumeCheckpointId : undefined;
+        const registerOptions = requiresModelRuntimeReplacement
+          ? { deferRuntimeGeneration: true }
+          : undefined;
+        try {
+          run =
+            supersededRun === undefined
+              ? context.registerForegroundRun(
+                  command.sessionId,
+                  resumeCheckpointId,
+                  registerOptions,
+                )
+              : context.replaceForegroundRun(
+                  command.sessionId,
+                  supersededRun.runId,
+                  resumeCheckpointId,
+                  registerOptions,
+                );
+        } catch (error) {
+          if (explicitForeground !== undefined && isForegroundRunActiveError(error)) {
+            const current = context.getForegroundRun(command.sessionId);
+            const problem = createForegroundRunMismatch(
+              reservedAdmission ? 'transitioning' : 'active',
+              current,
+            );
+            return fail(
+              requestId,
+              'session/prompt',
+              formatForegroundRunMismatchError(problem),
+              problem,
+            );
+          }
+          return fail(requestId, 'session/prompt', formatError(error));
+        }
+      } finally {
+        if (reservedAdmission) {
+          context.releasePromptAdmission(command.sessionId);
+        }
       }
 
       const acceptedAt = new Date().toISOString();
@@ -347,6 +423,14 @@ export async function handleSessionPromptCommand(
               }
               throw error;
             }
+            if (context.getRunSignal(run.runId)?.aborted) {
+              await finalizeAbortedRun(context, command.sessionId, run.runId);
+              return;
+            }
+          }
+
+          if (supersededRun !== undefined) {
+            await context.joinRun(supersededRun.runId);
             if (context.getRunSignal(run.runId)?.aborted) {
               await finalizeAbortedRun(context, command.sessionId, run.runId);
               return;
@@ -491,6 +575,27 @@ export async function handleSessionPromptCommand(
         runId: run.runId,
         acceptedAt,
       };
+      if (supersededRun !== undefined) {
+        const previous = supersededRun;
+        setTimeout(() => {
+          const supersedeReason = createSupersededByNewPromptAbortReason();
+          context.updateRunPhase(
+            previous.runId,
+            'cancelling',
+            'Superseded by a newer user message',
+          );
+          context.requestCancelRun(command.sessionId, previous.runId, supersedeReason);
+          context.settlePendingPermissionsForSession(command.sessionId);
+          context.settlePendingExtensionUiForSession(command.sessionId);
+          void finalizeSupersededTurn(
+            context,
+            command.sessionId,
+            previous.runId,
+            formatRunAbortReason(supersedeReason),
+            'superseded-by-new-prompt',
+          );
+        });
+      }
       return ok(requestId, 'session/prompt', accepted);
     }
     default:

@@ -18,6 +18,8 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'extensions',
   'knowledge',
   'session',
+  'usage',
+  'archive',
 ];
 
 describe('section registry', () => {
@@ -54,13 +56,18 @@ describe('section registry', () => {
     expect(normalizeSettingsSection('skills')).toBe('extensions');
     expect(normalizeSettingsSection('tools')).toBe('extensions');
     expect(normalizeSettingsSection('subagents')).toBe('agent');
+    expect(normalizeSettingsSection('web')).toBe('knowledge');
     expect(normalizeSettingsSection('runtime')).toBe('session');
-    expect(normalizeSettingsSection('archive')).toBe('session');
+    expect(normalizeSettingsSection('archive')).toBe('archive');
+    expect(normalizeSettingsSection('usage')).toBe('usage');
     expect(isLegacySettingsSectionId('rules')).toBe(true);
     expect(isLegacySettingsSectionId('agents')).toBe(true);
     expect(isLegacySettingsSectionId('general')).toBe(false);
+    expect(isLegacySettingsSectionId('web')).toBe(true);
+    expect(isLegacySettingsSectionId('archive')).toBe(false);
+    expect(isLegacySettingsSectionId('usage')).toBe(false);
     expect(isLegacySettingsSectionId('image-generation')).toBe(true);
     expect(normalizeSettingsSection('image-generation')).toBe('models');
-    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(15);
+    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS).length).toBeGreaterThanOrEqual(13);
   });
 });

@@ -123,6 +123,21 @@ textarea {
   object-fit: cover;
 }
 
+.media-preview-container {
+  position: relative;
+  display: inline-block;
+  border-radius: 10px;
+  line-height: 0;
+  max-width: 100%;
+}
+
+.media-preview-container.is-hero {
+  display: block;
+  width: 100%;
+  max-width: min(540px, 100%);
+  border-radius: 12px;
+}
+
 .media-preview-image {
   display: block;
   width: 120px;
@@ -132,6 +147,19 @@ textarea {
   border-radius: 10px;
   border: 1px solid var(--border);
   cursor: pointer;
+}
+
+.media-preview-image.is-hero {
+  width: 100%;
+  max-width: min(540px, 100%);
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.15)) 80%, transparent);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+  background: color-mix(in srgb, var(--surface, #1e1e1e) 40%, rgba(0, 0, 0, 0.2));
+  cursor: zoom-in;
 }
 
 /* Clickable wrappers around attachment thumbnails (open fullscreen preview). */
@@ -151,6 +179,12 @@ textarea {
   border-radius: 10px;
 }
 
+.media-preview-image-button.is-hero {
+  width: 100%;
+  max-width: min(540px, 100%);
+  border-radius: 12px;
+}
+
 .media-chip-thumb-button {
   width: 100%;
   height: 100%;
@@ -166,6 +200,57 @@ textarea {
 .media-preview-image-button:hover .media-preview-image,
 .media-chip-thumb-button:hover .media-chip-thumb {
   filter: brightness(1.06);
+}
+
+/* Hover action toolbar on media preview cards */
+.media-preview-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  background: rgba(14, 17, 22, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 2;
+}
+
+.media-preview-container:hover .media-preview-toolbar,
+.media-preview-container:focus-within .media-preview-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.media-preview-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #f3f4f6;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.media-preview-toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.media-preview-toolbar-btn.copied {
+  color: #4ade80;
 }
 
 /* Fullscreen image lightbox (portaled to body from MediaPreview). */
@@ -245,13 +330,34 @@ textarea {
   border: 0;
 }
 
+.media-preview-video-container {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  line-height: 0;
+}
+
 .media-preview-video {
   display: block;
-  width: min(420px, 100%);
-  max-height: 320px;
+  width: min(520px, 100%);
+  max-height: 380px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: #000;
+}
+
+.media-preview-video.is-hero {
+  width: 100%;
+  max-width: min(560px, 100%);
+  max-height: 440px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.15)) 80%, transparent);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+}
+
+.media-chip-video-container {
+  width: 100%;
+  height: 100%;
 }
 
 .media-chip-video {

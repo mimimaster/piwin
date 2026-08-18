@@ -20,8 +20,6 @@
   display: flex;
   flex-direction: column;
   background: var(--sidebar, color-mix(in srgb, var(--panel) 75%, var(--canvas)));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   user-select: none;
 }
 

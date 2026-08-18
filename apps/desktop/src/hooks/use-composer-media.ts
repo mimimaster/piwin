@@ -23,6 +23,8 @@ import { ATTACHMENT_FILE_ACCEPT, formatError, toMediaAttachmentRef } from '@piwi
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SkillActivityView } from '../chat-reducer';
 import {
+  applyChipPreviewUrl,
+  commitLimitedChipPreview,
   fileToBase64,
   prepareComposerAttachmentForSave,
   isFailedMediaAttachment,
@@ -30,10 +32,12 @@ import {
   isAllowedAttachmentFile,
   resolveAttachmentContentKind,
   resolveAttachmentMimeType,
+  revokePendingAttachmentUrls,
   type PendingAttachmentErrorKind,
   type PendingComposerAttachment,
   type PendingAttachmentUploadStatus,
 } from '../media-utils.js';
+import { beginComposerImagePreview } from '../media-preview-bitmap.js';
 import { getDesktopCopy } from '../desktop-locale.js';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import { type AgentModeId } from '../agent-mode';
@@ -49,6 +53,12 @@ import { canUseThinkingLevel } from '../model-thinking-policy';
 import { decideDraftTransition } from '../draft-transition';
 import { sortDraftSessions, type DraftSessionItemUi } from '../draft-session';
 import type { SteerQueueMessage } from '../steer-queue-model';
+import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
+import {
+  foregroundMismatchNotice,
+  readForegroundProblem,
+  requestPromptWithForeground,
+} from '../prompt-foreground';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
@@ -92,6 +102,7 @@ export type UseComposerMediaArgs = {
   visionDelegationEnabled?: boolean;
   /** Optional confirm dialog for text-only + media without delegation. */
   confirmTextOnlyImageSend?: (message: string) => Promise<boolean>;
+  confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
   /** CM: pending structured context refs for session/prompt. */
   getPendingContextRefs?: () => PromptContextRef[];
   /** CM: token-stable snapshot so a send never re-reads mutable chips. */
@@ -265,9 +276,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         cancelledAttachmentIdsRef.current.add(item.localId);
         sourceFilesRef.current.delete(item.localId);
         mediaSaveResultsRef.current.delete(item.localId);
-        if (item.previewUrl) {
-          URL.revokeObjectURL(item.previewUrl);
-        }
+        revokePendingAttachmentUrls(item);
       }
     },
     [],
@@ -594,7 +603,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     setPendingAttachments((current) => {
       const target = current.find((item) => item.localId === localId);
       if (target) {
-        URL.revokeObjectURL(target.previewUrl);
+        revokePendingAttachmentUrls(target);
       }
       return current.filter((item) => item.localId !== localId);
     });
@@ -607,7 +616,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         cancelledAttachmentIdsRef.current.add(item.localId);
         sourceFilesRef.current.delete(item.localId);
         mediaSaveResultsRef.current.delete(item.localId);
-        URL.revokeObjectURL(item.previewUrl);
+        revokePendingAttachmentUrls(item);
       }
       return [];
     });
@@ -701,7 +710,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         setPendingAttachments((current) => {
           const target = current.find((item) => item.localId === localId);
           if (target) {
-            URL.revokeObjectURL(target.previewUrl);
+            revokePendingAttachmentUrls(target);
           }
           return current.filter((item) => item.localId !== localId);
         });
@@ -857,7 +866,6 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       mediaSaveResultsRef.current.delete(localId);
 
       if (!existingLocalId) {
-        const previewUrl = URL.createObjectURL(file);
         // Optimistic MIME from File metadata; macOS clipboard pastes often
         // have an empty type and are refined from magic bytes in runMediaSave.
         const optimisticMime = resolveAttachmentMimeType(file) ?? 'application/octet-stream';
@@ -873,18 +881,56 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           byteSize: file.size,
           source,
         };
+        const isImage = optimisticContentKind === 'image';
         // Paint the chip immediately so paste never waits on encode/IPC.
         // ADR 0045 compatibility path: the File + blob preview stay in the
         // draft until Send; no Host session or media/save happens here.
-        setPendingAttachments((current) => [
-          ...current,
-          {
-            localId,
-            attachment: placeholderAttachment,
-            previewUrl,
-            uploadStatus: 'queued',
-          },
-        ]);
+        // Images: lightbox keeps the original File URL; the 48px chip waits
+        // for a size-capped still so WebKit never decodes the full bitmap.
+        if (isImage) {
+          const { lightboxUrl } = beginComposerImagePreview(
+            file,
+            (previewUrl) => {
+              const committed = commitLimitedChipPreview({
+                localId,
+                previewUrl,
+                cancelled: cancelledAttachmentIdsRef.current.has(localId),
+                live: pendingAttachmentsRef.current,
+                snapshots: [
+                  ...sessionComposerSnapshotsRef.current.values(),
+                  ...draftComposerSnapshotsRef.current.values(),
+                ],
+              });
+              pendingAttachmentsRef.current = committed.live;
+              if (committed.keep) {
+                setPendingAttachments((current) =>
+                  applyChipPreviewUrl(current, localId, previewUrl).next,
+                );
+              }
+            },
+            () => cancelledAttachmentIdsRef.current.has(localId),
+          );
+          setPendingAttachments((current) => [
+            ...current,
+            {
+              localId,
+              attachment: placeholderAttachment,
+              previewUrl: '',
+              lightboxUrl,
+              uploadStatus: 'queued',
+            },
+          ]);
+        } else {
+          setPendingAttachments((current) => [
+            ...current,
+            {
+              localId,
+              attachment: placeholderAttachment,
+              previewUrl: URL.createObjectURL(file),
+              uploadStatus: 'queued',
+            },
+          ]);
+        }
       } else {
         // Retry: drop the failed terminal state back to queued. The save runs
         // on the next Send, not immediately. The ref updates synchronously so
@@ -944,7 +990,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       cancelledAttachmentIdsRef.current.add(item.localId);
       sourceFilesRef.current.delete(item.localId);
       mediaSaveResultsRef.current.delete(item.localId);
-      URL.revokeObjectURL(item.previewUrl);
+      revokePendingAttachmentUrls(item);
     }
     const next = pendingAttachmentsRef.current.filter((item) => !isFailedMediaAttachment(item));
     pendingAttachmentsRef.current = next;
@@ -1761,14 +1807,28 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           clientMessageId,
           ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
         });
-        const response = await args.hostClient.request({
-          type: 'session/prompt',
+        const response = await requestPromptWithForeground({
+          request: (command) => args.hostClient.request(command),
           sessionId,
           input,
+          ...(args.confirmForegroundReplace
+            ? { confirmReplace: args.confirmForegroundReplace }
+            : {}),
+          ...(typeof args.hostClient.supportsForegroundAdmission === 'function'
+            ? { remoteForegroundAdmission: args.hostClient.supportsForegroundAdmission() }
+            : {}),
         });
         if (!response.success) {
           rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
-          args.dispatch({ type: 'error', message: response.error });
+          const problem = readForegroundProblem(response);
+          if (problem) {
+            args.dispatch({
+              type: 'error',
+              message: foregroundMismatchNotice(problem, locale),
+            });
+          } else {
+            args.dispatch({ type: 'error', message: response.error });
+          }
           return;
         }
 

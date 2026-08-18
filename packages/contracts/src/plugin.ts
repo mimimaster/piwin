@@ -52,10 +52,14 @@ export type PluginManifest = {
 
 /**
  * Install source for a plugin. Extends {@link InstallSource} with a
- * `registry` kind that references an entry in a remote plugin registry.
+ * `registry` kind that references an entry in a remote plugin registry,
+ * and a `bundled` kind for first-party marketplace plugins shipped with
+ * the Host (Cloudflare, GitHub, …).
  */
 export type PluginInstallSource =
-  InstallSource | { kind: 'registry'; registryId: string; ref?: string };
+  | InstallSource
+  | { kind: 'registry'; registryId: string; ref?: string }
+  | { kind: 'bundled'; bundledId: string };
 
 /** A single entry in a remote plugin registry index. */
 export type PluginRegistryEntry = {

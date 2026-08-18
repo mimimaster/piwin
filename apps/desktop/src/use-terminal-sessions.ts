@@ -7,6 +7,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { tauriPtyClose, tauriPtyCloseAll } from './tauri-pty';
 import type { PtyStatus } from './xterm-surface';
 
+/** Concurrent PTY/xterm sessions, including the one created on enable. */
+export const MAX_TERMINAL_SESSIONS = 4;
+
 export type TerminalSession = {
   id: string;
   name: string;
@@ -38,6 +41,8 @@ export function useTerminalSessions(
 ): TerminalSessionsApi {
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const sessionsRef = useRef<TerminalSession[]>([]);
+  sessionsRef.current = sessions;
   const counterRef = useRef(1);
   const enabledRef = useRef(enabled);
 
@@ -74,9 +79,17 @@ export function useTerminalSessions(
   const addSession = useCallback(
     (cwd?: string): TerminalSession | null => {
       if (!enabled) return null;
+      if (sessionsRef.current.length >= MAX_TERMINAL_SESSIONS) {
+        return null;
+      }
       // General-scope: allow terminal even without project or trust.
       const session = createSession(cwd);
-      setSessions((current) => [...current, session]);
+      setSessions((current) => {
+        if (current.length >= MAX_TERMINAL_SESSIONS) {
+          return current;
+        }
+        return [...current, session];
+      });
       setActiveSessionId(session.id);
       return session;
     },

@@ -85,6 +85,7 @@ type ProductAgentHostCommonOptions = {
     runtimeGenerationId: string,
     toolNames: readonly string[],
     toolboxTargetNames: readonly string[],
+    mcpCatalogEnabled: boolean,
   ) => void;
 };
 
@@ -102,6 +103,7 @@ export type ProductAgentHostOptions =
         runtimeGenerationId: string,
         toolNames: readonly string[],
         toolboxTargetNames: readonly string[],
+        mcpCatalogEnabled: boolean,
       ) => void;
       /**
        * Build concrete Host tool descriptors for a session. Called before
@@ -365,6 +367,7 @@ export class ProductAgentHost implements AgentHost {
         runtimeGenerationId,
         compiled.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
         compiled.sessionBlueprint.hostToolboxTargetNames,
+        compiled.sessionBlueprint.capabilitySnapshot.tools.enabledFamilies.includes('mcp'),
       );
 
       const backendHandle = await this.backend.createSession({

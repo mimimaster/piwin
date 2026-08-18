@@ -30,6 +30,7 @@ import {
   SESSION_USER_MESSAGE_INDEX_MAX_TICKS,
   SESSION_USER_MESSAGE_INDEX_MIN_TICKS,
   QUEUED_TURN_MAX_TEXT_BYTES,
+  ACTIVITY_SUMMARY_MAX_ITEMS,
   isSupportedAttachmentMimeType,
 } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
@@ -47,6 +48,9 @@ import {
 import { HostEgressChannel } from './host-egress-channel.js';
 import { HostEgressHub } from './host-egress-hub.js';
 import { HostReplayJournal } from './host-replay-journal.js';
+import type { HostDevicePairing } from './device-pairing.js';
+import type { HostDevicePairingFileStore } from './device-pairing-store.js';
+import { authenticateHostHello } from './host-hello-auth.js';
 
 export type HostRuntimePort = Pick<HostRuntime, 'handleCommand' | 'attachPushSink'>;
 
@@ -57,6 +61,9 @@ export type HostServerOptions = {
   mode?: HostMode;
   instanceId?: string;
   authToken?: string;
+  /** In-memory pairing authority. Required (with a store) for device enrollment. */
+  devicePairing?: HostDevicePairing;
+  devicePairingStore?: HostDevicePairingFileStore;
   /** Browser Origin allowlist; absent Origin remains valid for CLI/Node clients. */
   allowedOrigins?: readonly string[];
   /**
@@ -86,6 +93,8 @@ type ClientConnection = {
   egressClientId: string | undefined;
   egressChannel: HostEgressChannel | undefined;
   egressDetach: () => void;
+  deviceId: string | undefined;
+  idempotencyScope: string;
 };
 
 type CachedResponse = {
@@ -110,6 +119,7 @@ const OPEN_READY_STATE = 1;
 const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
   'host/ping',
   'host/status',
+  'activity/summary',
   'project/list',
   'project/remove',
   'session/list',
@@ -170,6 +180,8 @@ export class HostServer {
   private readonly mode: HostMode;
   private readonly instanceId: string;
   private readonly authToken: string | undefined;
+  private readonly devicePairing: HostDevicePairing | undefined;
+  private readonly devicePairingStore: HostDevicePairingFileStore | undefined;
   private readonly allowedOrigins: ReadonlySet<string> | undefined;
   private readonly allowedCommands: ReadonlySet<HostCommand['type']>;
   private readonly capabilities: RemoteCapabilitySummary;
@@ -190,6 +202,8 @@ export class HostServer {
     this.mode = options.mode ?? 'sdk';
     this.instanceId = options.instanceId ?? randomUUID();
     this.authToken = options.authToken;
+    this.devicePairing = options.devicePairing;
+    this.devicePairingStore = options.devicePairingStore;
     this.allowedOrigins =
       options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
     this.allowedCommands =
@@ -234,8 +248,12 @@ export class HostServer {
     if (this.server !== undefined) {
       throw new Error('Host server is already started');
     }
-    if (this.authToken === undefined && !isLoopbackHost(this.host)) {
-      throw new Error('An auth token is required when Host binds beyond loopback');
+    if (
+      this.authToken === undefined &&
+      this.devicePairing === undefined &&
+      !isLoopbackHost(this.host)
+    ) {
+      throw new Error('An auth token or device pairing store is required when Host binds beyond loopback');
     }
 
     const server = new WebSocketServer({ host: this.host, port: this.port });
@@ -277,11 +295,11 @@ export class HostServer {
     }
   }
 
-  public async stop(): Promise<void> {
+  public async stop(closeReason = 'Host server stopping'): Promise<void> {
     for (const connection of this.connections) {
       clearTimeout(connection.handshakeTimer);
       if (connection.socket.readyState === OPEN_READY_STATE) {
-        connection.socket.close(1001, 'Host server stopping');
+        connection.socket.close(1001, closeReason);
       }
     }
     for (const connection of this.connections) {
@@ -301,6 +319,19 @@ export class HostServer {
     });
   }
 
+  public disconnectDevice(deviceId: string, reason: string): void {
+    const normalized = deviceId.trim();
+    if (normalized.length === 0) {
+      return;
+    }
+    for (const connection of [...this.connections]) {
+      if (connection.deviceId !== normalized || connection.socket.readyState !== OPEN_READY_STATE) {
+        continue;
+      }
+      connection.socket.close(4004, reason);
+    }
+  }
+
   private handleConnection(socket: WebSocket, request: IncomingMessage): void {
     if (!this.isAllowedOrigin(request.headers.origin)) {
       socket.close(4009, 'Origin not allowed');
@@ -313,6 +344,8 @@ export class HostServer {
       egressClientId: undefined,
       egressChannel: undefined,
       egressDetach: () => undefined,
+      deviceId: undefined,
+      idempotencyScope: '',
       handshakeTimer: setTimeout(() => {
         if (!connection.authenticated) {
           this.sendError(connection, 'authentication-required', 'Host hello is required');
@@ -386,14 +419,38 @@ export class HostServer {
       connection.socket.close(4003, 'Invalid client ID');
       return;
     }
-    if (this.authToken !== undefined && !authTokensEqual(this.authToken, message.authToken)) {
-      this.sendError(connection, 'authentication-required', 'Host authentication failed');
+
+    const admission = await authenticateHostHello(message, {
+      authToken: this.authToken,
+      devicePairing: this.devicePairing,
+      allowAnonymousHello: this.authToken === undefined && isLoopbackHost(this.host),
+      persistEnrollment: async (pairing) => {
+        if (this.devicePairingStore !== undefined) {
+          await this.devicePairingStore.save(pairing);
+        }
+      },
+      tokensEqual: authTokensEqual,
+    });
+    if (!admission.ok) {
+      this.sendError(connection, 'authentication-required', admission.message);
       connection.socket.close(4004, 'Authentication failed');
       return;
+    }
+    if (
+      admission.pairedDeviceId !== undefined &&
+      this.devicePairingStore !== undefined &&
+      this.devicePairing !== undefined &&
+      admission.issuedDeviceSecret === undefined
+    ) {
+      void this.devicePairingStore.save(this.devicePairing).catch((error: unknown) => {
+        this.onError(toError(error, 'Unable to persist paired-device lastSeen'));
+      });
     }
 
     connection.authenticated = true;
     connection.hydrationEnabled = message.capabilities?.hydration === true;
+    connection.deviceId = admission.pairedDeviceId;
+    connection.idempotencyScope = admission.pairedDeviceId ?? message.clientId.trim();
     clearTimeout(connection.handshakeTimer);
     const egressClientId = `client:${message.clientId}:${randomUUID()}`;
     connection.egressClientId = egressClientId;
@@ -415,7 +472,7 @@ export class HostServer {
     connection.egressChannel = egressChannel;
     connection.egressDetach = () => this.egressHub.removeClient(egressClientId);
     egressChannel.setPaused(true);
-    this.send(connection, this.createHostHello());
+    this.send(connection, this.createHostHello(admission.pairedDeviceId, admission.issuedDeviceSecret));
     try {
       await this.replayConnection(
         connection,
@@ -429,15 +486,17 @@ export class HostServer {
     }
   }
 
-  private createHostHello(): HostHello {
+  private createHostHello(deviceId?: string, deviceSecret?: string): HostHello {
     return {
       type: 'host/hello',
       protocolVersion: HOST_PROTOCOL_VERSION,
       hostInstanceId: this.instanceId,
       currentSeq: this.egressHub.getCurrentSeq(),
-      authRequired: this.authToken !== undefined,
+      authRequired: this.authToken !== undefined || this.devicePairing !== undefined,
       authenticated: true,
       capabilities: this.capabilities,
+      ...(deviceId === undefined ? {} : { deviceId }),
+      ...(deviceSecret === undefined ? {} : { deviceSecret }),
     };
   }
 
@@ -456,10 +515,12 @@ export class HostServer {
     }
 
     this.pruneIdempotencyCache();
-    const cached =
+    const cacheKey =
       frame.idempotencyKey === undefined
         ? undefined
-        : this.idempotencyCache.get(frame.idempotencyKey);
+        : `${connection.idempotencyScope}:${frame.idempotencyKey}`;
+    const cached =
+      cacheKey === undefined ? undefined : this.idempotencyCache.get(cacheKey);
     if (cached !== undefined && cached.expiresAt > Date.now()) {
       this.send(connection, {
         type: 'response',
@@ -469,16 +530,32 @@ export class HostServer {
       return;
     }
 
+    if (frame.command.type === 'session/prompt' && frame.command.foreground === undefined) {
+      this.send(connection, {
+        type: 'response',
+        requestId: frame.requestId,
+        response: {
+          type: 'response',
+          command: 'session/prompt',
+          success: false,
+          error: 'Remote session/prompt requires foreground admission',
+          problem: {
+            code: 'command-not-allowed',
+            retryable: false,
+            data: { reason: 'foreground-required' },
+          },
+        },
+      });
+      return;
+    }
+
     try {
       const remoteCommand = resolveRemoteCommand(frame.command, this.remoteMediaPaths);
-      if (await this.rejectBusyRemotePrompt(connection, frame, remoteCommand)) {
-        return;
-      }
       const response = await this.runtime.handleCommand(remoteCommand);
       this.rememberRemoteMediaAsset(remoteCommand, response);
       const safeResponse = projectRemoteResponse(frame.command, response, this.projectionContext());
-      if (frame.idempotencyKey !== undefined) {
-        this.idempotencyCache.set(frame.idempotencyKey, {
+      if (cacheKey !== undefined) {
+        this.idempotencyCache.set(cacheKey, {
           response: safeResponse,
           expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
         });
@@ -715,50 +792,9 @@ export class HostServer {
   }
 
   /**
-   * Remote `session/prompt` must not silently supersede an in-flight run.
-   * Clients already have `session/replace-run` and queued turns.
+   * Remote `session/prompt` must send `foreground`. Admission itself lives in
+   * HostRuntime (`if-idle` / `replace-run`); this gate only rejects omit.
    */
-  private async rejectBusyRemotePrompt(
-    connection: ClientConnection,
-    frame: Extract<HostWireMessage, { type: 'command' }>,
-    command: HostCommand,
-  ): Promise<boolean> {
-    if (command.type !== 'session/prompt') {
-      return false;
-    }
-    try {
-      const foreground = await this.runtime.handleCommand({
-        type: 'session/foreground-run',
-        sessionId: command.sessionId,
-      });
-      if (!foreground.success || !isRecord(foreground.data)) {
-        return false;
-      }
-      const run = foreground.data.run;
-      if (!isRecord(run)) {
-        return false;
-      }
-      const status = run.status;
-      if (status !== 'queued' && status !== 'running' && status !== 'cancelling') {
-        return false;
-      }
-    } catch (error) {
-      this.onError(toError(error, 'Unable to inspect remote session foreground run'));
-      return false;
-    }
-    this.send(connection, {
-      type: 'response',
-      requestId: frame.requestId,
-      response: {
-        type: 'response',
-        command: 'session/prompt',
-        success: false,
-        error: 'A run is already active; use session/replace-run or wait for it to finish.',
-      },
-    });
-    return true;
-  }
-
   private async loadHydrationPendingPermissions(
     sessionIds: string[],
   ): Promise<RemotePendingPermission[]> {
@@ -892,12 +928,38 @@ function formatWebSocketUrl(host: string, port: number): string {
   return `ws://${displayHost}:${port}`;
 }
 
+function isSafeRemoteSessionListScopeRef(scopeRef: unknown): boolean {
+  if (scopeRef === undefined) {
+    return true;
+  }
+  if (!isRecord(scopeRef) || typeof scopeRef.kind !== 'string') {
+    return false;
+  }
+  if (scopeRef.kind === 'general' || scopeRef.kind === 'all-authorized') {
+    return true;
+  }
+  return (
+    scopeRef.kind === 'project' &&
+    typeof scopeRef.projectId === 'string' &&
+    isRemoteProjectId(scopeRef.projectId)
+  );
+}
+
 function isSafeRemoteCommand(command: HostCommand): boolean {
   switch (command.type) {
+    case 'activity/summary':
+      return (
+        command.maxItems === undefined ||
+        (typeof command.maxItems === 'number' &&
+          Number.isSafeInteger(command.maxItems) &&
+          command.maxItems > 0 &&
+          command.maxItems <= ACTIVITY_SUMMARY_MAX_ITEMS)
+      );
     case 'session/list':
       return (
         command.projectPath === undefined &&
         (command.scope === undefined || command.scope.kind === 'general') &&
+        isSafeRemoteSessionListScopeRef(command.scopeRef) &&
         (command.allScopes === undefined || command.allScopes === true || command.allScopes === false) &&
         (command.order === undefined ||
           command.order === 'updated' ||

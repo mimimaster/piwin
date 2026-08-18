@@ -9,8 +9,19 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { contentKindForMimeType, type MediaAttachmentRef } from '@piwin/contracts';
+import {
+  createLimitedPreviewUrlFromHref,
+  TRANSCRIPT_THUMB_MAX_EDGE_PX,
+} from './media-preview-bitmap';
 import { resolveMediaPreviewUrl } from './media-utils';
-import { IconClose, IconDocument } from './shell-icons';
+import {
+  IconCheck,
+  IconClose,
+  IconCopy,
+  IconDocument,
+  IconDownload,
+  IconExpand,
+} from './shell-icons';
 
 function fileNameFromPath(path: string): string {
   return path.split('/').pop() ?? 'attachment';
@@ -22,6 +33,59 @@ function isImageMimeType(mimeType: string): boolean {
 
 function isVideoMimeType(mimeType: string): boolean {
   return mimeType.toLowerCase().startsWith('video/');
+}
+
+async function copyImageToClipboard(srcUrl: string): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.write) {
+    return false;
+  }
+  try {
+    const res = await fetch(srcUrl);
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    if (blob.type === 'image/png') {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      return true;
+    }
+    if (typeof document !== 'undefined') {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = srcUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        const pngBlob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, 'image/png'),
+        );
+        if (pngBlob) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+          return true;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[media-preview] copy image failed:', err);
+  }
+  return false;
+}
+
+function downloadMediaFile(srcUrl: string, fileName: string): void {
+  if (typeof document === 'undefined') return;
+  const link = document.createElement('a');
+  link.href = srcUrl;
+  link.download = fileName;
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 /**
@@ -118,40 +182,93 @@ export function MediaLightbox(props: {
 
 export function MediaPreview(props: {
   attachment: MediaAttachmentRef;
-  previewUrl?: string;
-  compact?: boolean;
+  previewUrl?: string | undefined;
+  lightboxUrl?: string | undefined;
+  compact?: boolean | undefined;
+  hero?: boolean | undefined;
+  role?: 'user' | 'assistant' | 'system' | 'tool' | undefined;
+  locale?: 'zh-CN' | 'en' | undefined;
 }): ReactElement {
-  const [url, setUrl] = useState<string | null>(props.previewUrl ?? null);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(props.previewUrl ?? null);
+  const [fullUrl, setFullUrl] = useState<string | null>(
+    props.lightboxUrl ?? props.previewUrl ?? null,
+  );
   const [loadFailed, setLoadFailed] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const isChinese = props.locale !== 'en';
   const fileLabel = props.attachment.name?.trim() || fileNameFromPath(props.attachment.path);
   const contentKind =
     props.attachment.contentKind ?? contentKindForMimeType(props.attachment.mimeType);
   const isFileCard = contentKind === 'text' || contentKind === 'document';
+  const isVideo = isVideoMimeType(props.attachment.mimeType);
+  const isAssistant = props.role === 'assistant' || props.hero === true;
   const canOpenLightbox =
-    Boolean(url) && !loadFailed && !isFileCard && isImageMimeType(props.attachment.mimeType);
+    Boolean(fullUrl) &&
+    Boolean(thumbUrl) &&
+    !loadFailed &&
+    !isFileCard &&
+    isImageMimeType(props.attachment.mimeType);
 
   useEffect(() => {
     setLoadFailed(false);
     setLightboxOpen(false);
     if (isFileCard) {
-      setUrl(null);
+      setThumbUrl(null);
+      setFullUrl(null);
       return;
     }
     if (props.previewUrl) {
-      setUrl(props.previewUrl);
+      setThumbUrl(props.previewUrl);
+      setFullUrl(props.lightboxUrl ?? props.previewUrl);
+      return;
+    }
+    // Composer chip still encoding: do not resolve pending:// and do not
+    // put the original File URL on the 48px <img>.
+    if (props.lightboxUrl) {
+      setThumbUrl(null);
+      setFullUrl(props.lightboxUrl);
       return;
     }
     let cancelled = false;
-    void resolveMediaPreviewUrl(props.attachment.path).then((resolved) => {
-      if (!cancelled) {
-        setUrl(resolved);
+    let ownedThumb: string | null = null;
+    void (async () => {
+      const resolved = await resolveMediaPreviewUrl(props.attachment.path);
+      if (cancelled) {
+        return;
       }
-    });
+      if (!resolved) {
+        setThumbUrl(null);
+        setFullUrl(null);
+        return;
+      }
+      setFullUrl(resolved);
+      if (isVideo) {
+        setThumbUrl(resolved);
+        return;
+      }
+      const limited = await createLimitedPreviewUrlFromHref(
+        resolved,
+        TRANSCRIPT_THUMB_MAX_EDGE_PX,
+      );
+      if (cancelled) {
+        if (limited.owned) {
+          URL.revokeObjectURL(limited.url);
+        }
+        return;
+      }
+      setThumbUrl(limited.url);
+      if (limited.owned) {
+        ownedThumb = limited.url;
+      }
+    })();
     return () => {
       cancelled = true;
+      if (ownedThumb) {
+        URL.revokeObjectURL(ownedThumb);
+      }
     };
-  }, [isFileCard, props.attachment.path, props.previewUrl]);
+  }, [isFileCard, isVideo, props.attachment.path, props.lightboxUrl, props.previewUrl]);
 
   function openLightbox(event: MouseEvent | KeyboardEvent): void {
     if (!canOpenLightbox) {
@@ -166,6 +283,26 @@ export function MediaPreview(props: {
   const closeLightbox = useCallback((): void => {
     setLightboxOpen(false);
   }, []);
+
+  async function handleCopy(event: MouseEvent): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    const targetUrl = fullUrl ?? thumbUrl;
+    if (!targetUrl) return;
+    const ok = await copyImageToClipboard(targetUrl);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  function handleDownload(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const targetUrl = fullUrl ?? thumbUrl;
+    if (!targetUrl) return;
+    downloadMediaFile(targetUrl, fileLabel);
+  }
 
   if (isFileCard) {
     return (
@@ -185,7 +322,7 @@ export function MediaPreview(props: {
     );
   }
 
-  if (!url || loadFailed) {
+  if (!thumbUrl || loadFailed) {
     return (
       <div className={props.compact ? 'media-chip-fallback' : 'media-preview-fallback'}>
         {props.attachment.mimeType} · {props.attachment.byteSize}B
@@ -194,43 +331,108 @@ export function MediaPreview(props: {
     );
   }
 
-  if (isVideoMimeType(props.attachment.mimeType)) {
+  if (isVideo) {
     return (
-      <video
-        className={props.compact ? 'media-chip-video' : 'media-preview-video'}
-        src={url}
-        controls
-        preload="metadata"
-        playsInline
-        aria-label={fileLabel}
-        onError={() => setLoadFailed(true)}
-        onClick={(event) => event.stopPropagation()}
-        onMouseDown={(event) => event.stopPropagation()}
-      />
+      <div className={props.compact ? 'media-chip-video-container' : 'media-preview-video-container'}>
+        <video
+          className={
+            props.compact
+              ? 'media-chip-video'
+              : props.hero
+                ? 'media-preview-video is-hero'
+                : 'media-preview-video'
+          }
+          src={thumbUrl}
+          controls
+          preload="metadata"
+          playsInline
+          aria-label={fileLabel}
+          onError={() => setLoadFailed(true)}
+          onClick={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+        />
+      </div>
     );
   }
 
+  const showToolbar = !props.compact && isAssistant && !loadFailed && Boolean(thumbUrl);
+
   return (
-    <>
+    <div
+      className={
+        props.compact
+          ? 'media-chip-container'
+          : `media-preview-container${props.hero ? ' is-hero' : ''}`
+      }
+      data-testid="media-preview-container"
+    >
       <button
         type="button"
-        className={props.compact ? 'media-chip-thumb-button' : 'media-preview-image-button'}
+        className={
+          props.compact
+            ? 'media-chip-thumb-button'
+            : `media-preview-image-button${props.hero ? ' is-hero' : ''}`
+        }
         onClick={openLightbox}
         onMouseDown={(event) => event.stopPropagation()}
         aria-label={`Preview ${fileLabel}`}
         data-testid="media-preview-open"
       >
         <img
-          className={props.compact ? 'media-chip-thumb' : 'media-preview-image'}
-          src={url}
+          className={
+            props.compact
+              ? 'media-chip-thumb'
+              : `media-preview-image${props.hero ? ' is-hero' : ''}`
+          }
+          src={thumbUrl}
           alt={fileLabel}
+          decoding="async"
           draggable={false}
           onError={() => setLoadFailed(true)}
         />
       </button>
-      {lightboxOpen ? (
-        <MediaLightbox open={lightboxOpen} url={url} label={fileLabel} onClose={closeLightbox} />
+
+      {showToolbar ? (
+        <div
+          className="media-preview-toolbar"
+          role="toolbar"
+          aria-label={isChinese ? '图片操作' : 'Media actions'}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className={`media-preview-toolbar-btn${copied ? ' copied' : ''}`}
+            title={copied ? (isChinese ? '已复制' : 'Copied!') : isChinese ? '复制图片' : 'Copy image'}
+            aria-label={isChinese ? '复制图片' : 'Copy image'}
+            onClick={handleCopy}
+          >
+            {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
+          </button>
+          <button
+            type="button"
+            className="media-preview-toolbar-btn"
+            title={isChinese ? '下载图片' : 'Download image'}
+            aria-label={isChinese ? '下载图片' : 'Download image'}
+            onClick={handleDownload}
+          >
+            <IconDownload width={14} height={14} />
+          </button>
+          <button
+            type="button"
+            className="media-preview-toolbar-btn"
+            title={isChinese ? '全屏查看' : 'Fullscreen preview'}
+            aria-label={isChinese ? '全屏查看' : 'Fullscreen preview'}
+            onClick={openLightbox}
+          >
+            <IconExpand width={14} height={14} />
+          </button>
+        </div>
       ) : null}
-    </>
+
+      {lightboxOpen && fullUrl ? (
+        <MediaLightbox open={lightboxOpen} url={fullUrl} label={fileLabel} onClose={closeLightbox} />
+      ) : null}
+    </div>
   );
 }

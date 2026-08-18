@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PromptContextRef } from '@piwin/contracts';
 import { createInitialChatUiState, type ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
+import * as previewBitmap from '../media-preview-bitmap.js';
 import {
   MAX_RETAINED_SESSION_COMPOSER_SNAPSHOTS,
   useComposerMedia,
@@ -18,6 +19,18 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 // Image encode/decode paths are DOM-canvas based; keep the deferred-save tests
 // deterministic by stubbing only the binary preparation helpers.
+// happy-dom cannot decode PNG bytes; keep lightbox object-URL behavior and
+// skip the async limited-bitmap fill so existing paste tests stay quiet.
+vi.mock('../media-preview-bitmap.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media-preview-bitmap.js')>();
+  return {
+    ...actual,
+    beginComposerImagePreview: (file: File) => ({
+      lightboxUrl: URL.createObjectURL(file),
+    }),
+  };
+});
+
 vi.mock('../media-utils.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../media-utils.js')>();
   return {
@@ -230,6 +243,63 @@ describe('useComposerMedia session transitions', () => {
 
     createObjectUrlSpy.mockRestore();
     revokeObjectUrlSpy.mockRestore();
+  });
+
+  it('does not put the original File object URL on the composer chip preview', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = { request: vi.fn() } as unknown as HostClient;
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) {
+        throw new Error('composer media hook was not rendered');
+      }
+      return captured;
+    };
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+      });
+      return null;
+    }
+
+    const beginSpy = vi
+      .spyOn(previewBitmap, 'beginComposerImagePreview')
+      .mockImplementation((file, onReady, isCancelled) => {
+        queueMicrotask(() => {
+          if (!isCancelled()) {
+            onReady('blob:limited');
+          }
+        });
+        return { lightboxUrl: `blob:mock-${file.name}` };
+      });
+
+    act(() =>
+      root?.render(
+        <Harness
+          state={{
+            ...createInitialChatUiState(),
+            activeSessionId: 'session-preview',
+          }}
+        />,
+      ),
+    );
+    pasteImage(latest);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const chip = latest().pendingAttachments[0];
+    expect(chip?.lightboxUrl).toBe('blob:mock-screenshot.png');
+    expect(chip?.previewUrl).toBe('blob:limited');
+    expect(chip?.previewUrl).not.toBe(chip?.lightboxUrl);
+
+    beginSpy.mockRestore();
   });
 
   it('uses a phantom sidebar row only for an unsent New Agent draft', () => {

@@ -111,7 +111,8 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
     descriptor: {
       name: 'video_gen',
       description:
-        'Generate a short video from text or an image reference; returns a local media attachment after the provider task completes. ' +
+        'Generate a short video from text or an image reference. The client UI already previews the attachment. ' +
+        'After success, comment briefly if useful — do not embed markdown videos or local file paths. ' +
         'Not for video editing or long-form production.',
       parameters: {
         type: 'object',
@@ -213,10 +214,14 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
         ok: true,
         output: JSON.stringify(
           {
-            paths: [asset.absolutePath],
+            status: 'success',
+            videoCount: 1,
+            mediaIds: [asset.id],
             mimeType: asset.mimeType,
             byteSize: asset.byteSize,
-            providerTaskId: generated.providerTaskId,
+            ...(generated.providerTaskId ? { providerTaskId: generated.providerTaskId } : {}),
+            notice:
+              'The client UI already rendered this video as an attachment. Do not embed markdown videos or local file paths in your reply.',
           },
           null,
           2,

@@ -4,7 +4,7 @@
  */
 import { useState, type ReactElement } from 'react';
 import type { ProductSessionLineageView } from '@piwin/contracts';
-import { IconArrowFork, IconCheck, IconCopy, IconGit } from '@piwin/ui-kit';
+import { IconArrowFork, IconCheck, IconCopy, IconGit, IconRefresh } from '@piwin/ui-kit';
 import { writeTextToSystemClipboard } from './desktop-clipboard';
 import { SessionLineagePopover } from './session-lineage-popover';
 
@@ -13,6 +13,7 @@ export type AssistantResponseActionsProps = {
   messageText?: string;
   showDuplicate: boolean;
   showFork: boolean;
+  showRegenerate?: boolean;
   /** Number of direct forks from this response (0 = no count badge). */
   directForkCount: number;
   /** Complete product lineage for the active session, when available. */
@@ -22,6 +23,7 @@ export type AssistantResponseActionsProps = {
   disabled: boolean;
   onDuplicate: () => void;
   onFork: (messageId: string) => void;
+  onRegenerate?: () => void;
   onOpenForks?: ((messageId: string) => void) | undefined;
   onOpenSession?: ((sessionId: string) => void) | undefined;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
@@ -37,9 +39,10 @@ export function AssistantResponseActions(
 
   const hasCopyText = Boolean(props.messageText && props.messageText.trim().length > 0);
 
-  if (!props.showDuplicate && !props.showFork && !hasCopyText) return null;
+  if (!props.showDuplicate && !props.showFork && !props.showRegenerate && !hasCopyText) return null;
 
   const copyLabel = props.locale === 'zh-CN' ? '复制消息内容' : 'Copy message';
+  const regenerateLabel = props.locale === 'zh-CN' ? '再生成' : 'Regenerate';
   const duplicateLabel = props.locale === 'zh-CN' ? '复制整个会话' : 'Duplicate conversation';
   const forkLabel = props.locale === 'zh-CN' ? '从此处分叉' : 'Fork from here';
 
@@ -94,9 +97,19 @@ export function AssistantResponseActions(
             ) : (
               <IconCopy width={17} height={17} stroke={1.8} />
             )}
-            <span className="assistant-action-tooltip" role="tooltip">
-              {copyLabel}
-            </span>
+          </button>
+        ) : null}
+        {props.showRegenerate && props.onRegenerate ? (
+          <button
+            type="button"
+            className="msg-action-btn"
+            onClick={props.onRegenerate}
+            disabled={props.disabled}
+            title={regenerateLabel}
+            aria-label={regenerateLabel}
+            data-testid="response-regenerate-btn"
+          >
+            <IconRefresh width={17} height={17} stroke={1.8} />
           </button>
         ) : null}
         {props.showDuplicate ? (
@@ -110,9 +123,6 @@ export function AssistantResponseActions(
             data-testid="response-duplicate-btn"
           >
             <IconArrowFork width={17} height={17} stroke={1.8} />
-            <span className="assistant-action-tooltip" role="tooltip">
-              {duplicateLabel}
-            </span>
           </button>
         ) : null}
         {props.showFork ? (
@@ -126,9 +136,6 @@ export function AssistantResponseActions(
             data-testid="response-fork-btn"
           >
             <IconGit width={17} height={17} stroke={1.8} />
-            <span className="assistant-action-tooltip" role="tooltip">
-              {forkLabel}
-            </span>
           </button>
         ) : null}
         {props.lineage && props.onOpenSession ? (

@@ -1,9 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  applyChipPreviewUrl,
+  commitLimitedChipPreview,
   fileToBase64,
   isPendingAttachmentReady,
   prepareComposerImageForSave,
   resolveImageMimeType,
+  revokePendingAttachmentUrls,
   type PendingComposerAttachment,
 } from './media-utils';
 
@@ -83,5 +86,56 @@ describe('media-utils', () => {
     expect(isPendingAttachmentReady(saving)).toBe(false);
     expect(isPendingAttachmentReady(failed)).toBe(false);
     expect(isPendingAttachmentReady(web)).toBe(true);
+  });
+
+  it('revokes preview and lightbox URLs when they differ', () => {
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    revokePendingAttachmentUrls({
+      localId: '1',
+      previewUrl: 'blob:thumb',
+      lightboxUrl: 'blob:full',
+      attachment: {
+        id: '1',
+        kind: 'media',
+        path: '/tmp/.piwin/media/s/a.png',
+        mimeType: 'image/png',
+        byteSize: 10,
+        source: 'paste',
+      },
+    });
+    expect(revoke).toHaveBeenCalledWith('blob:thumb');
+    expect(revoke).toHaveBeenCalledWith('blob:full');
+    revoke.mockRestore();
+  });
+
+  it('commits a late chip preview onto live and snapshot lists', () => {
+    const live: PendingComposerAttachment[] = [
+      {
+        localId: 'chip-1',
+        previewUrl: '',
+        lightboxUrl: 'blob:full',
+        uploadStatus: 'queued',
+        attachment: {
+          id: 'chip-1',
+          kind: 'media',
+          path: 'pending://chip-1',
+          mimeType: 'image/png',
+          byteSize: 4,
+          source: 'paste',
+        },
+      },
+    ];
+    const snapshot = { attachments: [...live] };
+    const committed = commitLimitedChipPreview({
+      localId: 'chip-1',
+      previewUrl: 'blob:thumb',
+      cancelled: false,
+      live,
+      snapshots: [snapshot],
+    });
+    expect(committed.keep).toBe(true);
+    expect(committed.live[0]?.previewUrl).toBe('blob:thumb');
+    expect(snapshot.attachments[0]?.previewUrl).toBe('blob:thumb');
+    expect(applyChipPreviewUrl(live, 'missing', 'blob:x').found).toBe(false);
   });
 });

@@ -1517,6 +1517,12 @@ function createControlContext(
     getForegroundRun: (sessionId) => registry.getForegroundRun(sessionId),
     registerForegroundRun: (sessionId, resumeCheckpointId) =>
       registry.createForegroundRun(sessionId, undefined, resumeCheckpointId),
+    replaceForegroundRun: (sessionId, previousRunId, resumeCheckpointId) =>
+      registry.replaceForegroundRun(sessionId, previousRunId, undefined, resumeCheckpointId),
+    tryReservePromptAdmission: () => true,
+    releasePromptAdmission: (): void => undefined,
+    isPromptAdmissionReserved: () => false,
+    joinRun: (runId) => registry.join(runId),
     getRunSignal: (runId) => registry.getSignal(runId),
     hasRunReceivedFirstToken: (runId) => registry.hasFirstToken(runId),
     requestCancelRun: (_sessionId, runId) =>

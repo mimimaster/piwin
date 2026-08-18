@@ -1,0 +1,125 @@
+/* Region: Conversation Message Chrome (Header, Usage Chip, User Bubble, Action Hover)
+   Owns assistant message header, per-turn usage chip, right-aligned user bubble,
+   and hoverable assistant footer dock. */
+
+/* ─── Conversation Assistant Header ─────────────────────────────────── */
+
+.conversation-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-height: 22px;
+  user-select: none;
+}
+
+.conversation-message-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.conversation-message-provider-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.conversation-message-model-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.conversation-message-provider-name {
+  font-size: 12px;
+  color: var(--muted, var(--faint, #777));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.conversation-message-time {
+  font-size: 11px;
+  color: var(--faint, #888);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+/* ─── Turn Usage Chip ───────────────────────────────────────────────── */
+
+.conversation-message-usage-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  color: var(--muted, #666);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+}
+
+.conversation-message-usage-chip.is-estimated {
+  font-style: italic;
+  opacity: 0.88;
+}
+
+/* ─── Conversation User Bubble & Light Avatar ───────────────────────── */
+
+.bubble.role-user.is-conversation-bubble {
+  max-width: 76%;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.user-message-wrapper.is-conversation {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.user-message-wrapper.is-conversation .user-message-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.user-message-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent, #3b82f6) 15%, var(--sidebar, #e2e8f0));
+  color: var(--accent, #3b82f6);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  user-select: none;
+  margin-top: 1px;
+}
+
+/* ─── Assistant Response Actions (Unified Dock) ─────────────────────── */
+
+.chat-message-row.role-assistant .assistant-response-actions {
+  opacity: 1;
+}

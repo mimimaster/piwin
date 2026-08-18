@@ -19,6 +19,7 @@
     "lint": "echo \"lint ok (mobile)\""
   },
   "dependencies": {
+    "@piwin/artifact": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/host-client": "workspace:*",
     "@piwin/host-transport": "workspace:*",

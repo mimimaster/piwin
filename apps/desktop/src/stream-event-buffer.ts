@@ -5,6 +5,7 @@ export type StreamEventBuffer = {
   push: (sessionId: string, event: AgentEvent, envelope?: AgentEventEnvelope) => void;
   flush: () => void;
   dispose: () => void;
+  reset: () => void;
 };
 
 export type StreamEventBufferOptions = {
@@ -100,5 +101,13 @@ export function createStreamEventBuffer(
     flush();
   }
 
-  return { push, flush, dispose };
+  function reset(): void {
+    if (frameHandle !== null) {
+      cancelFrame(frameHandle);
+      frameHandle = null;
+    }
+    pendingEvents = [];
+  }
+
+  return { push, flush, dispose, reset };
 }

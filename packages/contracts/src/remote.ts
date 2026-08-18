@@ -99,6 +99,35 @@ export type TrustedDevicePublic = {
 };
 
 /**
+ * Credential returned exactly once when a pairing token is consumed. The raw
+ * secret is presented on later hellos. The Host must never persist it or
+ * include it in a public device listing.
+ */
+export type TrustedDeviceCredential = {
+  deviceId: string;
+  deviceSecret: string;
+};
+
+/** Result of a successful one-use pairing enrollment. */
+export type PairingCompletion = {
+  credential: TrustedDeviceCredential;
+  device: TrustedDevicePublic;
+};
+
+export function isTrustedDeviceCredential(value: unknown): value is TrustedDeviceCredential {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'deviceId' in value &&
+    'deviceSecret' in value &&
+    typeof value.deviceId === 'string' &&
+    value.deviceId.trim().length > 0 &&
+    typeof value.deviceSecret === 'string' &&
+    value.deviceSecret.trim().length > 0
+  );
+}
+
+/**
  * The W4 §3 "WebUI capability subset" — what a remote client may do.
  *
  * Default-deny surfaces stay false; the host enforces this policy at the

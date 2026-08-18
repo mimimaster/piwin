@@ -5,14 +5,16 @@ export type MobileArtifactSheetProps = {
   isOpen: boolean;
   onClose: () => void;
   title?: string | undefined;
-  htmlContent: string;
+  srcdoc?: string | undefined;
+  blockedReason?: string | undefined;
 };
 
 export function MobileArtifactSheet({
   isOpen,
   onClose,
   title = '交互式 Web 产物预览',
-  htmlContent,
+  srcdoc,
+  blockedReason,
 }: MobileArtifactSheetProps): ReactElement | null {
   const [viewportMode, setViewportMode] = useState<'mobile' | 'full'>('full');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -22,14 +24,9 @@ export function MobileArtifactSheet({
     return null;
   }
 
-  const handleRefresh = () => {
-    setRefreshKey((k) => k + 1);
-  };
-
   return (
     <div className="mobile-drawer-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="mobile-artifact-sheet" onClick={(e) => e.stopPropagation()}>
-        {/* Sheet Top Bar */}
+      <div className="mobile-artifact-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="mobile-artifact-header">
           <div className="mobile-artifact-title-group">
             <span className="artifact-icon">📱</span>
@@ -40,7 +37,6 @@ export function MobileArtifactSheet({
           </div>
 
           <div className="mobile-artifact-actions">
-            {/* Viewport mode toggle */}
             <div className="artifact-viewport-toggle">
               <button
                 type="button"
@@ -60,17 +56,15 @@ export function MobileArtifactSheet({
               </button>
             </div>
 
-            {/* Refresh */}
             <button
               type="button"
               className="artifact-header-btn"
-              onClick={handleRefresh}
+              onClick={() => setRefreshKey((key) => key + 1)}
               aria-label="重新加载"
             >
               🔄
             </button>
 
-            {/* Close */}
             <button
               type="button"
               className="mobile-drawer-close-btn"
@@ -82,16 +76,20 @@ export function MobileArtifactSheet({
           </div>
         </div>
 
-        {/* Iframe Viewport Container */}
         <div className={`mobile-artifact-viewport-wrap ${viewportMode}`}>
-          <iframe
-            key={refreshKey}
-            ref={iframeRef}
-            title={title}
-            srcDoc={htmlContent}
-            className="mobile-artifact-iframe"
-            sandbox="allow-scripts allow-forms allow-same-origin"
-          />
+          {blockedReason !== undefined || srcdoc === undefined ? (
+            <p className="mobile-artifact-blocked">{blockedReason ?? '无法预览该产物。'}</p>
+          ) : (
+            <iframe
+              key={refreshKey}
+              ref={iframeRef}
+              title={title}
+              srcDoc={srcdoc}
+              className="mobile-artifact-iframe"
+              sandbox="allow-scripts"
+              referrerPolicy="no-referrer"
+            />
+          )}
         </div>
       </div>
     </div>

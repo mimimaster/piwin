@@ -1,34 +1,36 @@
 /**
- * Resolve `${SECRET_NAME}` placeholders in MCP env values against collected
+ * Resolve `${SECRET_NAME}` placeholders in MCP env / args against collected
  * secrets. Throws if a required placeholder has no value.
  */
+const PLACEHOLDER_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
+
+export function resolveSecretText(
+  value: string,
+  secrets: Record<string, string>,
+  path: string,
+): string {
+  return value.replace(PLACEHOLDER_PATTERN, (match, name: string) => {
+    const replacement = secrets[name];
+    if (replacement === undefined || replacement.length === 0) {
+      throw new Error(`Missing secret value for placeholder ${match} in ${path}`);
+    }
+    return replacement;
+  });
+}
+
 export function resolveSecretEnv(
   env: Record<string, string>,
   secrets: Record<string, string>,
 ): Record<string, string> {
   const resolved: Record<string, string> = {};
   for (const [key, rawValue] of Object.entries(env)) {
-    resolved[key] = replacePlaceholders(rawValue, secrets, key);
+    resolved[key] = resolveSecretText(rawValue, secrets, `env.${key}`);
   }
   return resolved;
 }
 
-const PLACEHOLDER_PATTERN = /\$\{([A-Z0-9_]+)\}/g;
-
-function replacePlaceholders(
-  value: string,
-  secrets: Record<string, string>,
-  envKey: string,
-): string {
-  return value.replace(PLACEHOLDER_PATTERN, (match, name: string) => {
-    const replacement = secrets[name];
-    if (replacement === undefined || replacement.length === 0) {
-      throw new Error(
-        `Missing secret value for placeholder ${match} in env.${envKey}`,
-      );
-    }
-    return replacement;
-  });
+export function resolveSecretArgs(args: string[], secrets: Record<string, string>): string[] {
+  return args.map((arg, index) => resolveSecretText(arg, secrets, `args[${index}]`));
 }
 
 /** Collect placeholder names referenced in env values. */

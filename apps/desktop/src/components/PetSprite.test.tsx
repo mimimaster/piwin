@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { DEFAULT_PET_STATE_ROWS, type PetRuntimeSnapshot } from '@piwin/contracts';
+import { PET_ACTION_DURATION_MS } from './pet-sprite-animation.js';
 import { PetSprite } from './PetSprite.js';
 
 declare global {
@@ -138,9 +139,10 @@ describe('PetSprite animation loop', () => {
 
   /** Flush the queued image `onload` microtask so `imageRef` is populated. */
   async function flushImageLoad(): Promise<void> {
-    // Two awaits cover the queueMicrotask plus any nested microtask scheduling.
-    await Promise.resolve();
-    await Promise.resolve();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
   }
 
   function driveFrame(now: number): void {
@@ -174,17 +176,29 @@ describe('PetSprite animation loop', () => {
     });
   }
 
-  it('schedules the loop exactly once on mount and cancels it only on unmount', async () => {
+  it('does not keep rAF running while idle with no hover and no bubble', async () => {
     mount();
-    expect(rafScheduleCount).toBe(1);
-    expect(rafCancelCount).toBe(0);
+    await flushImageLoad();
+    if (rafCallback) {
+      driveFrame(0);
+    }
+    const schedulesAfterPaint = rafScheduleCount;
+    expect(rafCallback).toBeNull();
+
+    nowValue = 1_000;
+    expect(rafScheduleCount).toBe(schedulesAfterPaint);
+    expect(rafCallback).toBeNull();
+  });
+
+  it('keeps a single rAF loop while the pet is running', async () => {
+    mount(createPet({ state: 'running' }));
+    await flushImageLoad();
     expect(rafCallback).not.toBeNull();
 
     driveFrame(0);
     driveFrame(16);
     driveFrame(32);
-    // Each tick reschedules exactly one new frame; no extra schedules appeared.
-    expect(rafScheduleCount).toBe(4);
+    expect(rafScheduleCount).toBeGreaterThanOrEqual(4);
     expect(rafCancelCount).toBe(0);
 
     act(() => {
@@ -193,8 +207,8 @@ describe('PetSprite animation loop', () => {
     expect(rafCancelCount).toBe(1);
   });
 
-  it('does not cancel or restart the rAF loop on mouse enter/leave', async () => {
-    const sprite = mount();
+  it('does not cancel or restart the rAF loop on mouse enter/leave while running', async () => {
+    const sprite = mount(createPet({ state: 'running' }));
     await flushImageLoad();
 
     driveFrame(0);
@@ -203,7 +217,6 @@ describe('PetSprite animation loop', () => {
     expect(rafCancelCount).toBe(0);
 
     hoverEnter(sprite);
-    // Hover must not cancel the pending frame or schedule a new burst.
     expect(rafCancelCount).toBe(0);
     expect(rafScheduleCount).toBe(schedulesBeforeHover);
     expect(rafCallback).not.toBeNull();
@@ -213,7 +226,6 @@ describe('PetSprite animation loop', () => {
     expect(rafScheduleCount).toBe(schedulesBeforeHover);
     expect(rafCallback).not.toBeNull();
 
-    // The same loop keeps advancing frames after the hover cycle.
     driveFrame(32);
     driveFrame(48);
     expect(rafScheduleCount).toBe(schedulesBeforeHover + 2);
@@ -221,7 +233,7 @@ describe('PetSprite animation loop', () => {
   });
 
   it('keeps drawing sprite frames across hover transitions', async () => {
-    const sprite = mount();
+    const sprite = mount(createPet({ state: 'running' }));
     await flushImageLoad();
 
     driveFrame(0);
@@ -247,9 +259,9 @@ describe('PetSprite animation loop', () => {
     const sprite = mount(pet);
     await flushImageLoad();
 
-    // Steady-state idle frames (row 0 → sourceY 0).
-    driveFrame(0);
-    driveFrame(16);
+    if (rafCallback) {
+      driveFrame(0);
+    }
     expect(lastDrawSourceY()).toBe(0);
 
     // Hover enter while idle arms a `waving` temp action for ACTION_DURATION_MS (1200).
@@ -274,7 +286,9 @@ describe('PetSprite animation loop', () => {
     const sprite = mount(pet);
     await flushImageLoad();
 
-    driveFrame(0);
+    if (rafCallback) {
+      driveFrame(0);
+    }
     nowValue = 100;
     hoverEnter(sprite);
     driveFrame(100);
@@ -294,15 +308,6 @@ describe('PetSprite animation loop', () => {
     const sprite = mount(pet);
     await flushImageLoad();
 
-    driveFrame(0);
-    for (let index = 1; index <= 6; index += 1) {
-      driveFrame(index * 200);
-    }
-
-    const idleDraws = drawCalls.filter((draw) => draw[2] === pet.stateRows['idle'] * cellHeight);
-    expect(idleDraws.length).toBeGreaterThan(0);
-    expect(idleDraws.every((draw) => draw[1] < 6 * pet.cellWidth)).toBe(true);
-
     nowValue = 1500;
     hoverEnter(sprite);
     driveFrame(1500);
@@ -315,33 +320,55 @@ describe('PetSprite animation loop', () => {
     );
     expect(wavingDraws.length).toBeGreaterThan(0);
     expect(wavingDraws.every((draw) => draw[1] < 5 * pet.cellWidth)).toBe(true);
+
+    driveFrame(1500 + PET_ACTION_DURATION_MS);
+    for (let index = 1; index <= 6; index += 1) {
+      driveFrame(1500 + PET_ACTION_DURATION_MS + index * 200);
+    }
+    const idleDraws = drawCalls.filter((draw) => draw[2] === pet.stateRows['idle'] * cellHeight);
+    expect(idleDraws.length).toBeGreaterThan(0);
+    expect(idleDraws.every((draw) => draw[1] < 6 * pet.cellWidth)).toBe(true);
   });
 
   it('resets the animation column to 0 when switching states to avoid mid-animation jumps', async () => {
-    const pet = createPet();
-    const sprite = mount(pet);
+    const pet = createPet({ state: 'running' });
+    mount(pet);
     await flushImageLoad();
 
-    // Advance 5 frames in idle mode so frameRef is non-zero
     nowValue = 0;
     driveFrame(0);
     for (let i = 1; i <= 5; i++) {
-      nowValue += 200; // > frameMs (166.6ms)
+      nowValue += 200;
       driveFrame(nowValue);
     }
-    // Verify column was non-zero before transition
     const lastDraw = drawCalls[drawCalls.length - 1];
     expect(lastDraw?.[1]).toBeGreaterThan(0);
 
-    // Trigger state change (hover enter -> waving)
+    act(() => {
+      root.render(<PetSprite pet={createPet({ state: 'review' })} />);
+    });
     nowValue += 50;
-    hoverEnter(sprite);
     driveFrame(nowValue);
 
-    // First frame of waving MUST start at col 0 (sx = 0)
     const newDraw = drawCalls[drawCalls.length - 1];
     expect(newDraw?.[1]).toBe(0);
-    expect(newDraw?.[2]).toBe(pet.stateRows['waving'] * pet.cellHeight);
+    expect(newDraw?.[2]).toBe(pet.stateRows['review'] * pet.cellHeight);
+  });
+
+  it('cancels rAF when the document is hidden', async () => {
+    mount(createPet({ state: 'running' }));
+    await flushImageLoad();
+    driveFrame(0);
+    expect(rafCallback).not.toBeNull();
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(rafCallback).toBeNull();
   });
 
   it('keeps the overlay hide control separate from the pet click action', async () => {

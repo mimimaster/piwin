@@ -12,8 +12,9 @@ import type {
   HostSnapshotFrame,
   HostWireErrorCode,
   HostWireMessage,
+  TrustedDeviceCredential,
 } from '@piwin/contracts';
-import { HOST_PROTOCOL_VERSION } from '@piwin/contracts';
+import { HOST_PROTOCOL_VERSION, isTrustedDeviceCredential } from '@piwin/contracts';
 import type { HostTransport, HostTransportState } from '@piwin/host-transport';
 
 export type HostClientState =
@@ -55,6 +56,11 @@ export type HostClientOptions = {
   clientType: 'mobile' | 'desktop' | 'cli' | 'web';
   clientVersion: string;
   authToken?: string;
+  pairingToken?: string;
+  deviceCredential?: TrustedDeviceCredential;
+  deviceName?: string;
+  /** Called once when host/hello returns a newly issued device secret. */
+  onIssuedDeviceCredential?: (credential: TrustedDeviceCredential) => Promise<void> | void;
   lastSeqStore?: HostClientLastSeqStore;
   cursorStore?: HostClientCursorStore;
   capabilities?: HostClientCapabilities;
@@ -76,6 +82,7 @@ type PendingRequest = {
 const READ_ONLY_COMMANDS = new Set([
   'host/ping',
   'host/status',
+  'activity/summary',
   'project/list',
   'session/list',
   'models/configured',
@@ -98,7 +105,13 @@ export class HostClient {
   private readonly clientId: string;
   private readonly clientType: HostClientOptions['clientType'];
   private readonly clientVersion: string;
-  private readonly authToken: string | undefined;
+  private authToken: string | undefined;
+  private pairingToken: string | undefined;
+  private deviceCredential: TrustedDeviceCredential | undefined;
+  private readonly deviceName: string | undefined;
+  private readonly onIssuedDeviceCredential:
+    | ((credential: TrustedDeviceCredential) => Promise<void> | void)
+    | undefined;
   private readonly lastSeqStore: HostClientLastSeqStore;
   private readonly cursorStore: HostClientCursorStore | undefined;
   private readonly capabilities: HostClientCapabilities;
@@ -132,7 +145,18 @@ export class HostClient {
     this.clientId = options.clientId;
     this.clientType = options.clientType;
     this.clientVersion = options.clientVersion;
+    const admissionKeys = countAdmissionKeys(options);
+    if (admissionKeys > 1) {
+      throw new Error('Host client must present exactly one admission key');
+    }
+    if (options.deviceCredential !== undefined && !isTrustedDeviceCredential(options.deviceCredential)) {
+      throw new Error('Host client device credential is invalid');
+    }
     this.authToken = options.authToken;
+    this.pairingToken = options.pairingToken;
+    this.deviceCredential = options.deviceCredential;
+    this.deviceName = options.deviceName;
+    this.onIssuedDeviceCredential = options.onIssuedDeviceCredential;
     this.lastSeqStore = options.lastSeqStore ?? createMemoryLastSeqStore();
     this.cursorStore = options.cursorStore;
     const storedCursor = this.cursorStore?.read();
@@ -204,6 +228,7 @@ export class HostClient {
     try {
       const hello = await this.transport.connect();
       this.hostHello = hello;
+      await this.adoptIssuedDeviceCredential(hello);
       this.publishState({ kind: 'ready' });
       return hello;
     } catch (error) {
@@ -414,8 +439,34 @@ export class HostClient {
       ...(this.hostInstanceId !== undefined ? { lastHostInstanceId: this.hostInstanceId } : {}),
       capabilities: this.capabilities,
       ...(this.subscriptions === undefined ? {} : { subscriptions: this.subscriptions }),
+      ...(this.pairingToken === undefined || this.pairingToken.length === 0
+        ? {}
+        : { pairingToken: this.pairingToken }),
+      ...(this.deviceCredential === undefined ? {} : { deviceCredential: this.deviceCredential }),
+      ...(this.deviceName === undefined || this.deviceName.length === 0
+        ? {}
+        : { deviceName: this.deviceName }),
     };
+    if (this.pairingToken !== undefined || this.deviceCredential !== undefined) {
+      return hello;
+    }
     return this.authToken === undefined ? hello : { ...hello, authToken: this.authToken };
+  }
+
+  private async adoptIssuedDeviceCredential(hello: HostHello): Promise<void> {
+    if (hello.deviceId === undefined || hello.deviceSecret === undefined) {
+      return;
+    }
+    const credential: TrustedDeviceCredential = {
+      deviceId: hello.deviceId,
+      deviceSecret: hello.deviceSecret,
+    };
+    this.deviceCredential = credential;
+    this.pairingToken = undefined;
+    this.authToken = undefined;
+    if (this.onIssuedDeviceCredential !== undefined) {
+      await this.onIssuedDeviceCredential(credential);
+    }
   }
 
   private handlePush(frame: Extract<HostWireMessage, { type: 'push' }>): void {
@@ -633,6 +684,14 @@ function isValidHydrationFrame(frame: HostHydrationFrame): boolean {
     typeof snapshot.messagesBySession === 'object' &&
     snapshot.messagesBySession !== null &&
     Array.isArray(snapshot.truncatedSessionIds)
+  );
+}
+
+function countAdmissionKeys(options: HostClientOptions): number {
+  return (
+    Number(options.authToken !== undefined && options.authToken.length > 0) +
+    Number(options.pairingToken !== undefined && options.pairingToken.trim().length > 0) +
+    Number(options.deviceCredential !== undefined)
   );
 }
 

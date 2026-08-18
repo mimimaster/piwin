@@ -5,7 +5,19 @@ import {
   createSessionHostToolExecutionPort,
 } from './session-host-tool-port.js';
 import { createPermissiveToolAdmission, type HostToolAdmission } from './tool-admission.js';
-import { buildHostToolboxRegistration } from '../host-toolbox.js';
+import { buildHostToolboxRegistration } from '../tool-catalog/catalog-tool.js';
+import type { ToolCatalogService } from '../tool-catalog/catalog-service.js';
+
+function mockCatalog(overrides: Partial<ToolCatalogService> = {}): ToolCatalogService {
+  return {
+    search: async () => ({ ok: true, output: '{"tools":[]}' }),
+    searchMcp: async () => ({ ok: true, output: '{"tools":[]}' }),
+    describeMcp: async () => ({ ok: true, output: '{}' }),
+    callMcp: async () => ({ ok: true, output: 'mcp-ok' }),
+    status: async () => ({ ok: true, output: '{"servers":[]}' }),
+    ...overrides,
+  };
+}
 
 const allowPermission = createPermissiveToolAdmission();
 
@@ -375,6 +387,144 @@ describe('SessionHostToolExecutionPort', () => {
     );
     expect(call).toEqual({ ok: true, output: 'process_start:hello' });
     expect(admittedNames).toEqual(['process_start']);
+  });
+
+  it('searches frozen Host catalog targets without admitting them', async () => {
+    const target = makeTool('process_start');
+    const toolbox = buildHostToolboxRegistration([target]);
+    const port = makePort({ tools: [target, toolbox] });
+    port.restrictGeneration('session-1', 'gen-1', ['piwin_toolbox'], ['process_start']);
+
+    const result = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: { action: 'search', query: 'process' },
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+    const parsed = JSON.parse(result.output) as {
+      tools: Array<{ id: string; schema?: unknown }>;
+    };
+    expect(parsed.tools[0]?.id).toBe('process_start');
+    expect(parsed.tools[0]?.schema).toBeDefined();
+  });
+
+  it('keeps MCP catalog closed unless the compiled generation enabled it', async () => {
+    const calls: string[] = [];
+    const catalog = mockCatalog({
+      search: async () => {
+        calls.push('search');
+        return { ok: true, output: '{"tools":[]}' };
+      },
+      callMcp: async (selector) => {
+        calls.push(`call:${selector}`);
+        return { ok: true, output: 'mcp-ok' };
+      },
+    });
+    const target = makeTool('process_start');
+    const toolbox = buildHostToolboxRegistration([target], { catalog });
+    const port = makePort({ tools: [target, toolbox] });
+    port.restrictGeneration('session-1', 'gen-1', ['piwin_toolbox'], ['process_start']);
+
+    const search = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: { action: 'search', query: 'github' },
+      },
+      new AbortController().signal,
+    );
+    expect(search.ok).toBe(true);
+    expect(calls).toEqual([]);
+
+    const blocked = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: { action: 'call', target: 'github.search', arguments: { q: 'piwin' } },
+      },
+      new AbortController().signal,
+    );
+    expect(blocked).toMatchObject({
+      ok: false,
+      code: 'tool-not-available',
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('routes MCP catalog calls as trusted without Host permission admission', async () => {
+    const admittedNames: string[] = [];
+    const catalog = mockCatalog({
+      callMcp: async (selector, args) => ({
+        ok: true,
+        output: `${selector}:${JSON.stringify(args)}`,
+      }),
+    });
+    const target = makeTool('process_start');
+    target.permissionSpec.readOnly = false;
+    target.permissionSpec.subjectBuilder = () => ({ kind: 'tool', action: 'process:start' });
+    target.prepareArgs = async (args) => ({ ok: true, arguments: args });
+    const toolbox = buildHostToolboxRegistration([target], { catalog });
+    const permissionGate: HostToolAdmission = {
+      ...createPermissiveToolAdmission(),
+      policyEvaluator: {
+        evaluate: ({ registration }) => {
+          admittedNames.push(registration.descriptor.name);
+          return {
+            kind: 'decision',
+            policy: {
+              decision: 'allow',
+              reason: 'test-allow',
+              action: 'filesystem:read',
+              rememberable: false,
+            },
+          };
+        },
+      },
+    };
+    const port = createSessionHostToolExecutionPort({
+      isSessionKnown: () => true,
+      getRuntimeGenerationId: () => 'gen-1',
+    });
+    port.registerActiveGeneration('session-1', 'gen-1', [target, toolbox], permissionGate);
+    expect(
+      port.restrictGeneration(
+        'session-1',
+        'gen-1',
+        ['piwin_toolbox'],
+        ['process_start'],
+        true,
+      ),
+    ).toBe(true);
+
+    const result = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'piwin_toolbox',
+        arguments: {
+          action: 'call',
+          target: 'github.search',
+          arguments: { q: 'piwin' },
+        },
+      },
+      new AbortController().signal,
+    );
+    expect(result).toEqual({ ok: true, output: 'github.search:{"q":"piwin"}' });
+    expect(admittedNames).toEqual([]);
   });
 
   it('rejects a hidden target that was not admitted for the compiled generation', async () => {

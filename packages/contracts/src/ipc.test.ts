@@ -385,6 +385,11 @@ describe('ipc types', () => {
       expect(replay.type).toBe('host/replay');
     });
 
+    it('accepts activity/summary command shape', () => {
+      const summary: HostCommand = { type: 'activity/summary', maxItems: 16 };
+      expect(summary.type).toBe('activity/summary');
+    });
+
     it('accepts ADR 0027 seq/eventId on any push variant', () => {
       const status: HostPush = {
         type: 'host/status',

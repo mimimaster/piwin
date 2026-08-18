@@ -1339,6 +1339,37 @@ describe('chatUiReducer', () => {
     expect(tool?.presentation?.output?.truncated).toBe(true);
   });
 
+  it('MSG-001: mapTranscriptMessagesToUi preserves model snapshot on assistant messages and handles legacy rows without model', () => {
+    const [assistantWithModel, legacyAssistant] = mapTranscriptMessagesToUi([
+      {
+        id: 'a-model',
+        role: 'assistant',
+        text: 'hello from model',
+        createdAt: '2026-08-18T00:00:01.000Z',
+        status: 'done',
+        model: {
+          protocol: 'anthropic-compatible',
+          providerId: 'anthropic',
+          modelId: 'claude-sonnet-4',
+        },
+      },
+      {
+        id: 'a-legacy',
+        role: 'assistant',
+        text: 'hello from legacy',
+        createdAt: '2026-08-18T00:00:02.000Z',
+        status: 'done',
+      },
+    ]);
+
+    expect(assistantWithModel?.model).toEqual({
+      protocol: 'anthropic-compatible',
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4',
+    });
+    expect(legacyAssistant?.model).toBeUndefined();
+  });
+
   it('tracks compaction banner state', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

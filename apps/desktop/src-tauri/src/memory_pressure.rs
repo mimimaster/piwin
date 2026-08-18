@@ -1,13 +1,23 @@
-//! Host memory pressure monitor feeding the frontend Memory Governor.
+//! Memory sensor feeding the frontend Memory Governor.
 //!
-//! The webview governor (apps/desktop/src/memory-governor.ts) degrades UI
-//! caches under pressure, but WKWebView exposes no OS-level pressure signal to
-//! JS. This module samples the reclaimable-memory ratio and emits a
-//! `desktop:memory-pressure` Tauri event whenever the derived level changes;
-//! a frontend bridge re-dispatches it as the DOM event the governor listens
-//! for. Emissions are change-driven only, so the steady state is silent.
+//! Role split (docs/plans/2026-08-17-webcontent-memory-hard-cap.md): this
+//! module is a policy-free sensor. Every poll it samples the main window's
+//! WebContent process footprint — the number Activity Monitor shows, charging
+//! the renderer for compressed pages and owned-but-unmapped IOSurfaces — plus
+//! the system reclaimable ratio, and emits a `desktop:memory-pressure` Tauri
+//! event carrying `{ bytes, availableBytes }`. Classification, thresholds and
+//! hysteresis live in the webview (apps/desktop/src/memory-pressure.ts) so
+//! policy stays unit-tested in one place, which is why the steady state is no
+//! longer silent for byte samples.
+//!
+//! When footprint sampling is unavailable (non-macOS, or the WKWebView
+//! process-identifier SPI disappears) the module falls back to the legacy
+//! change-driven `{ level }` emissions derived from the system ratio, so the
+//! governor still hears about global pressure.
 
 use serde::Serialize;
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
 
 /// Sampling cadence. The governor only switches degradation tiers, so a
 /// multi-second granularity is sufficient and keeps the poll cost invisible.
@@ -22,8 +32,17 @@ pub enum MemoryPressureLevel {
 }
 
 #[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct MemoryPressurePayload {
-    level: MemoryPressureLevel,
+    /// Legacy fallback path only; byte samples leave classification to JS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    level: Option<MemoryPressureLevel>,
+    /// Main-window WebContent `ri_phys_footprint`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bytes: Option<u64>,
+    /// System-wide reclaimable memory estimate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    available_bytes: Option<u64>,
 }
 
 /// Map the reclaimable-page ratio to a governor tier. Thresholds are coarse
@@ -39,30 +58,177 @@ fn level_from_available_ratio(ratio: f64) -> MemoryPressureLevel {
 }
 
 pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
+    let webview_pid = Arc::new(AtomicI32::new(0));
     std::thread::spawn(move || {
-        let mut last_level = MemoryPressureLevel::Normal;
+        let mut last_fallback_level = MemoryPressureLevel::Normal;
         loop {
-            match sample_available_ratio() {
-                Some(ratio) => {
-                    let level = level_from_available_ratio(ratio);
-                    if level != last_level {
-                        last_level = level;
-                        let _ = tauri::Emitter::emit(
-                            &app_handle,
-                            "desktop:memory-pressure",
-                            MemoryPressurePayload { level },
-                        );
+            // The refresh lands asynchronously on the main thread, so this
+            // tick reads the pid captured by an earlier one — fine at this
+            // cadence. Re-queried every tick because WebKit relaunches
+            // WebContent (new pid) after a renderer termination.
+            refresh_main_webview_pid(&app_handle, &webview_pid);
+
+            let ratio = sample_available_ratio();
+            let footprint = {
+                let pid = webview_pid.load(Ordering::Relaxed);
+                if pid > 0 {
+                    process_phys_footprint_bytes(pid)
+                } else {
+                    None
+                }
+            };
+
+            match footprint {
+                Some(bytes) => {
+                    let available_bytes = ratio.and_then(|value| {
+                        total_physical_bytes().map(|total| (value * total as f64) as u64)
+                    });
+                    let _ = tauri::Emitter::emit(
+                        &app_handle,
+                        "desktop:memory-pressure",
+                        MemoryPressurePayload {
+                            level: None,
+                            bytes: Some(bytes),
+                            available_bytes,
+                        },
+                    );
+                }
+                None => match ratio {
+                    Some(value) => {
+                        let level = level_from_available_ratio(value);
+                        if level != last_fallback_level {
+                            last_fallback_level = level;
+                            let _ = tauri::Emitter::emit(
+                                &app_handle,
+                                "desktop:memory-pressure",
+                                MemoryPressurePayload {
+                                    level: Some(level),
+                                    bytes: None,
+                                    available_bytes: None,
+                                },
+                            );
+                        }
                     }
-                }
-                None => {
-                    // Sampling unsupported on this platform; stop the thread
-                    // instead of spinning. The governor stays at `normal`.
-                    return;
-                }
+                    None => {
+                        // Sampling unsupported on this platform; stop the
+                        // thread instead of spinning. Governor stays `normal`.
+                        return;
+                    }
+                },
             }
             std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
         }
     });
+}
+
+/// Drop WKWebView's in-memory resource cache (decoded images, scripts, style
+/// data inside the WebContent process) for every webview window. Invoked by
+/// the frontend on a degradation escalation edge, after the CSS strip has
+/// already destroyed backdrop-filter compositor layers. Best-effort by
+/// design: degradation must not depend on the purge succeeding.
+#[tauri::command]
+pub fn purge_webview_memory(app_handle: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        for window in app_handle.webview_windows().into_values() {
+            let _ = window.with_webview(|platform_webview| {
+                // SAFETY: with_webview hands us the live WKWebView pointer on
+                // the main thread; all calls below are public WebKit API.
+                unsafe {
+                    use objc2_foundation::{NSDate, NSSet};
+                    use objc2_web_kit::{WKWebView, WKWebsiteDataTypeMemoryCache};
+                    let webview = platform_webview.inner().cast::<WKWebView>();
+                    let Some(webview) = webview.as_ref() else {
+                        return;
+                    };
+                    let data_types = NSSet::from_slice(&[WKWebsiteDataTypeMemoryCache]);
+                    let completion = block2::RcBlock::new(|| {});
+                    webview
+                        .configuration()
+                        .websiteDataStore()
+                        .removeDataOfTypes_modifiedSince_completionHandler(
+                            &data_types,
+                            &NSDate::distantPast(),
+                            &completion,
+                        );
+                }
+            });
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app_handle;
+}
+
+/// Store the main window's WebContent pid into `slot`, asynchronously on the
+/// main thread. Uses the long-stable WebKit SPI `-[WKWebView
+/// _webProcessIdentifier]` behind a respondsToSelector guard: if the SPI ever
+/// disappears the slot stays 0 and the monitor falls back to system-ratio
+/// sampling instead of breaking.
+#[cfg(target_os = "macos")]
+fn refresh_main_webview_pid(app_handle: &tauri::AppHandle, slot: &Arc<AtomicI32>) {
+    use tauri::Manager;
+    let Some(window) = app_handle.get_webview_window("main") else {
+        return;
+    };
+    let slot = Arc::clone(slot);
+    let _ = window.with_webview(move |platform_webview| {
+        // SAFETY: pointer is the live WKWebView owned by this window; the
+        // selector is guarded before the typed send.
+        unsafe {
+            use objc2::runtime::AnyObject;
+            use objc2::{msg_send, sel};
+            let webview = platform_webview.inner().cast::<AnyObject>();
+            let Some(webview) = webview.as_ref() else {
+                return;
+            };
+            let responds: bool =
+                msg_send![webview, respondsToSelector: sel!(_webProcessIdentifier)];
+            if !responds {
+                return;
+            }
+            let pid: i32 = msg_send![webview, _webProcessIdentifier];
+            if pid > 0 {
+                slot.store(pid, Ordering::Relaxed);
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn refresh_main_webview_pid(_app_handle: &tauri::AppHandle, _slot: &Arc<AtomicI32>) {}
+
+/// `ri_phys_footprint` of an owned process, or None when unavailable. Matches
+/// Activity Monitor's "Memory" column, which is what users compare against.
+#[cfg(target_os = "macos")]
+fn process_phys_footprint_bytes(pid: i32) -> Option<u64> {
+    let mut info: libc::rusage_info_v4 = unsafe { std::mem::zeroed() };
+    let result = unsafe {
+        libc::proc_pid_rusage(
+            pid,
+            libc::RUSAGE_INFO_V4,
+            &mut info as *mut libc::rusage_info_v4 as *mut libc::rusage_info_t,
+        )
+    };
+    if result != 0 {
+        return None;
+    }
+    (info.ri_phys_footprint > 0).then_some(info.ri_phys_footprint)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn process_phys_footprint_bytes(_pid: i32) -> Option<u64> {
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn total_physical_bytes() -> Option<u64> {
+    macos_total_physical_bytes()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn total_physical_bytes() -> Option<u64> {
+    None
 }
 
 /// Reclaimable pages / total physical pages, or None when unsupported.
@@ -197,5 +363,38 @@ mod tests {
     fn live_sample_is_a_sane_ratio() {
         let ratio = sample_available_ratio().expect("sampling should be supported");
         assert!((0.0..=1.0).contains(&ratio), "ratio {ratio} out of range");
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn phys_footprint_of_current_process_is_positive() {
+        let pid = std::process::id() as i32;
+        let footprint = process_phys_footprint_bytes(pid).expect("self rusage should work");
+        assert!(footprint > 0);
+    }
+
+    #[test]
+    fn byte_sample_payload_serializes_camel_case_without_level() {
+        let payload = MemoryPressurePayload {
+            level: None,
+            bytes: Some(1024),
+            available_bytes: Some(2048),
+        };
+        let value = serde_json::to_value(payload).expect("payload should serialize");
+        assert_eq!(
+            value,
+            serde_json::json!({ "bytes": 1024, "availableBytes": 2048 })
+        );
+    }
+
+    #[test]
+    fn fallback_payload_serializes_lowercase_level_only() {
+        let payload = MemoryPressurePayload {
+            level: Some(MemoryPressureLevel::Moderate),
+            bytes: None,
+            available_bytes: None,
+        };
+        let value = serde_json::to_value(payload).expect("payload should serialize");
+        assert_eq!(value, serde_json::json!({ "level": "moderate" }));
     }
 }

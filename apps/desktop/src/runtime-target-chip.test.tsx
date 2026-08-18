@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -68,5 +68,46 @@ describe('RuntimeTargetChip', () => {
       '[data-testid="composer-runtime-local"]',
     ) as HTMLElement | null;
     expect(local?.textContent).toContain('This Mac');
+  });
+
+  it('shows Remote Host as the active trigger when a remote target is connected', () => {
+    const rendered = renderChip(<RuntimeTargetChip remoteConnected />, 'zh-CN');
+    root = rendered.root;
+    container = rendered.container;
+
+    const remote = container.querySelector(
+      '[data-testid="composer-runtime-remote"]',
+    ) as HTMLElement | null;
+    expect(remote?.textContent).toContain('远程 Host');
+  });
+
+  it('keeps Local available to switch back when remote is connected', () => {
+    const onSelectLocal = vi.fn();
+    const rendered = renderChip(
+      <RuntimeTargetChip remoteConnected onSelectLocal={onSelectLocal} />,
+      'zh-CN',
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector(
+      '[data-testid="composer-runtime-target"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      trigger?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false }),
+      );
+    });
+
+    const localItem = document.querySelector(
+      '[data-testid="composer-runtime-local-item"]',
+    ) as HTMLElement | null;
+    expect(localItem).not.toBeNull();
+    expect(localItem?.hasAttribute('data-disabled')).toBe(false);
+
+    act(() => {
+      localItem?.click();
+    });
+    expect(onSelectLocal).toHaveBeenCalledOnce();
   });
 });

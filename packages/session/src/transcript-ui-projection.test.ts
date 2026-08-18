@@ -61,4 +61,38 @@ describe('projectTranscriptMessagesForUi', () => {
     const slim = projectTranscriptMessagesForUi(messages);
     expect(slim[0]).toBe(messages[0]);
   });
+
+  it('preserves tool output and presentation.output for flashcard_create tools', () => {
+    const flashcardPayload = JSON.stringify({
+      card: { id: 'card-1', front: 'Q', back: 'A' },
+      artifactHtml: '<div class="piwin-flashcard">Card</div>',
+    });
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a2',
+        role: 'assistant',
+        text: 'card created',
+        createdAt: '2026-07-24T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 't2',
+            toolName: 'piwin_toolbox',
+            status: 'done',
+            output: flashcardPayload,
+            presentation: {
+              kind: 'other',
+              title: 'flashcard_create',
+              routedToolName: 'flashcard_create',
+              output: { text: flashcardPayload, truncated: false },
+            },
+          },
+        ],
+      },
+    ];
+    const slim = projectTranscriptMessagesForUi(messages);
+    const tool = slim[0]?.tools?.[0];
+    expect(tool?.output).toBe(flashcardPayload);
+    expect(tool?.presentation?.output?.text).toBe(flashcardPayload);
+  });
 });

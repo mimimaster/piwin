@@ -288,7 +288,9 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
   const n = toolName.trim().toLowerCase();
   if (!n) return 'other';
 
-  if (n === 'mcp_gateway' || n.startsWith('mcp__') || n.startsWith('mcp:')) return 'mcp';
+  if (n === 'mcp_gateway' || n.startsWith('mcp__') || n.startsWith('mcp:') || n.includes('.')) {
+    return 'mcp';
+  }
 
   if (
     n === 'bash' ||
@@ -386,6 +388,12 @@ function humanizeToolTitle(toolName: string, kind: ToolKind): string {
     if (toolName.trim().toLowerCase() === 'mcp_gateway') {
       return 'MCP gateway';
     }
+    if (toolName.trim().toLowerCase() === 'piwin_toolbox') {
+      return 'Tool catalog';
+    }
+    if (toolName.includes('.')) {
+      return toolName;
+    }
     return toolName.replace(/^mcp__?/, '').replace(/__/g, ' / ') || toolName;
   }
   return toolName;
@@ -459,6 +467,15 @@ function extractCommand(family: ToolActionFamily, args: unknown): string | undef
   const record = args as Record<string, unknown>;
   const command = readString(record.command) ?? readString(record.cmd) ?? readString(record.script);
   return command ? redactToolText(command).text : undefined;
+}
+
+function extractLeadingShellComment(command: string | undefined): string | undefined {
+  if (!command) return undefined;
+  const comment = command.match(/^\s*#\s*(.+?)\s*$/m)?.[1];
+  if (comment?.trim()) return comment.trim();
+  const echoMatch = command.match(/^\s*echo\s+["'](?:===+\s*)?([^"'=\n]+?)(?:\s*===+)?["']/);
+  if (echoMatch?.[1]?.trim()) return echoMatch[1].trim();
+  return undefined;
 }
 
 function extractTargetPaths(family: ToolActionFamily, args: unknown): string[] | undefined {
@@ -625,6 +642,29 @@ function extractActionDetails(input: {
   const record = args && typeof args === 'object' ? (args as Record<string, unknown>) : {};
   const searchQuery = extractSearchQuery(args);
 
+  if (toolName.trim().toLowerCase() === 'piwin_toolbox') {
+    const operation = readString(record.action)?.trim().toLowerCase();
+    switch (operation) {
+      case 'search':
+        return {
+          actionVerb: 'Tool discovery',
+          ...(searchQuery ? { summary: clipSummary(searchQuery) } : { summary: 'Catalog' }),
+        };
+      case 'describe':
+        return {
+          actionVerb: 'Tool discovery',
+          summary: readString(record.target) ?? 'Tool schema',
+        };
+      case 'status':
+        return {
+          actionVerb: 'MCP status',
+          summary: readString(record.target) ?? 'Servers',
+        };
+      default:
+        return { actionVerb: 'Toolbox' };
+    }
+  }
+
   let actionVerb: string;
   let summary: string | undefined;
   let countTag: string | undefined;
@@ -663,7 +703,16 @@ function extractActionDetails(input: {
     }
     case 'shell': {
       actionVerb = 'Ran command';
-      if (command) summary = clipSummary(command, 120);
+      const desc =
+        readString(record.description) ??
+        readString(record.title) ??
+        readString(record.toolSummary) ??
+        extractLeadingShellComment(command);
+      if (desc) {
+        summary = clipSummary(desc, 120);
+      } else if (command) {
+        summary = clipSummary(command, 120);
+      }
       break;
     }
     case 'git': {
@@ -710,6 +759,14 @@ function extractActionDetails(input: {
             actionVerb = 'MCP gateway';
             break;
         }
+        break;
+      }
+      if (toolName.includes('.')) {
+        const separator = toolName.indexOf('.');
+        const server = toolName.slice(0, separator);
+        const tool = toolName.slice(separator + 1);
+        actionVerb = server ? `MCP (${server})` : 'Called MCP';
+        if (tool) summary = tool;
         break;
       }
       const parts = toolName.replace(/^mcp__?/, '').split('__');

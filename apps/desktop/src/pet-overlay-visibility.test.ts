@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { savePetOverlayPosition } from './pet-overlay-position.js';
 import {
   applyPetOverlayVisibility,
+  installPetOverlayRestore,
   loadPetOverlayVisibility,
   PET_OVERLAY_VISIBILITY_STORAGE_KEY,
   savePetOverlayVisibility,
@@ -65,6 +67,34 @@ describe('pet overlay visibility preference', () => {
 
     expect(invokeMock).toHaveBeenNthCalledWith(1, 'pet_overlay_show');
     expect(invokeMock).toHaveBeenNthCalledWith(2, 'pet_overlay_hide');
+  });
+
+  it('passes a saved logical origin to show', async () => {
+    enableTauriRuntime();
+    savePetOverlayPosition({ x: 12, y: 34 });
+    invokeMock.mockResolvedValue(undefined);
+
+    await applyPetOverlayVisibility(true);
+
+    expect(invokeMock).toHaveBeenCalledWith('pet_overlay_show', { x: 12, y: 34 });
+  });
+
+  it('does not spawn a hidden overlay on restore', () => {
+    enableTauriRuntime();
+    savePetOverlayVisibility(false);
+    installPetOverlayRestore();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('clears the visible preference when restore fails', async () => {
+    enableTauriRuntime();
+    invokeMock.mockRejectedValue(new Error('create failed'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installPetOverlayRestore();
+    await vi.waitFor(() => {
+      expect(loadPetOverlayVisibility()).toBe(false);
+    });
+    warn.mockRestore();
   });
 
   it('restores the previous preference when the native command fails', async () => {

@@ -94,6 +94,9 @@ import type { QueuedTurnRecord } from './queued-turn.js';
 import type { RunInterventionRecord, UserInstructionPayload } from './run-intervention.js';
 import type { SessionRuntimeStatus } from './session-runtime.js';
 import type { HostHydrationFrame } from './remote-protocol.js';
+import type { HostProblem } from './host-problem.js';
+import type { PromptForegroundAdmission } from './prompt-admission.js';
+import type { SessionListScopeRef } from './session-list-scope.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -131,6 +134,15 @@ export type HostCommand =
       id?: string;
       /** ADR 0040 §8: query-only aggregate residency/resource metrics. */
       type: 'host/runtime-resources';
+    }
+  | {
+      id?: string;
+      /**
+       * Bounded Host-wide live runs + pending-permission flags.
+       * Opaque session/run ids only — never Host filesystem paths.
+       */
+      type: 'activity/summary';
+      maxItems?: number;
     }
   | {
       id?: string;
@@ -181,8 +193,16 @@ export type HostCommand =
       type: 'session/list';
       /** @deprecated Use `scope` field instead. */
       projectPath?: string;
-      /** Scope-based session listing. When set, filters sessions by scope. */
+      /**
+       * Path-owning scope for local/CLI session listing.
+       * Remote clients must not send Host absolute paths; use `scopeRef` instead.
+       */
       scope?: import('./host.js').SessionScope;
+      /**
+       * Path-free logical scope for remote / multi-client shells.
+       * Carries opaque projectId only — never Host filesystem paths.
+       */
+      scopeRef?: SessionListScopeRef;
       /** When true, lists sessions across all scopes (general and all projects). */
       allScopes?: boolean;
       /** When true, include archived sessions (default: active only). */
@@ -259,6 +279,12 @@ export type HostCommand =
       input: PromptInput;
       /** Internal Host admission path; remote clients must omit this. */
       admission?: 'queued-turn';
+      /**
+       * How to admit this prompt when a foreground run may already be active.
+       * Required on remote Hosts; local JSONL may omit it (queued-turn covers
+       * single-shell interruption).
+       */
+      foreground?: PromptForegroundAdmission;
     }
   | {
       id?: string;
@@ -855,7 +881,10 @@ export type HostResponse =
       type: 'response';
       command: string;
       success: false;
+      /** Human-readable failure text; always present for failed responses. */
       error: string;
+      /** Optional structured problem; does not replace `error`. */
+      problem?: HostProblem;
     };
 
 /**

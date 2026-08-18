@@ -26,3 +26,17 @@ export function resolveGenerationToolKind(tool: ToolCardUi): GenerationToolKind 
   }
   return null;
 }
+
+/** Done generation is the attachment itself; keep the card only while running or failed. */
+export function shouldRenderGenerationProgress(
+  status: ToolCardUi['status'] | null,
+  attachments: readonly { kind: string }[],
+): boolean {
+  if (status === null) {
+    return false;
+  }
+  if (status === 'done' && attachments.some((attachment) => attachment.kind === 'media')) {
+    return false;
+  }
+  return true;
+}

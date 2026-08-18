@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import type { DiffCardRequest } from './diff-card';
@@ -173,8 +173,26 @@ function getRunningBatchTitle(
 
 export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
   const isChinese = (props.locale ?? 'zh-CN') === 'zh-CN';
-  const [expanded, setExpanded] = useState(false);
   const summary = props.summary;
+  const autoExpand = summary.hasError;
+  const [internalExpanded, setInternalExpanded] = useState(autoExpand);
+  const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
+  const expanded = internalExpanded;
+
+  useEffect(() => {
+    if (disclosureIntentRef.current !== 'automatic') {
+      return;
+    }
+    if (summary.hasError) {
+      setInternalExpanded(true);
+    }
+  }, [summary.hasError]);
+
+  function toggleExpanded(): void {
+    const nextExpanded = !expanded;
+    disclosureIntentRef.current = nextExpanded ? 'user-open' : 'user-closed';
+    setInternalExpanded(nextExpanded);
+  }
 
   const defaultTitle = summary.hasRunning
     ? getRunningBatchTitle(props.clusterKind, summary, isChinese)
@@ -198,7 +216,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
         className="tool-batch-header"
         data-testid="tool-batch-header"
         aria-expanded={expanded}
-        onClick={() => setExpanded(!expanded)}
+        onClick={toggleExpanded}
       >
         <span className="tool-batch-icon-wrapper" aria-hidden="true">
           {getClusterIcon(props.clusterKind)}

@@ -1,7 +1,8 @@
 import { useRef, type ChangeEvent, type ReactElement } from 'react';
-import { IconPaperclip, IconArrowUp, IconStop, IconMic } from '@piwin/ui-kit';
-import { useSpeechRecognition } from '../../hooks/use-speech-recognition.js';
+import { IconPaperclip, IconArrowUp, IconStop, IconMic, IconImage } from '@piwin/ui-kit';
+import { HoldToTalkOverlay } from './HoldToTalkOverlay.js';
 import { MobileQuickActionsBar } from './MobileQuickActionsBar.js';
+import { useHoldToTalk } from '../../use-hold-to-talk.js';
 import type { MobileMediaAttachment } from '../../hooks/use-mobile-host.js';
 
 export type ModernComposerProps = {
@@ -10,8 +11,9 @@ export type ModernComposerProps = {
   attachments: MobileMediaAttachment[];
   onRemoveAttachment: (id: string) => void;
   onFileSelected: (event: ChangeEvent<HTMLInputElement>) => void;
-  onSend: () => void;
+  onSend: (text?: string) => void;
   onAbort?: (() => void) | undefined;
+  onSpeechError?: ((message: string) => void) | undefined;
   isSending: boolean;
   isUploadingMedia: boolean;
   activeRunId?: string | undefined;
@@ -26,21 +28,25 @@ export function ModernComposer({
   onFileSelected,
   onSend,
   onAbort,
+  onSpeechError,
   isSending,
   isUploadingMedia,
   activeRunId,
   disabled = false,
 }: ModernComposerProps): ReactElement {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const albumInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isRunning = activeRunId !== undefined;
   const hasContent = composerText.trim().length > 0 || attachments.length > 0;
   const canSend = hasContent && !isSending && !isUploadingMedia && !disabled;
+  const holdEnabled =
+    !hasContent && !isSending && !isUploadingMedia && !disabled && !isRunning;
 
-  const speech = useSpeechRecognition({
-    onTranscript: (transcript) => {
-      setComposerText(transcript);
-    },
+  const hold = useHoldToTalk({
+    enabled: holdEnabled,
+    onSend: (text) => onSend(text),
+    ...(onSpeechError === undefined ? {} : { onError: onSpeechError }),
   });
 
   const handleSelectQuickAction = (prompt: string) => {
@@ -48,33 +54,23 @@ export function ModernComposer({
     textareaRef.current?.focus();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
       if (canSend) {
-        if (speech.isListening) {
-          speech.stopListening();
-        }
         onSend();
       }
     }
   };
 
-  const handleSendClick = () => {
-    if (speech.isListening) {
-      speech.stopListening();
-    }
-    onSend();
-  };
+  const attachDisabled = isSending || isUploadingMedia || attachments.length >= 4 || disabled;
 
   return (
     <div className="modern-composer-wrapper">
-      {/* 1. Quick Actions Toolbar (visible when composer is empty) */}
       {!isRunning && !isSending && composerText.length === 0 ? (
         <MobileQuickActionsBar onSelectAction={handleSelectQuickAction} />
       ) : null}
 
-      {/* 2. Attachment thumbnail chips above composer */}
       {attachments.length > 0 ? (
         <div className="modern-composer-attachment-bar">
           {attachments.map((att) => (
@@ -96,39 +92,61 @@ export function ModernComposer({
         </div>
       ) : null}
 
-      {/* 2. Floating Capsule Composer */}
+      <HoldToTalkOverlay
+        phase={hold.phase}
+        liveTranscript={hold.liveTranscript}
+        cancelling={hold.cancelling}
+        hint={hold.hint}
+      />
+
       <div className="modern-composer-capsule">
-        {/* Attachment Upload Button */}
         <button
           type="button"
           className="modern-composer-attach-btn"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isSending || isUploadingMedia || attachments.length >= 4 || disabled}
-          aria-label="选择图片附件"
+          onClick={() => albumInputRef.current?.click()}
+          disabled={attachDisabled}
+          aria-label="从相册选择图片"
         >
           <IconPaperclip size={18} />
         </button>
+        <button
+          type="button"
+          className="modern-composer-attach-btn"
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={attachDisabled}
+          aria-label="拍照上传"
+          data-testid="mobile-camera-button"
+        >
+          <IconImage size={18} />
+        </button>
         <input
-          ref={fileInputRef}
+          ref={albumInputRef}
           type="file"
           accept="image/*"
           className="modern-file-input-hidden"
           onChange={onFileSelected}
         />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="modern-file-input-hidden"
+          data-testid="mobile-camera-input"
+          onChange={onFileSelected}
+        />
 
-        {/* Input Textarea */}
         <textarea
           ref={textareaRef}
           className="modern-composer-textarea"
           value={composerText}
-          onChange={(e) => setComposerText(e.target.value)}
+          onChange={(event) => setComposerText(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={speech.isListening ? '正在聆听您的语音…' : '发送消息给 Piwin…'}
+          placeholder={hold.phase === 'listening' ? '正在聆听…' : '发消息或按住说话…'}
           rows={1}
-          disabled={isSending || isUploadingMedia || disabled}
+          disabled={isSending || isUploadingMedia || disabled || hold.phase !== 'idle'}
         />
 
-        {/* Action Button: Stop, Listening, Send or Mic */}
         {isRunning && onAbort !== undefined ? (
           <button
             type="button"
@@ -138,36 +156,28 @@ export function ModernComposer({
           >
             <IconStop size={14} />
           </button>
-        ) : speech.isListening ? (
-          <button
-            type="button"
-            className="modern-composer-action-btn mic-listening"
-            onClick={speech.stopListening}
-            aria-label="停止语音识别"
-          >
-            <IconMic size={16} />
-          </button>
         ) : hasContent ? (
           <button
             type="button"
             className={`modern-composer-action-btn ${canSend ? 'send-active' : 'send-disabled'}`}
-            onClick={handleSendClick}
+            onClick={() => onSend()}
             disabled={!canSend}
             aria-label="发送消息"
           >
             <IconArrowUp size={16} />
           </button>
-        ) : (
+        ) : hold.supported ? (
           <button
             type="button"
-            className="modern-composer-action-btn mic-idle"
-            onClick={speech.startListening}
-            disabled={isSending || isUploadingMedia || disabled}
-            aria-label="开始语音输入 (iOS Speech API)"
+            className={`modern-composer-action-btn mic-idle${hold.phase === 'listening' ? ' mic-listening' : ''}`}
+            disabled={!holdEnabled}
+            aria-label="按住说话"
+            data-testid="mobile-hold-mic"
+            {...hold.micPointer}
           >
             <IconMic size={16} />
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

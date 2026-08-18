@@ -14,8 +14,7 @@ use host_bridge::{
     observe_host_process_blocking, HostBridgeState, HostObservability,
 };
 use pet_overlay::{
-    create_pet_overlay_window, pet_overlay_hide, pet_overlay_show, pet_overlay_toggle,
-    raise_main_window, show_main_window,
+    pet_overlay_hide, pet_overlay_show, pet_overlay_toggle, raise_main_window, show_main_window,
 };
 use pty_host::{
     pty_close, pty_close_all, pty_open, pty_resize, pty_write, snapshot_pty_sessions_blocking,
@@ -172,7 +171,8 @@ pub fn run() {
             pet_overlay_show,
             pet_overlay_hide,
             pet_overlay_toggle,
-            show_main_window
+            show_main_window,
+            memory_pressure::purge_webview_memory
         ])
         .setup(|application| {
             install_artifact_bridge(application.handle())?;
@@ -183,10 +183,8 @@ pub fn run() {
             if let Some(main_window) = application.get_webview_window("main") {
                 main_window.set_title("\u{200B}")?;
             }
-            // Start the cosmetic WebContent entry hidden. Once its transparent
-            // page is ready it restores the user's saved visibility preference.
-            // Errors are non-fatal: the overlay is not load-bearing.
-            let _ = create_pet_overlay_window(application.handle());
+            // Pet overlay is created on demand (hide = destroy). A hidden
+            // preference must not keep a second WebContent process resident.
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -199,6 +197,9 @@ pub fn run() {
                         REAPPLYING_PET_OVERLAY_FLAGS.store(false, Ordering::SeqCst);
                     }
                 }
+                // Overlay close is hide=destroy, not app quit. Missing window
+                // never reaches this handler (no-op).
+                return;
             }
 
             let WindowEvent::CloseRequested { api, .. } = event else {

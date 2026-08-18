@@ -31,6 +31,7 @@ import { PIWIN_APPEARANCE_DARK, resolveDesktopAppearance } from '../appearance-t
 import { getDesktopCopy, type DesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { createStreamEventBuffer } from '../stream-event-buffer';
+import { mapListedSessionItems } from '../remote-session-hydrate';
 
 export type ExtensionUiRequestState = {
   sessionId: string;
@@ -217,7 +218,16 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   useEffect(() => {
     const { hostClient, dispatch } = args;
     const streamEventBuffer = createStreamEventBuffer({ dispatch });
+    const bufferAgentEvents = hostClient.getTransport() !== 'remote';
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
+      if (message.type === 'hydration') {
+        streamEventBuffer.reset();
+        const listed = mapListedSessionItems({ sessions: message.snapshot.sessions });
+        for (const session of listed.sessions) {
+          dispatch({ type: 'session/update', session });
+        }
+        return;
+      }
       if (message.type === 'host/status') {
         dispatch({ type: 'host/status', ready: message.ready, mock: message.mock });
         if (message.ready && lastPushedHostReadyRef.current !== true) {
@@ -227,7 +237,16 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'event') {
-        streamEventBuffer.push(message.sessionId, message.event, message.envelope);
+        if (bufferAgentEvents) {
+          streamEventBuffer.push(message.sessionId, message.event, message.envelope);
+        } else {
+          dispatch({
+            type: 'event',
+            sessionId: message.sessionId,
+            event: message.event,
+            ...(message.envelope ? { envelope: message.envelope } : {}),
+          });
+        }
         return;
       }
       if (message.type === 'agent/context-summary') {
@@ -507,16 +526,20 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
       }
       try {
-        const configResponse = await hostClient.request({ type: 'config/get' });
-        if (configResponse.success) {
-          const data = configResponse.data as { config?: PiwinConfig } | undefined;
-          const nextConfig = data?.config;
-          if (nextConfig !== undefined) {
-            setConfig(nextConfig);
-            if (nextConfig.defaultProviderId && nextConfig.defaultModelId) {
-              args.setSelectedModelKey(
-                `${nextConfig.defaultProviderId}::${nextConfig.defaultModelId}`,
-              );
+        // Remote Hosts do not allow config/get (secrets). Skip it so General
+        // session hydrate is not gated on a null config.
+        if (hostClient.getTransport() !== 'remote') {
+          const configResponse = await hostClient.request({ type: 'config/get' });
+          if (configResponse.success) {
+            const data = configResponse.data as { config?: PiwinConfig } | undefined;
+            const nextConfig = data?.config;
+            if (nextConfig !== undefined) {
+              setConfig(nextConfig);
+              if (nextConfig.defaultProviderId && nextConfig.defaultModelId) {
+                args.setSelectedModelKey(
+                  `${nextConfig.defaultProviderId}::${nextConfig.defaultModelId}`,
+                );
+              }
             }
           }
         }
@@ -559,6 +582,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   // config/get fail. Retry when Host actually becomes ready.
   useEffect(() => {
     if (hostReadyEpoch === 0) {
+      return;
+    }
+    if (args.hostClient.getTransport() === 'remote') {
       return;
     }
     let cancelled = false;

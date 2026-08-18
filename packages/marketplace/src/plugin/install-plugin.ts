@@ -13,7 +13,7 @@
  * MCP merge and keychain writes are injected so this module stays free of
  * @piwin/mcp and keychain dependencies — the host wires real implementations.
  */
-import { cp, mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -22,14 +22,16 @@ import type {
   InstallPluginResult,
   McpServerConfig,
   PluginInstallSource,
-  PluginManifest,
 } from '@piwin/contracts';
 import { pluginMcpServerId as namespacedId, pluginSecretRef as secretRef } from '@piwin/contracts';
 import { installSkill } from '../install-skill.js';
 import { resolveCloneContentRoot } from '../clone-content-root.js';
 import { parsePluginManifest } from './manifest.js';
-import { resolveSecretEnv } from './secret-env.js';
+import { resolveSecretArgs, resolveSecretEnv } from './secret-env.js';
+import { findFeaturedPlugin } from './featured-catalog.js';
 import { getPluginsDir, upsertInstalledPlugin } from './plugin-store.js';
+
+type ResolvedPluginSource = Exclude<PluginInstallSource, { kind: 'registry' }>;
 
 const execFileAsync = promisify(execFile);
 
@@ -126,7 +128,7 @@ export async function installPlugin(options: InstallPluginOptions): Promise<Inst
         command: serverConfig.command,
       };
       if (serverConfig.args) {
-        mergedConfig.args = serverConfig.args;
+        mergedConfig.args = resolveSecretArgs(serverConfig.args, options.secrets ?? {});
       }
       if (resolvedEnv) {
         mergedConfig.env = resolvedEnv;
@@ -165,9 +167,13 @@ export async function installPlugin(options: InstallPluginOptions): Promise<Inst
   };
 }
 
-async function resolveSource(options: InstallPluginOptions): Promise<InstallSource> {
+async function resolveSource(options: InstallPluginOptions): Promise<ResolvedPluginSource> {
   const source = options.source;
   if (source.kind === 'registry') {
+    const featured = findFeaturedPlugin(source.registryId);
+    if (featured) {
+      return { kind: 'bundled', bundledId: featured.id };
+    }
     if (!options.resolveRegistrySource) {
       throw new Error(
         `Cannot install from registry "${source.registryId}" without resolveRegistrySource`,
@@ -178,11 +184,53 @@ async function resolveSource(options: InstallPluginOptions): Promise<InstallSour
   return source;
 }
 
-async function materializeSource(pluginsDir: string, source: InstallSource): Promise<string> {
+async function materializeSource(
+  pluginsDir: string,
+  source: ResolvedPluginSource,
+): Promise<string> {
+  if (source.kind === 'bundled') {
+    return materializeBundled(pluginsDir, source.bundledId);
+  }
   if (source.kind === 'local') {
     return materializeLocal(pluginsDir, source.path);
   }
   return materializeGit(pluginsDir, source);
+}
+
+async function materializeBundled(pluginsDir: string, bundledId: string): Promise<string> {
+  const featured = findFeaturedPlugin(bundledId);
+  if (!featured) {
+    throw new Error(`Unknown bundled plugin "${bundledId}"`);
+  }
+  const targetPath = join(
+    pluginsDir,
+    'cache',
+    `bundled-${featured.manifest.id}@${featured.manifest.version}`,
+  );
+  await rm(targetPath, { recursive: true, force: true }).catch(() => undefined);
+  const gitSource = featured.gitSource;
+  if (gitSource) {
+    const args = ['clone', '--depth', '1'];
+    if (gitSource.ref) {
+      args.push('--branch', gitSource.ref);
+    }
+    args.push(gitSource.url, targetPath);
+    try {
+      await execFileAsync('git', args, { timeout: 120_000 });
+    } catch (error) {
+      await rm(targetPath, { recursive: true, force: true }).catch(() => undefined);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`git clone failed: ${message}`);
+    }
+  } else {
+    await mkdir(targetPath, { recursive: true });
+  }
+  await writeFile(
+    join(targetPath, 'plugin.json'),
+    `${JSON.stringify(featured.manifest, null, 2)}\n`,
+    'utf8',
+  );
+  return targetPath;
 }
 
 async function materializeLocal(pluginsDir: string, sourcePath: string): Promise<string> {

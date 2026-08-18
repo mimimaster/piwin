@@ -1,0 +1,121 @@
+/* Cross-cutting memory-degradation overlay — must stay the LAST import in
+   styles.css so its !important strips win over every region sheet.
+
+   Why this exists: on WebKit every backdrop-filter surface forces offscreen
+   IOSurface allocations (region size × devicePixelRatio², both the backdrop
+   capture and the filtered result). Churn accumulates as
+   "Owned physical footprint (unmapped) (graphics)" that WebKit only returns
+   under pressure. The Memory Governor (memory-governor.ts) tags
+   <html data-memory-pressure> when the WebContent footprint crosses the
+   thresholds in memory-pressure.ts; destroying the filter layers here lets
+   WebKit's surface pool age that memory back to the OS within seconds.
+   Degraded visuals are deliberate — same philosophy as the critical-tier
+   plain-text highlight fallback (Plan D).
+
+   Tier map:
+   - moderate (≥768 MiB): every glass blur off; translucent fills remain.
+   - critical (≥1536 MiB): also shed ink-wash decorative textures (each
+     decoded JPEG/PNG holds width×height×4 bytes of cache). Custom-property
+     `none` overrides the inline var() written by applyAppearanceToDocument
+     and beats the url() fallbacks in region sheets. */
+
+/* data-memory-parked (memory-parking.ts) is occlusion-only: engaged after
+   the window has been hidden long enough and removed on the same turn that
+   restores visibility. It may strip blur (cheap to rebuild) but must NOT
+   unload --ink-wash-* textures — re-decoding those on wake flashes white.
+   Critical pressure still sheds textures below. */
+html[data-memory-pressure='moderate'] *,
+html[data-memory-pressure='critical'] *,
+html[data-memory-parked] * {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html[data-memory-pressure='critical'] {
+  --ink-wash-hero: none !important;
+  --ink-wash-conversation-texture: none !important;
+  --ink-wash-sidebar-bg: none !important;
+  --ink-wash-right-panel-bg: none !important;
+  --ink-wash-agent-seal: none !important;
+  --ink-wash-dry-brush-divider: none !important;
+  --ink-wash-empty-session: none !important;
+  --ink-wash-empty-files: none !important;
+  --ink-wash-empty-failure: none !important;
+  --ink-wash-empty-complete: none !important;
+}
+
+/* Strip 3D perspective, preserve-3d layers, and transient transform will-change
+   on flashcards during memory pressure or occlusion parking. This immediately
+   destroys WebKit IOSurface offscreen buffers and returns GPU memory. */
+html[data-memory-pressure='moderate'] .chat-flashcard-container,
+html[data-memory-pressure='critical'] .chat-flashcard-container,
+html[data-memory-parked] .chat-flashcard-container,
+html[data-memory-pressure='moderate'] .fc-quiet-card-container,
+html[data-memory-pressure='critical'] .fc-quiet-card-container,
+html[data-memory-parked] .fc-quiet-card-container {
+  perspective: none !important;
+}
+
+html[data-memory-pressure='moderate'] .chat-flashcard-frame,
+html[data-memory-pressure='critical'] .chat-flashcard-frame,
+html[data-memory-parked] .chat-flashcard-frame,
+html[data-memory-pressure='moderate'] .fc-quiet-frame,
+html[data-memory-pressure='critical'] .fc-quiet-frame,
+html[data-memory-parked] .fc-quiet-frame {
+  transform-style: flat !important;
+  transition: none !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+html[data-memory-pressure='moderate'] .chat-flashcard-face,
+html[data-memory-pressure='critical'] .chat-flashcard-face,
+html[data-memory-parked] .chat-flashcard-face,
+html[data-memory-pressure='moderate'] .fc-quiet-face,
+html[data-memory-pressure='critical'] .fc-quiet-face,
+html[data-memory-parked] .fc-quiet-face {
+  backface-visibility: visible !important;
+  -webkit-backface-visibility: visible !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+html[data-memory-pressure='moderate'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-front,
+html[data-memory-pressure='critical'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-front,
+html[data-memory-parked] .chat-flashcard-frame.is-flipped .chat-flashcard-face-front,
+html[data-memory-pressure='moderate'] .fc-quiet-frame.is-flipped .fc-quiet-front,
+html[data-memory-pressure='critical'] .fc-quiet-frame.is-flipped .fc-quiet-front,
+html[data-memory-parked] .fc-quiet-frame.is-flipped .fc-quiet-front {
+  display: none !important;
+}
+
+html[data-memory-pressure='moderate'] .chat-flashcard-face-back,
+html[data-memory-pressure='critical'] .chat-flashcard-face-back,
+html[data-memory-parked] .chat-flashcard-face-back,
+html[data-memory-pressure='moderate'] .fc-quiet-back,
+html[data-memory-pressure='critical'] .fc-quiet-back,
+html[data-memory-parked] .fc-quiet-back {
+  position: relative !important;
+  display: none !important;
+}
+
+html[data-memory-pressure='moderate'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-back,
+html[data-memory-pressure='critical'] .chat-flashcard-frame.is-flipped .chat-flashcard-face-back,
+html[data-memory-parked] .chat-flashcard-frame.is-flipped .chat-flashcard-face-back,
+html[data-memory-pressure='moderate'] .fc-quiet-frame.is-flipped .fc-quiet-back,
+html[data-memory-pressure='critical'] .fc-quiet-frame.is-flipped .fc-quiet-back,
+html[data-memory-parked] .fc-quiet-frame.is-flipped .fc-quiet-back {
+  display: flex !important;
+}
+
+html[data-memory-pressure='moderate'] .chat-flashcard-rate-btn,
+html[data-memory-pressure='critical'] .chat-flashcard-rate-btn,
+html[data-memory-parked] .chat-flashcard-rate-btn,
+html[data-memory-pressure='moderate'] .fc-quiet-rate-btn,
+html[data-memory-pressure='critical'] .fc-quiet-rate-btn,
+html[data-memory-parked] .fc-quiet-rate-btn {
+  box-shadow: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+

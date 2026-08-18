@@ -2,9 +2,19 @@
  * Frontend Memory Governor for WebContent degradation & recovery.
  *
  * Implements multi-tier degradation under high memory pressure:
- * Level 0 (Normal): Full features enabled (Shiki highlight, caching, artifact frames).
- * Level 1 (Moderate): Purge syntax highlight LRU caches & cancel non-viewport token requests.
- * Level 2 (Critical / Safe Mode): Disable syntax highlighting (plain text fallback), unload background artifacts.
+ * Level 0 (Normal): Full features (Shiki highlight, caching, glass surfaces).
+ * Level 1 (Moderate): Purge syntax highlight LRU caches and strip
+ *   GPU-expensive CSS (backdrop-filter compositor layers) via the
+ *   html[data-memory-pressure] attribute consumed by
+ *   styles/memory-degradation.css.
+ * Level 2 (Critical / Safe Mode): Additionally disable syntax highlighting
+ *   (plain text fallback), shed decorative theme textures, and evict
+ *   non-forceKeep live artifact iframes via artifact-memory-bridge.ts.
+ *
+ * Pressure samples reach the governor through memory-pressure.ts
+ * (installMemoryPressureBridge); this module stays free of Tauri/event glue
+ * so it can be driven directly in tests. Subscribers perform the artifact
+ * eviction — the governor itself does not import @piwin/artifact.
  */
 import { globalHighlightCache } from './syntax/highlight-cache';
 
@@ -47,7 +57,17 @@ class MemoryGovernor {
       globalHighlightCache.clear();
     }
 
-    // Notify listeners (UI hooks, artifact managers)
+    // The degradation stylesheet keys off this attribute to destroy
+    // backdrop-filter layers, letting WebKit return their IOSurface memory.
+    if (typeof document !== 'undefined') {
+      if (nextLevel === 'normal') {
+        delete document.documentElement.dataset.memoryPressure;
+      } else {
+        document.documentElement.dataset.memoryPressure = nextLevel;
+      }
+    }
+
+    // Notify listeners (highlight UI, artifact-memory-bridge).
     for (const listener of this.listeners) {
       try {
         listener(nextLevel);
@@ -63,34 +83,3 @@ class MemoryGovernor {
 }
 
 export const globalMemoryGovernor = new MemoryGovernor();
-
-// Listen for Tauri native memory pressure events if available
-if (typeof window !== 'undefined') {
-  window.addEventListener('desktop:memory-pressure' as never, ((event: CustomEvent<{ level?: MemoryPressureLevel }>) => {
-    const level = event.detail?.level ?? 'moderate';
-    globalMemoryGovernor.setLevel(level);
-  }) as EventListener);
-}
-
-/**
- * Bridge the Rust-side `desktop:memory-pressure` Tauri event (emitted by
- * src-tauri/src/memory_pressure.rs) onto the DOM event the governor listens
- * for. Without this bridge the governor never hears about OS pressure and the
- * degradation tiers stay dead code. Non-Tauri harnesses (tests, browser dev)
- * have no event channel and intentionally keep the governor at `normal`.
- */
-async function bridgeTauriMemoryPressureEvents(): Promise<void> {
-  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-    return;
-  }
-  const { listen } = await import('@tauri-apps/api/event');
-  await listen<{ level?: MemoryPressureLevel }>('desktop:memory-pressure', (event) => {
-    window.dispatchEvent(
-      new CustomEvent('desktop:memory-pressure', { detail: event.payload }),
-    );
-  });
-}
-
-void bridgeTauriMemoryPressureEvents().catch((error) => {
-  console.warn('[memory-governor] native pressure bridge unavailable:', error);
-});

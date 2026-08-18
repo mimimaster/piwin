@@ -7,7 +7,11 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { useTerminalSessions, type TerminalSessionsApi } from './use-terminal-sessions';
+import {
+  MAX_TERMINAL_SESSIONS,
+  useTerminalSessions,
+  type TerminalSessionsApi,
+} from './use-terminal-sessions';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -204,5 +208,45 @@ describe('useTerminalSessions', () => {
     });
     expect(lastApi?.sessions[0]?.status).toBe('error');
     expect(lastApi?.sessions[0]?.error).toBe('boom');
+  });
+
+  it('refuses a fifth session and allows another after one is closed', () => {
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      for (let added = 1; added < MAX_TERMINAL_SESSIONS; added += 1) {
+        expect(lastApi?.addSession()).not.toBeNull();
+      }
+    });
+    expect(lastApi?.sessions.length).toBe(MAX_TERMINAL_SESSIONS);
+
+    let refused: ReturnType<TerminalSessionsApi['addSession']> = null;
+    act(() => {
+      refused = lastApi?.addSession() ?? null;
+    });
+    expect(refused).toBeNull();
+    expect(lastApi?.sessions.length).toBe(MAX_TERMINAL_SESSIONS);
+
+    const closableId = lastApi?.sessions[MAX_TERMINAL_SESSIONS - 1]?.id;
+    act(() => {
+      if (closableId) {
+        lastApi?.closeSession(closableId);
+      }
+    });
+    expect(lastApi?.sessions.length).toBe(MAX_TERMINAL_SESSIONS - 1);
+
+    let readded: ReturnType<TerminalSessionsApi['addSession']> = null;
+    act(() => {
+      readded = lastApi?.addSession() ?? null;
+    });
+    expect(readded).not.toBeNull();
+    expect(lastApi?.sessions.length).toBe(MAX_TERMINAL_SESSIONS);
   });
 });

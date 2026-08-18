@@ -89,6 +89,8 @@ export type CancelRunResult = {
  */
 export class RunRegistry {
   private readonly nodes = new Map<string, RunNode>();
+  /** Admitted foreground session-turn per session (may coexist with a superseded cancelling run). */
+  private readonly foregroundRunIdBySession = new Map<string, string>();
   /** Terminal run ids in termination order (oldest first), driving eviction. */
   private readonly terminalOrder: string[] = [];
   private readonly maxRetainedTerminalRuns: number;
@@ -202,6 +204,23 @@ export class RunRegistry {
 
   /** Return the active foreground session-turn for a session, if any. */
   getForegroundRun(sessionId: string): ExecutionRunRecord | undefined {
+    const admittedId = this.foregroundRunIdBySession.get(sessionId);
+    if (admittedId !== undefined) {
+      // Once a session has an admitted id, never scan siblings. A superseded
+      // non-terminal turn must not become foreground just because the admitted
+      // run ended. Only startForegroundRun / replaceForegroundRun overwrite.
+      const admitted = this.nodes.get(admittedId);
+      if (
+        admitted &&
+        admitted.record.kind === 'session-turn' &&
+        admitted.record.sessionId === sessionId &&
+        !isRunTerminal(admitted.record.status)
+      ) {
+        return { ...admitted.record };
+      }
+      return undefined;
+    }
+    // No admitted id yet (create() without startForegroundRun).
     for (const node of this.nodes.values()) {
       if (
         node.record.kind === 'session-turn' &&
@@ -224,6 +243,35 @@ export class RunRegistry {
     if (this.getForegroundRun(sessionId)) {
       throw new Error(`run-active: session ${sessionId} already has a foreground run`);
     }
+    return this.startForegroundRun(sessionId, runtimeGenerationId, resumeCheckpointId, parentRunId);
+  }
+
+  /**
+   * Admit a new foreground session-turn while the named previous run remains
+   * non-terminal. Callers must cancel the previous run after the new run is acked.
+   */
+  replaceForegroundRun(
+    sessionId: string,
+    previousRunId: string,
+    runtimeGenerationId?: string,
+    resumeCheckpointId?: string,
+    parentRunId?: string,
+  ): ExecutionRunRecord {
+    const existing = this.getForegroundRun(sessionId);
+    if (!existing || existing.runId !== previousRunId) {
+      throw new Error(
+        `run-replace-mismatch: session ${sessionId} foreground is ${existing?.runId ?? 'none'}, expected ${previousRunId}`,
+      );
+    }
+    return this.startForegroundRun(sessionId, runtimeGenerationId, resumeCheckpointId, parentRunId);
+  }
+
+  private startForegroundRun(
+    sessionId: string,
+    runtimeGenerationId?: string,
+    resumeCheckpointId?: string,
+    parentRunId?: string,
+  ): ExecutionRunRecord {
     const created = this.create({
       kind: 'session-turn',
       sessionId,
@@ -235,6 +283,7 @@ export class RunRegistry {
     if (!started) {
       throw new Error(`run-start-failed: ${created.runId}`);
     }
+    this.foregroundRunIdBySession.set(sessionId, started.runId);
     return started;
   }
 

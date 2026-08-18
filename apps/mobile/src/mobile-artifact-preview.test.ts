@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { collectMobileArtifacts, mobileArtifactBlockedCopy } from './mobile-artifact-preview.js';
+
+describe('collectMobileArtifacts', () => {
+  it('promotes a safe html fence and leaves ordinary code alone', () => {
+    const text = [
+      '说明',
+      '```artifact-html title="Landing"',
+      '<section><h1>Hello</h1></section>',
+      '```',
+      '```ts',
+      'export const x = 1;',
+      '```',
+    ].join('\n');
+    const items = collectMobileArtifacts(text);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.title).toBe('Landing');
+    expect(items[0]?.decision.kind).toBe('render');
+    if (items[0]?.decision.kind === 'render') {
+      expect(items[0].decision.srcdoc).toContain('<h1>Hello</h1>');
+      expect(items[0].decision.csp).toContain("connect-src 'none'");
+      expect(items[0].decision.csp).toContain("frame-src 'none'");
+    }
+  });
+
+  it('blocks external resources instead of rendering them', () => {
+    const text = [
+      '```artifact-html',
+      '<script src="https://cdn.example.com/x.js"></script>',
+      '```',
+    ].join('\n');
+    const items = collectMobileArtifacts(text);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.decision.kind).toBe('blocked');
+    if (items[0]?.decision.kind === 'blocked') {
+      expect(items[0].decision.reason).toBe('blocked-external-resource');
+      expect(mobileArtifactBlockedCopy(items[0].decision.reason)).toContain('外部资源');
+    }
+  });
+});

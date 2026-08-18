@@ -56,7 +56,7 @@ import {
   getPiwinSessionIndexPath,
 } from '../paths.js';
 import { loadPiwinConfig } from '../config-store.js';
-import { resolveListFilter } from '../session-scope.js';
+import { resolveListFilter, resolveScopeRefToListIntent } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { createSessionMessageResponse } from '../session-message-response.js';
 
@@ -163,12 +163,26 @@ export async function handleSessionProductCommand(
     case 'session/list': {
       const includeArchived = command.includeArchived === true;
       let indexed: SessionIndexRecord[];
-      if (command.allScopes === true) {
+      let listAllScopes = command.allScopes === true;
+      let scopeFilter = command.scope;
+      if (command.scopeRef) {
+        try {
+          const intent = await resolveScopeRefToListIntent(command.scopeRef, context.piwinRoot);
+          if ('allScopes' in intent) {
+            listAllScopes = true;
+          } else {
+            scopeFilter = intent.scope;
+          }
+        } catch (error) {
+          return fail(requestId, 'session/list', formatError(error));
+        }
+      }
+      if (listAllScopes) {
         const all = await listAllSessionRecords(indexPath);
         indexed = all.filter((record) => record.kind !== 'side-chat');
       } else {
         const filter = resolveListFilter({
-          ...(command.scope ? { scope: command.scope } : {}),
+          ...(scopeFilter ? { scope: scopeFilter } : {}),
           ...(command.projectPath ? { projectPath: command.projectPath } : {}),
         });
         indexed = await listSessionsForProject(indexPath, filter, {

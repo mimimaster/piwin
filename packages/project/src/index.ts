@@ -26,3 +26,4 @@ export type {
   ResolveProjectPathResult,
 } from './path-traversal.js';
 export { commandInBashAllowlist, pathInFileWriteAllowlist } from './allowlist-match.js';
+export { projectIdForPath, resolveProjectPathById } from './project-id.js';

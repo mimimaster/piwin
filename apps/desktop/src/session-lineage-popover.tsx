@@ -319,9 +319,6 @@ export function SessionLineagePopover(props: SessionLineagePopoverProps): ReactE
           <span {...(props.directForkCount > 0 ? { 'data-testid': 'response-fork-count' } : {})}>
             {props.directForkCount > 0 ? props.directForkCount : branchCount}
           </span>
-          <span className="assistant-action-tooltip" role="tooltip">
-            {triggerLabel}
-          </span>
         </button>
       }
     >

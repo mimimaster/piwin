@@ -18,6 +18,7 @@ describe('classifyToolKind', () => {
     expect(classifyToolKind('web_search')).toBe('web');
     expect(classifyToolKind('web_fetch')).toBe('web');
     expect(classifyToolKind('mcp__server__tool')).toBe('mcp');
+    expect(classifyToolKind('github.search')).toBe('mcp');
     expect(classifyToolKind('image_gen')).toBe('image');
     expect(classifyToolKind('piwin_subagent_run')).toBe('subagent');
     expect(classifyToolKind('mystery_tool')).toBe('other');
@@ -47,6 +48,21 @@ describe('resolvePresentedToolInvocation', () => {
       effectiveToolName: 'image_gen',
       effectiveArgs: { prompt: 'a red cube', api_key: 'sk-abcdefghijklmnopqrstuvwxyz' },
       routedToolName: 'image_gen',
+    });
+  });
+
+  it('unwraps catalog MCP calls the same way as Host targets', () => {
+    expect(
+      resolvePresentedToolInvocation('piwin_toolbox', {
+        action: 'call',
+        target: 'github.search',
+        arguments: { query: 'AgentEvent' },
+      }),
+    ).toEqual({
+      invokedToolName: 'piwin_toolbox',
+      effectiveToolName: 'github.search',
+      effectiveArgs: { query: 'AgentEvent' },
+      routedToolName: 'github.search',
     });
   });
 
@@ -390,6 +406,32 @@ describe('buildToolPresentation', () => {
     expect(call.actionVerb).toBe('MCP call');
     expect(call.summary).toBe('github.search');
     expect(call.inputPreview).toContain('github.search');
+  });
+
+  it('presents catalog search as discovery and routed MCP calls as MCP tools', () => {
+    const discovery = buildToolPresentation({
+      toolName: 'piwin_toolbox',
+      args: { action: 'search', query: 'flashcard' },
+    });
+    const mcpInvocation = resolvePresentedToolInvocation('piwin_toolbox', {
+      action: 'call',
+      target: 'github.search',
+      arguments: { query: 'AgentEvent' },
+    });
+    const mcpCall = buildToolPresentation({
+      toolName: mcpInvocation.effectiveToolName,
+      args: mcpInvocation.effectiveArgs,
+      ...(mcpInvocation.routedToolName !== undefined
+        ? { routedToolName: mcpInvocation.routedToolName }
+        : {}),
+    });
+
+    expect(discovery.actionVerb).toBe('Tool discovery');
+    expect(discovery.summary).toBe('flashcard');
+    expect(mcpCall.kind).toBe('mcp');
+    expect(mcpCall.actionVerb).toBe('MCP (github)');
+    expect(mcpCall.summary).toBe('search');
+    expect(mcpCall.routedToolName).toBe('github.search');
   });
 
   it('does not dump raw MCP JSON args into the header summary', () => {

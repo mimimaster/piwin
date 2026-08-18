@@ -90,7 +90,7 @@ export function ThinkingEffortControl({
         open={open}
         onOpenChange={setOpen}
         side="top"
-        align="end"
+        align="start"
         label="Model and thinking"
         testId="thinking-effort-popover"
         contentClassName={

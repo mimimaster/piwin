@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { MediaAttachmentRef } from '@piwin/contracts';
 import { MediaPreview } from './MediaPreview';
+import * as mediaUtils from './media-utils';
+import * as previewBitmap from './media-preview-bitmap';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -156,5 +158,85 @@ describe('MediaPreview', () => {
     });
     expect(document.querySelector('[data-testid="media-lightbox"]')).toBeNull();
     expect(parentClickCount).toBe(0);
+  });
+
+  it('keeps the lightbox on the original URL when the thumb is limited', () => {
+    const attachment: MediaAttachmentRef = {
+      id: 'image-3',
+      kind: 'media',
+      path: '/tmp/piwin/media/session-1/photo.png',
+      mimeType: 'image/png',
+      byteSize: 2048,
+      source: 'paste',
+    };
+
+    act(() => {
+      root.render(
+        <MediaPreview
+          attachment={attachment}
+          previewUrl="blob:thumb"
+          lightboxUrl="asset://photo.png"
+        />,
+      );
+    });
+
+    const thumb = container.querySelector<HTMLImageElement>('.media-preview-image');
+    expect(thumb?.src).toContain('blob:thumb');
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="media-preview-open"]')?.click();
+    });
+    const lightboxImage = document.querySelector<HTMLImageElement>(
+      '[data-testid="media-lightbox-image"]',
+    );
+    expect(lightboxImage?.src).toContain('asset://photo.png');
+  });
+
+  it('downscales transcript asset URLs for the thumb only', async () => {
+    const resolveSpy = vi
+      .spyOn(mediaUtils, 'resolveMediaPreviewUrl')
+      .mockResolvedValue('asset://photo.png');
+    const limitSpy = vi
+      .spyOn(previewBitmap, 'createLimitedPreviewUrlFromHref')
+      .mockResolvedValue({ url: 'blob:transcript-thumb', owned: true });
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    const attachment: MediaAttachmentRef = {
+      id: 'image-4',
+      kind: 'media',
+      path: '/tmp/piwin/media/session-1/photo.png',
+      mimeType: 'image/png',
+      byteSize: 4096,
+      source: 'file-picker',
+    };
+
+    await act(async () => {
+      root.render(<MediaPreview attachment={attachment} />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(resolveSpy).toHaveBeenCalledWith(attachment.path);
+    expect(limitSpy).toHaveBeenCalledWith('asset://photo.png', 1024);
+    const thumb = container.querySelector<HTMLImageElement>('.media-preview-image');
+    expect(thumb?.src).toContain('blob:transcript-thumb');
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="media-preview-open"]')?.click();
+    });
+    const lightboxImage = document.querySelector<HTMLImageElement>(
+      '[data-testid="media-lightbox-image"]',
+    );
+    expect(lightboxImage?.src).toContain('asset://photo.png');
+
+    act(() => root.unmount());
+    expect(revokeSpy).toHaveBeenCalledWith('blob:transcript-thumb');
+
+    resolveSpy.mockRestore();
+    limitSpy.mockRestore();
+    revokeSpy.mockRestore();
+    root = createRoot(container);
   });
 });

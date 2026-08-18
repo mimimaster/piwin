@@ -160,7 +160,7 @@ describe('SettingsShell', () => {
     expect(container.querySelector('.settings-main-content > .settings-card-heading')).toBeNull();
     expect(container.querySelector('[data-testid="settings-close-button"]')).toBeNull();
     expect(container.querySelector('[data-testid="settings-back-button"]')).not.toBeNull();
-    expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('检索与知识库');
+    expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('知识库与向量');
   });
 
   it('returns to the workspace from the sidebar back action', () => {

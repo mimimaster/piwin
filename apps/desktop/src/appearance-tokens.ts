@@ -10,7 +10,7 @@ export const PIWIN_APPEARANCE_INK_WASH: ThemeManifest = inkWashManifest as Theme
 
 /** UI sans — system first (Cursor uses SF Pro / -apple-system; Inter is optional fallback). */
 const SHARED_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Inter, sans-serif';
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
 const SHARED_MONO =
   '"JetBrains Mono", "Fira Code", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
@@ -62,10 +62,10 @@ export const PIWIN_APPEARANCE_LIGHT: ThemeManifest = {
     'Paper layered gray workbench with white prompt surfaces and restrained blue accent for piwin shell + artifacts',
   mode: 'light',
   tokens: {
-    // Three-level depth: side columns gray · conversation soft gray · prompts white.
-    bg: '#f6f6f7',
+    // Three-level depth: side columns gray · conversation crisp white · prompts white.
+    bg: '#ffffff',
     panel: '#ffffff',
-    panel2: '#ececef',
+    panel2: '#f0f1f4',
     border: 'rgba(0, 0, 0, 0.08)',
     text: '#1a1a1e',
     muted: '#5c5c66',
@@ -143,8 +143,8 @@ export function buildAppearanceTheme(
   settings: AppearanceThemeSettings,
 ): ThemeManifest {
   const baseTheme = mode === 'light' ? PIWIN_APPEARANCE_LIGHT : PIWIN_APPEARANCE_DARK;
-  const panel = mode === 'light' ? '#F8F8F8' : '#181818';
-  const panel2 = mode === 'light' ? '#E4E4E4' : '#242424';
+  const panel = mode === 'light' ? '#FFFFFF' : '#181818';
+  const panel2 = mode === 'light' ? '#F0F1F4' : '#242424';
 
   return {
     ...baseTheme,
@@ -362,7 +362,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty(
     '--surface-sidebar',
     // Sidebar is the darker gray chrome column around the softer conversation stage.
-    isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1e1f24',
+    isLight ? (isWarmLight ? '#f2ede5' : '#f0f1f4') : '#1e1f24',
   );
   /** Alias for --panel (the foreground overlay / popover surface). */
   root.style.setProperty('--surface-overlay', tokens.panel);
@@ -409,7 +409,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     isLight
       ? isWarmLight
         ? 'rgba(80, 60, 40, 0.12)'
-        : 'rgba(0, 0, 0, 0.10)'
+        : 'rgba(0, 0, 0, 0.08)'
       : 'rgba(255, 255, 255, 0.16)',
   );
   /** Soft / de-emphasized divider line. */
@@ -580,20 +580,20 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   );
   root.style.setProperty(
     '--sunken',
-    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#101012',
+    isLight ? (isWarmLight ? tokens.panel2 : '#f4f5f8') : '#101012',
   );
   /**
    * Three-level shell surfaces (sidebar · conversation · composer):
    *   dark  → light · deep · light
-   *   Paper → gray  · soft gray · white
+   *   Paper → gray  · crisp white · white
    *   橙白  → warm gray · warm white · warm gray
    */
-  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1e1f24');
+  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? '#f2ede5' : '#f0f1f4') : '#1e1f24');
   root.style.setProperty('--composer', isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c21');
   // History user-message cards share the composer surface (not stage canvas).
   root.style.setProperty(
     '--user-bubble',
-    isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1d1e24',
+    isLight ? (isWarmLight ? '#f2ede5' : '#f0f1f4') : '#1d1e24',
   );
   root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#101012');
   root.style.setProperty(

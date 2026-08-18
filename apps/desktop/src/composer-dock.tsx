@@ -209,6 +209,9 @@ export type ComposerDockProps = {
   recentProjects?: readonly ProjectRecord[];
   /** Switch directly to a project selected from the path dropdown. */
   onOpenProject?: ((path: string) => void) | undefined;
+  /** True when Desktop is attached to a saved standalone Host. */
+  runtimeRemoteConnected?: boolean;
+  onSelectLocalRuntime?: () => void;
   /** Open Knowledge Center overlay from plus menu or UI. */
   onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
   /** Open the right-panel Flashcards due queue. */
@@ -993,7 +996,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 <>
                   {/* Phase 0: failures never cover the thumbnail — the reason
                       and actions live in the failure rows under this list. */}
-                  <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
+                  <MediaPreview
+                    attachment={item.attachment}
+                    compact
+                    {...(item.previewUrl ? { previewUrl: item.previewUrl } : {})}
+                    {...(item.lightboxUrl ? { lightboxUrl: item.lightboxUrl } : {})}
+                  />
                   {item.uploadStatus === 'saving' ? (
                     <span
                       className="composer-v2-attachment-status"
@@ -1178,6 +1186,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             />
           </div>
 
+          {/* Thinking effort / Model control */}
+          <ThinkingEffortControl
+            disabled={isStreamingRun || !props.onThinkingLevelChange}
+            modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? copy.model}
+            ultraEnabled={props.ultraThinkingEnabled ?? false}
+            value={props.thinkingLevel ?? 'off'}
+            onChange={(level) => props.onThinkingLevelChange?.(level)}
+            models={thinkingModels}
+            selectedModelKey={props.selectedModelKey}
+            onSelectModel={props.onSelectModel}
+          />
+
           {showSpeechInput ? (
             <>
               <IconButton
@@ -1272,18 +1292,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 : {})}
             />
           ) : null}
-
-          {/* Thinking effort control */}
-          <ThinkingEffortControl
-            disabled={isStreamingRun || !props.onThinkingLevelChange}
-            modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? copy.model}
-            ultraEnabled={props.ultraThinkingEnabled ?? false}
-            value={props.thinkingLevel ?? 'off'}
-            onChange={(level) => props.onThinkingLevelChange?.(level)}
-            models={thinkingModels}
-            selectedModelKey={props.selectedModelKey}
-            onSelectModel={props.onSelectModel}
-          />
 
           {/* Context usage ring */}
           <ContextUsageRing
@@ -1439,7 +1447,10 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
               request={props.branchRequest}
             />
           ) : null}
-          <RuntimeTargetChip />
+          <RuntimeTargetChip
+            {...(props.runtimeRemoteConnected === true ? { remoteConnected: true } : {})}
+            {...(props.onSelectLocalRuntime ? { onSelectLocal: props.onSelectLocalRuntime } : {})}
+          />
         </div>
       ) : null}
       {props.activeJobs && props.activeJobs.length > 0 ? (

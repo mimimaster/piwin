@@ -272,4 +272,30 @@ describe('HostClient', () => {
     callbacks.get('host-message-batch')?.({ payload: nextBatch });
     expect(gaps).toHaveLength(1);
   });
+
+  it('does not invoke the JSONL sidecar when transport is remote', async () => {
+    const client = new HostClient({
+      transport: 'remote',
+      remoteTarget: { endpoint: 'ws://127.0.0.1:8787' },
+    });
+    expect(client.getTransport()).toBe('remote');
+    expect(client.supportsForegroundAdmission()).toBe(false);
+    const response = await client.request({ type: 'host/ping' });
+    expect(response.success).toBe(false);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses mobile-access commands unless the live sidecar is attached', async () => {
+    const remote = new HostClient({
+      transport: 'remote',
+      remoteTarget: { endpoint: 'ws://127.0.0.1:8787' },
+    });
+    const denied = await remote.request({ type: 'mobile-access/status' });
+    expect(denied).toMatchObject({
+      success: false,
+      command: 'mobile-access/status',
+      error: 'Phone access is only available on this Mac’s sidecar',
+    });
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
 });

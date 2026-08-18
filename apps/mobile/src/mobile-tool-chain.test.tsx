@@ -134,4 +134,26 @@ describe('Mobile Tool Call Chain & Execution Cards', () => {
     expect(container.textContent).toContain('执行命令');
     expect(container.textContent).toContain('任务已顺利完成。');
   });
+
+  it('shows an artifact card for a completed html fence', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <MobileMessageItem
+            message={{
+              id: 'msg-artifact',
+              role: 'assistant',
+              text: ['```artifact-html title="Landing"', '<section><h1>Hi</h1></section>', '```'].join(
+                '\n',
+              ),
+              createdAt: '2026-08-16T12:00:00Z',
+              status: 'done',
+            }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.textContent).toContain('Landing');
+    expect(container.querySelector('.artifact-preview-btn')).not.toBeNull();
+  });
 });

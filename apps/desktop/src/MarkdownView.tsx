@@ -37,6 +37,7 @@ import {
   useDesktopContextMenu,
   type ContextMenuTarget,
 } from './context-menu';
+import { isLocalFilesystemMarkdownMediaSrc } from './media-path';
 
 /** CM-11: code-block surface menu wrapper around a rendered fence. */
 function CodeBlockContextMenu(props: {
@@ -552,6 +553,9 @@ function createStreamdownComponents(optionsRef: {
     ...props
   }: StreamdownElementProps<'img'>): ReactElement => {
     if (!src) return <span className="md-image-fallback">{alt || 'Image unavailable'}</span>;
+    if (isLocalFilesystemMarkdownMediaSrc(src)) {
+      return <></>;
+    }
     return <img {...props} src={src} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" />;
   };
 

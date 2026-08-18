@@ -21,13 +21,11 @@ import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
 import { buildNotesTools } from '../notes-tools.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
-import { buildMcpGatewayToolDefinition } from '../mcp-gateway-tool.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
 import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
-import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
@@ -53,14 +51,12 @@ import { getPiwinMediaDir } from '../paths.js';
 import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
 import {
   buildMcpCapabilityBrief,
-  formatMcpGatewayToolDescription,
   type McpCapabilityBrief,
 } from '../mcp-capability-brief.js';
 import { compactModelToolDescriptor } from '../model-tool-descriptor.js';
-import {
-  buildHostToolboxRegistration,
-  isHostToolboxTargetFamily,
-} from '../host-toolbox.js';
+import { isHostToolboxTargetFamily } from '../host-toolbox.js';
+import { buildHostToolboxRegistration } from '../tool-catalog/catalog-tool.js';
+import { createToolCatalogService } from '../tool-catalog/catalog-service.js';
 import { buildWebSearchModelDelegate } from '../model-web-search-delegate.js';
 
 /**
@@ -98,7 +94,7 @@ export type BuildSessionHostToolsOptions = {
   getNotesServices?: NotesServicesProvider;
   getCardStore?: CardStoreProvider;
 
-  /** MCP lifecycle manager for the gateway tool. */
+  /** MCP lifecycle manager for catalog search/describe/call/status. */
   mcpManager?: McpLifecycleManager | null;
   /** Runtime generation identity used to scope MCP transports. */
   runtimeGenerationId?: string;
@@ -274,8 +270,8 @@ export async function buildSessionHostTools(
       directMcpTools = cachedMcpTools.tools;
     } catch (error) {
       reportCompositionDiagnostic(options, 'mcp-cached-tools', error);
-      // Cache failure degrades to config-only MCP guidance; the gateway remains
-      // available and can still describe/call known selectors.
+      // Cache failure degrades to config-only MCP guidance; the catalog remains
+      // available through piwin_toolbox and can still describe/call known selectors.
     }
   }
 
@@ -287,13 +283,7 @@ export async function buildSessionHostTools(
   options.onMcpCapabilityBrief?.(mcpCapabilityBrief);
 
   if (options.mcpManager) {
-    const mcpTool = buildMcpGatewayToolDefinition({
-      lifecycleManager: options.mcpManager,
-      mcpConfig,
-      mcpSnapshot,
-      description: formatMcpGatewayToolDescription(mcpCapabilityBrief),
-    });
-    tools.push(mcpTool, ...directMcpTools);
+    tools.push(...directMcpTools);
   }
 
   // --- Planning tools ---
@@ -314,11 +304,6 @@ export async function buildSessionHostTools(
         ...(options.onPlanUpdated ? { onUpdated: options.onPlanUpdated } : {}),
       }),
     );
-  }
-
-  // --- Artifact instructions (full contract is lazy, not system-prompt resident) ---
-  if (options.config?.artifact.enabled) {
-    tools.push(buildArtifactInstructionsTool(options.config.artifact));
   }
 
   // --- Subagent run tool ---
@@ -371,8 +356,20 @@ export async function buildSessionHostTools(
   }
 
   const toolboxTargets = tools.filter((tool) => isHostToolboxTargetFamily(tool.family));
-  if (toolboxTargets.length > 0) {
-    tools.push(buildHostToolboxRegistration(toolboxTargets));
+  const catalog = options.mcpManager
+    ? createToolCatalogService({
+        lifecycleManager: options.mcpManager,
+        mcpConfig,
+        mcpSnapshot,
+      })
+    : undefined;
+  if (toolboxTargets.length > 0 || catalog) {
+    tools.push(
+      buildHostToolboxRegistration(toolboxTargets, {
+        ...(catalog ? { catalog } : {}),
+        mcpBrief: mcpCapabilityBrief,
+      }),
+    );
   }
 
   return tools;

@@ -189,7 +189,7 @@ modes, or project trust. MCP servers run with the Host user's OS permissions;
 this is not an OS sandbox.
 
 `@piwin/host-runtime` owns one `McpSupervisor` per Host. The default model tool
-surface is the stable `mcp_gateway`; direct MCP tools are exposed only when
+surface is `piwin_toolbox` (`search` / `describe` / `call` / `status`); direct MCP tools are exposed only when
 explicitly pinned. Both paths use the same Supervisor, which owns the process
 from spawn through timeout, config replacement, and shutdown.
 

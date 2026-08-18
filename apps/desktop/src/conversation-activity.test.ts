@@ -36,8 +36,29 @@ describe('conversation activity', () => {
         tools: [runningTool('video_gen')],
       }),
     ).toBe('generating-video');
+    expect(
+      resolveConversationActivityKind({
+        streaming: true,
+        tools: [runningTool('flashcard_create')],
+      }),
+    ).toBe('creating-flashcard');
+    expect(
+      resolveConversationActivityKind({
+        streaming: true,
+        tools: [runningTool('create_artifact')],
+      }),
+    ).toBe('generating-artifact');
+    expect(
+      resolveConversationActivityKind({
+        streaming: true,
+        tools: [runningTool('custom_calculator')],
+      }),
+    ).toBe('calling-tool');
     expect(resolveConversationActivityKind({ streaming: true, tools: [] })).toBe('thinking');
     expect(conversationActivityLabel('thinking', 'en')).toBe('Thinking…');
+    expect(conversationActivityLabel('creating-flashcard', 'zh-CN')).toBe('正在创建知识卡片…');
+    expect(conversationActivityLabel('creating-flashcard', 'en')).toBe('Creating flashcard…');
+    expect(conversationActivityLabel('calling-tool', 'zh-CN')).toBe('正在调用工具…');
     expect(conversationActivityLabel('searching', 'en')).not.toContain('web_search');
   });
 });

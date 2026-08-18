@@ -23,7 +23,16 @@ describe('pet overlay entry boundary', () => {
     const nativeRoot = readSource('../src-tauri/src/lib.rs');
     expect(nativeSource).toContain('WebviewUrl::App("pet-overlay.html".into())');
     expect(nativeSource).not.toContain('WebviewUrl::App("index.html".into())');
-    expect(nativeSource).toContain('pub fn create_pet_overlay_window');
-    expect(nativeRoot).toContain('create_pet_overlay_window(application.handle())');
+    expect(nativeSource).toContain('window.close()');
+    expect(nativeSource).not.toContain('window.hide()');
+    expect(nativeSource).not.toContain('pub fn create_pet_overlay_window');
+    expect(nativeRoot).not.toContain('create_pet_overlay_window');
+  });
+
+  it('restores a visible overlay from the main window only', () => {
+    const main = readSource('./main.tsx');
+    const overlayEntry = readSource('./pet-overlay-main.tsx');
+    expect(main).toContain('installPetOverlayRestore()');
+    expect(overlayEntry).not.toContain('installPetOverlayRestore');
   });
 });

@@ -121,6 +121,7 @@ export {
   MAX_LIVE_ARTIFACT_IFRAMES,
   claimArtifactLiveHost,
   requestArtifactLiveHost,
+  evictNonForceKeepArtifactHosts,
   releaseArtifactLiveHost,
   getLiveArtifactHostCount,
   getWaitingArtifactHostCount,

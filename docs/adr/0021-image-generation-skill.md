@@ -42,8 +42,9 @@ and saving outputs through `@piwin/media`.
      bytes, and saves every image via `@piwin/media` to
      `~/.piwin/media/<session>/`. It returns absolute path(s), per-image metadata,
      and structured `MediaAttachmentRef` values for the product transcript/UI.
-     The model-facing output remains path-based; base64 is never placed in
-     context (AGENTS.md §3.6).
+     The model-facing output is a delivery receipt (`status`, counts, media ids,
+     notice) without filesystem paths. Absolute paths stay in `details` for the
+     Host/UI. Base64 is never placed in context (AGENTS.md §3.6).
    - Settings exposes a real endpoint smoke test (`models/image-test`) that uses
      the same adapter as `image_gen` and discards the returned bytes.
 4. **Switch = `config.skills.disabledIds`.** Adding `imagegen` disables both the
@@ -66,3 +67,10 @@ and saving outputs through `@piwin/media`.
 The detailed selection, response-normalization, multi-image, MIME-detection, and
 Settings smoke-test behavior is specified in
 `docs/specs/image-generation-call-flow-v3.md`.
+
+## 2026-08-18 amendment
+
+Model-facing `output` no longer includes absolute media paths. The product UI
+owns generated-image presentation via `details.attachments`. The earlier
+"path-based output" wording meant "do not put bytes in context", not "the
+model must re-deliver the file path to the user".

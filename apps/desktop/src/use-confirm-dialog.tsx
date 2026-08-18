@@ -11,6 +11,7 @@ export type ConfirmRequest = {
   title: string;
   description: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   affectedObject?: string;
   tone?: 'danger' | 'default';
   /**
@@ -76,15 +77,16 @@ export function useConfirmDialog() {
       }}
       title={request.title}
       description={request.description}
-      affectedObject={request.affectedObject}
       confirmLabel={request.confirmLabel ?? 'Confirm'}
       tone={request.tone ?? 'danger'}
       busy={busy}
       onConfirm={() => close(true)}
-      dontAskAgainLabel={request.dontAskAgainLabel}
       onDontAskAgainChange={(checked) => {
         dontAskCheckedRef.current = checked;
       }}
+      {...(request.affectedObject ? { affectedObject: request.affectedObject } : {})}
+      {...(request.cancelLabel ? { cancelLabel: request.cancelLabel } : {})}
+      {...(request.dontAskAgainLabel ? { dontAskAgainLabel: request.dontAskAgainLabel } : {})}
     />
   ) : null;
 

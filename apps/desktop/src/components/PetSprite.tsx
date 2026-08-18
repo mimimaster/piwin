@@ -9,6 +9,12 @@ import {
   PET_SPRITE_ROWS,
 } from '@piwin/contracts';
 import { PetBubble } from './PetBubble';
+import { buildPetBubbleView } from '../pet-bubble-view.js';
+import {
+  PET_ACTION_DURATION_MS,
+  PET_IDLE_ACTION_INTERVAL_MS,
+  petSpriteShouldAnimate,
+} from './pet-sprite-animation.js';
 import { defaultPetContentBounds, detectPetContentBounds, type PetContentBounds } from './pet-content-bounds.js';
 import {
   PET_BUBBLE_MAX_WIDTH_PX,
@@ -34,8 +40,8 @@ export type PetSpriteProps = {
   locale?: 'zh-CN' | 'en';
 };
 
-const IDLE_INTERVAL_MS = 4000;
-const ACTION_DURATION_MS = 1200;
+const IDLE_INTERVAL_MS = PET_IDLE_ACTION_INTERVAL_MS;
+const ACTION_DURATION_MS = PET_ACTION_DURATION_MS;
 
 type TempAction = PetAnimationState | null;
 
@@ -58,6 +64,11 @@ export function PetSprite(props: PetSpriteProps) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const petRef = useRef(props.pet);
   const rafRef = useRef<number>(0);
+  const loopRunningRef = useRef(false);
+  const idleActionTimerRef = useRef<number>(0);
+  const startLoopRef = useRef<() => void>(() => {});
+  const stopLoopRef = useRef<() => void>(() => {});
+  const scheduleIdleActionRef = useRef<() => void>(() => {});
   const frameRef = useRef<number>(0);
   const [dragging, setDragging] = useState(false);
   const wasDraggingRef = useRef(false);
@@ -103,6 +114,7 @@ export function PetSprite(props: PetSpriteProps) {
         props.pet.rows,
       );
       setContentBounds(detected);
+      startLoopRef.current();
       return;
     }
 
@@ -124,6 +136,7 @@ export function PetSprite(props: PetSpriteProps) {
         props.pet.rows,
       );
       setContentBounds(detected);
+      startLoopRef.current();
     };
     img.onerror = () => {};
     return () => {
@@ -132,10 +145,21 @@ export function PetSprite(props: PetSpriteProps) {
     };
   }, [props.pet.spritesheetAbsolutePath]);
 
-  // Animation loop.
+  // Animation loop. Idle + no hover + no bubble is static; rAF only runs
+  // while something is actually moving. Random wave/jump is a one-shot timer.
   useEffect(() => {
     let lastFrame = 0;
-    let lastIdle = performance.now();
+
+    function shouldAnimateNow(): boolean {
+      const pet = petRef.current;
+      return petSpriteShouldAnimate({
+        state: pet.state,
+        hovered: hoverRef.current,
+        hasTempAction: tempActionRef.current !== null,
+        hasBubble: buildPetBubbleView(pet) !== null,
+        visibilityState: document.visibilityState,
+      });
+    }
 
     function drawFrame(now: number): void {
       const canvas = canvasRef.current;
@@ -188,32 +212,103 @@ export function PetSprite(props: PetSpriteProps) {
       }
     }
 
-    function tick(now: number): void {
-      const pet = petRef.current;
-      if (tempActionRef.current && now >= tempActionUntil.current) {
-        tempActionRef.current = null;
+    function stopLoop(): void {
+      if (rafRef.current !== 0) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
       }
-      drawFrame(now);
+      loopRunningRef.current = false;
+    }
 
-      // Random idle action.
-      if (
-        !tempActionRef.current &&
-        pet.state === 'idle' &&
-        !hoverRef.current &&
-        now - lastIdle > IDLE_INTERVAL_MS &&
-        Math.random() < 0.02
-      ) {
-        const actions: PetAnimationState[] = ['waving', 'jumping'];
-        const action = actions[Math.floor(Math.random() * actions.length)] ?? 'waving';
-        tempActionRef.current = action;
-        tempActionUntil.current = now + ACTION_DURATION_MS;
-        lastIdle = now;
+    function startLoop(): void {
+      if (loopRunningRef.current) {
+        return;
+      }
+      loopRunningRef.current = true;
+      function tick(now: number): void {
+        if (tempActionRef.current && now >= tempActionUntil.current) {
+          tempActionRef.current = null;
+        }
+        drawFrame(now);
+        if (!shouldAnimateNow()) {
+          rafRef.current = 0;
+          loopRunningRef.current = false;
+          scheduleIdleAction();
+          return;
+        }
+        rafRef.current = requestAnimationFrame(tick);
       }
       rafRef.current = requestAnimationFrame(tick);
     }
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
+
+    function clearIdleActionTimer(): void {
+      if (idleActionTimerRef.current !== 0) {
+        window.clearTimeout(idleActionTimerRef.current);
+        idleActionTimerRef.current = 0;
+      }
+    }
+
+    function scheduleIdleAction(): void {
+      clearIdleActionTimer();
+      const pet = petRef.current;
+      if (
+        pet.state !== 'idle' ||
+        hoverRef.current ||
+        tempActionRef.current !== null ||
+        document.visibilityState === 'hidden'
+      ) {
+        return;
+      }
+      idleActionTimerRef.current = window.setTimeout(() => {
+        idleActionTimerRef.current = 0;
+        if (
+          petRef.current.state !== 'idle' ||
+          hoverRef.current ||
+          tempActionRef.current !== null ||
+          document.visibilityState === 'hidden'
+        ) {
+          return;
+        }
+        const actions: PetAnimationState[] = ['waving', 'jumping'];
+        const action = actions[Math.floor(Math.random() * actions.length)] ?? 'waving';
+        tempActionRef.current = action;
+        tempActionUntil.current = performance.now() + ACTION_DURATION_MS;
+        startLoop();
+      }, IDLE_INTERVAL_MS);
+    }
+
+    startLoopRef.current = startLoop;
+    stopLoopRef.current = stopLoop;
+    scheduleIdleActionRef.current = scheduleIdleAction;
+
+    function onVisibilityChange(): void {
+      if (document.visibilityState === 'hidden') {
+        stopLoop();
+        clearIdleActionTimer();
+        return;
+      }
+      if (shouldAnimateNow()) {
+        startLoop();
+      } else {
+        drawFrame(performance.now());
+        scheduleIdleAction();
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    if (shouldAnimateNow()) {
+      startLoop();
+    } else {
+      drawFrame(performance.now());
+      scheduleIdleAction();
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      clearIdleActionTimer();
+      stopLoop();
+    };
+  }, [props.pet.state]);
 
   function effectiveState(): PetAnimationState {
     return tempActionRef.current ?? petRef.current.state;
@@ -252,6 +347,7 @@ export function PetSprite(props: PetSpriteProps) {
     if (tempActionRef.current === null) {
       tempActionRef.current = 'jumping';
       tempActionUntil.current = performance.now() + ACTION_DURATION_MS;
+      startLoopRef.current();
     }
   }
   function onClick(): void {
@@ -269,6 +365,7 @@ export function PetSprite(props: PetSpriteProps) {
       tempActionRef.current = 'waving';
       tempActionUntil.current = performance.now() + ACTION_DURATION_MS;
     }
+    startLoopRef.current();
   }
   function onMouseLeave(): void {
     hoverRef.current = false;

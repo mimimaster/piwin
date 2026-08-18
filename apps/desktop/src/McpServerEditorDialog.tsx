@@ -377,8 +377,8 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
               </div>
               <p className="mcp-tools-preview-hint muted">
                 {isChinese
-                  ? '钉选后以 mcp__server__tool 直接暴露给 Agent。未钉选的工具仍可通过 mcp_gateway（search → describe → call）调用。'
-                  : 'Pinned tools appear as mcp__server__tool for the agent. Unpinned tools stay reachable via mcp_gateway (search → describe → call).'}
+                  ? '钉选后以 mcp__server__tool 直接暴露给 Agent。未钉选的工具仍可通过 piwin_toolbox（search → call）调用。'
+                  : 'Pinned tools appear as mcp__server__tool for the agent. Unpinned tools stay reachable via piwin_toolbox (search → call).'}
               </p>
               {loadingTools && tools.length === 0 ? (
                 <p className="mcp-tools-empty muted">

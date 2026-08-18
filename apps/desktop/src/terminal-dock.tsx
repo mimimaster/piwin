@@ -13,7 +13,11 @@ import { Button, Notice } from '@piwin/ui-kit';
 import { isTauriPtyAvailable } from './tauri-pty';
 import { XtermSurface } from './xterm-surface';
 import { IconClose, IconPlus, IconRefresh, IconFolder } from './shell-icons';
-import { useTerminalSessions, type TerminalSession } from './use-terminal-sessions';
+import {
+  MAX_TERMINAL_SESSIONS,
+  useTerminalSessions,
+  type TerminalSession,
+} from './use-terminal-sessions';
 
 export type PtyOutputLine = {
   id: string;
@@ -67,6 +71,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   // Directory switcher state.
   const [dirDropdownOpen, setDirDropdownOpen] = useState(false);
   const [dirInput, setDirInput] = useState('');
+  const [sessionCapNotice, setSessionCapNotice] = useState<string | null>(null);
   const dirDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -352,11 +357,25 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                       data-testid="terminal-session-add"
                       aria-label="New terminal session"
                       title="New terminal session"
-                      onClick={() => addSession()}
+                      onClick={() => {
+                        const session = addSession();
+                        if (session) {
+                          setSessionCapNotice(null);
+                          return;
+                        }
+                        setSessionCapNotice(
+                          `At most ${MAX_TERMINAL_SESSIONS} terminal sessions can stay open.`,
+                        );
+                      }}
                     >
                       <IconPlus width={12} height={12} />
                     </button>
                   </div>
+                  {sessionCapNotice ? (
+                    <Notice tone="warning" testId="terminal-session-cap-notice">
+                      {sessionCapNotice}
+                    </Notice>
+                  ) : null}
 
                   <div className="terminal-dock-surfaces" data-testid="terminal-dock-surfaces">
                     {sessions.map((session) => (

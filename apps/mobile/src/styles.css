@@ -605,8 +605,13 @@ textarea {
 }
 
 .modern-composer-action-btn.mic-idle {
+  width: 44px;
+  height: 44px;
   background: var(--surface-control);
   color: var(--text-strong);
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .modern-composer-action-btn.mic-idle:active {
@@ -620,6 +625,30 @@ textarea {
   color: #ffffff;
   box-shadow: 0 0 12px rgba(248, 81, 73, 0.6);
   animation: pulse-dot 1.2s infinite ease-in-out;
+  touch-action: none;
+}
+
+.hold-to-talk-overlay {
+  pointer-events: none;
+  margin: 0 2px 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.hold-to-talk-title {
+  display: block;
+  font-size: 13px;
+  color: var(--text-strong);
+}
+
+.hold-to-talk-transcript {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
 }
 
 /* ── Theme Picker Grid ── */

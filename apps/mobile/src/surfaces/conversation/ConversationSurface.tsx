@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ChangeEvent, type ReactElement } from 'react';
 import type { RemoteSessionSummary } from '@piwin/contracts';
-import { Button, Card, IconCheck, IconClose } from '@piwin/ui-kit';
+import { Button, Card, IconCheck, IconClose, Notice } from '@piwin/ui-kit';
 import { MobileMessageItem } from '../../components/chat/MobileMessageItem.js';
 import { ModernComposer } from '../../components/chat/ModernComposer.js';
 import { MobileQuickPrompts } from '../../components/chat/MobileQuickPrompts.js';
@@ -19,7 +19,7 @@ export type ConversationSurfaceProps = {
   attachments: MobileMediaAttachment[];
   onRemoveAttachment: (id: string) => void;
   onFileSelected: (event: ChangeEvent<HTMLInputElement>) => void;
-  onSend: () => void;
+  onSend: (text?: string) => void;
   onAbort: () => void;
   isSending: boolean;
   isUploadingMedia: boolean;
@@ -29,6 +29,10 @@ export type ConversationSurfaceProps = {
   onResolvePermission: (decision: 'allow' | 'deny') => void;
   onNavigateToSessions: () => void;
   projectName?: string | undefined;
+  errorMessage?: string | undefined;
+  pendingReplaceRunId?: string | undefined;
+  onReplaceAndSend?: (() => void) | undefined;
+  onSpeechError?: ((message: string) => void) | undefined;
 };
 
 export function ConversationSurface({
@@ -50,6 +54,10 @@ export function ConversationSurface({
   onResolvePermission,
   onNavigateToSessions,
   projectName,
+  errorMessage,
+  pendingReplaceRunId,
+  onReplaceAndSend,
+  onSpeechError,
 }: ConversationSurfaceProps): ReactElement {
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -102,6 +110,23 @@ export function ConversationSurface({
         )}
 
         {/* Pending Permission Decision Gate */}
+        {errorMessage !== undefined ? (
+          <Notice
+            tone="error"
+            title={pendingReplaceRunId !== undefined ? '发送失败' : '操作失败'}
+            testId="mobile-chat-error"
+            action={
+              pendingReplaceRunId !== undefined && onReplaceAndSend !== undefined ? (
+                <Button variant="secondary" size="compact" onClick={onReplaceAndSend}>
+                  中断并发送
+                </Button>
+              ) : null
+            }
+          >
+            {errorMessage}
+          </Notice>
+        ) : null}
+
         {permissionRequest ? (
           <div className="modern-permission-banner">
             <div className="permission-banner-header">
@@ -146,6 +171,7 @@ export function ConversationSurface({
         onFileSelected={onFileSelected}
         onSend={onSend}
         onAbort={onAbort}
+        onSpeechError={onSpeechError}
         isSending={isSending}
         isUploadingMedia={isUploadingMedia}
         activeRunId={activeRunId}

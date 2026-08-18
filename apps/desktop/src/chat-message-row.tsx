@@ -36,7 +36,11 @@ import { WalkthroughAction } from './walkthrough-action';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
-import { resolveGenerationToolKind, type GenerationToolKind } from './generation-tool-kind.js';
+import {
+  resolveGenerationToolKind,
+  shouldRenderGenerationProgress,
+  type GenerationToolKind,
+} from './generation-tool-kind.js';
 import {
   ConversationResponseContent,
   messageHasFlashcardToolResult,
@@ -478,20 +482,26 @@ export const ChatMessageRow = memo(
               </TurnWorkDetails>
           )
         ) : null}
-        {imageGenerationStatus ? (
+        {imageGenerationStatus &&
+        shouldRenderGenerationProgress(imageGenerationStatus, message.attachments) ? (
           <ImageGenerationProgress
             locale={props.locale ?? 'zh-CN'}
             status={imageGenerationStatus}
           />
         ) : null}
-        {videoGenerationStatus ? (
+        {videoGenerationStatus &&
+        shouldRenderGenerationProgress(videoGenerationStatus, message.attachments) ? (
           <VideoGenerationProgress
             locale={props.locale ?? 'zh-CN'}
             status={videoGenerationStatus}
           />
         ) : null}
         {message.role === 'assistant' || isEditingThis ? (
-          <MessageAttachments attachments={message.attachments} />
+          <MessageAttachments
+            attachments={message.attachments}
+            role={message.role}
+            {...(props.locale !== undefined ? { locale: props.locale } : {})}
+          />
         ) : null}
         {message.role === 'system' ? (
           <SystemMessageContent

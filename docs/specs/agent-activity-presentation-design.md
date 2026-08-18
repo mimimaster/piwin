@@ -140,7 +140,7 @@ MCP call failed: {reason}
 
 MCP 输入输出默认折叠，避免在行标题中直接倾倒原始 JSON。
 
-MCP 不使用权限 Gate 动效。`mcp_gateway` 的 `search / describe / call / status` 由 Host 先归一化为 MCP 展示语义，Desktop 只消费 `ToolPresentation`，不解析 Pi 原始事件或 JSON。
+MCP 不使用权限 Gate 动效。`piwin_toolbox` 的 MCP `search / describe / call / status`（以及历史 transcript 里的 `mcp_gateway`）由 Host 先归一化为 MCP 展示语义，Desktop 只消费 `ToolPresentation`，不解析 Pi 原始事件或 JSON。
 
 ### 4.5 Skill 与上下文资源
 
@@ -210,7 +210,7 @@ Artifact 生成分为两个连续阶段：模型尚未输出可识别内容时�
 
 ## 6. 当前代码边界
 
-- MCP 已在 Host 侧 `ToolPresentation` 中拥有独立的 `mcp` 类型；直接工具和 `mcp_gateway` 的 `search / describe / call / status` 分别映射到 `mcp.call`、`mcp.discovery`、`mcp.server.status`。
+- MCP 已在 Host 侧 `ToolPresentation` 中拥有独立的 `mcp` 类型；直接工具、`piwin_toolbox` 目录动作、以及历史 `mcp_gateway` 的 `search / describe / call / status` 分别映射到 `mcp.call`、`mcp.discovery`、`mcp.server.status`。
 - Subagent 的父级批次、子任务和 Inspector 使用独立行为 ID；父级只展示聚合，子会话内部继续复用普通工具行为。
 - Skill 当前是资源加载与注入，不是普通 `tool-call`。V1 只对用户明确选择的 `/skill` 提交显示 `skill.load` / `skill.use` 芯片；安装、启用、禁用仍停留在设置页。未来若 Host 提供归一化资源活动事件，再扩展到自动注入的 Skill。
 - 全局定位器的展示入口是 `RunActivitySlot` 与等待模型的 `TurnWorkDetails`。

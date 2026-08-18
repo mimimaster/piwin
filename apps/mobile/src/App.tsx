@@ -42,6 +42,12 @@ export function App(): ReactElement {
   const isConnected = host.connectionState.kind === 'ready';
 
   useEffect(() => {
+    if (overlayHash === '#inbox') {
+      host.refreshActivitySummary();
+    }
+  }, [overlayHash]);
+
+  useEffect(() => {
     if (host.configuredModels.length === 0) {
       return;
     }
@@ -109,8 +115,14 @@ export function App(): ReactElement {
               setEndpoint={host.setEndpoint}
               authToken={host.authToken}
               setAuthToken={host.setAuthToken}
+              pairingToken={host.pairingToken}
+              setPairingToken={host.setPairingToken}
+              setExpectedHostInstanceId={host.setExpectedHostInstanceId}
               connectionState={host.connectionState}
               errorMessage={host.errorMessage}
+              credentialPersistError={host.credentialPersistError}
+              isNativeVault={host.isNativeVault}
+              onRetryCredentialPersist={() => void host.retryCredentialPersist()}
               onConnect={() => {
                 void host.handleConnect().then(() => {
                   setShowConnectionConfig(false);
@@ -145,13 +157,15 @@ export function App(): ReactElement {
               attachments={host.attachments}
               onRemoveAttachment={host.removeAttachment}
               onFileSelected={(e) => void host.handleFileSelected(e)}
-              onSend={() =>
+              onSend={(text) =>
                 void host.handleSend({
+                  ...(text === undefined ? {} : { text }),
                   ...(selectedModelRef ? { model: selectedModelRef } : {}),
                   ...(selectedThinkingLevel ? { thinkingLevel: selectedThinkingLevel } : {}),
                 })
               }
               onAbort={() => void host.handleAbort()}
+              onSpeechError={host.setErrorMessage}
               isSending={host.isSending}
               isUploadingMedia={host.isUploadingMedia}
               activeRunId={host.activeRunId}
@@ -160,6 +174,20 @@ export function App(): ReactElement {
               onResolvePermission={(decision) => void host.handleResolvePermission(decision)}
               onNavigateToSessions={() => setMobileOverlayHash('#sidebar')}
               projectName={activeProject}
+              errorMessage={host.errorMessage}
+              pendingReplaceRunId={host.pendingReplaceRunId}
+              onReplaceAndSend={() => {
+                if (host.pendingReplaceRunId === undefined) {
+                  return;
+                }
+                void host.handleSend(
+                  {
+                    ...(selectedModelRef ? { model: selectedModelRef } : {}),
+                    ...(selectedThinkingLevel ? { thinkingLevel: selectedThinkingLevel } : {}),
+                  },
+                  host.pendingReplaceRunId,
+                );
+              }}
             />
 
             <MobileSidebarDrawer
@@ -186,7 +214,7 @@ export function App(): ReactElement {
               onOpenSettings={() => setMobileOverlayHash('#settings')}
               onOpenInbox={() => setMobileOverlayHash('#inbox')}
               onOpenShare={() => setMobileOverlayHash('#share')}
-              activeRunCount={host.activeRunId !== undefined ? 1 : 0}
+              activeRunCount={host.activityItems.length}
               endpoint={host.endpoint}
               isConnected={isConnected}
             />
@@ -208,12 +236,20 @@ export function App(): ReactElement {
             <InboxModal
               isOpen={overlayHash === '#inbox'}
               onClose={closeOverlay}
-              activeRunId={host.activeRunId}
-              permissionRequest={host.permissionRequest}
+              items={host.activityItems}
+              sessions={host.sessions}
               isResolvingPermission={host.isResolvingPermission}
-              onResolvePermission={(decision) => void host.handleResolvePermission(decision)}
-              onAbortRun={() => void host.handleAbort()}
-              onNavigateToChat={closeOverlay}
+              onResolvePermission={(requestId, decision) =>
+                void host.handleResolvePermission(decision, requestId)
+              }
+              onAbortRun={(sessionId, runId) => {
+                void host.handleAbort(
+                  runId === undefined ? { sessionId } : { sessionId, runId },
+                );
+              }}
+              onNavigateToSession={(sessionId) => {
+                void host.handleSelectSession(sessionId);
+              }}
             />
 
             <ModelPickerModal

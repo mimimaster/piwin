@@ -1397,14 +1397,7 @@ describe('ChatThread render isolation (E1)', () => {
     ).toBe('running');
 
     renderMessage(completedMessage);
-    expect(container.querySelector('[data-testid="image-generation-progress"]')).toMatchObject({
-      textContent: expect.stringContaining('Image generated'),
-    });
-    expect(
-      container
-        .querySelector('[data-testid="image-generation-progress"]')
-        ?.getAttribute('data-tool-status'),
-    ).toBe('done');
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toBeNull();
     expect(container.querySelector('.message-attachments')).not.toBeNull();
 
     renderMessage(failedMessage);

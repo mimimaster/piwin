@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { globalMemoryGovernor } from './memory-governor';
 import { globalHighlightCache } from './syntax/highlight-cache';
@@ -34,6 +35,20 @@ describe('MemoryGovernor degradation & recovery', () => {
     globalMemoryGovernor.reset();
     expect(globalMemoryGovernor.isHighlightDisabled()).toBe(false);
     expect(shouldHighlightCode('const a = 1;')).toBe(true);
+  });
+
+  it('tags the document root so the degradation stylesheet engages', () => {
+    globalMemoryGovernor.reset();
+    expect(document.documentElement.dataset.memoryPressure).toBeUndefined();
+
+    globalMemoryGovernor.setLevel('moderate');
+    expect(document.documentElement.dataset.memoryPressure).toBe('moderate');
+
+    globalMemoryGovernor.setLevel('critical');
+    expect(document.documentElement.dataset.memoryPressure).toBe('critical');
+
+    globalMemoryGovernor.reset();
+    expect(document.documentElement.dataset.memoryPressure).toBeUndefined();
   });
 
   it('notifies registered listeners of level changes', () => {
