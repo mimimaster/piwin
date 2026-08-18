@@ -46,7 +46,7 @@ Earlier piwin code incorrectly used:
    **handcrafted** NDJSON fallback when official connect fails. Override via
    `PIWIN_MCP_CLIENT=official|handcrafted|auto`. Handcrafted retained until
    official is proven across all user servers.
-6. Register the stable `mcp_gateway` custom tool by default. Register
+6. Register the catalog shell `piwin_toolbox` (`search | describe | call | status`) by default for Agent generations ([ADR 0053](./0053-progressive-tool-catalog.md)). Register
    `mcp__<server>__<tool>` only for explicit pinned selectors, with a route
    table that keeps the original tool name (do not reverse-parse sanitized
    names alone).

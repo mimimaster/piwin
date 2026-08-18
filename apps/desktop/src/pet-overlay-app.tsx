@@ -13,6 +13,7 @@ import {
 } from './components/pet-display-size.js';
 import { loadDesktopLocale, type DesktopLocale } from './desktop-locale.js';
 import { petToActivityInput } from './pet-activity-mapper.js';
+import { persistPetOverlayWindowPosition } from './pet-overlay-position.js';
 import {
   applyPetOverlayVisibility,
   loadPetOverlayVisibility,
@@ -22,10 +23,11 @@ import {
 export function PetOverlayApp() {
   const [pet, setPet] = useState<PetRuntimeSnapshot | null>(null);
   const [locale, setLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
+  const tauriWindow = useRef<TauriWindow | null>(null);
 
-  // Rust creates this lightweight WebContent window hidden. Apply the saved
-  // UI preference only after its transparent CSS/React entry is ready, which
-  // avoids both a startup background flash and re-showing a dismissed pet.
+  // Window is created on demand. Re-apply the saved preference after this
+  // entry is ready so a stale hidden preference closes the process instead of
+  // leaving a second WebContent resident.
   useEffect(() => {
     void applyPetOverlayVisibility(loadPetOverlayVisibility()).catch((error: unknown) => {
       console.error('Failed to restore pet overlay visibility', error);
@@ -33,7 +35,16 @@ export function PetOverlayApp() {
   }, []);
 
   const hidePet = useCallback((): void => {
-    void updatePetOverlayVisibility(false).catch((error: unknown) => {
+    void (async () => {
+      if (tauriWindow.current) {
+        try {
+          await persistPetOverlayWindowPosition(tauriWindow.current);
+        } catch {
+          // Position is best-effort; hide must still destroy the window.
+        }
+      }
+      await updatePetOverlayVisibility(false);
+    })().catch((error: unknown) => {
       console.error('Failed to hide pet overlay', error);
     });
   }, []);
@@ -106,7 +117,6 @@ export function PetOverlayApp() {
   // - Immediate startDragging() swallows the click, so the main window never
   //   comes to front. Wait for a small movement threshold before dragging;
   //   a pure click raises the main app window instead.
-  const tauriWindow = useRef<TauriWindow | null>(null);
   const dragSession = useRef<{
     startX: number;
     startY: number;
@@ -117,11 +127,16 @@ export function PetOverlayApp() {
 
   useEffect(() => {
     let mounted = true;
+    let unlistenMoved: (() => void) | undefined;
     void (async () => {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         if (!mounted) return;
-        tauriWindow.current = getCurrentWindow();
+        const win = getCurrentWindow();
+        tauriWindow.current = win;
+        unlistenMoved = await win.onMoved(() => {
+          void persistPetOverlayWindowPosition(win);
+        });
       } catch {
         // not in Tauri
       }
@@ -192,6 +207,7 @@ export function PetOverlayApp() {
     document.addEventListener('mouseup', onMouseUp);
     return () => {
       mounted = false;
+      unlistenMoved?.();
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);

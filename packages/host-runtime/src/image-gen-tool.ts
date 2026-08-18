@@ -627,7 +627,8 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
     descriptor: {
       name: 'image_gen',
       description:
-        'Generate one or more raster images from a text prompt and return local media attachments. ' +
+        'Generate one or more raster images from a text prompt. The client UI already previews the attachments. ' +
+        'After success, comment briefly if useful — do not embed markdown images or local file paths. ' +
         'For photos, illustrations, icons, textures, mockups, and cutouts. ' +
         'Not for SVG/vector, icon-system edits, or HTML/CSS/canvas visuals.',
       parameters: {
@@ -744,18 +745,33 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
       }));
       const paths = assets.map((asset) => asset.absolutePath);
       const byteSize = assets.reduce((total, asset) => total + asset.byteSize, 0);
-      const payload = {
+      const detailsPayload = {
         paths,
         images,
         imageCount: assets.length,
         mimeTypes: assets.map((asset) => asset.mimeType),
         byteSize,
       };
+      const revisedPrompts = generated
+        .map((image) => image.revisedPrompt)
+        .filter((prompt): prompt is string => typeof prompt === 'string' && prompt.length > 0);
+      // Model-facing receipt must not include filesystem paths. The UI already
+      // mounts details.attachments; handing paths back invites markdown embeds.
+      const modelOutput = {
+        status: 'success',
+        imageCount: assets.length,
+        mediaIds: assets.map((asset) => asset.id),
+        mimeTypes: assets.map((asset) => asset.mimeType),
+        byteSize,
+        ...(revisedPrompts.length > 0 ? { revisedPrompts } : {}),
+        notice:
+          'The client UI already rendered these images as attachments. Do not embed markdown images or local file paths in your reply.',
+      };
       return {
         ok: true,
-        output: JSON.stringify(payload, null, 2),
+        output: JSON.stringify(modelOutput, null, 2),
         details: {
-          ...payload,
+          ...detailsPayload,
           attachments: assets.map((asset) => toMediaAttachmentRef(asset, 'generated')),
         },
       };

@@ -61,6 +61,8 @@ describe('desktop locale preference', () => {
     expect(getDesktopCopy('en').titlebar.moreTools).toBe('More tools');
     expect(getDesktopCopy('en').sidebar.displayOptions).toBe('Display options');
     expect(getDesktopCopy('en').appearance.conversationWidth).toBe('Conversation Width');
+    expect(getDesktopCopy('zh-CN').mobileAccess.title).toBe('手机接入');
+    expect(getDesktopCopy('en').mobileAccess.title).toBe('Phone access');
   });
 
   it('provides interruption copy in both display languages', () => {

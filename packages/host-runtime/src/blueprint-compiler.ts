@@ -57,11 +57,9 @@ import {
   type SerializableProviderRuntime,
 } from '@piwin/agent-host';
 import { getPiwinRoot } from './paths.js';
-import {
-  buildMcpCapabilityBrief,
-  formatMcpCapabilitySystemPrompt,
-  type McpCapabilityBrief,
-} from './mcp-capability-brief.js';
+import { buildMcpCapabilityBrief, type McpCapabilityBrief } from './mcp-capability-brief.js';
+import { formatCatalogSystemPrompt } from './tool-catalog/catalog-brief.js';
+import { buildHostToolboxDescriptor } from './tool-catalog/catalog-tool.js';
 import type { SessionBlueprint } from './session-blueprint.js';
 import { resolveResourceActivations } from './capabilities/resource-policy-resolver.js';
 import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
@@ -78,11 +76,7 @@ import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import { discoverContextManifest } from './context-manifest-discovery.js';
 import { formatArtifactCapabilityPrompt } from './artifact-instructions-tool.js';
-import {
-  buildHostToolboxDescriptor,
-  HOST_TOOLBOX_NAME,
-  isHostToolboxTargetFamily,
-} from './host-toolbox.js';
+import { HOST_TOOLBOX_NAME, isHostToolboxTargetFamily } from './host-toolbox.js';
 
 export type CompiledBlueprint = {
   /** Host-owned exact decision set; never sent over the worker boundary. */
@@ -289,6 +283,7 @@ async function compileAgentCapabilityPlan(
     projectTrusted,
     mcpEnabledServerIds,
     options.hostToolFamilyIndex,
+    options.mcpCapabilityBrief,
   );
   const tools = compiledTools.tools;
   const searchRoute = compiledTools.searchRoute;
@@ -356,21 +351,18 @@ async function compileAgentCapabilityPlan(
 
   const snapshot = compileSessionCapabilitySnapshot(compileInput);
 
-  // Keep only a compact routing hint resident. The full configurable decision
-  // policy + runtime contract is loaded through artifact_instructions on demand.
-  const hasArtifactInstructions = snapshot.tools.hostTools.some(
-    (tool) => tool.name === 'artifact_instructions',
-  );
-  const artifactAppendPrompt = hasArtifactInstructions
+  // Inject the configured Artifact decision policy and runtime contract directly.
+  const artifactAppendPrompt = config.artifact?.enabled
     ? formatArtifactCapabilityPrompt(config.artifact)
     : undefined;
 
   // MCP guidance is part of the model-visible contract only when the compiled
-  // Host surface really contains the gateway executor. Prefer the brief from
-  // that exact frozen surface; the fallback deliberately has no cache data.
-  const hasMcpGateway = snapshot.tools.hostTools.some((tool) => tool.name === 'mcp_gateway');
-  const mcpAppendPrompt = hasMcpGateway
-    ? formatMcpCapabilitySystemPrompt(
+  // Host surface includes the catalog shell and the MCP family is enabled.
+  const hasMcpCatalog =
+    snapshot.tools.enabledFamilies.includes('mcp') &&
+    snapshot.tools.hostTools.some((tool) => tool.name === HOST_TOOLBOX_NAME);
+  const mcpAppendPrompt = hasMcpCatalog
+    ? formatCatalogSystemPrompt(
         options.mcpCapabilityBrief ??
           buildMcpCapabilityBrief({
             config: mcpConfig,
@@ -573,12 +565,8 @@ function compileConversationPlan(
     searchRoute,
   });
 
-  // Same lazy Artifact rule as the Agent path: compact routing hint only,
-  // the full runtime contract loads through artifact_instructions on demand.
-  const hasArtifactInstructions = snapshot.tools.hostTools.some(
-    (tool) => tool.name === 'artifact_instructions',
-  );
-  const artifactAppendPrompt = hasArtifactInstructions
+  // Inject the configured Artifact decision policy and runtime contract directly.
+  const artifactAppendPrompt = config.artifact?.enabled
     ? formatArtifactCapabilityPrompt(config.artifact)
     : undefined;
   const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
@@ -605,6 +593,24 @@ function compileConversationPlan(
  * only. Availability still flows through the shared resolver intersected with
  * the concrete registration index, so no second availability rule exists.
  */
+function projectModelHostTools(
+  effectiveToolNames: readonly string[],
+  hostToolDescriptors: readonly HostToolDescriptor[] | undefined,
+  hostToolboxTargetNames: readonly string[],
+  mcpBrief?: McpCapabilityBrief,
+): HostToolDescriptor[] {
+  const toolboxPresent = effectiveToolNames.includes(HOST_TOOLBOX_NAME);
+  const hiddenBehindToolbox = toolboxPresent ? new Set(hostToolboxTargetNames) : new Set<string>();
+  const modelVisibleToolNames = effectiveToolNames.filter(
+    (name) => !hiddenBehindToolbox.has(name),
+  );
+  return buildHostToolsForPolicy(modelVisibleToolNames, hostToolDescriptors).map((descriptor) =>
+    descriptor.name === HOST_TOOLBOX_NAME
+      ? buildHostToolboxDescriptor(hostToolboxTargetNames, mcpBrief)
+      : descriptor,
+  );
+}
+
 function compileConversationToolPolicy(
   config: PiwinConfig,
   input: CreateSessionInput,
@@ -687,19 +693,10 @@ function compileConversationToolPolicy(
         .flatMap((family) => hostToolFamilyIndex.get(family) ?? [])
         .sort()
     : [];
-  // Target schemas stay behind the toolbox: the model-visible manifest keeps
-  // only the routing shell with a conversation-restricted target enum.
-  const hiddenBehindToolbox = new Set(hostToolboxTargetNames);
-  const modelVisibleToolNames = effectiveToolNames.filter(
-    (name) => !hiddenBehindToolbox.has(name),
-  );
-  const modelHostTools = buildHostToolsForPolicy(
-    modelVisibleToolNames,
+  const modelHostTools = projectModelHostTools(
+    effectiveToolNames,
     options.hostToolDescriptors,
-  ).map((descriptor) =>
-    descriptor.name === HOST_TOOLBOX_NAME
-      ? buildHostToolboxDescriptor(hostToolboxTargetNames)
-      : descriptor,
+    hostToolboxTargetNames,
   );
 
   return {
@@ -792,6 +789,7 @@ function compileToolPolicy(
   trusted?: boolean,
   mcpEnabledServerIds: readonly string[] = [],
   hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>,
+  mcpBrief?: McpCapabilityBrief,
 ): {
   tools: SessionToolPolicy;
   searchRoute: import('@piwin/contracts').ResolvedSearchRoute;
@@ -914,11 +912,11 @@ function compileToolPolicy(
         .flatMap((family) => hostToolFamilyIndex.get(family) ?? [])
         .sort()
     : [];
-  const modelHostTools = buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors).map(
-    (descriptor) =>
-      descriptor.name === HOST_TOOLBOX_NAME
-        ? buildHostToolboxDescriptor(hostToolboxTargetNames)
-        : descriptor,
+  const modelHostTools = projectModelHostTools(
+    effectiveToolNames,
+    hostToolDescriptors,
+    hostToolboxTargetNames,
+    resolvedPolicy.enabledFamilies.includes('mcp') ? mcpBrief : undefined,
   );
 
   return {

@@ -5,8 +5,11 @@ import {
   MEMORY_PRESSURE_CRITICAL_BYTES,
   MEMORY_PRESSURE_HYSTERESIS_BYTES,
   MEMORY_PRESSURE_MODERATE_BYTES,
+  MEMORY_PRESSURE_RECOVERY_DWELL_MS,
+  applyMemoryPressureEvent,
   applyMemoryPressureSample,
   classifyMemoryPressure,
+  resetMemoryPressureRecoveryDwell,
 } from './memory-pressure';
 
 const MIB = 1024 * 1024;
@@ -86,5 +89,69 @@ describe('applyMemoryPressureSample', () => {
     const level = applyMemoryPressureSample({ bytes: Math.round(1.2 * 1024 * MIB) });
     expect(level).toBe('moderate');
     expect(globalMemoryGovernor.isHighlightDisabled()).toBe(false);
+  });
+});
+
+describe('applyMemoryPressureEvent', () => {
+  afterEach(() => {
+    globalMemoryGovernor.reset();
+    globalHighlightCache.clear();
+    resetMemoryPressureRecoveryDwell();
+  });
+
+  it('classifies native byte samples through the shared thresholds', () => {
+    expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe('moderate');
+    expect(globalMemoryGovernor.getLevel()).toBe('moderate');
+
+    expect(
+      applyMemoryPressureEvent({ bytes: 100 * MIB }, MEMORY_PRESSURE_RECOVERY_DWELL_MS),
+    ).toBe('normal');
+    expect(globalMemoryGovernor.getLevel()).toBe('normal');
+  });
+
+  it('holds a degradation tier for the recovery dwell to prevent glass flicker', () => {
+    expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe('moderate');
+
+    // Footprint falls right back below the hysteresis floor: recovery must
+    // wait out the dwell window instead of blinking effects back on.
+    expect(applyMemoryPressureEvent({ bytes: 100 * MIB }, 5_000)).toBe('moderate');
+    expect(
+      applyMemoryPressureEvent({ bytes: 100 * MIB }, MEMORY_PRESSURE_RECOVERY_DWELL_MS - 1),
+    ).toBe('moderate');
+    expect(
+      applyMemoryPressureEvent({ bytes: 100 * MIB }, MEMORY_PRESSURE_RECOVERY_DWELL_MS),
+    ).toBe('normal');
+  });
+
+  it('escalates immediately even within a dwell window', () => {
+    expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe('moderate');
+    expect(
+      applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_CRITICAL_BYTES }, 5_000),
+    ).toBe('critical');
+  });
+
+  it('honors OS available-memory scarcity carried with the sample', () => {
+    expect(
+      applyMemoryPressureEvent({ bytes: 100 * MIB, availableBytes: 32 * MIB }, 0),
+    ).toBe('critical');
+  });
+
+  it('lets explicit level payloads bypass the dwell for manual recovery', () => {
+    expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe('moderate');
+    expect(applyMemoryPressureEvent({ level: 'normal' }, 5_000)).toBe('normal');
+    expect(globalMemoryGovernor.getLevel()).toBe('normal');
+  });
+
+  it('applies legacy level-only payloads directly', () => {
+    expect(applyMemoryPressureEvent({ level: 'critical' })).toBe('critical');
+    expect(globalMemoryGovernor.getLevel()).toBe('critical');
+  });
+
+  it('ignores missing or malformed payloads', () => {
+    expect(applyMemoryPressureEvent(undefined)).toBe('normal');
+    expect(applyMemoryPressureEvent({})).toBe('normal');
+    expect(applyMemoryPressureEvent({ level: 'bogus' as never })).toBe('normal');
+    expect(applyMemoryPressureEvent({ bytes: Number.NaN })).toBe('normal');
+    expect(globalMemoryGovernor.getLevel()).toBe('normal');
   });
 });

@@ -520,7 +520,9 @@ export function resolveToolBehaviorId(input: ToolActivityInput): BehaviorActivit
     input.kind === 'mcp' ||
     name === 'mcp_gateway' ||
     name.startsWith('mcp__') ||
-    name.startsWith('mcp:')
+    name.startsWith('mcp:') ||
+    (name === 'piwin_toolbox' &&
+      (verb.includes('discovery') || verb.includes('status') || verb.includes('catalog')))
   ) {
     if (verb.includes('status')) {
       return 'mcp.server.status';

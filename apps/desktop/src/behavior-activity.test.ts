@@ -33,6 +33,13 @@ describe('behavior activity registry', () => {
       }),
     ).toBe('mcp.discovery');
     expect(
+      resolveToolBehaviorId({
+        kind: 'other',
+        toolName: 'piwin_toolbox',
+        actionVerb: 'Tool discovery',
+      }),
+    ).toBe('mcp.discovery');
+    expect(
       resolveToolBehaviorId({ kind: 'mcp', toolName: 'mcp_gateway', actionVerb: 'MCP status' }),
     ).toBe('mcp.server.status');
     expect(

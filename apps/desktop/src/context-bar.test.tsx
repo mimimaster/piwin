@@ -306,7 +306,7 @@ describe('ContextBar', () => {
     );
 
     expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
-      'Thinking…',
+      'Running tool…',
     );
     expect(container.textContent).not.toContain('read_file');
     expect(container.textContent).not.toContain('Activity');

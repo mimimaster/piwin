@@ -1,107 +1,99 @@
 import type { ReactElement } from 'react';
-import type { RemoteSessionSummary } from '@piwin/contracts';
+import type { ActivitySummaryItem, RemoteSessionSummary } from '@piwin/contracts';
 import { Button, Card, StatusBadge, RadialBellow, ListRow } from '@piwin/ui-kit';
-import type { RemotePermissionRequest } from '../../hooks/use-mobile-host.js';
+import {
+  describeActivityItem,
+  resolveActivitySessionName,
+} from '../../mobile-activity-summary.js';
 
 export type InboxSurfaceProps = {
-  activeRunId?: string | undefined;
-  permissionRequest?: RemotePermissionRequest | undefined;
-  isResolvingPermission: boolean;
+  items: ActivitySummaryItem[];
   sessions: RemoteSessionSummary[];
   activeSessionId?: string | undefined;
+  isResolvingPermission: boolean;
   onSelectSession: (sessionId: string) => void;
-  onResolvePermission: (decision: 'allow' | 'deny') => void;
-  onAbortRun: () => void;
-  onNavigateToChat: () => void;
+  onResolvePermission: (requestId: string, decision: 'allow' | 'deny') => void;
+  onAbortRun: (sessionId: string, runId?: string) => void;
+  onNavigateToChat: (sessionId: string) => void;
 };
 
 export function InboxSurface({
-  activeRunId,
-  permissionRequest,
-  isResolvingPermission,
+  items,
   sessions,
   activeSessionId,
+  isResolvingPermission,
   onSelectSession,
   onResolvePermission,
   onAbortRun,
   onNavigateToChat,
 }: InboxSurfaceProps): ReactElement {
-  const activeSession = sessions.find((s) => s.sessionId === activeSessionId);
-
   return (
     <div className="mobile-surface-container inbox-surface">
-      {/* 1. Pending Permission Request (Highest Priority) */}
-      {permissionRequest !== undefined ? (
-        <Card className="mobile-permission-card" withBorder>
-          <div className="mobile-card-heading">
-            <div>
-              <p className="mobile-eyebrow">ACTION REQUIRED</p>
-              <h2>Host 请求权限</h2>
-            </div>
-            <StatusBadge label="待审批" tone="warning" />
-          </div>
-          <p className="mobile-permission-action">{permissionRequest.action}</p>
-          <p className="mobile-permission-detail">{permissionRequest.detail}</p>
-          <div className="mobile-permission-actions">
-            <Button
-              variant="danger"
-              size="compact"
-              onClick={() => onResolvePermission('deny')}
-              disabled={isResolvingPermission}
-            >
-              拒绝
-            </Button>
-            <Button
-              variant="primary"
-              size="compact"
-              onClick={() => onResolvePermission('allow')}
-              disabled={isResolvingPermission}
-            >
-              {isResolvingPermission ? '处理中…' : '允许一次'}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      {/* 2. Active Run (Foreground Running Task) */}
-      {activeRunId !== undefined ? (
-        <Card className="mobile-active-run-card" withBorder>
-          <div className="mobile-card-heading">
-            <div className="mobile-run-title-group">
-              <RadialBellow size="sm" label="Run is active" />
-              <div>
-                <p className="mobile-eyebrow">ACTIVE RUN</p>
-                <h2>{activeSession?.name ?? '任务执行中…'}</h2>
-              </div>
-            </div>
-            <StatusBadge label="Running" tone="running" />
-          </div>
-          <p className="mobile-active-run-detail">
-            Host 正在执行 Agent 编排任务，实时事件持续接收中。
-          </p>
-          <div className="mobile-active-run-actions">
-            <Button variant="danger" size="compact" onClick={onAbortRun}>
-              停止任务
-            </Button>
-            <Button variant="primary" size="compact" onClick={onNavigateToChat}>
-              进入对话流
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
-      {/* 3. Empty state if nothing active */}
-      {activeRunId === undefined && permissionRequest === undefined ? (
+      {items.length === 0 ? (
         <Card className="mobile-inbox-idle-card" withBorder>
           <div className="mobile-idle-content">
             <div className="mobile-idle-icon">✓</div>
             <h3>当前没有等待处理的任务</h3>
-            <p>所有后台任务已完成，Host 就绪。</p>
+            <p>Host 上没有跨会话的运行或待批权限。</p>
           </div>
         </Card>
-      ) : null}
+      ) : (
+        items.map((item) => {
+          const requestId = item.permissionRequestId;
+          return (
+            <Card
+              key={`${item.sessionId}:${item.runId ?? requestId ?? 'row'}`}
+              className={item.pendingPermission ? 'mobile-permission-card' : 'mobile-active-run-card'}
+              withBorder
+            >
+              <div className="mobile-card-heading">
+                <div className="mobile-run-title-group">
+                  {item.pendingPermission ? null : <RadialBellow size="sm" label="Run is active" />}
+                  <div>
+                    <p className="mobile-eyebrow">{describeActivityItem(item)}</p>
+                    <h2>{resolveActivitySessionName(item, sessions)}</h2>
+                  </div>
+                </div>
+                <StatusBadge
+                  label={item.pendingPermission ? '待审批' : 'Running'}
+                  tone={item.pendingPermission ? 'warning' : 'running'}
+                />
+              </div>
+              <div className="mobile-active-run-actions">
+                {item.pendingPermission && requestId !== undefined ? (
+                  <>
+                    <Button
+                      variant="danger"
+                      size="compact"
+                      onClick={() => onResolvePermission(requestId, 'deny')}
+                      disabled={isResolvingPermission}
+                    >
+                      拒绝
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="compact"
+                      onClick={() => onResolvePermission(requestId, 'allow')}
+                      disabled={isResolvingPermission}
+                    >
+                      {isResolvingPermission ? '处理中…' : '允许一次'}
+                    </Button>
+                  </>
+                ) : null}
+                {item.runId !== undefined ? (
+                  <Button variant="danger" size="compact" onClick={() => onAbortRun(item.sessionId, item.runId)}>
+                    停止任务
+                  </Button>
+                ) : null}
+                <Button variant="primary" size="compact" onClick={() => onNavigateToChat(item.sessionId)}>
+                  进入对话流
+                </Button>
+              </div>
+            </Card>
+          );
+        })
+      )}
 
-      {/* 4. Recent Active Sessions List */}
       <Card className="mobile-slice-card" withBorder>
         <div className="mobile-card-heading">
           <div>
@@ -119,7 +111,7 @@ export function InboxSurface({
               selected={session.sessionId === activeSessionId}
               onClick={() => {
                 onSelectSession(session.sessionId);
-                onNavigateToChat();
+                onNavigateToChat(session.sessionId);
               }}
             >
               <span>{session.name ?? session.sessionId}</span>

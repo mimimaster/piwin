@@ -524,3 +524,55 @@ describe('remote transcript tool projection', () => {
     });
   });
 });
+
+describe('remote activity/summary projection', () => {
+  it('strips Host paths and permission detail', () => {
+    const projected = projectRemoteResponse(
+      { type: 'activity/summary' },
+      {
+        type: 'response',
+        command: 'activity/summary',
+        success: true,
+        data: {
+          items: [
+            {
+              sessionId: 'session-1',
+              runId: 'run-1',
+              status: 'running',
+              pendingPermission: true,
+              permissionRequestId: 'perm-1',
+              permissionAction: 'bash',
+              detail: 'cat /Users/private/secret',
+              projectPath: '/Users/private/Projects/example',
+            },
+          ],
+          truncated: false,
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
+    expect(JSON.stringify(projected.data)).not.toContain('detail');
+    expect(projected.data).toEqual({
+      items: [
+        {
+          sessionId: 'session-1',
+          runId: 'run-1',
+          status: 'running',
+          pendingPermission: true,
+          permissionRequestId: 'perm-1',
+          permissionAction: 'bash',
+        },
+      ],
+      truncated: false,
+    });
+  });
+});

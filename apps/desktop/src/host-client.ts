@@ -1,13 +1,21 @@
 import type {
   HostCommand,
+  HostHello,
   HostMode,
   HostPush,
   HostPushBatchFrame,
   HostResponse,
   HostServerMessage,
+  LocalMobileAccessCommand,
+  RemoteCapabilitySummary,
 } from '@piwin/contracts';
-import { formatError } from '@piwin/contracts';
+import { formatError, isLocalMobileAccessCommandType } from '@piwin/contracts';
+import { MOBILE_ACCESS_SIDECAR_ONLY_ERROR } from './mobile-access-local';
 import type { MockHostBackend } from './host-client-mock';
+import {
+  createDesktopRemoteHostClient,
+  type DesktopRemoteHostTarget,
+} from './remote-host-session';
 
 export type HostClientListener = (message: HostServerMessage) => void;
 
@@ -16,13 +24,15 @@ export type HostClientOptions = {
    * true  → in-browser mock (Vite only)
    * false → Tauri sidecar `piwin host serve` JSONL bridge
    * 'auto'→ mock outside Tauri, live inside Tauri
+   * 'remote' → standalone Host over WebSocket (never touches the JSONL sidecar)
    */
-  transport?: boolean | 'auto' | 'mock' | 'live';
+  transport?: boolean | 'auto' | 'mock' | 'live' | 'remote';
   /** When using live transport, start host with --mock (agent mock, not UI mock). Default true for scaffold. */
   hostMock?: boolean;
+  remoteTarget?: DesktopRemoteHostTarget;
 };
 
-type TransportMode = 'mock' | 'live';
+type TransportMode = 'mock' | 'live' | 'remote';
 
 const HOST_REQUEST_ACK_TIMEOUT_MS = 5_000;
 /**
@@ -37,7 +47,10 @@ const HOST_REQUEST_OPERATION_TIMEOUT_MS = 120_000;
 const HOST_REQUEST_IMAGE_GENERATION_TIMEOUT_MS = 360_000;
 const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
 
-function getHostRequestTimeoutMs(command: HostCommand): number {
+function getHostRequestTimeoutMs(command: HostCommand | LocalMobileAccessCommand): number {
+  if (isLocalMobileAccessCommandType(command.type)) {
+    return HOST_REQUEST_QUERY_TIMEOUT_MS;
+  }
   switch (command.type) {
     case 'session/compact':
     case 'session/compact-export':
@@ -98,6 +111,9 @@ function detectTransport(options: HostClientOptions): TransportMode {
   if (requested === 'live' || requested === false) {
     return 'live';
   }
+  if (requested === 'remote') {
+    return 'remote';
+  }
   return isTauriRuntime() ? 'live' : 'mock';
 }
 
@@ -109,6 +125,7 @@ function isTauriRuntime(): boolean {
  * Frontend host client. Never imports Pi.
  * - mock: {@link MockHostBackend}
  * - live: Tauri commands → Node `host serve` JSONL sidecar
+ * - remote: `@piwin/host-client` over WebSocket; never invokes the JSONL bridge
  */
 /**
  * A push batch arrived whose `afterSeq` is beyond the applied cursor: frames
@@ -130,6 +147,7 @@ export class HostClient {
   private readonly listeners = new Set<HostClientListener>();
   private readonly transport: TransportMode;
   private readonly hostMock: boolean;
+  private readonly remoteTarget: DesktopRemoteHostTarget | undefined;
   private mode: HostMode = 'sdk';
   private ready = false;
   private requestCounter = 0;
@@ -145,14 +163,29 @@ export class HostClient {
   private mockBackend: MockHostBackend | null = null;
   private pendingMockBackend: Promise<MockHostBackend> | null = null;
   private sequenceGapHandler: HostSequenceGapHandler | null = null;
+  private remoteClient: ReturnType<typeof createDesktopRemoteHostClient> | null = null;
+  private unsubscribeRemote: (() => void) | null = null;
+  /** True after the first remote connect attempt; later `ready` is a reconnect. */
+  private remoteInitialConnectDone = false;
+  private remoteCapabilities: RemoteCapabilitySummary | undefined;
 
   constructor(options: HostClientOptions = {}) {
     this.transport = detectTransport(options);
     this.hostMock = options.hostMock !== false;
+    this.remoteTarget = options.remoteTarget;
   }
 
   getTransport(): TransportMode {
     return this.transport;
+  }
+
+  getRemoteCapabilities(): RemoteCapabilitySummary | undefined {
+    return this.remoteCapabilities;
+  }
+
+  /** Local JSONL / mock may always send. Remote requires hello.foregroundRunAdmission. */
+  supportsForegroundAdmission(): boolean {
+    return this.transport !== 'remote' || this.remoteCapabilities?.foregroundRunAdmission === true;
   }
 
   isReady(): boolean {
@@ -176,7 +209,11 @@ export class HostClient {
 
   async connect(): Promise<void> {
     // Idempotent: HMR / Strict Mode remounts re-enter bootstrap without dispose.
-    if (this.ready && this.transport === 'live' && this.unlistenHostMessage) {
+    if (
+      this.ready &&
+      ((this.transport === 'live' && this.unlistenHostMessage) ||
+        (this.transport === 'remote' && this.remoteClient))
+    ) {
       this.emit({
         type: 'host/status',
         mode: this.mode,
@@ -211,6 +248,11 @@ export class HostClient {
         ready: true,
         mock: true,
       });
+      return;
+    }
+
+    if (this.transport === 'remote') {
+      await this.connectRemoteTransport();
       return;
     }
 
@@ -340,6 +382,20 @@ export class HostClient {
       this.unlistenHostStatus = null;
     }
 
+    if (this.unsubscribeRemote) {
+      this.unsubscribeRemote();
+      this.unsubscribeRemote = null;
+    }
+    const remoteClient = this.remoteClient;
+    this.remoteClient = null;
+    if (remoteClient) {
+      try {
+        await remoteClient.close();
+      } catch (error) {
+        console.warn('remote host close failed', error);
+      }
+    }
+
     if (this.transport === 'live' && isTauriRuntime()) {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -352,15 +408,31 @@ export class HostClient {
     this.listeners.clear();
     this.mockBackend?.clear();
     this.ready = false;
+    this.remoteInitialConnectDone = false;
+    this.remoteCapabilities = undefined;
   }
 
-  async request(command: HostCommand): Promise<HostResponse> {
+  async request(command: HostCommand | LocalMobileAccessCommand): Promise<HostResponse> {
     const id = command.id ?? `ui-${++this.requestCounter}`;
-    const withId = { ...command, id } as HostCommand;
+    const withId = { ...command, id };
+
+    if (isLocalMobileAccessCommandType(command.type) && this.transport !== 'live') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: MOBILE_ACCESS_SIDECAR_ONLY_ERROR,
+        id,
+      };
+    }
 
     if (this.transport === 'mock') {
       const mockBackend = await this.getMockBackend();
-      return mockBackend.handle(withId, id);
+      return mockBackend.handle(withId as HostCommand, id);
+    }
+
+    if (this.transport === 'remote') {
+      return this.requestFromRemoteHost(withId as HostCommand);
     }
 
     // Return host errors unchanged. Retrying after a string-matched error can
@@ -368,7 +440,156 @@ export class HostClient {
     return this.requestFromLiveHost(withId);
   }
 
-  private async requestFromLiveHost(command: HostCommand): Promise<HostResponse> {
+  private async connectRemoteTransport(): Promise<void> {
+    if (this.remoteTarget === undefined) {
+      this.ready = false;
+      this.emit({
+        type: 'host/log',
+        level: 'error',
+        message: 'Remote Host target is not configured',
+      });
+      return;
+    }
+
+    const remote = this.getOrCreateRemoteClient();
+    try {
+      const hello = await remote.connect();
+      this.rememberRemoteHello(hello);
+    } finally {
+      this.remoteInitialConnectDone = true;
+    }
+    const status = await this.request({ type: 'host/status' });
+    if (status.success) {
+      this.ready = true;
+      const data = status.data as {
+        mode?: HostMode;
+        mock?: boolean;
+        ready?: boolean;
+        capabilities?: RemoteCapabilitySummary;
+      } | undefined;
+      this.mode = data?.mode === 'rpc' ? 'rpc' : 'sdk';
+      if (data?.capabilities !== undefined) {
+        this.remoteCapabilities = data.capabilities;
+      }
+      this.emit({
+        type: 'host/status',
+        mode: this.mode,
+        ready: data?.ready !== false,
+        mock: data?.mock === true,
+      });
+      return;
+    }
+
+    this.ready = false;
+    this.emit({
+      type: 'host/log',
+      level: 'error',
+      message: status.error,
+    });
+  }
+
+  private async restoreRemoteReady(): Promise<void> {
+    this.ready = true;
+    this.emit({
+      type: 'host/status',
+      mode: this.mode,
+      ready: true,
+      mock: this.hostMock,
+    });
+    const status = await this.request({ type: 'host/status' });
+    if (!status.success) {
+      return;
+    }
+    const data = status.data as {
+      mode?: HostMode;
+      mock?: boolean;
+      ready?: boolean;
+      capabilities?: RemoteCapabilitySummary;
+    } | undefined;
+    this.mode = data?.mode === 'rpc' ? 'rpc' : 'sdk';
+    this.ready = data?.ready !== false;
+    if (data?.capabilities !== undefined) {
+      this.remoteCapabilities = data.capabilities;
+    }
+    this.emit({
+      type: 'host/status',
+      mode: this.mode,
+      ready: this.ready,
+      mock: data?.mock === true,
+    });
+  }
+
+  private rememberRemoteHello(hello: HostHello): void {
+    this.remoteCapabilities = hello.capabilities;
+  }
+
+  private async requestFromRemoteHost(command: HostCommand): Promise<HostResponse> {
+    try {
+      const remote = this.getOrCreateRemoteClient();
+      const timeoutMs = getHostRequestTimeoutMs(command);
+      return await remote.request(
+        command,
+        timeoutMs > 0 ? { timeoutMs } : { timeoutMs: 3_600_000 },
+      );
+    } catch (error) {
+      return {
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: formatError(error),
+        ...(command.id ? { id: command.id } : {}),
+      };
+    }
+  }
+
+  private getOrCreateRemoteClient(): ReturnType<typeof createDesktopRemoteHostClient> {
+    if (this.remoteClient) {
+      return this.remoteClient;
+    }
+    if (this.remoteTarget === undefined) {
+      throw new Error('Remote Host target is not configured');
+    }
+
+    const remote = createDesktopRemoteHostClient(this.remoteTarget);
+    // Package HostClient already fans each batch item to push listeners. Do not
+    // also subscribeBatch → emitBatch or the Desktop UI sees every item twice.
+    const unsubscribePush = remote.subscribePush((push) => {
+      if (push.type === 'host/status') {
+        this.ready = push.ready;
+        this.mode = push.mode;
+      }
+      this.emit(push);
+    });
+    const unsubscribeHydration = remote.subscribeHydration((frame) => {
+      this.emit(frame);
+    });
+    const unsubscribeState = remote.subscribeState((state) => {
+      if (state.kind === 'disconnected' || state.kind === 'error') {
+        this.ready = false;
+        this.emit({
+          type: 'host/status',
+          mode: this.mode,
+          ready: false,
+          mock: this.hostMock,
+        });
+        return;
+      }
+      if (state.kind === 'ready' && this.remoteInitialConnectDone) {
+        void this.restoreRemoteReady();
+      }
+    });
+    this.unsubscribeRemote = () => {
+      unsubscribePush();
+      unsubscribeHydration();
+      unsubscribeState();
+    };
+    this.remoteClient = remote;
+    return remote;
+  }
+
+  private async requestFromLiveHost(
+    command: HostCommand | LocalMobileAccessCommand,
+  ): Promise<HostResponse> {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const response = (await invoke('host_request', {

@@ -114,6 +114,19 @@ describe('buildVideoGenTool', () => {
           source: 'generated',
         }),
       ]);
+      const parsed = JSON.parse(result.output) as {
+        status?: string;
+        videoCount?: number;
+        mediaIds?: unknown;
+        paths?: unknown;
+        notice?: string;
+      };
+      expect(parsed.status).toBe('success');
+      expect(parsed.videoCount).toBe(1);
+      expect(Array.isArray(parsed.mediaIds) ? parsed.mediaIds : []).toHaveLength(1);
+      expect(parsed.paths).toBeUndefined();
+      expect(result.output).not.toContain(mediaRoot);
+      expect(parsed.notice).toMatch(/already rendered/i);
     } finally {
       vi.unstubAllGlobals();
     }

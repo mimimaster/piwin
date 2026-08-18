@@ -43,6 +43,44 @@ const IMAGE_EXTENSIONS = new Set([
 
 const VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v']);
 
+/**
+ * True when a Markdown image/video src is a host filesystem path. Webview will
+ * not load these, and generated media is already shown as a message attachment.
+ */
+export function isLocalFilesystemMarkdownMediaSrc(src: string): boolean {
+  const trimmed = src.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const withoutFileScheme = stripFileUrlPrefix(trimmed);
+  if (withoutFileScheme.startsWith('~/.piwin/media/') || withoutFileScheme.startsWith('~\\.piwin\\media\\')) {
+    return true;
+  }
+  if (isPiwinMediaPath(withoutFileScheme) || isRemoteMediaAssetRef(withoutFileScheme)) {
+    return true;
+  }
+  const kind = mediaKindForPath(withoutFileScheme);
+  if (kind !== 'image' && kind !== 'video') {
+    return false;
+  }
+  if (/^\/(?:Users|home|private|tmp|var)\//.test(withoutFileScheme)) {
+    return true;
+  }
+  return /^[A-Za-z]:[\\/]/.test(withoutFileScheme);
+}
+
+function stripFileUrlPrefix(src: string): string {
+  if (!src.startsWith('file:')) {
+    return src;
+  }
+  const withoutScheme = src.replace(/^file:\/\//, '');
+  try {
+    return decodeURIComponent(withoutScheme);
+  } catch {
+    return withoutScheme;
+  }
+}
+
 /** Rendering hint only: which media viewer surface should display this path. */
 export function mediaKindForPath(path: string): 'image' | 'video' | null {
   const extMatch = /\.([a-zA-Z0-9]+)$/.exec(path.replace(/[#?].*$/, ''));

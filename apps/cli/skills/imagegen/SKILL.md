@@ -13,7 +13,7 @@ Bitmap image asset(s) on disk under the piwin media store that match the user’
 ## Done means
 - `image_gen` called with a specific prompt (subject, style, composition, palette; size/aspect when it matters).
 - Use the configured image default. Pass both `provider` and `model` only when the user asks for a particular route or model ids overlap.
-- Tool returns every generated image as absolute `paths`, per-image metadata, and media attachments — never base64-in-context.
+- Tool returns media attachments the client already previews. Do not embed markdown images or local file paths in the follow-up text.
 - For cutouts: chroma-key/solid background noted; alpha validated when transparency matters.
 
 ## Stop when

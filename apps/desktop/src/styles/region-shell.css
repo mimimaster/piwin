@@ -175,13 +175,6 @@ html[data-theme-visual-style='ink-wash'] .transcript-viewport {
   background: transparent !important;
 }
 
-/* 顶部 Titlebar 与 Header */
-html[data-theme-visual-style='ink-wash'] .stage-titlebar {
-  background: rgba(22, 23, 26, 0.4) !important;
-  border-bottom: 1px solid rgba(214, 205, 190, 0.08) !important;
-  backdrop-filter: blur(12px) !important;
-}
-
 html[data-theme-visual-style='ink-wash'] .session-title-text {
   color: #d8d3cb !important;
   font-weight: 500 !important;

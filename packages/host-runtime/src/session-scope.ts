@@ -5,9 +5,10 @@
 import type {
   CreateSessionInput,
   ResolvedSessionLocation,
+  SessionListScopeRef,
   SessionScope,
 } from '@piwin/contracts';
-import { listProjects } from '@piwin/project';
+import { listProjects, resolveProjectPathById } from '@piwin/project';
 import { ensureGeneralWorkspace } from './general-workspace.js';
 import { getPiwinGeneralWorkspacePath, getPiwinProjectsPath, getPiwinRoot } from './paths.js';
 import { createRemoteProjectId } from './remote-project-id.js';
@@ -144,6 +145,28 @@ export function resolveListFilter(input: {
   }
   // Default list is General (product cold-start).
   return { kind: 'general' };
+}
+
+/**
+ * Path-free remote list intent. `all-authorized` is the same projection as
+ * `session/list.allScopes`; project ids never carry Host filesystem paths.
+ */
+export async function resolveScopeRefToListIntent(
+  scopeRef: SessionListScopeRef,
+  piwinRoot?: string,
+): Promise<{ allScopes: true } | { scope: SessionScope }> {
+  if (scopeRef.kind === 'general') {
+    return { scope: { kind: 'general' } };
+  }
+  if (scopeRef.kind === 'all-authorized') {
+    return { allScopes: true };
+  }
+  const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(piwinRoot)));
+  const projectPath = resolveProjectPathById(projects, scopeRef.projectId);
+  if (projectPath === undefined) {
+    throw new Error('Unknown project');
+  }
+  return { scope: { kind: 'project', projectPath } };
 }
 
 /** Build a scope from a stored index record (after v1→v2 normalize). */

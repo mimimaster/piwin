@@ -26,6 +26,8 @@ import {
   appendBoundedLiveText,
   STREAMING_TEXT_RETENTION_OPTIONS,
 } from './chat-reducer';
+import { foregroundMismatchNotice, readForegroundProblem, requestPromptWithForeground } from './prompt-foreground';
+import { useDesktopLocale } from './desktop-locale-context';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -64,6 +66,7 @@ export type SideChatPanelProps = {
 
 export function SideChatPanel(props: SideChatPanelProps): ReactElement {
   const { hostClient, sessionId } = props;
+  const { locale } = useDesktopLocale();
   const endRef = useRef<HTMLDivElement | null>(null);
 
   const [sideChats, setSideChats] = useState<SessionSummary[]>([]);
@@ -281,13 +284,16 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     setError(null);
 
     try {
-      const response = await hostClient.request({
-        type: 'session/prompt',
+      const response = await requestPromptWithForeground({
+        request: (command) => hostClient.request(command),
         sessionId: activeSideChatId,
         input: { text },
+        allowReplaceConfirm: false,
+        remoteForegroundAdmission: hostClient.supportsForegroundAdmission(),
       });
       if (!response.success) {
-        setError(response.error);
+        const problem = readForegroundProblem(response);
+        setError(problem ? foregroundMismatchNotice(problem, locale) : response.error);
         setStreaming(false);
       }
     } catch (err) {

@@ -1,4 +1,4 @@
-import type { RemoteHostStatusData } from '@piwin/contracts';
+import type { RemoteHostStatusData, TrustedDeviceCredential } from '@piwin/contracts';
 import {
   HostClient,
   type HostClientCursor,
@@ -11,19 +11,37 @@ const CLIENT_ID_KEY = 'piwin.mobile.client-id';
 const LAST_SEQ_KEY = 'piwin.mobile.last-seq';
 const CURSOR_KEY = 'piwin.mobile.cursor';
 
-export function createMobileHostClient(endpoint: string, authToken?: string): HostClient {
+export type MobileHostAdmission = {
+  authToken?: string;
+  pairingToken?: string;
+  deviceCredential?: TrustedDeviceCredential;
+  deviceName?: string;
+  onIssuedDeviceCredential?: (credential: TrustedDeviceCredential) => Promise<void> | void;
+};
+
+export function createMobileHostClient(endpoint: string, admission: MobileHostAdmission = {}): HostClient {
   const storageSuffix = encodeURIComponent(endpoint.trim());
   const transport = new WebSocketHostTransport({
     endpoint,
     autoReconnect: true,
     heartbeatIntervalMs: 30_000,
   });
+  const authToken = admission.authToken?.trim();
+  const pairingToken = admission.pairingToken?.trim();
   return new HostClient({
     transport,
     clientId: getOrCreateClientId(),
     clientType: 'mobile',
     clientVersion: '0.0.0',
     ...(authToken === undefined || authToken.length === 0 ? {} : { authToken }),
+    ...(pairingToken === undefined || pairingToken.length === 0 ? {} : { pairingToken }),
+    ...(admission.deviceCredential === undefined ? {} : { deviceCredential: admission.deviceCredential }),
+    ...(admission.deviceName === undefined || admission.deviceName.trim().length === 0
+      ? {}
+      : { deviceName: admission.deviceName.trim() }),
+    ...(admission.onIssuedDeviceCredential === undefined
+      ? {}
+      : { onIssuedDeviceCredential: admission.onIssuedDeviceCredential }),
     lastSeqStore: createLocalStorageLastSeqStore(`${LAST_SEQ_KEY}.${storageSuffix}`),
     cursorStore: createLocalStorageCursorStore(`${CURSOR_KEY}.${storageSuffix}`),
   });

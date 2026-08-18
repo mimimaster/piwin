@@ -20,6 +20,8 @@ import { HostClient } from './host-client.js';
 
 class FakeTransport implements HostTransport {
   public readonly sent: Array<HostCommandFrame | HostReplayFrame> = [];
+  public nextHello: HostHello | undefined;
+  public helloAtConnect: HostClientHello | undefined;
   private helloFactory: ((lastSeq: number) => HostClientHello) | undefined;
   private lastSeq = 0;
   private readonly messageListeners = new Set<HostTransportMessageListener>();
@@ -35,7 +37,8 @@ class FakeTransport implements HostTransport {
   }
 
   public async connect(): Promise<HostHello> {
-    const hello: HostHello = {
+    this.helloAtConnect = this.helloFactory?.(this.lastSeq);
+    const hello: HostHello = this.nextHello ?? {
       type: 'host/hello',
       protocolVersion: 1,
       hostInstanceId: 'host-test',
@@ -274,6 +277,68 @@ describe('HostClient', () => {
     });
     expect(batches).toHaveLength(1);
     await client.close();
+  });
+
+  it('sends a pairing token without a door token and adopts the issued secret', async () => {
+    const transport = new FakeTransport();
+    transport.nextHello = {
+      type: 'host/hello',
+      protocolVersion: 1,
+      hostInstanceId: 'host-test',
+      currentSeq: 0,
+      authRequired: true,
+      authenticated: true,
+      capabilities: {
+        pushSequencing: true,
+        replay: true,
+        snapshot: true,
+        sessionRead: true,
+        sessionControl: false,
+        permissionResolve: false,
+        mediaUpload: false,
+      },
+      deviceId: 'device-1',
+      deviceSecret: 'issued-secret',
+    };
+    const issued: Array<{ deviceId: string; deviceSecret: string }> = [];
+    const client = new HostClient({
+      transport,
+      clientId: 'phone',
+      clientType: 'mobile',
+      clientVersion: 'test',
+      pairingToken: 'one-time',
+      deviceName: 'iPhone',
+      onIssuedDeviceCredential: (credential) => {
+        issued.push(credential);
+      },
+    });
+
+    await client.connect();
+    expect(transport.helloAtConnect).toMatchObject({
+      pairingToken: 'one-time',
+      deviceName: 'iPhone',
+    });
+    expect(transport.helloAtConnect?.authToken).toBeUndefined();
+    expect(issued).toEqual([{ deviceId: 'device-1', deviceSecret: 'issued-secret' }]);
+    expect(transport.getConfiguredHello()).toMatchObject({
+      deviceCredential: { deviceId: 'device-1', deviceSecret: 'issued-secret' },
+    });
+    expect(transport.getConfiguredHello()?.pairingToken).toBeUndefined();
+    await client.close();
+  });
+
+  it('rejects combining a door token with a pairing token', () => {
+    expect(
+      () =>
+        new HostClient({
+          transport: new FakeTransport(),
+          clientId: 'phone',
+          clientType: 'mobile',
+          clientVersion: 'test',
+          authToken: 'door',
+          pairingToken: 'one-time',
+        }),
+    ).toThrow('exactly one admission key');
   });
 });
 

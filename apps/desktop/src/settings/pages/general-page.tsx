@@ -17,6 +17,8 @@ import { buildCapabilityMatrix } from '@piwin/contracts';
 import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
 import { AgentLocator } from '../../agent-locator.js';
 import type { AgentLocatorAnimation } from '../../ui-preferences.js';
+import { HostTargetSettings } from '../../host-target-settings';
+import { MobileAccessSettings } from '../../mobile-access-settings';
 
 type GeneralSubTab = 'appearance' | 'general' | 'shortcuts' | 'pets';
 
@@ -104,6 +106,10 @@ function GeneralPreferencesSection(): ReactElement {
           />
         </FieldRow>
       </div>
+
+      <HostTargetSettings />
+
+      <MobileAccessSettings />
 
       {hostStatus ? (
         <div className="settings-section settings-section-card" data-testid="capability-matrix">

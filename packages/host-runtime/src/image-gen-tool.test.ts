@@ -588,6 +588,20 @@ describe('buildImageGenTool', () => {
         : [];
       expect(paths.map((path) => extname(path))).toEqual(['.png', '.jpg']);
       expect(new Uint8Array(await readFile(paths[1] ?? ''))).toEqual(JPEG_BYTES);
+
+      const parsed = JSON.parse(result.output) as {
+        status?: string;
+        imageCount?: number;
+        mediaIds?: unknown;
+        paths?: unknown;
+        notice?: string;
+      };
+      expect(parsed.status).toBe('success');
+      expect(parsed.imageCount).toBe(2);
+      expect(Array.isArray(parsed.mediaIds) ? parsed.mediaIds : []).toHaveLength(2);
+      expect(parsed.paths).toBeUndefined();
+      expect(result.output).not.toContain(mediaRoot);
+      expect(parsed.notice).toMatch(/already rendered/i);
     } finally {
       vi.unstubAllGlobals();
     }

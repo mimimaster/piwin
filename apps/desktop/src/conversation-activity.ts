@@ -10,6 +10,9 @@ export type ConversationActivityKind =
   | 'searching'
   | 'generating-image'
   | 'generating-video'
+  | 'creating-flashcard'
+  | 'generating-artifact'
+  | 'calling-tool'
   | 'stopping';
 
 export function resolveConversationActivityKind(input: {
@@ -32,6 +35,13 @@ export function resolveConversationActivityKind(input: {
     if (isSearchTool(tool)) {
       return 'searching';
     }
+    if (isFlashcardTool(tool)) {
+      return 'creating-flashcard';
+    }
+    if (isArtifactTool(tool)) {
+      return 'generating-artifact';
+    }
+    return 'calling-tool';
   }
   if (
     input.streaming === true ||
@@ -58,6 +68,12 @@ export function conversationActivityLabel(
         return '正在生成图片…';
       case 'generating-video':
         return '正在生成视频…';
+      case 'creating-flashcard':
+        return '正在创建知识卡片…';
+      case 'generating-artifact':
+        return '正在生成内容…';
+      case 'calling-tool':
+        return '正在调用工具…';
       case 'stopping':
         return '正在停止…';
       case 'thinking':
@@ -71,6 +87,12 @@ export function conversationActivityLabel(
       return 'Generating image…';
     case 'generating-video':
       return 'Generating video…';
+    case 'creating-flashcard':
+      return 'Creating flashcard…';
+    case 'generating-artifact':
+      return 'Generating artifact…';
+    case 'calling-tool':
+      return 'Running tool…';
     case 'stopping':
       return 'Stopping…';
     case 'thinking':
@@ -88,5 +110,28 @@ function isSearchTool(tool: ToolCardUi): boolean {
       name === 'web_fetch' ||
       name.includes('web_search') ||
       name.includes('web-search'),
+  );
+}
+
+function isFlashcardTool(tool: ToolCardUi): boolean {
+  const names = [tool.toolName, tool.presentation?.routedToolName]
+    .filter((name): name is string => typeof name === 'string' && name.length > 0)
+    .map((name) => name.toLowerCase());
+  return names.some(
+    (name) =>
+      name.includes('flashcard') ||
+      name.includes('flashcards'),
+  );
+}
+
+function isArtifactTool(tool: ToolCardUi): boolean {
+  const names = [tool.toolName, tool.presentation?.routedToolName]
+    .filter((name): name is string => typeof name === 'string' && name.length > 0)
+    .map((name) => name.toLowerCase());
+  return names.some(
+    (name) =>
+      name.includes('artifact') ||
+      name.includes('create_artifact') ||
+      name.includes('update_artifact'),
   );
 }

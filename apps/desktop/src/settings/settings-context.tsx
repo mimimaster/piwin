@@ -5,9 +5,11 @@
  */
 import { createContext, useContext, type PropsWithChildren, type ReactElement } from 'react';
 import type {
+  HostCommand,
   HostResponse,
   HostServerMessage,
   HostStatusData,
+  LocalMobileAccessCommand,
   ModelDiscoveryResult,
   ModelProviderConfig,
   PiwinConfig,
@@ -92,9 +94,11 @@ export type SettingsConfigRequest = (command: {
 
 export type SettingsContextValue = {
   request: SettingsConfigRequest;
-  /** Optional push source for live host-owned runtime status updates. */
+  /** Optional live sidecar client. Phone access uses request, never a remote Host. */
   hostClient?: {
     subscribe: (listener: (message: HostServerMessage) => void) => () => void;
+    request?: (command: HostCommand | LocalMobileAccessCommand) => Promise<HostResponse>;
+    getTransport?: () => 'mock' | 'live' | 'remote';
   };
   config: PiwinConfig | null;
   root: string;

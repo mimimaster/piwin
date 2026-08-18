@@ -28,6 +28,15 @@ import {
   type ToolDisablePredicate,
 } from './host-tool-execution-router.js';
 import { HOST_TOOLBOX_NAME } from '../host-toolbox.js';
+import { getAttachedToolCatalog } from '../tool-catalog/catalog-tool.js';
+import {
+  applyCatalogSearchBudget,
+  isMcpCatalogTarget,
+  searchHostCatalog,
+  suggestCatalogIds,
+} from '../tool-catalog/catalog-index.js';
+import { compactModelToolDescriptor } from '../model-tool-descriptor.js';
+import type { ToolCatalogService } from '../tool-catalog/catalog-service.js';
 import { ToolInvocationLedger } from './tool-invocation-ledger.js';
 
 /**
@@ -58,6 +67,8 @@ type GenerationToolSurface = {
   admission: HostToolAdmission;
   toolNames: Set<string>;
   toolboxTargets: ReadonlyMap<string, HostToolRegistration>;
+  catalog?: ToolCatalogService;
+  mcpCatalogEnabled: boolean;
 };
 
 type SessionSurfaces = {
@@ -140,6 +151,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     runtimeGenerationId: string,
     allowedToolNames: readonly string[],
     toolboxTargetNames: readonly string[] = [],
+    mcpCatalogEnabled = false,
   ): boolean {
     const surfaces = this.surfacesBySession.get(sessionId);
     const cached =
@@ -177,6 +189,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     cached.tools = Object.freeze(filteredTools);
     cached.toolNames = new Set(filteredTools.map((tool) => tool.descriptor.name));
     cached.toolboxTargets = toolboxTargets;
+    cached.mcpCatalogEnabled = mcpCatalogEnabled;
     cached.router = this.createRouter(cached, [...filteredTools, ...toolboxTargets.values()]);
     return true;
   }
@@ -330,7 +343,7 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     }
 
     if (input.toolName === HOST_TOOLBOX_NAME) {
-      return await this.executeToolbox(cached, input, signal);
+      return await this.executeCatalog(cached, input, signal);
     }
 
     // 5. Execute through the router. Run identity travels in the Host-only
@@ -419,6 +432,8 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       revalidateAuthority: (context) => this.revalidateAuthority(context),
       invocationLedger: ledger,
     });
+    const toolbox = frozenTools.find((tool) => tool.descriptor.name === HOST_TOOLBOX_NAME);
+    const catalog = toolbox ? getAttachedToolCatalog(toolbox) : undefined;
     return {
       generationId,
       ...(baseActiveGenerationId !== undefined ? { baseActiveGenerationId } : {}),
@@ -428,6 +443,8 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       admission,
       toolNames: new Set(frozenTools.map((tool) => tool.descriptor.name)),
       toolboxTargets: new Map(),
+      ...(catalog ? { catalog } : {}),
+      mcpCatalogEnabled: false,
     };
   }
 
@@ -452,30 +469,114 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
     }
   }
 
-  private async executeToolbox(
+  private async executeCatalog(
     cached: GenerationToolSurface,
     input: HostToolExecutionInput,
     signal: AbortSignal,
   ): Promise<HostToolExecutionResult> {
     const action = String(input.arguments.action ?? '').trim();
     const targetName = String(input.arguments.target ?? '').trim();
-    const target = cached.toolboxTargets.get(targetName);
-    if (!target) {
-      return {
-        ok: false,
-        code: 'tool-not-available',
-        message: `toolbox target not in session generation: ${targetName || '(empty)'}`,
-      };
+    if (action === 'search') {
+      const hostHits = searchHostCatalog([...cached.toolboxTargets.values()], String(input.arguments.query ?? ''));
+      if (!cached.mcpCatalogEnabled || !cached.catalog) {
+        const budget = applyCatalogSearchBudget(hostHits);
+        return {
+          ok: true,
+          output: JSON.stringify(
+            {
+              tools: budget.tools.map((hit) => ({
+                id: hit.id,
+                source: hit.source,
+                description: hit.description,
+                ...(hit.schema ? { schema: hit.schema } : {}),
+              })),
+              truncated: budget.truncated,
+              discoveredServers: [],
+              discoveryFailures: [],
+              remainingUncachedServers: [],
+              uncachedOrEmptyServers: [],
+            },
+            null,
+            2,
+          ),
+        };
+      }
+      return await cached.catalog.search(
+        {
+          query: String(input.arguments.query ?? ''),
+          hostTargets: [...cached.toolboxTargets.values()],
+          limit: input.arguments.limit,
+        },
+        signal,
+      );
+    }
+    if (action === 'status') {
+      if (!cached.mcpCatalogEnabled || !cached.catalog) {
+        return {
+          ok: true,
+          output: JSON.stringify(
+            {
+              servers: [],
+              note: 'MCP is not available in this session generation.',
+            },
+            null,
+            2,
+          ),
+        };
+      }
+      return await cached.catalog.status();
     }
     if (action === 'describe') {
-      return { ok: true, output: JSON.stringify(target.descriptor) };
+      if (!targetName) {
+        return { ok: false, code: 'invalid-input', message: 'describe requires target' };
+      }
+      if (isMcpCatalogTarget(targetName)) {
+        if (!cached.mcpCatalogEnabled || !cached.catalog) {
+          return mcpCatalogUnavailable(targetName);
+        }
+        return await cached.catalog.describeMcp(targetName, signal);
+      }
+      const target = cached.toolboxTargets.get(targetName);
+      if (!target) {
+        return missingCatalogTarget(targetName, [...cached.toolboxTargets.keys()]);
+      }
+      return { ok: true, output: JSON.stringify(compactModelToolDescriptor(target.descriptor)) };
     }
     if (action !== 'call') {
       return {
         ok: false,
         code: 'invalid-input',
-        message: 'piwin_toolbox action must be describe or call',
+        message: 'piwin_toolbox action must be search, describe, call, or status',
       };
+    }
+    if (!targetName) {
+      return { ok: false, code: 'invalid-input', message: 'call requires target' };
+    }
+    if (isMcpCatalogTarget(targetName)) {
+      if (!cached.mcpCatalogEnabled || !cached.catalog) {
+        return mcpCatalogUnavailable(targetName);
+      }
+      const targetArguments = input.arguments.arguments;
+      if (
+        targetArguments === null ||
+        typeof targetArguments !== 'object' ||
+        Array.isArray(targetArguments)
+      ) {
+        return {
+          ok: false,
+          code: 'invalid-input',
+          message: 'piwin_toolbox call requires an arguments object',
+        };
+      }
+      return await cached.catalog.callMcp(
+        targetName,
+        targetArguments as Record<string, unknown>,
+        signal,
+      );
+    }
+    const target = cached.toolboxTargets.get(targetName);
+    if (!target) {
+      return missingCatalogTarget(targetName, [...cached.toolboxTargets.keys()]);
     }
     const targetArguments = input.arguments.arguments;
     if (
@@ -502,6 +603,24 @@ export class SessionHostToolExecutionPort implements HostToolExecutionPort {
       },
     );
   }
+}
+
+function missingCatalogTarget(targetName: string, knownIds: readonly string[]): HostToolExecutionResult {
+  const suggestions = suggestCatalogIds(knownIds, targetName);
+  const suffix = suggestions.length > 0 ? `; nearest: ${suggestions.join(', ')}` : '';
+  return {
+    ok: false,
+    code: 'tool-not-available',
+    message: `toolbox target not in session generation: ${targetName || '(empty)'}${suffix}`,
+  };
+}
+
+function mcpCatalogUnavailable(targetName: string): HostToolExecutionResult {
+  return {
+    ok: false,
+    code: 'tool-not-available',
+    message: `MCP catalog is not available in this session generation: ${targetName}`,
+  };
 }
 
 /**

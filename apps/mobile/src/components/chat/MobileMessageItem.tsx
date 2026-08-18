@@ -1,10 +1,16 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { IconSpark, IconCopy, IconCheck } from '@piwin/ui-kit';
 import { MobileMarkdown } from './MobileMarkdown.js';
 import { MobileThinkingBlock } from './MobileThinkingBlock.js';
 import { MobileToolChain } from './MobileToolChain.js';
+import { MobileArtifactCard } from './MobileArtifactCard.js';
+import { MobileArtifactSheet } from '../modals/MobileArtifactSheet.js';
 import { useHaptics } from '../../hooks/use-haptics.js';
 import { useTts } from '../../hooks/use-tts.js';
+import {
+  collectMobileArtifacts,
+  mobileArtifactBlockedCopy,
+} from '../../mobile-artifact-preview.js';
 import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
 type MobileMessageItemProps = {
@@ -26,6 +32,12 @@ export function MobileMessageItem({ message }: MobileMessageItemProps): ReactEle
 
   const hasTools = Boolean(toolCalls && toolCalls.length > 0);
   const hasThinking = Boolean(thinking && thinking.trim().length > 0);
+  const artifacts = useMemo(
+    () => (isAssistant && !isStreaming ? collectMobileArtifacts(message.text) : []),
+    [isAssistant, isStreaming, message.text],
+  );
+  const [openArtifactId, setOpenArtifactId] = useState<string | undefined>();
+  const openArtifact = artifacts.find((item) => item.id === openArtifactId);
 
   // Filter out empty non-streaming message turns
   if (text.length === 0 && !isStreaming && !hasThinking && !hasTools) {
@@ -142,6 +154,27 @@ export function MobileMessageItem({ message }: MobileMessageItemProps): ReactEle
               />
             </div>
           ) : null}
+
+          {artifacts.map((item) => (
+            <MobileArtifactCard
+              key={item.id}
+              title={item.title}
+              language={item.language}
+              onOpenPreview={() => setOpenArtifactId(item.id)}
+            />
+          ))}
+
+          <MobileArtifactSheet
+            isOpen={openArtifact !== undefined}
+            onClose={() => setOpenArtifactId(undefined)}
+            title={openArtifact?.title}
+            srcdoc={openArtifact?.decision.kind === 'render' ? openArtifact.decision.srcdoc : undefined}
+            blockedReason={
+              openArtifact?.decision.kind === 'blocked'
+                ? mobileArtifactBlockedCopy(openArtifact.decision.reason)
+                : undefined
+            }
+          />
         </div>
       )}
     </article>

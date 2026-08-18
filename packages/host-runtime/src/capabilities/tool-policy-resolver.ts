@@ -130,9 +130,14 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   // MCP is a stable gateway family. The gateway remains exposed when there
   // are currently no enabled servers; the Supervisor resolves the selector
   // at call time and reports the current server/tool state.
-  const mcpGatewayAvailable =
-    input.availableFamilies?.has('mcp') ?? input.availability.mcpEnabledServerIds.length > 0;
-  if (input.mcp && hasMcp && mcpGatewayAvailable) {
+  // MCP catalog is served through piwin_toolbox. The family stays enabled when
+  // the toolbox shell is registered even if no dedicated MCP tool exists, and
+  // when there are currently zero enabled servers.
+  const mcpCatalogAvailable = input.availableFamilies
+    ? input.availableFamilies.has('mcp') ||
+      (input.mcp && input.availableFamilies.has('toolbox'))
+    : input.availability.mcpEnabledServerIds.length > 0;
+  if (input.mcp && hasMcp && mcpCatalogAvailable) {
     enabledFamilies.add('mcp');
   }
   // Process: exposure 'agent' AND backing service ready.
@@ -206,7 +211,12 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   }
 
   const effectiveFamilies = input.availableFamilies
-    ? [...enabledFamilies].filter((family) => input.availableFamilies?.has(family))
+    ? [...enabledFamilies].filter(
+        (family) =>
+          input.availableFamilies?.has(family) === true ||
+          family === 'artifact' ||
+          (family === 'mcp' && input.mcp && input.availableFamilies?.has('toolbox') === true),
+      )
     : [...enabledFamilies];
 
   const piBuiltinToolNames = new Set<string>();

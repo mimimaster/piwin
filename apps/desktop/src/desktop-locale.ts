@@ -17,6 +17,38 @@ export type DesktopCopy = {
   languageDescription: string;
   chinese: string;
   english: string;
+  hostTarget: {
+    title: string;
+    description: string;
+    endpointLabel: string;
+    endpointPlaceholder: string;
+    tokenLabel: string;
+    tokenPlaceholder: string;
+    connect: string;
+    connecting: string;
+    useThisMac: string;
+    instanceId: (id: string) => string;
+    invalidEndpoint: string;
+  };
+  mobileAccess: {
+    title: string;
+    description: string;
+    listenLabel: string;
+    listenDescription: string;
+    advertisedLabel: string;
+    advertisedPlaceholder: string;
+    generate: string;
+    generating: string;
+    copyUri: string;
+    copied: string;
+    devices: string;
+    noDevices: string;
+    revoke: string;
+    lastSeen: (at: string) => string;
+    sidecarOnly: string;
+    invalidAdvertised: string;
+    pairingExpires: (at: string) => string;
+  };
   backToWorkspace: string;
   configurationRoot: string;
   savedLocally: string;
@@ -176,6 +208,13 @@ export type DesktopCopy = {
     runtimeCloudLabel: string;
     runtimeCloudDisconnectedTooltip: string;
     runtimeCloudConnectedTooltip: string;
+    foregroundReplaceTitle: string;
+    foregroundReplaceDescription: string;
+    foregroundReplaceConfirm: string;
+    foregroundReplaceCancel: string;
+    foregroundMismatchFinished: string;
+    foregroundMismatchChanged: string;
+    supersededByNewPrompt: string;
   };
   interruption: {
     agentWaiting: string;
@@ -496,6 +535,38 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     languageDescription: '切换界面显示语言。',
     chinese: '简体中文',
     english: 'English',
+    hostTarget: {
+      title: '远程 Host',
+      description: '连接到一台独立运行的 Host。清空后使用本机 sidecar。',
+      endpointLabel: 'WebSocket 地址',
+      endpointPlaceholder: 'ws://127.0.0.1:8787',
+      tokenLabel: 'Token',
+      tokenPlaceholder: '仅当 Host 开启认证时填写',
+      connect: '连接',
+      connecting: '正在连接…',
+      useThisMac: '使用本机',
+      instanceId: (id) => `hostInstanceId：${id}`,
+      invalidEndpoint: '请输入 ws:// 或 wss:// 地址',
+    },
+    mobileAccess: {
+      title: '手机接入',
+      description: '让本机 sidecar 监听配对。远程 Host 不能打开这个开关；手机必须连到这个进程。',
+      listenLabel: '允许手机接入',
+      listenDescription: '绑定 127.0.0.1:8787。真机请用 Tailscale / SSH 隧道把该端口暴露出去。',
+      advertisedLabel: '手机可达地址',
+      advertisedPlaceholder: 'ws://127.0.0.1:8787 或 wss://mac.tailnet.ts.net:8787',
+      generate: '生成配对码',
+      generating: '正在生成…',
+      copyUri: '复制 URI',
+      copied: '已复制',
+      devices: '已配对设备',
+      noDevices: '还没有配对设备',
+      revoke: '撤销',
+      lastSeen: (at) => `最近见到：${at}`,
+      sidecarOnly: '手机接入只在本机 sidecar 上可用。请先点「使用本机」。',
+      invalidAdvertised: '请输入 ws:// 或 wss:// 地址',
+      pairingExpires: (at) => `配对码有效至 ${at}`,
+    },
     backToWorkspace: '返回工作区',
     configurationRoot: '配置根目录',
     savedLocally: '已保存在本地',
@@ -657,9 +728,16 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       runtimeTargetGroupLabel: '运行位置',
       runtimeLocalLabel: '本机',
       runtimeLocalTooltip: '在本机运行（This Mac）',
-      runtimeCloudLabel: '云端',
-      runtimeCloudDisconnectedTooltip: '未连接到远程服务器',
-      runtimeCloudConnectedTooltip: '在远程服务器运行',
+      runtimeCloudLabel: '远程 Host',
+      runtimeCloudDisconnectedTooltip: '未连接到远程 Host',
+      runtimeCloudConnectedTooltip: '在远程 Host 运行',
+      foregroundReplaceTitle: '会话正在处理',
+      foregroundReplaceDescription: '另一端正在处理这个会话，发送会中断当前任务',
+      foregroundReplaceConfirm: '中断并发送',
+      foregroundReplaceCancel: '取消',
+      foregroundMismatchFinished: '当前任务已经结束，请再发送一次',
+      foregroundMismatchChanged: '会话任务已切换，请再发送一次',
+      supersededByNewPrompt: '任务被另一台设备发送的新消息中断',
     },
     interruption: {
       agentWaiting: 'Agent 正等待你的回答',
@@ -739,6 +817,40 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     languageDescription: 'Change the application display language.',
     chinese: 'Simplified Chinese',
     english: 'English',
+    hostTarget: {
+      title: 'Remote Host',
+      description: 'Attach to a standalone Host. Clear the target to use this Mac’s sidecar.',
+      endpointLabel: 'WebSocket URL',
+      endpointPlaceholder: 'ws://127.0.0.1:8787',
+      tokenLabel: 'Token',
+      tokenPlaceholder: 'Required only when the Host enables auth',
+      connect: 'Connect',
+      connecting: 'Connecting…',
+      useThisMac: 'Use this Mac',
+      instanceId: (id) => `hostInstanceId: ${id}`,
+      invalidEndpoint: 'Enter a ws:// or wss:// URL',
+    },
+    mobileAccess: {
+      title: 'Phone access',
+      description:
+        'Let this Mac’s sidecar listen for pairing. A remotely attached Host cannot open this switch; the phone must dial this process.',
+      listenLabel: 'Allow phone access',
+      listenDescription:
+        'Binds 127.0.0.1:8787. For a physical phone, expose that port with Tailscale or an SSH tunnel.',
+      advertisedLabel: 'Phone-reachable URL',
+      advertisedPlaceholder: 'ws://127.0.0.1:8787 or wss://mac.tailnet.ts.net:8787',
+      generate: 'Create pairing code',
+      generating: 'Creating…',
+      copyUri: 'Copy URI',
+      copied: 'Copied',
+      devices: 'Paired devices',
+      noDevices: 'No paired devices yet',
+      revoke: 'Revoke',
+      lastSeen: (at) => `Last seen: ${at}`,
+      sidecarOnly: 'Phone access is only available on this Mac’s sidecar. Choose “Use this Mac” first.',
+      invalidAdvertised: 'Enter a ws:// or wss:// URL',
+      pairingExpires: (at) => `Pairing code expires ${at}`,
+    },
     backToWorkspace: 'Back to workspace',
     configurationRoot: 'Configuration root',
     savedLocally: 'Saved locally',
@@ -906,9 +1018,17 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       runtimeTargetGroupLabel: 'Run location',
       runtimeLocalLabel: 'This Mac',
       runtimeLocalTooltip: 'This Mac (local)',
-      runtimeCloudLabel: 'Cloud',
-      runtimeCloudDisconnectedTooltip: 'Not connected to a remote server',
-      runtimeCloudConnectedTooltip: 'Run on a remote server',
+      runtimeCloudLabel: 'Remote Host',
+      runtimeCloudDisconnectedTooltip: 'Not connected to a remote Host',
+      runtimeCloudConnectedTooltip: 'Run on a remote Host',
+      foregroundReplaceTitle: 'Session is busy',
+      foregroundReplaceDescription:
+        'Another client is working on this session. Sending will interrupt the current task.',
+      foregroundReplaceConfirm: 'Interrupt and send',
+      foregroundReplaceCancel: 'Cancel',
+      foregroundMismatchFinished: 'That run already finished. Send again to start a new one.',
+      foregroundMismatchChanged: 'The session run changed. Send again to start a new one.',
+      supersededByNewPrompt: 'This run was interrupted by a new message from another device',
     },
     interruption: {
       agentWaiting: 'Agent is waiting for your answer',
@@ -1037,7 +1157,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         models: isChinese ? '模型与服务商' : 'Models & Providers',
         extensions: isChinese ? '技能与扩展' : 'Skills & Extensions',
         agent: isChinese ? '智能体策略' : 'Agent & Workflows',
-        knowledge: isChinese ? '检索与知识库' : 'Search & Knowledge',
+        knowledge: isChinese ? '知识库与向量' : 'Knowledge & Embeddings',
+        web: isChinese ? '网络搜索与抓取' : 'Web Search & Fetch',
         session: isChinese ? '会话与运行时' : 'Sessions & Runtime',
         permissions: isChinese ? '权限与安全' : 'Security & Permissions',
         appearance: isChinese ? '外观' : 'Appearance',
@@ -1051,7 +1172,6 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
         tools: 'MCP',
-        web: isChinese ? 'Web 工具' : 'Web tools',
         plugins: isChinese ? '插件' : 'Plugins',
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',

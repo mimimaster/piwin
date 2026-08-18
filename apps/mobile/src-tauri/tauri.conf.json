@@ -33,7 +33,9 @@
   "bundle": {
     "iOS": {
       "infoPlist": {
-        "NSCameraUsageDescription": "Piwin uses the camera to scan a Host pairing QR code."
+        "NSCameraUsageDescription": "Piwin uses the camera to scan a Host pairing QR code and to attach photos to a chat.",
+        "NSMicrophoneUsageDescription": "Piwin uses the microphone while you hold the mic button to dictate a message.",
+        "NSSpeechRecognitionUsageDescription": "Piwin converts your held speech into text on this device, then sends that text to your Host."
       }
     }
   }

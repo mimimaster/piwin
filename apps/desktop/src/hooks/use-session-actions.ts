@@ -31,7 +31,7 @@ import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import { type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
-import { mapSummariesToListItems, summaryToListItem } from './session-list-item';
+import { summaryToListItem } from './session-list-item';
 import { sessionHasListName } from '../title-display';
 import { resolveSessionOutline } from '../transcript-outline';
 import { canUseThinkingLevel } from '../model-thinking-policy';
@@ -41,6 +41,17 @@ import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard'
 import { DESKTOP_SESSION_LIST_MAX_ITEMS } from '../session-list-policy';
 import { sessionScopeKey } from '../session-scope-key';
 import { requestSessionTranscriptPage } from '../session-transcript-page-request';
+import {
+  mapListedSessionItems,
+  sessionListCommandForTransport,
+} from '../remote-session-hydrate';
+import {
+  foregroundMismatchNotice,
+  readForegroundProblem,
+  requestPromptWithForeground,
+} from '../prompt-foreground';
+import { useDesktopLocale } from '../desktop-locale-context';
+import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
 
 export type ModelOption = {
   providerId: string;
@@ -99,6 +110,7 @@ export type UseSessionActionsArgs = {
     model?: ModelRef;
     thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   }) => void;
+  confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
 };
 
 export function useSessionActions(args: UseSessionActionsArgs) {
@@ -123,7 +135,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     setHostLogEntries,
     setComposer,
     onSessionComposerProfileRestored,
+    confirmForegroundReplace,
   } = args;
+  const { locale } = useDesktopLocale();
   // Multiple event handlers can ask for the first session before React has
   // committed activeSessionId. Share one create request per selected scope.
   const pendingSessionCreations = useRef(new Map<string, Promise<string | null>>());
@@ -275,36 +289,48 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const scopeKey = sessionScopeKey(scope);
       const requestGeneration = (sessionListRequestGenerations.current.get(scopeKey) ?? 0) + 1;
       sessionListRequestGenerations.current.set(scopeKey, requestGeneration);
-      const listed = await hostClient.request({
-        type: 'session/list',
-        scope,
-        includeArchived,
-        order: options?.order ?? sessionListOrder,
-        maxItems: DESKTOP_SESSION_LIST_MAX_ITEMS,
-      });
+      const listed = await hostClient.request(
+        sessionListCommandForTransport({
+          transport: hostClient.getTransport(),
+          scope,
+          includeArchived,
+          order: options?.order ?? sessionListOrder,
+          maxItems: DESKTOP_SESSION_LIST_MAX_ITEMS,
+        }),
+      );
       if (!listed.success) {
         if (sessionListRequestGenerations.current.get(scopeKey) === requestGeneration) {
           dispatch({ type: 'error', message: `Could not load sessions: ${listed.error}` });
         }
         return [];
       }
-      const data = listed.data as SessionListData;
-      const summaries = data.sessions;
-      const sessions = mapSummariesToListItems(summaries);
-      // Host already filters unnamed sessions; keep a client-side guard so a
-      // stale push cannot reintroduce `session-<id>` rows into the sidebar.
-      const named = sessions.filter((session) => sessionHasListName(session));
+      const mapped = mapListedSessionItems(listed.data);
+      const named = mapped.sessions.filter((session) => sessionHasListName(session));
       if (sessionListRequestGenerations.current.get(scopeKey) === requestGeneration) {
         dispatch({
           type: 'session/hydrate-scope',
           scope,
           sessions: named,
-          totalCount: data.totalCount ?? summaries.length,
-          truncated: data.truncated ?? false,
+          totalCount: mapped.totalCount,
+          truncated: mapped.truncated,
           ...(options?.fillActiveList === true ? { fillActiveList: true } : {}),
         });
       }
-      return summaries;
+      const data = listed.data as SessionListData;
+      if (Array.isArray(data.sessions) && typeof data.sessions[0]?.id === 'string') {
+        return data.sessions.filter((session) =>
+          named.some((item) => item.id === session.id),
+        );
+      }
+      return named.map((item) => ({
+        id: item.id,
+        name: item.name,
+        scope: item.scope ?? scope,
+        workingDirectory: item.scope?.kind === 'project' ? item.scope.projectPath : '',
+        projectPath: item.scope?.kind === 'project' ? item.scope.projectPath : '',
+        updatedAt: item.updatedAt ?? '',
+        messageCount: item.messageCount ?? 0,
+      }));
     },
     [dispatch, hostClient, sessionListOrder, showArchivedSessions, state.activeScope],
   );
@@ -1411,14 +1437,24 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (thinkingLevel && option && canUseThinkingLevel(option, thinkingLevel, true)) {
         editInput.thinkingLevel = thinkingLevel;
       }
-      const response = await hostClient.request({
-        type: 'session/prompt',
+      const response = await requestPromptWithForeground({
+        request: (command) => hostClient.request(command),
         sessionId: state.activeSessionId,
         input: editInput,
+        ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
+        ...(typeof hostClient.supportsForegroundAdmission === 'function'
+          ? { remoteForegroundAdmission: hostClient.supportsForegroundAdmission() }
+          : {}),
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
-        dispatchNotification(pushError(response.error));
+        dispatch({ type: 'user/send-rollback', clientMessageId: resendClientMessageId });
+        const problem = readForegroundProblem(response);
+        if (problem) {
+          dispatch({ type: 'error', message: foregroundMismatchNotice(problem, locale) });
+        } else {
+          dispatch({ type: 'error', message: response.error });
+          dispatchNotification(pushError(response.error));
+        }
       } else {
         const accepted = response.data as { runId?: string; acceptedAt?: string };
         if (typeof accepted.runId === 'string') {
@@ -1432,9 +1468,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     },
     [
       agentMode,
+      confirmForegroundReplace,
       dispatch,
       dispatchNotification,
       hostClient,
+      locale,
       orchestrationSchemeId,
       delegationDisabled,
       resolveHostUserMessageId,

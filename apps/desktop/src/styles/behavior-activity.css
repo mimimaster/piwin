@@ -12,24 +12,7 @@
   --behavior-status-duration: 1.8s;
 }
 
-.behavior-text-bloom {
-  color: transparent;
-  background: linear-gradient(
-    135deg,
-    #5d6066 15%,
-    #858990 34%,
-    #e2e4e8 50%,
-    #858990 66%,
-    #5d6066 85%
-  );
-  background-size: 280% 280%;
-  background-position: 130% 130%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: behavior-text-bloom var(--behavior-bloom-duration) ease-in-out infinite;
-  filter: drop-shadow(0 0 8px rgba(218, 222, 234, 0.08));
-}
-
+.behavior-text-bloom,
 .behavior-explore-active,
 .behavior-search-active,
 .behavior-read-active,
@@ -46,20 +29,18 @@
 .behavior-process-active,
 .behavior-artifact-active,
 .behavior-generic-active {
-  color: transparent;
   background: linear-gradient(
-    135deg,
-    #5d6066 15%,
-    #858990 34%,
-    #e2e4e8 50%,
-    #858990 66%,
-    #5d6066 85%
+    90deg,
+    color-mix(in srgb, var(--text) 38%, transparent) 0%,
+    color-mix(in srgb, var(--text) 92%, transparent) 42%,
+    color-mix(in srgb, var(--text) 38%, transparent) 78%
   );
-  background-size: 280% 280%;
-  background-position: 130% 130%;
+  background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: behavior-text-bloom var(--behavior-bloom-duration) ease-in-out infinite;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wb-shimmer var(--motion-shimmer, 2s) linear infinite;
   filter: drop-shadow(0 0 8px rgba(218, 222, 234, 0.08));
 }
 
@@ -98,6 +79,26 @@
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-artifact-active,
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-generic-active {
   color: transparent;
+}
+
+/* Running tool call row (command line / shell / read / edit / search / etc.)
+ * Font flowing light (left to right shimmer) across the verb and preview text. */
+.tool-call-card[data-tool-status='running'] .tool-call-action-verb,
+.tool-call-card[data-tool-status='running'] .tool-call-preview,
+.turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-action-verb,
+.turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-preview {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text) 38%, transparent) 0%,
+    color-mix(in srgb, var(--text) 92%, transparent) 42%,
+    color-mix(in srgb, var(--text) 38%, transparent) 78%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wb-shimmer var(--motion-shimmer, 2s) linear infinite;
 }
 
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active,
@@ -471,12 +472,17 @@
   .behavior-thinking-active,
   .behavior-context-active,
   .behavior-gate-active,
-  .behavior-gate-surface {
+  .behavior-gate-surface,
+  .tool-call-card[data-tool-status='running'] .tool-call-action-verb,
+  .tool-call-card[data-tool-status='running'] .tool-call-preview,
+  .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-action-verb,
+  .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-preview {
     animation: none;
     color: color-mix(in srgb, var(--text) 72%, transparent);
     background: none;
     -webkit-background-clip: border-box;
     background-clip: border-box;
+    -webkit-text-fill-color: currentColor;
     filter: none;
   }
 

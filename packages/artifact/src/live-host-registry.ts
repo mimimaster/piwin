@@ -191,6 +191,22 @@ export function claimArtifactLiveHost(
   return { admitted: true };
 }
 
+/**
+ * Critical-pressure lifeboat: drop every live iframe that is not forceKeep
+ * (canvas / stream preview). Does not promote waiters — recovery must not
+ * remount hosts by itself.
+ */
+export function evictNonForceKeepArtifactHosts(): number {
+  const victims = [...hosts.values()].filter((entry) => !entry.forceKeep);
+  for (const victim of victims) {
+    evictEntry(victim);
+  }
+  // Drop the wait queue too. A later forceKeep release must not remount
+  // ordinary hosts while we are still under critical pressure.
+  waiters.clear();
+  return victims.length;
+}
+
 export function releaseArtifactLiveHost(id: string): void {
   const wasLive = hosts.delete(id);
   waiters.delete(id);

@@ -7,6 +7,7 @@ import type {
   RunInterventionRecord,
   QueuedTurnRecord,
   MediaAttachmentRef,
+  ModelRef,
   PromptAttachment,
   PermissionDecision,
   PermissionRequestContext,
@@ -121,6 +122,8 @@ export type ChatMessageUi = {
   thinkingTruncated?: boolean;
   instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
   docCardSequence?: SessionTranscriptMessage['docCardSequence'];
+  /** Model snapshot used to produce this Assistant message. */
+  model?: ModelRef;
 };
 
 export type TranscriptHistoryViewUi = {
@@ -710,6 +713,7 @@ export function mapTranscriptMessagesToUi(
       ? { instructionDelivery: message.instructionDelivery }
       : {}),
     ...(message.docCardSequence ? { docCardSequence: message.docCardSequence } : {}),
+    ...(message.model ? { model: message.model } : {}),
   }));
 }
 

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_LIVE_ARTIFACT_IFRAMES,
   claimArtifactLiveHost,
+  evictNonForceKeepArtifactHosts,
   getLiveArtifactHostCount,
   getLiveArtifactHostIdsForTests,
   getWaitingArtifactHostCount,
@@ -156,6 +157,60 @@ describe('artifact live host registry', () => {
     expect(result.admitted).toBe(true);
     expect(getLiveArtifactHostIdsForTests()).toContain('click');
     expect(getLiveArtifactHostIdsForTests()).not.toContain('low');
+  });
+
+  it('evicts every non-forceKeep host and leaves forceKeep mounted', () => {
+    const evicted: string[] = [];
+    claimArtifactLiveHost({
+      id: 'keep',
+      forceKeep: true,
+      priority: 1,
+      evict: () => {
+        evicted.push('keep');
+      },
+    });
+    const plainCount = MAX_LIVE_ARTIFACT_IFRAMES - 1;
+    for (let index = 0; index < plainCount; index += 1) {
+      claimArtifactLiveHost({
+        id: `plain-${index}`,
+        priority: 10,
+        evict: () => {
+          evicted.push(`plain-${index}`);
+        },
+      });
+    }
+
+    expect(evictNonForceKeepArtifactHosts()).toBe(plainCount);
+    expect(evicted).toEqual(
+      Array.from({ length: plainCount }, (_, index) => `plain-${index}`),
+    );
+    expect(getLiveArtifactHostIdsForTests()).toEqual(['keep']);
+  });
+
+  it('does not promote waiters after a pressure evict', () => {
+    const onAdmit = vi.fn();
+    for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
+      claimArtifactLiveHost({
+        id: `keep-${index}`,
+        forceKeep: true,
+        evict: () => undefined,
+      });
+    }
+    claimArtifactLiveHost({
+      id: 'waiter',
+      evict: () => undefined,
+      onAdmit,
+    });
+    expect(getWaitingArtifactHostIdsForTests()).toContain('waiter');
+
+    expect(evictNonForceKeepArtifactHosts()).toBe(0);
+    expect(onAdmit).not.toHaveBeenCalled();
+    expect(getWaitingArtifactHostIdsForTests()).toEqual([]);
+    expect(getLiveArtifactHostCount()).toBe(MAX_LIVE_ARTIFACT_IFRAMES);
+
+    releaseArtifactLiveHost('keep-0');
+    expect(onAdmit).not.toHaveBeenCalled();
+    expect(getLiveArtifactHostIdsForTests()).not.toContain('waiter');
   });
 
   it('release frees a slot for the next claim', () => {

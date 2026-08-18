@@ -15,7 +15,7 @@ import type { HostToolDescriptor, HostToolRegistration, SessionToolFamily } from
 import { BLUEPRINT_PROTOCOL_VERSION } from '@piwin/agent-host';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import type { McpCapabilityBrief } from './mcp-capability-brief.js';
-import { buildHostToolboxDescriptor } from './host-toolbox.js';
+import { buildHostToolboxDescriptor } from './tool-catalog/catalog-tool.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
@@ -92,15 +92,10 @@ function familyAssignments(
 }
 
 describe('compileBlueprintForWorker', () => {
-  it('appends compact Agent, Artifact, and MCP capability guidance', async () => {
-    const gatewayDescriptor: HostToolDescriptor = {
-      name: 'mcp_gateway',
-      description: 'MCP gateway',
-      parameters: {},
-    };
-    const artifactDescriptor: HostToolDescriptor = {
-      name: 'artifact_instructions',
-      description: 'Artifact instructions',
+  it('appends Agent, Artifact, and MCP capability guidance', async () => {
+    const toolboxDescriptor: HostToolDescriptor = {
+      name: 'piwin_toolbox',
+      description: 'Toolbox',
       parameters: {},
     };
     const mcpCapabilityBrief: McpCapabilityBrief = {
@@ -134,12 +129,11 @@ describe('compileBlueprintForWorker', () => {
         }),
         mcpConfig: { mcpServers: { docs: { command: 'node' } } },
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
-        hostToolDescriptors: [gatewayDescriptor, artifactDescriptor],
+        hostToolDescriptors: [toolboxDescriptor],
         hostToolFamilyIndex: createFamilyIndex(
-          [gatewayDescriptor, artifactDescriptor],
+          [toolboxDescriptor],
           familyAssignments([
-            ['mcp', ['mcp_gateway']],
-            ['artifact', ['artifact_instructions']],
+            ['toolbox', ['piwin_toolbox']],
           ]),
         ),
         mcpCapabilityBrief,
@@ -149,21 +143,28 @@ describe('compileBlueprintForWorker', () => {
     const appendSystemPrompt = result.blueprint.appendSystemPrompt;
     expect(appendSystemPrompt).toBeDefined();
     expect(appendSystemPrompt).toContain('## Default Agent operating contract');
-    expect(appendSystemPrompt).toContain('## Artifact capability');
-    expect(appendSystemPrompt).toContain('A custom Artifact decision policy is configured');
-    expect(appendSystemPrompt).not.toContain('artifact append sentinel');
-    expect(appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('[piwin-prompt-meta kind="artifact:capability"');
+    expect(appendSystemPrompt).toContain('artifact append sentinel');
+    expect(appendSystemPrompt).toContain('## HTML Artifact Runtime Contract');
     expect(appendSystemPrompt).toContain('## MCP tools (use them proactively)');
     expect(appendSystemPrompt).toContain('`docs`: 1 cached tool(s)');
-    expect(appendSystemPrompt).toContain('mcp_gateway');
+    expect(appendSystemPrompt).toContain('piwin_toolbox');
+    expect(appendSystemPrompt).not.toContain('mcp_gateway');
     expect(result.backendBlueprint.appendSystemPrompt).toBe(appendSystemPrompt);
   });
 
-  it('does not advertise Artifact instructions without a concrete executor', async () => {
+  it('does not append Artifact prompt when artifact is disabled in config', async () => {
     const result = await compileBlueprintForWorker(
       { scope: agentProjectScope },
       {
-        config: createConfig(),
+        config: createConfig({
+          artifact: {
+            enabled: false,
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'default', customPrompt: '' },
+            maxBytes: 100_000,
+          },
+        }),
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
         hostToolDescriptors: [],
         hostToolFamilyIndex: new Map(),
@@ -171,10 +172,8 @@ describe('compileBlueprintForWorker', () => {
     );
 
     expect(result.blueprint.appendSystemPrompt).toContain('## Default Agent operating contract');
-    expect(result.blueprint.appendSystemPrompt).not.toContain('## Artifact capability');
-    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain(
-      'artifact_instructions',
-    );
+    expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('When to produce an Artifact');
   });
 
   it('compiles one exact toolbox descriptor and a separate target execution allowlist', async () => {
@@ -213,8 +212,13 @@ describe('compileBlueprintForWorker', () => {
       (descriptor) => descriptor.name === 'piwin_toolbox',
     );
     const properties = toolbox?.parameters.properties as
-      Record<string, { enum?: string[] }> | undefined;
-    expect(properties?.target?.enum).toEqual(['image_gen', 'process_start']);
+      | Record<string, { enum?: string[]; type?: string }>
+      | undefined;
+    expect(properties?.target?.type).toBe('string');
+    expect(properties?.target?.enum).toBeUndefined();
+    expect(properties?.action?.enum).toEqual(['search', 'describe', 'call', 'status']);
+    expect(toolbox?.description).toContain('process_start');
+    expect(toolbox?.description).toContain('image_gen');
     expect(result.blueprint.tools.hostTools.map((descriptor) => descriptor.name)).not.toContain(
       'process_start',
     );
@@ -793,7 +797,7 @@ describe('compileBlueprintForWorker', () => {
       { name: 'flashcard_batch_create', description: 'Batch create flashcards', parameters: {} },
       { name: 'flashcard_list', description: 'List flashcards', parameters: {} },
       { name: 'flashcard_delete', description: 'Delete flashcard', parameters: {} },
-      { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
+      { name: 'piwin_toolbox', description: 'Toolbox', parameters: {} },
       { name: 'mcp__docs__search', description: 'MCP search', parameters: {} },
       { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
       { name: 'image_gen', description: 'Generate image', parameters: {} },
@@ -838,7 +842,8 @@ describe('compileBlueprintForWorker', () => {
               'flashcards-write',
               ['flashcard_create', 'flashcard_batch_create', 'flashcard_delete'],
             ],
-            ['mcp', ['mcp_gateway', 'mcp__docs__search']],
+            ['toolbox', ['piwin_toolbox']],
+            ['mcp', ['mcp__docs__search']],
             ['delegate', ['piwin_subagent_run']],
             ['image-generation', ['image_gen']],
           ]),
@@ -859,32 +864,38 @@ describe('compileBlueprintForWorker', () => {
     expect(compiledNames).toContain('bash');
     expect(compiledNames).toContain('piwin_plan_create');
     expect(compiledNames).toContain('piwin_plan_set_step');
-    expect(compiledNames).toContain('note_search');
-    expect(compiledNames).toContain('flashcard_create');
-    expect(compiledNames).toContain('mcp_gateway');
-    expect(compiledNames).toContain('mcp__docs__search');
     expect(compiledNames).toContain('piwin_subagent_run');
-    expect(compiledNames).toContain('image_gen');
+    expect(compiledNames).toContain('piwin_toolbox');
+    expect(compiledNames).not.toContain('flashcard_create');
+    expect(compiledNames).not.toContain('image_gen');
+    expect(compiledNames).not.toContain('note_search');
+    expect(compiledNames).toContain('mcp__docs__search');
   });
 
-  it('keeps the MCP gateway available when no enabled server exists', async () => {
+  it('keeps the MCP catalog available when no enabled server exists', async () => {
+    const toolboxDescriptor: HostToolDescriptor = {
+      name: 'piwin_toolbox',
+      description: 'Toolbox',
+      parameters: {},
+    };
     const result = await compileBlueprintForWorker(
       { scope: agentProjectScope },
       {
         config: createConfig(),
         mcpConfig: { mcpServers: { disabled: { command: 'node', disabled: true } } },
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
-        hostToolDescriptors: [{ name: 'mcp_gateway', description: 'MCP gateway', parameters: {} }],
+        hostToolDescriptors: [toolboxDescriptor],
         hostToolFamilyIndex: createFamilyIndex(
-          [{ name: 'mcp_gateway', description: 'MCP gateway', parameters: {} }],
-          familyAssignments([['mcp', ['mcp_gateway']]]),
+          [toolboxDescriptor],
+          familyAssignments([['toolbox', ['piwin_toolbox']]]),
         ),
       },
     );
 
     expect(result.blueprint.tools.enabledFamilies).toContain('mcp');
+    expect(result.blueprint.tools.enabledFamilies).toContain('toolbox');
     expect(result.blueprint.tools.enabledMcpServerIds).toEqual([]);
-    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toEqual(['mcp_gateway']);
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toEqual(['piwin_toolbox']);
   });
 
   it('untrusted project compiles no write/process/bash/delegate tools', async () => {
@@ -1402,7 +1413,6 @@ describe('conversation fast path (pure chat)', () => {
   const conversationDescriptors: HostToolDescriptor[] = [
     { name: 'web_search', description: 'Search the web', parameters: {} },
     { name: 'web_fetch', description: 'Fetch a URL', parameters: {} },
-    { name: 'artifact_instructions', description: 'Artifact instructions', parameters: {} },
     buildHostToolboxDescriptor([]),
     { name: 'flashcard_create', description: 'Create flashcard', parameters: {} },
     { name: 'flashcard_list', description: 'List flashcards', parameters: {} },
@@ -1425,7 +1435,6 @@ describe('conversation fast path (pure chat)', () => {
     familyAssignments([
       ['web-search', ['web_search']],
       ['web-fetch', ['web_fetch']],
-      ['artifact', ['artifact_instructions']],
       ['toolbox', ['piwin_toolbox']],
       ['flashcards-read', ['flashcard_list']],
       ['flashcards-write', ['flashcard_create']],
@@ -1525,7 +1534,6 @@ describe('conversation fast path (pure chat)', () => {
     expect(hostToolNames).toContain('piwin_toolbox');
     expect(hostToolNames).toContain('web_search');
     expect(hostToolNames).toContain('web_fetch');
-    expect(hostToolNames).toContain('artifact_instructions');
     for (const hidden of [
       'flashcard_create',
       'flashcard_list',
@@ -1549,14 +1557,14 @@ describe('conversation fast path (pure chat)', () => {
       (descriptor) => descriptor.name === 'piwin_toolbox',
     );
     const properties = toolbox?.parameters.properties as
-      | Record<string, { enum?: string[] }>
+      | Record<string, { enum?: string[]; type?: string }>
       | undefined;
-    expect(properties?.target?.enum).toEqual([
-      'flashcard_create',
-      'flashcard_list',
-      'image_gen',
-      'video_gen',
-    ]);
+    expect(properties?.target?.type).toBe('string');
+    expect(properties?.target?.enum).toBeUndefined();
+    expect(properties?.action?.enum).toEqual(['search', 'describe', 'call', 'status']);
+    expect(toolbox?.description).toContain('flashcard_create');
+    expect(toolbox?.description).toContain('image_gen');
+    expect(toolbox?.description).toContain('video_gen');
     expect(result.sessionBlueprint.hostToolboxTargetNames).toEqual([
       'flashcard_create',
       'flashcard_list',
@@ -1603,38 +1611,33 @@ describe('conversation fast path (pure chat)', () => {
     expect(families).not.toContain('flashcards-write');
   });
 
-  it('CHT-205: keeps artifact instructions lazy in the conversation prompt', async () => {
+  it('CHT-205: injects artifact instructions directly in conversation prompt when enabled', async () => {
     const result = await compileBlueprintForWorker({ scope: generalScope }, conversationOptions);
 
     const appendSystemPrompt = result.blueprint.appendSystemPrompt ?? '';
-    expect(appendSystemPrompt).toContain('## Artifact capability');
-    expect(appendSystemPrompt).not.toContain('HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('[piwin-prompt-meta kind="artifact:capability"');
+    expect(appendSystemPrompt).toContain('## HTML Artifact Runtime Contract');
+    expect(appendSystemPrompt).toContain('```artifact-html');
   });
 
-  it('CHT-205: no artifact hint without a concrete artifact executor', async () => {
-    const descriptors = conversationDescriptors.filter(
-      (descriptor) => descriptor.name !== 'artifact_instructions',
-    );
+  it('CHT-205: no artifact prompt when artifact is disabled in conversation', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
         ...conversationOptions,
-        hostToolDescriptors: descriptors,
-        hostToolFamilyIndex: createFamilyIndex(
-          descriptors,
-          familyAssignments([
-            ['web-search', ['web_search']],
-            ['web-fetch', ['web_fetch']],
-            ['toolbox', ['piwin_toolbox']],
-          ]),
-        ),
+        config: createConfig({
+          artifact: {
+            enabled: false,
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'default', customPrompt: '' },
+            maxBytes: 100_000,
+          },
+        }),
       },
     );
 
-    expect(result.blueprint.appendSystemPrompt).not.toContain('## Artifact capability');
-    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain(
-      'artifact_instructions',
-    );
+    expect(result.blueprint.appendSystemPrompt).not.toContain('## HTML Artifact Runtime Contract');
+    expect(result.blueprint.appendSystemPrompt).not.toContain('When to produce an Artifact');
   });
 
   it('keeps the web search route and its external outlet', async () => {

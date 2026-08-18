@@ -18,7 +18,14 @@ export { parsePluginManifest, tryValidatePluginManifest } from './plugin/manifes
 export type { ManifestIssue, ManifestValidationResult } from './plugin/manifest.js';
 export { installPlugin } from './plugin/install-plugin.js';
 export type { InstallPluginOptions } from './plugin/install-plugin.js';
-export { resolveSecretEnv, extractSecretPlaceholders } from './plugin/secret-env.js';
+export {
+  resolveSecretEnv,
+  resolveSecretArgs,
+  resolveSecretText,
+  extractSecretPlaceholders,
+} from './plugin/secret-env.js';
+export { FEATURED_PLUGINS, findFeaturedPlugin } from './plugin/featured-catalog.js';
+export type { FeaturedPluginCategory, FeaturedPluginEntry, FeaturedPluginGitSource } from './plugin/featured-catalog.js';
 export {
   loadInstalledPlugins,
   saveInstalledPlugins,

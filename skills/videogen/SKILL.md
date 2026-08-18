@@ -13,7 +13,7 @@ A short generated video saved in piwin media storage and attached locally for th
 ## Done means
 - `video_gen` called with a clear prompt (scene, motion, camera, timing, style).
 - Optional: `durationSeconds`, `aspectRatio`, `size`, `resolution`, `inputImagePath` (absolute media path for image-to-video — not pasted into prompt text).
-- Tool finishes provider polling and returns a local absolute path / attachment (not base64 or expiring provider URL).
+- Tool finishes provider polling and returns a media attachment the client already previews. Do not embed markdown videos or local file paths in the follow-up text.
 
 ## Stop when
 - Need is video editing or long-form production — out of scope.

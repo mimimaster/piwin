@@ -11,6 +11,18 @@ import type {
   ToolPresentation,
 } from '@piwin/contracts';
 
+function isPreservedToolOutput(
+  toolName?: string,
+  routedToolName?: string,
+  title?: string,
+): boolean {
+  const names = [toolName, routedToolName, title].filter(Boolean) as string[];
+  return names.some((n) => {
+    const lower = n.toLowerCase();
+    return lower.includes('flashcard_create') || lower.includes('flashcard_batch_create');
+  });
+}
+
 /** Keep presentation fields needed for collapsed tool rows / FilesChangedBar. */
 export function slimToolPresentation(
   presentation: ToolPresentation | undefined,
@@ -38,19 +50,29 @@ export function slimToolPresentation(
   if (presentation.actionVerb !== undefined) slim.actionVerb = presentation.actionVerb;
   if (presentation.lineRange !== undefined) slim.lineRange = presentation.lineRange;
   if (presentation.countTag !== undefined) slim.countTag = presentation.countTag;
-  // Intentionally drop presentation.output (often hundreds of KB of web/bash text).
+  if (isPreservedToolOutput(presentation.title, presentation.routedToolName)) {
+    if (presentation.output !== undefined) {
+      slim.output = presentation.output;
+    }
+  }
+  // Intentionally drop presentation.output for bulk tools (often hundreds of KB of web/bash text).
   return slim;
 }
 
 export function slimToolCardForUi(tool: SessionToolCardView): SessionToolCardView {
   const presentation = slimToolPresentation(tool.presentation);
+  const isPreserved = isPreservedToolOutput(
+    tool.toolName,
+    tool.presentation?.routedToolName,
+    tool.presentation?.title,
+  );
   const card: SessionToolCardView = {
     toolCallId: tool.toolCallId,
     toolName: tool.toolName,
     status: tool.status,
     // Empty output on hydrate: expanded cards show presentation/head only.
-    // Live tool/update events still carry full deltas after open.
-    output: '',
+    // Flashcard tool outputs are preserved to render interactive artifact cards in chat.
+    output: isPreserved ? tool.output : '',
   };
   if (tool.runId !== undefined) card.runId = tool.runId;
   if (tool.responseMessageId !== undefined) card.responseMessageId = tool.responseMessageId;

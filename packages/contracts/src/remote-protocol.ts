@@ -2,6 +2,7 @@ import type { AgentMessageRole, HostMode, PermissionDecision } from './host.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
 import type { QueuedTurnRecord } from './queued-turn.js';
+import type { TrustedDeviceCredential } from './remote.js';
 import type { SessionListPageResult } from './session-list-page.js';
 
 /** The first version of the private shell-to-host wire protocol. */
@@ -32,6 +33,12 @@ export type HostClientHello = {
   /** Optional bounded session set the client wants included in hydration. */
   subscriptions?: HostClientSubscriptions;
   authToken?: string;
+  /** One-use enrollment material; accepted only by a Host with pairing enabled. */
+  pairingToken?: string;
+  /** Host-issued credential for a previously paired device. */
+  deviceCredential?: TrustedDeviceCredential;
+  /** Human-readable device name used only during pairing enrollment. */
+  deviceName?: string;
 };
 
 export type HostClientSubscriptions = {
@@ -67,6 +74,12 @@ export type RemoteCapabilitySummary = {
   contextSummary?: boolean;
   runInterventions?: boolean;
   queuedTurns?: boolean;
+  /** Host honors session/prompt.foreground admission (if-idle / replace-run). */
+  foregroundRunAdmission?: boolean;
+  /** Host accepts path-free session/list.scopeRef (projectId / all-authorized). */
+  logicalProjectRefs?: boolean;
+  /** Host can hydrate activity/run state for reconnecting shells. */
+  activityHydration?: boolean;
 };
 
 export type HostHello = {
@@ -77,6 +90,10 @@ export type HostHello = {
   authRequired: boolean;
   authenticated: boolean;
   capabilities: RemoteCapabilitySummary;
+  /** Host-issued principal for a paired connection. */
+  deviceId?: string;
+  /** Returned only immediately after pairing enrollment. Never log this field. */
+  deviceSecret?: string;
 };
 
 export type RemoteHostStatusData = {

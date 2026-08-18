@@ -16,6 +16,7 @@ class FakeRuntime implements HostRuntimePort {
   public sessionListData: unknown = { sessions: [], totalCount: 0, truncated: false };
   public foregroundRun: { status: string } | null = null;
   public pendingPermissions: unknown[] = [];
+  public activitySummary: unknown = { items: [], truncated: false };
 
   public async handleCommand(command: HostCommand): Promise<HostResponse> {
     if (command.type === 'host/ping') {
@@ -246,6 +247,14 @@ class FakeRuntime implements HostRuntimePort {
         command: command.type,
         success: true,
         data: { permissions: this.pendingPermissions },
+      };
+    }
+    if (command.type === 'activity/summary') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: this.activitySummary,
       };
     }
     if (command.type === 'models/configured') {
@@ -910,6 +919,7 @@ describe('HostServer', () => {
               },
             ],
           },
+          foreground: { kind: 'if-idle' },
         },
       }),
     );
@@ -1348,7 +1358,7 @@ describe('HostServer', () => {
     await server.stop();
   });
 
-  it('rejects a remote session/prompt while a foreground run is active', async () => {
+  it('rejects a remote session/prompt that omits foreground admission', async () => {
     const runtime = new FakeRuntime();
     runtime.foregroundRun = { status: 'running' };
     const server = new HostServer({
@@ -1391,6 +1401,95 @@ describe('HostServer', () => {
       response: { success: false },
     });
     expect(runtime.lastPrompt).toBeUndefined();
+    socket.close();
+    await server.stop();
+  });
+
+  it('serves activity/summary without Host paths and rejects oversized pages', async () => {
+    const runtime = new FakeRuntime();
+    runtime.activitySummary = {
+      items: [
+        {
+          sessionId: 'session-1',
+          runId: 'run-1',
+          status: 'running',
+          pendingPermission: true,
+          permissionRequestId: 'perm-1',
+          permissionAction: 'bash',
+          detail: 'rm -rf /Users/private/secret',
+          projectPath: '/Users/private/Projects/piwin',
+          cwd: '/Users/private',
+        },
+      ],
+      truncated: false,
+      workingDirectory: '/Users/private/General',
+    };
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-activity-summary' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'mobile',
+        clientVersion: 'test',
+        clientId: 'mobile-activity-summary',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'activity-request',
+        command: { type: 'activity/summary' },
+      }),
+    );
+    const response = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'activity-request',
+    );
+    expect(JSON.stringify(response)).not.toContain('/Users/private');
+    expect(JSON.stringify(response)).not.toContain('projectPath');
+    expect(JSON.stringify(response)).not.toContain('detail');
+    expect(response).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: {
+          items: [
+            {
+              sessionId: 'session-1',
+              runId: 'run-1',
+              status: 'running',
+              pendingPermission: true,
+              permissionRequestId: 'perm-1',
+              permissionAction: 'bash',
+            },
+          ],
+          truncated: false,
+        },
+      },
+    });
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'activity-too-large',
+        command: { type: 'activity/summary', maxItems: 65 },
+      }),
+    );
+    const rejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'activity-too-large',
+    );
+    expect(rejected).toMatchObject({
+      type: 'error',
+      code: 'command-not-allowed',
+    });
+
     socket.close();
     await server.stop();
   });

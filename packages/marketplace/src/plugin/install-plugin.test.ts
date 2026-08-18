@@ -138,4 +138,97 @@ describe('installPlugin (local)', () => {
       await rm(root, { recursive: true, force: true }).catch(() => undefined);
     }
   });
+
+  it('installs bundled Cloudflare without a remote registry', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
+    const mergedServers: Record<string, { command: string; args?: string[] }> = {};
+    try {
+      const result = await installPlugin({
+        piwinRoot: root,
+        source: { kind: 'bundled', bundledId: 'cloudflare' },
+        mergeMcpServer: async (serverId, config) => {
+          mergedServers[serverId] = config;
+        },
+      });
+      expect(result.pluginId).toBe('cloudflare');
+      expect(result.mcpServerIds).toEqual([
+        'plugin__cloudflare__api',
+        'plugin__cloudflare__docs',
+      ]);
+      expect(mergedServers['plugin__cloudflare__api']?.args).toEqual([
+        '-y',
+        'mcp-remote',
+        'https://mcp.cloudflare.com/mcp',
+      ]);
+      const installed = await loadInstalledPlugins(root);
+      expect(installed[0]?.source).toEqual({ kind: 'bundled', bundledId: 'cloudflare' });
+    } finally {
+      await rm(root, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it('maps registry id cloudflare to the bundled plugin', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
+    try {
+      const result = await installPlugin({
+        piwinRoot: root,
+        source: { kind: 'registry', registryId: 'cloudflare' },
+      });
+      expect(result.pluginId).toBe('cloudflare');
+    } finally {
+      await rm(root, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it('resolves the GitHub PAT into mcp-remote args', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
+    const mergedServers: Record<string, { args?: string[]; env?: Record<string, string> }> = {};
+    try {
+      await expect(
+        installPlugin({
+          piwinRoot: root,
+          source: { kind: 'bundled', bundledId: 'github' },
+        }),
+      ).rejects.toThrow('GITHUB_PERSONAL_ACCESS_TOKEN');
+
+      const result = await installPlugin({
+        piwinRoot: root,
+        source: { kind: 'bundled', bundledId: 'github' },
+        secrets: { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_test' },
+        mergeMcpServer: async (serverId, config) => {
+          mergedServers[serverId] = config;
+        },
+      });
+      expect(result.pluginId).toBe('github');
+      expect(mergedServers['plugin__github__github']?.args).toContain(
+        'Authorization: Bearer ghp_test',
+      );
+      expect(mergedServers['plugin__github__github']?.env).toEqual({
+        GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_test',
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
+  it('installs bundled Figma and HyperFrames without secrets', async () => {
+    for (const bundledId of ['figma', 'hyperframes'] as const) {
+      const root = await mkdtemp(join(tmpdir(), 'piwin-install-'));
+      const mergedServers: Record<string, { command: string; args?: string[] }> = {};
+      try {
+        const result = await installPlugin({
+          piwinRoot: root,
+          source: { kind: 'bundled', bundledId },
+          mergeMcpServer: async (serverId, config) => {
+            mergedServers[serverId] = config;
+          },
+        });
+        expect(result.pluginId).toBe(bundledId);
+        expect(result.mcpServerIds).toEqual([`plugin__${bundledId}__${bundledId}`]);
+        expect(mergedServers[`plugin__${bundledId}__${bundledId}`]?.args?.[1]).toBe('mcp-remote');
+      } finally {
+        await rm(root, { recursive: true, force: true }).catch(() => undefined);
+      }
+    }
+  });
 });

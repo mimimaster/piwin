@@ -94,6 +94,7 @@ export const RUN_TERMINAL_CODES = {
   mcpTimeout: 'mcp-timeout',
   hostShutdown: 'host-shutdown',
   runtimeMemoryPressure: 'runtime-memory-pressure',
+  supersededByNewPrompt: 'superseded-by-new-prompt',
 } as const;
 
 export type RunTerminalCode = (typeof RUN_TERMINAL_CODES)[keyof typeof RUN_TERMINAL_CODES];

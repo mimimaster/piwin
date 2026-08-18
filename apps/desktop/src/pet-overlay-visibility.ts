@@ -1,5 +1,7 @@
 /** Desktop-only visibility preference for the cosmetic pet overlay. */
 
+import { loadPetOverlayPosition } from './pet-overlay-position';
+
 export const PET_OVERLAY_VISIBILITY_STORAGE_KEY = 'piwin.desktop.petOverlayVisible';
 
 const PET_OVERLAY_VISIBILITY_EVENT = 'piwin:pet-overlay-visibility';
@@ -63,7 +65,33 @@ export async function applyPetOverlayVisibility(visible: boolean): Promise<void>
   if (!(window as TauriRuntimeWindow).__TAURI_INTERNALS__) return;
 
   const { invoke } = await import('@tauri-apps/api/core');
-  await invoke(visible ? 'pet_overlay_show' : 'pet_overlay_hide');
+  if (!visible) {
+    await invoke('pet_overlay_hide');
+    return;
+  }
+  const position = loadPetOverlayPosition();
+  if (position) {
+    await invoke('pet_overlay_show', { x: position.x, y: position.y });
+    return;
+  }
+  await invoke('pet_overlay_show');
+}
+
+/**
+ * Main-window startup: create the overlay only when the user left it visible.
+ * Hide=destroy means a hidden preference must not spawn a second WebContent.
+ */
+export function installPetOverlayRestore(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (!loadPetOverlayVisibility()) {
+    return;
+  }
+  void applyPetOverlayVisibility(true).catch((error: unknown) => {
+    console.warn('[pet-overlay] failed to restore visible overlay', error);
+    savePetOverlayVisibility(false);
+  });
 }
 
 /** Persist and apply one user-requested visibility change transactionally. */

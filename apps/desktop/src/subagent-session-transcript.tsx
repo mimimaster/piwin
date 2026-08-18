@@ -18,7 +18,11 @@ import { MessageAttachments } from './message-attachments';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
-import { resolveGenerationToolKind, type GenerationToolKind } from './generation-tool-kind';
+import {
+  resolveGenerationToolKind,
+  shouldRenderGenerationProgress,
+  type GenerationToolKind,
+} from './generation-tool-kind';
 import { PermissionBar } from './permission-bar';
 import { SystemMessageContent } from './system-message-content';
 import type { DocumentOpenInput } from './tool-call-card';
@@ -122,13 +126,19 @@ function SubagentInspectorAssistant({
         ) : null}
         {message.searchEvidence ? <CitationCards evidence={message.searchEvidence} /> : null}
       </TurnWorkDetails>
-      {imageGenerationStatus ? (
+      {imageGenerationStatus &&
+      shouldRenderGenerationProgress(imageGenerationStatus, message.attachments) ? (
         <ImageGenerationProgress locale={locale} status={imageGenerationStatus} />
       ) : null}
-      {videoGenerationStatus ? (
+      {videoGenerationStatus &&
+      shouldRenderGenerationProgress(videoGenerationStatus, message.attachments) ? (
         <VideoGenerationProgress locale={locale} status={videoGenerationStatus} />
       ) : null}
-      <MessageAttachments attachments={message.attachments} />
+      <MessageAttachments
+        attachments={message.attachments}
+        role="assistant"
+        locale={locale}
+      />
       {message.tools.length > 0 ? (
         <FilesChangedBar
           tools={message.tools}
@@ -259,7 +269,11 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
             <div key={message.id} className="subagent-inspector-message role-user">
               <span className="subagent-inspector-user-label">{isChinese ? '任务' : 'Task'}</span>
               <div className="subagent-inspector-user-text">{message.text}</div>
-              <MessageAttachments attachments={message.attachments} />
+              <MessageAttachments
+                attachments={message.attachments}
+                role="user"
+                locale={locale}
+              />
             </div>
           );
         }

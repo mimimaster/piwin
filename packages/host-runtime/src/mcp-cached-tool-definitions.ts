@@ -71,7 +71,7 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
     const valid = await catalog.isServerCacheValid(serverId, config);
     if (!valid) {
       warnings.push(
-        `mcp server ${serverId} has no valid cached metadata (use Settings Discover or mcp_gateway describe)`,
+        `mcp server ${serverId} has no valid cached metadata (use Settings Discover or piwin_toolbox describe)`,
       );
       continue;
     }

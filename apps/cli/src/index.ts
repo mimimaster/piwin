@@ -55,6 +55,7 @@ import { collectRefArgs, buildCliContextRefs } from './context-ref-args.js';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
 import { createJsonlStdioTransport } from './host-serve-transport.js';
+import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
 import {
@@ -119,7 +120,7 @@ Usage:
   piwin mcp validate [path]
   piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]
   piwin plugin list
-  piwin plugin install --local <dir> | --git <url> | --registry <id> [--secret KEY=VAL...]
+  piwin plugin install --local <dir> | --git <url> | --registry <id> | --bundled <id> [--secret KEY=VAL...]
   piwin plugin uninstall <id>
   piwin plugin registry [--url <url>]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
@@ -1411,6 +1412,7 @@ async function commandPlugin(argv: string[]): Promise<void> {
     const localPath = readOption(argv, '--local');
     const gitUrl = readOption(argv, '--git');
     const registryId = readOption(argv, '--registry');
+    const bundledId = readOption(argv, '--bundled');
     const secretArgs = argv.filter((a) => a.startsWith('--secret='));
     const secrets: Record<string, string> = {};
     for (const arg of secretArgs) {
@@ -1429,10 +1431,14 @@ async function commandPlugin(argv: string[]): Promise<void> {
       source = { kind: 'local', path: resolve(localPath) };
     } else if (gitUrl) {
       source = { kind: 'git', url: gitUrl };
+    } else if (bundledId) {
+      source = { kind: 'bundled', bundledId };
     } else if (registryId) {
       source = { kind: 'registry', registryId };
     } else {
-      console.error('plugin install requires --local <dir>, --git <url>, or --registry <id>');
+      console.error(
+        'plugin install requires --local <dir>, --git <url>, --registry <id>, or --bundled <id>',
+      );
       process.exitCode = 1;
       return;
     }
@@ -1797,7 +1803,8 @@ async function commandCards(argv: string[]): Promise<void> {
     return;
   }
 
-  const { createCardStore, buildReviewQueue, exportCardsToTsv } = await import('@piwin/flashcards');
+  const { createCardStore, buildReviewQueue, exportCardsToTsv, itemPreviewText } =
+    await import('@piwin/flashcards');
   const store = createCardStore({ piwinRoot: root });
   const deck = readOption(argv, '--deck');
 
@@ -1832,7 +1839,9 @@ async function commandCards(argv: string[]): Promise<void> {
   if (sub === 'list') {
     const cards = await store.list(deck ? { deck } : undefined);
     for (const card of cards) {
-      console.log(`${card.id}\t${card.deck}\t${card.front.replaceAll('\n', ' ').slice(0, 80)}`);
+      console.log(
+        `${card.id}\t${card.deck}\t${itemPreviewText(card).replaceAll('\n', ' ').slice(0, 80)}`,
+      );
     }
     return;
   }
@@ -1870,7 +1879,7 @@ async function commandCards(argv: string[]): Promise<void> {
   }
 
   if (sub === 'due' || sub === 'review') {
-    const cards = await store.list();
+    const cards = await store.listReviewCards();
     const states = await store.loadReviewStates();
     const queue = buildReviewQueue({
       cards,
@@ -1888,7 +1897,7 @@ async function commandCards(argv: string[]): Promise<void> {
       console.log(`${queue.length} card(s) to review`);
       for (const item of queue) {
         const label = item.isNew ? 'new' : `due ${item.state.due.slice(0, 10)}`;
-        console.log(`${item.card.id}\t[${label}]\t${item.card.front.slice(0, 70)}`);
+        console.log(`${item.card.cardId}\t[${label}]\t${item.card.front.slice(0, 70)}`);
       }
       return;
     }
@@ -1930,7 +1939,7 @@ async function commandCards(argv: string[]): Promise<void> {
           }
         }
         if (quit || !rating) break;
-        const next = await store.rate(item.card.id, rating);
+        const next = await store.rate(item.card.cardId, rating);
         console.log(`  next due: ${next.due.slice(0, 16).replace('T', ' ')}`);
       }
       console.log('\nreview session done');
@@ -1941,7 +1950,7 @@ async function commandCards(argv: string[]): Promise<void> {
   }
 
   if (sub === 'export') {
-    const cards = await store.list(deck ? { deck } : undefined);
+    const cards = await store.listReviewCards(deck ? { deck } : undefined);
     const tsv = exportCardsToTsv(cards);
     const outPath = readOption(argv, '--out');
     if (outPath) {
@@ -1970,7 +1979,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
 
   const { createFolderRag, canonicalizeFolderPath } = await import('@piwin/doc-rag');
   const { createEmbeddingProvider } = await import('@piwin/notes');
-  const { createCardStore } = await import('@piwin/flashcards');
+  const { createCardStore, itemPreviewText } = await import('@piwin/flashcards');
   const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
 
   let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
@@ -2074,7 +2083,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
         const source = card.sourceFile
           ? ` [${card.sourceFile}${typeof card.sourceLine === 'number' ? `:${card.sourceLine}` : ''}]`
           : '';
-        console.log(`  ${card.id}\t${card.front.slice(0, 70)}${source}`);
+        console.log(`  ${card.id}\t${itemPreviewText(card).slice(0, 70)}${source}`);
       }
       return;
     }
@@ -2318,6 +2327,19 @@ async function commandHostServe(argv: string[]): Promise<void> {
     send: (message) => transport.send(message),
     commandTimeoutMs: 45_000,
   });
+  const hostInstanceId = `cli-${process.pid}`;
+  let mobileAccess: Awaited<ReturnType<typeof createSidecarMobileAccess>> | undefined;
+  try {
+    mobileAccess = await createSidecarMobileAccess({
+      runtime,
+      instanceId: hostInstanceId,
+      piwinRoot: getPiwinRoot(),
+    });
+  } catch (error) {
+    console.error(
+      `[piwin host serve] phone-access store unavailable: ${error instanceof Error ? error.message : 'unknown error'}`,
+    );
+  }
 
   let shutdownPromise: Promise<void> | undefined;
   const shutdown = (): Promise<void> => {
@@ -2329,6 +2351,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
       // the existing command and stream work is being drained.
       await transport.stop();
       await dispatcher.drain();
+      await mobileAccess?.dispose();
       egressHub.flush();
       egressChannel.flushNow();
       detachEgress();
@@ -2343,7 +2366,13 @@ async function commandHostServe(argv: string[]): Promise<void> {
   });
 
   await transport.start((command) => {
-    dispatcher.dispatch(command);
+    void interceptSidecarMobileAccess(mobileAccess, command, (message) => transport.send(message)).then(
+      (handled) => {
+        if (!handled) {
+          dispatcher.dispatch(command);
+        }
+      },
+    );
   });
 
   await shutdown();

@@ -416,13 +416,20 @@ function isFetchLikeShellCommand(command: string | undefined): boolean {
   return /(^|\s)(?:curl|wget|fetch)\b/i.test(command) || /^\s*#\s*fetch\b/im.test(command);
 }
 
-/** Use a leading shell comment as the human-readable title for a long fetch. */
+/** Use a leading shell comment or echo header as the human-readable title. */
 function extractCommandDescription(command: string | undefined): string | undefined {
   if (!command) {
     return undefined;
   }
   const comment = command.match(/^\s*#\s*(.+?)\s*$/m)?.[1];
-  return comment?.trim() || undefined;
+  if (comment?.trim()) {
+    return comment.trim();
+  }
+  const echoMatch = command.match(/^\s*echo\s+["'](?:===+\s*)?([^"'=\n]+?)(?:\s*===+)?["']/);
+  if (echoMatch?.[1]?.trim()) {
+    return echoMatch[1].trim();
+  }
+  return undefined;
 }
 
 /** Keep native web_fetch requests truthful while presenting them as code. */
@@ -699,14 +706,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const fetchRequestPreview = isFetchStyle
     ? (tool.presentation?.command ?? resolveFetchRequestPreview(inputPreview, summary))
     : undefined;
-  const fetchHeaderSummary =
-    isFetchStyle && baseBehaviorId === 'shell'
+  const shellHeaderSummary =
+    baseBehaviorId === 'shell'
       ? (extractCommandDescription(tool.presentation?.command) ?? summary)
       : summary;
   const headerSummary =
     isMcpBehavior && displayName !== 'MCP gateway' && displayName !== tool.toolName
       ? displayName
-      : fetchHeaderSummary;
+      : shellHeaderSummary;
   const baseDisplayActionVerb =
     isFetchStyle && baseBehaviorId === 'shell' && locale === 'en' ? 'Ran' : actionVerb;
   const displayActionVerb =

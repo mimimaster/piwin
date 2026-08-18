@@ -22,6 +22,7 @@ import type {
   RemoteTranscriptTool,
   QueuedTurnRecord,
 } from '@piwin/contracts';
+import { readActivitySummaryData } from '@piwin/contracts';
 import { createRemoteProjectId } from '@piwin/host-runtime';
 import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
 
@@ -44,14 +45,12 @@ export function projectRemoteResponse(
       error: redactHostError(response.error),
     };
   }
-
   if (command.type === 'host/status') {
-    return {
-      ...response,
-      data: projectRemoteStatusData(response.data, context),
-    };
+    return { ...response, data: projectRemoteStatusData(response.data, context) };
   }
-
+  if (command.type === 'activity/summary') {
+    return { ...response, data: readActivitySummaryData(response.data) };
+  }
   if (command.type === 'project/list') {
     return {
       ...response,
@@ -195,6 +194,9 @@ export function createRemoteCapabilities(): RemoteCapabilitySummary {
     contextSummary: true,
     runInterventions: true,
     queuedTurns: true,
+    foregroundRunAdmission: true,
+    logicalProjectRefs: true,
+    activityHydration: true,
   };
 }
 

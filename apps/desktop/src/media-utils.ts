@@ -37,10 +37,16 @@ export type PendingComposerAttachment = {
   localId: string;
   attachment: PromptAttachment;
   /**
-   * Object URL for local image previews. Web-element attachments have no
-   * local blob; this is an empty string for `kind: 'web-element'`.
+   * Display-only object URL for the chip thumb. Images use a size-capped
+   * bitmap — never the original File object URL. Empty for web-element chips
+   * and while the limited preview is still encoding.
    */
   previewUrl: string;
+  /**
+   * Original-bytes object URL for the lightbox. Distinct from `previewUrl`
+   * for images. Revoke together with `previewUrl` when disposing the chip.
+   */
+  lightboxUrl?: string;
   /**
    * Media paste/drop/file-picker save lifecycle (ADR 0045 compatibility path).
    * Pastes start `queued` — the File and blob preview stay local until Send
@@ -53,6 +59,66 @@ export type PendingComposerAttachment = {
   /** Present when `uploadStatus` is `error`; drives the failure hint copy. */
   uploadErrorKind?: PendingAttachmentErrorKind;
 };
+
+/** Release chip object URLs. Safe when `lightboxUrl` is missing or shared. */
+export function revokePendingAttachmentUrls(item: PendingComposerAttachment): void {
+  if (item.previewUrl) {
+    URL.revokeObjectURL(item.previewUrl);
+  }
+  if (item.lightboxUrl && item.lightboxUrl !== item.previewUrl) {
+    URL.revokeObjectURL(item.lightboxUrl);
+  }
+}
+
+export function applyChipPreviewUrl(
+  items: PendingComposerAttachment[],
+  localId: string,
+  previewUrl: string,
+): { next: PendingComposerAttachment[]; found: boolean } {
+  let found = false;
+  let changed = false;
+  const next = items.map((item) => {
+    if (item.localId !== localId) {
+      return item;
+    }
+    found = true;
+    if (item.previewUrl === previewUrl) {
+      return item;
+    }
+    changed = true;
+    return { ...item, previewUrl };
+  });
+  return { next: changed ? next : items, found };
+}
+
+/**
+ * Write a late limited-preview URL onto the live chip list and any parked
+ * composer snapshots. Revokes `previewUrl` when the chip is already gone.
+ */
+export function commitLimitedChipPreview(params: {
+  localId: string;
+  previewUrl: string;
+  cancelled: boolean;
+  live: PendingComposerAttachment[];
+  snapshots: Iterable<{ attachments: PendingComposerAttachment[] }>;
+}): { live: PendingComposerAttachment[]; keep: boolean } {
+  if (params.cancelled) {
+    URL.revokeObjectURL(params.previewUrl);
+    return { live: params.live, keep: false };
+  }
+  const applied = applyChipPreviewUrl(params.live, params.localId, params.previewUrl);
+  let found = applied.found;
+  for (const snapshot of params.snapshots) {
+    const patched = applyChipPreviewUrl(snapshot.attachments, params.localId, params.previewUrl);
+    found = found || patched.found;
+    snapshot.attachments = patched.next;
+  }
+  if (!found) {
+    URL.revokeObjectURL(params.previewUrl);
+    return { live: applied.next, keep: false };
+  }
+  return { live: applied.next, keep: true };
+}
 
 /** True when the chip is a media attachment whose save failed. */
 export function isFailedMediaAttachment(item: PendingComposerAttachment): boolean {
@@ -132,9 +198,8 @@ export async function prepareComposerAttachmentForSave(
 
 /**
  * Quietly shrink large paste/drop images before media/save.
- * GIFs are rasterized to their first frame for model input; the caller keeps
- * the original File object URL for the composer chip so the UI remains animated.
- * Small non-GIF images pass through.
+ * GIFs are rasterized to their first frame for model input. The composer chip
+ * is a size-capped still (S3a); the lightbox keeps the original File URL.
  * Failures fall back to the original file so attach never hard-fails here.
  */
 export async function prepareComposerImageForSave(

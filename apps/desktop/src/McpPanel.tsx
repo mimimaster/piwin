@@ -493,8 +493,8 @@ export function McpPanel(props: McpPanelProps) {
                 description={
                   mainTab === 'configured'
                     ? isChinese
-                      ? '管理本地 MCP 服务器。打开服务器可固定直调工具；未固定工具由 Agent 通过 mcp_gateway 调用。'
-                      : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via mcp_gateway.'
+                      ? '管理本地 MCP 服务器。打开服务器可固定直调工具；未固定工具由 Agent 通过 piwin_toolbox 搜索并调用。'
+                      : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via piwin_toolbox.'
                     : isChinese
                       ? '从开放市场浏览并安装社区 MCP 服务器。'
                       : 'Browse and install MCP servers from the community marketplace.'
@@ -548,8 +548,8 @@ export function McpPanel(props: McpPanelProps) {
                   testId="mcp-pin-tip"
                 >
                   {isChinese
-                    ? 'Pin 后，该服务器当前发现的工具会直接暴露给 Agent，可直接调用；未 Pin 的工具仍通过 mcp_gateway 按需搜索和调用。首次点击 Pin 会探测工具列表，取消 Pin 后恢复为 gateway 调用。'
-                    : 'Pinning directly exposes the server’s discovered tools to the Agent for direct calls. Unpinned tools remain available through mcp_gateway on demand. The first pin probes the tool list; unpinning restores gateway-only access.'}
+                    ? 'Pin 后，该服务器当前发现的工具会直接暴露给 Agent，可直接调用；未 Pin 的工具仍通过 piwin_toolbox 按需搜索和调用。首次点击 Pin 会探测工具列表，取消 Pin 后恢复为目录调用。'
+                    : 'Pinning directly exposes the server’s discovered tools to the Agent for direct calls. Unpinned tools remain available through piwin_toolbox on demand. The first pin probes the tool list; unpinning restores catalog-only access.'}
                 </Notice>
               </div>
 

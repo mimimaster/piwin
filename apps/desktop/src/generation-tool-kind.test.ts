@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolCardUi } from './chat-reducer';
-import { resolveGenerationToolKind } from './generation-tool-kind.js';
+import { resolveGenerationToolKind, shouldRenderGenerationProgress } from './generation-tool-kind.js';
 
 function tool(input: Partial<ToolCardUi> = {}): ToolCardUi {
   return {
@@ -53,5 +53,15 @@ describe('resolveGenerationToolKind', () => {
       ),
     ).toBeNull();
     expect(resolveGenerationToolKind(tool())).toBeNull();
+  });
+});
+
+describe('shouldRenderGenerationProgress', () => {
+  it('keeps running and failed cards, and hides done once media is attached', () => {
+    expect(shouldRenderGenerationProgress('running', [])).toBe(true);
+    expect(shouldRenderGenerationProgress('error', [])).toBe(true);
+    expect(shouldRenderGenerationProgress('done', [])).toBe(true);
+    expect(shouldRenderGenerationProgress('done', [{ kind: 'media' }])).toBe(false);
+    expect(shouldRenderGenerationProgress(null, [{ kind: 'media' }])).toBe(false);
   });
 });

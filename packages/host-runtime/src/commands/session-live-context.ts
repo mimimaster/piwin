@@ -259,6 +259,16 @@ export type SessionLiveContext = {
     resumeCheckpointId?: string,
     options?: { deferRuntimeGeneration?: boolean },
   ) => ExecutionRunRecord;
+  replaceForegroundRun: (
+    sessionId: string,
+    previousRunId: string,
+    resumeCheckpointId?: string,
+    options?: { deferRuntimeGeneration?: boolean },
+  ) => ExecutionRunRecord;
+  tryReservePromptAdmission: (sessionId: string) => boolean;
+  releasePromptAdmission: (sessionId: string) => void;
+  isPromptAdmissionReserved: (sessionId: string) => boolean;
+  joinRun: (runId: string) => Promise<ExecutionRunRecord | undefined>;
   getRunSignal: (runId: string) => AbortSignal | undefined;
   hasRunReceivedFirstToken: (runId: string) => boolean;
   requestCancelRun: (

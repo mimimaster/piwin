@@ -291,17 +291,20 @@ or an explicit tool-surface rebuild.
 Legacy `mcp` rules left in `permissions.json` are silently ignored (optionally
 one diagnostic log entry); they are not migrated, upgraded, or used to block
 or prompt. `mcp.json` remains fully active. See [ADR 0033](./adr/0033-mcp-supervisor-architecture.md)
-
-#### Lazy Host toolbox (ADR 0044)
-
-High-frequency filesystem, shell, web, MCP, planning, delegation, and Artifact
-instruction tools stay directly visible. Low-frequency process, browser,
-notes, flashcards, image, and video schemas are loaded through
-`piwin_toolbox describe` and invoked through `piwin_toolbox call`. The session
-execution port dispatches a call through the target's original registration and
-permission gate; the routing shell cannot widen the compiled generation
-allowlist or bypass target admission. See [ADR 0044](./adr/0044-lazy-host-toolbox.md).
 for lifecycle and config-reload invariants.
+
+#### Lazy Host toolbox (ADR 0044 / ADR 0053)
+
+High-frequency filesystem, shell, web, planning, delegation, Artifact
+instruction tools, and pinned MCP tools stay directly visible. Low-frequency
+process, browser, notes, flashcards, image, and video schemas, plus unpinned
+MCP tools, are discovered through `piwin_toolbox search` and invoked through
+`piwin_toolbox call`. The session execution port dispatches a Host call through
+the target's original registration and permission gate; MCP calls stay trusted
+on the Supervisor. The routing shell cannot widen the compiled generation
+allowlist or bypass target admission. Conversation sessions keep MCP closed.
+See [ADR 0044](./adr/0044-lazy-host-toolbox.md) and
+[ADR 0053](./adr/0053-progressive-tool-catalog.md).
 
 #### Project remember (scope extended)
 

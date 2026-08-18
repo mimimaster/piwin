@@ -1,0 +1,152 @@
+/* Region: Settings → Plugins marketplace (Marketplace / Yours cards). */
+
+.plugin-market {
+  min-width: 0;
+}
+
+.plugin-market-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.plugin-market-header .piwin-text-input {
+  width: min(280px, 42%);
+}
+
+.plugin-market-section {
+  margin-bottom: 22px;
+}
+
+.plugin-market-section-label {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.plugin-market-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 20px;
+}
+
+.plugin-market-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.plugin-market-card:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.plugin-market-icon {
+  display: grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.plugin-market-icon--github,
+.plugin-market-icon--figma {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.plugin-market-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.plugin-market-copy strong {
+  display: block;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.plugin-market-copy p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-market-add {
+  flex: 0 0 auto;
+  min-width: 52px;
+}
+
+.plugin-market-added {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--ok, #10b981);
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.plugin-market-empty {
+  padding: 36px 12px;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-align: center;
+}
+
+.plugin-market-secret-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: min(420px, 86vw);
+}
+
+.plugin-market-secret-dialog h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.plugin-market-secret-dialog > p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.plugin-market-secret-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .plugin-market-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plugin-market-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .plugin-market-header .piwin-text-input {
+    width: 100%;
+  }
+}

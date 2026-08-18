@@ -88,4 +88,27 @@ describe('createStreamEventBuffer', () => {
       },
     ]);
   });
+
+  it('drops pending deltas on reset without dispatching them', () => {
+    const scheduled: Array<() => void> = [];
+    const actions: Array<{ type: string }> = [];
+    let cancelled = 0;
+    const buffer = createStreamEventBuffer({
+      dispatch: (action) => actions.push(action),
+      frameScheduler: (callback) => {
+        scheduled.push(callback);
+        return scheduled.length;
+      },
+      frameCanceller: () => {
+        cancelled += 1;
+      },
+    });
+
+    buffer.push('s1', createDeltaEvent('stale'));
+    buffer.reset();
+    scheduled[0]?.();
+
+    expect(cancelled).toBe(1);
+    expect(actions).toEqual([]);
+  });
 });

@@ -207,10 +207,42 @@ export async function finalizeCancelledRun(
   sessionId: string,
   runId: string,
   message?: string,
+  code: RunTerminalCode = 'cancelled',
 ): Promise<void> {
-  if (context.getForegroundRun(sessionId)?.runId !== runId) {
+  const admitted = context.getForegroundRun(sessionId);
+  const newerOwnsSession = admitted !== undefined && admitted.runId !== runId;
+  if (newerOwnsSession) {
+    await context.terminateRun(sessionId, runId, 'cancelled', code, message);
     return;
   }
+  if (admitted === undefined || admitted.runId !== runId) {
+    return;
+  }
+  await abortAndTerminalizeRun(context, sessionId, runId, message, code);
+}
+
+/**
+ * After a replace-run ack: cancel the old provider turn and terminalize it
+ * even though the new Run is already admitted. The new run waits on join()
+ * before calling prompt().
+ */
+export async function finalizeSupersededTurn(
+  context: SessionLiveContext,
+  sessionId: string,
+  runId: string,
+  message?: string,
+  code: RunTerminalCode = 'superseded-by-new-prompt',
+): Promise<void> {
+  await abortAndTerminalizeRun(context, sessionId, runId, message, code);
+}
+
+async function abortAndTerminalizeRun(
+  context: SessionLiveContext,
+  sessionId: string,
+  runId: string,
+  message?: string,
+  code: RunTerminalCode = 'cancelled',
+): Promise<void> {
   const cleanupPromise = Promise.allSettled([
     abortLiveSession(context, sessionId),
     context.stopProcessesForSession(sessionId),
@@ -220,9 +252,6 @@ export async function finalizeCancelledRun(
     context.abortCleanupTimeoutMs ?? DEFAULT_ABORT_CLEANUP_TIMEOUT_MS,
   );
   if (!cleanupSettled) {
-    if (context.getForegroundRun(sessionId)?.runId !== runId) {
-      return;
-    }
     const timeoutMessage =
       'The runtime did not acknowledge Stop in time and was detached. The next prompt will use a fresh runtime.';
     context.push({
@@ -230,9 +259,7 @@ export async function finalizeCancelledRun(
       level: 'warn',
       message: `session abort cleanup timed out: ${sessionId}/${runId}`,
     });
-    await context.terminateRun(sessionId, runId, 'cancelled', 'cancelled', timeoutMessage, {
-      // stopProcessesForSession is already running in cleanupPromise. Do not
-      // let the terminal Run wait on the same non-responsive jobs a second time.
+    await context.terminateRun(sessionId, runId, 'cancelled', code, timeoutMessage, {
       skipJobCleanup: true,
     });
     context.quarantineSessionRuntime(sessionId, runId);
@@ -249,10 +276,7 @@ export async function finalizeCancelledRun(
       });
     }
   }
-  if (context.getForegroundRun(sessionId)?.runId !== runId) {
-    return;
-  }
-  await context.terminateRun(sessionId, runId, 'cancelled', 'cancelled', message);
+  await context.terminateRun(sessionId, runId, 'cancelled', code, message);
 }
 
 /** Persist the partial transcript before publishing the paused terminal. */

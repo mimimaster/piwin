@@ -18,7 +18,9 @@ export type SettingsSectionId =
   | 'agent'
   | 'extensions'
   | 'knowledge'
-  | 'session';
+  | 'session'
+  | 'usage'
+  | 'archive';
 
 /** Legacy settings deep links that now redirect to a canonical section. */
 export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
@@ -53,8 +55,6 @@ export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionI
 
   // Consolidated sections into Session
   runtime: 'session',
-  archive: 'session',
-  usage: 'session',
 } as const;
 
 export type LegacySettingsSectionId = keyof typeof LEGACY_SETTINGS_REDIRECTS;
@@ -78,6 +78,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
   { id: 'knowledge', group: 'integrations', labelKey: 'knowledge' },
   { id: 'session', group: 'system', labelKey: 'session' },
+  { id: 'usage', group: 'system', labelKey: 'usage' },
+  { id: 'archive', group: 'system', labelKey: 'archive' },
 ] as const;
 
 /** Group display order for the settings nav. */

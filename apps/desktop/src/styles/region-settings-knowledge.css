@@ -285,10 +285,8 @@
 /* 水墨 (Ink Wash) Theme */
 html[data-theme-visual-style='ink-wash'] .knowledge-workspace-metric,
 html[data-theme-visual-style='ink-wash'] .knowledge-tab-panel {
-  background: rgba(22, 24, 29, 0.55) !important;
+  background: rgba(22, 24, 29, 0.90) !important;
   border-color: rgba(214, 205, 190, 0.1) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .knowledge-workspace-nav {

@@ -12,6 +12,7 @@ import { MobileShareModal } from './components/modals/MobileShareModal.js';
 import { MobileArtifactSheet } from './components/modals/MobileArtifactSheet.js';
 import { MobileQuickActionsBar } from './components/chat/MobileQuickActionsBar.js';
 import { MobileDiffViewer } from './components/chat/MobileDiffViewer.js';
+import { ConversationSurface } from './surfaces/conversation/ConversationSurface.js';
 import { MOBILE_THEME } from './mobile-theme.js';
 
 declare global {
@@ -267,7 +268,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             isOpen={true}
             onClose={onClose}
             title="Landing Page Demo"
-            htmlContent="<h1>Hello Artifact</h1>"
+            srcdoc="<h1>Hello Artifact</h1>"
           />
         </PiwinUiProvider>,
       );
@@ -276,7 +277,8 @@ describe('Mobile Shell Navigation & Surfaces', () => {
     expect(container.textContent).toContain('Landing Page Demo');
     const iframe = container.querySelector('iframe');
     expect(iframe).not.toBeNull();
-    expect(iframe?.getAttribute('sandbox')).toContain('allow-scripts');
+    expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(iframe?.getAttribute('sandbox')).not.toContain('allow-same-origin');
   });
 
   it('renders assistant and user messages in MobileMessageItem', () => {
@@ -316,5 +318,44 @@ describe('Mobile Shell Navigation & Surfaces', () => {
     });
     expect(container.querySelector('.modern-user-bubble-wrapper')).not.toBeNull();
     expect(container.textContent).toContain('你好！');
+  });
+
+  it('renders a chat-canvas send error and a replace-run action', () => {
+    const onReplaceAndSend = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <ConversationSurface
+            activeSessionId="s1"
+            sessions={[{ sessionId: 's1', scope: 'general' }]}
+            messages={[]}
+            composerText="hello"
+            setComposerText={() => undefined}
+            attachments={[]}
+            onRemoveAttachment={() => undefined}
+            onFileSelected={() => undefined}
+            onSend={() => undefined}
+            onAbort={() => undefined}
+            isSending={false}
+            isUploadingMedia={false}
+            isResolvingPermission={false}
+            onResolvePermission={() => undefined}
+            onNavigateToSessions={() => undefined}
+            errorMessage="foreground-run-mismatch: session is busy"
+            pendingReplaceRunId="run-a"
+            onReplaceAndSend={onReplaceAndSend}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.textContent).toContain('foreground-run-mismatch: session is busy');
+    const replace = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('中断并发送'),
+    );
+    expect(replace).toBeDefined();
+    act(() => {
+      replace?.click();
+    });
+    expect(onReplaceAndSend).toHaveBeenCalled();
   });
 });

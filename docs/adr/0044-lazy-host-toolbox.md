@@ -15,19 +15,24 @@ permission admission.
 
 ## Decision
 
-Keep these high-frequency families direct: filesystem, shell, web, MCP,
-planning, delegation, and Artifact instructions. Explicitly pinned MCP tools
-also remain direct.
+Keep these high-frequency families direct: filesystem, shell, web, planning,
+delegation, Artifact instructions, and explicitly pinned MCP tools.
 
 Expose low-frequency process, browser, notes, flashcards, image-generation, and
-video-generation tools through one `piwin_toolbox` descriptor:
+video-generation tools through one `piwin_toolbox` descriptor. Unpinned MCP
+tools share that same shell ([ADR 0053](./0053-progressive-tool-catalog.md)):
 
+- `search(query)` returns ranked Host and MCP ids, with compacted schemas for
+  top matches;
 - `describe(target)` returns that target's exact descriptor on demand;
-- `call(target, arguments)` routes through the target's original
-  `HostToolRegistration` in `SessionHostToolExecutionPort`;
-- the target therefore receives its own immediate safety predicate, permission
-  declaration, subject builder, cancellation signal, and generation/run checks;
-- the compiler freezes an exact target-name allowlist from enabled families;
+- `call(target, arguments)` routes Host ids through the target's original
+  `HostToolRegistration` in `SessionHostToolExecutionPort`, and MCP selectors
+  through the catalog service / Supervisor;
+- `status` reports MCP server health;
+- conversation sessions keep MCP closed (`mcp: false`) even when the toolbox exists;
+- Host `call` still uses the target registration's immediate safety predicate,
+  permission declaration, subject builder, cancellation signal, and generation/run checks;
+- the compiler freezes an exact Host target-name allowlist from enabled families;
 - the toolbox descriptor and execution allowlist are projected from that same
   set, so trust and subagent ceilings cannot be widened by the routing shell;
 - hidden targets are never directly callable through the public session port.
@@ -40,7 +45,8 @@ that is the boundary holding the frozen permission gate and generation surface.
 
 - Fresh generations pay for one bounded catalog rather than every low-frequency
   schema.
-- Low-frequency calls add a describe step, but retain exact admission behavior.
+- Low-frequency Host calls can skip search when the id is listed in the
+  toolbox description; MCP and unknown ids should search first.
 - Tool pinning remains meaningful because pinned MCP tools are not moved behind
   the toolbox.
 - Adding a new toolbox family requires updating the explicit family set and

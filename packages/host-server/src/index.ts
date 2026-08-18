@@ -4,3 +4,8 @@ export * from './host-egress-channel.js';
 export * from './host-replay-journal.js';
 export * from './host-egress-metrics.js';
 export * from './remote-projection.js';
+export * from './device-pairing.js';
+export * from './device-pairing-store.js';
+export * from './host-hello-auth.js';
+export * from './pairing-qr.js';
+export * from './mobile-access-controller.js';

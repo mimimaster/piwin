@@ -10,6 +10,8 @@ import { AgentPage } from './agent-page';
 import { ExtensionsPage } from './extensions-page';
 import { KnowledgePage } from './knowledge-page';
 import { SessionPage } from './session-page';
+import { UsagePage } from './usage-page';
+import { ArchivePage } from './archive-page';
 
 registerSettingsSection('general', GeneralPage);
 registerSettingsSection('permissions', PermissionsPage);
@@ -18,4 +20,6 @@ registerSettingsSection('agent', AgentPage);
 registerSettingsSection('extensions', ExtensionsPage);
 registerSettingsSection('knowledge', KnowledgePage);
 registerSettingsSection('session', SessionPage);
+registerSettingsSection('usage', UsagePage);
+registerSettingsSection('archive', ArchivePage);
 

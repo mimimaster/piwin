@@ -94,7 +94,12 @@ export {
 } from './session-scope.js';
 export { createMockSessionHandle } from './mock-session.js';
 export { HostRuntime } from './host-runtime.js';
-export type { HostRuntimeOptions, HostRuntimeTestFixture } from './host-runtime.js';
+export type {
+  HostRuntimeOptions,
+  HostRuntimeTestFixture,
+  HostForegroundRunSnapshot,
+  HostPendingPermissionSnapshot,
+} from './host-runtime.js';
 
 export {
   collectSkillPaths,

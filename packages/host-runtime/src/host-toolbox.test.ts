@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { HostToolRegistration, SessionToolFamily } from '@piwin/contracts';
-import { buildHostToolboxDescriptor, buildHostToolboxRegistration, HOST_TOOLBOX_NAME } from './host-toolbox.js';
+import { HOST_TOOLBOX_NAME } from './host-toolbox.js';
+import {
+  buildHostToolboxDescriptor,
+  buildHostToolboxRegistration,
+} from './tool-catalog/catalog-tool.js';
 import { descriptorsFromTools } from './tools/build-session-host-tools.js';
 
 function tool(name: string, family: SessionToolFamily): HostToolRegistration {
@@ -40,43 +44,30 @@ describe('Host toolbox model projection', () => {
   });
 });
 
-describe('buildHostToolboxDescriptor (CHT-204)', () => {
-  function targetEnum(targetNames: readonly string[]): string[] {
-    const descriptor = buildHostToolboxDescriptor(targetNames);
-    const properties = descriptor.parameters.properties as Record<string, { enum?: string[] }>;
-    return (properties.target?.enum ?? []) as string[];
-  }
-
-  it('dedupes and sorts the target enum', () => {
-    expect(targetEnum(['image_gen', 'flashcard_create', 'image_gen', 'browser_navigate'])).toEqual(
-      ['browser_navigate', 'flashcard_create', 'image_gen'],
-    );
-  });
-
-  it('describes only the capabilities actually offered', () => {
+describe('buildHostToolboxDescriptor (catalog v2)', () => {
+  it('describes only the Host capabilities actually offered', () => {
     const descriptor = buildHostToolboxDescriptor(['flashcard_create', 'image_gen']);
     expect(descriptor.name).toBe(HOST_TOOLBOX_NAME);
-    expect(descriptor.description).toContain('Available targets: flashcard_create, image_gen');
+    expect(descriptor.description).toContain('Host targets: flashcard_create, image_gen');
     expect(descriptor.description).not.toContain('browser');
     expect(descriptor.description).not.toContain('process');
     expect(descriptor.description).not.toContain('notes');
-    expect(descriptor.description).not.toContain('Use proactively');
   });
 
   it('handles an empty target set stably', () => {
     const descriptor = buildHostToolboxDescriptor([]);
-    expect(targetEnum([])).toEqual([]);
-    expect(descriptor.description).toContain('Available targets: ');
+    expect(descriptor.description).toContain('Host targets: (none)');
   });
 
-  it('keeps the describe/call lazy action surface', () => {
+  it('exposes search/describe/call/status with a string target', () => {
     const descriptor = buildHostToolboxDescriptor(['image_gen']);
     const properties = descriptor.parameters.properties as Record<
       string,
       { enum?: string[]; type?: string }
     >;
-    expect(properties.action?.enum).toEqual(['describe', 'call']);
-    expect(descriptor.parameters.required).toContain('action');
-    expect(descriptor.parameters.required).toContain('target');
+    expect(properties.action?.enum).toEqual(['search', 'describe', 'call', 'status']);
+    expect(properties.target?.type).toBe('string');
+    expect(properties.target?.enum).toBeUndefined();
+    expect(descriptor.parameters.required).toEqual(['action']);
   });
 });

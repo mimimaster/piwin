@@ -438,24 +438,13 @@
   background: var(--accent);
 }
 
-/* User turns: right-aligned Paper bubble (proto .msg-user). */
+/* User turns */
 .role-user {
-  align-self: flex-end;
-  max-width: 72%;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
   margin-left: 0;
   margin-right: 0;
-}
-
-/* Paper user bubble: soft fill + hairline border, asymmetric radius with the
-   sharp corner on the tail side (bottom-right). Maps proto .msg-user .bubble
-   onto the existing .bubble.role-user article element. */
-.bubble.role-user {
-  background: var(--user-bubble);
-  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
-  border-radius: 12px 12px 4px 12px;
-  padding: 9px 14px;
-  font-size: var(--chat-font-size, 13.5px);
-  line-height: 1.35;
 }
 
 /* In-place edit reuses the bottom ComposerCard. Reset the bubble frame so the
@@ -583,13 +572,95 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-top: 4px;
+  margin-bottom: 10px;
 }
 
 .role-assistant .message-attachments {
   max-width: var(--chat-max, 760px);
   margin-right: auto;
   margin-left: auto;
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+/* Assistant Hero Single Media (1 Image / 1 Video) */
+.message-attachments.is-hero-single {
+  display: block;
+  width: 100%;
+  max-width: min(540px, 100%);
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.role-assistant .message-attachments.is-hero-single {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Assistant Pair Media Grid (2 Images) */
+.message-attachments.is-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: min(620px, 100%);
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.message-attachments.is-pair-grid .media-preview-container,
+.message-attachments.is-pair-grid .media-preview-image-button {
+  width: 100%;
+  height: 280px;
+}
+
+.message-attachments.is-pair-grid .media-preview-image {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+/* Assistant Gallery Grid (3 or 4 Images) */
+.message-attachments.is-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: min(620px, 100%);
+  margin-top: 8px;
+  margin-bottom: 14px;
+}
+
+.message-attachments.is-gallery-grid .media-preview-container,
+.message-attachments.is-gallery-grid .media-preview-image-button {
+  width: 100%;
+  height: 220px;
+}
+
+.message-attachments.is-gallery-grid .media-preview-image {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+/* User Message Attachments */
+.message-attachments.is-user-attachments,
+.role-user .message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.message-attachments.is-user-attachments .media-preview-image,
+.role-user .message-attachments .media-preview-image {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
 }
 
 /* ─── Message hover actions + inline edit ───────────────────────────── */
@@ -611,44 +682,34 @@
 
 /* SF-03: Assistant response action dock (Duplicate + Fork icons) */
 .assistant-response-actions {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   width: 100%;
   max-width: var(--chat-max, 760px);
-  margin: 14px auto 0;
-  opacity: 1;
-  pointer-events: auto;
+  margin: 10px auto 0;
 }
 .assistant-response-action-group {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 .assistant-response-actions .msg-action-btn {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--text);
-  opacity: 0.88;
-  border-radius: 0;
+  color: var(--text, #ffffff);
+  border-radius: 6px;
   cursor: pointer;
-  transition:
-    color 0.12s ease,
-    transform 0.12s ease,
-    opacity 0.12s ease;
+  transition: background-color 0.12s ease;
 }
 .assistant-response-actions .msg-action-btn:hover:not(:disabled) {
-  color: var(--text);
-  opacity: 1;
-  transform: translateY(-1px);
+  background: var(--wb-hover, var(--surface-hover));
 }
 .assistant-response-actions .msg-action-btn:disabled {
   opacity: 0.35;
@@ -661,46 +722,16 @@
 .assistant-response-actions .msg-action-btn svg {
   width: 17px;
   height: 17px;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 65%));
 }
 .assistant-response-actions .fork-count-badge {
-  gap: 2px;
-  opacity: 0.88;
+  width: auto;
+  min-width: 28px;
+  padding: 0 6px;
+  gap: 3px;
 }
-.assistant-response-actions .fork-count-badge:hover:not(:disabled) {
-  opacity: 1;
-}
-
-/* Small, product-styled tooltip shown when an action icon is hovered. */
-.assistant-action-tooltip {
-  position: absolute;
-  z-index: 20;
-  right: auto;
-  bottom: calc(100% + 8px);
-  top: auto;
-  left: 50%;
-  width: max-content;
-  max-width: 180px;
-  padding: 4px 7px;
-  border: 1px solid var(--line-soft, var(--line));
-  border-radius: 5px;
-  background: var(--panel, var(--surface, #ffffff));
-  color: var(--text, currentColor);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 16%);
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.2;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 4px);
-  transition:
-    opacity 0.12s ease,
-    transform 0.12s ease;
-}
-.assistant-response-actions .msg-action-btn:hover .assistant-action-tooltip,
-.assistant-response-actions .msg-action-btn:focus-visible .assistant-action-tooltip {
-  opacity: 1;
-  transform: translate(-50%, 0);
+.assistant-response-actions .fork-count-badge span {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 65%));
 }
 
 @media (max-width: 820px) {
@@ -2115,6 +2146,21 @@
   font-size: 11px;
 }
 
+.tool-batch-capsule.is-running .action-marquee-text {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text) 40%, transparent) 0%,
+    color-mix(in srgb, var(--text) 92%, transparent) 42%,
+    color-mix(in srgb, var(--text) 40%, transparent) 78%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wb-shimmer var(--motion-shimmer, 2s) linear infinite;
+}
+
 .tool-batch-pills {
   display: inline-flex;
   align-items: center;
@@ -2711,23 +2757,23 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  margin-left: 0;
-  margin-right: 0;
-  /* Compact history record chrome; message text size stays below. */
-  padding: 6px 12px;
+  margin: 4px 0 12px;
+  /* Generous padding & modern rounded capsule matching bottom composer */
+  padding: 12px 18px;
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  border-radius: 12px;
+  border-radius: 16px;
   /* Same surface as the composer input card (history records = input color). */
-  background: var(--composer, var(--user-bubble, var(--sidebar)));
-  box-shadow: none;
+  background: var(--user-bubble, var(--composer, var(--sidebar)));
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.04);
   transition:
     background-color 200ms ease,
-    border-color 200ms ease;
+    border-color 200ms ease,
+    box-shadow 200ms ease;
 }
 
 html[data-theme-mode='dark'] .bubble.role-user {
   border-color: color-mix(in srgb, var(--text) 10%, transparent);
-  box-shadow: none;
+  box-shadow: 0 2px 12px -2px rgba(0, 0, 0, 0.15);
 }
 
 /* No negative-offset shield — a top overhang was covering the titleband divider. */
@@ -2737,7 +2783,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
 
 .bubble.role-user .message-text {
   font-size: 14.5px;
-  line-height: 1.35;
+  line-height: 1.55;
   letter-spacing: -0.01em;
   color: var(--text);
 }
@@ -2749,7 +2795,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 28px;
+  min-height: 24px;
 }
 
 .user-message-wrapper .message-text {
@@ -2782,7 +2828,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
    or contains image attachments. */
 .user-message-collapsible.is-collapsed {
   overflow: hidden;
-  max-height: 40px;
+  max-height: 48px;
   /* Fade mask: sharp at top, ghostly at bottom */
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -2801,7 +2847,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
 }
 
 .user-message-collapsible.has-attachments.is-collapsed {
-  max-height: 56px;
+  max-height: 60px;
 }
 
 .user-message-collapsible.has-attachments.is-collapsed .media-preview-image {
@@ -2823,11 +2869,11 @@ html[data-theme-mode='dark'] .bubble.role-user {
   align-self: center;
   gap: 4px;
   flex: 0 0 auto;
-  height: 22px;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--panel, #fff) 45%, transparent);
-  border: 1px solid color-mix(in srgb, var(--line, #ccc) 35%, transparent);
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel, #fff) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line, #ccc) 30%, transparent);
   font-size: 11px;
   line-height: 1;
   color: var(--muted);
@@ -4695,25 +4741,20 @@ html[data-theme-visual-style='ink-wash'] .bubble.role-user {
   box-shadow: none !important;
 }
 
-/* ── Ink Wash User Message Scroll Banner (古风金墨横幅；高透玻璃与透光纸纹) ───────── */
+/* ── Ink Wash User Message Scroll Banner (高透玻璃与透光纸纹；无边框设计) ───────── */
 html[data-theme-visual-style='ink-wash'] .bubble.role-user {
   position: relative !important;
   width: 100% !important;
   max-width: 100% !important;
   overflow: visible !important;
-  background-color: rgba(20, 22, 28, 0.72) !important;
+  background-color: rgba(20, 22, 28, 0.92) !important;
   background-image: linear-gradient(
     180deg,
-    rgba(32, 34, 44, 0.75) 0%,
-    rgba(18, 20, 26, 0.8) 100%
+    rgba(32, 34, 44, 0.94) 0%,
+    rgba(18, 20, 26, 0.96) 100%
   ) !important;
-  backdrop-filter: blur(24px) saturate(135%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(135%) !important;
-  border-top: 1.5px solid rgba(214, 185, 140, 0.5) !important;
-  border-bottom: 1.5px solid rgba(214, 185, 140, 0.5) !important;
-  border-left: 1px solid rgba(214, 205, 190, 0.22) !important;
-  border-right: 1px solid rgba(214, 205, 190, 0.22) !important;
-  border-radius: 14px 16px 6px 16px !important;
+  border: none !important;
+  border-radius: 16px !important;
   padding: 14px 22px 14px 18px !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
@@ -5064,10 +5105,8 @@ html[data-theme-visual-style='ink-wash'] .activity-timeline {
 }
 
 html[data-theme-visual-style='ink-wash'] .activity-call-chain {
-  background: rgba(18, 19, 23, 0.28) !important;
-  backdrop-filter: blur(20px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(130%) !important;
-  border: 1px solid rgba(214, 185, 140, 0.16) !important;
+  background: rgba(18, 19, 23, 0.88) !important;
+  border: none !important;
   border-radius: 10px !important;
   padding: 0 !important;
   margin: 0 !important;

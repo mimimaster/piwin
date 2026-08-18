@@ -9,6 +9,11 @@ Accepted (2026-07-24) · Implemented in part; lifecycle/exposure details superse
 > process ownership, configuration replacement, default exposure, and
 > permission handling are defined by ADR 0033. ADR 0019's former MCP
 > server-level permission section is historical and is superseded as well.
+>
+> **Superseded in part by [ADR 0053](./0053-progressive-tool-catalog.md):**
+> the model-visible shell is `piwin_toolbox` (`search | describe | call | status`),
+> not a separate `mcp_gateway` tool. Lazy-connect, cache, and pinned direct
+> tools remain.
 
 ## Context
 
@@ -24,9 +29,11 @@ ownership and config-reload hazards are handled by ADR 0033.
 1. MCP configuration remains global: `~/.piwin/mcp.json`.
 2. `project/open` and `session/create` perform **zero MCP transport calls**.
 3. Session tools are built as:
-   - one stable `mcp_gateway` tool (`search | describe | call | status`);
+   - one stable catalog shell (`piwin_toolbox`: `search | describe | call | status`) covering unpinned MCP tools and low-frequency Host tools ([ADR 0053](./0053-progressive-tool-catalog.md));
    - optional direct `mcp__server__tool` entries from valid cached metadata only
      when explicitly selected by `McpExposurePolicy.pinnedSelectors`.
+   Historical generations used a dedicated `mcp_gateway` tool with the same
+   MCP actions; that name is no longer registered.
 4. Direct tool execute and gateway `call` lazy-connect only the selected server
    through the Host-owned `McpSupervisor` defined in ADR 0033.
 5. MCP is **outside piwin's permission rule engine**. Enabled/configured

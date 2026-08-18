@@ -26,10 +26,8 @@ import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 import { chooseSessionExportPath } from '../../session-export-dialog';
 import { SessionRuntimePage } from './session-runtime-page.js';
-import { UsagePage } from './usage-page.js';
-import { ArchivePage } from './archive-page.js';
 
-type SessionSubTab = 'lifecycle' | 'runtime' | 'usage' | 'archive';
+type SessionSubTab = 'lifecycle' | 'runtime';
 
 function parseOptionalPositiveInt(raw: string): number | undefined {
   const trimmed = raw.trim();
@@ -625,8 +623,6 @@ export function SessionPage(): ReactElement {
           data={[
             { value: 'lifecycle', label: isZh ? '会话策略 (Policy & Walkthrough)' : 'Policy & Walkthrough' },
             { value: 'runtime', label: isZh ? '运行时驻留 (Runtime)' : 'Runtime' },
-            { value: 'usage', label: isZh ? '用量统计 (Usage)' : 'Usage' },
-            { value: 'archive', label: isZh ? '归档管理 (Archive)' : 'Archive' },
           ]}
           testId="session-subtabs-control"
         />
@@ -634,8 +630,6 @@ export function SessionPage(): ReactElement {
 
       {activeTab === 'lifecycle' && <SessionLifecycleSection />}
       {activeTab === 'runtime' && <SessionRuntimePage />}
-      {activeTab === 'usage' && <UsagePage />}
-      {activeTab === 'archive' && <ArchivePage />}
     </div>
   );
 }

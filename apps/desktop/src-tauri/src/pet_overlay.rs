@@ -11,7 +11,24 @@ fn prepare_pet_overlay_window(window: &tauri::WebviewWindow) -> tauri::Result<()
     window.show()
 }
 
-fn build_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+fn apply_pet_overlay_position(
+    window: &tauri::WebviewWindow,
+    x: Option<f64>,
+    y: Option<f64>,
+) -> tauri::Result<()> {
+    if let (Some(origin_x), Some(origin_y)) = (x, y) {
+        window.set_position(tauri::LogicalPosition::new(origin_x, origin_y))?;
+    }
+    Ok(())
+}
+
+fn build_pet_overlay_window(
+    app: &tauri::AppHandle,
+    x: Option<f64>,
+    y: Option<f64>,
+) -> tauri::Result<tauri::WebviewWindow> {
+    let origin_x = x.unwrap_or(100.0);
+    let origin_y = y.unwrap_or(100.0);
     let mut builder = WebviewWindowBuilder::new(
         app,
         PET_OVERLAY_LABEL,
@@ -26,7 +43,7 @@ fn build_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webv
     // speech bubble band changes (see pet-overlay-app.tsx). On macOS fully
     // transparent pixels are click-through.
     .inner_size(120.0, 120.0)
-    .position(100.0, 100.0)
+    .position(origin_x, origin_y)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
@@ -45,22 +62,19 @@ fn build_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<tauri::Webv
     builder.build()
 }
 
-/// Create the WebContent process without showing it. Its page restores the
-/// persisted Desktop visibility preference after transparent CSS is ready.
-pub fn create_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
-    if app.get_webview_window(PET_OVERLAY_LABEL).is_none() {
-        let _window = build_pet_overlay_window(app)?;
-    }
-    Ok(())
-}
-
 /// Create (or re-show) the pet overlay window on an explicit show request.
-pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+/// Hidden preference must not pre-create this WebContent (hide = destroy).
+pub fn ensure_pet_overlay_window(
+    app: &tauri::AppHandle,
+    x: Option<f64>,
+    y: Option<f64>,
+) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
+        apply_pet_overlay_position(&window, x, y)?;
         return prepare_pet_overlay_window(&window);
     }
 
-    let window = build_pet_overlay_window(app)?;
+    let window = build_pet_overlay_window(app, x, y)?;
 
     // Tauri's transparent + always_on_top handles the window level on all
     // platforms. On macOS, transparent + decorations(false) enables
@@ -69,14 +83,15 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
 }
 
 #[tauri::command]
-pub fn pet_overlay_show(app: tauri::AppHandle) -> Result<(), String> {
-    ensure_pet_overlay_window(&app).map_err(|e| e.to_string())
+pub fn pet_overlay_show(app: tauri::AppHandle, x: Option<f64>, y: Option<f64>) -> Result<(), String> {
+    ensure_pet_overlay_window(&app, x, y).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
-        window.hide().map_err(|e| e.to_string())
+        // Destroy the WebContent process. hide() would keep ~25 MB resident.
+        window.close().map_err(|e| e.to_string())
     } else {
         Ok(())
     }
@@ -86,14 +101,14 @@ pub fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
 pub fn pet_overlay_toggle(app: tauri::AppHandle) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
         if window.is_visible().map_err(|e| e.to_string())? {
-            window.hide().map_err(|e| e.to_string())?;
+            window.close().map_err(|e| e.to_string())?;
             Ok(false)
         } else {
             prepare_pet_overlay_window(&window).map_err(|e| e.to_string())?;
             Ok(true)
         }
     } else {
-        ensure_pet_overlay_window(&app).map_err(|e| e.to_string())?;
+        ensure_pet_overlay_window(&app, None, None).map_err(|e| e.to_string())?;
         Ok(true)
     }
 }

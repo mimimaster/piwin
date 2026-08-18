@@ -154,6 +154,29 @@ describe('handlePluginCommand', () => {
     }
   });
 
+  it('installs bundled Cloudflare from the marketplace catalog', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-plugin-cmd-'));
+    try {
+      const result = await handlePluginCommand(
+        { type: 'plugins/install', source: { kind: 'bundled', bundledId: 'cloudflare' } },
+        'req-cf',
+        makeContext(root),
+      );
+      expect(result).toHaveProperty('success', true);
+      const listed = await handlePluginCommand(
+        { type: 'plugins/list' },
+        'req-list',
+        makeContext(root),
+      );
+      const plugins = (listed as { data?: { plugins: Array<{ id: string }> } }).data?.plugins ?? [];
+      expect(plugins.map((plugin) => plugin.id)).toContain('cloudflare');
+      const mcpConfig = await loadMcpConfig(root);
+      expect(mcpConfig.mcpServers['plugin__cloudflare__api']?.command).toBe('npx');
+    } finally {
+      await rm(root, { recursive: true, force: true }).catch(() => undefined);
+    }
+  });
+
   it('uninstall fails for non-existent plugin', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-plugin-cmd-'));
     try {

@@ -8,8 +8,14 @@ export type ConnectionSurfaceProps = {
   setEndpoint: (value: string) => void;
   authToken: string;
   setAuthToken: (value: string) => void;
+  pairingToken: string;
+  setPairingToken: (value: string) => void;
+  setExpectedHostInstanceId: (value: string | undefined) => void;
   connectionState: HostClientState;
   errorMessage?: string | undefined;
+  credentialPersistError: boolean;
+  isNativeVault: boolean;
+  onRetryCredentialPersist: () => void;
   onConnect: () => void;
   onDisconnect: () => void;
   onBackToApp?: (() => void) | undefined;
@@ -20,8 +26,14 @@ export function ConnectionSurface({
   setEndpoint,
   authToken,
   setAuthToken,
+  pairingToken,
+  setPairingToken,
+  setExpectedHostInstanceId,
   connectionState,
   errorMessage,
+  credentialPersistError,
+  isNativeVault,
+  onRetryCredentialPersist,
   onConnect,
   onDisconnect,
   onBackToApp,
@@ -38,8 +50,13 @@ export function ConnectionSurface({
     try {
       const parsed = await scanPairingQrCode();
       setEndpoint(parsed.endpoint);
-      if (parsed.token !== undefined) {
-        setAuthToken(parsed.token);
+      setExpectedHostInstanceId(parsed.hostInstanceId);
+      if (parsed.pairingToken !== undefined) {
+        setPairingToken(parsed.pairingToken);
+        setAuthToken('');
+      } else if (parsed.authToken !== undefined) {
+        setAuthToken(parsed.authToken);
+        setPairingToken('');
       }
       setTimeout(() => {
         onConnect();
@@ -61,7 +78,7 @@ export function ConnectionSurface({
             {isConnected ? (
               <>
                 <Button variant="secondary" onClick={onDisconnect}>
-                  断开连接
+                  退出此设备
                 </Button>
                 {onBackToApp !== undefined ? (
                   <Button variant="primary" onClick={onBackToApp}>
@@ -100,15 +117,35 @@ export function ConnectionSurface({
             testId="mobile-host-endpoint"
           />
           <PasswordInput
-            label="Host Token（可选）"
+            label="配对令牌"
+            value={pairingToken}
+            onChange={(event) => {
+              setPairingToken(event.currentTarget.value);
+              if (event.currentTarget.value.trim().length > 0) {
+                setAuthToken('');
+              }
+            }}
+            placeholder="扫码或粘贴一次性 pairingToken"
+            disabled={isConnected}
+            testId="mobile-host-pairing-token"
+          />
+          <PasswordInput
+            label="Host 口令"
             value={authToken}
-            onChange={(event) => setAuthToken(event.currentTarget.value)}
-            placeholder="仅当 Host 开启认证时填写"
+            onChange={(event) => {
+              setAuthToken(event.currentTarget.value);
+              if (event.currentTarget.value.trim().length > 0) {
+                setPairingToken('');
+              }
+            }}
+            placeholder="开发/LAN 回退，不要当设备凭证保存"
             disabled={isConnected}
             testId="mobile-host-token"
           />
           <p className="mobile-empty-detail">
-            支持局域网、Tailscale 直连与扫码快速配对；凭据在本地安全存储。
+            {isNativeVault
+              ? '配对成功后设备密钥写入本机 Keychain；退出此设备只清本地，不会在 Host 上吊销。'
+              : '浏览器预览把设备密钥留在内存里，刷新后需要重新配对。'}
           </p>
         </div>
       </EmptyState>
@@ -116,6 +153,20 @@ export function ConnectionSurface({
       {scanError !== undefined ? (
         <Notice tone="warning" title="扫码提示">
           {scanError}
+        </Notice>
+      ) : null}
+
+      {credentialPersistError ? (
+        <Notice
+          tone="warning"
+          title="Keychain 写入失败"
+          action={
+            <Button variant="secondary" onClick={onRetryCredentialPersist}>
+              重试保存
+            </Button>
+          }
+        >
+          已颁发的设备密钥仍在本次会话内存中。请重试写入，不要重新扫码。
         </Notice>
       ) : null}
 

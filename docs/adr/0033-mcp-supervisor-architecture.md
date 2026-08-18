@@ -70,7 +70,7 @@ Desktop / CLI
       |
       +-- McpConfigStore
       +-- McpSupervisor ---- one ProcessSlot per server
-      +-- mcp_gateway
+      +-- piwin_toolbox (MCP catalog + low-frequency Host tools)
                               |
                               v
                       MCP server process tree
@@ -228,15 +228,16 @@ dispose, and caller cancellation do not count as server failures.
 The cooldown applies in addition to the per-operation deadline. It is not a
 replacement for killing the owned process.
 
-### 7. Gateway-first exposure with pinned direct tools
+### 7. Catalog-first exposure with pinned direct tools
 
-The default session surface always exposes one `mcp_gateway` with
-`search | describe | call | status`. It does not automatically register every
-valid cached tool as a direct Pi tool.
+The default session surface exposes MCP through `piwin_toolbox`
+(`search | describe | call | status`) rather than a dedicated `mcp_gateway`
+tool ([ADR 0053](./0053-progressive-tool-catalog.md)). It does not automatically
+register every valid cached tool as a direct Pi tool.
 
 Project creation, session creation, and Host tool-surface composition only read
 configuration and metadata cache; they perform zero MCP transport calls. A
-transport may be started only while executing an explicit model-issued gateway
+transport may be started only while executing an explicit model-issued catalog
 search/describe/call, a pinned direct MCP tool, or a diagnostic Settings operation.
 Cached search is
 non-connecting; normal search may perform bounded lazy discovery only after the
@@ -268,8 +269,8 @@ configuration. Its rules are:
   lexical fill, automatic “first N tools”, or cached direct-tool promotion;
 - a pinned tool requires metadata whose server fingerprint matches the current
   server config. Missing or stale metadata leaves the pin dormant, emits a
-  diagnostic, and keeps the tool callable through gateway `describe`/`call`;
-- direct execution and gateway `call` both invoke the same Supervisor
+  diagnostic, and keeps the tool callable through catalog `describe`/`call`;
+- direct execution and catalog `call` both invoke the same Supervisor
   `callTool` and never own a client or process.
 
 Pinned tools remain first-class direct tools so pinning continues to increase
@@ -278,13 +279,13 @@ descriptor projection: names, JSON Schema structure, constraints, execution,
 and trusted MCP admission stay exact, while oversized descriptions are
 truncated. The always-on MCP brief likewise contains only proactive routing,
 gateway flow, bounded inventory, and pinned names; it does not duplicate the
-gateway's full instructions.
+catalog shell's full instructions.
 
 The exposure policy has two hard budgets: direct tool count and serialized
 schema bytes. Pinned tools consume those budgets. The Settings UI refuses a pin
 that would exceed a budget and explains the limit. If a manually edited config
 contains too many pins, session composition registers no overflowing direct
-tools, keeps `mcp_gateway` available, and emits one actionable diagnostic; it
+tools, keeps `piwin_toolbox` available, and emits one actionable diagnostic; it
 must not silently choose arbitrary pins.
 
 The contract should represent the policy explicitly:
@@ -317,7 +318,7 @@ losing the user's selection.
 Pi custom tools are static for a created Agent session in the current host
 integration. Therefore v1 applies a pin change to the next session or an
 explicit session tool-surface rebuild; the current session keeps using
-`mcp_gateway` and does not receive an implicit runtime replacement. Pinning
+`piwin_toolbox` and does not receive an implicit runtime replacement. Pinning
 never starts a server.
 
 This keeps the high-frequency direct-tool UX without creating a second
@@ -352,7 +353,7 @@ type HostToolAdmission =
   | { kind: 'permission'; action: string; risk: PermissionRiskKind };
 ```
 
-`mcp_gateway` and pinned direct MCP tools use `unrestricted`. They still pass
+`piwin_toolbox` catalog calls and pinned direct MCP tools use `unrestricted`. They still pass
 through the Host tool router and Supervisor; they simply do not enter the
 permission rule engine. MCP rule kinds, MCP permission subjects, MCP mode-table
 rows, and `mcp:tool-call` policy paths are removed from contracts and runtime
@@ -366,7 +367,7 @@ admission. Legacy on-disk rules are ignored as described in §1.
 | ProcessSlot, Supervisor, owned transport, cooldown | `@piwin/mcp` |
 | Metadata catalog and cache invalidation | `@piwin/mcp` |
 | Host command/push wiring and one-instance composition | `@piwin/host-runtime` |
-| Gateway and pinned direct tool definitions | `@piwin/host-runtime` |
+| Gateway and pinned direct tool definitions | `@piwin/host-runtime` (`tool-catalog/` + pinned MCP tools) |
 | Pi custom-tool adaptation | `@piwin/agent-host` |
 | Desktop/CLI presentation | `apps/desktop`, `apps/cli` |
 

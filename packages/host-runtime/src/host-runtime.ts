@@ -8,6 +8,7 @@ import type {
   AgentHost,
   CreateSessionInput,
   CreateSessionOptions,
+  ExecutionRunRecord,
   HostCommand,
   HostMode,
   HostPush,
@@ -32,6 +33,7 @@ import type {
   PushSink,
   RemoteSinkId,
   RunTerminalCode,
+  SessionRunPhase,
   BackendRunInterventionEvent,
   BackendRunInterventionEventResult,
 } from '@piwin/contracts';
@@ -233,6 +235,7 @@ import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { SessionAllowlist } from './session-allowlist.js';
 import { fail, ok } from './response-helpers.js';
+import { projectActivitySummary } from './activity-summary.js';
 import { indexRecordToSummary } from './session-summary-map.js';
 import { isConversationIndexRecord } from './session-scope.js';
 import { RunRegistry } from './run-registry.js';
@@ -241,6 +244,8 @@ import {
   handleSessionLiveCommand,
   type SessionLiveContext,
 } from './commands/session-live-commands.js';
+import { PromptAdmissionGate } from './commands/session-prompt-admission.js';
+import { isRunAbortReason } from './run-abort-reason.js';
 import { QueuedTurnController } from './queued-turn-controller.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
@@ -434,6 +439,21 @@ export type HostRuntimeOptions = {
 export type HostRuntimeTestFixture =
   'hang-until-abort' | 'slow-first-token' | 'high-rate-tool-output';
 
+/** Narrow live-run snapshot for HostServer hydration. Not a RunRegistry leak. */
+export type HostForegroundRunSnapshot = {
+  sessionId: string;
+  runId: string;
+  status: 'queued' | 'running' | 'cancelling';
+  phase?: SessionRunPhase;
+};
+
+/** Narrow pending-permission snapshot for HostServer hydration. */
+export type HostPendingPermissionSnapshot = {
+  sessionId: string;
+  requestId: string;
+  action: string;
+};
+
 type SessionLineage = {
   parentSessionId?: string;
   kind?: 'main' | 'subagent' | 'side-chat';
@@ -512,6 +532,7 @@ export class HostRuntime {
    * parent runs. Bound when a scheme resolves; cleared on run terminate.
    */
   private readonly schemeAdmissionGate = new TurnScopedSchemeAdmissionGate();
+  private readonly promptAdmissionGate = new PromptAdmissionGate();
   /** Deduplicates concurrent cleanup callbacks for one crashed Run tree. */
   private readonly workerCrashCleanupRoots = new Set<string>();
   /** CE-OBS: last known usage snapshot per session. */
@@ -967,6 +988,7 @@ export class HostRuntime {
           runtimeGenerationId: string,
           toolNames: readonly string[],
           toolboxTargetNames: readonly string[],
+          mcpCatalogEnabled: boolean,
         ) => {
           if (
             !this.sessionHostToolPort?.restrictGeneration(
@@ -974,6 +996,7 @@ export class HostRuntime {
               runtimeGenerationId,
               toolNames,
               toolboxTargetNames,
+              mcpCatalogEnabled,
             )
           ) {
             throw new Error(
@@ -1488,6 +1511,16 @@ export class HostRuntime {
           return ok(requestId, 'host/ping', { pong: true });
         case 'host/status':
           return ok(requestId, 'host/status', this.getStatus());
+        case 'activity/summary':
+          return ok(
+            requestId,
+            'activity/summary',
+            projectActivitySummary({
+              runs: this.listForegroundRuns(),
+              pendingPermissions: this.listPendingPermissionRequests(),
+              ...(command.maxItems === undefined ? {} : { maxItems: command.maxItems }),
+            }),
+          );
         case 'host/runtime-resources': {
           // Query-only aggregate metrics (ADR 0040 §8). Await the bounded
           // worker sample so a first query/Refresh click does not return the
@@ -3365,8 +3398,9 @@ export class HostRuntime {
       !this.sessionHostToolPort?.restrictGeneration(
         input.childSessionId,
         input.runtimeGenerationId,
-        compiled.backendBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
+        compiled.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
         compiled.sessionBlueprint.hostToolboxTargetNames,
+        compiled.sessionBlueprint.capabilitySnapshot.tools.enabledFamilies.includes('mcp'),
       )
     ) {
       throw new Error(
@@ -4387,27 +4421,22 @@ export class HostRuntime {
       },
       getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
       registerForegroundRun: (sessionId, resumeCheckpointId, options) => {
-        const runtimeStatus = this.runtimeController.getStatus(sessionId);
-        const updatePending =
-          this.runtimeReplacementEngine.hasPending(sessionId) ||
-          runtimeStatus.desiredSettingsRevision !== undefined;
-        const generationId =
-          updatePending || options?.deferRuntimeGeneration
-            ? undefined
-            : runtimeStatus.generationId;
-        const parentRunId = this.runExecutionContext.getStore();
-        const run = this.runRegistry.createForegroundRun(
-          sessionId,
-          generationId,
-          resumeCheckpointId,
-          parentRunId,
-        );
-        // ADR 0040 §5: a runtime with an active Run is busy and never evicted.
-        if (generationId !== undefined) {
-          this.residencyController.markBusy(sessionId, generationId);
-        }
-        return run;
+        return this.createAdmittedForegroundRun(sessionId, resumeCheckpointId, undefined, options);
       },
+      replaceForegroundRun: (sessionId, previousRunId, resumeCheckpointId, options) => {
+        return this.createAdmittedForegroundRun(
+          sessionId,
+          resumeCheckpointId,
+          previousRunId,
+          options,
+        );
+      },
+      tryReservePromptAdmission: (sessionId) => this.promptAdmissionGate.tryReserve(sessionId),
+      releasePromptAdmission: (sessionId) => {
+        this.promptAdmissionGate.release(sessionId);
+      },
+      isPromptAdmissionReserved: (sessionId) => this.promptAdmissionGate.isReserved(sessionId),
+      joinRun: (runId) => this.runRegistry.join(runId),
       getRunSignal: (runId) => this.runRegistry.getSignal(runId),
       hasRunReceivedFirstToken: (runId) => this.runRegistry.hasFirstToken(runId),
       /** ADR 0040 §5: explicit protection lease (compaction / backend op). */
@@ -4424,8 +4453,13 @@ export class HostRuntime {
         }
       },
       requestCancelRun: (sessionId, runId, reason) => {
+        if (runId !== undefined) {
+          const run = this.runRegistry.get(runId);
+          if (!run || run.sessionId !== sessionId) return undefined;
+          return this.runRegistry.requestCancel(runId, reason);
+        }
         const active = this.runRegistry.getForegroundRun(sessionId);
-        if (!active || (runId !== undefined && active.runId !== runId)) return undefined;
+        if (!active) return undefined;
         return this.runRegistry.requestCancel(active.runId, reason);
       },
       requestPauseRun: (sessionId, runId, reason) => {
@@ -4485,10 +4519,16 @@ export class HostRuntime {
           }
         }
         const effectiveOutcome = cleanupFailed ? 'failed' : outcome;
+        const abortReason = this.runRegistry.getSignal(runId)?.reason;
+        const supersededByNewPrompt =
+          (isRunAbortReason(abortReason) && abortReason.code === 'superseded-by-new-prompt') ||
+          code === 'superseded-by-new-prompt';
         const effectiveCode: RunTerminalCode = cleanupFailed
           ? 'job-cleanup-failed'
           : outcome === 'cancelled'
-            ? 'cancelled'
+            ? supersededByNewPrompt
+              ? 'superseded-by-new-prompt'
+              : 'cancelled'
             : outcome === 'completed'
               ? 'completed'
               : outcome === 'paused'
@@ -4565,12 +4605,15 @@ export class HostRuntime {
           effectiveMessage,
         );
         if (!terminal) return false;
-        // ADR 0040 §5/§7: the terminal Run releases busy residency, wakes any
-        // queued activation waiter, and restarts the idle TTL clock.
-        const terminalGenerationId = this.runtimeController.getStatus(sessionId).generationId;
-        if (terminalGenerationId !== undefined) {
-          this.residencyController.markIdle(sessionId, terminalGenerationId);
-          void this.heartbeatRuntimeLease(sessionId).catch(() => undefined);
+        // ADR 0040 §5/§7: the terminal Run releases busy residency only when
+        // no newer admitted foreground run still owns the session.
+        const admitted = this.runRegistry.getForegroundRun(sessionId);
+        if (admitted === undefined || admitted.runId === runId) {
+          const terminalGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+          if (terminalGenerationId !== undefined) {
+            this.residencyController.markIdle(sessionId, terminalGenerationId);
+            void this.heartbeatRuntimeLease(sessionId).catch(() => undefined);
+          }
         }
         // ORCH: drop turn-scoped scheme binding when the run ends.
         this.runOrchestrationSchemes.delete(runId);
@@ -6773,6 +6816,40 @@ export class HostRuntime {
     }
   }
 
+  private createAdmittedForegroundRun(
+    sessionId: string,
+    resumeCheckpointId?: string,
+    replaceRunId?: string,
+    options?: { deferRuntimeGeneration?: boolean },
+  ): ExecutionRunRecord {
+    const runtimeStatus = this.runtimeController.getStatus(sessionId);
+    const updatePending =
+      this.runtimeReplacementEngine.hasPending(sessionId) ||
+      runtimeStatus.desiredSettingsRevision !== undefined;
+    const generationId =
+      updatePending || options?.deferRuntimeGeneration ? undefined : runtimeStatus.generationId;
+    const parentRunId = this.runExecutionContext.getStore();
+    const run =
+      replaceRunId === undefined
+        ? this.runRegistry.createForegroundRun(
+            sessionId,
+            generationId,
+            resumeCheckpointId,
+            parentRunId,
+          )
+        : this.runRegistry.replaceForegroundRun(
+            sessionId,
+            replaceRunId,
+            generationId,
+            resumeCheckpointId,
+            parentRunId,
+          );
+    if (generationId !== undefined) {
+      this.residencyController.markBusy(sessionId, generationId);
+    }
+    return run;
+  }
+
   private requireSession(sessionId: string): SessionHandle {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -7204,6 +7281,52 @@ export class HostRuntime {
    * The legacy local sidecar remains attached under {@link LEGACY_LOCAL_SINK_ID}.
    * Returns an unsubscribe handle.
    */
+  /**
+   * Live foreground session-turns for remote hydration. Narrow projection so
+   * HostServer does not read RunRegistry internals.
+   */
+  listForegroundRuns(): HostForegroundRunSnapshot[] {
+    const snapshots: HostForegroundRunSnapshot[] = [];
+    const seenSessions = new Set<string>();
+    const activeTurns = this.runRegistry.list({
+      kind: 'session-turn',
+      status: ['queued', 'running', 'cancelling'],
+    });
+    for (const candidate of activeTurns) {
+      if (seenSessions.has(candidate.sessionId)) {
+        continue;
+      }
+      const foreground = this.runRegistry.getForegroundRun(candidate.sessionId);
+      if (
+        foreground === undefined ||
+        (foreground.status !== 'queued' &&
+          foreground.status !== 'running' &&
+          foreground.status !== 'cancelling')
+      ) {
+        continue;
+      }
+      seenSessions.add(foreground.sessionId);
+      snapshots.push({
+        sessionId: foreground.sessionId,
+        runId: foreground.runId,
+        status: foreground.status,
+        ...(foreground.phase === undefined ? {} : { phase: foreground.phase }),
+      });
+    }
+    return snapshots;
+  }
+
+  /**
+   * Pending permission request ids for remote hydration. Request identity only.
+   */
+  listPendingPermissionRequests(): HostPendingPermissionSnapshot[] {
+    const snapshots: HostPendingPermissionSnapshot[] = [];
+    for (const [requestId, pending] of this.pendingPermissions) {
+      snapshots.push({ sessionId: pending.sessionId, requestId, action: pending.action });
+    }
+    return snapshots;
+  }
+
   attachPushSink(sink: PushSink): () => void {
     this.pushSinks.set(sink.id, sink);
     return () => {
