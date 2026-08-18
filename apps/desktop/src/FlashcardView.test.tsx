@@ -158,6 +158,59 @@ describe('FlashcardView lifecycle, animation & memory recycling', () => {
     expect(container.textContent).not.toContain('什么是光合作用？');
   });
 
+  it('treats one cloze item as a single physical card, even if FSRS faces are passed in', () => {
+    const clozeC1: FlashcardReviewCard = {
+      cardId: 'card-mito:c1',
+      itemId: 'card-mito',
+      model: 'cloze',
+      ordinal: 1,
+      deck: '生物',
+      front: '线粒体是[…]的能量工厂。',
+      back: '线粒体是**细胞**的能量工厂。',
+      createdAt: '2026-08-18T00:00:00.000Z',
+    };
+    const clozeC2: FlashcardReviewCard = {
+      ...clozeC1,
+      cardId: 'card-mito:c2',
+      ordinal: 2,
+      front: '线粒体是细胞的[…]。',
+      back: '线粒体是细胞的**能量工厂**。',
+    };
+
+    act(() => {
+      root.render(<FlashcardStackView cards={[clozeC1, clozeC2]} locale="zh-CN" />);
+    });
+
+    expect(container.textContent).not.toContain('卡片 (2)');
+    expect(container.querySelectorAll('[data-testid="chat-flashcard"]')).toHaveLength(1);
+  });
+
+  it('preview cards flip without an FSRS rating row', () => {
+    const preview: FlashcardReviewCard = {
+      cardId: 'card-mito',
+      itemId: 'card-mito',
+      model: 'cloze',
+      ordinal: 0,
+      deck: '生物',
+      front: '线粒体是[…]的[…]。',
+      back: '线粒体是**细胞**的**能量工厂**。',
+      createdAt: '2026-08-18T00:00:00.000Z',
+    };
+
+    act(() => {
+      root.render(<FlashcardView card={preview} locale="zh-CN" />);
+    });
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    act(() => {
+      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('线粒体是');
+    expect(container.querySelector('[data-testid="chat-flashcard-rate-section"]')).toBeNull();
+    expect(container.textContent).not.toContain('已记录');
+  });
+
   it('safely cleans up pending animation timer on unmount with zero leaks', () => {
     act(() => {
       root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);

@@ -14,7 +14,7 @@ describe('resolve-conversation-flashcards', () => {
     ).toEqual(['card-f3dc5a95-msy8lzjt']);
   });
 
-  it('expands matching cloze items into review cards', () => {
+  it('projects matching cloze items as one physical display card', () => {
     const item: FlashcardItem = {
       id: 'card-f3dc5a95-msy8lzjt',
       model: 'cloze',
@@ -23,7 +23,7 @@ describe('resolve-conversation-flashcards', () => {
       createdAt: '2026-08-18T05:43:48.281Z',
     };
     const cards = reviewCardsForItemIds([item], ['card-f3dc5a95-msy8lzjt']);
-    expect(cards).toHaveLength(2);
-    expect(cards[0]?.front).toContain('[…]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
   });
 });

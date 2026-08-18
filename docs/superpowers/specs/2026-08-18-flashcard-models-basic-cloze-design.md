@@ -21,7 +21,7 @@ Approved decisions:
 | Decision | Choice |
 |----------|--------|
 | v1 models | `basic` + `cloze` only |
-| Multiplicity | One cloze item → one review card per cloze ordinal |
+| Multiplicity | One cloze item → one physical card in conversation; one FSRS review card per cloze ordinal |
 | Progress identity | Cloze ordinal (`c1`, `c2`). Same ordinal kept across wording edits |
 | Persistence | One content file; cards derived at read time |
 | Marketplace / skins | Out of scope |
@@ -38,7 +38,7 @@ Approved decisions:
 1. Users can study cloze cards generated from notes, folders, or open knowledge.
 2. One cloze passage with `{{c1::}}` / `{{c2::}}` yields independent FSRS states.
 3. Existing `cards/<id>.md` + `review/<id>.json` keep working with no rewrite script.
-4. Desktop flip view, artifact HTML, CLI review, and TSV export all consume the same derived `front` / `back`.
+4. Conversation / artifact preview is one flip card per item (`itemToDisplayCard`). Desktop review queue, CLI review, and TSV export consume per-ordinal `front` / `back`.
 5. Agent tools still do `flashcard_list` → `flashcard_batch_create`; schema grows, path does not.
 
 ### Non-Goals

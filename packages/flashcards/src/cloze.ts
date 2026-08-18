@@ -50,6 +50,33 @@ export function stripClozeMarkers(text: string): string {
   );
 }
 
+/** Hide every cloze hole. One physical card: flip once to see all answers. */
+export function projectClozeCombined(text: string): { front: string; back: string } {
+  const pattern = new RegExp(CLOZE_RE.source, 'g');
+  let front = '';
+  let back = '';
+  let cursor = 0;
+  let match = pattern.exec(text);
+  while (match) {
+    const start = match.index;
+    const answer = (match[2] ?? '').trim();
+    front += text.slice(cursor, start);
+    back += text.slice(cursor, start);
+    if (answer) {
+      front += CLOZE_BLANK;
+      back += `**${answer}**`;
+    } else {
+      front += match[0];
+      back += match[0];
+    }
+    cursor = start + match[0].length;
+    match = pattern.exec(text);
+  }
+  front += text.slice(cursor);
+  back += text.slice(cursor);
+  return { front, back };
+}
+
 export function projectCloze(text: string, ordinal: number): { front: string; back: string } {
   const pattern = new RegExp(CLOZE_RE.source, 'g');
   let front = '';
@@ -81,6 +108,7 @@ export function projectCloze(text: string, ordinal: number): { front: string; ba
 }
 
 export function reviewCardId(itemId: string, ordinal: number, model: FlashcardModel): string {
+  if (model === 'cloze' && ordinal < 1) return itemId;
   return model === 'cloze' ? `${itemId}:c${ordinal}` : itemId;
 }
 
@@ -107,6 +135,57 @@ export function itemPreviewText(item: FlashcardItem): string {
     return stripClozeMarkers(item.text ?? '').trim();
   }
   return (item.front ?? '').trim();
+}
+
+/**
+ * One face-up card per item for chat preview. Cloze keeps a single flip
+ * even when several holes exist; FSRS still uses expandItemToReviewCards.
+ */
+export function itemToDisplayCard(item: FlashcardItem): FlashcardReviewCard | null {
+  if (item.model === 'cloze') {
+    const text = item.text ?? '';
+    if (!isValidClozeText(text)) return null;
+    const projected = projectClozeCombined(text);
+    return toReviewCard(item, 0, projected.front, projected.back);
+  }
+  const front = (item.front ?? '').trim();
+  const back = (item.back ?? '').trim();
+  if (!front || !back) return null;
+  return toReviewCard(item, 1, front, back);
+}
+
+export function displayCardsFromItems(items: readonly FlashcardItem[]): FlashcardReviewCard[] {
+  const cards: FlashcardReviewCard[] = [];
+  for (const item of items) {
+    const display = itemToDisplayCard(item);
+    if (display) cards.push(display);
+  }
+  return cards;
+}
+
+/**
+ * Conversation / artifact: one physical card per item.
+ * If a path still handed us per-ordinal FSRS faces, keep one card per itemId
+ * and prefer the combined preview (ordinal 0).
+ */
+export function collapseToPhysicalCards(
+  cards: readonly FlashcardReviewCard[],
+): FlashcardReviewCard[] {
+  const groups = new Map<string, FlashcardReviewCard[]>();
+  for (const card of cards) {
+    const key = card.itemId || parseReviewCardId(card.cardId).itemId;
+    const group = groups.get(key);
+    if (group) group.push(card);
+    else groups.set(key, [card]);
+  }
+  const physical: FlashcardReviewCard[] = [];
+  for (const group of groups.values()) {
+    const preview = group.find((card) => card.ordinal === 0);
+    const first = group[0];
+    if (preview) physical.push(preview);
+    else if (first) physical.push(first);
+  }
+  return physical;
 }
 
 export function expandItemToReviewCards(item: FlashcardItem): FlashcardReviewCard[] {

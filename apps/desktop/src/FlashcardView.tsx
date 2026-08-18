@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react';
 import type { FlashcardReviewCard } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
+import { collapseToPhysicalCards } from '@piwin/flashcards/cloze';
 import { MarkdownView } from './MarkdownView';
 
 export type FlashcardViewProps = {
@@ -88,7 +89,7 @@ export function FlashcardView({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       handleToggleFlip();
-    } else if (flipped && rated === null) {
+    } else if (flipped && rated === null && card.ordinal > 0) {
       if (e.key === '1') {
         e.preventDefault();
         handleRate('again', isZh ? '忘了' : 'Again');
@@ -203,8 +204,8 @@ export function FlashcardView({
             ) : null}
           </div>
 
-          {/* Rating Section (Minimalist Understated Bar) */}
-          {rated === null ? (
+          {/* Preview cards (ordinal 0) are one physical cloze note — flip only. */}
+          {card.ordinal > 0 && rated === null ? (
             <div
               className="fc-quiet-footer chat-flashcard-rate-section"
               data-testid="chat-flashcard-rate-section"
@@ -245,7 +246,7 @@ export function FlashcardView({
                 </button>
               </div>
             </div>
-          ) : (
+          ) : card.ordinal > 0 ? (
             <div
               className="fc-quiet-footer fc-quiet-rated-bar chat-flashcard-done-badge"
               onClick={(e) => e.stopPropagation()}
@@ -264,7 +265,7 @@ export function FlashcardView({
                 {isZh ? '修改' : 'Change'}
               </button>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -297,7 +298,8 @@ export function FlashcardStackView(props: {
   onAction?: (action: ArtifactActionMessage) => void;
   locale?: 'zh-CN' | 'en' | undefined;
 }): ReactElement {
-  const { cards, onAction, locale = 'zh-CN' } = props;
+  const cards = collapseToPhysicalCards(props.cards);
+  const { onAction, locale = 'zh-CN' } = props;
   const isZh = locale === 'zh-CN';
   const [activeIndex, setActiveIndex] = useState(0);
 

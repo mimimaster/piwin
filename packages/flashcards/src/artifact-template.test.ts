@@ -92,6 +92,22 @@ describe('buildFlashcardArtifactHtml', () => {
     expect(html).toContain("cardId: 'abc:c1'");
     expect(html).toContain('线粒体是[…]的能量工厂。');
   });
+
+  it('preview cards (ordinal 0) flip without FSRS rating', () => {
+    const html = buildFlashcardArtifactHtml(
+      makeCard({
+        cardId: 'abc',
+        itemId: 'abc',
+        model: 'cloze',
+        ordinal: 0,
+        front: '线粒体是[…]的[…]。',
+        back: '线粒体是**细胞**的**能量工厂**。',
+      }),
+    );
+    expect(html).toContain('线粒体是[…]的[…]。');
+    expect(html).not.toContain('class="fc-rate"');
+    expect(html).not.toContain('本次复习掌握程度');
+  });
 });
 
 describe('buildFlashcardBatchArtifactHtml', () => {

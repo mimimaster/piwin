@@ -10,7 +10,7 @@ import type { CardStore } from '@piwin/flashcards';
 import {
   buildFlashcardArtifactHtml,
   buildFlashcardBatchArtifactHtml,
-  expandItemToReviewCards,
+  displayCardsFromItems,
   itemPreviewText,
 } from '@piwin/flashcards';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
@@ -38,7 +38,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_create',
         description:
-          'Create a flashcard item in the user card library. model is "basic" (front/back Q&A, default) or "cloze" (text with {{cN::answer}} markers; each N becomes its own review card). Call flashcard_list first to avoid duplicates. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. The result includes artifactHtml — to show interactive flip cards in chat, output it inside a ```html fence verbatim.',
+          'Create a flashcard item in the user card library. model is "basic" (front/back Q&A, default) or "cloze" (text with {{cN::answer}} markers). Conversation shows one flip card per item; FSRS still schedules each cloze ordinal separately. Call flashcard_list first to avoid duplicates. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. The result includes artifactHtml — to show interactive flip cards in chat, output it inside a ```html fence verbatim.',
         parameters: {
           type: 'object',
           properties: {
@@ -83,11 +83,11 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         if (invalid) return invalidFlashcardInput(invalid);
         try {
           const card = await store.create(input);
-          const reviewCards = expandItemToReviewCards(card);
+          const displayCards = displayCardsFromItems([card]);
           const artifactHtml =
-            reviewCards.length === 1 && reviewCards[0]
-              ? buildFlashcardArtifactHtml(reviewCards[0])
-              : buildFlashcardBatchArtifactHtml(reviewCards);
+            displayCards.length === 1 && displayCards[0]
+              ? buildFlashcardArtifactHtml(displayCards[0])
+              : buildFlashcardBatchArtifactHtml(displayCards);
           return {
             ok: true,
             output: JSON.stringify({ card, artifactHtml }, null, 2),
@@ -144,8 +144,11 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         const cards = args.cards;
         const inputs = cards.map((card) => parseCardInput(card as Record<string, unknown>));
         const result = await store.batchCreate({ cards: inputs }, maxBatchSize);
-        const reviewCards = result.created.flatMap((item) => expandItemToReviewCards(item));
-        const artifactHtml = buildFlashcardBatchArtifactHtml(reviewCards);
+        const displayCards = displayCardsFromItems(result.created);
+        const artifactHtml =
+          displayCards.length === 1 && displayCards[0]
+            ? buildFlashcardArtifactHtml(displayCards[0])
+            : buildFlashcardBatchArtifactHtml(displayCards);
         return {
           ok: true,
           output: JSON.stringify({ ...result, artifactHtml }, null, 2),

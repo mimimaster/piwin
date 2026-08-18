@@ -182,8 +182,10 @@ describe('buildFlashcardTools', () => {
     );
     const created = JSON.parse(createdRaw) as { card: { id: string; model: string }; artifactHtml: string };
     expect(created.card.model).toBe('cloze');
-    expect(created.artifactHtml).toContain("cardId: '" + created.card.id + ":c1'");
-    expect(created.artifactHtml).toContain("cardId: '" + created.card.id + ":c2'");
+    expect(created.artifactHtml).toContain("cardId: '" + created.card.id + "'");
+    expect(created.artifactHtml).not.toContain("cardId: '" + created.card.id + ":c1'");
+    expect(created.artifactHtml).not.toContain("cardId: '" + created.card.id + ":c2'");
+    expect(created.artifactHtml).toContain('[…]');
 
     const listed = JSON.parse(outputOf(await executeTool(list, { deck: 'bio' }))) as Array<{
       id: string;

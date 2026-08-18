@@ -385,6 +385,7 @@ function buildSingleCardHtml(card: FlashcardReviewCard, _index?: number): string
 </div>`
     : '';
 
+  const canRate = card.ordinal > 0;
   return `<div class="piwin-flashcard" data-card-id="${cardId}">
   <div class="fc-card-frame" onclick="fcReveal_${safeId}()">
     <div class="fc-header">
@@ -407,7 +408,7 @@ function buildSingleCardHtml(card: FlashcardReviewCard, _index?: number): string
     ${indicatorHtml ? `<div class="fc-footer">${indicatorHtml}</div>` : ''}
   </div>
   ${popoverHtml}
-  <div class="fc-rate" style="display:none">
+  ${canRate ? `<div class="fc-rate" style="display:none">
     <div class="fc-rate-header">本次复习掌握程度 (FSRS 评分)</div>
     <div class="fc-rate-grid">
       <button type="button" class="fc-rate-btn fc-rate-btn-again" onclick="fcRate_${safeId}('again',this)">
@@ -428,7 +429,7 @@ function buildSingleCardHtml(card: FlashcardReviewCard, _index?: number): string
       </button>
     </div>
   </div>
-  <div class="fc-done" style="display:none"></div>
+  <div class="fc-done" style="display:none"></div>` : ''}
 </div>
 <script>
 function fcReveal_${safeId}() {

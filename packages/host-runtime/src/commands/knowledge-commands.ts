@@ -10,8 +10,9 @@ import { join } from 'node:path';
 import type { HostCommand, HostResponse, PiwinConfig } from '@piwin/contracts';
 import {
   buildReviewQueue,
+  buildFlashcardArtifactHtml,
   buildFlashcardBatchArtifactHtml,
-  expandItemToReviewCards,
+  displayCardsFromItems,
   exportCardsToTsv,
   parseReviewCardId,
   type CardStore,
@@ -204,9 +205,11 @@ export async function handleKnowledgeCommand(
       const config = await context.loadConfig();
       const maxBatchSize = config.flashcards?.maxBatchSize ?? 40;
       const result = await store.batchCreate(command.input, maxBatchSize);
-      const artifactHtml = buildFlashcardBatchArtifactHtml(
-        result.created.flatMap((item) => expandItemToReviewCards(item)),
-      );
+      const displayCards = displayCardsFromItems(result.created);
+      const artifactHtml =
+        displayCards.length === 1 && displayCards[0]
+          ? buildFlashcardArtifactHtml(displayCards[0])
+          : buildFlashcardBatchArtifactHtml(displayCards);
       return ok(requestId, 'flashcards/batch-create', { ...result, artifactHtml });
     }
     case 'flashcards/delete': {

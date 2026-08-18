@@ -340,9 +340,9 @@ describe('ConversationResponseContent', () => {
     };
 
     const cards = extractFlashcardRecords(toolMessage);
-    expect(cards).toHaveLength(2);
-    expect(cards[0]?.front).toContain('[…]');
-    expect(cards[1]?.front).toContain('[…]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.ordinal).toBe(0);
+    expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
 
     const hoisted = collectFlashcardToolsFromMessages([toolMessage, summaryMessage]);
     expect(hoisted).toHaveLength(1);
