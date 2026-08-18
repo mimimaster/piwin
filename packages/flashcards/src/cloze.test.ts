@@ -8,6 +8,10 @@ import {
   listClozeOrdinals,
   parseReviewCardId,
   projectCloze,
+  projectClozeCombined,
+  itemToDisplayCard,
+  displayCardsFromItems,
+  collapseToPhysicalCards,
   reviewCardId,
   reviewStateFileName,
   stripClozeMarkers,
@@ -53,6 +57,13 @@ describe('cloze parse', () => {
 });
 
 describe('cloze projection', () => {
+  it('combined projection hides every hole on one physical card', () => {
+    expect(projectClozeCombined(GOLDEN)).toEqual({
+      front: `线粒体是${CLOZE_BLANK}的${CLOZE_BLANK}。`,
+      back: '线粒体是**细胞**的**能量工厂**。',
+    });
+  });
+
   it('hides only the current ordinal (Anki default)', () => {
     expect(projectCloze(GOLDEN, 1)).toEqual({
       front: `线粒体是${CLOZE_BLANK}的能量工厂。`,
@@ -71,6 +82,22 @@ describe('cloze projection', () => {
       back: '**foo** plus **bar**',
     });
     expect(expandItemToReviewCards(clozeItem(text))).toHaveLength(1);
+    const display = itemToDisplayCard(clozeItem(GOLDEN));
+    expect(display?.cardId).toBe('abc');
+    expect(display?.ordinal).toBe(0);
+    expect(display?.front).toBe(`线粒体是${CLOZE_BLANK}的${CLOZE_BLANK}。`);
+    expect(displayCardsFromItems([clozeItem(GOLDEN)])).toHaveLength(1);
+  });
+
+  it('collapses per-ordinal review faces of one item into one physical card', () => {
+    const expanded = expandItemToReviewCards(clozeItem(GOLDEN));
+    expect(expanded).toHaveLength(2);
+    const collapsed = collapseToPhysicalCards(expanded);
+    expect(collapsed).toHaveLength(1);
+    expect(collapsed[0]?.itemId).toBe('abc');
+    const preview = itemToDisplayCard(clozeItem(GOLDEN));
+    expect(preview).not.toBeNull();
+    expect(collapseToPhysicalCards([...expanded, preview!])).toEqual([preview]);
   });
 });
 

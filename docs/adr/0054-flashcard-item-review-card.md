@@ -20,7 +20,9 @@ ADR 0018 stored one markdown file per FSRS review unit (`front` / `back`). Cloze
 
 Old files without `model` decode as `basic`. No rewrite migration.
 
+6. **Conversation shows the physical card.** Chat / artifact preview uses `itemToDisplayCard` (cloze hides every hole, one flip reveals all answers). `FlashcardStackView` pager is for *different items*, not cloze ordinals. FSRS queue still expands `c1`/`c2` independently.
+
 ## Consequences
 
-- Generation tools write items; queue / rate / artifact / export consume review cards.
+- Generation tools write items; queue / rate / export consume review cards; conversation / artifact consume one display card per item.
 - v1 models are only `basic` and `cloze`. Marketplace skins and extra models are out of scope.

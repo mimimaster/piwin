@@ -20,7 +20,7 @@ import {
   renderFlashcardBatchHtml,
 } from './flashcard-artifact';
 import type { FlashcardItem, FlashcardReviewCard } from '@piwin/contracts';
-import { expandItemToReviewCards } from '@piwin/flashcards/cloze';
+import { collapseToPhysicalCards, itemToDisplayCard } from '@piwin/flashcards/cloze';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardStackView } from './FlashcardView';
 import { MarkdownView } from './MarkdownView';
@@ -146,7 +146,10 @@ function parseCandidateForCards(candidate: unknown): FlashcardReviewCard[] {
     }
   }
   if (items.length > 0) {
-    return items.flatMap((item) => expandItemToReviewCards(item));
+    return items.flatMap((item) => {
+      const display = itemToDisplayCard(item);
+      return display ? [display] : [];
+    });
   }
   if (typeof obj.text === 'string' && obj.text.trim().length > 0) {
     return parseCandidateForCards(obj.text);
@@ -184,31 +187,29 @@ export function extractFlashcardRecords(
         const args = rawArgs as Record<string, unknown>;
         const inner = (args.arguments && typeof args.arguments === 'object' ? args.arguments : args) as Record<string, unknown>;
         if (inner.model === 'cloze' && typeof inner.text === 'string' && inner.text.trim()) {
-          cards.push(
-            ...expandItemToReviewCards({
-              id: `card-${tool.toolCallId}`,
-              model: 'cloze',
-              text: inner.text,
-              deck: typeof inner.deck === 'string' ? inner.deck : 'default',
-              createdAt: new Date().toISOString(),
-            }),
-          );
+          const display = itemToDisplayCard({
+            id: `card-${tool.toolCallId}`,
+            model: 'cloze',
+            text: inner.text,
+            deck: typeof inner.deck === 'string' ? inner.deck : 'default',
+            createdAt: new Date().toISOString(),
+          });
+          if (display) cards.push(display);
         } else if (typeof inner.front === 'string' && typeof inner.back === 'string' && inner.front.trim().length > 0) {
-          cards.push(
-            ...expandItemToReviewCards({
-              id: `card-${tool.toolCallId}`,
-              model: 'basic',
-              front: inner.front,
-              back: inner.back,
-              deck: typeof inner.deck === 'string' ? inner.deck : 'default',
-              createdAt: new Date().toISOString(),
-            }),
-          );
+          const display = itemToDisplayCard({
+            id: `card-${tool.toolCallId}`,
+            model: 'basic',
+            front: inner.front,
+            back: inner.back,
+            deck: typeof inner.deck === 'string' ? inner.deck : 'default',
+            createdAt: new Date().toISOString(),
+          });
+          if (display) cards.push(display);
         }
       }
     }
   }
-  return cards;
+  return collapseToPhysicalCards(cards);
 }
 
 /**

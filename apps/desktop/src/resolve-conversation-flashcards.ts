@@ -1,5 +1,5 @@
 import type { FlashcardItem, FlashcardReviewCard } from '@piwin/contracts';
-import { expandItemToReviewCards } from '@piwin/flashcards/cloze';
+import { collapseToPhysicalCards, itemToDisplayCard } from '@piwin/flashcards/cloze';
 
 const CARD_ID_RE = /card-[a-zA-Z0-9-]+/g;
 
@@ -15,7 +15,8 @@ export function reviewCardsForItemIds(
   const cards: FlashcardReviewCard[] = [];
   for (const item of items) {
     if (!wanted.has(item.id)) continue;
-    cards.push(...expandItemToReviewCards(item));
+    const display = itemToDisplayCard(item);
+    if (display) cards.push(display);
   }
-  return cards;
+  return collapseToPhysicalCards(cards);
 }
