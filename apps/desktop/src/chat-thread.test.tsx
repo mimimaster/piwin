@@ -1899,7 +1899,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(assistant.tools).toHaveLength(1);
   });
 
-  it('hides thinking-only historical rows but keeps generation progress', () => {
+  it('renders thinking in conversation mode and keeps generation progress', () => {
     const userMessage = createUserMessage('u-legacy', 'draw something');
     const thinkingOnly: ChatMessageUi = {
       id: 'a-legacy-think',
@@ -1921,7 +1921,8 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     };
     renderConversation([userMessage, thinkingOnly, generated]);
 
-    expect(container.querySelector('#msg-a-legacy-think')).toBeNull();
+    expect(container.querySelector('#msg-a-legacy-think')).not.toBeNull();
+    expect(container.querySelector('#msg-a-legacy-think [data-testid="conversation-thinking-summary"]')).not.toBeNull();
     expect(container.querySelector('#msg-a-legacy-image')).not.toBeNull();
     expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
     expect(thinkingOnly.tools).toHaveLength(1);
@@ -1935,5 +1936,200 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     );
     expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
+  });
+
+  it('shows flip cards on the visible Conversation reply after a cloze batch-create', () => {
+    const output = JSON.stringify({
+      created: [
+        {
+          id: 'card-f3dc5a95-msy8lzjt',
+          model: 'cloze',
+          deck: 'default',
+          text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+          createdAt: '2026-08-18T05:43:48.281Z',
+        },
+      ],
+      skipped: [],
+    });
+    renderConversation([
+      createUserMessage('u-cloze', '给我做挖空闪卡'),
+      {
+        id: 'a-think',
+        role: 'assistant',
+        text: '',
+        thinking: 'planning',
+        tools: [],
+        attachments: [],
+        status: 'done',
+      },
+      {
+        id: 'a-tool',
+        role: 'assistant',
+        text: '',
+        thinking: 'creating cards',
+        tools: [
+          {
+            toolCallId: 'tc-batch',
+            toolName: 'piwin_toolbox',
+            status: 'done',
+            output,
+            presentation: {
+              kind: 'other',
+              title: 'flashcard_batch_create',
+              routedToolName: 'flashcard_batch_create',
+              output: { text: output, truncated: false },
+            },
+          },
+        ],
+        attachments: [],
+        status: 'done',
+      },
+      {
+        id: 'a-summary',
+        role: 'assistant',
+        text: '已用一次 flashcard_batch_create 创建挖空闪卡',
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'done',
+      },
+    ]);
+
+    const summary = container.querySelector('#msg-a-summary');
+    expect(summary).not.toBeNull();
+    expect(summary?.querySelector('[data-testid="conversation-extracted-flashcard"]')).not.toBeNull();
+    expect(summary?.querySelector('[data-testid="chat-flashcard"]')).not.toBeNull();
+    expect(summary?.textContent).toContain('[…]');
+    expect(container.querySelector('#msg-a-tool [data-testid="conversation-extracted-flashcard"]')).toBeNull();
+  });
+
+  it('renders conversation assistant header with model snapshot and provider icon', () => {
+    const userMessage = createUserMessage('u-1', 'hello');
+    const assistant: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: 'Hello world!',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-18T14:15:00.000Z',
+      model: {
+        protocol: 'anthropic-compatible',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4',
+      },
+    };
+    renderConversation([userMessage, assistant]);
+
+    const header = container.querySelector('[data-testid="conversation-message-header"]');
+    expect(header).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-message-model-name"]')?.textContent).toBe(
+      'claude-sonnet-4',
+    );
+  });
+
+  it('renders turn usage chip only on the latest completed assistant message', () => {
+    const u1 = createUserMessage('u-1', 'first');
+    const a1: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: 'first reply',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'anthropic-compatible', providerId: 'anthropic', modelId: 'claude-sonnet-4' },
+    };
+    const u2 = createUserMessage('u-2', 'second');
+    const a2: ChatMessageUi = {
+      id: 'a-2',
+      role: 'assistant',
+      text: 'second reply',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'anthropic-compatible', providerId: 'anthropic', modelId: 'claude-sonnet-4' },
+    };
+
+    renderConversation([u1, a1, u2, a2], {
+      contextUsage: {
+        sessionId: 'session-1',
+        updatedAt: '2026-08-18T00:00:00.000Z',
+        source: 'assistant-usage',
+        promptTokens: 1200,
+        completionTokens: 486,
+        totalTokens: 1686,
+        durationMs: 450,
+      },
+    });
+
+    // Older assistant message has no usage chip
+    const a1Row = container.querySelector('#msg-a-1');
+    expect(a1Row?.querySelector('[data-testid="conversation-message-usage-chip"]')).toBeNull();
+
+    // Latest assistant message has usage chip
+    const a2Row = container.querySelector('#msg-a-2');
+    const chip = a2Row?.querySelector('[data-testid="conversation-message-usage-chip"]');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe('1.2K → 486');
+  });
+
+  it('renders user message with conversation bubble class and avatar monogram in Conversation mode', () => {
+    const userMessage = createUserMessage('u-conv', 'user prompt');
+    renderConversation([userMessage], { locale: 'zh-CN' });
+
+    const userBubble = container.querySelector('#msg-u-conv');
+    expect(userBubble?.classList.contains('is-conversation-bubble')).toBe(true);
+
+    const avatar = userBubble?.querySelector('[data-testid="user-message-avatar"]');
+    expect(avatar).not.toBeNull();
+    expect(avatar?.textContent).toBe('我');
+  });
+
+  it('provides regenerate button on latest assistant response that retries preceding user message', () => {
+    const onRetry = vi.fn();
+    const u1 = createUserMessage('u-1', 'hello to retry');
+    const a1: ChatMessageUi = {
+      id: 'a-1',
+      role: 'assistant',
+      text: 'answer to regenerate',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+
+    renderConversation([u1, a1], { onRetry });
+
+    const regenerateBtn = container.querySelector('[data-testid="response-regenerate-btn"]') as HTMLButtonElement | null;
+    expect(regenerateBtn).not.toBeNull();
+
+    act(() => {
+      regenerateBtn?.click();
+    });
+
+    expect(onRetry).toHaveBeenCalledWith('u-1');
+  });
+
+  it('does NOT render conversation header in project mode and keeps TurnWorkDetails', () => {
+    const userMessage = createUserMessage('u-proj', 'project work');
+    const assistant: ChatMessageUi = {
+      id: 'a-proj',
+      role: 'assistant',
+      text: 'project answer',
+      thinking: 'some reasoning',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+
+    renderConversation([userMessage, assistant], {
+      isConversationSession: false,
+    });
+
+    expect(container.querySelector('[data-testid="conversation-message-header"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-work-details"]')).not.toBeNull();
   });
 });

@@ -315,7 +315,10 @@ export const ChatMessageRow = memo(
             <ConversationResponseContent
               message={message}
               renderExtractedFlashcards={
-                props.isConversationSession !== true || props.isLastAssistantInTurn === true
+                props.isConversationSession !== true ||
+                props.isLastAssistantInTurn === true ||
+                !props.turnFlashcardTools ||
+                props.turnFlashcardTools.length === 0
               }
               {...(props.isLastAssistantInTurn === true &&
               props.turnFlashcardTools &&
