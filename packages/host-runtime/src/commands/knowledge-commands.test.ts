@@ -45,6 +45,7 @@ function createCardContext(store: Pick<CardStore, 'read'>): KnowledgeCommandCont
 function folderCard(overrides: Partial<FlashcardRecord> & Pick<FlashcardRecord, 'sourceFolder' | 'sourceFile'>): FlashcardRecord {
   return {
     id: 'c1',
+    model: 'basic',
     deck: 'docs',
     front: 'q',
     back: 'a',

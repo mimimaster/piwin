@@ -4,9 +4,10 @@
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
-import type { FlashcardRecord, HostResponse, ReviewRating } from '@piwin/contracts';
+import type { FlashcardItem, FlashcardReviewCard, HostResponse, ReviewRating } from '@piwin/contracts';
 import type { DocCardSequenceView as DocCardSequencePointer } from '@piwin/contracts';
 import { buildDocCardSurface } from '@piwin/contracts';
+import { expandItemToReviewCards } from '@piwin/flashcards';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type DocCardSequenceRequest = (command: {
@@ -22,20 +23,21 @@ export type DocCardSequenceViewProps = {
 };
 
 export function sortSequenceCards(
-  cards: FlashcardRecord[],
+  cards: FlashcardItem[],
   snapshotIds: string[],
-): FlashcardRecord[] {
+): FlashcardReviewCard[] {
   const allowed = new Set(snapshotIds);
   return cards
     .filter((card) => allowed.has(card.id))
-    .sort((left, right) => (left.position ?? 0) - (right.position ?? 0));
+    .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))
+    .flatMap((card) => expandItemToReviewCards(card));
 }
 
 export function DocCardSequenceView(props: DocCardSequenceViewProps): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
   const t = (en: string, zh: string) => (isZh ? zh : en);
-  const [cards, setCards] = useState<FlashcardRecord[]>([]);
+  const [cards, setCards] = useState<FlashcardReviewCard[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
@@ -48,7 +50,7 @@ export function DocCardSequenceView(props: DocCardSequenceViewProps): ReactEleme
       setCards([]);
       return;
     }
-    const records = ((response.data as { cards?: FlashcardRecord[] })?.cards ?? []).filter(
+    const records = ((response.data as { cards?: FlashcardItem[] })?.cards ?? []).filter(
       (card) => typeof card.id === 'string',
     );
     setCards(sortSequenceCards(records, props.sequence.cardIds));

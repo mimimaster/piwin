@@ -1,11 +1,12 @@
 import { useState, type ReactElement } from 'react';
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardItem } from '@piwin/contracts';
+import { itemPreviewText } from '@piwin/flashcards';
 import { formatCardMarkdown, copyToClipboard } from './knowledge-export';
 
 export type DocCardItemProps = {
-  card: FlashcardRecord;
+  card: FlashcardItem;
   onOpenSource?: ((cardId: string) => void) | undefined;
-  onSendToChat?: ((card: FlashcardRecord) => void) | undefined;
+  onSendToChat?: ((card: FlashcardItem) => void) | undefined;
   onToast?: ((msg: string) => void) | undefined;
 };
 
@@ -41,7 +42,7 @@ export function DocCardItem({ card, onOpenSource, onSendToChat, onToast }: DocCa
           setFlipped((prev) => !prev);
         }
       }}
-      aria-label={`${flipped ? 'Back' : 'Front'}: ${card.front}`}
+      aria-label={`${flipped ? 'Back' : 'Front'}: ${itemPreviewText(card)}`}
     >
       <div className="doc-card-item-inner">
         <header className="doc-card-item-header">
@@ -77,12 +78,12 @@ export function DocCardItem({ card, onOpenSource, onSendToChat, onToast }: DocCa
           {!flipped ? (
             <div className="doc-card-item-front">
               <span className="doc-card-side-label">Q</span>
-              <p className="doc-card-text">{card.front}</p>
+              <p className="doc-card-text">{itemPreviewText(card)}</p>
             </div>
           ) : (
             <div className="doc-card-item-back">
               <span className="doc-card-side-label doc-card-side-answer">A</span>
-              <p className="doc-card-text">{card.back}</p>
+              <p className="doc-card-text">{card.back ?? card.text ?? ''}</p>
             </div>
           )}
         </div>

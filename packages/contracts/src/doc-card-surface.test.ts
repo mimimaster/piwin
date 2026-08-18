@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { FlashcardRecord } from './flashcards.js';
+import type { FlashcardReviewCard } from './flashcards.js';
 import { buildDocCardSurface } from './doc-card-surface.js';
 
-function card(overrides: Partial<FlashcardRecord>): FlashcardRecord {
+function card(overrides: Partial<FlashcardReviewCard>): FlashcardReviewCard {
   return {
-    id: 'card-1',
+    cardId: 'card-1',
+    itemId: 'card-1',
+    model: 'basic',
+    ordinal: 1,
     deck: 'Notes',
     front: 'What is SRS?',
     back: 'A review schedule.',
@@ -18,9 +21,20 @@ describe('buildDocCardSurface', () => {
     const surface = buildDocCardSurface({
       workspaceName: 'Notes',
       cards: [
-        card({ id: 'a', sourceFile: 'srs.md', sourceLine: 3, sourceFolder: '/docs' }),
-        card({ id: 'skip', front: '   ' }),
-        card({ id: 'b', front: 'Why space reviews?', back: 'Why space reviews?'.replace('Why', 'To') }),
+        card({
+          cardId: 'a',
+          itemId: 'a',
+          sourceFile: 'srs.md',
+          sourceLine: 3,
+          sourceFolder: '/docs',
+        }),
+        card({ cardId: 'skip', itemId: 'skip', front: '   ' }),
+        card({
+          cardId: 'b',
+          itemId: 'b',
+          front: 'Why space reviews?',
+          back: 'Why space reviews?'.replace('Why', 'To'),
+        }),
       ],
     });
     expect(surface.cards).toHaveLength(2);

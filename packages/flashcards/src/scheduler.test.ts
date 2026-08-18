@@ -55,8 +55,21 @@ describe('scheduler (FSRS)', () => {
   });
 });
 
-function makeCard(id: string, deck = 'default', createdAt = '2026-01-01T00:00:00.000Z'): FlashcardRecord {
-  return { id, deck, front: `front ${id}`, back: `back ${id}`, createdAt };
+function makeCard(
+  id: string,
+  deck = 'default',
+  createdAt = '2026-01-01T00:00:00.000Z',
+): import('@piwin/contracts').FlashcardReviewCard {
+  return {
+    cardId: id,
+    itemId: id,
+    model: 'basic',
+    ordinal: 1,
+    deck,
+    front: `front ${id}`,
+    back: `back ${id}`,
+    createdAt,
+  };
 }
 
 describe('buildReviewQueue', () => {
@@ -69,7 +82,7 @@ describe('buildReviewQueue', () => {
       ['due2', { cardId: 'due2', due: '2026-07-20T00:00:00.000Z', stability: 1, difficulty: 5, reps: 3, lapses: 0 }],
     ]);
     const queue = buildReviewQueue({ cards, states, now: NOW, newPerDay: 1 });
-    expect(queue.map((item) => item.card.id)).toEqual(['due2', 'due1', 'new1']);
+    expect(queue.map((item) => item.card.cardId)).toEqual(['due2', 'due1', 'new1']);
     expect(queue[0]?.isNew).toBe(false);
     expect(queue[2]?.isNew).toBe(true);
   });
@@ -82,8 +95,32 @@ describe('buildReviewQueue', () => {
       ['future', { cardId: 'future', due: '2030-01-01T00:00:00.000Z', stability: 9, difficulty: 5, reps: 5, lapses: 0 }],
     ]);
     const queue = buildReviewQueue({ cards, states, now: NOW, deck: 'x' });
-    expect(queue.map((item) => item.card.id)).toEqual(['a']);
+    expect(queue.map((item) => item.card.cardId)).toEqual(['a']);
     expect(buildReviewQueue({ cards, states, now: NOW, maxReviewsPerDay: 1 })).toHaveLength(1);
+  });
+
+  it('counts each cloze ordinal as its own new card', () => {
+    const cards = [
+      {
+        ...makeCard('abc:c1'),
+        itemId: 'abc',
+        model: 'cloze' as const,
+        ordinal: 1,
+      },
+      {
+        ...makeCard('abc:c2'),
+        itemId: 'abc',
+        model: 'cloze' as const,
+        ordinal: 2,
+      },
+    ];
+    const states = new Map<string, ReviewState>([
+      ['abc:c1', createInitialReviewState('abc:c1', NOW)],
+      ['abc:c2', createInitialReviewState('abc:c2', NOW)],
+    ]);
+    const queue = buildReviewQueue({ cards, states, now: NOW, newPerDay: 2 });
+    expect(queue.map((item) => item.card.cardId)).toEqual(['abc:c1', 'abc:c2']);
+    expect(buildReviewQueue({ cards, states, now: NOW, newPerDay: 1 })).toHaveLength(1);
   });
 });
 
@@ -109,6 +146,7 @@ describe('card codec', () => {
   it('round-trips a full card including CJK and source excerpt', () => {
     const card: FlashcardRecord = {
       id: 'card-abc',
+      model: 'basic',
       deck: 'srs',
       front: '什么是 FSRS？',
       back: '一种间隔重复调度算法。\n多行内容。',
@@ -147,5 +185,30 @@ describe('anki export', () => {
 
   it('empty input produces empty string', () => {
     expect(exportCardsToTsv([])).toBe('');
+  });
+
+  it('exports one TSV row per cloze review card', () => {
+    const tsv = exportCardsToTsv([
+      {
+        ...makeCard('abc:c1'),
+        itemId: 'abc',
+        model: 'cloze',
+        ordinal: 1,
+        front: '线粒体是[…]的能量工厂。',
+        back: '线粒体是**细胞**的能量工厂。',
+      },
+      {
+        ...makeCard('abc:c2'),
+        itemId: 'abc',
+        model: 'cloze',
+        ordinal: 2,
+        front: '线粒体是细胞的[…]。',
+        back: '线粒体是细胞的**能量工厂**。',
+      },
+    ]);
+    const dataLines = tsv.split('\n').filter((line) => line && !line.startsWith('#'));
+    expect(dataLines).toHaveLength(2);
+    expect(dataLines[0]).toContain('线粒体是[…]的能量工厂。');
+    expect(dataLines[1]).toContain('线粒体是细胞的[…]。');
   });
 });

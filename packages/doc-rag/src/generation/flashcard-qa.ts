@@ -16,9 +16,16 @@ export function qaGeneratedFlashcards(input: {
   const accepted: GeneratedFlashcard[] = [];
   for (const card of input.cards) {
     if (accepted.length >= (input.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE)) break;
-    if (!card.front.trim() || !card.back.trim()) continue;
-    if (card.front.trim().toLowerCase() === card.back.trim().toLowerCase()) continue;
-    if (seenFronts.some((front) => normalize(front) === normalize(card.front))) continue;
+    const preview = card.model === 'cloze' ? (card.text ?? '') : (card.front ?? '');
+    if (card.model === 'cloze') {
+      if (!preview.trim() || !/\{\{c\d+::.+\}\}/.test(preview)) continue;
+    } else {
+      const front = (card.front ?? '').trim();
+      const back = (card.back ?? '').trim();
+      if (!front || !back) continue;
+      if (front.toLowerCase() === back.toLowerCase()) continue;
+    }
+    if (seenFronts.some((front) => normalize(front) === normalize(preview))) continue;
     const knowledgePointIds = card.knowledgePointIds.filter((id) => kpById.has(id));
     const allowed = new Set(
       knowledgePointIds.flatMap((id) => kpById.get(id)?.sourceChunkIds ?? []),
@@ -27,7 +34,7 @@ export function qaGeneratedFlashcards(input: {
       (id) => packIds.has(id) && (allowed.size === 0 || allowed.has(id)),
     );
     if (sourceChunkIds.length === 0) continue;
-    seenFronts.push(card.front);
+    seenFronts.push(preview);
     const next: GeneratedFlashcard = {
       ...card,
       knowledgePointIds,

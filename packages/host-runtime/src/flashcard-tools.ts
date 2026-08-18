@@ -7,7 +7,12 @@
  */
 import type { FlashcardCreateInput, HostToolRegistration, ToolResult } from '@piwin/contracts';
 import type { CardStore } from '@piwin/flashcards';
-import { buildFlashcardArtifactHtml, buildFlashcardBatchArtifactHtml } from '@piwin/flashcards';
+import {
+  buildFlashcardArtifactHtml,
+  buildFlashcardBatchArtifactHtml,
+  expandItemToReviewCards,
+  itemPreviewText,
+} from '@piwin/flashcards';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
 
 export type BuildFlashcardToolsOptions = {
@@ -33,12 +38,21 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_create',
         description:
-          'Create a flashcard in the user card library. Call flashcard_list first for the target deck and avoid duplicating existing fronts. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. The result includes artifactHtml — to show an interactive flip card in chat, output it inside a ```html fence verbatim.',
+          'Create a flashcard item in the user card library. model is "basic" (front/back Q&A, default) or "cloze" (text with {{cN::answer}} markers; each N becomes its own review card). Call flashcard_list first to avoid duplicates. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. The result includes artifactHtml — to show interactive flip cards in chat, output it inside a ```html fence verbatim.',
         parameters: {
           type: 'object',
           properties: {
-            front: { type: 'string', description: 'Question side (markdown)' },
-            back: { type: 'string', description: 'Answer side (markdown)' },
+            model: {
+              type: 'string',
+              enum: ['basic', 'cloze'],
+              description: 'basic = front/back. cloze = text with {{cN::answer}} markers.',
+            },
+            front: { type: 'string', description: 'Question side (markdown). Required for basic.' },
+            back: { type: 'string', description: 'Answer side (markdown). Required for basic.' },
+            text: {
+              type: 'string',
+              description: 'Cloze passage with {{c1::answer}} markers. Required for cloze.',
+            },
             deck: { type: 'string', description: 'Deck name, default "default"' },
             sourceNoteId: { type: 'string' },
             sourceExcerpt: { type: 'string', description: 'Short snapshot of the source passage' },
@@ -53,7 +67,6 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
             sourceLine: { type: 'number', description: '1-based line number of the excerpt start' },
             tags: { type: 'array', items: { type: 'string' } },
           },
-          required: ['front', 'back'],
         },
       },
       family: 'flashcards-write',
@@ -66,22 +79,30 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       prepareArgs: passThroughPrepareArgs,
       async execute(args) {
         const input = parseCardInput(args);
-        if (!input.front.trim() || !input.back.trim()) {
-          return invalidFlashcardInput('front and back are required');
+        const invalid = validateCreateInput(input);
+        if (invalid) return invalidFlashcardInput(invalid);
+        try {
+          const card = await store.create(input);
+          const reviewCards = expandItemToReviewCards(card);
+          const artifactHtml =
+            reviewCards.length === 1 && reviewCards[0]
+              ? buildFlashcardArtifactHtml(reviewCards[0])
+              : buildFlashcardBatchArtifactHtml(reviewCards);
+          return {
+            ok: true,
+            output: JSON.stringify({ card, artifactHtml }, null, 2),
+            details: { cardId: card.id },
+          };
+        } catch (error) {
+          return invalidFlashcardInput(error instanceof Error ? error.message : String(error));
         }
-        const card = await store.create(input);
-        return {
-          ok: true,
-          output: JSON.stringify({ card, artifactHtml: buildFlashcardArtifactHtml(card) }, null, 2),
-          details: { cardId: card.id },
-        };
       },
     },
     {
       descriptor: {
         name: 'flashcard_batch_create',
         description:
-          'Create multiple flashcards in one call (preferred for batch generation). Call flashcard_list first to avoid duplicates. Each card may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, artifactHtml } — output artifactHtml inside a ```html fence verbatim to show interactive flip cards. Duplicates are skipped (not fatal).',
+          'Create multiple flashcard items in one call (preferred for batch generation). Each item may be model "basic" (front/back) or "cloze" (text with {{cN::answer}}). Call flashcard_list first to avoid duplicates. Each item may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, artifactHtml } — output artifactHtml inside a ```html fence verbatim to show interactive flip cards. Duplicates are skipped (not fatal).',
         parameters: {
           type: 'object',
           properties: {
@@ -90,8 +111,10 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
               items: {
                 type: 'object',
                 properties: {
+                  model: { type: 'string', enum: ['basic', 'cloze'] },
                   front: { type: 'string' },
                   back: { type: 'string' },
+                  text: { type: 'string' },
                   deck: { type: 'string' },
                   sourceNoteId: { type: 'string' },
                   sourceExcerpt: { type: 'string' },
@@ -100,7 +123,6 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
                   sourceLine: { type: 'number' },
                   tags: { type: 'array', items: { type: 'string' } },
                 },
-                required: ['front', 'back'],
               },
             },
           },
@@ -120,12 +142,10 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
           return invalidFlashcardInput('cards must be a non-empty array');
         }
         const cards = args.cards;
-        const inputs = cards.map((card) => parseCardInput(card));
-        if (inputs.some((input) => !input.front.trim() || !input.back.trim())) {
-          return invalidFlashcardInput('each card requires front and back');
-        }
+        const inputs = cards.map((card) => parseCardInput(card as Record<string, unknown>));
         const result = await store.batchCreate({ cards: inputs }, maxBatchSize);
-        const artifactHtml = buildFlashcardBatchArtifactHtml(result.created);
+        const reviewCards = result.created.flatMap((item) => expandItemToReviewCards(item));
+        const artifactHtml = buildFlashcardBatchArtifactHtml(reviewCards);
         return {
           ok: true,
           output: JSON.stringify({ ...result, artifactHtml }, null, 2),
@@ -137,7 +157,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_list',
         description:
-          'List flashcards (id, deck, front, sourceNoteId, sourceFolder). Use before flashcard_create or flashcard_batch_create to avoid duplicates.',
+          'List flashcard items (id, model, deck, preview, sourceNoteId, sourceFolder). Preview is the basic front or cloze text with markers stripped. Cloze items are not exploded into per-blank rows. Use before flashcard_create or flashcard_batch_create to avoid duplicates.',
         parameters: {
           type: 'object',
           properties: {
@@ -169,8 +189,9 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
           output: JSON.stringify(
             cards.map((card) => ({
               id: card.id,
+              model: card.model,
               deck: card.deck,
-              front: card.front,
+              front: itemPreviewText(card),
               sourceNoteId: card.sourceNoteId,
               sourceFolder: card.sourceFolder,
             })),
@@ -226,11 +247,22 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
   return tools;
 }
 
+function validateCreateInput(input: FlashcardCreateInput): string | null {
+  if (input.model === 'cloze') {
+    return (input.text ?? '').trim() ? null : 'cloze items require text with {{cN::answer}} markers';
+  }
+  if (!(input.front ?? '').trim() || !(input.back ?? '').trim()) {
+    return 'basic items require front and back';
+  }
+  return null;
+}
+
 function parseCardInput(args: Record<string, unknown>): FlashcardCreateInput {
-  const input: FlashcardCreateInput = {
-    front: String(args.front ?? ''),
-    back: String(args.back ?? ''),
-  };
+  const input: FlashcardCreateInput = {};
+  if (args.model === 'cloze' || args.model === 'basic') input.model = args.model;
+  if (typeof args.front === 'string') input.front = args.front;
+  if (typeof args.back === 'string') input.back = args.back;
+  if (typeof args.text === 'string') input.text = args.text;
   if (typeof args.deck === 'string' && args.deck) input.deck = args.deck;
   if (typeof args.sourceNoteId === 'string' && args.sourceNoteId) {
     input.sourceNoteId = args.sourceNoteId;

@@ -1,4 +1,4 @@
-import type { FlashcardRecord } from './flashcards.js';
+import type { FlashcardReviewCard } from './flashcards.js';
 
 /** Fixed visual slots for one Doc Card. Skin may change; these fields may not. */
 export type DocCardSurfaceCard = {
@@ -19,14 +19,14 @@ export type DocCardSurfaceModel = {
 
 export function buildDocCardSurface(input: {
   workspaceName: string;
-  cards: FlashcardRecord[];
+  cards: FlashcardReviewCard[];
 }): DocCardSurfaceModel {
   const cards: DocCardSurfaceCard[] = [];
   for (const card of input.cards) {
     if (!card.front.trim()) continue;
     const sourceLabel = formatSourceLabel(card);
     cards.push({
-      id: card.id,
+      id: card.cardId,
       workspaceName: input.workspaceName,
       position: cards.length + 1,
       total: 0,
@@ -42,7 +42,7 @@ export function buildDocCardSurface(input: {
   };
 }
 
-function formatSourceLabel(card: FlashcardRecord): string | undefined {
+function formatSourceLabel(card: FlashcardReviewCard): string | undefined {
   if (!card.sourceFile) return undefined;
   return typeof card.sourceLine === 'number' ? `${card.sourceFile}:${card.sourceLine}` : card.sourceFile;
 }

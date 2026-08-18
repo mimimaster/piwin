@@ -25,12 +25,19 @@ export function parseDraftCardsJson(raw: string): GeneratedFlashcard[] {
   for (const item of parsed) {
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
-    if (typeof record.front !== 'string' || typeof record.back !== 'string') continue;
-    if (!record.front.trim() || !record.back.trim()) continue;
+    const model = record.model === 'cloze' ? 'cloze' : 'basic';
+    const text = typeof record.text === 'string' ? record.text.trim() : '';
+    const front = typeof record.front === 'string' ? record.front.trim() : '';
+    const back = typeof record.back === 'string' ? record.back.trim() : '';
+    if (model === 'cloze') {
+      if (!/\{\{c\d+::.+\}\}/.test(text)) continue;
+    } else if (!front || !back) {
+      continue;
+    }
     cards.push({
       position: cards.length + 1,
-      front: record.front.trim(),
-      back: record.back.trim(),
+      model,
+      ...(model === 'cloze' ? { text } : { front, back }),
       cardType: typeof record.cardType === 'string' ? record.cardType : 'fact',
       knowledgePointIds: [],
       sourceChunkIds: Array.isArray(record.sourceChunkIds)
@@ -94,8 +101,9 @@ export function toFlashcardCreateInputs(input: {
     ];
     return {
       deck: input.deck,
-      front: card.front,
-      back: card.back,
+      ...(card.model === 'cloze'
+        ? { model: 'cloze' as const, text: card.text ?? '' }
+        : { model: 'basic' as const, front: card.front ?? '', back: card.back ?? '' }),
       sourceFolder: input.folderPath,
       ...(first ? { sourceFile: first.relativePath, sourceExcerpt: first.text.slice(0, 400) } : {}),
       ...(typeof first?.startLine === 'number' ? { sourceLine: first.startLine } : {}),

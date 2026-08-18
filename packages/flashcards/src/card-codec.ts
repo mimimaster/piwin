@@ -1,17 +1,20 @@
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardItem, FlashcardModel } from '@piwin/contracts';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const FRONT_HEADING = '## Front';
 const BACK_HEADING = '## Back';
+const TEXT_HEADING = '## Text';
 const SOURCE_HEADING = '## Source';
 
 /**
- * Card markdown: frontmatter (id/deck/source metadata) + `## Front` /
- * `## Back` sections. Human-readable, greppable, git-mergeable.
+ * Item markdown: frontmatter (id/deck/model/source metadata) + either
+ * `## Front` / `## Back` (basic) or `## Text` (cloze).
  */
-export function encodeCardMarkdown(card: FlashcardRecord): string {
+export function encodeCardMarkdown(card: FlashcardItem): string {
+  const model: FlashcardModel = card.model === 'cloze' ? 'cloze' : 'basic';
   const lines: string[] = ['---'];
   lines.push(`id: ${JSON.stringify(card.id)}`);
+  lines.push(`model: ${JSON.stringify(model)}`);
   lines.push(`deck: ${JSON.stringify(card.deck)}`);
   if (card.sourceNoteId) lines.push(`sourceNoteId: ${JSON.stringify(card.sourceNoteId)}`);
   if (card.sourceHash) lines.push(`sourceHash: ${JSON.stringify(card.sourceHash)}`);
@@ -38,13 +41,19 @@ export function encodeCardMarkdown(card: FlashcardRecord): string {
   lines.push(`createdAt: ${JSON.stringify(card.createdAt)}`);
   lines.push('---');
   lines.push('');
-  lines.push(FRONT_HEADING);
-  lines.push('');
-  lines.push(card.front);
-  lines.push('');
-  lines.push(BACK_HEADING);
-  lines.push('');
-  lines.push(card.back);
+  if (model === 'cloze') {
+    lines.push(TEXT_HEADING);
+    lines.push('');
+    lines.push(card.text ?? '');
+  } else {
+    lines.push(FRONT_HEADING);
+    lines.push('');
+    lines.push(card.front ?? '');
+    lines.push('');
+    lines.push(BACK_HEADING);
+    lines.push('');
+    lines.push(card.back ?? '');
+  }
   if (card.sourceExcerpt) {
     lines.push('');
     lines.push(SOURCE_HEADING);
@@ -55,7 +64,7 @@ export function encodeCardMarkdown(card: FlashcardRecord): string {
   return lines.join('\n');
 }
 
-export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
+export function decodeCardMarkdown(raw: string): FlashcardItem | null {
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) return null;
   const fields = parseFrontmatter(match[1] ?? '');
@@ -67,11 +76,33 @@ export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
   if (!id || !deck || !createdAt) return null;
 
   const sections = splitSections(body);
+  const model: FlashcardModel =
+    asString(fields.model) === 'cloze' || sections.text.trim()
+      ? 'cloze'
+      : 'basic';
+
+  if (model === 'cloze') {
+    const text = sections.text.trim();
+    if (!text) return null;
+    const card: FlashcardItem = { id, model: 'cloze', deck, text, createdAt };
+    applyFrontmatter(card, fields, sections.source);
+    return card;
+  }
+
   const front = sections.front.trim();
   const back = sections.back.trim();
   if (!front || !back) return null;
 
-  const card: FlashcardRecord = { id, deck, front, back, createdAt };
+  const card: FlashcardItem = { id, model: 'basic', deck, front, back, createdAt };
+  applyFrontmatter(card, fields, sections.source);
+  return card;
+}
+
+function applyFrontmatter(
+  card: FlashcardItem,
+  fields: Record<string, unknown>,
+  source: string | undefined,
+): void {
   const sourceNoteId = asString(fields.sourceNoteId);
   if (sourceNoteId) card.sourceNoteId = sourceNoteId;
   const sourceHash = asString(fields.sourceHash);
@@ -82,7 +113,7 @@ export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
   if (sourceFile) card.sourceFile = sourceFile;
   const sourceLine = asNumber(fields.sourceLine);
   if (sourceLine !== undefined) card.sourceLine = sourceLine;
-  if (sections.source) card.sourceExcerpt = sections.source;
+  if (source) card.sourceExcerpt = source;
   const tags = asStringArray(fields.tags);
   if (tags) card.tags = tags;
   const sequenceId = asString(fields.sequenceId);
@@ -101,7 +132,6 @@ export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
   if (generationId) card.generationId = generationId;
   const sourceDocumentIds = asStringArray(fields.sourceDocumentIds);
   if (sourceDocumentIds) card.sourceDocumentIds = sourceDocumentIds;
-  return card;
 }
 
 /**
@@ -116,29 +146,51 @@ function findHeadingIndex(body: string, heading: string, fromIndex = 0): number 
   return found ? fromIndex + found.index : -1;
 }
 
-function splitSections(body: string): { front: string; back: string; source?: string } {
+function splitSections(body: string): {
+  front: string;
+  back: string;
+  text: string;
+  source?: string;
+} {
+  const textIndex = findHeadingIndex(body, TEXT_HEADING);
+  if (textIndex !== -1) {
+    const afterText = body.slice(textIndex + TEXT_HEADING.length);
+    const sourceIndex = findHeadingIndex(afterText, SOURCE_HEADING);
+    if (sourceIndex === -1) {
+      return { front: '', back: '', text: afterText };
+    }
+    const text = afterText.slice(0, sourceIndex);
+    const source = decodeSource(afterText.slice(sourceIndex + SOURCE_HEADING.length));
+    return { front: '', back: '', text, ...(source ? { source } : {}) };
+  }
+
   const frontIndex = findHeadingIndex(body, FRONT_HEADING);
   const backIndex =
     frontIndex === -1
       ? -1
       : findHeadingIndex(body, BACK_HEADING, frontIndex + FRONT_HEADING.length);
   if (frontIndex === -1 || backIndex === -1) {
-    return { front: '', back: '' };
+    return { front: '', back: '', text: '' };
   }
   const front = body.slice(frontIndex + FRONT_HEADING.length, backIndex);
   const afterBack = body.slice(backIndex + BACK_HEADING.length);
   const sourceIndex = findHeadingIndex(afterBack, SOURCE_HEADING);
   if (sourceIndex === -1) {
-    return { front, back: afterBack };
+    return { front, back: afterBack, text: '' };
   }
   const back = afterBack.slice(0, sourceIndex);
-  const sourceQuoted = afterBack.slice(sourceIndex + SOURCE_HEADING.length).trim();
-  const source = sourceQuoted
+  const source = decodeSource(afterBack.slice(sourceIndex + SOURCE_HEADING.length));
+  return { front, back, text: '', ...(source ? { source } : {}) };
+}
+
+function decodeSource(raw: string): string | undefined {
+  const source = raw
+    .trim()
     .split('\n')
     .map((line) => line.replace(/^>\s?/, ''))
     .join('\n')
     .trim();
-  return { front, back, ...(source ? { source } : {}) };
+  return source ? source : undefined;
 }
 
 function parseFrontmatter(text: string): Record<string, unknown> {

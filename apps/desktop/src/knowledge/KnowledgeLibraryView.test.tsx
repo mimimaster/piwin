@@ -25,6 +25,7 @@ describe('KnowledgeLibraryView', () => {
   const cards = [
     {
       id: 'card-1',
+      model: 'basic' as const,
       front: 'What is the loop?',
       back: 'Pick, index, generate, review.',
       deck: 'os',

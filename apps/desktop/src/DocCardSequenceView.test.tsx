@@ -2,7 +2,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardItem } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { DesktopLocaleProvider } from './desktop-locale-context';
@@ -13,9 +13,10 @@ declare global {
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-function card(id: string, position: number, extra: Partial<FlashcardRecord> = {}): FlashcardRecord {
+function card(id: string, position: number, extra: Partial<FlashcardItem> = {}): FlashcardItem {
   return {
     id,
+    model: 'basic',
     deck: 'Notes',
     front: `front-${id}`,
     back: `back-${id}`,
@@ -39,7 +40,7 @@ describe('sortSequenceCards', () => {
   it('skips deleted snapshot ids and sorts by position', () => {
     expect(
       sortSequenceCards([card('c2', 2), card('c1', 1), card('gone', 3)], ['c1', 'c2']).map(
-        (item) => item.id,
+        (item) => item.cardId,
       ),
     ).toEqual(['c1', 'c2']);
   });

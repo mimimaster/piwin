@@ -4,11 +4,12 @@ import {
   formatDeckMarkdown,
   formatCardsAnkiTsv,
 } from './knowledge-export';
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardItem } from '@piwin/contracts';
 
 describe('knowledge-export', () => {
-  const sampleCard: FlashcardRecord = {
+  const sampleCard: FlashcardItem = {
     id: 'card-1',
+    model: 'basic',
     createdAt: '2026-08-17T00:00:00Z',
     front: 'What is FSRS?',
     back: 'Free Spaced Repetition Scheduler algorithm.',

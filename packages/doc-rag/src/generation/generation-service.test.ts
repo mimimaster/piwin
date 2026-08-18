@@ -43,6 +43,7 @@ describe('generation-service', () => {
     expect(cards).toEqual([
       {
         position: 1,
+        model: 'basic',
         front: 'Q',
         back: 'A',
         cardType: 'fact',
@@ -114,6 +115,7 @@ describe('generation-service', () => {
     });
     expect(input).toMatchObject({
       deck: 'Notes',
+      model: 'basic',
       front: 'What is SRS?',
       back: 'A review schedule.',
       sourceFolder: '/docs/Notes',

@@ -3,7 +3,7 @@
  * Emits Anki file-header directives so import settings are self-describing
  * (tab separator, HTML on — newlines become <br>).
  */
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardReviewCard } from '@piwin/contracts';
 
 function escapeTsvField(value: string): string {
   // Anki TSV has no quoting; flatten tabs/newlines to spaces / <br>.
@@ -15,7 +15,7 @@ function escapeTsvField(value: string): string {
 
 const ANKI_HEADER = '#separator:tab\n#html:true\n#columns:front\tback\tdeck\ttags\n';
 
-export function exportCardsToTsv(cards: FlashcardRecord[]): string {
+export function exportCardsToTsv(cards: FlashcardReviewCard[]): string {
   if (cards.length === 0) {
     return '';
   }

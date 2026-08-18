@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardReviewCard } from '@piwin/contracts';
 import { buildFlashcardArtifactHtml, buildFlashcardBatchArtifactHtml } from './artifact-template.js';
 
-function makeCard(overrides?: Partial<FlashcardRecord>): FlashcardRecord {
+function makeCard(overrides?: Partial<FlashcardReviewCard>): FlashcardReviewCard {
   return {
-    id: 'card-abc12345-xyz',
+    cardId: 'card-abc12345-xyz',
+    itemId: 'card-abc12345-xyz',
+    model: 'basic',
+    ordinal: 1,
     deck: 'srs',
     front: '什么是 FSRS？',
     back: '一种间隔重复调度算法。',
@@ -37,7 +40,8 @@ describe('buildFlashcardArtifactHtml', () => {
   it('uses only theme variables, no external resources', () => {
     const html = buildFlashcardArtifactHtml(makeCard());
     expect(html).toContain('var(--piwin-artifact-surface)');
-    expect(html).not.toMatch(/https?:\/\//);
+    expect(html).not.toContain('https://');
+    expect(html).not.toContain('http://');
   });
 
   it('open card (no source) has no source indicator or popover', () => {
@@ -73,27 +77,45 @@ describe('buildFlashcardArtifactHtml', () => {
     expect(html).toContain('note:note-1');
     expect(html).not.toContain('flashcard/open-source');
   });
+
+  it('uses the cloze review cardId in the rate payload', () => {
+    const html = buildFlashcardArtifactHtml(
+      makeCard({
+        cardId: 'abc:c1',
+        itemId: 'abc',
+        model: 'cloze',
+        ordinal: 1,
+        front: '线粒体是[…]的能量工厂。',
+        back: '线粒体是**细胞**的能量工厂。',
+      }),
+    );
+    expect(html).toContain("cardId: 'abc:c1'");
+    expect(html).toContain('线粒体是[…]的能量工厂。');
+  });
 });
 
 describe('buildFlashcardBatchArtifactHtml', () => {
   it('stacks multiple cards, each with its own cardId in payloads', () => {
     const cards = [
-      makeCard({ id: 'card-aaa-111' }),
-      makeCard({ id: 'card-bbb-222', front: 'second question' }),
+      makeCard({ cardId: 'card-aaa-111', itemId: 'card-aaa-111' }),
+      makeCard({
+        cardId: 'card-bbb-222',
+        itemId: 'card-bbb-222',
+        front: 'second question',
+      }),
     ];
     const html = buildFlashcardBatchArtifactHtml(cards);
     expect(html).toContain('card-aaa-111');
     expect(html).toContain('card-bbb-222');
     expect(html).toContain('second question');
     expect(html).toContain('piwin-flashcard-batch');
-    // Each card posts its own id.
     expect(html).toContain("cardId: 'card-aaa-111'");
     expect(html).toContain("cardId: 'card-bbb-222'");
   });
 
   it('escapes HTML across all cards in the batch', () => {
     const html = buildFlashcardBatchArtifactHtml([
-      makeCard({ id: 'card-x', front: '<script>x</script>' }),
+      makeCard({ cardId: 'card-x', itemId: 'card-x', front: '<script>x</script>' }),
     ]);
     expect(html).not.toContain('<script>x</script>');
     expect(html).toContain('&lt;script&gt;');
