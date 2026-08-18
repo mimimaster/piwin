@@ -18,7 +18,7 @@ One batch of high-quality flashcards the user can study, correctly sourced when 
 - Chat/open/notes: single `flashcard_batch_create` with the full array (not per-card create).
 - Folder cards in the store already have `sourceFolder` / `sourceFile` / `sourceLine` / `sourceExcerpt` from `doccards/generate`; notes cards carry `sourceNoteId` + `sourceExcerpt`; open cards omit source fields.
 - Returned `artifactHtml` rendered verbatim in an `html` fence when present.
-- Quality: one atomic concept; front is a question that does not leak the answer; back 1–3 sentences; difficulty matches ask (easy/medium/hard); stay on topic.
+- Quality: one atomic concept. Use `model: "basic"` for questions (front does not leak the answer; back 1–3 sentences). Use `model: "cloze"` to hide a term/name/formula inside a source sentence with `{{c1::answer}}`; related blanks stay on the same item. Do not renumber cloze ordinals. Difficulty matches ask (easy/medium/hard); stay on topic.
 
 ## Stop when
 - Folder set looks wrong/huge — confirm before indexing.

@@ -11,10 +11,12 @@ export const GENERATED_FLASHCARD_SCHEMA: Record<string, unknown> = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['front', 'back', 'cardType', 'knowledgePointIds', 'sourceChunkIds'],
+        required: ['cardType', 'knowledgePointIds', 'sourceChunkIds'],
         properties: {
+          model: { type: 'string', enum: ['basic', 'cloze'] },
           front: { type: 'string' },
           back: { type: 'string' },
+          text: { type: 'string' },
           cardType: { type: 'string' },
           relationFromPrevious: { type: 'string' },
           knowledgePointIds: { type: 'array', items: { type: 'string' } },
@@ -39,9 +41,15 @@ export function parseGeneratedFlashcards(
   for (const item of list) {
     const raw = asRecord(item);
     if (!raw) continue;
+    const model = raw.model === 'cloze' ? 'cloze' : 'basic';
     const front = typeof raw.front === 'string' ? raw.front.trim() : '';
     const back = typeof raw.back === 'string' ? raw.back.trim() : '';
-    if (!front || !back) continue;
+    const text = typeof raw.text === 'string' ? raw.text.trim() : '';
+    if (model === 'cloze') {
+      if (!/\{\{c\d+::.+\}\}/.test(text)) continue;
+    } else if (!front || !back) {
+      continue;
+    }
     const knowledgePointIds = asStringArray(raw.knowledgePointIds).filter((id) => kpById.has(id));
     const allowedChunks = new Set(
       knowledgePointIds.flatMap((id) => kpById.get(id)?.sourceChunkIds ?? []),
@@ -62,11 +70,11 @@ export function parseGeneratedFlashcards(
     if (sourceChunkIds.length === 0) continue;
     const next: GeneratedFlashcard = {
       position: cards.length + 1,
-      front,
-      back,
+      model,
       cardType: typeof raw.cardType === 'string' && raw.cardType.trim() ? raw.cardType.trim() : 'fact',
       knowledgePointIds,
       sourceChunkIds,
+      ...(model === 'cloze' ? { text } : { front, back }),
     };
     if (cards.length > 0 && typeof raw.relationFromPrevious === 'string' && raw.relationFromPrevious.trim()) {
       next.relationFromPrevious = raw.relationFromPrevious.trim();

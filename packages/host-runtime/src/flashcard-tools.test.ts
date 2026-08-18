@@ -167,4 +167,47 @@ describe('buildFlashcardTools', () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]?.sourceFolder).toBe('/docs/x');
   });
+
+  it('flashcard_create accepts cloze text and lists it as one item', async () => {
+    const tools = buildFlashcardTools({ store, enabled: true });
+    const create = tools.find((t) => t.descriptor.name === 'flashcard_create');
+    const list = tools.find((t) => t.descriptor.name === 'flashcard_list');
+    if (!create || !list) throw new Error('tools missing');
+    const createdRaw = outputOf(
+      await executeTool(create, {
+        model: 'cloze',
+        text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+        deck: 'bio',
+      }),
+    );
+    const created = JSON.parse(createdRaw) as { card: { id: string; model: string }; artifactHtml: string };
+    expect(created.card.model).toBe('cloze');
+    expect(created.artifactHtml).toContain("cardId: '" + created.card.id + ":c1'");
+    expect(created.artifactHtml).toContain("cardId: '" + created.card.id + ":c2'");
+
+    const listed = JSON.parse(outputOf(await executeTool(list, { deck: 'bio' }))) as Array<{
+      id: string;
+      model: string;
+      front: string;
+    }>;
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.model).toBe('cloze');
+    expect(listed[0]?.front).toBe('线粒体是细胞的能量工厂。');
+    expect(listed[0]?.front).not.toContain('{{c1');
+  });
+
+  it('flashcard_delete strips a cloze cardId suffix', async () => {
+    const item = await store.create({
+      model: 'cloze',
+      text: '{{c1::A}} and {{c2::B}}',
+    });
+    const tools = buildFlashcardTools({ store, enabled: true });
+    const del = tools.find((t) => t.descriptor.name === 'flashcard_delete');
+    if (!del) throw new Error('flashcard_delete missing');
+    const raw = outputOf(await executeTool(del, { cardId: `${item.id}:c2` }));
+    const result = JSON.parse(raw) as { deleted: boolean; id: string };
+    expect(result.deleted).toBe(true);
+    expect(result.id).toBe(item.id);
+    await expect(store.read(item.id)).rejects.toThrow('card not found');
+  });
 });

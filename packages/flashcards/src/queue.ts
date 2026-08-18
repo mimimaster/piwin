@@ -2,11 +2,11 @@
  * Review queue building (pure): due cards first (oldest due first), then new
  * cards capped by `newPerDay`, total capped by `maxReviewsPerDay`.
  */
-import type { FlashcardRecord, ReviewQueueItem, ReviewState } from '@piwin/contracts';
+import type { FlashcardReviewCard, ReviewQueueItem, ReviewState } from '@piwin/contracts';
 import { isNewState } from './scheduler.js';
 
 export type BuildQueueInput = {
-  cards: FlashcardRecord[];
+  cards: FlashcardReviewCard[];
   states: Map<string, ReviewState>;
   now?: Date;
   /** Default 20. */
@@ -26,7 +26,7 @@ export function buildReviewQueue(input: BuildQueueInput): ReviewQueueItem[] {
 
   for (const card of input.cards) {
     if (input.deck && card.deck !== input.deck) continue;
-    const state = input.states.get(card.id);
+    const state = input.states.get(card.cardId);
     if (!state) continue; // state missing → card not yet registered for review
     if (isNewState(state)) {
       fresh.push({ card, state, isNew: true });
@@ -36,8 +36,12 @@ export function buildReviewQueue(input: BuildQueueInput): ReviewQueueItem[] {
   }
 
   due.sort((left, right) => left.state.due.localeCompare(right.state.due));
-  // New cards oldest-created first for stable ordering.
-  fresh.sort((left, right) => left.card.createdAt.localeCompare(right.card.createdAt));
+  // New cards oldest-created first, then cloze ordinal for stable ordering.
+  fresh.sort((left, right) => {
+    const created = left.card.createdAt.localeCompare(right.card.createdAt);
+    if (created !== 0) return created;
+    return left.card.ordinal - right.card.ordinal;
+  });
 
   return [...due, ...fresh.slice(0, newPerDay)].slice(0, maxReviews);
 }

@@ -55,7 +55,8 @@
 ~/.piwin/flashcards/
   cards/<card-id>.md              # frontmatter: id, sourceNoteId, sourceHash, deck, createdAt
                                   # body: ## Front / ## Back (+ source snapshot excerpt)
-  review/<card-id>.json           # FSRS state: due, stability, difficulty, reps, lapses, log tail
+  review/<card-id>.json           # FSRS state for a basic item (cardId === itemId)
+  review/<item-id>--c<n>.json     # FSRS state for cloze ordinal n (cardId === itemId:cN)
   decks.json                      # deck names/order
 ~/.piwin/notes/.eval/golden.jsonl # recall eval set: {query, expectedNoteIds[], note?}
 ```

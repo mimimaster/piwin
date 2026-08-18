@@ -11,7 +11,9 @@ import type { HostCommand, HostResponse, PiwinConfig } from '@piwin/contracts';
 import {
   buildReviewQueue,
   buildFlashcardBatchArtifactHtml,
+  expandItemToReviewCards,
   exportCardsToTsv,
+  parseReviewCardId,
   type CardStore,
 } from '@piwin/flashcards';
 import { canonicalizeFolderPath, isPathConfined, type FolderRag } from '@piwin/doc-rag';
@@ -202,7 +204,9 @@ export async function handleKnowledgeCommand(
       const config = await context.loadConfig();
       const maxBatchSize = config.flashcards?.maxBatchSize ?? 40;
       const result = await store.batchCreate(command.input, maxBatchSize);
-      const artifactHtml = buildFlashcardBatchArtifactHtml(result.created);
+      const artifactHtml = buildFlashcardBatchArtifactHtml(
+        result.created.flatMap((item) => expandItemToReviewCards(item)),
+      );
       return ok(requestId, 'flashcards/batch-create', { ...result, artifactHtml });
     }
     case 'flashcards/delete': {
@@ -218,7 +222,7 @@ export async function handleKnowledgeCommand(
     case 'flashcards/queue': {
       const store = await context.getCardStore();
       const config = await context.loadConfig();
-      const cards = await store.list();
+      const cards = await store.listReviewCards();
       const states = await store.loadReviewStates();
       const queue = buildReviewQueue({
         cards,
@@ -240,7 +244,7 @@ export async function handleKnowledgeCommand(
     }
     case 'flashcards/export': {
       const store = await context.getCardStore();
-      const cards = await store.list(command.deck ? { deck: command.deck } : undefined);
+      const cards = await store.listReviewCards(command.deck ? { deck: command.deck } : undefined);
       return ok(requestId, 'flashcards/export', {
         tsv: exportCardsToTsv(cards),
         count: cards.length,
@@ -375,7 +379,7 @@ export async function handleKnowledgeCommand(
     }
     case 'doccards/open-source': {
       const store = await context.getCardStore();
-      const card = await store.read(command.cardId);
+      const card = await store.read(parseReviewCardId(command.cardId).itemId);
       if (!card.sourceFolder || !card.sourceFile) {
         throw new Error('Card has no folder source attribution');
       }

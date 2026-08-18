@@ -222,8 +222,11 @@ export type KnowledgePoint = {
 
 export type GeneratedFlashcard = {
   position: number;
-  front: string;
-  back: string;
+  model?: import('./flashcards.js').FlashcardModel;
+  front?: string;
+  back?: string;
+  /** Cloze passage with `{{cN::answer}}` markers when model is `cloze`. */
+  text?: string;
   cardType: string;
   relationFromPrevious?: string;
   knowledgePointIds: string[];

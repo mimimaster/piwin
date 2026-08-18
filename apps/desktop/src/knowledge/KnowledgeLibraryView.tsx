@@ -3,7 +3,7 @@
  */
 import { useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog, IconButton } from '@piwin/ui-kit';
-import type { FlashcardRecord } from '@piwin/contracts';
+import type { FlashcardItem } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import { DocCardItem } from '../DocCardItem.js';
 import {
@@ -18,11 +18,11 @@ import { IconCopy, IconDownload } from '../shell-icons.js';
 export type KnowledgeLibraryViewProps = {
   folderPath: string;
   folderName: string;
-  cards: FlashcardRecord[];
+  cards: FlashcardItem[];
   request: DoccardsHostRequest;
   onBack: () => void;
   onOpenCardsPanel?: (() => void) | undefined;
-  onSendToChat?: ((card: FlashcardRecord) => void) | undefined;
+  onSendToChat?: ((card: FlashcardItem) => void) | undefined;
   onOpenSourceFile?: ((cardId: string) => void) | undefined;
   onForgot?: (() => void) | undefined;
 };

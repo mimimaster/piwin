@@ -12,3 +12,18 @@ export { exportCardsToTsv } from './anki-export.js';
 export { buildFlashcardArtifactHtml, buildFlashcardBatchArtifactHtml } from './artifact-template.js';
 export { encodeCardMarkdown, decodeCardMarkdown } from './card-codec.js';
 export { getFlashcardsRoot, DEFAULT_DECK } from './paths.js';
+export {
+  MAX_CLOZE_ORDINALS,
+  CLOZE_BLANK,
+  parseClozeMarkers,
+  listClozeOrdinals,
+  isValidClozeText,
+  stripClozeMarkers,
+  projectCloze,
+  expandItemToReviewCards,
+  reviewCardId,
+  parseReviewCardId,
+  reviewStateFileName,
+  itemPreviewText,
+} from './cloze.js';
+export type { ClozeMarker } from './cloze.js';

@@ -1,0 +1,183 @@
+// @vitest-environment happy-dom
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { FlashcardView, FlashcardStackView } from './FlashcardView';
+import type { FlashcardReviewCard } from '@piwin/contracts';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+describe('FlashcardView lifecycle, animation & memory recycling', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  const sampleCard: FlashcardReviewCard = {
+    cardId: 'card-test-1',
+    itemId: 'card-test-1',
+    model: 'basic',
+    ordinal: 1,
+    deck: '生物',
+    front: '什么是光合作用？',
+    back: '植物利用光能将二氧化碳和水转化为有机物的过程。',
+    tags: ['植物学', '能量转化'],
+    createdAt: '2026-08-18T00:00:00.000Z',
+  };
+
+  it('renders front face with question, deck, and tags', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    expect(container.textContent).toContain('什么是光合作用？');
+    expect(container.textContent).toContain('生物');
+    expect(container.textContent).toContain('#植物学');
+    expect(container.textContent).toContain('翻看解答');
+  });
+
+  it('manages is-flipping transient state and cleans up after animation timer', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    expect(frame).not.toBeNull();
+    expect(frame?.classList.contains('is-flipped')).toBe(false);
+    expect(frame?.classList.contains('is-flipping')).toBe(false);
+
+    // Trigger flip
+    act(() => {
+      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(frame?.classList.contains('is-flipped')).toBe(true);
+    expect(frame?.classList.contains('is-flipping')).toBe(true);
+
+    // Advance timer past animation duration (550ms)
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+
+    // is-flipping must be removed so WebKit releases temporary will-change GPU allocation
+    expect(frame?.classList.contains('is-flipping')).toBe(false);
+    expect(frame?.classList.contains('is-flipped')).toBe(true);
+  });
+
+  it('supports keyboard navigation for flip and FSRS rating', () => {
+    let capturedAction: unknown = null;
+    act(() => {
+      root.render(
+        <FlashcardView
+          card={sampleCard}
+          locale="zh-CN"
+          onAction={(a) => {
+            capturedAction = a;
+          }}
+        />,
+      );
+    });
+
+    const cardContainer = container.querySelector('.fc-quiet-card-container');
+    expect(cardContainer).not.toBeNull();
+
+    // Press Space to flip
+    act(() => {
+      cardContainer?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container.textContent).toContain('植物利用光能');
+
+    // Press '3' to rate 'good' (记住了)
+    act(() => {
+      cardContainer?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '3', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container.textContent).toContain('已记录：记住了');
+    expect(capturedAction).toEqual({
+      type: 'piwin-artifact:action',
+      channelId: 'card-test-1',
+      action: 'flashcard/rate',
+      payload: {
+        cardId: 'card-test-1',
+        rating: 'good',
+      },
+    });
+  });
+
+  it('virtualizes multi-card deck by mounting only the active card in FlashcardStackView', () => {
+    const card2: FlashcardReviewCard = {
+      cardId: 'card-test-2',
+      itemId: 'card-test-2',
+      model: 'basic',
+      ordinal: 1,
+      deck: '物理',
+      front: '牛顿第一运动定律',
+      back: '一切物体在没有受到力的作用时，总保持匀速直线运动状态或静止状态。',
+      createdAt: '2026-08-18T00:00:00.000Z',
+    };
+
+    act(() => {
+      root.render(<FlashcardStackView cards={[sampleCard, card2]} locale="zh-CN" />);
+    });
+
+    // Top quiet navigation is present
+    expect(container.textContent).toContain('卡片 (2)');
+    expect(container.textContent).toContain('什么是光合作用？');
+    // Card 2 is NOT mounted in DOM (memory saving)
+    expect(container.textContent).not.toContain('牛顿第一运动定律');
+
+    // Click next button
+    const nextBtn = container.querySelector('button[title="下一张"]');
+    expect(nextBtn).not.toBeNull();
+
+    act(() => {
+      nextBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // Card 2 is now mounted and Card 1 is cleanly unmounted from memory
+    expect(container.textContent).toContain('牛顿第一运动定律');
+    expect(container.textContent).not.toContain('什么是光合作用？');
+  });
+
+  it('safely cleans up pending animation timer on unmount with zero leaks', () => {
+    act(() => {
+      root.render(<FlashcardView card={sampleCard} locale="zh-CN" />);
+    });
+
+    const frame = container.querySelector('.fc-quiet-frame');
+    act(() => {
+      frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    // Unmount while flip animation timer is still pending
+    act(() => {
+      root.unmount();
+    });
+
+    // Advancing timers should not throw or cause dangling setState
+    expect(() => {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+    }).not.toThrow();
+  });
+});

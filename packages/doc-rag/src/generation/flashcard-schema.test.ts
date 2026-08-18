@@ -129,4 +129,27 @@ describe('qaGeneratedFlashcards', () => {
       expect.objectContaining({ position: 1, front: 'New' }),
     ]);
   });
+
+  it('accepts a cloze draft and keeps it as one item', () => {
+    const cards = parseGeneratedFlashcards(
+      {
+        cards: [
+          {
+            model: 'cloze',
+            text: 'Spaced repetition is {{c1::a review schedule}}.',
+            cardType: 'definition',
+            knowledgePointIds: ['kp_gen_1_1'],
+            sourceChunkIds: ['chk-1'],
+          },
+        ],
+      },
+      pack,
+      kps,
+    );
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({
+      model: 'cloze',
+      text: 'Spaced repetition is {{c1::a review schedule}}.',
+    });
+  });
 });

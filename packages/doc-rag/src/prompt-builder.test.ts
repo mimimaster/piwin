@@ -74,5 +74,7 @@ describe('FLASHCARD_QUALITY_RULES', () => {
     expect(FLASHCARD_QUALITY_RULES).toContain('Folder/docs');
     expect(FLASHCARD_QUALITY_RULES).toContain('Notes');
     expect(FLASHCARD_QUALITY_RULES).toContain('Open');
+    expect(FLASHCARD_QUALITY_RULES).toContain('cloze');
+    expect(FLASHCARD_QUALITY_RULES).toContain('{{c1::answer}}');
   });
 });

@@ -251,4 +251,93 @@ describe('card-store', () => {
     expect(card?.sourceFile).toBe('f1.md'); // preserved
     expect(card?.sourceLine).toBe(1); // preserved
   });
+
+  it('creates a cloze item with one review state per ordinal', async () => {
+    const item = await store.create({
+      model: 'cloze',
+      text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+      deck: 'bio',
+    });
+    expect(item.model).toBe('cloze');
+    expect(item.text).toContain('{{c1::细胞}}');
+    const states = await store.loadReviewStates();
+    expect(states.has(`${item.id}:c1`)).toBe(true);
+    expect(states.has(`${item.id}:c2`)).toBe(true);
+    expect(states.has(item.id)).toBe(false);
+    const cards = await store.listReviewCards();
+    expect(cards).toHaveLength(2);
+    expect(cards.map((card) => card.ordinal)).toEqual([1, 2]);
+  });
+
+  it('skips invalid cloze and near-duplicate stripped text', async () => {
+    const result = await store.batchCreate({
+      cards: [
+        { model: 'cloze', text: 'no holes here' },
+        { model: 'cloze', text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。' },
+        { model: 'cloze', text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}！' },
+      ],
+    });
+    expect(result.created).toHaveLength(1);
+    expect(result.skipped).toHaveLength(2);
+    expect(result.skipped[0]?.reason).toBe('validation');
+    expect(result.skipped[1]?.reason).toBe('duplicate');
+  });
+
+  it('delete by cloze cardId removes the whole item and both review files', async () => {
+    const item = await store.create({
+      model: 'cloze',
+      text: '{{c1::A}} then {{c2::B}}',
+    });
+    await store.delete(`${item.id}:c1`);
+    await expect(store.read(item.id)).rejects.toThrow('card not found');
+    const states = await store.loadReviewStates();
+    expect(states.size).toBe(0);
+  });
+
+  it('rates a cloze ordinal and rejects an unknown one', async () => {
+    const item = await store.create({
+      model: 'cloze',
+      text: '{{c1::A}} then {{c2::B}}',
+    });
+    const rated = await store.rate(`${item.id}:c1`, 'good');
+    expect(rated.reps).toBe(1);
+    await expect(store.rate(`${item.id}:c9`, 'good')).rejects.toThrow('review card not found');
+  });
+
+  it('keeps c1 progress when wording changes and drops removed ordinals from the queue', async () => {
+    const { writeFile } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const { encodeCardMarkdown } = await import('./card-codec.js');
+    const { getCardsDir, getFlashcardsRoot } = await import('./paths.js');
+
+    const item = await store.create({
+      model: 'cloze',
+      text: '{{c1::A}} then {{c2::B}}',
+    });
+    await store.rate(`${item.id}:c1`, 'good');
+    const first = await store.getReviewState(`${item.id}:c1`);
+
+    const updated = {
+      ...item,
+      text: 'now {{c1::A}} and {{c3::C}}',
+    };
+    await writeFile(
+      join(getCardsDir(getFlashcardsRoot(piwinRoot)), `${item.id}.md`),
+      encodeCardMarkdown(updated),
+      'utf8',
+    );
+
+    const kept = await store.getReviewState(`${item.id}:c1`);
+    expect(kept.reps).toBe(first.reps);
+    expect(kept.due).toBe(first.due);
+
+    const cards = await store.listReviewCards();
+    const states = await store.loadReviewStates();
+    expect(cards.map((entry) => entry.cardId).sort()).toEqual(
+      [`${item.id}:c1`, `${item.id}:c3`].sort(),
+    );
+    expect(states.has(`${item.id}:c1`)).toBe(true);
+    expect(states.has(`${item.id}:c3`)).toBe(true);
+    expect(states.has(`${item.id}:c2`)).toBe(false);
+  });
 });

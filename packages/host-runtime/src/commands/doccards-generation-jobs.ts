@@ -18,7 +18,7 @@ import {
   type DraftCardsFn,
   type FolderRag,
 } from '@piwin/doc-rag';
-import { getFlashcardsRoot } from '@piwin/flashcards';
+import { getFlashcardsRoot, itemPreviewText } from '@piwin/flashcards';
 import { getPiwinRoot } from '../paths.js';
 
 const PERSIST_BATCH_SIZE = 40;
@@ -184,7 +184,7 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
               topic,
               workspaceName,
               pack,
-              existingFronts: existing.map((card) => card.front),
+              existingFronts: existing.map((card) => itemPreviewText(card)),
               generationId,
               completeJson: input.completeJson,
               signal: abort.signal,
@@ -199,7 +199,7 @@ export function createDoccardsGenerationRegistry(): DoccardsGenerationRegistry {
                 topic,
                 workspaceName,
                 pack,
-                existingFronts: existing.map((card) => card.front),
+                existingFronts: existing.map((card) => itemPreviewText(card)),
                 qualityRules: FLASHCARD_QUALITY_RULES,
               }),
             );

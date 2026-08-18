@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type {
-  FlashcardRecord,
+  FlashcardItem,
   HostResponse,
   ReviewQueueItem,
   ReviewRating,
 } from '@piwin/contracts';
+import { itemPreviewText } from '@piwin/flashcards';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   downloadFile,
@@ -40,7 +41,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
 
   const [decks, setDecks] = useState<string[]>([]);
   const [deckFilter, setDeckFilter] = useState<string>(props.initialDeckFilter ?? '');
-  const [cards, setCards] = useState<FlashcardRecord[]>([]);
+  const [cards, setCards] = useState<FlashcardItem[]>([]);
   const [queue, setQueue] = useState<ReviewQueueItem[]>([]);
   const [reviewing, setReviewing] = useState(false);
   const [position, setPosition] = useState(0);
@@ -79,7 +80,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
       setLoading(false);
       return;
     }
-    const listData = listResponse.data as { cards: FlashcardRecord[] };
+    const listData = listResponse.data as { cards: FlashcardItem[] };
     setCards(listData.cards ?? []);
 
     const queueResponse = await request({
@@ -106,7 +107,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
       try {
         const response = await request({
           type: 'flashcards/rate',
-          cardId: currentItem.card.id,
+          cardId: currentItem.card.cardId,
           rating,
         });
         if (!response.success) {
@@ -217,7 +218,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
   }, [cards, deckFilter, t]);
 
   const handleCopyCardMarkdown = useCallback(
-    async (card: FlashcardRecord) => {
+    async (card: FlashcardItem) => {
       const md = formatCardMarkdown(card);
       const ok = await copyToClipboard(md);
       if (ok) setInfo(t('Card Markdown copied to clipboard', '已复制卡片 Markdown 到剪贴板'));
@@ -226,7 +227,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
   );
 
   const handleSendCardToChat = useCallback(
-    (card: FlashcardRecord) => {
+    (card: FlashcardItem) => {
       if (!props.onSendToChat) return;
       const cardMd = formatCardMarkdown(card);
       const prompt = isZh
@@ -440,10 +441,10 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
 
                   <div className="flashcards-item-body">
                     <p className="flashcards-item-front">
-                      <strong>Q:</strong> {card.front}
+                      <strong>Q:</strong> {itemPreviewText(card)}
                     </p>
                     <p className="flashcards-item-back">
-                      <strong>A:</strong> {card.back}
+                      <strong>A:</strong> {card.back ?? card.text ?? ''}
                     </p>
                   </div>
 

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type {
   DocumentManifest,
-  FlashcardRecord,
+  FlashcardItem,
   GenerationJob,
   IngestionJob,
   PiwinConfig,
@@ -80,7 +80,7 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
   const [unsupportedFiles, setUnsupportedFiles] = useState<ScannedFileV2[]>([]);
   const [documents, setDocuments] = useState<DocumentManifest[]>([]);
   const [selectedSupported, setSelectedSupported] = useState<string[]>([]);
-  const [cards, setCards] = useState<FlashcardRecord[]>([]);
+  const [cards, setCards] = useState<FlashcardItem[]>([]);
   const [indexingJob, setIndexingJob] = useState<IngestionJob | null>(null);
   const [generationJob, setGenerationJob] = useState<GenerationJob | null>(null);
   const [dismissedGenerationId, setDismissedGenerationId] = useState<string | null>(null);
@@ -144,7 +144,7 @@ export function KnowledgeCenterPanel(props: KnowledgeCenterPanelProps): ReactEle
         folderPath,
       });
       if (cardsRes.success && cardsRes.data) {
-        const cData = cardsRes.data as { records?: FlashcardRecord[]; cards?: FlashcardRecord[] };
+        const cData = cardsRes.data as { records?: FlashcardItem[]; cards?: FlashcardItem[] };
         setCards(cData.records ?? cData.cards ?? []);
       }
 
