@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { RadialBellow } from '@piwin/ui-kit';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ModelProviderConfig, ModelRef, ThemeManifest } from '@piwin/contracts';
@@ -21,6 +21,7 @@ import {
 } from './flashcard-artifact';
 import type { FlashcardItem, FlashcardReviewCard } from '@piwin/contracts';
 import { expandItemToReviewCards } from '@piwin/flashcards/cloze';
+import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardStackView } from './FlashcardView';
 import { MarkdownView } from './MarkdownView';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
@@ -277,6 +278,8 @@ export function ConversationResponseContent(props: {
   renderExtractedFlashcards?: boolean;
   /** Extra tool cards to scan (turn-level flashcard creates). */
   sourceTools?: readonly ToolCardUi[];
+  /** Fallback when tool output was stripped: resolve card ids from the reply text. */
+  onResolveFlashcards?: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
 }): ReactElement {
   const { message, locale } = props;
   const presentation = buildTurnPresentation({
@@ -300,13 +303,37 @@ export function ConversationResponseContent(props: {
     props.renderExtractedFlashcards === false
       ? []
       : extractFlashcardRecords(message, props.sourceTools);
+  const [resolvedCards, setResolvedCards] = useState<FlashcardReviewCard[]>([]);
+  useEffect(() => {
+    if (props.renderExtractedFlashcards === false) {
+      setResolvedCards([]);
+      return;
+    }
+    if (extractedCards.length > 0 || !props.onResolveFlashcards) {
+      setResolvedCards([]);
+      return;
+    }
+    const itemIds = extractFlashcardItemIdsFromText(message.text);
+    if (itemIds.length === 0) {
+      setResolvedCards([]);
+      return;
+    }
+    let cancelled = false;
+    void props.onResolveFlashcards(itemIds).then((cards) => {
+      if (!cancelled) setResolvedCards(cards);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [extractedCards.length, message.text, props.onResolveFlashcards, props.renderExtractedFlashcards]);
+  const displayCards = extractedCards.length > 0 ? extractedCards : resolvedCards;
   const flashcardArtifactHtml =
-    props.renderExtractedFlashcards === false
+    props.renderExtractedFlashcards === false || displayCards.length > 0
       ? null
       : extractFlashcardArtifactHtml(message, props.sourceTools);
   const textHasFlashcard = isFlashcardArtifactSource(message.text);
   const shouldRenderExtractedFlashcard = Boolean(
-    (extractedCards.length > 0 || flashcardArtifactHtml) && !textHasFlashcard,
+    (displayCards.length > 0 || flashcardArtifactHtml) && !textHasFlashcard,
   );
 
   const resolvedModel = resolveConversationMessageModel({
@@ -424,13 +451,13 @@ export function ConversationResponseContent(props: {
         />
       ) : null}
 
-      {extractedCards.length > 0 ? (
+      {displayCards.length > 0 ? (
         <div
           className="conversation-extracted-flashcard"
           data-testid="conversation-extracted-flashcard"
         >
           <FlashcardStackView
-            cards={extractedCards}
+            cards={displayCards}
             locale={locale}
             {...(props.onArtifactAction ? { onAction: props.onArtifactAction } : {})}
           />

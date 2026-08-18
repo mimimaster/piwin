@@ -176,6 +176,7 @@ export type ChatThreadProps = {
    * existing tests keep the Agent presentation.
    */
   isConversationSession?: boolean;
+  onResolveFlashcards?: (itemIds: string[]) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
   /** Model snapshot / live model used for conversation headers. */
   livePromptModel?: ModelRef | null;
   /** Active model options for name resolution. */
@@ -434,6 +435,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     key={message.id}
                     message={message}
                     isConversationSession={conversationSession}
+                    {...(props.onResolveFlashcards
+                      ? { onResolveFlashcards: props.onResolveFlashcards }
+                      : {})}
                     {...(assemblySummary !== undefined ? { assemblySummary } : {})}
                     {...(props.sessionId ? { sessionId: props.sessionId } : {})}
                     messageIndex={messageIndex}

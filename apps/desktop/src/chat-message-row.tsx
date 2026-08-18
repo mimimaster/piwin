@@ -158,6 +158,7 @@ export type ChatMessageRowProps = {
   /** Assembly capsule for this user row, if Host recorded one. */
   assemblySummary?: ContextSummaryPush;
   isConversationSession?: boolean;
+  onResolveFlashcards?: (itemIds: string[]) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
   /** Flashcard create tools from the whole turn; shown on the last assistant row. */
   turnFlashcardTools?: readonly ToolCardUi[];
   livePromptModel?: ModelRef | null;
@@ -324,6 +325,9 @@ export const ChatMessageRow = memo(
               props.turnFlashcardTools &&
               props.turnFlashcardTools.length > 0
                 ? { sourceTools: props.turnFlashcardTools }
+                : {})}
+              {...(props.onResolveFlashcards
+                ? { onResolveFlashcards: props.onResolveFlashcards }
                 : {})}
               {...(props.sessionId ? { sessionId: props.sessionId } : {})}
               messageIndex={props.messageIndex}
@@ -718,6 +722,7 @@ export const ChatMessageRow = memo(
       previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
       previous.assemblySummary === next.assemblySummary &&
       previous.isConversationSession === next.isConversationSession &&
+      previous.onResolveFlashcards === next.onResolveFlashcards &&
       previous.onRegenerate === next.onRegenerate &&
       previous.livePromptModel === next.livePromptModel &&
       previous.contextUsage === next.contextUsage &&
