@@ -1,5 +1,9 @@
 import { useState, type ReactElement } from 'react';
-import { modelSupportsCapability } from '@piwin/contracts';
+import {
+  isLikelyImageGenerationModel,
+  isLikelyVideoGenerationModel,
+  modelSupportsCapability,
+} from '@piwin/contracts';
 import type {
   DiscoveredModel,
   ModelCatalogEntry,
@@ -58,14 +62,24 @@ export function modelCaps(
   model: ModelConfigEntry,
   isChinese: boolean,
 ): Array<{ key: string; label: string; bg: string; fg: string }> {
-  const caps: Array<{ key: string; label: string; bg: string; fg: string }> = [
-    {
+  const likelyImage =
+    model.capabilities?.includes('image-generation') === true ||
+    isLikelyImageGenerationModel(model.id, model.label, model.capabilities);
+  const likelyVideo =
+    model.capabilities?.includes('video-generation') === true ||
+    isLikelyVideoGenerationModel(model.id, model.label, model.capabilities);
+  const showChat =
+    model.capabilities?.includes('chat') === true ||
+    (modelSupportsCapability(model, 'chat') && !likelyImage && !likelyVideo);
+  const caps: Array<{ key: string; label: string; bg: string; fg: string }> = [];
+  if (showChat) {
+    caps.push({
       key: 'chat',
       label: isChinese ? '对话' : 'Chat',
       bg: '#e3ecfd',
       fg: '#2f5fd0',
-    },
-  ];
+    });
+  }
   if (model.input?.includes('image')) {
     caps.push({
       key: 'vision',
@@ -82,7 +96,7 @@ export function modelCaps(
       fg: '#7444d8',
     });
   }
-  if (model.capabilities?.includes('image-generation')) {
+  if (likelyImage) {
     caps.push({
       key: 'image',
       label: isChinese ? '生图' : 'Image',
@@ -90,7 +104,7 @@ export function modelCaps(
       fg: '#b26a00',
     });
   }
-  if (model.capabilities?.includes('video-generation')) {
+  if (likelyVideo) {
     caps.push({
       key: 'video',
       label: isChinese ? '视频' : 'Video',
@@ -473,6 +487,7 @@ export function ProviderRow({
         open={addModelOpen}
         onOpenChange={setAddModelOpen}
         existingModelIds={provider.models.map((model) => model.id)}
+        protocol={provider.protocol}
         onAdd={(model) => {
           onUpdateModels([...provider.models, model]);
           setAddModelOpen(false);
@@ -486,7 +501,7 @@ export function ProviderRow({
         models={discoverModels}
         onOpenChange={setDiscoverOpen}
         onImport={(selected) => {
-          onUpdateModels(mergeDiscoveredModels(provider.models, selected));
+          onUpdateModels(mergeDiscoveredModels(provider.models, selected, provider.protocol));
           setDiscoverOpen(false);
         }}
       />

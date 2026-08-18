@@ -1,32 +1,34 @@
 /**
  * Settings → Image Generation.
  *
- * Mirrors Models page patterns:
- *   - pick a real provider from `config.providers` (same channels as Models)
- *   - ImageModelSuggest smart dropdown (Pi catalog + provider discovery)
- *   - manual add/edit form for route path / timeout / label
- *   - list of image-capable models with set-default / remove
- *
- * Models live on `config.providers[].models` with
- * `capabilities: ['image-generation']` and optional
- * `routes['image-generation']` path/timeout.
+ * Lists already-tagged image models. Writes `imageGeneration.defaultModel`
+ * and that model's `routes['image-generation']`. Does not add or retag rows.
  */
 
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Field } from '@piwin/ui-kit';
-import type {
-  DiscoveredModel,
-  ImageGenerationApiStyle,
-  ModelConfigEntry,
-  ModelProviderConfig,
-  ModelRouteConfig,
-  PiwinConfig,
-} from '@piwin/contracts';
-import { ImageModelSuggest } from './image-model-suggest.jsx';
+import { useMemo, useState, type ReactElement } from 'react';
+import { Button } from '@piwin/ui-kit';
+import type { ModelConfigEntry, ModelProviderConfig, ModelRouteConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context.js';
+import {
+  buildImageGenerationRoute,
+  imageApiStyleLabel,
+  isImageApiStyle,
+  patchProviderModelRoute,
+} from './generation-route-defaults.js';
+import {
+  createModelConfigurationDraft,
+  type ModelConfigurationDraft,
+} from './model-configuration.js';
+import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
 import { ProviderIcon } from './provider-icons.js';
 import { useSettings } from './settings/settings-context.js';
 import { PageTitle } from './settings/page-title.js';
+
+export {
+  IMAGE_API_STYLE_OPTIONS,
+  imageApiStyleLabel,
+  isImageApiStyle,
+} from './generation-route-defaults.js';
 
 /** Image-capable when it declares the capability or has an image-generation route. */
 export function isImageGenerationModel(model: ModelConfigEntry): boolean {
@@ -34,79 +36,6 @@ export function isImageGenerationModel(model: ModelConfigEntry): boolean {
     return true;
   }
   return model.routes?.['image-generation'] !== undefined;
-}
-
-/** Image wire formats selectable per model (matches host image_gen apiStyle). */
-export const IMAGE_API_STYLE_OPTIONS: readonly ImageGenerationApiStyle[] = [
-  'openai',
-  'imagen',
-  'gemini',
-];
-
-export function isImageApiStyle(value: unknown): value is ImageGenerationApiStyle {
-  return IMAGE_API_STYLE_OPTIONS.includes(value as ImageGenerationApiStyle);
-}
-
-/** Protocol default wire format (matches host image_gen fallbacks). */
-export function defaultImageApiStyle(
-  protocol: ModelProviderConfig['protocol'],
-): ImageGenerationApiStyle {
-  return protocol === 'google-gemini' ? 'imagen' : 'openai';
-}
-
-export function imageApiStyleLabel(
-  apiStyle: ImageGenerationApiStyle,
-  locale: 'zh-CN' | 'en',
-): string {
-  switch (apiStyle) {
-    case 'openai':
-      return locale === 'zh-CN'
-        ? 'OpenAI 格式 (images/generations)'
-        : 'OpenAI format (images/generations)';
-    case 'imagen':
-      return locale === 'zh-CN' ? 'Imagen 格式 (:predict)' : 'Imagen format (:predict)';
-    case 'gemini':
-      return locale === 'zh-CN'
-        ? 'Gemini 原生格式 (:generateContent)'
-        : 'Gemini native format (:generateContent)';
-  }
-}
-
-/** Default request path for a wire format; empty lets the Host fall back. */
-export function defaultImagePathForStyle(
-  apiStyle: ImageGenerationApiStyle,
-  modelId: string,
-): string {
-  switch (apiStyle) {
-    case 'openai':
-      return '/images/generations';
-    case 'imagen':
-      return modelId ? `/models/${modelId}:predict` : '';
-    case 'gemini':
-      return modelId ? `/models/${modelId}:generateContent` : '';
-  }
-}
-
-/** Normalize a custom request path: require leading `/`, reject absolute URLs. */
-export function normalizeRequestPath(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed || /^https?:\/\//i.test(trimmed)) {
-    return '';
-  }
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-}
-
-/** Parse a timeout field in seconds; returns seconds or undefined when unset/invalid. */
-export function parseTimeoutSeconds(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const seconds = Number(trimmed);
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    return undefined;
-  }
-  return seconds;
 }
 
 type ImageModelRow = {
@@ -126,335 +55,22 @@ export function collectImageModels(providers: readonly ModelProviderConfig[]): I
   return rows;
 }
 
-function findFirstEnabledImageModel(
-  providers: readonly ModelProviderConfig[],
-): ImageModelRow | null {
-  for (const provider of providers) {
-    if (provider.enabled === false) continue;
-    const model = provider.models.find(
-      (candidate) => candidate.enabled !== false && isImageGenerationModel(candidate),
-    );
-    if (model) return { provider, model };
-  }
-  return null;
-}
-
-function hasUsableImageDefault(config: PiwinConfig): boolean {
-  const selected = config.imageGeneration?.defaultModel;
-  if (!selected) return false;
-  const provider = config.providers.find(
-    (candidate) => candidate.id === selected.providerId && candidate.enabled !== false,
-  );
-  return (
-    provider?.models.some(
-      (model) =>
-        model.id === selected.modelId && model.enabled !== false && isImageGenerationModel(model),
-    ) ?? false
-  );
-}
-
-function buildImageRoute(
-  path: string,
-  timeoutSeconds: string,
-  apiStyle?: ImageGenerationApiStyle,
-): ModelRouteConfig {
-  const normalizedPath = normalizeRequestPath(path);
-  const timeout = parseTimeoutSeconds(timeoutSeconds);
-  return {
-    ...(apiStyle ? { apiStyle } : {}),
-    ...(normalizedPath ? { path: normalizedPath } : {}),
-    ...(timeout !== undefined ? { timeoutMs: timeout * 1000 } : {}),
-  };
-}
-
-export function buildImageModelEntry(input: {
-  id: string;
-  path: string;
-  timeoutSeconds: string;
-  label: string;
-  description: string;
-  apiStyle?: ImageGenerationApiStyle;
-}): ModelConfigEntry {
-  const label = input.label.trim();
-  const description = input.description.trim();
-  const route = buildImageRoute(input.path, input.timeoutSeconds, input.apiStyle);
-  return {
-    id: input.id.trim(),
-    capabilities: ['image-generation'],
-    ...(label ? { label } : {}),
-    ...(description ? { tooltipMarkdown: description } : {}),
-    routes: { 'image-generation': route },
-  };
-}
-
-/**
- * Import discovered models as image-generation entries, preserving existing
- * chat models on the same provider. Existing image models keep their routes.
- */
-export function mergeDiscoveredImageModels(
-  configuredModels: readonly ModelConfigEntry[],
-  selectedModels: readonly DiscoveredModel[],
-  routeDefaults: { path: string; timeoutSeconds: string },
-): ModelConfigEntry[] {
-  const modelsById = new Map(configuredModels.map((model) => [model.id, model]));
-  const route = buildImageRoute(routeDefaults.path, routeDefaults.timeoutSeconds);
-
-  for (const discovered of selectedModels) {
-    const modelId = discovered.id.trim();
-    if (!modelId) continue;
-
-    const existing = modelsById.get(modelId);
-    if (existing) {
-      // Upgrade an existing entry to image-capable without dropping other fields.
-      const capabilities = new Set(existing.capabilities ?? []);
-      capabilities.add('image-generation');
-      modelsById.set(modelId, {
-        ...existing,
-        capabilities: [...capabilities],
-        routes: {
-          ...existing.routes,
-          'image-generation': existing.routes?.['image-generation'] ?? route,
-        },
-      });
-      continue;
-    }
-
-    const model: ModelConfigEntry = {
-      id: modelId,
-      capabilities: ['image-generation'],
-      routes: { 'image-generation': route },
-    };
-    if (discovered.label?.trim() && discovered.label !== modelId) {
-      model.label = discovered.label.trim();
-    }
-    if (discovered.input) {
-      model.input = discovered.input;
-    }
-    if (discovered.reasoning !== undefined) {
-      model.reasoning = discovered.reasoning;
-    }
-    if (discovered.contextWindow !== undefined) {
-      model.contextWindow = discovered.contextWindow;
-    }
-    if (discovered.maxOutputTokens !== undefined) {
-      model.maxOutputTokens = discovered.maxOutputTokens;
-    }
-    modelsById.set(modelId, model);
-  }
-
-  return [...modelsById.values()];
-}
-
 export function ImageGenerationSettings(): ReactElement {
-  const {
-    config,
-    saveConfig,
-    testImageGenerationModel,
-    setError,
-    setInfo,
-  } = useSettings();
+  const { config, saveConfig, testImageGenerationModel, setError, setInfo } = useSettings();
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.imageGeneration;
   const common = translator.common;
-
-  const allProviders = useMemo(
-    () =>
-      config?.providers.filter((provider) => provider.protocol !== 'anthropic-compatible') ?? [],
-    [config],
-  );
-  const imageRows = useMemo(() => (config ? collectImageModels(config.providers) : []), [config]);
-
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [addModelId, setAddModelId] = useState('');
-  const [addModelPath, setAddModelPath] = useState('/images/generations');
-  const [addModelApiStyle, setAddModelApiStyle] = useState<ImageGenerationApiStyle>('openai');
-  const [addModelTimeout, setAddModelTimeout] = useState('180');
-  const [addModelLabel, setAddModelLabel] = useState('');
-  const [addModelDescription, setAddModelDescription] = useState('');
   const [testingKey, setTestingKey] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ModelConfigurationDraft | null>(null);
 
-  // Prefer configured image default provider, else first provider with image-capable models, else first configured provider.
-  useEffect(() => {
-    if (selectedProviderId && allProviders.some((p) => p.id === selectedProviderId)) {
-      return;
-    }
-    const imageDefaultProvider = config?.imageGeneration?.defaultModel?.providerId;
-    if (imageDefaultProvider && allProviders.some((p) => p.id === imageDefaultProvider)) {
-      setSelectedProviderId(imageDefaultProvider);
-      return;
-    }
-    const providerWithImage = allProviders.find((p) =>
-      p.models.some((m) => isImageGenerationModel(m)),
-    );
-    if (providerWithImage) {
-      setSelectedProviderId(providerWithImage.id);
-      return;
-    }
-    setSelectedProviderId(allProviders[0]?.id ?? '');
-  }, [allProviders, config?.imageGeneration?.defaultModel?.providerId, selectedProviderId]);
-
-  // When editing, pin the form to the model's original provider.
-  const effectiveProviderId = useMemo(() => {
-    const editingProviderId = editingKey?.split(':')[0];
-    if (editingProviderId && allProviders.some((p) => p.id === editingProviderId)) {
-      return editingProviderId;
-    }
-    return selectedProviderId;
-  }, [allProviders, editingKey, selectedProviderId]);
-
-  const selectedProvider = useMemo(
-    () => allProviders.find((p) => p.id === effectiveProviderId) ?? null,
-    [allProviders, effectiveProviderId],
-  );
-
-  const resetAddForm = useCallback(() => {
-    setEditingKey(null);
-    setAddModelId('');
-    const style = selectedProvider ? defaultImageApiStyle(selectedProvider.protocol) : 'openai';
-    setAddModelApiStyle(style);
-    setAddModelPath(defaultImagePathForStyle(style, ''));
-    setAddModelTimeout('180');
-    setAddModelLabel('');
-    setAddModelDescription('');
-  }, [selectedProvider]);
-
-  function handleProviderChange(providerId: string): void {
-    setSelectedProviderId(providerId);
-    if (editingKey) return;
-    const provider = allProviders.find((p) => p.id === providerId);
-    if (provider) {
-      const style = defaultImageApiStyle(provider.protocol);
-      setAddModelApiStyle(style);
-      setAddModelPath(defaultImagePathForStyle(style, addModelId));
-    }
-  }
-
-  function handleApiStyleChange(style: ImageGenerationApiStyle): void {
-    const previous = addModelApiStyle;
-    setAddModelApiStyle(style);
-    // Refresh the path when it is empty or still the default of the old style.
-    const previousDefault = defaultImagePathForStyle(previous, addModelId);
-    if (!addModelPath.trim() || addModelPath === previousDefault) {
-      setAddModelPath(defaultImagePathForStyle(style, addModelId));
-    }
-  }
-
-  function handleModelIdChange(nextId: string): void {
-    setAddModelId(nextId);
-    if (!selectedProvider) return;
-    const existing = selectedProvider.models.find((m) => m.id === nextId);
-    if (existing) {
-      if (existing.label && !addModelLabel) {
-        setAddModelLabel(existing.label);
-      }
-      if (existing.tooltipMarkdown && !addModelDescription) {
-        setAddModelDescription(existing.tooltipMarkdown);
-      }
-      const route = existing.routes?.['image-generation'];
-      if (route) {
-        if (isImageApiStyle(route.apiStyle)) {
-          setAddModelApiStyle(route.apiStyle);
-        }
-        if (route.path) {
-          setAddModelPath(route.path);
-        }
-        if (route.timeoutMs !== undefined) {
-          setAddModelTimeout(String(route.timeoutMs / 1000));
-        }
-      }
-    }
-  }
-
-  function handleStartEdit(provider: ModelProviderConfig, model: ModelConfigEntry): void {
-    setEditingKey(`${provider.id}:${model.id}`);
-    setSelectedProviderId(provider.id);
-    const route = model.routes?.['image-generation'];
-    const style = isImageApiStyle(route?.apiStyle)
-      ? route.apiStyle
-      : defaultImageApiStyle(provider.protocol);
-    setAddModelId(model.id);
-    setAddModelApiStyle(style);
-    setAddModelPath(route?.path ?? defaultImagePathForStyle(style, model.id));
-    setAddModelTimeout(route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '180');
-    setAddModelLabel(model.label ?? '');
-    setAddModelDescription(model.tooltipMarkdown ?? '');
-  }
-
-  async function handleAddModel(): Promise<void> {
-    if (!config || !selectedProvider) {
-      return;
-    }
-    const id = addModelId.trim();
-    if (!id) {
-      return;
-    }
-
-    const existingModel = selectedProvider.models.find((model) => model.id === id);
-    if (!existingModel) {
-      setError(
-        locale === 'zh-CN'
-          ? `通道「${selectedProvider.name || selectedProvider.id}」中尚未配置模型「${id}」。请先在「通道与文本」中为该通道添加或拉取此模型。`
-          : `Model "${id}" is not configured on channel "${selectedProvider.name || selectedProvider.id}". Please add or fetch it under Channels & chat first.`,
-      );
-      return;
-    }
-
-    const updatedModel = buildImageModelEntry({
-      id,
-      path: addModelPath,
-      apiStyle: addModelApiStyle,
-      timeoutSeconds: addModelTimeout,
-      label: addModelLabel || existingModel.label || '',
-      description: addModelDescription || existingModel.tooltipMarkdown || '',
-    });
-
-    const nextProviders = config.providers.map((provider) => {
-      if (provider.id !== selectedProvider.id) return provider;
-      return {
-        ...provider,
-        models: provider.models.map((model): ModelConfigEntry => {
-          if (model.id !== id) return model;
-          const capabilities = new Set(model.capabilities ?? []);
-          capabilities.add('image-generation');
-          const merged: ModelConfigEntry = {
-            ...model,
-            id: updatedModel.id,
-            capabilities: [...capabilities],
-            routes: {
-              ...model.routes,
-              ...updatedModel.routes,
-            },
-          };
-          if (updatedModel.label) merged.label = updatedModel.label;
-          if (updatedModel.tooltipMarkdown) {
-            merged.tooltipMarkdown = updatedModel.tooltipMarkdown;
-          }
-          return merged;
-        }),
-      };
-    });
-
-    const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
-    if (!hasUsableImageDefault(nextConfig) && selectedProvider.enabled !== false) {
-      nextConfig.imageGeneration = {
-        defaultModel: {
-          protocol: selectedProvider.protocol,
-          providerId: selectedProvider.id,
-          modelId: id,
-        },
-      };
-    }
-    if (await saveConfig(nextConfig)) {
-      resetAddForm();
-    }
-  }
+  const imageRows = useMemo(() => (config ? collectImageModels(config.providers) : []), [config]);
 
   function handleSetDefault(provider: ModelProviderConfig, modelId: string): void {
     if (!config) {
       return;
     }
-    const next: PiwinConfig = {
+    void saveConfig({
       ...config,
       imageGeneration: {
         ...config.imageGeneration,
@@ -464,65 +80,49 @@ export function ImageGenerationSettings(): ReactElement {
           modelId,
         },
       },
-    };
-    void saveConfig(next);
+    });
   }
 
-  function handleRemoveModel(providerId: string, modelId: string): void {
+  function handleSaveRoute(
+    provider: ModelProviderConfig,
+    modelId: string,
+    route: ModelRouteConfig,
+  ): void {
     if (!config) {
       return;
     }
-    // Strip image-generation capability and route while preserving the base model on the provider.
-    const nextProviders = config.providers.map((provider) => {
-      if (provider.id !== providerId) {
-        return provider;
-      }
-      return {
-        ...provider,
-        models: provider.models.map((model) => {
-          if (model.id !== modelId) {
-            return model;
-          }
-          const remainingCapabilities = (model.capabilities ?? []).filter(
-            (capability) => capability !== 'image-generation',
-          );
-          const remainingRoutes = model.routes ? { ...model.routes } : undefined;
-          if (remainingRoutes) {
-            delete remainingRoutes['image-generation'];
-          }
-          const hasRemainingRoutes =
-            remainingRoutes !== undefined && Object.keys(remainingRoutes).length > 0;
-          const nextModel: ModelConfigEntry = { ...model };
-          if (remainingCapabilities.length > 0) {
-            nextModel.capabilities = remainingCapabilities;
-          } else {
-            delete nextModel.capabilities;
-          }
-          if (hasRemainingRoutes && remainingRoutes) {
-            nextModel.routes = remainingRoutes;
-          } else {
-            delete nextModel.routes;
-          }
-          return nextModel;
-        }),
-      };
+    void saveConfig({
+      ...config,
+      providers: patchProviderModelRoute(
+        config.providers,
+        provider.id,
+        modelId,
+        'image-generation',
+        route,
+      ),
     });
-    const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
-    if (!hasUsableImageDefault(nextConfig)) {
-      const fallback = findFirstEnabledImageModel(nextProviders);
-      if (fallback) {
-        nextConfig.imageGeneration = {
-          defaultModel: {
-            protocol: fallback.provider.protocol,
-            providerId: fallback.provider.id,
-            modelId: fallback.model.id,
-          },
-        };
-      } else {
-        delete nextConfig.imageGeneration;
-      }
-    }
-    void saveConfig(nextConfig);
+  }
+
+  function startEdit(provider: ModelProviderConfig, model: ModelConfigEntry): void {
+    setEditingKey(`${provider.id}:${model.id}`);
+    setDraft({
+      ...createModelConfigurationDraft(model, undefined, provider.protocol),
+      supportsImageGeneration: true,
+      supportsVideoGeneration: false,
+    });
+  }
+
+  function cancelEdit(): void {
+    setEditingKey(null);
+    setDraft(null);
+  }
+
+  function saveEdit(provider: ModelProviderConfig, modelId: string): void {
+    if (!draft) return;
+    const route = buildImageGenerationRoute(draft);
+    if (!route) return;
+    handleSaveRoute(provider, modelId, route);
+    cancelEdit();
   }
 
   async function handleTestModel(
@@ -566,244 +166,10 @@ export function ImageGenerationSettings(): ReactElement {
     );
   }
 
-  const apiKeyStatus = selectedProvider?.apiKeyRef
-    ? copy.apiKeyStoredKeychain
-    : selectedProvider?.apiKeyEnv
-      ? copy.apiKeyStoredEnv(selectedProvider.apiKeyEnv)
-      : copy.apiKeyUnset;
-
   return (
     <div className="image-generation-settings" data-testid="image-generation-settings">
       <div className="settings-section settings-section-card">
-        <PageTitle
-          title={
-            editingKey
-              ? locale === 'zh-CN'
-                ? '编辑图片模型'
-                : 'Edit image model'
-              : locale === 'zh-CN'
-                ? '添加图片模型'
-                : 'Add image model'
-          }
-        />
-        {allProviders.length === 0 ? (
-          <p className="muted" style={{ marginTop: 8 }}>
-            {locale === 'zh-CN'
-              ? '请先在「通道与文本」中添加接口通道。'
-              : 'Add a provider under Channels & chat first.'}
-          </p>
-        ) : (
-          <div className="image-gen-form" style={{ marginTop: 16 }}>
-            <div className="image-gen-section-group">
-              <div
-                className="ui-field-label"
-                style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: 12 }}
-              >
-                {locale === 'zh-CN' ? '接口通道与模型 ID' : 'Channel & Model ID'}
-              </div>
-
-              {/* Real provider channel (same list as Models page) */}
-              <div
-                className="image-gen-form-row image-gen-form-row--full"
-                data-testid="image-gen-provider-select"
-              >
-                <Field label={locale === 'zh-CN' ? '* 接口通道' : '* Provider channel'}>
-                  <select
-                    className="mcp-raw-editor"
-                    style={{
-                      height: 'auto',
-                      padding: '9px 12px',
-                      width: '100%',
-                      borderRadius: 8,
-                      fontSize: 13.5,
-                    }}
-                    data-testid="image-gen-provider-select-control"
-                    value={effectiveProviderId}
-                    disabled={Boolean(editingKey)}
-                    onChange={(event) => handleProviderChange(event.target.value)}
-                  >
-                    {allProviders.map((provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name || provider.id}
-                        {provider.enabled === false
-                          ? locale === 'zh-CN'
-                            ? '（已关闭）'
-                            : ' (off)'
-                          : ''}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <div
-                  className="image-gen-provider-meta muted"
-                  style={{ marginTop: 6, fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}
-                >
-                  <span data-testid="image-gen-baseurl">{selectedProvider?.baseUrl ?? '—'}</span>
-                  <span data-testid="image-gen-apikey-status">{apiKeyStatus}</span>
-                </div>
-              </div>
-
-              {/* Model ID with smart image-model suggestion dropdown */}
-              <div
-                className="image-gen-form-row image-gen-form-row--full"
-                style={{ marginTop: 12 }}
-              >
-                <div className="ui-field">
-                  <label className="ui-field-label">
-                    <span style={{ color: 'var(--danger, #ef4444)', marginRight: 4 }}>*</span>
-                    {copy.modelId}
-                  </label>
-                  <div className="ui-field-control">
-                    <ImageModelSuggest
-                      value={addModelId}
-                      onChange={handleModelIdChange}
-                      provider={selectedProvider}
-                      disabled={Boolean(editingKey)}
-                    />
-                  </div>
-                  {addModelId.trim() && !selectedProvider?.models.some((m) => m.id === addModelId.trim()) ? (
-                    <p
-                      className="image-gen-model-missing-hint"
-                      style={{ marginTop: 6, fontSize: 12, color: 'var(--warn, #f59e0b)' }}
-                      data-testid="image-add-model-missing-hint"
-                    >
-                      {locale === 'zh-CN'
-                        ? `当前通道尚未配置模型「${addModelId.trim()}」。请先在「通道与文本」中为该通道拉取或添加此模型。`
-                        : `Model "${addModelId.trim()}" is not configured on this channel. Please fetch or add it under Channels & chat first.`}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="image-gen-form-row" style={{ marginTop: 12 }}>
-                <Field
-                  label={locale === 'zh-CN' ? 'API 格式' : 'API style'}
-                  description={
-                    locale === 'zh-CN'
-                      ? '请求与响应的数据格式。OpenAI 格式走 images/generations；Imagen 格式走 :predict；Gemini 原生格式走 :generateContent（返回 inlineData 图片）。'
-                      : 'Request/response wire format. OpenAI uses images/generations; Imagen uses :predict; Gemini native uses :generateContent (inlineData images).'
-                  }
-                >
-                  <select
-                    className="mcp-raw-editor"
-                    style={{ height: 'auto', padding: '9px 12px', width: '100%' }}
-                    data-testid="image-add-model-style"
-                    value={addModelApiStyle}
-                    onChange={(event) =>
-                      handleApiStyleChange(event.target.value as ImageGenerationApiStyle)
-                    }
-                  >
-                    {IMAGE_API_STYLE_OPTIONS.map((style) => (
-                      <option key={style} value={style}>
-                        {imageApiStyleLabel(style, locale)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-
-              <div className="image-gen-form-row" style={{ marginTop: 12 }}>
-                <Field
-                  label={locale === 'zh-CN' ? '自定义请求路径' : copy.requestPath}
-                  description={
-                    locale === 'zh-CN'
-                      ? '不同模型服务商的接口路径可能不同。这里仅填写请求路径，不填写完整域名。留空时系统使用当前通道默认路径。'
-                      : copy.requestPathHint
-                  }
-                >
-                  <input
-                    className="mcp-raw-editor"
-                    style={{ height: 'auto', padding: '8px 12px' }}
-                    data-testid="image-add-model-path"
-                    value={addModelPath}
-                    onChange={(event) => setAddModelPath(event.target.value)}
-                    placeholder="/images/generations"
-                    spellCheck={false}
-                  />
-                </Field>
-                <Field label={`${copy.timeout} (${copy.timeoutUnitSeconds})`}>
-                  <input
-                    className="mcp-raw-editor"
-                    style={{ height: 'auto', padding: '8px 12px' }}
-                    data-testid="image-add-model-timeout"
-                    value={addModelTimeout}
-                    onChange={(event) => setAddModelTimeout(event.target.value)}
-                    placeholder="300"
-                    inputMode="numeric"
-                  />
-                </Field>
-              </div>
-
-              <div className="image-gen-form-row" style={{ marginTop: 12 }}>
-                <Field label={locale === 'zh-CN' ? '模型备注' : copy.modelLabel}>
-                  <input
-                    className="mcp-raw-editor"
-                    style={{ height: 'auto', padding: '8px 12px' }}
-                    data-testid="image-add-model-label"
-                    value={addModelLabel}
-                    onChange={(event) => setAddModelLabel(event.target.value)}
-                    placeholder="SiliconFlow FLUX"
-                    spellCheck={false}
-                  />
-                </Field>
-                <Field
-                  label={locale === 'zh-CN' ? '模型介绍' : copy.modelDescription}
-                  {...(locale === 'zh-CN'
-                    ? { description: '填写后会同步到前台对应模型的输入框默认提示' }
-                    : {})}
-                >
-                  <input
-                    className="mcp-raw-editor"
-                    style={{ height: 'auto', padding: '8px 12px' }}
-                    data-testid="image-add-model-description"
-                    value={addModelDescription}
-                    onChange={(event) => setAddModelDescription(event.target.value)}
-                    spellCheck={false}
-                  />
-                </Field>
-              </div>
-
-              {addModelId.trim() && !editingKey ? (
-                <p
-                  className="muted"
-                  style={{ marginTop: 12, fontSize: 12 }}
-                  data-testid="image-add-model-hint"
-                >
-                  {copy.saveHint}
-                </p>
-              ) : null}
-
-              <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                {editingKey ? (
-                  <Button size="compact" variant="ghost" onClick={resetAddForm}>
-                    {locale === 'zh-CN' ? '取消编辑' : 'Cancel'}
-                  </Button>
-                ) : null}
-                <Button
-                  size="compact"
-                  variant="primary"
-                  data-testid="image-add-model-submit"
-                  disabled={
-                    !addModelId.trim() ||
-                    !selectedProvider ||
-                    !selectedProvider.models.some((m) => m.id === addModelId.trim())
-                  }
-                  onClick={() => void handleAddModel()}
-                >
-                  {editingKey
-                    ? locale === 'zh-CN'
-                      ? '保存模型修改'
-                      : 'Update Model'
-                    : copy.addModel}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="settings-section settings-section-card" style={{ marginTop: 16 }}>
-        <PageTitle title={copy.modelsHeading} />
+        <PageTitle title={copy.pageTitle} description={copy.pageDescription} />
         {imageRows.length === 0 ? (
           <p className="muted" style={{ marginTop: 8 }} data-testid="image-gen-empty">
             {copy.noModels}
@@ -811,19 +177,20 @@ export function ImageGenerationSettings(): ReactElement {
         ) : (
           <ul className="image-gen-model-list" style={{ marginTop: 12 }}>
             {imageRows.map(({ provider, model }) => {
+              const key = `${provider.id}:${model.id}`;
               const route = model.routes?.['image-generation'];
               const isDefault =
                 config.imageGeneration?.defaultModel?.modelId === model.id &&
                 config.imageGeneration?.defaultModel?.providerId === provider.id;
-              const isEditing = editingKey === `${provider.id}:${model.id}`;
-              const isTesting = testingKey === `${provider.id}:${model.id}`;
+              const isTesting = testingKey === key;
+              const isEditing = editingKey === key;
               return (
                 <li
-                  key={`${provider.id}:${model.id}`}
-                  className={`image-gen-model-item ${isEditing ? 'is-editing' : ''}`}
+                  key={key}
+                  className="image-gen-model-item"
                   data-testid="image-model-row"
                 >
-                  <ProviderIcon id={provider.id} size={28} />
+                  <ProviderIcon id={provider.id} name={provider.name} size={28} />
                   <div className="image-gen-model-item-body">
                     <div className="image-gen-model-item-title">
                       <span className="image-gen-model-item-id">{model.id}</span>
@@ -849,8 +216,42 @@ export function ImageGenerationSettings(): ReactElement {
                         ? ` · ${route.timeoutMs / 1000}${copy.timeoutUnitSeconds}`
                         : ''}
                     </div>
+                    {isEditing && draft ? (
+                      <div className="image-gen-route-editor" style={{ marginTop: 10 }}>
+                        <ModelGenerationRouteFields
+                          draft={draft}
+                          isChinese={locale === 'zh-CN'}
+                          onChange={(update) =>
+                            setDraft((current) => (current ? update(current) : current))
+                          }
+                        />
+                        <div className="image-gen-model-item-actions" style={{ marginTop: 8 }}>
+                          <Button
+                            size="compact"
+                            variant="primary"
+                            data-testid="image-model-save-route"
+                            onClick={() => saveEdit(provider, model.id)}
+                          >
+                            {copy.saveRoute}
+                          </Button>
+                          <Button size="compact" variant="ghost" onClick={cancelEdit}>
+                            {locale === 'zh-CN' ? '取消' : 'Cancel'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="image-gen-model-item-actions">
+                    {!isEditing ? (
+                      <Button
+                        size="compact"
+                        variant="ghost"
+                        data-testid="image-model-edit-route"
+                        onClick={() => startEdit(provider, model)}
+                      >
+                        {copy.editRoute}
+                      </Button>
+                    ) : null}
                     <Button
                       size="compact"
                       variant="ghost"
@@ -866,13 +267,6 @@ export function ImageGenerationSettings(): ReactElement {
                           ? '测试调用'
                           : 'Test call'}
                     </Button>
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      onClick={() => handleStartEdit(provider, model)}
-                    >
-                      {locale === 'zh-CN' ? '编辑' : 'Edit'}
-                    </Button>
                     {!isDefault ? (
                       <Button
                         size="compact"
@@ -883,15 +277,6 @@ export function ImageGenerationSettings(): ReactElement {
                         {copy.setDefault}
                       </Button>
                     ) : null}
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      data-testid="image-model-remove"
-                      onClick={() => handleRemoveModel(provider.id, model.id)}
-                      style={{ color: 'var(--danger)' }}
-                    >
-                      {copy.removeModel}
-                    </Button>
                   </div>
                 </li>
               );

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /**
- * ImageGenerationSettings coverage — form-first add flow, compact model list,
- * set-default / remove, and capability-tagged image-generation routes.
+ * Image/video capability pages may write that model's generation route and
+ * the default-model ref. They must not add, delete, or retag catalog rows.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -11,7 +11,6 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { ImageGenerationSettings } from './ImageGenerationSettings';
-import { VideoGenerationSettings } from './VideoGenerationSettings';
 import { SettingsProvider, type SettingsContextValue } from './settings/settings-context';
 import { ModelsPage } from './settings/pages/models-page';
 import { webToDraft } from './settings/web-draft';
@@ -151,16 +150,6 @@ function renderSettings(
   return { container, root };
 }
 
-/** Set a controlled input value the way React tracks it (native setter + input event). */
-function setInputValue(input: HTMLInputElement | null, value: string): void {
-  if (!input) {
-    return;
-  }
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-  setter?.call(input, value);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
 describe('ImageGenerationSettings', () => {
   let root: Root | undefined;
   let container: HTMLDivElement | undefined;
@@ -174,203 +163,22 @@ describe('ImageGenerationSettings', () => {
     container = undefined;
   });
 
-  it('renders the real provider channel select, image model row, and request path', async () => {
-    const config = makeConfig();
-    ({ root, container } = renderSettings(
-      config,
-      vi.fn(async () => true),
-    ));
+  it('lists image-capable models from the provider catalog', async () => {
+    ({ root, container } = renderSettings(makeConfig(), vi.fn(async () => true)));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-
-    // Uses real config.providers (same channels as Models), not a fake vendor list.
-    const select = container!.querySelector<HTMLSelectElement>(
-      '[data-testid="image-gen-provider-select-control"]',
-    );
-    expect(select).not.toBeNull();
-    expect(select?.value).toBe('zhipu');
-    expect(select?.textContent ?? '').toContain('Zhipu');
 
     const row = container!.querySelector('[data-testid="image-model-row"]');
     expect(row).not.toBeNull();
     expect(row?.textContent ?? '').toContain('glm-image');
     expect(row?.textContent ?? '').toContain('/images/generations');
-
-    expect(container!.querySelector('[data-testid="image-gen-baseurl"]')?.textContent).toContain(
-      'https://open.bigmodel.cn',
-    );
-    const keyStatus =
-      container!.querySelector('[data-testid="image-gen-apikey-status"]')?.textContent ?? '';
-    expect(keyStatus).toContain('••••••••');
+    expect(container!.querySelector('[data-testid="image-add-model-submit"]')).toBeNull();
   });
 
-  it('adds an image model with capabilities and an image-generation route', async () => {
-    const config: PiwinConfig = {
-      ...makeConfig(),
-      providers: [
-        {
-          ...makeConfig().providers[0]!,
-          models: [
-            ...makeConfig().providers[0]!.models,
-            { id: 'cogview-3', label: 'CogView 3' },
-          ],
-        },
-      ],
-    };
-    const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
-      saved.push(next);
-      return true;
-    });
-    ({ root, container } = renderSettings(config, saveConfig));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const submit = container!.querySelector<HTMLButtonElement>(
-      '[data-testid="image-add-model-submit"]',
-    );
-    expect(submit).not.toBeNull();
-    expect(submit?.disabled).toBe(true);
-
-    act(() => {
-      // Missing leading slash is normalized on save.
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-model-suggest-input"]'),
-        'cogview-3',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-path"]'),
-        'images/generations',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-timeout"]'),
-        '120',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-label"]'),
-        'CogView 3',
-      );
-    });
-    expect(submit?.disabled).toBe(false);
-
-    await act(async () => {
-      submit?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(saved.length).toBeGreaterThan(0);
-    const last = saved[saved.length - 1];
-    const added = last?.providers[0]?.models.find((model) => model.id === 'cogview-3');
-    expect(added).toBeDefined();
-    expect(added?.capabilities).toEqual(['image-generation']);
-    expect(added?.label).toBe('CogView 3');
-    expect(added?.routes?.['image-generation']?.path).toBe('/images/generations');
-    expect(added?.routes?.['image-generation']?.timeoutMs).toBe(120000);
-    expect(last?.imageGeneration?.defaultModel).toEqual({
-      protocol: 'openai-compatible',
-      providerId: 'zhipu',
-      modelId: 'cogview-3',
-    });
-  });
-
-  it('adds an image model with a Gemini-native apiStyle and path', async () => {
-    const config: PiwinConfig = {
-      ...makeConfig(),
-      providers: [
-        {
-          ...makeConfig().providers[0]!,
-          models: [
-            ...makeConfig().providers[0]!.models,
-            { id: 'gemini-3.1-flash-image', label: 'Gemini Flash Image' },
-          ],
-        },
-      ],
-    };
-    const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
-      saved.push(next);
-      return true;
-    });
-    ({ root, container } = renderSettings(config, saveConfig));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const submit = container!.querySelector<HTMLButtonElement>(
-      '[data-testid="image-add-model-submit"]',
-    );
-    expect(submit).not.toBeNull();
-
-    const styleSelect = container!.querySelector<HTMLSelectElement>(
-      '[data-testid="image-add-model-style"]',
-    );
-    expect(styleSelect).not.toBeNull();
-
-    act(() => {
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-model-suggest-input"]'),
-        'gemini-3.1-flash-image',
-      );
-      // Switching the wire format refreshes the default path.
-      styleSelect!.value = 'gemini';
-      styleSelect!.dispatchEvent(new Event('change', { bubbles: true }));
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-path"]'),
-        '/v1beta/models/gemini-3.1-flash-image:generateContent',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-timeout"]'),
-        '180',
-      );
-    });
-    await act(async () => {
-      submit?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(saved.length).toBeGreaterThan(0);
-    const added = saved[saved.length - 1]?.providers[0]?.models.find(
-      (model) => model.id === 'gemini-3.1-flash-image',
-    );
-    expect(added).toBeDefined();
-    expect(added?.routes?.['image-generation']).toEqual({
-      apiStyle: 'gemini',
-      path: '/v1beta/models/gemini-3.1-flash-image:generateContent',
-      timeoutMs: 180000,
-    });
-  });
-
-  it('disables submit and displays warning when model is not configured on provider (3-tier constraint)', async () => {
+  it('sets the default image model without rewriting provider models', async () => {
     const config = makeConfig();
-    const saveConfig = vi.fn(async () => true);
-    ({ root, container } = renderSettings(config, saveConfig));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const submit = container!.querySelector<HTMLButtonElement>(
-      '[data-testid="image-add-model-submit"]',
-    );
-    expect(submit).not.toBeNull();
-
-    act(() => {
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-model-suggest-input"]'),
-        'unconfigured-model-xyz',
-      );
-    });
-
-    expect(submit?.disabled).toBe(true);
-    const hint = container!.querySelector('[data-testid="image-add-model-missing-hint"]');
-    expect(hint).not.toBeNull();
-    expect(hint?.textContent).toContain('unconfigured-model-xyz');
-    expect(saveConfig).not.toHaveBeenCalled();
-  });
-
-  it('sets the default image model when set-default is clicked', async () => {
-    const config = makeConfig();
+    const originalModels = structuredClone(config.providers[0]?.models);
     const saved: PiwinConfig[] = [];
     const saveConfig = vi.fn(async (next: PiwinConfig) => {
       saved.push(next);
@@ -381,12 +189,8 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const button = container!.querySelector<HTMLButtonElement>(
-      '[data-testid="image-model-set-default"]',
-    );
-    expect(button).not.toBeNull();
     act(() => {
-      button?.click();
+      container!.querySelector<HTMLButtonElement>('[data-testid="image-model-set-default"]')?.click();
     });
 
     expect(saved.length).toBeGreaterThan(0);
@@ -396,115 +200,64 @@ describe('ImageGenerationSettings', () => {
       providerId: 'zhipu',
       modelId: 'glm-image',
     });
+    expect(last?.providers[0]?.models).toEqual(originalModels);
   });
 
-  it('removes image-generation capability and route while preserving the model on the provider', async () => {
+  it('saves image protocol onto the existing model route', () => {
     const config = makeConfig();
-    config.imageGeneration = {
-      defaultModel: {
-        protocol: 'openai-compatible',
-        providerId: 'zhipu',
-        modelId: 'glm-image',
-      },
-    };
     const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
+    ({ root, container } = renderSettings(config, async (next) => {
       saved.push(next);
       return true;
-    });
-    ({ root, container } = renderSettings(config, saveConfig));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    }));
 
-    const removeButton = container!.querySelector<HTMLButtonElement>(
-      '[data-testid="image-model-remove"]',
-    );
-    expect(removeButton).not.toBeNull();
     act(() => {
-      removeButton?.click();
+      container
+        ?.querySelector<HTMLButtonElement>('[data-testid="image-model-edit-route"]')
+        ?.click();
     });
-
-    expect(saved.length).toBeGreaterThan(0);
-    const last = saved[saved.length - 1];
-    expect(last?.providers[0]?.models).toHaveLength(1);
-    expect(last?.providers[0]?.models[0]).toMatchObject({
-      id: 'glm-image',
-      label: 'GLM-图像生成',
-    });
-    expect(last?.providers[0]?.models[0]?.capabilities).toBeUndefined();
-    expect(last?.providers[0]?.models[0]?.routes).toBeUndefined();
-    expect(last?.imageGeneration).toBeUndefined();
-  });
-
-  it('preserves other capabilities and routes when image-generation is removed', async () => {
-    const config = makeConfig();
-    config.providers[0]!.models[0] = {
-      id: 'gpt-4o',
-      label: 'GPT-4o Multi',
-      capabilities: ['native-web-search', 'image-generation', 'video-generation'],
-      routes: {
-        'image-generation': { path: '/images/generations', timeoutMs: 300000 },
-        'video-generation': { path: '/video/generations' },
-      },
-    };
-    config.imageGeneration = {
-      defaultModel: {
-        protocol: 'openai-compatible',
-        providerId: 'zhipu',
-        modelId: 'gpt-4o',
-      },
-    };
-    const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
-      saved.push(next);
-      return true;
-    });
-    ({ root, container } = renderSettings(config, saveConfig));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const removeButton = container!.querySelector<HTMLButtonElement>(
-      '[data-testid="image-model-remove"]',
-    );
-    expect(removeButton).not.toBeNull();
+    const path = container?.querySelector<HTMLInputElement>('[data-testid="model-edit-image-path"]');
+    expect(path).not.toBeNull();
     act(() => {
-      removeButton?.click();
+      if (!path) return;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(path, '/images/custom');
+      path.dispatchEvent(new Event('input', { bubbles: true }));
+      path.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => {
+      container
+        ?.querySelector<HTMLButtonElement>('[data-testid="image-model-save-route"]')
+        ?.click();
     });
 
-    expect(saved.length).toBeGreaterThan(0);
-    const last = saved[saved.length - 1];
-    expect(last?.providers[0]?.models).toHaveLength(1);
-    expect(last?.providers[0]?.models[0]).toMatchObject({
-      id: 'gpt-4o',
-      label: 'GPT-4o Multi',
-      capabilities: ['native-web-search', 'video-generation'],
-      routes: {
-        'video-generation': { path: '/video/generations' },
+    expect(saved.at(-1)?.providers[0]?.models[0]?.routes).toEqual({
+      'image-generation': {
+        apiStyle: 'openai',
+        path: '/images/custom',
+        timeoutMs: 300_000,
       },
     });
-    expect(last?.providers[0]?.models[0]?.capabilities).not.toContain('image-generation');
-    expect(last?.providers[0]?.models[0]?.routes?.['image-generation']).toBeUndefined();
-    expect(last?.imageGeneration).toBeUndefined();
+    expect(saved.at(-1)?.providers[0]?.models).toHaveLength(1);
   });
 
   it('tests the configured model through the real image-test callback', async () => {
     const config = makeConfig();
-    const setInfo = vi.fn();
     const testImageGenerationModel = vi.fn(async () => ({
       providerId: 'zhipu',
       modelId: 'glm-image',
-      durationMs: 321,
       imageCount: 1,
-      outputs: [{ mimeType: 'image/jpeg', byteSize: 4096 }],
+      durationMs: 42,
+      outputs: [{ mimeType: 'image/jpeg', byteSize: 1024 }],
     }));
-    ({ root, container } = renderSettings(
-      config,
-      vi.fn(async () => true),
-      <ImageGenerationSettings />,
-      { setInfo, testImageGenerationModel },
-    ));
+    const setInfo = vi.fn();
+    ({ root, container } = renderSettings(config, vi.fn(async () => true), <ImageGenerationSettings />, {
+      testImageGenerationModel,
+      setInfo,
+    }));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -523,24 +276,13 @@ describe('ImageGenerationSettings', () => {
 
   it('switches between image and video configuration tabs', async () => {
     const config = makeConfig();
-    ({ root, container } = renderSettings(
-      config,
-      vi.fn(async () => true),
-      <ModelsPage />,
-    ));
+    ({ root, container } = renderSettings(config, vi.fn(async () => true), <ModelsPage />));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const modelsPage = container!.querySelector('[data-testid="settings-models"]');
-    expect(modelsPage?.children[0]?.getAttribute('data-testid')).toBe('settings-model-management');
-
-    // ModelsPage defaults to the channels/chat destination; all capabilities share one nav.
-    expect(container!.querySelector('[data-testid="model-workspace-overview"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="model-config-tab-image"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="model-config-tab-video"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="model-config-tab-speech"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="settings-speech-defaults"]')).toBeNull();
 
     await act(async () => {
       const imageTab = container!.querySelector<HTMLButtonElement>(
@@ -552,281 +294,5 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(container!.querySelector('[data-testid="model-config-panel-image"]')).not.toBeNull();
-
-    await act(async () => {
-      const videoTab = container!.querySelector<HTMLButtonElement>(
-        '[data-testid="model-config-tab-video"]',
-      );
-      videoTab?.dispatchEvent(
-        new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),
-      );
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(container!.querySelector('[data-testid="video-generation-settings"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="image-generation-settings"]')).toBeNull();
-
-    await act(async () => {
-      const speechTab = container!.querySelector<HTMLButtonElement>(
-        '[data-testid="model-config-tab-speech"]',
-      );
-      speechTab?.dispatchEvent(
-        new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),
-      );
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(container!.querySelector('[data-testid="model-config-panel-speech"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="settings-speech-defaults"]')).not.toBeNull();
-  });
-
-  it('adds a video model with an async API style and polling route', async () => {
-    const config: PiwinConfig = {
-      ...makeConfig(),
-      providers: [
-        {
-          ...makeConfig().providers[0]!,
-          models: [
-            ...makeConfig().providers[0]!.models,
-            { id: 'gen4.5', label: 'Gen 4.5' },
-          ],
-        },
-      ],
-    };
-    const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
-      saved.push(next);
-      return true;
-    });
-    ({ root, container } = renderSettings(config, saveConfig, <VideoGenerationSettings />));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    act(() => {
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="video-model-id"]'),
-        'gen4.5',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="video-add-model-path"]'),
-        'v1/text_to_video',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="video-add-model-timeout"]'),
-        '600',
-      );
-      setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="video-add-poll-interval"]'),
-        '5',
-      );
-      const style = container!.querySelector<HTMLSelectElement>('[data-testid="video-api-style"]');
-      if (style) {
-        style.value = 'runway-tasks';
-        style.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-    act(() => {
-      container!
-        .querySelector<HTMLButtonElement>('[data-testid="video-add-model-submit"]')
-        ?.click();
-    });
-
-    const added = saved.at(-1)?.providers[0]?.models.find((model) => model.id === 'gen4.5');
-    expect(added?.capabilities).toContain('video-generation');
-    expect(added?.routes?.['video-generation']).toMatchObject({
-      apiStyle: 'runway-tasks',
-      path: '/v1/text_to_video',
-      timeoutMs: 600_000,
-      pollIntervalMs: 5_000,
-    });
-  });
-
-  it('ImageModelSuggest dropdown strictly shows image-capable models from provider.models by default', async () => {
-    const config: PiwinConfig = {
-      ...makeConfig(),
-      providers: [
-        {
-          id: 'zhipu',
-          protocol: 'openai-compatible',
-          name: 'Zhipu (GLM)',
-          baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-          apiKeyRef: 'zhipu-keychain-ref',
-          models: [
-            {
-              id: 'glm-image',
-              label: 'GLM-图像生成',
-              capabilities: ['image-generation'],
-            },
-            {
-              id: 'glm-video',
-              label: 'GLM-视频生成',
-              capabilities: ['video-generation'],
-            },
-            {
-              id: 'glm-4',
-              label: 'GLM-4 对话',
-              capabilities: ['chat'],
-            },
-            {
-              id: 'glm-disabled-image',
-              label: 'GLM 禁用生图',
-              capabilities: ['image-generation'],
-              enabled: false,
-            },
-          ],
-        },
-      ],
-    };
-    const saveConfig = vi.fn(async () => true);
-
-    const containerEl = document.createElement('div');
-    document.body.appendChild(containerEl);
-    const reactRoot = createRoot(containerEl);
-    root = reactRoot;
-    container = containerEl;
-
-    const base = createContextValue(config, saveConfig);
-    act(() => {
-      reactRoot.render(
-        (
-          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-              <SettingsProvider value={base}>
-                <ImageGenerationSettings />
-              </SettingsProvider>
-            </DesktopLocaleProvider>
-          </PiwinUiProvider>
-        ) as ReactElement,
-      );
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    // Focus the model ID input to open the suggestion dropdown.
-    const input = containerEl.querySelector<HTMLInputElement>(
-      '[data-testid="image-model-suggest-input"]',
-    );
-    expect(input).not.toBeNull();
-    await act(async () => {
-      input?.focus();
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    });
-
-    // The dropdown should appear.
-    const dropdown = containerEl.querySelector('[data-testid="image-model-suggest-dropdown"]');
-    expect(dropdown).not.toBeNull();
-
-    // Default view: ONLY glm-image should be present.
-    const list = containerEl.querySelector('[data-testid="image-model-suggest-list"]');
-    const text = list?.textContent ?? '';
-    expect(text).toContain('glm-image');
-    expect(text).not.toContain('glm-video');
-    expect(text).not.toContain('glm-4');
-    expect(text).not.toContain('glm-disabled-image');
-
-    // "View all channel models (3)" button should be present.
-    const showAllBtn = containerEl.querySelector<HTMLButtonElement>(
-      '[data-testid="image-model-suggest-show-all"]',
-    );
-    expect(showAllBtn).not.toBeNull();
-    expect(showAllBtn?.textContent ?? '').toContain('View all channel models (3)');
-
-    // Click "View all" to expand all enabled models of this provider.
-    await act(async () => {
-      showAllBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    });
-
-    const expandedText = list?.textContent ?? '';
-    expect(expandedText).toContain('glm-image');
-    expect(expandedText).toContain('glm-video');
-    expect(expandedText).toContain('glm-4');
-    expect(expandedText).not.toContain('glm-disabled-image');
-  });
-
-  it('allows clicking an option from the dropdown to select model ID and auto-fill metadata', async () => {
-    const config: PiwinConfig = {
-      ...makeConfig(),
-      providers: [
-        {
-          id: 'xgrok',
-          protocol: 'openai-compatible',
-          name: 'xGrok',
-          baseUrl: 'https://xgrok.planora.chat',
-          models: [
-            {
-              id: 'grok-imagine-image-quality-lite',
-              label: 'Grok Imagine Quality Lite',
-              capabilities: ['image-generation'],
-              routes: {
-                'image-generation': {
-                  path: '/v1/images/generations',
-                  timeoutMs: 120000,
-                },
-              },
-            },
-          ],
-        },
-      ],
-    };
-    const saveConfig = vi.fn(async () => true);
-
-    const containerEl = document.createElement('div');
-    document.body.appendChild(containerEl);
-    const reactRoot = createRoot(containerEl);
-    root = reactRoot;
-    container = containerEl;
-
-    const base = createContextValue(config, saveConfig);
-    act(() => {
-      reactRoot.render(
-        (
-          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
-              <SettingsProvider value={base}>
-                <ImageGenerationSettings />
-              </SettingsProvider>
-            </DesktopLocaleProvider>
-          </PiwinUiProvider>
-        ) as ReactElement,
-      );
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    const input = containerEl.querySelector<HTMLInputElement>(
-      '[data-testid="image-model-suggest-input"]',
-    );
-    expect(input).not.toBeNull();
-    await act(async () => {
-      input?.focus();
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    });
-
-    const optionBtn = containerEl.querySelector<HTMLButtonElement>(
-      '.image-model-suggest-option',
-    );
-    expect(optionBtn).not.toBeNull();
-    expect(optionBtn?.textContent ?? '').toContain('grok-imagine-image-quality-lite');
-
-    // Click option
-    await act(async () => {
-      optionBtn?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    });
-
-    expect(input?.value).toBe('grok-imagine-image-quality-lite');
-
-    // Check prefilled route path and timeout
-    const pathInput = containerEl.querySelector<HTMLInputElement>(
-      '[data-testid="image-add-model-path"]',
-    );
-    expect(pathInput?.value).toBe('/v1/images/generations');
-
-    const timeoutInput = containerEl.querySelector<HTMLInputElement>(
-      '[data-testid="image-add-model-timeout"]',
-    );
-    expect(timeoutInput?.value).toBe('120');
   });
 });

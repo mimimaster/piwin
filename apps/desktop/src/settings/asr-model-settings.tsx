@@ -19,8 +19,6 @@ type AsrModelOption = {
 type AsrDraft = {
   modelKey: string;
   language: string;
-  routePath: string;
-  timeoutSeconds: string;
 };
 
 export type AsrModelSettingsProps = {
@@ -68,60 +66,8 @@ export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
       return;
     }
 
-    const timeoutMs = parseTimeout(draft.timeoutSeconds);
-    if (draft.timeoutSeconds.trim() && timeoutMs === undefined) {
-      props.onError(
-        isChinese
-          ? 'ASR 超时必须是正整数秒数。'
-          : 'ASR timeout must be a positive number of seconds.',
-      );
-      return;
-    }
-    if (
-      draft.routePath.trim() &&
-      (!draft.routePath.trim().startsWith('/') || draft.routePath.includes('://'))
-    ) {
-      props.onError(
-        isChinese
-          ? 'ASR 接口路径必须是相对路径，例如 /audio/transcriptions。'
-          : 'ASR route must be a relative path, for example /audio/transcriptions.',
-      );
-      return;
-    }
-
-    const nextProviders = props.config.providers.map((provider) => {
-      if (provider.id !== selected.provider.id) return provider;
-      const nextModels = provider.models.map((model) => {
-        if (model.id !== selected.model.id) return model;
-        const existingRoute = model.routes?.['speech-to-text'];
-        const nextRoute = existingRoute ? { ...existingRoute } : {};
-        if (draft.routePath.trim()) nextRoute.path = draft.routePath.trim();
-        else delete nextRoute.path;
-        if (timeoutMs !== undefined) nextRoute.timeoutMs = timeoutMs;
-        else delete nextRoute.timeoutMs;
-        const nextModel = {
-          ...model,
-          capabilities: addCapability(model.capabilities, 'speech-to-text'),
-        };
-        const nextRoutes = { ...model.routes };
-        if (Object.keys(nextRoute).length > 0) {
-          nextRoutes['speech-to-text'] = nextRoute;
-        } else {
-          delete nextRoutes['speech-to-text'];
-        }
-        if (Object.keys(nextRoutes).length > 0) {
-          nextModel.routes = nextRoutes;
-        } else {
-          delete nextModel.routes;
-        }
-        return nextModel;
-      });
-      return { ...provider, models: nextModels };
-    });
-
     const next: PiwinConfig = {
       ...props.config,
-      providers: nextProviders,
       speech: {
         ...props.config.speech,
         asr: {
@@ -379,38 +325,7 @@ function AsrConfigDialog(props: AsrConfigDialogProps): ReactElement {
             testId="settings-asr-language-input"
           />
         </Field>
-        <Field
-          label={props.isChinese ? '接口路径（可选）' : 'Route path (optional)'}
-          description={
-            props.isChinese ? '默认 /audio/transcriptions。' : 'Defaults to /audio/transcriptions.'
-          }
-          testId="settings-asr-route-field"
-        >
-          <TextInput
-            value={props.draft.routePath}
-            onChange={(event) =>
-              props.onDraftChange({ ...props.draft, routePath: event.currentTarget.value })
-            }
-            placeholder="/audio/transcriptions"
-            testId="settings-asr-route-input"
-          />
-        </Field>
       </div>
-      <Field
-        label={props.isChinese ? '超时（秒，可选）' : 'Timeout (seconds, optional)'}
-        description={props.isChinese ? '默认 120 秒。' : 'Defaults to 120 seconds.'}
-        testId="settings-asr-timeout-field"
-      >
-        <TextInput
-          value={props.draft.timeoutSeconds}
-          onChange={(event) =>
-            props.onDraftChange({ ...props.draft, timeoutSeconds: event.currentTarget.value })
-          }
-          placeholder="120"
-          inputMode="numeric"
-          testId="settings-asr-timeout-input"
-        />
-      </Field>
       <div className="settings-section-actions">
         <Button onClick={() => props.onOpenChange(false)}>
           {props.isChinese ? '取消' : 'Cancel'}
@@ -455,27 +370,8 @@ function createAsrDraft(config: PiwinConfig, options: AsrModelOption[]): AsrDraf
   const configured = config.speech?.asr?.defaultModel;
   const configuredKey = configured ? `${configured.providerId}::${configured.modelId}` : '';
   const selected = options.find((option) => modelKey(option) === configuredKey) ?? options[0];
-  const route = selected?.model.routes?.['speech-to-text'];
   return {
     modelKey: selected ? modelKey(selected) : '',
     language: config.speech?.asr?.language ?? '',
-    routePath: route?.path ?? '',
-    timeoutSeconds: route?.timeoutMs ? String(Math.round(route.timeoutMs / 1000)) : '',
   };
-}
-
-function parseTimeout(value: string): number | undefined {
-  if (!value.trim()) return undefined;
-  const seconds = Number(value.trim());
-  if (!Number.isFinite(seconds) || seconds <= 0) return undefined;
-  return Math.round(seconds * 1000);
-}
-
-function addCapability(
-  capabilities: ModelConfigEntry['capabilities'],
-  capability: 'speech-to-text',
-): NonNullable<ModelConfigEntry['capabilities']> {
-  const next = new Set(capabilities ?? []);
-  next.add(capability);
-  return [...next];
 }

@@ -1,10 +1,8 @@
 import type {
   ModelConfigEntry,
   ModelProviderConfig,
-  ModelRouteConfig,
   VideoGenerationApiStyle,
 } from '@piwin/contracts';
-import { normalizeRequestPath, parseTimeoutSeconds } from './ImageGenerationSettings';
 
 export type VideoModelRow = {
   provider: ModelProviderConfig;
@@ -53,7 +51,7 @@ export function defaultVideoGenerationApiStyle(
   return protocol === 'google-gemini' ? 'google-veo' : 'openai-videos';
 }
 
-/** Default create-task path for each supported native adapter. */
+/** Default create-task path for a video wire format. Host uses the same table. */
 export function defaultVideoGenerationPath(apiStyle: VideoGenerationApiStyle): string {
   switch (apiStyle) {
     case 'openai-videos':
@@ -71,69 +69,6 @@ export function defaultVideoGenerationPath(apiStyle: VideoGenerationApiStyle): s
     case 'custom':
       return '/video/generations';
   }
-}
-
-function buildVideoRoute(input: {
-  apiStyle: VideoGenerationApiStyle;
-  path: string;
-  timeoutSeconds: string;
-  pollIntervalSeconds: string;
-}): ModelRouteConfig {
-  const normalizedPath = normalizeRequestPath(input.path);
-  const timeoutSeconds = parseTimeoutSeconds(input.timeoutSeconds);
-  const pollIntervalSeconds = parseTimeoutSeconds(input.pollIntervalSeconds);
-  return {
-    apiStyle: input.apiStyle,
-    ...(normalizedPath ? { path: normalizedPath } : {}),
-    ...(timeoutSeconds !== undefined ? { timeoutMs: timeoutSeconds * 1000 } : {}),
-    ...(pollIntervalSeconds !== undefined ? { pollIntervalMs: pollIntervalSeconds * 1000 } : {}),
-  };
-}
-
-export function buildVideoModelEntry(input: {
-  id: string;
-  apiStyle: VideoGenerationApiStyle;
-  path: string;
-  timeoutSeconds: string;
-  pollIntervalSeconds: string;
-  label: string;
-  description: string;
-}): ModelConfigEntry {
-  const label = input.label.trim();
-  const description = input.description.trim();
-  return {
-    id: input.id.trim(),
-    capabilities: ['video-generation'],
-    ...(label ? { label } : {}),
-    ...(description ? { tooltipMarkdown: description } : {}),
-    routes: {
-      'video-generation': buildVideoRoute(input),
-    },
-  };
-}
-
-export function mergeVideoModel(
-  existing: ModelConfigEntry,
-  updated: ModelConfigEntry,
-): ModelConfigEntry {
-  const capabilities = new Set(existing.capabilities ?? []);
-  capabilities.add('video-generation');
-  const merged: ModelConfigEntry = {
-    ...existing,
-    id: updated.id,
-    capabilities: [...capabilities],
-    routes: {
-      ...existing.routes,
-      ...updated.routes,
-    },
-  };
-  if (updated.label) {
-    merged.label = updated.label;
-  }
-  if (updated.tooltipMarkdown) {
-    merged.tooltipMarkdown = updated.tooltipMarkdown;
-  }
-  return merged;
 }
 
 export function videoApiStyleLabel(

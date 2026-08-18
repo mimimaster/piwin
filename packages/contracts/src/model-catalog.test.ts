@@ -138,8 +138,10 @@ describe('isLikelyImageGenerationModel', () => {
     expect(isLikelyImageGenerationModel('black-forest-labs/FLUX.1-schnell')).toBe(true);
     expect(isLikelyImageGenerationModel('Kwai-Kolors/Kolors')).toBe(true);
     expect(isLikelyImageGenerationModel('Qwen/Qwen-Image')).toBe(true);
+    expect(isLikelyImageGenerationModel('grok-imagine-image-lite')).toBe(true);
     expect(isLikelyImageGenerationModel('deepseek-chat')).toBe(false);
     expect(isLikelyImageGenerationModel('gpt-4o')).toBe(false);
+    expect(isLikelyImageGenerationModel('grok-imagine-video')).toBe(false);
     expect(isLikelyImageGenerationModel('custom-model', 'Custom', ['image-generation'])).toBe(true);
   });
 });
@@ -192,9 +194,22 @@ describe('video generation discovery helpers', () => {
     });
   });
 
+  it('matches Grok Imagine video on any protocol so mixed gateways still tag it', () => {
+    expect(lookupVideoGenerationRegistry('grok-imagine-video', 'anthropic-compatible')).toMatchObject({
+      entry: {
+        apiStyle: 'xgrok-videos',
+        path: '/videos/generations',
+        label: 'Grok Imagine Video',
+      },
+      matchKind: 'exact',
+    });
+  });
+
   it('recognizes generation-oriented heuristic names', () => {
     expect(isLikelyVideoGenerationModel('kling-v1')).toBe(true);
     expect(isLikelyVideoGenerationModel('pika-1.0')).toBe(true);
+    expect(isLikelyVideoGenerationModel('grok-imagine-video')).toBe(true);
+    expect(isLikelyVideoGenerationModel('grok-imagine-image-lite')).toBe(false);
   });
 
   it('does not treat video-understanding names as video generation', () => {

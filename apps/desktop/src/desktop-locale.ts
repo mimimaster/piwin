@@ -484,6 +484,8 @@ export type DesktopTranslator = {
       discoverModels: string;
       discoveringModels: string;
       setDefault: string;
+      editRoute: string;
+      saveRoute: string;
       addModel: string;
       saveHint: string;
       removeModel: string;
@@ -512,6 +514,8 @@ export type DesktopTranslator = {
       modelLabel: string;
       modelDescription: string;
       setDefault: string;
+      editRoute: string;
+      saveRoute: string;
       addModel: string;
       removeModel: string;
       noModels: string;
@@ -1349,8 +1353,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       imageGeneration: {
         pageTitle: isChinese ? '图像生成' : 'Image Generation',
         pageDescription: isChinese
-          ? '配置图像生成模型、接口地址与默认图片模型。'
-          : 'Configure image generation models, API endpoints, and the default image model.',
+          ? '从已勾选「生图」的模型中选默认值。接口协议、请求路径和超时可以在本页直接改，写回该模型，不会新建条目。'
+          : 'Choose a default from models already tagged Image. Edit API style, request path, and timeout here; that writes back onto the model and does not add a new catalog row.',
         discoveryError: isChinese ? '模型发现失败。' : 'Model discovery failed.',
         provider: isChinese ? '接口通道' : 'Provider',
         apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
@@ -1370,19 +1374,23 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         discoverModels: isChinese ? '获取模型' : 'Fetch models',
         discoveringModels: isChinese ? '获取中…' : 'Fetching…',
         setDefault: isChinese ? '设为默认图片模型' : 'Set as default image model',
+        editRoute: isChinese ? '配置协议' : 'Edit protocol',
+        saveRoute: isChinese ? '保存协议' : 'Save protocol',
         addModel: isChinese ? '保存图片模型' : 'Save image model',
         saveHint: isChinese
           ? '从下拉框选中模型只是填入 ID，还需点击下方「保存图片模型」才会写入配置。'
           : 'Choosing a model only fills the ID — click “Save image model” below to write it into config.',
         removeModel: isChinese ? '移除' : 'Remove',
-        noModels: isChinese ? '尚未配置图片生成模型。' : 'No image generation models configured.',
+        noModels: isChinese
+          ? '还没有生图模型。请先在「通道与文本」里给对应模型勾选「生图」，并填写接口协议和请求路径。'
+          : 'No image models yet. Tag a model with Image generation under Channels & chat, and set its API style and request path.',
         modelsHeading: isChinese ? '图片生成模型' : 'Image generation models',
       },
       videoGeneration: {
         pageTitle: isChinese ? '视频生成' : 'Video Generation',
         pageDescription: isChinese
-          ? '配置视频生成模型、异步任务接口与默认视频模型。'
-          : 'Configure video models, async task endpoints, and the default video model.',
+          ? '从已勾选「视频」的模型中选默认值。接口协议、请求路径、超时和轮询可以在本页直接改，写回该模型，不会新建条目。'
+          : 'Choose a default from models already tagged Video. Edit API style, request path, timeout, and poll interval here; that writes back onto the model and does not add a new catalog row.',
         provider: isChinese ? '接口通道' : 'Provider',
         apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
         apiKey: isChinese ? 'API Key' : 'API key',
@@ -1405,9 +1413,13 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         modelLabel: isChinese ? '模型备注' : 'Model label',
         modelDescription: isChinese ? '模型介绍' : 'Model description',
         setDefault: isChinese ? '设为默认视频模型' : 'Set as default video model',
+        editRoute: isChinese ? '配置协议' : 'Edit protocol',
+        saveRoute: isChinese ? '保存协议' : 'Save protocol',
         addModel: isChinese ? '添加视频模型' : 'Add video model',
         removeModel: isChinese ? '移除' : 'Remove',
-        noModels: isChinese ? '尚未配置视频生成模型。' : 'No video generation models configured.',
+        noModels: isChinese
+          ? '还没有视频模型。请先在「通道与文本」里给对应模型勾选「视频」，并填写接口协议和请求路径。'
+          : 'No video models yet. Tag a model with Video generation under Channels & chat, and set its API style and request path.',
         modelsHeading: isChinese ? '视频生成模型' : 'Video generation models',
         recognizedModels: isChinese ? '自动识别' : 'Recognized',
         suggestedModels: isChinese ? '建议' : 'Suggested',

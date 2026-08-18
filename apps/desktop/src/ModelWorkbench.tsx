@@ -12,11 +12,16 @@ import { AddModelDialog } from './AddModelDialog';
 import { DiscoverModelsDialog } from './DiscoverModelsDialog';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
+  withImageGenerationEnabled,
+  withVideoGenerationEnabled,
+} from './generation-route-defaults';
+import {
   applyModelConfigurationDraft,
   createModelConfigurationDraft,
   mergeDiscoveredModels,
   type ModelConfigurationDraft,
 } from './model-configuration';
+import { ModelGenerationRouteFields } from './model-generation-route-fields';
 import { PageTitle } from './settings/page-title';
 
 export type ModelWorkbenchProps = {
@@ -88,7 +93,7 @@ export function ModelWorkbench({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   function importDiscoveredModels(discoveredModels: DiscoveredModel[]): void {
-    onModelsChange(mergeDiscoveredModels(provider.models, discoveredModels));
+    onModelsChange(mergeDiscoveredModels(provider.models, discoveredModels, provider.protocol));
     setFetchInfo(
       isChinese
         ? `已导入 ${discoveredModels.filter((model) => !provider.models.some((current) => current.id === model.id)).length} 个模型`
@@ -393,6 +398,7 @@ export function ModelWorkbench({
                   >
                     <ModelInlineEditor
                       model={model}
+                      protocol={provider.protocol}
                       disabled={disabled}
                       isChinese={isChinese}
                       isDefault={isDefault}
@@ -425,6 +431,7 @@ export function ModelWorkbench({
         open={isAddOpen}
         onOpenChange={setAddOpen}
         existingModelIds={provider.models.map((m) => m.id)}
+        protocol={provider.protocol}
         onAdd={addManualModel}
         {...(searchCatalog ? { searchCatalog } : {})}
       />
@@ -434,6 +441,7 @@ export function ModelWorkbench({
 
 type InlineEditorProps = {
   model: ModelConfigEntry;
+  protocol: ModelProviderConfig['protocol'];
   disabled: boolean;
   isChinese: boolean;
   isDefault: boolean;
@@ -450,6 +458,7 @@ type InlineEditorProps = {
 
 function ModelInlineEditor({
   model,
+  protocol,
   disabled,
   isChinese,
   isDefault,
@@ -464,7 +473,7 @@ function ModelInlineEditor({
   onRemove,
 }: InlineEditorProps): ReactElement {
   const [local, setLocal] = useState<ModelConfigurationDraft>(() =>
-    createModelConfigurationDraft(model),
+    createModelConfigurationDraft(model, undefined, protocol),
   );
 
   return (
@@ -561,7 +570,9 @@ function ModelInlineEditor({
           <input
             type="checkbox"
             checked={local.supportsImageGeneration}
-            onChange={(e) => setLocal({ ...local, supportsImageGeneration: e.target.checked })}
+            onChange={(e) =>
+              setLocal(withImageGenerationEnabled(local, e.target.checked, protocol))
+            }
           />
           {isChinese ? '生图能力（Image Generation）' : 'Image generation'}
         </label>
@@ -569,7 +580,9 @@ function ModelInlineEditor({
           <input
             type="checkbox"
             checked={local.supportsVideoGeneration}
-            onChange={(e) => setLocal({ ...local, supportsVideoGeneration: e.target.checked })}
+            onChange={(e) =>
+              setLocal(withVideoGenerationEnabled(local, e.target.checked, protocol))
+            }
             data-testid="model-edit-video-generation"
           />
           {isChinese ? '视频生成（Video Generation）' : 'Video generation'}
@@ -591,6 +604,13 @@ function ModelInlineEditor({
           {isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
         </label>
       </div>
+
+      <ModelGenerationRouteFields
+        draft={local}
+        disabled={disabled}
+        isChinese={isChinese}
+        onChange={(update) => setLocal((current) => update(current))}
+      />
 
       {testError ? (
         <Notice tone="error">

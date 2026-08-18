@@ -9,6 +9,11 @@ import {
 import { Button, Field, FieldCheckbox, Popover } from '@piwin/ui-kit';
 import { IconEdit } from './shell-icons.js';
 import {
+  withImageGenerationEnabled,
+  withVideoGenerationEnabled,
+} from './generation-route-defaults.js';
+import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
+import {
   createModelConfigurationDraft,
   validateModelConfigurationDraft,
   type ModelConfigurationDraft,
@@ -65,7 +70,7 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [open, model, searchCatalog]);
+  }, [open, model, searchCatalog, props.providerProtocol]);
 
   function updateDraft(
     update: (current: ModelConfigurationDraft) => ModelConfigurationDraft,
@@ -284,7 +289,9 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
             label={isChinese ? '生图' : 'Image generation'}
             checked={localDraft.supportsImageGeneration}
             onCheckedChange={(checked) =>
-              updateDraft((current) => ({ ...current, supportsImageGeneration: checked }))
+              updateDraft((current) =>
+                withImageGenerationEnabled(current, checked, props.providerProtocol),
+              )
             }
             testId="model-edit-image-generation"
           />
@@ -292,7 +299,9 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
             label={isChinese ? '视频' : 'Video generation'}
             checked={localDraft.supportsVideoGeneration}
             onCheckedChange={(checked) =>
-              updateDraft((current) => ({ ...current, supportsVideoGeneration: checked }))
+              updateDraft((current) =>
+                withVideoGenerationEnabled(current, checked, props.providerProtocol),
+              )
             }
             testId="model-edit-video-generation"
           />
@@ -313,6 +322,13 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
             testId="model-edit-text-to-speech"
           />
         </div>
+
+        <ModelGenerationRouteFields
+          draft={localDraft}
+          disabled={disabled}
+          isChinese={isChinese}
+          onChange={updateDraft}
+        />
 
         <div className="model-edit-popover-footer">
           <Button

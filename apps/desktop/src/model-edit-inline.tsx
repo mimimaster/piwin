@@ -14,6 +14,11 @@ import {
 import { Button } from '@piwin/ui-kit';
 import { getDesktopTranslator } from './desktop-locale.js';
 import {
+  withImageGenerationEnabled,
+  withVideoGenerationEnabled,
+} from './generation-route-defaults.js';
+import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
+import {
   createModelConfigurationDraft,
   validateModelConfigurationDraft,
   type ModelConfigurationDraft,
@@ -267,10 +272,13 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
             type="checkbox"
             checked={localDraft.supportsImageGeneration}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
-              updateDraft((current) => ({
-                ...current,
-                supportsImageGeneration: event.target.checked,
-              }))
+              updateDraft((current) =>
+                withImageGenerationEnabled(
+                  current,
+                  event.target.checked,
+                  props.providerProtocol,
+                ),
+              )
             }
             data-testid="model-edit-image-generation"
             disabled={disabled}
@@ -282,10 +290,13 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
             type="checkbox"
             checked={localDraft.supportsVideoGeneration}
             onChange={(event: ChangeEvent<HTMLInputElement>) =>
-              updateDraft((current) => ({
-                ...current,
-                supportsVideoGeneration: event.target.checked,
-              }))
+              updateDraft((current) =>
+                withVideoGenerationEnabled(
+                  current,
+                  event.target.checked,
+                  props.providerProtocol,
+                ),
+              )
             }
             data-testid="model-edit-video-generation"
             disabled={disabled}
@@ -338,6 +349,13 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           <span>{t.nativeSearch}</span>
         </label>
       </div>
+
+      <ModelGenerationRouteFields
+        draft={localDraft}
+        disabled={disabled}
+        isChinese={isChinese}
+        onChange={updateDraft}
+      />
 
       {localDraft.reasoning ? (
         <div className="model-edit-inline-thinking">

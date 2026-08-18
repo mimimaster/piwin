@@ -1,13 +1,25 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { Button, Field, Modal, TextInput } from '@piwin/ui-kit';
-import type { ModelCatalogEntry, ModelConfigEntry } from '@piwin/contracts';
+import type { ModelCatalogEntry, ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
+import {
+  EMPTY_GENERATION_ROUTE_FIELDS,
+  withImageGenerationEnabled,
+  withVideoGenerationEnabled,
+} from './generation-route-defaults';
+import {
+  createModelConfigurationEntry,
+  type ModelConfigurationDraft,
+} from './model-configuration';
+import { ModelGenerationRouteFields } from './model-generation-route-fields';
 
 export type AddModelDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingModelIds: readonly string[];
   onAdd: (model: ModelConfigEntry) => void;
+  /** Channel protocol; used only to suggest image/video wire defaults. */
+  protocol?: ModelProviderConfig['protocol'];
   /** Optional catalog autocomplete (host `models/catalog/search`). */
   searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
 };
@@ -23,6 +35,7 @@ export function AddModelDialog({
   onOpenChange,
   existingModelIds,
   onAdd,
+  protocol = 'openai-compatible',
   searchCatalog,
 }: AddModelDialogProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
@@ -41,7 +54,13 @@ export function AddModelDialog({
   const [speechToText, setSpeechToText] = useState(false);
   const [textToSpeech, setTextToSpeech] = useState(false);
   const [nativeWebSearch, setNativeWebSearch] = useState(false);
-  const [imageGenTimeout, setImageGenTimeout] = useState('180');
+  const [imageApiStyle, setImageApiStyle] = useState(EMPTY_GENERATION_ROUTE_FIELDS.imageApiStyle);
+  const [imagePath, setImagePath] = useState('');
+  const [imageGenTimeout, setImageGenTimeout] = useState('');
+  const [videoApiStyle, setVideoApiStyle] = useState(EMPTY_GENERATION_ROUTE_FIELDS.videoApiStyle);
+  const [videoPath, setVideoPath] = useState('');
+  const [videoTimeoutSeconds, setVideoTimeoutSeconds] = useState('');
+  const [videoPollIntervalSeconds, setVideoPollIntervalSeconds] = useState('');
   const [reasoning, setReasoning] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<ModelCatalogEntry[]>([]);
@@ -67,7 +86,13 @@ export function AddModelDialog({
     setSpeechToText(false);
     setTextToSpeech(false);
     setNativeWebSearch(false);
-    setImageGenTimeout('180');
+    setImageApiStyle(EMPTY_GENERATION_ROUTE_FIELDS.imageApiStyle);
+    setImagePath('');
+    setImageGenTimeout('');
+    setVideoApiStyle(EMPTY_GENERATION_ROUTE_FIELDS.videoApiStyle);
+    setVideoPath('');
+    setVideoTimeoutSeconds('');
+    setVideoPollIntervalSeconds('');
     setReasoning(true);
     setError(null);
     setSuggestions([]);
@@ -191,6 +216,42 @@ export function AddModelDialog({
     }
   }
 
+  function toDraft(): ModelConfigurationDraft {
+    return {
+      id: modelId,
+      label,
+      contextWindow,
+      maxOutputTokens,
+      tooltipMarkdown: groupName,
+      thinkingLevel: '',
+      thinkingLevels: [],
+      supportsImage,
+      supportsImageGeneration: imageGeneration,
+      supportsVideoGeneration: videoGeneration,
+      supportsSpeechToText: speechToText,
+      supportsTextToSpeech: textToSpeech,
+      supportsNativeWebSearch: nativeWebSearch,
+      reasoning,
+      imageApiStyle,
+      imagePath,
+      imageTimeoutSeconds: imageGenTimeout,
+      videoApiStyle,
+      videoPath,
+      videoTimeoutSeconds,
+      videoPollIntervalSeconds,
+    };
+  }
+
+  function applyRouteDraft(next: ModelConfigurationDraft): void {
+    setImageApiStyle(next.imageApiStyle);
+    setImagePath(next.imagePath);
+    setImageGenTimeout(next.imageTimeoutSeconds);
+    setVideoApiStyle(next.videoApiStyle);
+    setVideoPath(next.videoPath);
+    setVideoTimeoutSeconds(next.videoTimeoutSeconds);
+    setVideoPollIntervalSeconds(next.videoPollIntervalSeconds);
+  }
+
   function submit(): void {
     const id = modelId.trim();
     if (!id) {
@@ -201,53 +262,10 @@ export function AddModelDialog({
       setError(isChinese ? '该模型 ID 已存在。' : 'This model ID already exists.');
       return;
     }
-    const capabilities: import('@piwin/contracts').ModelCapability[] = [];
-    if (imageGeneration) {
-      capabilities.push('image-generation');
-    }
-    if (videoGeneration) {
-      capabilities.push('video-generation');
-    }
-    if (speechToText) {
-      capabilities.push('speech-to-text');
-    }
-    if (textToSpeech) {
-      capabilities.push('text-to-speech');
-    }
-    if (nativeWebSearch) {
-      capabilities.push('native-web-search');
-    }
-    const timeoutSeconds = Number(imageGenTimeout.trim());
-    const hasValidTimeout =
-      imageGenTimeout.trim() && Number.isFinite(timeoutSeconds) && timeoutSeconds > 0;
-    const model: ModelConfigEntry = {
-      id,
-      input: supportsImage ? ['text', 'image'] : ['text'],
-      reasoning,
-      ...(capabilities.length > 0 ? { capabilities } : {}),
-      ...(imageGeneration && hasValidTimeout
-        ? {
-            routes: {
-              'image-generation': { timeoutMs: Math.round(timeoutSeconds * 1000) },
-            },
-          }
-        : {}),
-    };
-    const displayName = label.trim();
-    if (displayName && displayName !== id) {
-      model.label = displayName;
-    }
-    const group = groupName.trim();
-    if (group) {
-      model.tooltipMarkdown = group;
-    }
-    const cw = Number(contextWindow.trim());
-    if (contextWindow.trim() && Number.isSafeInteger(cw) && cw > 0) {
-      model.contextWindow = cw;
-    }
-    const mo = Number(maxOutputTokens.trim());
-    if (maxOutputTokens.trim() && Number.isSafeInteger(mo) && mo > 0) {
-      model.maxOutputTokens = mo;
+    const model = createModelConfigurationEntry(toDraft());
+    if (!model) {
+      setError(isChinese ? '请填写模型 ID。' : 'Model ID is required.');
+      return;
     }
     onAdd(model);
     onOpenChange(false);
@@ -394,7 +412,11 @@ export function AddModelDialog({
             <input
               type="checkbox"
               checked={imageGeneration}
-              onChange={(event) => setImageGeneration(event.currentTarget.checked)}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                setImageGeneration(checked);
+                applyRouteDraft(withImageGenerationEnabled(toDraft(), checked, protocol));
+              }}
               data-testid="add-model-image-generation"
             />
             {isChinese ? '生图能力（Image Generation）' : 'Image generation'}
@@ -403,7 +425,11 @@ export function AddModelDialog({
             <input
               type="checkbox"
               checked={videoGeneration}
-              onChange={(event) => setVideoGeneration(event.currentTarget.checked)}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                setVideoGeneration(checked);
+                applyRouteDraft(withVideoGenerationEnabled(toDraft(), checked, protocol));
+              }}
               data-testid="add-model-video-generation"
             />
             {isChinese ? '视频生成（Video Generation）' : 'Video generation'}
@@ -445,18 +471,11 @@ export function AddModelDialog({
             {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
           </label>
         </div>
-        {imageGeneration ? (
-          <Field label={isChinese ? '生图超时（秒）' : 'Image generation timeout (seconds)'}>
-            <TextInput
-              value={imageGenTimeout}
-              onChange={(event) => setImageGenTimeout(event.currentTarget.value)}
-              placeholder="180"
-              spellCheck={false}
-              inputMode="numeric"
-              testId="add-model-image-gen-timeout"
-            />
-          </Field>
-        ) : null}
+        <ModelGenerationRouteFields
+          draft={toDraft()}
+          isChinese={isChinese}
+          onChange={(update) => applyRouteDraft(update(toDraft()))}
+        />
         {searchCatalog ? (
           <p className="add-model-catalog-hint muted">
             {isChinese
