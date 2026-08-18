@@ -12,7 +12,7 @@ import {
   buildReviewQueue,
   buildFlashcardArtifactHtml,
   buildFlashcardBatchArtifactHtml,
-  displayCardsFromItems,
+  displayCardsFromBatchResult,
   exportCardsToTsv,
   parseReviewCardId,
   type CardStore,
@@ -205,7 +205,7 @@ export async function handleKnowledgeCommand(
       const config = await context.loadConfig();
       const maxBatchSize = config.flashcards?.maxBatchSize ?? 40;
       const result = await store.batchCreate(command.input, maxBatchSize);
-      const displayCards = displayCardsFromItems(result.created);
+      const displayCards = displayCardsFromBatchResult(result);
       const artifactHtml =
         displayCards.length === 1 && displayCards[0]
           ? buildFlashcardArtifactHtml(displayCards[0])

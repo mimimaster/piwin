@@ -54,3 +54,17 @@ export function findNearDuplicate(
   }
   return null;
 }
+
+export function findNearDuplicateItem<T>(
+  candidateFront: string,
+  existing: readonly T[],
+  preview: (item: T) => string,
+  threshold: number = SIMILARITY_THRESHOLD,
+): T | undefined {
+  for (const item of existing) {
+    if (frontSimilarity(candidateFront, preview(item)) >= threshold) {
+      return item;
+    }
+  }
+  return undefined;
+}

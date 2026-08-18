@@ -91,6 +91,8 @@ export type FlashcardBatchSkip = {
   front: string;
   reason: 'duplicate' | 'validation';
   detail?: string;
+  /** Existing item when `reason` is `duplicate` — conversation still shows this card. */
+  existing?: FlashcardItem;
 };
 
 /** Partial-success result of `flashcard_batch_create`. */
@@ -98,8 +100,8 @@ export type FlashcardBatchCreateResult = {
   created: FlashcardItem[];
   skipped: FlashcardBatchSkip[];
   /**
-   * Combined flip-card HTML; each review card keeps its own `cardId` for
-   * rate/open-source actions. Built from expanded `created` items only.
+   * Combined flip-card HTML. Built from created items plus existing
+   * duplicates so chat can show a physical card even when nothing new landed.
    */
   artifactHtml: string;
 };

@@ -11,6 +11,7 @@ import {
   projectClozeCombined,
   itemToDisplayCard,
   displayCardsFromItems,
+  displayCardsFromBatchResult,
   collapseToPhysicalCards,
   reviewCardId,
   reviewStateFileName,
@@ -87,6 +88,12 @@ describe('cloze projection', () => {
     expect(display?.ordinal).toBe(0);
     expect(display?.front).toBe(`线粒体是${CLOZE_BLANK}的${CLOZE_BLANK}。`);
     expect(displayCardsFromItems([clozeItem(GOLDEN)])).toHaveLength(1);
+    expect(
+      displayCardsFromBatchResult({
+        created: [],
+        skipped: [{ existing: clozeItem(GOLDEN) }],
+      }),
+    ).toHaveLength(1);
   });
 
   it('collapses per-ordinal review faces of one item into one physical card', () => {

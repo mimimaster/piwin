@@ -122,10 +122,43 @@ describe('buildFlashcardTools', () => {
         ],
       }),
     );
-    const result = JSON.parse(raw) as { created: unknown[]; skipped: Array<{ reason: string }> };
+    const result = JSON.parse(raw) as {
+      created: unknown[];
+      skipped: Array<{ reason: string; existing?: { id: string; front?: string } }>;
+      artifactHtml?: string;
+    };
     expect(result.created).toHaveLength(1);
     expect(result.skipped).toHaveLength(1);
     expect(result.skipped[0]?.reason).toBe('duplicate');
+    expect(result.skipped[0]?.existing?.front).toBe('dup');
+    expect(result.artifactHtml).toContain('dup');
+    expect(result.artifactHtml).toContain('unique');
+  });
+
+  it('flashcard_create returns the existing card when the text is a duplicate', async () => {
+    const first = await store.create({
+      model: 'cloze',
+      text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+      deck: 'bio',
+    });
+    const tools = buildFlashcardTools({ store, enabled: true });
+    const create = tools.find((t) => t.descriptor.name === 'flashcard_create');
+    if (!create) throw new Error('flashcard_create missing');
+    const raw = outputOf(
+      await executeTool(create, {
+        model: 'cloze',
+        text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+        deck: 'bio',
+      }),
+    );
+    const result = JSON.parse(raw) as {
+      card: { id: string };
+      duplicate: boolean;
+      artifactHtml: string;
+    };
+    expect(result.duplicate).toBe(true);
+    expect(result.card.id).toBe(first.id);
+    expect(result.artifactHtml).toContain('[…]');
   });
 
   it('flashcard_batch_create respects maxBatchSize', async () => {

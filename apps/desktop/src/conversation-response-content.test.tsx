@@ -409,4 +409,120 @@ describe('ConversationResponseContent', () => {
     expect(container.querySelector('[data-testid="conversation-extracted-flashcard"]')).not.toBeNull();
     expect(container.textContent).toContain('线粒体是[…]的能量工厂。');
   });
+
+  it('shows the existing physical card when batch-create skipped a duplicate', () => {
+    const output = JSON.stringify({
+      created: [],
+      skipped: [
+        {
+          front: '线粒体是细胞的能量工厂。',
+          reason: 'duplicate',
+          existing: {
+            id: 'card-f3dc5a95-msy8lzjt',
+            model: 'cloze',
+            deck: 'default',
+            text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+            createdAt: '2026-08-18T05:43:48.281Z',
+          },
+        },
+      ],
+    });
+    const cards = extractFlashcardRecords({
+      id: 'dup-msg',
+      role: 'assistant',
+      text: '该卡片因重复被跳过',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tc-dup',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output,
+          presentation: {
+            kind: 'other',
+            title: 'flashcard_batch_create',
+            routedToolName: 'flashcard_batch_create',
+            output: { text: output, truncated: false },
+          },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+    });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
+  });
+
+  it('falls back to batch-create args when output only says duplicate', () => {
+    const cards = extractFlashcardRecords({
+      id: 'dup-args',
+      role: 'assistant',
+      text: '该卡片因重复被跳过',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tc-args',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: JSON.stringify({
+            created: [],
+            skipped: [{ front: '线粒体是细胞的能量工厂。', reason: 'duplicate' }],
+          }),
+          presentation: {
+            kind: 'other',
+            title: 'flashcard_batch_create',
+            routedToolName: 'flashcard_batch_create',
+            output: {
+              text: JSON.stringify({
+                created: [],
+                skipped: [{ front: '线粒体是细胞的能量工厂。', reason: 'duplicate' }],
+              }),
+              truncated: false,
+            },
+          },
+          args: {
+            cards: [
+              {
+                model: 'cloze',
+                text: '线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+              },
+            ],
+          },
+        } as ChatMessageUi['tools'][number] & { args: unknown },
+      ],
+      attachments: [],
+      status: 'done',
+    });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
+  });
+
+  it('recovers a cloze flip card from the reply text after a duplicate skip', () => {
+    const cards = extractFlashcardRecords({
+      id: 'dup-text',
+      role: 'assistant',
+      text: '该卡片因重复被跳过。目标挖空格式如下：\n线粒体是{{c1::细胞}}的{{c2::能量工厂}}。',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tc-text',
+          toolName: 'piwin_toolbox',
+          status: 'done',
+          output: JSON.stringify({
+            created: [],
+            skipped: [{ front: '线粒体是细胞的能量工厂。', reason: 'duplicate' }],
+          }),
+          presentation: {
+            kind: 'other',
+            title: 'flashcard_batch_create',
+            routedToolName: 'flashcard_batch_create',
+          },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+    });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
+  });
 });

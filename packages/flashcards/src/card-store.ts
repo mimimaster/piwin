@@ -19,7 +19,7 @@ import {
   reviewStateFileName,
   stripClozeMarkers,
 } from './cloze.js';
-import { findNearDuplicate } from './dedup.js';
+import { findNearDuplicateItem } from './dedup.js';
 import {
   DEFAULT_DECK,
   assertInsideFlashcardsRoot,
@@ -36,8 +36,10 @@ export type CardStoreOptions = {
 
 export class DuplicateCardError extends Error {
   override readonly name = 'DuplicateCardError';
-  constructor(existingFront: string) {
-    super(`near-duplicate card front already exists: ${existingFront.slice(0, 80)}`);
+  readonly existing: FlashcardItem;
+  constructor(existing: FlashcardItem) {
+    super(`near-duplicate card front already exists: ${itemPreviewText(existing).slice(0, 80)}`);
+    this.existing = existing;
   }
 }
 
@@ -267,10 +269,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
           ? entry.sourceFolder === input.sourceFolder
           : entry.deck === item.deck && !entry.sourceFolder,
       );
-      const duplicate = findNearDuplicate(
-        preview,
-        comparable.map((entry) => itemPreviewText(entry)),
-      );
+      const duplicate = findNearDuplicateItem(preview, comparable, itemPreviewText);
       if (duplicate) {
         throw new DuplicateCardError(duplicate);
       }
@@ -296,7 +295,11 @@ export function createCardStore(options: CardStoreOptions): CardStore {
           created.push(await this.create(cardInput));
         } catch (error) {
           if (error instanceof DuplicateCardError) {
-            skipped.push({ front: inputPreview(cardInput), reason: 'duplicate' });
+            skipped.push({
+              front: inputPreview(cardInput),
+              reason: 'duplicate',
+              existing: error.existing,
+            });
           } else {
             skipped.push({
               front: inputPreview(cardInput),
