@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./cloze": {
+      "types": "./src/cloze.ts",
+      "import": "./src/cloze.ts",
+      "default": "./src/cloze.ts"
     }
   },
   "scripts": {

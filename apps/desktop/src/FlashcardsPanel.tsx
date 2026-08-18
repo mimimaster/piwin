@@ -6,7 +6,7 @@ import type {
   ReviewQueueItem,
   ReviewRating,
 } from '@piwin/contracts';
-import { itemPreviewText } from '@piwin/flashcards';
+import { itemPreviewText } from '@piwin/flashcards/cloze';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   downloadFile,

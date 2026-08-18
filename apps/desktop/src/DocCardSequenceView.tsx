@@ -7,7 +7,7 @@ import { Button } from '@piwin/ui-kit';
 import type { FlashcardItem, FlashcardReviewCard, HostResponse, ReviewRating } from '@piwin/contracts';
 import type { DocCardSequenceView as DocCardSequencePointer } from '@piwin/contracts';
 import { buildDocCardSurface } from '@piwin/contracts';
-import { expandItemToReviewCards } from '@piwin/flashcards';
+import { expandItemToReviewCards } from '@piwin/flashcards/cloze';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type DocCardSequenceRequest = (command: {
