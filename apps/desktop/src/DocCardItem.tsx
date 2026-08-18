@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import type { FlashcardItem } from '@piwin/contracts';
-import { itemPreviewText } from '@piwin/flashcards';
+import { itemPreviewText } from '@piwin/flashcards/cloze';
 import { formatCardMarkdown, copyToClipboard } from './knowledge-export';
 
 export type DocCardItemProps = {

@@ -2,7 +2,7 @@
  * Export and clipboard utilities for Knowledge Center (Flashcards, Doc Cards, Notes).
  */
 import type { FlashcardItem } from '@piwin/contracts';
-import { expandItemToReviewCards, itemPreviewText } from '@piwin/flashcards';
+import { expandItemToReviewCards, itemPreviewText } from '@piwin/flashcards/cloze';
 
 /**
  * Formats a single flashcard as Markdown text.

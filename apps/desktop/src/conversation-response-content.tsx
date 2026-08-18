@@ -20,7 +20,7 @@ import {
   renderFlashcardBatchHtml,
 } from './flashcard-artifact';
 import type { FlashcardItem, FlashcardReviewCard } from '@piwin/contracts';
-import { expandItemToReviewCards } from '@piwin/flashcards';
+import { expandItemToReviewCards } from '@piwin/flashcards/cloze';
 import { FlashcardStackView } from './FlashcardView';
 import { MarkdownView } from './MarkdownView';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
