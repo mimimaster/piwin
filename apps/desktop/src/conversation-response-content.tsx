@@ -31,7 +31,13 @@ import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
 
-function getMessageTools(message: ChatMessageUi): readonly ToolCardUi[] {
+function getMessageTools(
+  message: ChatMessageUi,
+  extraTools?: readonly ToolCardUi[],
+): readonly ToolCardUi[] {
+  if (extraTools && extraTools.length > 0) {
+    return extraTools;
+  }
   const withOriginal = message as ChatMessageUi & { originalTools?: readonly ToolCardUi[] };
   if (Array.isArray(withOriginal.originalTools) && withOriginal.originalTools.length > 0) {
     return withOriginal.originalTools;
@@ -39,15 +45,43 @@ function getMessageTools(message: ChatMessageUi): readonly ToolCardUi[] {
   return message.tools;
 }
 
-export function messageHasFlashcardToolResult(message: ChatMessageUi): boolean {
-  const tools = getMessageTools(message);
-  return tools.some((tool) => {
-    const name = (tool.presentation?.routedToolName ?? tool.toolName).toLowerCase();
-    return (
-      tool.status === 'done' &&
-      (name.includes('flashcard_create') || name.includes('flashcard_batch_create'))
-    );
-  });
+export function isFlashcardCreateTool(tool: ToolCardUi): boolean {
+  const names = [tool.toolName, tool.presentation?.routedToolName, tool.presentation?.title]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.toLowerCase());
+  if (
+    names.some(
+      (name) => name.includes('flashcard_create') || name.includes('flashcard_batch_create'),
+    )
+  ) {
+    return true;
+  }
+  const blob = `${tool.output ?? ''}\n${tool.presentation?.output?.text ?? ''}`;
+  return blob.includes('flashcard_batch_create') || /"model"\s*:\s*"cloze"/.test(blob);
+}
+
+export function messageHasFlashcardToolResult(
+  message: ChatMessageUi,
+  extraTools?: readonly ToolCardUi[],
+): boolean {
+  return getMessageTools(message, extraTools).some(
+    (tool) => tool.status === 'done' && isFlashcardCreateTool(tool),
+  );
+}
+
+/** Flashcard create/batch tools from every message in a turn. */
+export function collectFlashcardToolsFromMessages(
+  messages: readonly ChatMessageUi[],
+): ToolCardUi[] {
+  const tools: ToolCardUi[] = [];
+  for (const message of messages) {
+    for (const tool of getMessageTools(message)) {
+      if (tool.status === 'done' && isFlashcardCreateTool(tool)) {
+        tools.push(tool);
+      }
+    }
+  }
+  return tools;
 }
 
 function asItem(value: unknown): FlashcardItem | null {
@@ -122,15 +156,14 @@ function parseCandidateForCards(candidate: unknown): FlashcardReviewCard[] {
 /**
  * Extract projected review cards from flashcard tool outputs.
  */
-export function extractFlashcardRecords(message: ChatMessageUi): FlashcardReviewCard[] {
-  const tools = getMessageTools(message);
+export function extractFlashcardRecords(
+  message: ChatMessageUi,
+  extraTools?: readonly ToolCardUi[],
+): FlashcardReviewCard[] {
+  const tools = getMessageTools(message, extraTools);
   const cards: FlashcardReviewCard[] = [];
   for (const tool of tools) {
-    const name = (tool.presentation?.routedToolName ?? tool.toolName).toLowerCase();
-    if (
-      tool.status === 'done' &&
-      (name.includes('flashcard_create') || name.includes('flashcard_batch_create'))
-    ) {
+    if (tool.status === 'done' && isFlashcardCreateTool(tool)) {
       const candidates: unknown[] = [
         tool.presentation?.output?.text,
         tool.output,
@@ -149,7 +182,17 @@ export function extractFlashcardRecords(message: ChatMessageUi): FlashcardReview
       if (rawArgs && typeof rawArgs === 'object') {
         const args = rawArgs as Record<string, unknown>;
         const inner = (args.arguments && typeof args.arguments === 'object' ? args.arguments : args) as Record<string, unknown>;
-        if (typeof inner.front === 'string' && typeof inner.back === 'string' && inner.front.trim().length > 0) {
+        if (inner.model === 'cloze' && typeof inner.text === 'string' && inner.text.trim()) {
+          cards.push(
+            ...expandItemToReviewCards({
+              id: `card-${tool.toolCallId}`,
+              model: 'cloze',
+              text: inner.text,
+              deck: typeof inner.deck === 'string' ? inner.deck : 'default',
+              createdAt: new Date().toISOString(),
+            }),
+          );
+        } else if (typeof inner.front === 'string' && typeof inner.back === 'string' && inner.front.trim().length > 0) {
           cards.push(
             ...expandItemToReviewCards({
               id: `card-${tool.toolCallId}`,
@@ -171,21 +214,20 @@ export function extractFlashcardRecords(message: ChatMessageUi): FlashcardReview
  * Extract flashcard artifact HTML from tool results when the model summarizes in text
  * rather than copy-pasting the HTML fence. Rebuilds using the high-standard card template.
  */
-export function extractFlashcardArtifactHtml(message: ChatMessageUi): string | null {
-  const cards = extractFlashcardRecords(message);
+export function extractFlashcardArtifactHtml(
+  message: ChatMessageUi,
+  extraTools?: readonly ToolCardUi[],
+): string | null {
+  const cards = extractFlashcardRecords(message, extraTools);
   if (cards.length === 1 && cards[0]) {
     return renderFlashcardHtml(cards[0]);
   }
   if (cards.length > 1) {
     return renderFlashcardBatchHtml(cards);
   }
-  const tools = getMessageTools(message);
+  const tools = getMessageTools(message, extraTools);
   for (const tool of tools) {
-    const name = (tool.presentation?.routedToolName ?? tool.toolName).toLowerCase();
-    if (
-      tool.status === 'done' &&
-      (name.includes('flashcard_create') || name.includes('flashcard_batch_create'))
-    ) {
+    if (tool.status === 'done' && isFlashcardCreateTool(tool)) {
       const candidates: unknown[] = [
         tool.presentation?.output?.text,
         tool.output,
@@ -231,6 +273,10 @@ export function ConversationResponseContent(props: {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
+  /** When false, skip in-message flip cards (used for earlier tool-only rows). */
+  renderExtractedFlashcards?: boolean;
+  /** Extra tool cards to scan (turn-level flashcard creates). */
+  sourceTools?: readonly ToolCardUi[];
 }): ReactElement {
   const { message, locale } = props;
   const presentation = buildTurnPresentation({
@@ -250,8 +296,14 @@ export function ConversationResponseContent(props: {
     thinkingIntent === 'user-open' || (thinkingIntent === 'automatic' && isThinkingActive);
   const thinkingLabelClass = behaviorTextClass('thinking', isThinkingActive);
 
-  const extractedCards = extractFlashcardRecords(message);
-  const flashcardArtifactHtml = extractFlashcardArtifactHtml(message);
+  const extractedCards =
+    props.renderExtractedFlashcards === false
+      ? []
+      : extractFlashcardRecords(message, props.sourceTools);
+  const flashcardArtifactHtml =
+    props.renderExtractedFlashcards === false
+      ? null
+      : extractFlashcardArtifactHtml(message, props.sourceTools);
   const textHasFlashcard = isFlashcardArtifactSource(message.text);
   const shouldRenderExtractedFlashcard = Boolean(
     (extractedCards.length > 0 || flashcardArtifactHtml) && !textHasFlashcard,

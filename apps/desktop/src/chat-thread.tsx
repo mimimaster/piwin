@@ -1,16 +1,23 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type ReactElement } from 'react';
 
+import { RadialBellow } from '@piwin/ui-kit';
 import type {
+  ContextSummaryPush,
+  ContextUsageSnapshot,
+  ModelProviderConfig,
+  ModelRef,
+  PermissionDecision,
+  PermissionRememberScope,
+  PlanExecutionMode,
   ProductSessionLineageView,
   SessionPlan,
   SessionSummary,
   SubagentInvocation,
   ThemeManifest,
   WalkthroughArtifact,
-  ContextSummaryPush,
 } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
@@ -20,59 +27,30 @@ import type {
   RunRecordUi,
   SkillActivityView,
   SubagentStreamState,
-  ToolCardUi,
 } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
-import type {
-  PermissionDecision,
-  PermissionRememberScope,
-  PlanExecutionMode,
-} from '@piwin/contracts';
-import { MarkdownView } from './MarkdownView';
-import { CitationCards } from './CitationCards';
-import { MessageAttachments } from './message-attachments';
-import { mapThemeToArtifactVariables } from './artifact-theme-map';
-import { SubagentActivityCard } from './subagent-activity-card';
-import { TurnWorkDetails } from './turn-work-details';
 import type { DocumentOpenInput } from './tool-call-card';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
 import { GoalStickyStrip } from './goal';
-import {
-  AssemblySummaryCapsule,
-  resolveAssemblySummaryForUserMessage,
-} from './assembly-summary-capsule';
-import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
-import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
-import { ImageGenerationProgress } from './image-generation-progress';
-import { VideoGenerationProgress } from './video-generation-progress';
-import { resolveGenerationToolKind, type GenerationToolKind } from './generation-tool-kind.js';
+import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
+import { isWalkthroughEligible } from './walkthrough-action';
+import type { FilesChangedBarRequest } from './files-changed-bar';
 import {
   conversationActivityLabel,
   resolveConversationActivityKind,
 } from './conversation-activity.js';
-import {
-  ConversationResponseContent,
-  messageHasFlashcardToolResult,
-} from './conversation-response-content.js';
 import type { AgentLocatorAnimation, ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
-import { ComposerCard, type ComposerDockProps } from './composer-dock';
+import type { ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
-import type { ComposerPlusSubmenu } from './composer-plus-menu';
-import type { PendingComposerAttachment } from './media-utils';
-import { IconCopy, IconCheck, IconClose, IconEdit, IconRevert } from './shell-icons';
-import { AssistantResponseActions } from './assistant-response-actions';
+import type { ModelOption } from './model-options';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { groupTranscriptTurns } from './transcript-turns';
-import { SystemMessageContent } from './system-message-content';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
-import { findStreamingCaretMessageId, resolveAssistantRenderingPhase } from './streaming-caret';
-import {
-  ContextMenuFromCatalog,
-  useDesktopContextMenu,
-  type ContextMenuTarget,
-} from './context-menu';
+import { findStreamingCaretMessageId } from './streaming-caret';
 import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSequenceView';
+import { ChatMessageRow } from './chat-message-row';
+import { collectFlashcardToolsFromMessages } from './conversation-response-content.js';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -87,126 +65,6 @@ export function shouldCollapseTurnToolHistory(input: {
     input.workDetailsMessage.status === 'streaming' ||
     (runId !== undefined && input.activeRunId !== null && runId === input.activeRunId);
   return !runActive;
-}
-
-/**
- * In-place composer for editing a user message. Renders the same ComposerCard
- * as the bottom dock so the user gets the same send, model, mode, and slash
- * experience. Local state owns the draft; global composer props (model, skills,
- * thinking, etc.) are reused. Escape or clicking outside cancels the edit.
- */
-function MessageEditCard(props: {
-  messageId: string;
-  initialText: string;
-  composerCard: ComposerDockProps;
-  onCancel: () => void;
-  onResend: (text: string) => void;
-  interventionEdit?: boolean;
-}): ReactElement {
-  const [editText, setEditTextState] = useState(props.initialText);
-  const editTextRef = useRef(props.initialText);
-  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-  const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
-  const [dropActive, setDropActive] = useState(false);
-  const [pendingAttachments, setPendingAttachments] = useState<PendingComposerAttachment[]>([]);
-  const cardRef = useRef<HTMLDivElement | null>(null);
-
-  function setEditText(value: string): void {
-    setEditTextState(value);
-    editTextRef.current = value;
-  }
-
-  // Click outside the edit card (and outside any open Radix popover/menu/modal)
-  // collapses back to the plain message bubble.
-  useEffect(() => {
-    function isInsideOpenSurface(target: Node): boolean {
-      if (!(target instanceof Element)) return false;
-      return Boolean(
-        target.closest(
-          '[data-radix-popper-content-wrapper], .ui-popover-content, .ui-dropdown-menu-content, .modal, .modal-backdrop',
-        ),
-      );
-    }
-    function handleMouseDown(event: MouseEvent): void {
-      const target = event.target as Node;
-      if (isInsideOpenSurface(target)) return;
-      if (cardRef.current && !cardRef.current.contains(target)) {
-        props.onCancel();
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [props.onCancel]);
-
-  // Escape cancels, unless a popover/menu already consumed it (defaultPrevented).
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent): void {
-      if (event.key !== 'Escape') return;
-      if (event.defaultPrevented) return;
-      if (
-        document.querySelector(
-          '[data-radix-popper-content-wrapper], .ui-popover-content, .ui-dropdown-menu-content, .modal',
-        )
-      ) {
-        return;
-      }
-      props.onCancel();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [props.onCancel]);
-
-  function handleSend(): void {
-    const text = editTextRef.current.trim();
-    if (text) {
-      props.onResend(text);
-    }
-  }
-
-  function handleRemoveAttachment(localId: string): void {
-    setPendingAttachments((prev) => prev.filter((item) => item.localId !== localId));
-  }
-
-  return (
-    <div ref={cardRef} className="message-edit-card-v2" data-testid="message-edit-box">
-      <ComposerCard
-        {...props.composerCard}
-        layoutMode="docked"
-        composer={editText}
-        onComposerChange={setEditText}
-        agentMode={props.composerCard.agentMode}
-        onAgentModeChange={props.composerCard.onAgentModeChange}
-        streaming={props.interventionEdit === true ? false : props.composerCard.streaming}
-        runPhase={props.interventionEdit === true ? 'idle' : props.composerCard.runPhase}
-        compacting={props.composerCard.compacting}
-        pendingAttachments={pendingAttachments}
-        onRemoveAttachment={handleRemoveAttachment}
-        dropActive={dropActive}
-        onDropActiveChange={setDropActive}
-        plusMenuOpen={plusMenuOpen}
-        onPlusMenuOpenChange={setPlusMenuOpen}
-        plusSubmenu={plusSubmenu}
-        onPlusSubmenuChange={setPlusSubmenu}
-        onAttachImage={() => {
-          /* Attachments disabled for quick edits. */
-        }}
-        onAttachFile={() => {
-          /* Attachments disabled for quick edits. */
-        }}
-        onPaste={() => {
-          /* No paste attachments in edit mode. */
-        }}
-        onDrop={() => {
-          /* No drag attachments in edit mode. */
-        }}
-        onSend={handleSend}
-        onAbort={() => {}}
-        onSteer={() => {}}
-        onFollowUp={() => {}}
-        onCompact={() => {}}
-      />
-    </div>
-  );
 }
 
 export type ChatThreadProps = {
@@ -239,9 +97,7 @@ export type ChatThreadProps = {
    * Same adapter as ChangesPanel; optional so the bar still lists paths without stats.
    */
   filesChangedRequest?: FilesChangedBarRequest;
-  /** Open Review / Changes inspector (FilesChangedBar Review button). */
   onReviewChanges?: () => void;
-  /** Existing permission respond handler (allow / deny / ask). */
   onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   workDetailsExpanded?: WorkDetailsExpanded;
   toolDensity?: ToolCallDensity;
@@ -320,6 +176,14 @@ export type ChatThreadProps = {
    * existing tests keep the Agent presentation.
    */
   isConversationSession?: boolean;
+  /** Model snapshot / live model used for conversation headers. */
+  livePromptModel?: ModelRef | null;
+  /** Active model options for name resolution. */
+  modelOptions?: readonly ModelOption[];
+  /** Configured providers for display names. */
+  configProviders?: readonly ModelProviderConfig[];
+  /** Session last turn context usage snapshot for turn usage chip. */
+  contextUsage?: ContextUsageSnapshot | null;
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -386,6 +250,15 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     () => groupTranscriptTurns(chatMessages),
     [chatMessages],
   );
+  const precedingUserMessageId = useMemo(() => {
+    for (let i = chatMessages.length - 1; i >= 0; i--) {
+      const msg = chatMessages[i];
+      if (msg?.role === 'user') {
+        return msg.id;
+      }
+    }
+    return undefined;
+  }, [chatMessages]);
   const currentResponseTurnId = turnGroups[turnGroups.length - 1]?.id ?? null;
   const showRunActivity =
     props.streaming &&
@@ -404,7 +277,29 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
       ? conversationActivityKind
         ? (
             <div className="chat-run-activity-line" data-testid="conversation-activity">
-              {conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
+              <div className="agent-locator-stack">
+                <div
+                  className="agent-locator"
+                  role="status"
+                  aria-live="polite"
+                  data-testid="conversation-agent-locator"
+                  data-activity-id={conversationActivityKind}
+                >
+                  <span className="agent-locator-visual" aria-hidden="true">
+                    <RadialBellow
+                      size="sm"
+                      label={conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
+                      testId="conversation-locator-radial-bellow"
+                    />
+                  </span>
+                  <span
+                    className="agent-locator-copy agent-locator-copy--shimmer"
+                    data-testid="conversation-activity-copy"
+                  >
+                    {conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
+                  </span>
+                </div>
+              </div>
             </div>
           )
         : null
@@ -422,52 +317,66 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   const changedFilePathsByTurnId = useMemo(() => {
     const pathsByTurnId = new Map<string, string[]>();
     for (const turn of turnGroups) {
-      const paths: string[] = [];
-      const seen = new Set<string>();
-      for (const { message } of turn.items) {
-        for (const file of collectMessageChangedFiles(message.tools)) {
-          if (!seen.has(file.path)) {
-            seen.add(file.path);
-            paths.push(file.path);
-          }
+      const paths = new Set<string>();
+      for (const item of turn.items) {
+        for (const file of collectMessageChangedFiles(item.message.tools ?? [])) {
+          paths.add(file.path);
         }
       }
-      pathsByTurnId.set(turn.id, paths);
+      pathsByTurnId.set(turn.id, Array.from(paths));
     }
     return pathsByTurnId;
   }, [turnGroups]);
+
+  // Find the single assistant message that should show the streaming caret.
+  const streamingCaretMessageId = useMemo(() => {
+    if (!props.streaming) return null;
+    return findStreamingCaretMessageId(
+      chatMessages,
+      props.runRecordsById ?? {},
+      props.activeRunId ?? null,
+    );
+  }, [chatMessages, props.activeRunId, props.runRecordsById, props.streaming]);
+
+  // SF-04: The newest completed assistant response gets the lineage tree in its action row.
   const latestAssistantMessageId = useMemo(() => {
-    for (let index = transcriptMessages.length - 1; index >= 0; index -= 1) {
-      const message = transcriptMessages[index];
-      if (message?.role === 'assistant' && message.status === 'done') {
-        return message.id;
+    for (let i = chatMessages.length - 1; i >= 0; i--) {
+      const msg = chatMessages[i];
+      if (msg && msg.role === 'assistant') {
+        return msg.id;
       }
     }
     return null;
-  }, [transcriptMessages]);
-  const streamingCaretMessageId = useMemo(
-    () =>
-      findStreamingCaretMessageId(
-        transcriptMessages,
-        props.runRecordsById ?? {},
-        props.activeRunId ?? null,
-      ),
-    [transcriptMessages, props.runRecordsById, props.activeRunId],
-  );
+  }, [chatMessages]);
+
   return (
-    <div className="chat-thread">
+    <div className={`chat-thread${conversationSession ? ' is-conversation' : ''}`} data-testid="chat-thread">
       {docCardSequence && props.docCardRequest ? (
-        <DocCardSequenceView sequence={docCardSequence} request={props.docCardRequest} />
+        <div className="chat-doc-card-sequence-slot">
+          <DocCardSequenceView
+            sequence={docCardSequence}
+            request={props.docCardRequest}
+          />
+        </div>
       ) : null}
       {props.plan && !conversationSession ? (
         <PlanCard
           plan={props.plan}
-          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+          {...(props.onOpenDocument
+            ? {
+                onOpenDocument: (doc) =>
+                  props.onOpenDocument?.({
+                    title: doc.title,
+                    path: doc.title,
+                    ...(doc.content !== undefined ? { content: doc.content } : {}),
+                  }),
+              }
+            : {})}
           {...(props.onPlanExecute ? { onExecute: props.onPlanExecute } : {})}
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
         />
       ) : null}
-      {!conversationSession && props.composerCard.agentMode === 'goal' ? (
+      {props.composerCard.agentMode === 'goal' && props.messages.length > 0 ? (
         <GoalStickyStrip
           goalTitle={
             [...props.messages].reverse().find((m) => m.role === 'user')?.text ||
@@ -512,6 +421,14 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                         summariesByRunId: props.assemblySummariesByRunId ?? {},
                       })
                     : undefined;
+                const isLatestAssistant = latestAssistantMessageId === message.id;
+                const turnFlashcardTools = collectFlashcardToolsFromMessages(
+                  turn.items.map((item) => item.message),
+                );
+                const onRegenerate =
+                  conversationSession && isLatestAssistant && precedingUserMessageId
+                    ? () => props.onRetry(precedingUserMessageId)
+                    : undefined;
                 return (
                   <ChatMessageRow
                     key={message.id}
@@ -522,7 +439,23 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     messageIndex={messageIndex}
                     showStreamingCaret={streamingCaretMessageId === message.id}
                     isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
-                    isLatestAssistantResponse={latestAssistantMessageId === message.id}
+                    {...(turnFlashcardTools.length > 0
+                      ? { turnFlashcardTools }
+                      : {})}
+                    isLatestAssistantResponse={isLatestAssistant}
+                    {...(props.livePromptModel !== undefined
+                      ? { livePromptModel: props.livePromptModel }
+                      : {})}
+                    {...(props.modelOptions !== undefined
+                      ? { modelOptions: props.modelOptions }
+                      : {})}
+                    {...(props.configProviders !== undefined
+                      ? { configProviders: props.configProviders }
+                      : {})}
+                    {...(props.contextUsage !== undefined
+                      ? { contextUsage: props.contextUsage }
+                      : {})}
+                    {...(onRegenerate !== undefined ? { onRegenerate } : {})}
                     isNew={enteringIds.has(message.id)}
                     knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
                     streaming={props.streaming}
@@ -649,751 +582,3 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     </div>
   );
 }
-
-type ChatMessageRowProps = {
-  message: ChatMessageUi;
-  sessionId?: string;
-  messageIndex: number;
-  showStreamingCaret: boolean;
-  /** Quiet workbench: entrance animation for messages that arrived after mount. */
-  isNew: boolean;
-  /** Tool-reported changed paths from the containing turn for system summaries. */
-  knownFilePaths?: readonly string[] | undefined;
-  streaming: boolean;
-  /** CM-10: source session for the message context menu ref. */
-  activeSessionId: string | null;
-  editingMessageId: string | null;
-  lastUserMessageId: string | null;
-  activeTheme: ThemeManifest | null;
-  artifactThemeKey: string | number;
-  runRecordsById: Record<string, RunRecordUi>;
-  /** Keyed Run projection for this row; avoids whole-map memo invalidation. */
-  runRecord?: RunRecordUi;
-  activeRunId: string | null;
-  activeSkill: SkillActivityView | null;
-  agentLocatorAnimation?: AgentLocatorAnimation;
-  permissionPrompt: PermissionPromptUi | null;
-  workDetailsExpanded: WorkDetailsExpanded;
-  toolDensity: ToolCallDensity;
-  showThinking: boolean;
-  /** Project root forwarded to tool cards → DiffCard. */
-  projectPath?: string | null;
-  /** Host git request adapter forwarded to tool cards → DiffCard. */
-  toolDiffRequest?: DiffCardRequest;
-  filesChangedRequest?: FilesChangedBarRequest;
-  onReviewChanges?: () => void;
-  onEdit: (messageId: string) => void;
-  onCancelEdit: () => void;
-  onEditResend: (messageId: string, text: string) => void;
-  onRetry: (messageId: string) => void;
-  onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
-  onInterventionCancel?: (messageId: string) => void | Promise<void>;
-  onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
-  /** Open the read-only subagent session inspector for a transcript card. */
-  onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
-  docCardRequest?: DocCardSequenceRequest;
-  subagentChildren?: Record<string, SessionSummary>;
-  subagentInvocations?: Record<string, SubagentInvocation>;
-  subagentStreams?: Record<string, SubagentStreamState>;
-  onArtifactAction?: (action: ArtifactActionMessage) => void;
-  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  /** When false (default), MarkdownView hides the heavy Artifact path. */
-  artifactPreviewEnabled?: boolean;
-  /** When true, MarkdownView displays source code first for artifact blocks. */
-  artifactCodeFirst?: boolean;
-  /** Security byte cap forwarded to evaluateCodeFence. */
-  artifactMaxBytes?: number;
-  /** Callback when clicking a search result file or file link. */
-  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
-  /** Callback when clicking a markdown document link or plan document chip. */
-  onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
-  /** Locale used by all run activity components. */
-  locale?: 'zh-CN' | 'en';
-  /** Global composer card props so the edit mode matches the bottom composer. */
-  composerCard: ComposerDockProps;
-  /** Walkthrough artifacts keyed by owning assistant messageId. */
-  walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
-  /** Whether the Generate Walkthrough action is enabled. */
-  walkthroughEnabled?: boolean;
-  /** Whether auto-generation is active (hides the manual Generate button). */
-  walkthroughAutoGenerate?: boolean;
-  /** Pre-computed eligibility for the Generate button (computed by parent). */
-  walkthroughEligible?: boolean;
-  /** Generate a walkthrough for a message; force overwrites an existing artifact. */
-  onGenerateWalkthrough?:
-    ((messageId: string, force?: boolean) => void | Promise<void>) | undefined;
-  /** Cancel an in-flight walkthrough generation. */
-  onCancelWalkthrough?:
-    ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
-  /** SF-03: Duplicate the entire session. */
-  onDuplicateSession?: (() => void | Promise<void>) | undefined;
-  /** SF-03: Fork from a specific assistant response. */
-  onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
-  /** SF-03: Open the lineage / branch list for a message. */
-  onOpenForks?: ((messageId: string) => void) | undefined;
-  /** SF-03: Map of messageId → direct fork count (for badge display). */
-  forkCountsByMessageId?: Record<string, number>;
-  /** SF-04: Product lineage projection for the active session. */
-  sessionLineage?: ProductSessionLineageView | null;
-  /** SF-04: Navigate to another product session from the lineage tree. */
-  onOpenSession?: ((sessionId: string) => void) | undefined;
-  /** SF-03: Whether derived-session actions are disabled. */
-  derivedActionsDisabled?: boolean;
-  /** SF-03: True only for the last assistant message in a turn group. */
-  isLastAssistantInTurn?: boolean;
-  /** SF-04: True only for the newest completed assistant response. */
-  isLatestAssistantResponse?: boolean;
-  /** Assembly capsule for this user row, if Host recorded one. */
-  assemblySummary?: ContextSummaryPush;
-  isConversationSession?: boolean;
-};
-
-function formatMessageTime(createdAt?: string): string {
-  if (!createdAt) return '';
-  const date = new Date(createdAt);
-  if (isNaN(date.getTime())) return '';
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
-}
-
-function areFilePathListsEqual(
-  left: readonly string[] | undefined,
-  right: readonly string[] | undefined,
-): boolean {
-  if (left === right) {
-    return true;
-  }
-  if (!left || !right || left.length !== right.length) {
-    return false;
-  }
-  return left.every((path, index) => path === right[index]);
-}
-
-/** Height (px) above which a user message bubble collapses. */
-const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
-
-function getGenerationStatus(
-  message: ChatMessageUi,
-  generationKind: GenerationToolKind,
-): ToolCardUi['status'] | null {
-  const generationTools = message.tools.filter(
-    (tool) => resolveGenerationToolKind(tool) === generationKind,
-  );
-  if (generationTools.length === 0) {
-    return null;
-  }
-  if (generationTools.some((tool) => tool.status === 'running')) {
-    return 'running';
-  }
-  if (generationTools.some((tool) => tool.status === 'error')) {
-    return 'error';
-  }
-  return 'done';
-}
-
-function UserMessageContent(props: {
-  message: ChatMessageUi;
-  streaming?: boolean;
-  onRetry: (messageId: string) => void;
-  onInterventionEdit?: (messageId: string) => void;
-  onInterventionCancel?: (messageId: string) => void | Promise<void>;
-  onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
-  locale?: 'zh-CN' | 'en';
-}): ReactElement {
-  const { message } = props;
-  const [copied, setCopied] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(true);
-  const [isTextOverflow, setIsTextOverflow] = useState(false);
-  const textRef = useRef<HTMLDivElement | null>(null);
-  const formattedTime = formatMessageTime(message.createdAt);
-  const hasAttachments = message.attachments.length > 0;
-  const interventionStatus = message.instructionDelivery?.status;
-  const isChinese = props.locale !== 'en';
-  const interventionLabel =
-    interventionStatus === 'pending'
-      ? isChinese
-        ? '等待当前步骤完成'
-        : 'Waiting for the current step'
-      : interventionStatus === 'applying'
-        ? isChinese
-          ? '正在应用到下一次回复'
-          : 'Applying to the next response'
-        : interventionStatus === 'applied'
-          ? isChinese
-            ? '已应用到当前任务'
-            : 'Applied to this run'
-          : interventionStatus === 'expired'
-            ? isChinese
-              ? '当前任务已结束，未应用'
-              : 'Run ended before it was applied'
-            : interventionStatus === 'cancelled'
-              ? isChinese
-                ? '已取消'
-                : 'Cancelled'
-              : interventionStatus === 'uncertain'
-                ? isChinese
-                  ? '是否应用无法确认'
-                  : 'Application could not be confirmed'
-                : interventionStatus === 'failed'
-                  ? isChinese
-                    ? '未能应用'
-                    : 'Could not be applied'
-                  : null;
-
-  // Measure the natural height of the text node to determine if it needs collapsing.
-  useEffect(() => {
-    const node = textRef.current;
-    if (!node) return;
-
-    function measure(): void {
-      if (!node) return;
-      const naturalHeight = node.scrollHeight;
-      setIsTextOverflow(naturalHeight > USER_MESSAGE_COLLAPSE_THRESHOLD);
-    }
-
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [message.text]);
-
-  async function handleCopy(): Promise<void> {
-    const payload = message.text.trim();
-    if (!payload) return;
-    try {
-      await navigator.clipboard.writeText(payload);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-      props.onFeedback?.('Copied to clipboard', 'success');
-    } catch {
-      props.onFeedback?.('Could not copy to clipboard', 'error');
-    }
-  }
-
-  // Attachments always start in the compact state so a history prompt cannot
-  // occupy most of the transcript viewport while browsing older turns.
-  const isCollapsible = hasAttachments || isTextOverflow;
-  const collapsed = isCollapsible && isCollapsed;
-
-  const handleToggle = isCollapsible ? () => setIsCollapsed((previous) => !previous) : undefined;
-
-  return (
-    <div className="user-message-wrapper">
-      <div
-        className={`user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasAttachments ? 'has-attachments' : ''}`}
-        data-testid="user-message-collapsible-body"
-        onClick={handleToggle}
-        role={isCollapsible ? 'button' : undefined}
-        tabIndex={isCollapsible ? 0 : undefined}
-        aria-expanded={isCollapsible ? !collapsed : undefined}
-        onKeyDown={
-          isCollapsible
-            ? (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setIsCollapsed((previous) => !previous);
-                }
-              }
-            : undefined
-        }
-      >
-        <MessageAttachments attachments={message.attachments} />
-        <div ref={textRef} className="message-text">
-          {message.text}
-        </div>
-      </div>
-      <div
-        className="user-message-actions"
-        data-testid="user-message-actions"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {interventionLabel ? (
-          <span className="user-message-time" data-testid="intervention-delivery-status">
-            {interventionLabel}
-          </span>
-        ) : null}
-        {formattedTime ? (
-          <span className="user-message-time" data-testid="user-message-time">
-            {formattedTime}
-          </span>
-        ) : null}
-        <button
-          type="button"
-          className="user-msg-btn"
-          onClick={() => void handleCopy()}
-          title="Copy"
-          aria-label="Copy message"
-          data-testid="message-copy-btn"
-        >
-          {copied ? <IconCheck /> : <IconCopy />}
-        </button>
-        {interventionStatus === 'pending' && props.onInterventionCancel ? (
-          <button
-            type="button"
-            className="user-msg-btn"
-            onClick={() => void props.onInterventionCancel?.(message.id)}
-            title={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
-            aria-label={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
-            data-testid="intervention-cancel-btn"
-          >
-            <IconClose />
-          </button>
-        ) : null}
-        {interventionStatus === 'pending' && props.onInterventionEdit ? (
-          <button
-            type="button"
-            className="user-msg-btn"
-            onClick={() => props.onInterventionEdit?.(message.id)}
-            title={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
-            aria-label={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
-            data-testid="intervention-edit-btn"
-          >
-            <IconEdit />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="user-msg-btn"
-          onClick={() => props.onRetry(message.id)}
-          disabled={
-            props.streaming || interventionStatus === 'pending' || interventionStatus === 'applying'
-          }
-          title="Revert"
-          aria-label="Revert message"
-          data-testid="message-revert-btn"
-        >
-          <IconRevert />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const ChatMessageRow = memo(
-  function ChatMessageRow(props: ChatMessageRowProps): ReactElement | null {
-    const { message } = props;
-    const imageGenerationStatus =
-      message.role === 'assistant' ? getGenerationStatus(message, 'image') : null;
-    const videoGenerationStatus =
-      message.role === 'assistant' ? getGenerationStatus(message, 'video') : null;
-    const contextMenu = useDesktopContextMenu();
-    if (message.subagentActivity) {
-      if (props.isConversationSession === true) {
-        return null;
-      }
-      return (
-        <div id={`msg-${message.id}`} className="chat-subagent-slot">
-          <SubagentActivityCard
-            activity={message.subagentActivity}
-            {...(props.onInspectSubagent ? { onInspect: props.onInspectSubagent } : {})}
-          />
-        </div>
-      );
-    }
-
-    const isEditingThis = props.editingMessageId === message.id;
-    // Keep every lifecycle segment that contains causal output. Only discard a
-    // truly empty transport placeholder; tool-only and thinking-only messages
-    // are real transcript rows and must retain their event position.
-    const conversationHidesAgentOnlyRow =
-      props.isConversationSession === true &&
-      message.role === 'assistant' &&
-      message.text.trim().length === 0 &&
-      message.attachments.length === 0 &&
-      (message.searchEvidence?.citations.length ?? 0) === 0 &&
-      imageGenerationStatus === null &&
-      videoGenerationStatus === null &&
-      !messageHasFlashcardToolResult(message);
-    if (
-      message.role === 'assistant' &&
-      message.status !== 'streaming' &&
-      (conversationHidesAgentOnlyRow ||
-        (message.text.trim().length === 0 &&
-          message.thinking.trim().length === 0 &&
-          message.tools.length === 0 &&
-          message.attachments.length === 0 &&
-          (message.searchEvidence?.citations.length ?? 0) === 0 &&
-          imageGenerationStatus === null &&
-          videoGenerationStatus === null))
-    ) {
-      return null;
-    }
-
-    const rowClass = [
-      'bubble',
-      'chat-message-row',
-      `role-${message.role}`,
-      message.role === 'assistant' &&
-      message.text.trim().length === 0 &&
-      message.thinking.trim().length === 0 &&
-      message.tools.length > 0
-        ? 'is-tool-only'
-        : '',
-      message.status === 'streaming' ? 'is-streaming' : '',
-      props.isNew ? 'is-new' : '',
-      isEditingThis ? 'is-editing' : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    const isUserMessage = message.role === 'user';
-    // Double-click any user bubble (or click the pencil action) to enter edit
-    // mode in-place. Editing the last user message sends immediately; editing
-    // an earlier message triggers the revert confirmation in App.
-    const canEditPendingIntervention = message.instructionDelivery?.status === 'pending';
-    const handleDoubleClick =
-      isUserMessage && !isEditingThis && (!props.streaming || canEditPendingIntervention)
-        ? () => props.onEdit(message.id)
-        : undefined;
-
-    // CM-10: message surface target. Capabilities follow existing session
-    // action rules: retry on user bubbles; fork on completed assistants when a
-    // fork hook exists; side chat when the host has a session.
-    const messageTarget: ContextMenuTarget | null =
-      contextMenu &&
-      props.activeSessionId &&
-      (message.role === 'user' || message.role === 'assistant')
-        ? {
-            surface: message.role === 'user' ? 'message-user' : 'message-assistant',
-            sessionId: props.activeSessionId,
-            messageId: message.id,
-            text: message.text,
-            label: message.role === 'user' ? 'User message' : 'Assistant response',
-            capabilities: {
-              canRetry: isUserMessage && !props.streaming,
-              canFork:
-                message.role === 'assistant' &&
-                message.status === 'done' &&
-                props.onForkFromMessage !== undefined &&
-                !props.streaming,
-              canSideChat: Boolean(props.activeSessionId && !props.streaming),
-            },
-          }
-        : null;
-
-    const bubble = (
-      <article
-        id={`msg-${message.id}`}
-        className={rowClass}
-        data-testid="message-bubble"
-        data-role={message.role}
-        {...(handleDoubleClick ? { onDoubleClick: handleDoubleClick } : {})}
-      >
-        {message.role === 'assistant' ? (
-          props.isConversationSession === true ? (
-            <ConversationResponseContent
-              message={message}
-              {...(props.sessionId ? { sessionId: props.sessionId } : {})}
-              messageIndex={props.messageIndex}
-              showStreamingCaret={props.showStreamingCaret}
-              activeTheme={props.activeTheme}
-              artifactThemeKey={props.artifactThemeKey}
-              runRecordsById={props.runRecordsById}
-              activeRunId={props.activeRunId}
-              locale={props.locale ?? 'zh-CN'}
-              {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
-              {...(props.artifactMaxBytes !== undefined
-                ? { artifactMaxBytes: props.artifactMaxBytes }
-                : {})}
-              {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-              {...(props.onOpenArtifactCanvas
-                ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
-                : {})}
-              {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-            />
-          ) : (
-            <TurnWorkDetails
-              message={message}
-              runRecordsById={props.runRecordsById}
-              activeRunId={props.isLastAssistantInTurn === true ? props.activeRunId : null}
-              activeSkill={props.isLastAssistantInTurn === true ? props.activeSkill : null}
-              {...(props.agentLocatorAnimation
-                ? { agentLocatorAnimation: props.agentLocatorAnimation }
-                : {})}
-              permissionPrompt={props.isLastAssistantInTurn === true ? props.permissionPrompt : null}
-              workDetailsExpanded={props.workDetailsExpanded}
-              toolDensity={props.toolDensity}
-              showThinking={props.showThinking}
-              {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-              {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
-              {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
-              {...(props.onOpenDocument
-                ? {
-                    onOpenDocument: (input) =>
-                      props.onOpenDocument?.({
-                        ...input,
-                        messageId: input.messageId ?? message.id,
-                      }),
-                  }
-                : {})}
-              {...(props.subagentChildren ? { subagentChildren: props.subagentChildren } : {})}
-              {...(props.subagentInvocations
-                ? { subagentInvocations: props.subagentInvocations }
-                : {})}
-              {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
-              {...(props.onInspectSubagent ? { onInspectSubagent: props.onInspectSubagent } : {})}
-              {...(props.locale ? { locale: props.locale } : {})}
-            >
-              {message.text.trim().length > 0 ? (
-                <MarkdownView
-                  text={message.text}
-                  renderingPhase={resolveAssistantRenderingPhase(
-                    message,
-                    props.runRecordsById,
-                    props.activeRunId,
-                  )}
-                  artifactTheme={mapThemeToArtifactVariables(props.activeTheme)}
-                  initPriorityBase={props.messageIndex * 10}
-                  artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
-                  showStreamingCaret={props.showStreamingCaret}
-                  locale={props.locale ?? 'zh-CN'}
-                  {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
-                  {...(props.artifactMaxBytes !== undefined
-                    ? { artifactMaxBytes: props.artifactMaxBytes }
-                    : {})}
-                  {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-                  {...(props.sessionId
-                    ? { artifactOrigin: { sessionId: props.sessionId, messageId: message.id } }
-                    : {})}
-                  {...(props.onOpenArtifactCanvas
-                    ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
-                    : {})}
-                  {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-                />
-              ) : null}
-              {message.searchEvidence !== undefined ? (
-                <CitationCards evidence={message.searchEvidence} />
-              ) : null}
-            </TurnWorkDetails>
-          )
-        ) : null}
-        {imageGenerationStatus ? (
-          <ImageGenerationProgress
-            locale={props.locale ?? 'zh-CN'}
-            status={imageGenerationStatus}
-          />
-        ) : null}
-        {videoGenerationStatus ? (
-          <VideoGenerationProgress
-            locale={props.locale ?? 'zh-CN'}
-            status={videoGenerationStatus}
-          />
-        ) : null}
-        {message.role === 'assistant' || isEditingThis ? (
-          <MessageAttachments attachments={message.attachments} />
-        ) : null}
-        {message.role === 'system' ? (
-          <SystemMessageContent
-            text={message.text}
-            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-            {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
-            {...(props.knownFilePaths ? { knownFilePaths: props.knownFilePaths } : {})}
-          />
-        ) : isEditingThis ? (
-          <MessageEditCard
-            messageId={message.id}
-            initialText={message.text}
-            composerCard={props.composerCard}
-            onCancel={props.onCancelEdit}
-            onResend={(text) => {
-              if (canEditPendingIntervention && props.onInterventionEdit) {
-                void props.onInterventionEdit(message.id, text);
-                return;
-              }
-              props.onEditResend(message.id, text);
-            }}
-            interventionEdit={canEditPendingIntervention}
-          />
-        ) : message.role === 'assistant' ? null : (
-          <UserMessageContent
-            message={message}
-            streaming={props.streaming}
-            onRetry={props.onRetry}
-            {...(canEditPendingIntervention && props.onInterventionEdit
-              ? { onInterventionEdit: props.onEdit }
-              : {})}
-            {...(props.onInterventionCancel
-              ? { onInterventionCancel: props.onInterventionCancel }
-              : {})}
-            onFeedback={props.onFeedback}
-            {...(props.locale ? { locale: props.locale } : {})}
-          />
-        )}
-        {props.isConversationSession !== true &&
-        message.role === 'assistant' &&
-        message.tools.length > 0 ? (
-          <FilesChangedBar
-            tools={message.tools}
-            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-            {...(props.filesChangedRequest !== undefined
-              ? { request: props.filesChangedRequest }
-              : {})}
-            {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
-            {...(props.locale ? { locale: props.locale } : {})}
-          />
-        ) : null}
-        {props.isConversationSession !== true &&
-        message.role === 'assistant' &&
-        props.isLastAssistantInTurn === true &&
-        props.onGenerateWalkthrough ? (
-          <WalkthroughAction
-            message={message}
-            artifact={props.walkthroughsByMessageId?.[message.id]}
-            eligible={props.walkthroughEligible === true}
-            autoGenerate={props.walkthroughAutoGenerate === true}
-            onGenerate={props.onGenerateWalkthrough}
-            {...(props.locale ? { locale: props.locale } : {})}
-            {...(props.onCancelWalkthrough ? { onCancel: props.onCancelWalkthrough } : {})}
-            {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-          />
-        ) : null}
-        {message.role === 'assistant' &&
-        message.status === 'done' &&
-        props.isLastAssistantInTurn === true &&
-        (props.onDuplicateSession || props.onForkFromMessage || message.text) ? (
-          <AssistantResponseActions
-            messageId={message.id}
-            messageText={message.text}
-            showDuplicate={props.onDuplicateSession !== undefined}
-            showFork={props.onForkFromMessage !== undefined}
-            directForkCount={props.forkCountsByMessageId?.[message.id] ?? 0}
-            {...(props.sessionLineage ? { lineage: props.sessionLineage } : {})}
-            showTreeOnLatestResponse={props.isLatestAssistantResponse === true}
-            disabled={props.derivedActionsDisabled === true || props.streaming}
-            {...(props.onDuplicateSession
-              ? { onDuplicate: props.onDuplicateSession }
-              : { onDuplicate: () => {} })}
-            {...(props.onForkFromMessage
-              ? { onFork: props.onForkFromMessage }
-              : { onFork: () => {} })}
-            {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
-            {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
-            {...(props.onFeedback ? { onFeedback: props.onFeedback } : {})}
-            locale={props.locale ?? 'en'}
-          />
-        ) : null}
-      </article>
-    );
-
-    // CM-10: message context menu wraps the whole bubble. Streaming rows keep
-    // the menu (retry/fork are capability-gated off); subagent cards are
-    // handled by the early return above.
-    const showPreparingCapsule =
-      props.isConversationSession !== true &&
-      isUserMessage &&
-      props.assemblySummary === undefined &&
-      props.streaming === true &&
-      props.lastUserMessageId === message.id;
-    const capsule =
-      props.isConversationSession !== true &&
-      isUserMessage &&
-      (props.assemblySummary !== undefined || showPreparingCapsule) ? (
-        <AssemblySummaryCapsule
-          {...(props.assemblySummary !== undefined ? { summary: props.assemblySummary } : {})}
-          {...(showPreparingCapsule && props.assemblySummary === undefined
-            ? { preparing: true }
-            : {})}
-          locale={props.locale ?? 'zh-CN'}
-        />
-      ) : null;
-    const row = (
-      <>
-        {bubble}
-        {capsule}
-      </>
-    );
-    if (!messageTarget || !contextMenu) {
-      return row;
-    }
-    return (
-      <ContextMenuFromCatalog
-        testId="message-context-menu"
-        target={messageTarget}
-        caps={contextMenu.caps}
-        dispatchers={contextMenu.dispatchers}
-      >
-        {row}
-      </ContextMenuFromCatalog>
-    );
-  },
-  (previous, next) => {
-    const isActionableUserMessage = previous.message.role === 'user';
-    // composerCard only mounts for the row being edited; ignore identity churn elsewhere.
-    const isEditingThisRow =
-      previous.editingMessageId === previous.message.id ||
-      next.editingMessageId === next.message.id;
-    const callbackPropsAreStable =
-      previous.onFeedback === next.onFeedback &&
-      (isActionableUserMessage
-        ? previous.onEdit === next.onEdit &&
-          previous.onCancelEdit === next.onCancelEdit &&
-          previous.onEditResend === next.onEditResend &&
-          previous.onRetry === next.onRetry &&
-          previous.onInterventionEdit === next.onInterventionEdit &&
-          previous.onInterventionCancel === next.onInterventionCancel &&
-          (!isEditingThisRow || previous.composerCard === next.composerCard)
-        : previous.message.subagentActivity
-          ? previous.onInspectSubagent === next.onInspectSubagent
-          : true);
-    // Global streaming only disables actions on user rows and the turn's last
-    // assistant. Historical assistants should not re-render on every send.
-    const rowUsesStreamingFlag =
-      previous.message.role === 'user' ||
-      next.message.role === 'user' ||
-      previous.isLastAssistantInTurn === true ||
-      next.isLastAssistantInTurn === true;
-    const streamingIsStable = !rowUsesStreamingFlag || previous.streaming === next.streaming;
-    return (
-      previous.message === next.message &&
-      previous.sessionId === next.sessionId &&
-      previous.messageIndex === next.messageIndex &&
-      previous.showStreamingCaret === next.showStreamingCaret &&
-      streamingIsStable &&
-      previous.activeSessionId === next.activeSessionId &&
-      previous.editingMessageId === next.editingMessageId &&
-      previous.lastUserMessageId === next.lastUserMessageId &&
-      previous.activeTheme === next.activeTheme &&
-      areFilePathListsEqual(previous.knownFilePaths, next.knownFilePaths) &&
-      previous.artifactThemeKey === next.artifactThemeKey &&
-      previous.runRecord === next.runRecord &&
-      previous.activeRunId === next.activeRunId &&
-      previous.activeSkill === next.activeSkill &&
-      previous.agentLocatorAnimation === next.agentLocatorAnimation &&
-      previous.permissionPrompt === next.permissionPrompt &&
-      previous.workDetailsExpanded === next.workDetailsExpanded &&
-      previous.toolDensity === next.toolDensity &&
-      previous.showThinking === next.showThinking &&
-      previous.projectPath === next.projectPath &&
-      previous.toolDiffRequest === next.toolDiffRequest &&
-      previous.locale === next.locale &&
-      previous.onArtifactAction === next.onArtifactAction &&
-      previous.onOpenArtifactCanvas === next.onOpenArtifactCanvas &&
-      previous.onOpenDocument === next.onOpenDocument &&
-      previous.subagentChildren === next.subagentChildren &&
-      previous.subagentInvocations === next.subagentInvocations &&
-      previous.subagentStreams === next.subagentStreams &&
-      previous.filesChangedRequest === next.filesChangedRequest &&
-      previous.onReviewChanges === next.onReviewChanges &&
-      previous.walkthroughsByMessageId === next.walkthroughsByMessageId &&
-      previous.walkthroughEnabled === next.walkthroughEnabled &&
-      previous.walkthroughAutoGenerate === next.walkthroughAutoGenerate &&
-      previous.walkthroughEligible === next.walkthroughEligible &&
-      previous.onGenerateWalkthrough === next.onGenerateWalkthrough &&
-      previous.onCancelWalkthrough === next.onCancelWalkthrough &&
-      previous.onDuplicateSession === next.onDuplicateSession &&
-      previous.onForkFromMessage === next.onForkFromMessage &&
-      previous.onOpenForks === next.onOpenForks &&
-      previous.forkCountsByMessageId === next.forkCountsByMessageId &&
-      previous.sessionLineage === next.sessionLineage &&
-      previous.onOpenSession === next.onOpenSession &&
-      previous.derivedActionsDisabled === next.derivedActionsDisabled &&
-      previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
-      previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
-      previous.assemblySummary === next.assemblySummary &&
-      previous.isConversationSession === next.isConversationSession &&
-      callbackPropsAreStable
-    );
-  },
-);
