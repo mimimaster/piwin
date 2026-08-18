@@ -367,4 +367,46 @@ describe('ConversationResponseContent', () => {
     expect(container.textContent).toContain('线粒体是');
     expect(container.textContent).toContain('[…]');
   });
+
+  it('loads flip cards from a summary card id when tool output is gone', async () => {
+    const cards = [
+      {
+        cardId: 'card-f3dc5a95-msy8lzjt:c1',
+        itemId: 'card-f3dc5a95-msy8lzjt',
+        model: 'cloze' as const,
+        ordinal: 1,
+        deck: 'default',
+        front: '线粒体是[…]的能量工厂。',
+        back: '线粒体是**细胞**的能量工厂。',
+        createdAt: '2026-08-18T05:43:48.281Z',
+      },
+    ];
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={{
+          id: 'summary-only',
+          role: 'assistant',
+          text: '卡片 ID： card-f3dc5a95-msy8lzjt',
+          thinking: '',
+          tools: [],
+          attachments: [],
+          status: 'done',
+        }}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+        onResolveFlashcards={async () => cards}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="conversation-extracted-flashcard"]')).not.toBeNull();
+    expect(container.textContent).toContain('线粒体是[…]的能量工厂。');
+  });
 });

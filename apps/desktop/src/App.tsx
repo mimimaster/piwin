@@ -21,6 +21,7 @@ import {
   resolvePreset,
 } from '@piwin/contracts';
 import type {
+  ModelRef,
   PermissionDecision,
   PermissionRememberScope,
   PermissionPreset,
@@ -42,12 +43,19 @@ import {
   type SessionListItemUi,
 } from './chat-reducer';
 import { HostClient } from './host-client';
+import {
+  clearDesktopRemoteHostTarget,
+  loadDesktopRemoteHostTarget,
+  subscribeDesktopRemoteHostTargetChange,
+} from './remote-host-session';
 import { useHostRequestAdapters } from './host-request-adapters';
 import { NotificationRegion } from './NotificationRegion';
 import { MainErrorBanner } from './main-error-banner';
 import { ProjectSessionSidebar } from './project-session-sidebar';
 import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
+import { reviewCardsForItemIds } from './resolve-conversation-flashcards';
+import type { FlashcardItem } from '@piwin/contracts';
 import { formatPlanMarkdown } from './plan-card';
 import { ArtifactCanvasPanel } from './artifact-canvas-panel';
 import { appendComposerProposal, type ArtifactCanvasTarget } from './artifact-canvas-model';
@@ -108,6 +116,9 @@ import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspec
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import { useJobs } from './hooks/use-jobs';
 import { Button, Dialog, Notice } from '@piwin/ui-kit';
+import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
+import { useConfirmDialog } from './use-confirm-dialog';
+import { isRemoteDesktopTransport } from './remote-session-hydrate';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
 import { useDesktopShortcuts } from './use-desktop-shortcuts';
@@ -165,8 +176,32 @@ function mergeSessionsForLookup(
   return [...primary, ...secondary.filter((session) => !seen.has(session.id))];
 }
 
+function createAppHostClient(): HostClient {
+  const remoteTarget = loadDesktopRemoteHostTarget();
+  if (remoteTarget !== undefined) {
+    return new HostClient({
+      transport: 'remote',
+      remoteTarget,
+      hostMock: false,
+    });
+  }
+  return new HostClient({ transport: 'auto', hostMock: false });
+}
+
 export function App({ activeTheme, onThemeApplied }: AppProps) {
-  const hostClient = useMemo(() => new HostClient({ transport: 'auto', hostMock: false }), []);
+  const [hostClient, setHostClient] = useState(createAppHostClient);
+  const hostClientRef = useRef(hostClient);
+  hostClientRef.current = hostClient;
+
+  useEffect(() => {
+    return subscribeDesktopRemoteHostTargetChange(() => {
+      const previous = hostClientRef.current;
+      const next = createAppHostClient();
+      hostClientRef.current = next;
+      setHostClient(next);
+      void previous.dispose();
+    });
+  }, []);
   const {
     requestConfig,
     requestSubAgent,
@@ -376,6 +411,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     ],
   );
   const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
+  const foregroundReplaceConfirm = useConfirmDialog();
+  const confirmForegroundReplace = useCallback(
+    async (_problem: ForegroundRunMismatchProblem): Promise<boolean> => {
+      const copy = getDesktopCopy(desktopLocale).composer;
+      return foregroundReplaceConfirm.confirm({
+        title: copy.foregroundReplaceTitle,
+        description: copy.foregroundReplaceDescription,
+        confirmLabel: copy.foregroundReplaceConfirm,
+        cancelLabel: copy.foregroundReplaceCancel,
+        tone: 'danger',
+      });
+    },
+    [desktopLocale, foregroundReplaceConfirm],
+  );
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
   const [menuSkills, setMenuSkills] = useState<
@@ -405,6 +454,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const hasHydratedInitialGeneralSessions = useRef(false);
   const hasRestoredDesktopSession = useRef(false);
   const configSaveQueue = useRef<Promise<void>>(Promise.resolve());
+
+  useEffect(() => {
+    hasHydratedInitialGeneralSessions.current = false;
+    hasRestoredDesktopSession.current = false;
+  }, [hostClient]);
 
   useEffect(() => {
     if (state.activeRunStartedAt === null) {
@@ -739,6 +793,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       hostClient.request(command),
     [hostClient],
   );
+  const resolveConversationFlashcards = useCallback(
+    async (itemIds: string[]) => {
+      const response = await hostClient.request({ type: 'flashcards/list' });
+      if (!response.success) return [];
+      const items = ((response.data as { cards?: FlashcardItem[] } | undefined)?.cards ?? []).filter(
+        (item) => itemIds.includes(item.id),
+      );
+      return reviewCardsForItemIds(items, itemIds);
+    },
+    [hostClient],
+  );
   // Knowledge Center forwards commands to the same host transport; the panel
   // accepts a union type internally.
   const requestKnowledgeCenter = useCallback(
@@ -842,6 +907,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onSessionComposerProfileRestored: (profile) => {
       sessionComposerProfileRestoredRef.current(profile);
     },
+    confirmForegroundReplace,
   });
 
   useEffect(() => {
@@ -901,13 +967,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   );
 
   // Cold start: hydrate General sessions once the host is ready.
+  // Remote config/get is not allowed; do not wait on config === null there.
   useEffect(() => {
+    const remote = isRemoteDesktopTransport(hostClient.getTransport());
     if (
       !state.hostReady ||
       state.projectPath ||
-      config === null ||
-      config.desktop?.lastSession ||
-      hasHydratedInitialGeneralSessions.current
+      hasHydratedInitialGeneralSessions.current ||
+      (!remote && (config === null || Boolean(config.desktop?.lastSession)))
     ) {
       return;
     }
@@ -919,7 +986,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     // General is refreshed explicitly on scope selection and archive toggles.
     // hydrateSessions is intentionally omitted; its identity changes with UI state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, state.hostReady, state.projectPath]);
+  }, [config, hostClient, state.hostReady, state.projectPath]);
 
   // Hydrate every recent project's session list so the sidebar folder tree can
   // show each open folder's conversations without forcing the user to click
@@ -1468,6 +1535,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     thinkingLevel,
     delegationDisabled,
     visionDelegationEnabled: config?.visionDelegation?.enabled === true,
+    confirmForegroundReplace,
     confirmTextOnlyImageSend: async (message) => {
       // Lightweight confirm; host still path-injects if user continues.
       return window.confirm(message);
@@ -2007,6 +2075,24 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     )?.contextWindow;
   }, [modelOptions, selectedModelKey, config?.defaultProviderId, config?.defaultModelId]);
 
+  const currentPromptModelRef = useMemo<ModelRef | null>(() => {
+    const matched = selectedModelKey
+      ? modelOptions.find(
+          (option) => `${option.providerId}::${option.modelId}` === selectedModelKey,
+        )
+      : modelOptions.find(
+          (option) =>
+            option.providerId === config?.defaultProviderId &&
+            option.modelId === config?.defaultModelId,
+        );
+    if (!matched) return null;
+    return {
+      protocol: matched.protocol,
+      providerId: matched.providerId,
+      modelId: matched.modelId,
+    };
+  }, [modelOptions, selectedModelKey, config?.defaultProviderId, config?.defaultModelId]);
+
   /**
    * Status-bar percent must match ContextUsageRing (shared used/limit math).
    * Undefined until the first usage sample so chrome does not show a fake 0%.
@@ -2063,6 +2149,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const handleOpenHostSettings = useCallback((): void => {
     openSettingsSection('general');
   }, [openSettingsSection]);
+  const handleSelectLocalRuntime = useCallback((): void => {
+    clearDesktopRemoteHostTarget();
+  }, []);
   const handleOpenPermissionsSettings = useCallback((): void => {
     openSettingsSection('permissions');
   }, [openSettingsSection]);
@@ -2262,6 +2351,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onOpenProject: (path) => {
         void handleOpenProject(path);
       },
+      runtimeRemoteConnected: hostClient.getTransport() === 'remote',
+      onSelectLocalRuntime: handleSelectLocalRuntime,
     }),
     [
       agentMode,
@@ -2292,6 +2383,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       handleSteerQueueRemove,
       handleSteerQueueSendNow,
       handleOpenHostSettings,
+      handleSelectLocalRuntime,
       handleOpenMcpPanel,
       handleOpenModelSettings,
       handleOpenPermissionsSettings,
@@ -2903,6 +2995,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         activeSessionId={state.activeSessionId}
                         docCardRequest={requestKnowledgeCenter as never}
                         isConversationSession={state.activeScope.kind === 'general'}
+                        onResolveFlashcards={resolveConversationFlashcards}
+                        livePromptModel={state.streaming ? currentPromptModelRef : null}
+                        modelOptions={modelOptions}
+                        {...(config?.providers !== undefined ? { configProviders: config.providers } : {})}
+                        contextUsage={state.contextUsage}
                         editingMessageId={editingMessageId}
                         lastUserMessageId={lastUserMessageId}
                         activeTheme={activeTheme}
@@ -3308,6 +3405,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               </>
             }
           />
+
+          {foregroundReplaceConfirm.dialog}
 
           <AppDialogs
             projectInput={projectInput}
