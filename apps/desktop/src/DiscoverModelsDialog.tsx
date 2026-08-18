@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, Modal, TextInput } from '@piwin/ui-kit';
-import type { DiscoveredModel, ModelProviderConfig } from '@piwin/contracts';
+import {
+  isLikelyImageGenerationModel,
+  isLikelyVideoGenerationModel,
+  type DiscoveredModel,
+  type ModelProviderConfig,
+} from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type DiscoverModelsDialogProps = {
@@ -205,6 +210,16 @@ export function DiscoverModelsDialog({
             const selected = selectedIds.has(model.id);
             const displayName = model.label?.trim() || model.id;
             const showIdSecondary = Boolean(model.label?.trim() && model.label.trim() !== model.id);
+            const imageHint = isLikelyImageGenerationModel(
+              model.id,
+              model.label,
+              model.capabilities,
+            );
+            const videoHint = isLikelyVideoGenerationModel(
+              model.id,
+              model.label,
+              model.capabilities,
+            );
 
             return (
               <label
@@ -229,6 +244,12 @@ export function DiscoverModelsDialog({
                     </code>
                   ) : null}
                 </span>
+                {imageHint ? (
+                  <span className="model-pick-badge">{isChinese ? '生图' : 'Image'}</span>
+                ) : null}
+                {videoHint ? (
+                  <span className="model-pick-badge">{isChinese ? '视频' : 'Video'}</span>
+                ) : null}
                 {alreadyConfigured ? (
                   <span className="model-pick-badge">{copy.configured}</span>
                 ) : null}

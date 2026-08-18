@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelCatalogEntry, ModelConfigEntry } from '@piwin/contracts';
+import { EMPTY_GENERATION_ROUTE_FIELDS } from './generation-route-defaults';
 import {
   applyModelConfigurationDraft,
   createModelConfigurationDraft,
@@ -35,6 +36,10 @@ describe('model configuration', () => {
       input: ['text', 'image'],
       reasoning: true,
       capabilities: ['image-generation', 'video-generation'],
+      routes: {
+        'image-generation': { apiStyle: 'openai', path: '/images/generations' },
+        'video-generation': { apiStyle: 'openai-videos', path: '/videos' },
+      },
     });
   });
 
@@ -55,6 +60,7 @@ describe('model configuration', () => {
         supportsTextToSpeech: false,
         supportsNativeWebSearch: false,
         reasoning: true,
+        ...EMPTY_GENERATION_ROUTE_FIELDS,
       }),
     ).toEqual({
       id: 'custom-model',
@@ -115,6 +121,7 @@ describe('model configuration', () => {
         supportsTextToSpeech: false,
         supportsNativeWebSearch: false,
         reasoning: true,
+        ...EMPTY_GENERATION_ROUTE_FIELDS,
       }),
     ).toBeNull();
   });
@@ -138,16 +145,14 @@ describe('model configuration', () => {
   });
 
   it('round-trips max effort and image-generation capability while preserving its route', () => {
-    const models = [
-      {
-        id: 'image-reasoner',
-        routes: {
-          'image-generation': { path: '/images/custom', timeoutMs: 90_000 },
-        },
+    const original = {
+      id: 'image-reasoner',
+      routes: {
+        'image-generation': { path: '/images/custom', timeoutMs: 90_000 },
       },
-    ];
-    const next = applyModelConfigurationDraft(models, 'image-reasoner', {
-      ...createModelConfigurationDraft({ id: 'image-reasoner' }),
+    };
+    const next = applyModelConfigurationDraft([original], 'image-reasoner', {
+      ...createModelConfigurationDraft(original),
       thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
       thinkingLevel: 'max',
       supportsImage: true,
@@ -165,7 +170,11 @@ describe('model configuration', () => {
         thinkingLevel: 'max',
         capabilities: ['image-generation'],
         routes: {
-          'image-generation': { path: '/images/custom', timeoutMs: 90_000 },
+          'image-generation': {
+            apiStyle: 'openai',
+            path: '/images/custom',
+            timeoutMs: 90_000,
+          },
         },
       },
     ]);
@@ -315,6 +324,9 @@ describe('model configuration', () => {
         id: 'gpt-image-1',
         capabilities: ['image-generation'],
         input: ['text', 'image'],
+        routes: {
+          'image-generation': { apiStyle: 'openai', path: '/images/generations' },
+        },
       },
     ]);
   });
@@ -329,6 +341,10 @@ describe('model configuration', () => {
       {
         id: 'gpt-image-1',
         capabilities: ['video-generation', 'image-generation'],
+        routes: {
+          'video-generation': { apiStyle: 'openai-videos', path: '/videos' },
+          'image-generation': { apiStyle: 'openai', path: '/images/generations' },
+        },
       },
     ]);
   });
@@ -353,6 +369,34 @@ describe('model configuration', () => {
       'anthropic-compatible',
     );
     expect(anthropicDraft.thinkingLevels).toEqual(['low', 'medium', 'high', 'max']);
+  });
+
+  it('stamps grok imagine video wire format even on an Anthropic-protocol channel', () => {
+    const draft = createModelConfigurationDraft(
+      { id: 'grok-imagine-video' },
+      undefined,
+      'anthropic-compatible',
+    );
+    expect(draft.supportsVideoGeneration).toBe(true);
+    expect(draft.videoApiStyle).toBe('xgrok-videos');
+    expect(draft.videoPath).toBe('/videos/generations');
+    expect(createModelConfigurationEntry(draft)?.routes).toEqual({
+      'video-generation': { apiStyle: 'xgrok-videos', path: '/videos/generations' },
+    });
+  });
+
+  it('does not treat untagged Grok Imagine image ids as chat reasoners', () => {
+    const draft = createModelConfigurationDraft(
+      { id: 'grok-imagine-image-lite' },
+      undefined,
+      'anthropic-compatible',
+    );
+    expect(draft.supportsImageGeneration).toBe(true);
+    expect(draft.supportsVideoGeneration).toBe(false);
+    expect(draft.reasoning).toBe(false);
+    expect(draft.thinkingLevels).toEqual([]);
+    expect(draft.imageApiStyle).toBe('openai');
+    expect(draft.imagePath).toBe('/images/generations');
   });
 
   it('prefers explicit thinkingLevels over protocol defaults in the draft', () => {
@@ -399,8 +443,41 @@ describe('model configuration', () => {
     const models = applyModelConfigurationDraft([original], original.id, draft);
     expect(models?.[0]?.capabilities).toEqual(['video-generation']);
     expect(models?.[0]?.routes).toEqual({
-      'video-generation': { apiStyle: 'custom' },
+      'video-generation': { apiStyle: 'custom', path: '/video/generations' },
     });
     expect(models?.[0]).not.toHaveProperty('nativeWebSearchMode');
+  });
+
+  it('strips generation routes when the capability is unchecked in the provider editor', () => {
+    const next = applyModelConfigurationDraft(
+      [
+        {
+          id: 'hybrid',
+          capabilities: ['image-generation', 'video-generation'],
+          routes: {
+            'image-generation': { path: '/images/generations' },
+            'video-generation': { apiStyle: 'custom' },
+          },
+        },
+      ],
+      'hybrid',
+      {
+        ...createModelConfigurationDraft({
+          id: 'hybrid',
+          capabilities: ['image-generation', 'video-generation'],
+          routes: {
+            'image-generation': { path: '/images/generations' },
+            'video-generation': { apiStyle: 'custom' },
+          },
+        }),
+        supportsImageGeneration: false,
+        supportsVideoGeneration: true,
+      },
+    );
+
+    expect(next?.[0]?.capabilities).toEqual(['video-generation']);
+    expect(next?.[0]?.routes).toEqual({
+      'video-generation': { apiStyle: 'custom', path: '/video/generations' },
+    });
   });
 });

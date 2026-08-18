@@ -463,8 +463,10 @@ Pi native paths remain under `~/.pi/agent/`. piwin maps:
 and thinking effort) and last selected session. These are product settings,
 not browser-local presentation preferences. Restoring a project session opens
 the project without granting new trust; sending remains gated by its current
-trust state. The `imageGeneration` config section holds the default image model,
-configured through the Desktop's `Image Generation` settings page.
+trust state. The `imageGeneration` / `videoGeneration` / `speech.asr` config
+sections hold **default `ModelRef`s** into `providers[].models`. Image and
+video pages may edit that model's generation routes; they do not add, delete,
+or retag catalog rows (ADR 0056).
 
 ## 6. Model protocols
 

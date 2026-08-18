@@ -160,7 +160,7 @@ describe('ModelEditInline', () => {
     const onSave = vi.fn();
     render(
       <ModelEditInline
-        model={{ id: 'grok-imagine-video' }}
+        model={{ id: 'custom-async-video' }}
         providerProtocol="openai-compatible"
         disabled={false}
         isChinese
@@ -175,9 +175,67 @@ describe('ModelEditInline', () => {
     expect(checkbox?.parentElement?.textContent).toContain('视频');
 
     click('[data-testid="model-edit-video-generation"]');
+    expect(query('[data-testid="model-edit-video-route"]')).not.toBeNull();
+    expect(query<HTMLSelectElement>('[data-testid="model-edit-video-api-style"]')?.value).toBe(
+      'openai-videos',
+    );
+    expect(input('model-edit-video-path').value).toBe('/videos');
     click('[data-testid="model-edit-save"]');
     expect(onSave.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ supportsVideoGeneration: true }),
+      expect.objectContaining({
+        supportsVideoGeneration: true,
+        videoApiStyle: 'openai-videos',
+        videoPath: '/videos',
+      }),
+    );
+  });
+
+  it('pre-checks image generation instead of reasoning for Grok Imagine image ids', () => {
+    render(
+      <ModelEditInline
+        model={{ id: 'grok-imagine-image-lite' }}
+        providerProtocol="anthropic-compatible"
+        disabled={false}
+        isChinese
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(input('model-edit-image-generation').checked).toBe(true);
+    expect(input('model-edit-reasoning').checked).toBe(false);
+    expect(input('model-edit-video-generation').checked).toBe(false);
+    expect(query<HTMLSelectElement>('[data-testid="model-edit-image-api-style"]')?.value).toBe(
+      'openai',
+    );
+    expect(input('model-edit-image-path').value).toBe('/images/generations');
+  });
+
+  it('fills xGrok video protocol for grok-imagine-video on an Anthropic channel', () => {
+    const onSave = vi.fn();
+    render(
+      <ModelEditInline
+        model={{ id: 'grok-imagine-video' }}
+        providerProtocol="anthropic-compatible"
+        disabled={false}
+        isChinese
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(input('model-edit-video-generation').checked).toBe(true);
+    expect(query<HTMLSelectElement>('[data-testid="model-edit-video-api-style"]')?.value).toBe(
+      'xgrok-videos',
+    );
+    expect(input('model-edit-video-path').value).toBe('/videos/generations');
+    click('[data-testid="model-edit-save"]');
+    expect(onSave.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        supportsVideoGeneration: true,
+        videoApiStyle: 'xgrok-videos',
+        videoPath: '/videos/generations',
+      }),
     );
   });
 

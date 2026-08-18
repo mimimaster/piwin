@@ -160,6 +160,43 @@ describe('discoverProviderModels', () => {
     expect(chatModel?.capabilities).toBeUndefined();
   });
 
+  it('auto-tags gateway image models that are not in the Pi catalog', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () => createJsonResponse({ data: [{ id: 'grok-imagine-image-lite' }] }),
+    });
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        id: 'grok-imagine-image-lite',
+        capabilities: ['image-generation'],
+      }),
+    ]);
+  });
+
+  it('auto-tags Grok Imagine video from the curated registry', async () => {
+    const result = await discoverProviderModels(
+      createProvider({ protocol: 'anthropic-compatible' }),
+      {
+        resolveSecret: async () => 'test-secret',
+        fetch: async () => createJsonResponse({ data: [{ id: 'grok-imagine-video' }] }),
+      },
+    );
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        id: 'grok-imagine-video',
+        capabilities: ['video-generation'],
+        videoGenerationSuggestion: {
+          reason: 'registry',
+          apiStyle: 'xgrok-videos',
+          path: '/videos/generations',
+          label: 'Grok Imagine Video',
+        },
+      }),
+    ]);
+  });
+
   it('auto-tags gemini image models by split-name match', async () => {
     const result = await discoverProviderModels(
       createProvider({

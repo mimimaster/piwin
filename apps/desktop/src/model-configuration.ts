@@ -1,19 +1,33 @@
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
   DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  isLikelyImageGenerationModel,
+  isLikelyVideoGenerationModel,
   modelSupportsCapability,
   THINKING_LEVEL_OPTIONS,
 } from '@piwin/contracts';
 import type {
   DiscoveredModel,
+  ImageGenerationApiStyle,
   ModelCapability,
   ModelCatalogEntry,
   ModelConfigEntry,
   ModelInputModality,
   ModelProviderConfig,
+  ModelRouteConfig,
   ThinkingLevel,
+  VideoGenerationApiStyle,
 } from '@piwin/contracts';
+import {
+  buildImageGenerationRoute,
+  buildVideoGenerationRoute,
+  fillMissingGenerationRoutes,
+  hydrateGenerationRouteDraft,
+  isImageApiStyle,
+  looksLikeAbsoluteUrl,
+} from './generation-route-defaults.js';
 import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
+import { isVideoApiStyle } from './video-generation-model-config.js';
 
 export type ModelConfigurationDraft = {
   id: string;
@@ -37,6 +51,13 @@ export type ModelConfigurationDraft = {
   supportsNativeWebSearch: boolean;
   /** Maps to `reasoning`. */
   reasoning: boolean;
+  imageApiStyle: ImageGenerationApiStyle | '';
+  imagePath: string;
+  imageTimeoutSeconds: string;
+  videoApiStyle: VideoGenerationApiStyle | '';
+  videoPath: string;
+  videoTimeoutSeconds: string;
+  videoPollIntervalSeconds: string;
 };
 
 export function mergeModelCatalogDefaults(
@@ -60,9 +81,21 @@ export function createModelConfigurationDraft(
   protocol?: ModelProviderConfig['protocol'],
 ): ModelConfigurationDraft {
   const effective = mergeModelCatalogDefaults(model, catalog);
+  const likelyImage =
+    effective.capabilities?.includes('image-generation') === true ||
+    isLikelyImageGenerationModel(effective.id, effective.label, effective.capabilities);
+  const likelyVideo =
+    effective.capabilities?.includes('video-generation') === true ||
+    isLikelyVideoGenerationModel(effective.id, effective.label, effective.capabilities);
+  // Generation-only ids (grok-imagine-image-lite, sora, …) must not inherit the
+  // chat-model defaults: reasoning on, protocol thinking chips, 对话-shaped limits.
+  const generationOnly =
+    (likelyImage || likelyVideo) && effective.capabilities?.includes('chat') !== true;
   const configuredThinkingLevels = effective.thinkingLevels ?? [];
   const protocolDefaults =
-    configuredThinkingLevels.length === 0 ? getDefaultThinkingLevelsForProtocol(protocol) : [];
+    !generationOnly && configuredThinkingLevels.length === 0
+      ? getDefaultThinkingLevelsForProtocol(protocol)
+      : [];
   const thinkingLevels = [...configuredThinkingLevels, ...protocolDefaults].filter(
     (level, index, values) =>
       THINKING_LEVEL_OPTIONS.includes(level) && values.indexOf(level) === index,
@@ -80,12 +113,19 @@ export function createModelConfigurationDraft(
         : '',
     thinkingLevels,
     supportsImage: effective.input?.includes('image') ?? false,
-    supportsImageGeneration: effective.capabilities?.includes('image-generation') ?? false,
-    supportsVideoGeneration: effective.capabilities?.includes('video-generation') ?? false,
+    supportsImageGeneration: likelyImage,
+    supportsVideoGeneration: likelyVideo,
     supportsSpeechToText: effective.capabilities?.includes('speech-to-text') ?? false,
     supportsTextToSpeech: effective.capabilities?.includes('text-to-speech') ?? false,
     supportsNativeWebSearch: modelSupportsCapability(effective, 'native-web-search'),
-    reasoning: effective.reasoning ?? true,
+    reasoning: generationOnly ? effective.reasoning === true : (effective.reasoning ?? true),
+    ...hydrateGenerationRouteDraft(
+      effective.id,
+      protocol,
+      effective.routes,
+      likelyImage,
+      likelyVideo,
+    ),
   };
 }
 
@@ -144,6 +184,14 @@ export function createModelConfigurationEntry(
   if (capabilities.length > 0) {
     model.capabilities = capabilities;
   }
+  const routes: Partial<Record<ModelCapability, ModelRouteConfig>> = {};
+  const imageRoute = draft.supportsImageGeneration ? buildImageGenerationRoute(draft) : undefined;
+  const videoRoute = draft.supportsVideoGeneration ? buildVideoGenerationRoute(draft) : undefined;
+  if (imageRoute) routes['image-generation'] = imageRoute;
+  if (videoRoute) routes['video-generation'] = videoRoute;
+  if (Object.keys(routes).length > 0) {
+    model.routes = routes;
+  }
   return model;
 }
 
@@ -164,6 +212,33 @@ export function validateModelConfigurationDraft(draft: ModelConfigurationDraft):
   }
   if (draft.thinkingLevels.some((level) => !THINKING_LEVEL_OPTIONS.includes(level))) {
     return 'Thinking levels contain an unsupported value.';
+  }
+  if (draft.supportsImageGeneration) {
+    if (!isImageApiStyle(draft.imageApiStyle)) {
+      return 'Image generation requires an API style.';
+    }
+    if (looksLikeAbsoluteUrl(draft.imagePath)) {
+      return 'Image generation path must be relative to the provider base URL.';
+    }
+  }
+  if (draft.supportsVideoGeneration) {
+    if (!isVideoApiStyle(draft.videoApiStyle)) {
+      return 'Video generation requires an API style.';
+    }
+    if (looksLikeAbsoluteUrl(draft.videoPath)) {
+      return 'Video generation path must be relative to the provider base URL.';
+    }
+  }
+  for (const [label, value] of [
+    ['image timeout', draft.imageTimeoutSeconds],
+    ['video timeout', draft.videoTimeoutSeconds],
+    ['video poll interval', draft.videoPollIntervalSeconds],
+  ] as const) {
+    if (!value.trim()) continue;
+    const parsed = Number(value.trim());
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return `${label} must be a positive number of seconds.`;
+    }
   }
   return null;
 }
@@ -217,18 +292,28 @@ export function applyModelConfigurationDraft(
   }
   const legacyUpdated = updated as ModelConfigEntry & { nativeWebSearchMode?: unknown };
   delete legacyUpdated.nativeWebSearchMode;
-  if (updated.routes && 'native-web-search' in updated.routes) {
-    const preservedRoutes = { ...updated.routes };
-    delete preservedRoutes['native-web-search'];
-    if (Object.keys(preservedRoutes).length > 0) {
-      updated.routes = preservedRoutes;
-    } else {
-      delete updated.routes;
-    }
-  }
   if (draft.thinkingLevels.length === 0) {
     delete updated.thinkingLevels;
     delete updated.thinkingLevel;
+  }
+  const nextRoutes = { ...(original.routes ?? {}) };
+  delete nextRoutes['native-web-search'];
+  if (draft.supportsImageGeneration && entry.routes?.['image-generation']) {
+    nextRoutes['image-generation'] = entry.routes['image-generation'];
+  } else {
+    delete nextRoutes['image-generation'];
+  }
+  if (draft.supportsVideoGeneration && entry.routes?.['video-generation']) {
+    nextRoutes['video-generation'] = entry.routes['video-generation'];
+  } else {
+    delete nextRoutes['video-generation'];
+  }
+  if (!draft.supportsSpeechToText) delete nextRoutes['speech-to-text'];
+  if (!draft.supportsTextToSpeech) delete nextRoutes['text-to-speech'];
+  if (Object.keys(nextRoutes).length > 0) {
+    updated.routes = nextRoutes;
+  } else {
+    delete updated.routes;
   }
   return models.map((model) => (model.id === originalId ? updated : model));
 }
@@ -236,6 +321,7 @@ export function applyModelConfigurationDraft(
 export function mergeDiscoveredModels(
   configuredModels: readonly ModelConfigEntry[],
   selectedModels: readonly DiscoveredModel[],
+  protocol?: ModelProviderConfig['protocol'],
 ): ModelConfigEntry[] {
   const modelsById = new Map(configuredModels.map((model) => [model.id, model]));
   for (const discoveredModel of selectedModels) {
@@ -246,7 +332,10 @@ export function mergeDiscoveredModels(
     const existing = modelsById.get(modelId);
     // Re-import is intentional: fill missing fields from discovery/catalog.
     // Never overwrite values the user (or a prior import) already set.
-    modelsById.set(modelId, mergeDiscoveredModelEntry(existing, discoveredModel, modelId));
+    modelsById.set(
+      modelId,
+      mergeDiscoveredModelEntry(existing, discoveredModel, modelId, protocol),
+    );
   }
   return [...modelsById.values()];
 }
@@ -259,6 +348,7 @@ function mergeDiscoveredModelEntry(
   existing: ModelConfigEntry | undefined,
   discoveredModel: DiscoveredModel,
   modelId: string,
+  protocol?: ModelProviderConfig['protocol'],
 ): ModelConfigEntry {
   const model: ModelConfigEntry = existing ? { ...existing, id: modelId } : { id: modelId };
   const discoveredLabel = discoveredModel.label?.trim();
@@ -286,6 +376,36 @@ function mergeDiscoveredModelEntry(
   }
   if (model.maxOutputTokens === undefined && discoveredModel.maxOutputTokens !== undefined) {
     model.maxOutputTokens = discoveredModel.maxOutputTokens;
+  }
+  const suggestion = discoveredModel.videoGenerationSuggestion;
+  if (model.routes?.['video-generation'] === undefined && suggestion) {
+    const suggestedRoute: ModelRouteConfig = {};
+    if (isVideoApiStyle(suggestion.apiStyle)) {
+      suggestedRoute.apiStyle = suggestion.apiStyle;
+    }
+    const suggestedPath = suggestion.path?.trim();
+    if (suggestedPath) {
+      suggestedRoute.path = suggestedPath;
+    }
+    if (Object.keys(suggestedRoute).length > 0) {
+      model.routes = { ...model.routes, 'video-generation': suggestedRoute };
+    }
+  }
+  const generationRoutes = fillMissingGenerationRoutes(
+    modelId,
+    model.capabilities,
+    {
+      ...(model.routes?.['image-generation']
+        ? { 'image-generation': model.routes['image-generation'] }
+        : {}),
+      ...(model.routes?.['video-generation']
+        ? { 'video-generation': model.routes['video-generation'] }
+        : {}),
+    },
+    protocol,
+  );
+  if (generationRoutes) {
+    model.routes = { ...model.routes, ...generationRoutes };
   }
   return model;
 }

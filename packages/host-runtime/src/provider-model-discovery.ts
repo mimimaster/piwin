@@ -12,6 +12,7 @@ import type {
 } from '@piwin/contracts';
 import {
   formatError,
+  isLikelyImageGenerationModel,
   isLikelyVideoGenerationModel,
   lookupVideoGenerationRegistry,
   matchImageCatalog,
@@ -231,9 +232,15 @@ function enrichDiscoveredModelFromCatalog(
  * them without the user ticking the capability checkbox manually.
  */
 function enrichImageGenerationCapability(model: DiscoveredModel): DiscoveredModel {
+  if (isLikelyVideoGenerationModel(model.id, model.label, model.capabilities)) {
+    return model;
+  }
   const imageEntries = searchPiImagesCatalog().entries;
   const matched = matchImageCatalog(imageEntries, [model.id]);
-  if (matched.matched.length === 0) {
+  const looksLikeImage =
+    matched.matched.length > 0 ||
+    isLikelyImageGenerationModel(model.id, model.label, model.capabilities);
+  if (!looksLikeImage) {
     return model;
   }
   const capabilities = new Set<ModelCapability>(model.capabilities ?? []);

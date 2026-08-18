@@ -15,6 +15,14 @@ describe('modelCaps', () => {
       bg: '#dcefff',
       fg: '#0066cc',
     });
+    expect(modelCaps(model, true).some((cap) => cap.key === 'chat')).toBe(false);
+  });
+
+  it('does not label untagged Grok Imagine image/video ids as chat', () => {
+    expect(modelCaps({ id: 'grok-imagine-image-lite' }, true).map((cap) => cap.key)).toEqual([
+      'image',
+    ]);
+    expect(modelCaps({ id: 'grok-imagine-video' }, true).map((cap) => cap.key)).toEqual(['video']);
   });
 
   it('renders the native web search chip with localized labels', () => {

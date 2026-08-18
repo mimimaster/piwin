@@ -230,6 +230,9 @@ describe('AddModelDialog catalog autocomplete', () => {
       expect.objectContaining({
         id: 'grok-imagine-video',
         capabilities: ['video-generation'],
+        routes: {
+          'video-generation': { apiStyle: 'xgrok-videos', path: '/videos/generations' },
+        },
       }),
     );
   });

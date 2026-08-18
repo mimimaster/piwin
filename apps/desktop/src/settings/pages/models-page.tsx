@@ -198,8 +198,8 @@ export function ModelsPage(): ReactElement {
         <div className="model-workspace-intro">
           <p>
             {isChinese
-              ? '先配置接口通道，再为文本、图片、视频和语音选择模型与默认值。所有能力共用同一套通道。笔记检索和文档卡片的 Embedding 在「Embedding / 知识检索」。'
-              : 'Configure provider channels once, then choose models and defaults for chat, images, video, and speech. Notes search and Doc Cards embedding live under Embedding / Knowledge.'}
+              ? '模型身份只在「通道与文本」里配置。图片、视频页可以改该模型的接口协议和请求路径，并设置默认值。'
+              : 'Add and tag models under Channels & chat. Image and video pages can edit that model’s protocol and request path, and set the default.'}
           </p>
           <button
             type="button"
