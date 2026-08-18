@@ -5,11 +5,17 @@
  * flashcard_list so the model can avoid duplicates; the store's trigram dedup
  * is the safety net.
  */
-import type { FlashcardCreateInput, HostToolRegistration, ToolResult } from '@piwin/contracts';
-import type { CardStore } from '@piwin/flashcards';
+import type {
+  FlashcardCreateInput,
+  FlashcardItem,
+  HostToolRegistration,
+  ToolResult,
+} from '@piwin/contracts';
+import { DuplicateCardError, type CardStore } from '@piwin/flashcards';
 import {
   buildFlashcardArtifactHtml,
   buildFlashcardBatchArtifactHtml,
+  displayCardsFromBatchResult,
   displayCardsFromItems,
   itemPreviewText,
 } from '@piwin/flashcards';
@@ -25,6 +31,19 @@ export type BuildFlashcardToolsOptions = {
 
 function invalidFlashcardInput(message: string): ToolResult {
   return { ok: false, code: 'invalid-input', message };
+}
+
+function flashcardCreateSuccess(card: FlashcardItem, duplicate: boolean): ToolResult {
+  const displayCards = displayCardsFromItems([card]);
+  const artifactHtml =
+    displayCards.length === 1 && displayCards[0]
+      ? buildFlashcardArtifactHtml(displayCards[0])
+      : buildFlashcardBatchArtifactHtml(displayCards);
+  return {
+    ok: true,
+    output: JSON.stringify({ card, duplicate, artifactHtml }, null, 2),
+    details: { cardId: card.id, duplicate },
+  };
 }
 
 export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostToolRegistration[] {
@@ -83,17 +102,11 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         if (invalid) return invalidFlashcardInput(invalid);
         try {
           const card = await store.create(input);
-          const displayCards = displayCardsFromItems([card]);
-          const artifactHtml =
-            displayCards.length === 1 && displayCards[0]
-              ? buildFlashcardArtifactHtml(displayCards[0])
-              : buildFlashcardBatchArtifactHtml(displayCards);
-          return {
-            ok: true,
-            output: JSON.stringify({ card, artifactHtml }, null, 2),
-            details: { cardId: card.id },
-          };
+          return flashcardCreateSuccess(card, false);
         } catch (error) {
+          if (error instanceof DuplicateCardError) {
+            return flashcardCreateSuccess(error.existing, true);
+          }
           return invalidFlashcardInput(error instanceof Error ? error.message : String(error));
         }
       },
@@ -102,7 +115,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_batch_create',
         description:
-          'Create multiple flashcard items in one call (preferred for batch generation). Each item may be model "basic" (front/back) or "cloze" (text with {{cN::answer}}). Call flashcard_list first to avoid duplicates. Each item may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, artifactHtml } — output artifactHtml inside a ```html fence verbatim to show interactive flip cards. Duplicates are skipped (not fatal).',
+          'Create multiple flashcard items in one call (preferred for batch generation). Each item may be model "basic" (front/back) or "cloze" (text with {{cN::answer}}). Call flashcard_list first to avoid duplicates. Each item may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, artifactHtml }. Duplicates are skipped (not fatal) but skipped[].existing is the already-stored item and artifactHtml still includes that physical card.',
         parameters: {
           type: 'object',
           properties: {
@@ -144,7 +157,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         const cards = args.cards;
         const inputs = cards.map((card) => parseCardInput(card as Record<string, unknown>));
         const result = await store.batchCreate({ cards: inputs }, maxBatchSize);
-        const displayCards = displayCardsFromItems(result.created);
+        const displayCards = displayCardsFromBatchResult(result);
         const artifactHtml =
           displayCards.length === 1 && displayCards[0]
             ? buildFlashcardArtifactHtml(displayCards[0])

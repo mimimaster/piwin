@@ -191,6 +191,7 @@ describe('card-store', () => {
     expect(result.created).toHaveLength(2);
     expect(result.skipped).toHaveLength(1);
     expect(result.skipped[0]?.reason).toBe('duplicate');
+    expect(result.skipped[0]?.existing?.front).toBe('existing');
   });
 
   it('batchCreate rejects empty array', async () => {

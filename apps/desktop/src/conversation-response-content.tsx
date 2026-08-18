@@ -20,7 +20,7 @@ import {
   renderFlashcardBatchHtml,
 } from './flashcard-artifact';
 import type { FlashcardItem, FlashcardReviewCard } from '@piwin/contracts';
-import { collapseToPhysicalCards, itemToDisplayCard } from '@piwin/flashcards/cloze';
+import { collapseToPhysicalCards, isValidClozeText, itemToDisplayCard } from '@piwin/flashcards/cloze';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardStackView } from './FlashcardView';
 import { MarkdownView } from './MarkdownView';
@@ -133,6 +133,7 @@ function parseCandidateForCards(candidate: unknown): FlashcardReviewCard[] {
     card?: unknown;
     cards?: unknown;
     created?: unknown;
+    skipped?: unknown;
     text?: string;
   };
   const items: FlashcardItem[] = [];
@@ -145,6 +146,14 @@ function parseCandidateForCards(candidate: unknown): FlashcardReviewCard[] {
       if (item) items.push(item);
     }
   }
+  if (Array.isArray(obj.skipped)) {
+    for (const value of obj.skipped) {
+      if (!value || typeof value !== 'object') continue;
+      const record = value as { existing?: unknown };
+      const existing = asItem(record.existing);
+      if (existing) items.push(existing);
+    }
+  }
   if (items.length > 0) {
     return items.flatMap((item) => {
       const display = itemToDisplayCard(item);
@@ -155,6 +164,73 @@ function parseCandidateForCards(candidate: unknown): FlashcardReviewCard[] {
     return parseCandidateForCards(obj.text);
   }
   return [];
+}
+
+function displayCardFromCreateInput(
+  input: Record<string, unknown>,
+  id: string,
+): FlashcardReviewCard | null {
+  const deck = typeof input.deck === 'string' && input.deck ? input.deck : 'default';
+  const createdAt = new Date().toISOString();
+  if (input.model === 'cloze' && typeof input.text === 'string' && input.text.trim()) {
+    return itemToDisplayCard({
+      id,
+      model: 'cloze',
+      text: input.text,
+      deck,
+      createdAt,
+    });
+  }
+  if (typeof input.front === 'string' && typeof input.back === 'string' && input.front.trim()) {
+    return itemToDisplayCard({
+      id,
+      model: 'basic',
+      front: input.front,
+      back: input.back,
+      deck,
+      createdAt,
+    });
+  }
+  return null;
+}
+
+function displayCardsFromClozeInText(text: string, id: string): FlashcardReviewCard[] {
+  const pattern = /[^\n]*\{\{c\d+::[\s\S]*?\}\}[^\n]*/g;
+  let match = pattern.exec(text);
+  while (match) {
+    const passage = match[0].replace(/^[`\s]+|[`\s]+$/g, '').trim();
+    if (isValidClozeText(passage)) {
+      const display = itemToDisplayCard({
+        id,
+        model: 'cloze',
+        text: passage,
+        deck: 'default',
+        createdAt: new Date().toISOString(),
+      });
+      return display ? [display] : [];
+    }
+    match = pattern.exec(text);
+  }
+  return [];
+}
+
+function displayCardsFromToolArgs(rawArgs: unknown, toolCallId: string): FlashcardReviewCard[] {
+  if (!rawArgs || typeof rawArgs !== 'object') return [];
+  const args = rawArgs as Record<string, unknown>;
+  const inner = (
+    args.arguments && typeof args.arguments === 'object' ? args.arguments : args
+  ) as Record<string, unknown>;
+  const inputs: Record<string, unknown>[] = Array.isArray(inner.cards)
+    ? inner.cards.filter((entry): entry is Record<string, unknown> =>
+        Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
+      )
+    : [inner];
+  const cards: FlashcardReviewCard[] = [];
+  inputs.forEach((input, index) => {
+    const display = displayCardFromCreateInput(input, `card-${toolCallId}-${index}`);
+    if (display) cards.push(display);
+  });
+  return cards;
 }
 
 /**
@@ -182,34 +258,34 @@ export function extractFlashcardRecords(
         cards.push(...extracted);
         continue;
       }
-      const rawArgs = (tool as ToolCardUi & { args?: unknown }).args;
-      if (rawArgs && typeof rawArgs === 'object') {
-        const args = rawArgs as Record<string, unknown>;
-        const inner = (args.arguments && typeof args.arguments === 'object' ? args.arguments : args) as Record<string, unknown>;
-        if (inner.model === 'cloze' && typeof inner.text === 'string' && inner.text.trim()) {
-          const display = itemToDisplayCard({
-            id: `card-${tool.toolCallId}`,
-            model: 'cloze',
-            text: inner.text,
-            deck: typeof inner.deck === 'string' ? inner.deck : 'default',
-            createdAt: new Date().toISOString(),
-          });
-          if (display) cards.push(display);
-        } else if (typeof inner.front === 'string' && typeof inner.back === 'string' && inner.front.trim().length > 0) {
-          const display = itemToDisplayCard({
-            id: `card-${tool.toolCallId}`,
-            model: 'basic',
-            front: inner.front,
-            back: inner.back,
-            deck: typeof inner.deck === 'string' ? inner.deck : 'default',
-            createdAt: new Date().toISOString(),
-          });
-          if (display) cards.push(display);
-        }
+      const fromArgs = displayCardsFromToolArgs(
+        (tool as ToolCardUi & { args?: unknown }).args,
+        tool.toolCallId,
+      );
+      if (fromArgs.length > 0) {
+        cards.push(...fromArgs);
       }
     }
   }
-  return collapseToPhysicalCards(cards);
+  const physical = collapseToPhysicalCards(cards);
+  if (physical.length > 0) return physical;
+  if (tools.some((tool) => tool.status === 'done' && isFlashcardCreateTool(tool))) {
+    return displayCardsFromClozeInText(textFromCreateTurn(message, extraTools), message.id);
+  }
+  return physical;
+}
+
+function textFromCreateTurn(
+  message: ChatMessageUi,
+  extraTools?: readonly ToolCardUi[],
+): string {
+  const parts = [message.text];
+  for (const tool of getMessageTools(message, extraTools)) {
+    parts.push(tool.output ?? '');
+    parts.push(tool.presentation?.output?.text ?? '');
+    parts.push(tool.presentation?.inputPreview ?? '');
+  }
+  return parts.join('\n');
 }
 
 /**

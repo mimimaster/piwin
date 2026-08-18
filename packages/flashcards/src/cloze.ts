@@ -163,6 +163,17 @@ export function displayCardsFromItems(items: readonly FlashcardItem[]): Flashcar
   return cards;
 }
 
+export function displayCardsFromBatchResult(result: {
+  created: readonly FlashcardItem[];
+  skipped?: readonly { existing?: FlashcardItem | undefined }[];
+}): FlashcardReviewCard[] {
+  const items = [...result.created];
+  for (const skip of result.skipped ?? []) {
+    if (skip.existing) items.push(skip.existing);
+  }
+  return displayCardsFromItems(items);
+}
+
 /**
  * Conversation / artifact: one physical card per item.
  * If a path still handed us per-ordinal FSRS faces, keep one card per itemId
