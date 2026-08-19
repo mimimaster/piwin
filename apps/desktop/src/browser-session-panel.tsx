@@ -1,18 +1,10 @@
 /**
- * Browser Session panel (ADR 0020 §6).
+ * Browser workbench panel (ADR 0020 §6, ADR 0057).
  *
- * Mirrors the agent-controlled Chromium via a screenshot frame stream
- * (`browser/frame` data-URLs rendered into an `<img>`). Provides a URL bar
- * bound to `browser/state` and a pick-mode toggle: in pick mode, clicking the
- * mirrored image forwards **scaled coordinates** (screenshot px ÷ img display
- * scale → viewport CSS px, matching `ariaSnapshot` `[box=…]` units) to
- * `browser/pick-at`. On `browser/picked`, a highlight overlay is drawn by
- * scaling the `boundingRect` (viewport CSS px) back to img display px, and the
- * pick result is added to the composer as a `WebElementAttachmentRef` chip.
- *
- * Pick mode is disabled while an agent tool is running (`agentRunning` prop),
- * per ADR §6 concurrency: the shared page is a single logical resource and
- * user picks must not interleave against a mid-navigation page.
+ * Mirrors Host Chromium via `browser/frame`. Default mode is Interact
+ * (pointer/IME forwarded as `browser/input`). Pick remains a modifier that
+ * attaches a composer chip. Controller lock comes from `browser/controller`,
+ * not from whether the LLM is streaming.
  */
 import {
   useCallback,
@@ -20,68 +12,74 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type FormEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactElement,
+  type WheelEvent,
 } from 'react';
+import type {
+  BrowserController,
+  BrowserInputEvent,
+  HostServerMessage,
+  WebElementPickResult,
+} from '@piwin/contracts';
 import type { HostClient } from './host-client';
-import type { HostServerMessage, WebElementPickResult } from '@piwin/contracts';
 import { normalizeUrl } from './normalize-url';
 import { IconBrowser, IconClose, IconRefresh } from './shell-icons';
+import {
+  BrowserConsoleDrawer,
+  capConsoleLines,
+  capNetworkLines,
+  type BrowserConsoleLine,
+  type BrowserNetworkLine,
+} from './browser-console-drawer';
+import {
+  compositionEndToInsertText,
+  keyEventToBrowserInput,
+  pasteToInsertText,
+} from './browser-workbench-ime';
+import { viewportFromDisplay } from './browser-workbench-pointer';
 
 export type BrowserSessionPanelProps = {
   hostClient: HostClient;
-  /** Called when the user picks a web element; adds a composer chip. */
   onAddWebElement: (pick: WebElementPickResult) => void;
-  /** True while an agent tool/run is active — disables pick mode (ADR §6). */
-  agentRunning: boolean;
 };
 
 type FrameState = {
   src: string;
-  /** Natural screenshot dimensions (px) from the last `browser/frame`. */
-  naturalWidth: number;
-  naturalHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
 };
 
-type BrowserState = {
-  url: string;
-  title: string;
-};
+type HighlightBox = { x: number; y: number; width: number; height: number };
 
-type HighlightBox = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-/** User-facing message for pick failures (mapped — never a raw host error). */
 const PICK_FAILED_MESSAGE = 'Could not resolve element. Please try again.';
 const MIRROR_START_FAILED_MESSAGE = 'Could not start the browser mirror.';
 const MIRROR_STOP_FAILED_MESSAGE = 'Could not stop the browser mirror.';
 
 export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactElement {
-  const { hostClient, onAddWebElement, agentRunning } = props;
-  const [frame, setFrame] = useState<FrameState>({
-    src: '',
-    naturalWidth: 0,
-    naturalHeight: 0,
-  });
-  const [browserState, setBrowserState] = useState<BrowserState>({
-    url: '',
-    title: '',
-  });
+  const { hostClient, onAddWebElement } = props;
+  const [frame, setFrame] = useState<FrameState>({ src: '', viewportWidth: 0, viewportHeight: 0 });
   const [urlInput, setUrlInput] = useState('');
+  const [title, setTitle] = useState('');
   const [pickMode, setPickMode] = useState(false);
   const [highlight, setHighlight] = useState<HighlightBox | null>(null);
   const [pickPending, setPickPending] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
   const [mirrorError, setMirrorError] = useState<string | null>(null);
+  const [owner, setOwner] = useState<BrowserController>('idle');
+  const [agentWantsLock, setAgentWantsLock] = useState(false);
+  const [consoleLines, setConsoleLines] = useState<BrowserConsoleLine[]>([]);
+  const [networkLines, setNetworkLines] = useState<BrowserNetworkLine[]>([]);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const imeRef = useRef<HTMLTextAreaElement>(null);
+  const pendingMoveRef = useRef<{ x: number; y: number } | null>(null);
+  const moveRafRef = useRef<number | null>(null);
+  const agentOwns = owner === 'agent';
 
-  // Subscribe to browser/* pushes and start the session on mount.
   useEffect(() => {
     let cancelled = false;
     const mirrorLeaseId = crypto.randomUUID();
@@ -90,55 +88,56 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       if (message.type === 'browser/frame') {
         setFrame({
           src: message.dataUrl,
-          naturalWidth: message.width,
-          naturalHeight: message.height,
+          viewportWidth: message.width,
+          viewportHeight: message.height,
         });
       } else if (message.type === 'browser/state') {
-        const nextUrl = message.url ?? '';
-        const nextTitle = message.title ?? '';
-        setBrowserState({ url: nextUrl, title: nextTitle });
-        setUrlInput(nextUrl);
+        setUrlInput(message.url ?? '');
+        setTitle(message.title ?? '');
       } else if (message.type === 'browser/picked') {
         setPickPending(false);
         setPickError(null);
-        const result = message.result;
-        setHighlight({
-          x: result.boundingRect.x,
-          y: result.boundingRect.y,
-          width: result.boundingRect.width,
-          height: result.boundingRect.height,
-        });
-        onAddWebElement(result);
+        setHighlight(message.result.boundingRect);
+        onAddWebElement(message.result);
+      } else if (message.type === 'browser/controller') {
+        setOwner(message.owner);
+        setAgentWantsLock(message.agentWantsLock === true);
+      } else if (message.type === 'browser/console') {
+        setConsoleLines((current) =>
+          capConsoleLines([...current, { level: message.level, text: message.text, ts: message.ts }]),
+        );
+      } else if (message.type === 'browser/network') {
+        setNetworkLines((current) =>
+          capNetworkLines([
+            ...current,
+            {
+              method: message.method,
+              url: message.url,
+              status: message.status,
+              duration: message.duration,
+              ts: message.ts,
+            },
+          ]),
+        );
       }
     });
 
-    // Acquire the mirror lease. HostRuntime keeps the BrowserSession service,
-    // while this command alone owns the Chromium/frame-stream lifetime.
     void hostClient
       .browserStart(mirrorLeaseId)
       .then((response) => {
-        if (!cancelled && !response.success) {
-          setMirrorError(MIRROR_START_FAILED_MESSAGE);
-        }
+        if (!cancelled && !response.success) setMirrorError(MIRROR_START_FAILED_MESSAGE);
       })
       .catch(() => {
-        if (!cancelled) {
-          setMirrorError(MIRROR_START_FAILED_MESSAGE);
-        }
+        if (!cancelled) setMirrorError(MIRROR_START_FAILED_MESSAGE);
       });
 
     return () => {
       cancelled = true;
       unsubscribe();
-      // Release the mirror lease on tab switch/panel close. The Host waits for
-      // Playwright's persistent context to close; agent tools can relaunch the
-      // same reusable service object later.
       void hostClient
         .browserStop(mirrorLeaseId)
         .then((response) => {
-          if (!response.success) {
-            setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
-          }
+          if (!response.success) setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
         })
         .catch(() => {
           setMirrorError(MIRROR_STOP_FAILED_MESSAGE);
@@ -146,109 +145,208 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     };
   }, [hostClient, onAddWebElement]);
 
-  // Disable pick mode when an agent run starts.
   useEffect(() => {
-    if (agentRunning && pickMode) {
-      setPickMode(false);
-    }
-  }, [agentRunning, pickMode]);
+    return () => {
+      if (moveRafRef.current !== null) cancelAnimationFrame(moveRafRef.current);
+    };
+  }, []);
+
+  const toViewport = useCallback(
+    (displayX: number, displayY: number): { x: number; y: number } | null => {
+      const img = imgRef.current;
+      if (!img || frame.viewportWidth === 0) return null;
+      return viewportFromDisplay({
+        displayX,
+        displayY,
+        displayWidth: img.clientWidth,
+        displayHeight: img.clientHeight,
+        viewportWidth: frame.viewportWidth,
+        viewportHeight: frame.viewportHeight,
+      });
+    },
+    [frame.viewportWidth, frame.viewportHeight],
+  );
+
+  const sendInput = useCallback(
+    (events: BrowserInputEvent[]): void => {
+      if (agentOwns || events.length === 0) return;
+      void hostClient.browserInput(events);
+    },
+    [agentOwns, hostClient],
+  );
+
+  const viewportFromMouse = useCallback(
+    (event: { clientX: number; clientY: number }): { x: number; y: number } | null => {
+      const img = imgRef.current;
+      if (!img) return null;
+      const rect = img.getBoundingClientRect();
+      return toViewport(event.clientX - rect.left, event.clientY - rect.top);
+    },
+    [toViewport],
+  );
+
+  const sendClick = useCallback(
+    (viewport: { x: number; y: number }, button: 'left' | 'right', clickCount = 1): void => {
+      sendInput([
+        {
+          type: 'mouse',
+          action: 'down',
+          x: viewport.x,
+          y: viewport.y,
+          button,
+          ...(clickCount > 1 ? { clickCount } : {}),
+        },
+        {
+          type: 'mouse',
+          action: 'up',
+          x: viewport.x,
+          y: viewport.y,
+          button,
+          ...(clickCount > 1 ? { clickCount } : {}),
+        },
+      ]);
+    },
+    [sendInput],
+  );
 
   const handleNavigate = useCallback(
-    async (event?: React.FormEvent): Promise<void> => {
+    async (event?: FormEvent): Promise<void> => {
       event?.preventDefault();
+      if (agentOwns) return;
       const normalized = normalizeUrl(urlInput);
       if (!normalized) return;
       setUrlInput(normalized);
       await hostClient.browserNavigate(normalized);
     },
-    [hostClient, urlInput],
+    [agentOwns, hostClient, urlInput],
   );
-
-  /**
-   * Compute the scale factor between the screenshot natural size and the
-   * displayed `<img>` CSS size, then convert a click point from display px
-   * to viewport CSS px (the coordinate space `browser/pick-at` expects,
-   * matching `ariaSnapshot` `[box=…]` units).
-   */
-  const computeScale = useCallback((): number => {
-    const img = imgRef.current;
-    if (!img || frame.naturalWidth === 0) return 1;
-    return img.clientWidth / frame.naturalWidth;
-  }, [frame.naturalWidth]);
 
   const handleImageClick = useCallback(
-    async (event: React.MouseEvent<HTMLImageElement>): Promise<void> => {
-      if (!pickMode || agentRunning) return;
-      const img = imgRef.current;
-      if (!img) return;
-      const rect = img.getBoundingClientRect();
-      const displayX = event.clientX - rect.left;
-      const displayY = event.clientY - rect.top;
-      const scale = computeScale();
-      if (scale === 0) return;
-      const viewportX = Math.round(displayX / scale);
-      const viewportY = Math.round(displayY / scale);
-      setPickPending(true);
-      setPickError(null);
-      setHighlight(null);
-      try {
-        const response = await hostClient.browserPickAt(viewportX, viewportY);
-        // The browser/picked push clears pending and sets the highlight; but if
-        // the host resolves without a push (or the push is dropped) pending must
-        // still clear or the "Resolving…" indicator sticks forever.
-        setPickPending(false);
-        if (!response.success) {
+    async (event: MouseEvent<HTMLImageElement>): Promise<void> => {
+      if (agentOwns) return;
+      const viewport = viewportFromMouse(event);
+      if (!viewport) return;
+      if (pickMode) {
+        setPickPending(true);
+        setPickError(null);
+        setHighlight(null);
+        try {
+          const response = await hostClient.browserPickAt(viewport.x, viewport.y);
+          setPickPending(false);
+          if (!response.success) {
+            setPickError(PICK_FAILED_MESSAGE);
+            console.error('[browser-session] pick-at failed:', response.error);
+          }
+        } catch (error) {
+          setPickPending(false);
           setPickError(PICK_FAILED_MESSAGE);
-          console.error('[browser-session] pick-at failed:', response.error);
+          console.error('[browser-session] pick-at failed:', error);
         }
-      } catch (error) {
-        setPickPending(false);
-        setPickError(PICK_FAILED_MESSAGE);
-        console.error('[browser-session] pick-at failed:', error);
+        return;
       }
+      sendClick(viewport, 'left');
+      imeRef.current?.focus();
     },
-    [pickMode, agentRunning, computeScale, hostClient],
+    [agentOwns, pickMode, viewportFromMouse, hostClient, sendClick],
   );
 
-  /**
-   * Scale a viewport-CSS-px `boundingRect` back to img display px for the
-   * overlay highlight. This is the inverse of the click coordinate scaling.
-   */
-  const scaledHighlight = useCallback((): HighlightBox | null => {
-    if (!highlight) return null;
-    const scale = computeScale();
-    return {
+  const handleDoubleClick = useCallback(
+    (event: MouseEvent<HTMLImageElement>): void => {
+      if (agentOwns || pickMode) return;
+      event.preventDefault();
+      const viewport = viewportFromMouse(event);
+      if (!viewport) return;
+      sendClick(viewport, 'left', 2);
+    },
+    [agentOwns, pickMode, viewportFromMouse, sendClick],
+  );
+
+  const handleContextMenu = useCallback(
+    (event: MouseEvent<HTMLImageElement>): void => {
+      if (agentOwns || pickMode) return;
+      event.preventDefault();
+      const viewport = viewportFromMouse(event);
+      if (!viewport) return;
+      sendClick(viewport, 'right');
+    },
+    [agentOwns, pickMode, viewportFromMouse, sendClick],
+  );
+
+  const handleMouseMove = useCallback(
+    (event: MouseEvent<HTMLImageElement>): void => {
+      if (agentOwns || pickMode) return;
+      const viewport = viewportFromMouse(event);
+      if (!viewport) return;
+      pendingMoveRef.current = viewport;
+      if (moveRafRef.current !== null) return;
+      moveRafRef.current = requestAnimationFrame(() => {
+        moveRafRef.current = null;
+        const next = pendingMoveRef.current;
+        pendingMoveRef.current = null;
+        if (next) sendInput([{ type: 'mouse', action: 'move', x: next.x, y: next.y }]);
+      });
+    },
+    [agentOwns, pickMode, viewportFromMouse, sendInput],
+  );
+
+  const handleWheel = useCallback(
+    (event: WheelEvent<HTMLImageElement>): void => {
+      if (agentOwns || pickMode) return;
+      event.preventDefault();
+      const viewport = viewportFromMouse(event);
+      if (!viewport) return;
+      sendInput([
+        {
+          type: 'mouse',
+          action: 'wheel',
+          x: viewport.x,
+          y: viewport.y,
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+        },
+      ]);
+    },
+    [agentOwns, pickMode, viewportFromMouse, sendInput],
+  );
+
+  const handleImeKey = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+      const decision = keyEventToBrowserInput({
+        type: event.type === 'keyup' ? 'keyup' : 'keydown',
+        key: event.key,
+        isComposing: event.nativeEvent.isComposing,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+      });
+      if (decision === 'ignore') return;
+      event.preventDefault();
+      if (decision === 'prevent-and-ignore') return;
+      sendInput(decision);
+    },
+    [sendInput],
+  );
+
+  let overlay: HighlightBox | null = null;
+  if (highlight && imgRef.current && frame.viewportWidth > 0) {
+    const scale = imgRef.current.clientWidth / frame.viewportWidth;
+    overlay = {
       x: highlight.x * scale,
       y: highlight.y * scale,
       width: highlight.width * scale,
       height: highlight.height * scale,
     };
-  }, [highlight, computeScale]);
-
-  const overlay = scaledHighlight();
-
-  // The img is centered in the frame container (flex align/justify center +
-  // max-width/max-height), so when the panel's aspect ratio differs from the
-  // screenshot it is letterboxed and its origin is offset from the container's.
-  // The overlay is positioned relative to the container, so shift it by that
-  // intra-container offset to land on the actual element. Click coordinates use
-  // the same img rect (already correct) — only the overlay origin needs this.
+  }
   let overlayOffsetX = 0;
   let overlayOffsetY = 0;
-  if (overlay) {
-    const img = imgRef.current;
-    const container = containerRef.current;
-    if (img && container) {
-      const imgRect = img.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      overlayOffsetX = imgRect.left - containerRect.left;
-      overlayOffsetY = imgRect.top - containerRect.top;
-    }
+  if (overlay && imgRef.current && containerRef.current) {
+    const imgRect = imgRef.current.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
+    overlayOffsetX = imgRect.left - containerRect.left;
+    overlayOffsetY = imgRect.top - containerRect.top;
   }
 
   return (
     <div className="browser-session-panel" data-testid="browser-session-panel">
-      {/* URL bar */}
       <form className="browser-session-urlbar" onSubmit={handleNavigate}>
         <IconBrowser width={14} height={14} className="browser-session-urlbar-icon" />
         <input
@@ -256,6 +354,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           data-testid="browser-session-url-input"
           type="text"
           value={urlInput}
+          disabled={agentOwns}
           onChange={(event) => setUrlInput(event.target.value)}
           onPaste={(event: ClipboardEvent<HTMLInputElement>) => event.stopPropagation()}
           onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
@@ -267,40 +366,39 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           placeholder="Enter URL or localhost:3000"
           spellCheck={false}
         />
-        <button
-          type="submit"
-          className="browser-session-go-btn"
-          data-testid="browser-session-go-btn"
-          aria-label="Navigate"
-        >
+        <button type="submit" className="browser-session-go-btn" data-testid="browser-session-go-btn" aria-label="Navigate" disabled={agentOwns}>
           Go
         </button>
-        <button
-          type="button"
-          className="browser-session-refresh-btn"
-          onClick={() => void handleNavigate()}
-          aria-label="Reload"
-          title="Reload"
-        >
+        <button type="button" className="browser-session-refresh-btn" onClick={() => void handleNavigate()} aria-label="Reload" title="Reload" disabled={agentOwns}>
           <IconRefresh width={14} height={14} />
         </button>
       </form>
 
-      {/* Pick mode toggle */}
+      {agentOwns ? (
+        <div className="browser-session-banner" data-testid="browser-session-agent-banner">
+          <span>Agent is using the browser</span>
+          <button type="button" data-testid="browser-session-take-over" onClick={() => void hostClient.browserLock('user')}>
+            Take over
+          </button>
+        </div>
+      ) : null}
+      {owner === 'user' ? (
+        <div className="browser-session-banner user" data-testid="browser-session-user-banner">
+          <span>You have control</span>
+          <button type="button" data-testid="browser-session-give-back" onClick={() => void hostClient.browserUnlock('user')}>
+            {agentWantsLock ? 'Give back' : 'Release'}
+          </button>
+        </div>
+      ) : null}
+
       <div className="browser-session-toolbar">
         <button
           type="button"
           className={`browser-session-pick-toggle${pickMode ? ' active' : ''}`}
           data-testid="browser-session-pick-toggle"
           onClick={() => setPickMode((current) => !current)}
-          disabled={agentRunning}
-          title={
-            agentRunning
-              ? 'Pick disabled while agent is running'
-              : pickMode
-                ? 'Exit pick mode'
-                : 'Pick an element to attach'
-          }
+          disabled={agentOwns}
+          title={agentOwns ? 'Pick disabled while the agent has the browser' : pickMode ? 'Exit pick mode' : 'Pick an element to attach'}
         >
           {pickMode ? 'Pick mode: ON' : 'Pick element'}
         </button>
@@ -320,31 +418,25 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           </span>
         ) : null}
         {highlight ? (
-          <button
-            type="button"
-            className="browser-session-clear-highlight"
-            onClick={() => setHighlight(null)}
-            aria-label="Clear highlight"
-          >
+          <button type="button" className="browser-session-clear-highlight" onClick={() => setHighlight(null)} aria-label="Clear highlight">
             <IconClose width={12} height={12} />
           </button>
         ) : null}
       </div>
 
-      {/* Mirrored frame */}
-      <div
-        className="browser-session-frame-container"
-        ref={containerRef}
-        data-testid="browser-session-frame-container"
-      >
+      <div className="browser-session-frame-container" ref={containerRef} data-testid="browser-session-frame-container">
         {frame.src ? (
           <img
             ref={imgRef}
             className={`browser-session-frame${pickMode ? ' pick-mode' : ''}`}
             data-testid="browser-session-frame"
             src={frame.src}
-            alt={browserState.title || browserState.url || 'Browser session'}
+            alt={title || urlInput || 'Browser session'}
             onClick={handleImageClick}
+            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
+            onMouseMove={handleMouseMove}
+            onWheel={handleWheel}
             draggable={false}
           />
         ) : (
@@ -353,6 +445,26 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
             <span>Starting browser session…</span>
           </div>
         )}
+        {!pickMode && !agentOwns ? (
+          <textarea
+            ref={imeRef}
+            className="browser-session-ime"
+            data-testid="browser-session-ime"
+            aria-label="Browser keyboard"
+            onKeyDown={handleImeKey}
+            onKeyUp={handleImeKey}
+            onCompositionEnd={(event) => {
+              const insert = compositionEndToInsertText(event.data);
+              if (insert) sendInput([insert]);
+              event.currentTarget.value = '';
+            }}
+            onPaste={(event) => {
+              event.preventDefault();
+              const insert = pasteToInsertText(event.clipboardData.getData('text'));
+              if (insert) sendInput([insert]);
+            }}
+          />
+        ) : null}
         {overlay ? (
           <div
             className="browser-session-highlight"
@@ -367,6 +479,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           />
         ) : null}
       </div>
+      <BrowserConsoleDrawer consoleLines={consoleLines} networkLines={networkLines} />
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { formatTextModelWebElementInjection } from './browser.js';
+import {
+  BROWSER_USER_HAS_CONTROL,
+  formatTextModelWebElementInjection,
+} from './browser.js';
 
 describe('formatTextModelWebElementInjection', () => {
   it('formats url selector and bounded text', () => {
@@ -43,5 +46,11 @@ describe('formatTextModelWebElementInjection', () => {
     });
     expect(text).toContain(`text: ${'x'.repeat(2 * 1024)}…`);
     expect(text).not.toContain('x'.repeat(2 * 1024 + 1));
+  });
+});
+
+describe('browser workbench contracts (ADR 0057)', () => {
+  it('exports a stable user-has-control error code', () => {
+    expect(BROWSER_USER_HAS_CONTROL).toBe('browser-user-has-control');
   });
 });

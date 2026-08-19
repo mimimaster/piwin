@@ -13,7 +13,11 @@ import type {
   SessionSummary,
 } from './host.js';
 import type { ExtensionUiKind } from './extension-ui.js';
-import type { WebElementPickResult } from './browser.js';
+import type {
+  BrowserControllerPush,
+  BrowserInputEvent,
+  WebElementPickResult,
+} from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
 import type { TrustedTextReadCommandInput } from './preview.js';
@@ -828,6 +832,9 @@ export type HostCommand =
   | { id?: string; type: 'browser/pick-at'; x: number; y: number }
   | { id?: string; type: 'browser/screenshot'; path?: string }
   | { id?: string; type: 'browser/stop'; leaseId?: string }
+  | { id?: string; type: 'browser/input'; events: BrowserInputEvent[] }
+  | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
+  | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
   | {
       id?: string;
       type: 'walkthrough/list';
@@ -980,6 +987,9 @@ export type HostPushVariant =
       placeholder?: string;
     }
   | { type: 'pet/state'; pet: PetRuntimeSnapshot }
+  // width/height are CSS viewport px (screencast deviceWidth/Height or
+  // Playwright viewportSize), not JPEG bitmap px. The panel maps clicks
+  // against these values vs img.clientWidth — never img.naturalWidth.
   | { type: 'browser/frame'; dataUrl: string; width: number; height: number; ts: number }
   | { type: 'browser/state'; url?: string; title?: string; ts: number }
   | { type: 'browser/picked'; result: WebElementPickResult }
@@ -999,6 +1009,7 @@ export type HostPushVariant =
       duration: number;
       ts: number;
     }
+  | BrowserControllerPush
   | {
       type: 'walkthrough/updated';
       sessionId: string;

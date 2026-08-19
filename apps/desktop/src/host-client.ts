@@ -1,4 +1,5 @@
 import type {
+  BrowserInputEvent,
   HostCommand,
   HostHello,
   HostMode,
@@ -717,6 +718,18 @@ export class HostClient {
       type: 'browser/stop',
       ...(leaseId !== undefined ? { leaseId } : {}),
     });
+  }
+
+  async browserInput(events: BrowserInputEvent[]): Promise<HostResponse> {
+    return this.request({ type: 'browser/input', events });
+  }
+
+  async browserLock(owner: 'agent' | 'user'): Promise<HostResponse> {
+    return this.request({ type: 'browser/lock', owner });
+  }
+
+  async browserUnlock(owner: 'agent' | 'user'): Promise<HostResponse> {
+    return this.request({ type: 'browser/unlock', owner });
   }
 
   // --- Side Chat commands (spec §8) -----------------------------------------

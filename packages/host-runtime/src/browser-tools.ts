@@ -20,6 +20,7 @@ import type {
   ToolResult,
 } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
+import { BrowserUserHasControlError } from '@piwin/browser';
 import { isPrivateOrLocalHostname, mappedIpv4FromIpv6 } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
 import { applyModeToMatchedRule, type PermissionEvaluation } from './permission-policy.js';
@@ -144,6 +145,24 @@ function success(output: unknown, details?: Record<string, unknown>): ToolResult
   };
 }
 
+const USER_CONTROL_HINT =
+  ' Fails with browser-user-has-control if the human took over the workbench; wait or ask them to give it back.';
+
+function userControlResult(error: unknown): ToolResult {
+  if (
+    error instanceof BrowserUserHasControlError ||
+    (error instanceof Error && error.name === 'BrowserUserHasControlError')
+  ) {
+    return {
+      ok: false,
+      code: 'browser-user-has-control',
+      message: error.message,
+      retryable: false,
+    };
+  }
+  throw error;
+}
+
 function permissionSpec(action: string, projectRoot = process.cwd()): HostToolPermissionSpec {
   const readOnlyActions = new Set(['browser:snapshot', 'browser:find', 'browser:wait']);
   if (readOnlyActions.has(action)) {
@@ -193,7 +212,8 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_navigate',
       description:
-        'Navigate the browser to a URL. Use after browser_snapshot to inspect the page. Only http(s) URLs are allowed.',
+        'Navigate the browser to a URL. Use after browser_snapshot to inspect the page. Only http(s) URLs are allowed.' +
+        USER_CONTROL_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -216,7 +236,11 @@ export function createBrowserToolDefinitions(
     },
     async (args, signal) => {
       const url = String(args.url ?? '');
-      await session.navigate(url, { signal });
+      try {
+        await session.navigate(url, { signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success({ ok: true, url }, { url });
     },
     (rawArguments, _context, signal) => {
@@ -273,7 +297,8 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_click',
       description:
-        'Click an element on the page. Use a ref (from browser_snapshot, e.g. "e5") or a CSS selector.',
+        'Click an element on the page. Use a ref (from browser_snapshot, e.g. "e5") or a CSS selector.' +
+        USER_CONTROL_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -285,7 +310,11 @@ export function createBrowserToolDefinitions(
     permissionSpec('browser:click'),
     async (args, signal) => {
       const target = resolveTarget(args);
-      await session.click(target, { signal });
+      try {
+        await session.click(target, { signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success({ ok: true, target }, { target });
     },
   );
@@ -294,7 +323,8 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_type',
       description:
-        'Type text into a focusable element. First focuses the element (ref or CSS selector), then types the text character by character.',
+        'Type text into a focusable element. First focuses the element (ref or CSS selector), then types the text character by character.' +
+        USER_CONTROL_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -309,7 +339,11 @@ export function createBrowserToolDefinitions(
     async (args, signal) => {
       const target = resolveTarget(args);
       const text = String(args.text ?? '');
-      await session.type(target, text, { signal });
+      try {
+        await session.type(target, text, { signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success({ ok: true, target, length: text.length }, { target, length: text.length });
     },
   );
@@ -318,7 +352,8 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_fill_form',
       description:
-        'Fill multiple form fields at once. Each field maps a ref or CSS selector to a value. Uses Playwright fill (sets value directly, no keystroke events).',
+        'Fill multiple form fields at once. Each field maps a ref or CSS selector to a value. Uses Playwright fill (sets value directly, no keystroke events).' +
+        USER_CONTROL_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -347,7 +382,11 @@ export function createBrowserToolDefinitions(
         const target = resolveTarget(field);
         fields[target] = String(field.value ?? '');
       }
-      await session.fillForm(fields, { signal });
+      try {
+        await session.fillForm(fields, { signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success(
         { ok: true, count: Object.keys(fields).length },
         { count: Object.keys(fields).length },
@@ -358,7 +397,9 @@ export function createBrowserToolDefinitions(
   const scroll = createBrowserRegistration(
     {
       name: 'browser_scroll',
-      description: 'Scroll the page by a delta. Positive y scrolls down; positive x scrolls right.',
+      description:
+        'Scroll the page by a delta. Positive y scrolls down; positive x scrolls right.' +
+        USER_CONTROL_HINT,
       parameters: {
         type: 'object',
         properties: {
@@ -380,7 +421,11 @@ export function createBrowserToolDefinitions(
         right: { x: 400 },
       };
       const delta = deltaMap[direction] ?? { y: 400 };
-      await session.scroll(delta, { signal });
+      try {
+        await session.scroll(delta, { signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success({ ok: true, direction }, { direction });
     },
   );
@@ -446,12 +491,16 @@ export function createBrowserToolDefinitions(
   const back = createBrowserRegistration(
     {
       name: 'browser_back',
-      description: 'Navigate back in browser history.',
+      description: 'Navigate back in browser history.' + USER_CONTROL_HINT,
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:back'),
     async (_args, signal) => {
-      await session.back({ signal });
+      try {
+        await session.back({ signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success({ ok: true });
     },
   );
@@ -459,12 +508,16 @@ export function createBrowserToolDefinitions(
   const forward = createBrowserRegistration(
     {
       name: 'browser_forward',
-      description: 'Navigate forward in browser history.',
+      description: 'Navigate forward in browser history.' + USER_CONTROL_HINT,
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:forward'),
     async (_args, signal) => {
-      await session.forward({ signal });
+      try {
+        await session.forward({ signal });
+      } catch (error) {
+        return userControlResult(error);
+      }
       return success({ ok: true });
     },
   );
@@ -493,7 +546,52 @@ export function createBrowserToolDefinitions(
     },
   );
 
-  return [navigate, snapshot, click, type, fillForm, scroll, screenshot, find, back, forward, wait];
+  const browserLock = createBrowserRegistration(
+    {
+      name: 'browser_lock',
+      description:
+        'Lock or unlock the shared browser workbench. action=lock acquires agent control when idle. If the user has taken over, this fails with browser-user-has-control — do not retry-steal; ask them to give the browser back. action=unlock yields to idle.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['lock', 'unlock'], description: 'lock or unlock' },
+        },
+        required: ['action'],
+      },
+    },
+    permissionSpec('browser:lock'),
+    async (args) => {
+      const action = String(args.action ?? '');
+      if (action !== 'lock' && action !== 'unlock') {
+        return { ok: false, code: 'invalid-input', message: 'action must be lock or unlock' };
+      }
+      try {
+        if (action === 'lock') {
+          const state = await session.lock('agent');
+          return success({ ok: true, action, ...state }, { action, owner: state.owner });
+        }
+        const state = await session.unlock('agent');
+        return success({ ok: true, action, ...state }, { action, owner: state.owner });
+      } catch (error) {
+        return userControlResult(error);
+      }
+    },
+  );
+
+  return [
+    navigate,
+    snapshot,
+    click,
+    type,
+    fillForm,
+    scroll,
+    screenshot,
+    find,
+    back,
+    forward,
+    wait,
+    browserLock,
+  ];
 }
 
 /** Resolve a ref-or-selector target from tool args. Refs take precedence. */

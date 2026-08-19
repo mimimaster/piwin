@@ -13,13 +13,26 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { chromium } from 'playwright-core';
-import type { BrowserSnapshotNode, HostPush, WebElementPickResult } from '@piwin/contracts';
+import type {
+  BrowserControllerPush,
+  BrowserInputEvent,
+  BrowserSnapshotNode,
+  HostPush,
+  WebElementPickResult,
+} from '@piwin/contracts';
+import { BROWSER_USER_HAS_CONTROL } from '@piwin/contracts';
 import { createExclusiveQueue } from './mutex.js';
 import type { RunExclusive } from './mutex.js';
 import { createFrameLoop } from './frames.js';
 import type { FrameLoop } from './frames.js';
 import { injectFinder, pickElementAt } from './pick.js';
 import { parseAriaSnapshot } from './snapshot.js';
+import {
+  createBrowserController,
+  type BrowserControllerState,
+} from './controller.js';
+import { startScreencast, type ScreencastHandle } from './screencast.js';
+import { dispatchBrowserInput, isMouseMoveOnly } from './input.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -29,8 +42,17 @@ export type BrowserFramePush = Extract<HostPush, { type: 'browser/frame' }>;
 export type BrowserStatePush = Extract<HostPush, { type: 'browser/state' }>;
 export type BrowserConsolePush = Extract<HostPush, { type: 'browser/console' }>;
 export type BrowserNetworkPush = Extract<HostPush, { type: 'browser/network' }>;
+export type BrowserControllerEvent = BrowserControllerPush;
 export type BrowserSessionEvent =
-  BrowserFramePush | BrowserStatePush | BrowserConsolePush | BrowserNetworkPush;
+  | BrowserFramePush
+  | BrowserStatePush
+  | BrowserConsolePush
+  | BrowserNetworkPush
+  | BrowserControllerEvent;
+
+export type BrowserActor = 'agent' | 'user';
+
+export type BrowserOpOptions = { signal?: AbortSignal; actor?: BrowserActor };
 
 export type BrowserSessionOptions = {
   /** Default true. When false the browser runs headed (useful for debugging). */
@@ -74,15 +96,15 @@ export type BrowserSession = {
    * panel open or agent tool can relaunch.
    */
   stop(leaseId?: string): Promise<void>;
-  navigate(url: string, options?: { signal?: AbortSignal }): Promise<void>;
+  navigate(url: string, options?: BrowserOpOptions): Promise<void>;
   snapshot(options?: { signal?: AbortSignal }): Promise<BrowserSnapshotNode[]>;
-  click(target: string, options?: { signal?: AbortSignal }): Promise<void>;
-  type(target: string, text: string, options?: { signal?: AbortSignal }): Promise<void>;
-  fillForm(fields: Record<string, string>, options?: { signal?: AbortSignal }): Promise<void>;
-  scroll(delta: { x?: number; y?: number }, options?: { signal?: AbortSignal }): Promise<void>;
+  click(target: string, options?: BrowserOpOptions): Promise<void>;
+  type(target: string, text: string, options?: BrowserOpOptions): Promise<void>;
+  fillForm(fields: Record<string, string>, options?: BrowserOpOptions): Promise<void>;
+  scroll(delta: { x?: number; y?: number }, options?: BrowserOpOptions): Promise<void>;
   screenshot(path?: string, options?: { signal?: AbortSignal }): Promise<ScreenshotResult>;
-  back(options?: { signal?: AbortSignal }): Promise<void>;
-  forward(options?: { signal?: AbortSignal }): Promise<void>;
+  back(options?: BrowserOpOptions): Promise<void>;
+  forward(options?: BrowserOpOptions): Promise<void>;
   find(text: string, options?: { signal?: AbortSignal }): Promise<{ count: number }>;
   wait(ms: number, options?: { signal?: AbortSignal }): Promise<void>;
   pickElementAt(
@@ -90,6 +112,13 @@ export type BrowserSession = {
     y: number,
     options?: { signal?: AbortSignal; screenshotPath?: string },
   ): Promise<WebElementPickResult>;
+  dispatchInput(events: BrowserInputEvent[], options?: { signal?: AbortSignal }): Promise<void>;
+  takeOver(): Promise<BrowserControllerState>;
+  giveBack(): Promise<BrowserControllerState>;
+  lock(owner: BrowserActor): Promise<BrowserControllerState>;
+  unlock(owner: BrowserActor): Promise<BrowserControllerState>;
+  releaseAgentControl(): Promise<void>;
+  controllerState(): BrowserControllerState;
   runExclusive: RunExclusive;
   subscribe(listener: (event: BrowserSessionEvent) => void): () => void;
   currentState(): BrowserSessionState;
@@ -120,6 +149,11 @@ export class BrowserSessionClosedError extends BrowserSessionError {
   override name: string = 'BrowserSessionClosedError';
 }
 
+export class BrowserUserHasControlError extends BrowserSessionError {
+  override name: string = 'BrowserUserHasControlError';
+  readonly code = BROWSER_USER_HAS_CONTROL;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -129,6 +163,7 @@ const HTTP_URL_RE = /^https?:\/\//i;
 const ARIA_REF_RE = /^e\d+$/i;
 const MAX_MIRROR_LEASE_ID_CHARS = 128;
 const MAX_RELEASED_MIRROR_LEASES = 256;
+const MAX_INPUT_EVENTS = 64;
 
 export function assertHttpUrl(url: string): void {
   const trimmed = url.trim();
@@ -237,6 +272,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
   const { runExclusive } = createExclusiveQueue();
   const subscribers = new Set<(event: BrowserSessionEvent) => void>();
+  const controller = createBrowserController();
 
   let browser: Browser | undefined;
   let context: BrowserContext | undefined;
@@ -246,6 +282,8 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const activeMirrorLeaseIds = new Set<string>();
   const releasedMirrorLeaseIds = new Set<string>();
   let closed = false;
+  let consoleAttached = false;
+  let screencastHandle: ScreencastHandle | undefined;
 
   const state: BrowserSessionState = {};
 
@@ -316,6 +354,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
       if (captureConsoleAndNetwork) {
         attachConsoleAndNetworkListeners(initializedPage, launched, subscribers);
+        consoleAttached = true;
       }
 
       return initializedPage;
@@ -356,6 +395,61 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       });
   }
 
+  function emitController(reason?: string): void {
+    const snapshot = controller.snapshot();
+    const event: BrowserControllerPush = {
+      type: 'browser/controller',
+      owner: snapshot.owner,
+      ts: Date.now(),
+      ...(snapshot.agentWantsLock ? { agentWantsLock: true } : {}),
+      ...(reason !== undefined ? { reason } : {}),
+    };
+    for (const listener of subscribers) listener(event);
+  }
+
+  function assertActor(actor: BrowserActor, reason: string): void {
+    const result = controller.acquire(actor);
+    if (!result.ok) {
+      if (result.code === BROWSER_USER_HAS_CONTROL) {
+        throw new BrowserUserHasControlError(
+          'The user has the browser. Wait or ask them to give it back.',
+        );
+      }
+      throw new BrowserSessionError('The agent is using the browser.');
+    }
+    if (result.changed) emitController(reason);
+  }
+
+  function ensureConsoleCapture(activePage: Page, activeContext: BrowserContext): void {
+    if (consoleAttached) return;
+    attachConsoleAndNetworkListeners(activePage, activeContext, subscribers);
+    consoleAttached = true;
+  }
+
+  async function stopScreencast(): Promise<void> {
+    const handle = screencastHandle;
+    screencastHandle = undefined;
+    if (handle !== undefined) await handle.stop();
+  }
+
+  async function startMirrorFrames(activePage: Page): Promise<void> {
+    if (screencastHandle !== undefined) return;
+    try {
+      screencastHandle = await startScreencast(activePage, {
+        maxDimension,
+        emit: (frame) => {
+          if (!hasActiveMirrorLease()) return;
+          const event: BrowserFramePush = { type: 'browser/frame', ...frame };
+          for (const listener of subscribers) listener(event);
+        },
+      });
+      frameLoop.stop();
+    } catch {
+      screencastHandle = undefined;
+      if (subscribers.size > 0) frameLoop.start();
+    }
+  }
+
   const frameLoop: FrameLoop = createFrameLoop({
     capture: async () => {
       const activePage = await getPage();
@@ -384,9 +478,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     // composing tools; launching here would make Chromium resident before the
     // browser panel or an agent tool has actually requested it.
     if (hasActiveMirrorLease() && page !== undefined) {
-      frameLoop.start();
+      if (screencastHandle === undefined) {
+        frameLoop.start();
+        void frameLoop.requestFrame();
+      }
       void emitState();
-      void frameLoop.requestFrame();
     }
     return () => {
       subscribers.delete(listener);
@@ -432,12 +528,15 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       }
     }
 
+    await stopScreencast();
+
     const activeContext = context;
     const activeBrowser = browser;
     page = undefined;
     context = undefined;
     browser = undefined;
     launchPromise = undefined;
+    consoleAttached = false;
 
     let contextCloseError: unknown;
     if (activeContext !== undefined) {
@@ -483,9 +582,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           activeMirrorLeaseIds.add(normalizedLeaseId);
         }
         await getPage();
-        if (subscribers.size > 0) frameLoop.start();
+        if (page !== undefined && context !== undefined) {
+          ensureConsoleCapture(page, context);
+        }
+        if (page !== undefined) await startMirrorFrames(page);
+        if (subscribers.size > 0 && screencastHandle === undefined) frameLoop.start();
         await emitState();
-        await frameLoop.requestFrame();
+        if (screencastHandle === undefined) await frameLoop.requestFrame();
+        emitController('mirror-start');
         return { ...state };
       }),
 
@@ -500,7 +604,13 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
           rememberReleasedMirrorLease(normalizedLeaseId);
         }
         if (hasActiveMirrorLease()) return;
+        // Closing the workbench must not leave a sticky user lock; agent tools
+        // relaunch Chromium from the same session. Agent ownership is unchanged.
+        const previous = controller.snapshot();
+        const next = controller.giveBack();
+        if (previous.owner !== next.owner) emitController('mirror-stop');
         frameLoop.stop();
+        await stopScreencast();
         await releaseRuntime();
         delete state.url;
         delete state.title;
@@ -508,6 +618,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     navigate: (url, options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', options?.actor === 'user' ? 'user-write' : 'agent-write');
         assertHttpUrl(url);
         const activePage = await getPage();
         await activePage.goto(url);
@@ -524,12 +635,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     click: (target, options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', 'agent-write');
         const activePage = await getPage();
         await activePage.locator(toLocator(target)).click();
       }, options?.signal),
 
     type: (target, text, options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', 'agent-write');
         const activePage = await getPage();
         await activePage.locator(toLocator(target)).click();
         await activePage.keyboard.type(text);
@@ -537,6 +650,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     fillForm: (fields, options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', 'agent-write');
         const activePage = await getPage();
         for (const [target, value] of Object.entries(fields)) {
           await activePage.locator(toLocator(target)).fill(value);
@@ -545,6 +659,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     scroll: (delta, options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', 'agent-write');
         const activePage = await getPage();
         await activePage.mouse.wheel(delta.x ?? 0, delta.y ?? 0);
       }, options?.signal),
@@ -571,6 +686,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     back: (options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', options?.actor === 'user' ? 'user-write' : 'agent-write');
         const activePage = await getPage();
         await activePage.goBack();
         await emitState();
@@ -578,6 +694,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     forward: (options) =>
       withAbort(async () => {
+        assertActor(options?.actor ?? 'agent', options?.actor === 'user' ? 'user-write' : 'agent-write');
         const activePage = await getPage();
         await activePage.goForward();
         await emitState();
@@ -611,6 +728,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     pickElementAt: (x, y, options) =>
       withAbort(async () => {
+        assertActor('user', 'user-write');
         const activePage = await getPage();
         const picked = await pickElementAt(activePage, x, y);
         const result: WebElementPickResult = {
@@ -637,6 +755,78 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         }
         return result;
       }, options?.signal),
+
+    dispatchInput: (events, options) => {
+      if (events.length > MAX_INPUT_EVENTS) {
+        return Promise.reject(new BrowserSessionError('browser input batch is too large'));
+      }
+      if (events.length === 0) return Promise.resolve();
+      const moveOnly = isMouseMoveOnly(events);
+      const operate = async (): Promise<void> => {
+        if (moveOnly) {
+          // Hover must not promote idle → user (that lock has no timeout).
+          if (controller.snapshot().owner === 'agent') {
+            throw new BrowserSessionError('The agent is using the browser.');
+          }
+        } else {
+          assertActor('user', 'user-write');
+        }
+        const activePage = await getPage();
+        await dispatchBrowserInput(activePage, events);
+      };
+      if (moveOnly) return operate();
+      return withAbort(operate, options?.signal);
+    },
+
+    takeOver: async () => {
+      const previous = controller.snapshot();
+      const next = controller.takeOver();
+      if (previous.owner !== next.owner) emitController('take-over');
+      return next;
+    },
+
+    giveBack: async () => {
+      const previous = controller.snapshot();
+      const next = controller.giveBack();
+      if (previous.owner !== next.owner) emitController('give-back');
+      return next;
+    },
+
+    lock: async (owner) => {
+      if (owner === 'user') {
+        const previous = controller.snapshot();
+        const next = controller.takeOver();
+        if (previous.owner !== next.owner) emitController('take-over');
+        return next;
+      }
+      assertActor('agent', 'agent-lock');
+      return controller.snapshot();
+    },
+
+    unlock: async (owner) => {
+      if (owner === 'user') {
+        const previous = controller.snapshot();
+        const next = controller.giveBack();
+        if (previous.owner !== next.owner) emitController('give-back');
+        return next;
+      }
+      const previous = controller.snapshot();
+      const next = controller.releaseAgentControl();
+      if (previous.owner !== next.owner || previous.agentWantsLock !== next.agentWantsLock) {
+        emitController('agent-unlock');
+      }
+      return next;
+    },
+
+    releaseAgentControl: async () => {
+      const previous = controller.snapshot();
+      const next = controller.releaseAgentControl();
+      if (previous.owner !== next.owner || previous.agentWantsLock !== next.agentWantsLock) {
+        emitController('run-terminal');
+      }
+    },
+
+    controllerState: () => controller.snapshot(),
 
     runExclusive,
 

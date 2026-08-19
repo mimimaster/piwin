@@ -9,6 +9,7 @@ vi.mock('playwright-core', () => ({
 import {
   BrowserSessionClosedError,
   BrowserUnavailableError,
+  BrowserUserHasControlError,
   NavigateError,
   createBrowserSession,
 } from './browser-session.js';
@@ -37,11 +38,22 @@ function buildPage() {
       click: vi.fn().mockResolvedValue(undefined),
       fill: vi.fn().mockResolvedValue(undefined),
     }),
-    keyboard: { type: vi.fn().mockResolvedValue(undefined) },
-    mouse: { wheel: vi.fn().mockResolvedValue(undefined) },
+    keyboard: {
+      type: vi.fn().mockResolvedValue(undefined),
+      down: vi.fn().mockResolvedValue(undefined),
+      up: vi.fn().mockResolvedValue(undefined),
+      insertText: vi.fn().mockResolvedValue(undefined),
+    },
+    mouse: {
+      wheel: vi.fn().mockResolvedValue(undefined),
+      move: vi.fn().mockResolvedValue(undefined),
+      down: vi.fn().mockResolvedValue(undefined),
+      up: vi.fn().mockResolvedValue(undefined),
+    },
     getByText: vi.fn().mockReturnValue({ count: vi.fn().mockResolvedValue(3) }),
     goBack: vi.fn().mockResolvedValue(null),
     goForward: vi.fn().mockResolvedValue(null),
+    context: vi.fn(),
   };
 }
 
@@ -51,9 +63,11 @@ function installWorkingBrowser() {
     addInitScript: vi.fn().mockResolvedValue(undefined),
     pages: vi.fn().mockReturnValue([page]),
     newPage: vi.fn().mockResolvedValue(page),
+    newCDPSession: vi.fn().mockRejectedValue(new Error('cdp unavailable')),
     on: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined),
   };
+  page.context.mockReturnValue(context);
   const browser = {
     close: vi.fn().mockResolvedValue(undefined),
   };
@@ -409,5 +423,114 @@ describe('console and network capture', () => {
     expect(errorCalls).toHaveLength(1);
     expect(requestCalls).toHaveLength(1);
     expect(responseCalls).toHaveLength(1);
+  });
+});
+
+describe('workbench controller and input (ADR 0057)', () => {
+  it('auto-locks agent on write and emits browser/controller', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    const events: unknown[] = [];
+    session.subscribe((event) => events.push(event));
+    await session.click('e1');
+    expect(session.controllerState()).toEqual({ owner: 'agent', agentWantsLock: true });
+    expect(events.some((event) => (event as { type: string }).type === 'browser/controller')).toBe(
+      true,
+    );
+  });
+
+  it('rejects agent writes after takeOver', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1');
+    await session.takeOver();
+    await expect(session.click('e2')).rejects.toBeInstanceOf(BrowserUserHasControlError);
+    expect(page.locator).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows agent writes again after giveBack', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1');
+    await session.takeOver();
+    await session.giveBack();
+    await session.click('e2');
+    expect(page.locator).toHaveBeenCalledTimes(2);
+  });
+
+  it('dispatches user input from idle', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.dispatchInput([{ type: 'mouse', action: 'down', x: 4, y: 8 }]);
+    expect(page.mouse.down).toHaveBeenCalled();
+    expect(session.controllerState().owner).toBe('user');
+  });
+
+  it('does not promote idle to user on hover-only moves', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.dispatchInput([{ type: 'mouse', action: 'move', x: 4, y: 8 }]);
+    expect(page.mouse.move).toHaveBeenCalledWith(4, 8);
+    expect(session.controllerState().owner).toBe('idle');
+  });
+
+  it('rejects hover while the agent owns the page', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1');
+    await expect(
+      session.dispatchInput([{ type: 'mouse', action: 'move', x: 1, y: 1 }]),
+    ).rejects.toThrow('agent is using the browser');
+    expect(page.mouse.move).not.toHaveBeenCalled();
+  });
+
+  it('rejects user input while the agent owns the page', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1');
+    await expect(
+      session.dispatchInput([{ type: 'insertText', text: 'hi' }]),
+    ).rejects.toThrow('agent is using the browser');
+    expect(page.keyboard.insertText).not.toHaveBeenCalled();
+  });
+
+  it('releaseAgentControl returns idle after an agent write', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1');
+    await session.releaseAgentControl();
+    expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
+  });
+
+  it('attaches console listeners when a mirror lease is acquired', async () => {
+    const { page } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.start('panel');
+    const consoleCalls = page.on.mock.calls.filter((call: unknown[]) => call[0] === 'console');
+    expect(consoleCalls).toHaveLength(1);
+    await session.stop('panel');
+  });
+
+  it('yields a user-held lock when the last mirror lease stops', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.start('panel');
+    await session.dispatchInput([{ type: 'mouse', action: 'down', x: 1, y: 1 }]);
+    expect(session.controllerState().owner).toBe('user');
+    await session.stop('panel');
+    expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
+    await session.click('e1');
+    expect(session.controllerState().owner).toBe('agent');
+  });
+
+  it('returns the page to the agent if a run still wants the lock when the panel closes', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.start('panel');
+    await session.click('e1');
+    await session.takeOver();
+    expect(session.controllerState()).toEqual({ owner: 'user', agentWantsLock: true });
+    await session.stop('panel');
+    expect(session.controllerState()).toEqual({ owner: 'agent', agentWantsLock: true });
   });
 });

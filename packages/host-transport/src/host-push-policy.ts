@@ -108,6 +108,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return diagnostic(deliveryKey('browser', 'console'));
     case 'browser/network':
       return diagnostic(deliveryKey('browser', 'network'));
+    case 'browser/controller':
+      return control([deliveryKey('browser', 'controller')]);
     case 'walkthrough/updated':
       return projection(
         deliveryKey('session', push.sessionId, 'walkthrough', push.artifact.messageId),

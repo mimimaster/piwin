@@ -8,6 +8,7 @@
  * mirrors the agent's Chromium instance.
  */
 import type { HostCommand, HostPush, HostResponse } from '@piwin/contracts';
+import { BrowserSessionError, BrowserUserHasControlError } from '@piwin/browser';
 import type { BrowserSession } from '@piwin/browser';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
@@ -18,7 +19,24 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/pick-at',
   'browser/screenshot',
   'browser/stop',
+  'browser/input',
+  'browser/lock',
+  'browser/unlock',
 ]);
+
+function failFromBrowserError(
+  requestId: string | undefined,
+  command: string,
+  error: unknown,
+): HostResponse {
+  const message =
+    error instanceof BrowserUserHasControlError || error instanceof BrowserSessionError
+      ? error.message
+      : error instanceof Error
+        ? error.message
+        : 'browser command failed';
+  return fail(requestId, command, message);
+}
 
 export function isBrowserCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
@@ -51,19 +69,23 @@ export async function handleBrowserCommand(
     }
 
     case 'browser/navigate': {
-      // Panel-initiated navigation is user intent — no permission prompt.
-      // Still serialized through the mutex so an in-flight agent tool call
-      // does not race with the user's URL bar.
-      await session.navigate(command.url);
+      try {
+        await session.navigate(command.url, { actor: 'user' });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
       const state = session.currentState();
       return ok(requestId, 'browser/navigate', { state });
     }
 
     case 'browser/pick-at': {
-      const result = await session.pickElementAt(command.x, command.y);
-      // User-initiated pick → push the result so the composer chip appears.
-      context.push({ type: 'browser/picked', result });
-      return ok(requestId, 'browser/pick-at', { result });
+      try {
+        const result = await session.pickElementAt(command.x, command.y);
+        context.push({ type: 'browser/picked', result });
+        return ok(requestId, 'browser/pick-at', { result });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
     }
 
     case 'browser/screenshot': {
@@ -76,11 +98,37 @@ export async function handleBrowserCommand(
     }
 
     case 'browser/stop': {
-      // Closing the panel releases the Chromium process but keeps the service
-      // object reusable by already-registered agent tools. Permanent close is
-      // reserved for HostRuntime disposal.
       await session.stop(command.leaseId);
       return ok(requestId, 'browser/stop', { stopped: true });
+    }
+
+    case 'browser/input': {
+      try {
+        await session.dispatchInput(command.events);
+        return ok(requestId, 'browser/input', { count: command.events.length });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/lock': {
+      try {
+        const state =
+          command.owner === 'user' ? await session.takeOver() : await session.lock('agent');
+        return ok(requestId, 'browser/lock', { state });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/unlock': {
+      try {
+        const state =
+          command.owner === 'user' ? await session.giveBack() : await session.unlock('agent');
+        return ok(requestId, 'browser/unlock', { state });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
     }
 
     default:

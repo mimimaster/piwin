@@ -33,6 +33,39 @@ export type WebElementAttachmentRef = {
 
 export type PromptAttachment = MediaAttachmentRef | WebElementAttachmentRef;
 
+/** Who currently drives the shared Chromium workbench (ADR 0057). */
+export type BrowserController = 'idle' | 'user' | 'agent';
+
+/**
+ * Pointer / key events forwarded from the desktop panel onto the Host page.
+ * Coordinates are CSS viewport px (same space as `browser/frame` width/height).
+ */
+export type BrowserInputEvent =
+  | {
+      type: 'mouse';
+      action: 'down' | 'up' | 'move' | 'wheel';
+      x: number;
+      y: number;
+      button?: 'left' | 'middle' | 'right';
+      clickCount?: number;
+      deltaX?: number;
+      deltaY?: number;
+    }
+  | { type: 'key'; action: 'down' | 'up'; key: string }
+  | { type: 'insertText'; text: string };
+
+/** Stable tool / session error when the human holds the workbench. */
+export const BROWSER_USER_HAS_CONTROL = 'browser-user-has-control';
+
+export type BrowserControllerPush = {
+  type: 'browser/controller';
+  owner: BrowserController;
+  ts: number;
+  /** True while a run acquired agent control and has not released it. */
+  agentWantsLock?: boolean;
+  reason?: string;
+};
+
 /** Model-facing byte caps for picked web-element payloads. */
 export const MAX_WEB_ELEMENT_TEXT_BYTES = 2 * 1024; // ~2 KB
 export const MAX_WEB_ELEMENT_HTML_BYTES = 8 * 1024; // ~8 KB

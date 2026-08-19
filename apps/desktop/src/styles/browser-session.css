@@ -1,0 +1,234 @@
+/* Browser workbench panel (ADR 0020 / 0057). */
+
+.browser-session-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--canvas, var(--bg));
+}
+
+.browser-session-urlbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.browser-session-urlbar-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.browser-session-url-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.browser-session-url-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.browser-session-url-input:disabled,
+.browser-session-go-btn:disabled,
+.browser-session-refresh-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.browser-session-go-btn,
+.browser-session-refresh-btn {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.browser-session-go-btn:hover:not(:disabled),
+.browser-session-refresh-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.browser-session-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-bottom: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+
+.browser-session-banner.user {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.browser-session-banner button {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.browser-session-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+
+.browser-session-pick-toggle {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.browser-session-pick-toggle.active {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 15%, transparent));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.browser-session-pick-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.browser-session-pick-pending {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.browser-session-pick-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.browser-session-clear-highlight {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.browser-session-clear-highlight:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.browser-session-frame-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.browser-session-frame {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.browser-session-frame.pick-mode {
+  cursor: crosshair;
+}
+
+.browser-session-frame-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.browser-session-highlight {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.browser-session-ime {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  border: 0;
+  resize: none;
+  pointer-events: none;
+}
+
+.browser-session-dev {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.browser-session-dev-toggle {
+  width: 100%;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.browser-session-dev-body {
+  max-height: 120px;
+  overflow: auto;
+  padding: 4px 8px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+}
+
+.browser-session-dev-list {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.browser-session-dev-error {
+  color: var(--danger);
+}
+
+.browser-session-dev-warning {
+  color: var(--warn, #b45309);
+}
