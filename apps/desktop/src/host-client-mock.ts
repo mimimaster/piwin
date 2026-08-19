@@ -4021,6 +4021,28 @@ export class MockHostBackend {
       case 'browser/stop':
         this.mockBrowserUrl = null;
         return { id, type: 'response', command: 'browser/stop', success: true, data: null };
+      case 'browser/input':
+        return { id, type: 'response', command: 'browser/input', success: true, data: null };
+      case 'browser/lock': {
+        const owner = command.owner === 'user' ? 'user' : 'agent';
+        this.emitPush({
+          type: 'browser/controller',
+          owner,
+          ts: Date.now(),
+          ...(owner === 'agent' || command.owner === 'user' ? { agentWantsLock: true } : {}),
+        });
+        return { id, type: 'response', command: 'browser/lock', success: true, data: null };
+      }
+      case 'browser/unlock': {
+        const owner = command.owner === 'user' ? 'agent' : 'idle';
+        this.emitPush({
+          type: 'browser/controller',
+          owner,
+          ts: Date.now(),
+          ...(owner === 'agent' ? { agentWantsLock: true } : {}),
+        });
+        return { id, type: 'response', command: 'browser/unlock', success: true, data: null };
+      }
 
       // --- Walkthrough commands (spec §12) ---------------------------------
       case 'walkthrough/list': {

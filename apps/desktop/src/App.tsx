@@ -3279,7 +3279,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     <DeferredBrowserSessionPanel
                       hostClient={hostClient}
                       onAddWebElement={addWebElement}
-                      agentRunning={state.streaming}
                     />
                   }
                   sideChatContent={

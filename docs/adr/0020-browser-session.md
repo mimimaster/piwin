@@ -271,9 +271,10 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   pick, coarse permission (server-trust only, not rule engine).
 - **Native webview via Tauri multiwebview**. Rejected for agent control:
   no CDP on macOS/Linux. Could return later as a "user's own browsing" view.
-- **Proxy-iframe interactive mirror (OpenHands-style URL rewriting)**. Deferred
-  to a follow-up: real interactivity in-panel, but URL/cookie/CSP rewriting is
-  substantial. The screenshot-mirror + coordinate pick covers the MVP ask.
+- **Proxy-iframe interactive mirror (OpenHands-style URL rewriting)**. Rejected
+  for the workbench in ADR 0057: a rewritten iframe is a second document
+  (CSP / cookies / `X-Frame-Options`), so the user and agent diverge. In-panel
+  interactivity is CDP screencast + input forwarding on the Host Chromium.
 
 ## Open questions / deferred
 
@@ -281,7 +282,9 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   default for v1. A dedicated `browser` rule kind in `PermissionRuleTarget`
   (same pattern as ADR 0019 §8) is reserved for a follow-up migration, so users
   can express browser-specific allow/deny separately from `web_fetch`.
-- Interactive proxy-iframe mirror (real clicking/typing inside the panel) as a
-  follow-up ADR.
+- Interactive in-panel clicking/typing: **done in ADR 0057** via CDP
+  screencast + input forwarding + controller lock, **not** the proxy-iframe
+  path considered here. Proxy-iframe remains rejected for the workbench
+  (second document / CSP). Headed OS window stays a later escape hatch.
 - Persistent browser sessions across app restarts (save/restore profile) —
   out of scope for v1.

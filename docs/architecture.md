@@ -560,20 +560,28 @@ A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) tha
 owns **one** headless Chromium shared by the agent and the desktop panel — "what
 the user sees == what the agent controls".
 
+- **Workbench** — the desktop `BrowserSessionPanel` is an interactive mirror of
+  the same Chromium: CDP `Page.startScreencast` (~12–15 fps, JPEG) falling back
+  to screenshot frames, plus pointer/IME forwarding (`browser/input`). Default
+  mode is Interact; pick remains a modifier that attaches a composer chip.
+- **Controller lock** — `idle | user | agent` (ADR 0057). Write tools auto-acquire
+  `agent` from idle. The human takes over explicitly; the agent never auto-steals.
+  If the user holds the page, write tools return `browser-user-has-control`.
+  Streaming a coding turn is **not** the lock. Run terminal releases agent control.
 - **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
   `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
-  `browser_find` / `browser_back` / `browser_forward` / `browser_wait`, registered
-  by `@piwin/agent-host` (`browser-tools.ts`). Snapshots use the **same ref
-  grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({ mode: 'ai',
-  boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and refs resolve
-  via `locator('aria-ref=e5')`. The snapshot output is **not** parseable YAML
-  (plain scalars with inline annotations; the `yaml` parser folds the indented
+  `browser_find` / `browser_back` / `browser_forward` / `browser_wait` /
+  `browser_lock`, registered by `@piwin/host-runtime` (`browser-tools.ts`). Snapshots
+  use the **same ref grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({
+  mode: 'ai', boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and
+  refs resolve via `locator('aria-ref=e5')`. The snapshot output is **not** parseable
+  YAML (plain scalars with inline annotations; the `yaml` parser folds the indented
   children), so `@piwin/browser` derives the tree with a small dedicated line
   parser — no `yaml` dependency and no `page.accessibility` (removed in
   Playwright 1.x).
-- **Panel mirror** — the desktop `BrowserSessionPanel` renders throttled JPEG
-  frame pushes (`browser/frame`, ~2–4 fps, size-capped) plus URL/title state
-  (`browser/state`) from the **same** instance the agent drives.
+- **Panel mirror** — `browser/frame` width/height are CSS viewport px. Console and
+  network events are captured while a desktop mirror lease is held and shown in a
+  collapsible drawer.
 - **Element pick → attach** — a user-initiated pick runs `elementFromPoint` in
   the page context (same-origin, works on any site), returns a stable CSS
   selector (`@medv/finder`, bundled and injected at the context level so it

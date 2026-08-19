@@ -31,7 +31,8 @@ export type ToolResultErrorCode =
   | 'subagent-unavailable'
   | 'subagent-unavailable-fallback-main'
   | 'subagent-delegation-disabled'
-  | 'mcp-failed';
+  | 'mcp-failed'
+  | 'browser-user-has-control';
 
 export type ToolResult =
   | {

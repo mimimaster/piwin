@@ -47,18 +47,21 @@ describe('BrowserSessionPanel', () => {
   function renderPanel(props: {
     hostClient: HostClient;
     onAddWebElement?: (pick: WebElementPickResult) => void;
-    agentRunning?: boolean;
   }): void {
     const tree: ReactElement = (
       <BrowserSessionPanel
         hostClient={props.hostClient}
         onAddWebElement={props.onAddWebElement ?? vi.fn()}
-        agentRunning={props.agentRunning ?? false}
       />
     );
     act(() => {
       root.render(tree);
     });
+  }
+
+  function stubImgMetrics(img: HTMLImageElement, width: number, height: number): void {
+    Object.defineProperty(img, 'clientWidth', { value: width, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: height, configurable: true });
   }
 
   function queryByTestId(testId: string): HTMLElement | null {
@@ -118,12 +121,20 @@ describe('BrowserSessionPanel', () => {
     expect(navigateSpy).toHaveBeenCalledWith('http://localhost:3000');
   });
 
-  it('disables pick mode while agent is running', () => {
+  it('disables pick and URL chrome while the agent owns the browser', () => {
     const client = createMockHostClient();
-    renderPanel({ hostClient: client, agentRunning: true });
+    renderPanel({ hostClient: client });
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({ type: 'browser/controller', owner: 'agent', agentWantsLock: true, ts: Date.now() });
+      }
+    });
 
     const toggle = queryByTestId('browser-session-pick-toggle') as HTMLButtonElement;
     expect(toggle.disabled).toBe(true);
+    expect(queryByTestId('browser-session-agent-banner')).not.toBeNull();
+    expect((queryByTestId('browser-session-url-input') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('forwards scaled coordinates on pick-mode click and calls onAddWebElement on browser/picked', async () => {
@@ -159,7 +170,7 @@ describe('BrowserSessionPanel', () => {
     // Mock the img's clientWidth to simulate a display scale of 0.5
     // (800px natural → 400px displayed). A click at display (200, 150)
     // should forward viewport CSS px (400, 300).
-    Object.defineProperty(img, 'clientWidth', { value: 400, configurable: true });
+    stubImgMetrics(img, 400, 300);
     img.getBoundingClientRect = () => ({
       left: 0,
       top: 0,
@@ -224,7 +235,7 @@ describe('BrowserSessionPanel', () => {
     });
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
-    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    stubImgMetrics(img, 800, 600);
     img.getBoundingClientRect = () => ({
       left: 0,
       top: 0,
@@ -286,7 +297,7 @@ describe('BrowserSessionPanel', () => {
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
     // Scale 1 (clientWidth === naturalWidth). The img is centered: its origin
     // sits 100px right / 50px down inside a 1000x700 container.
-    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    stubImgMetrics(img, 800, 600);
     img.getBoundingClientRect = () => ({
       left: 100,
       top: 50,
@@ -361,7 +372,7 @@ describe('BrowserSessionPanel', () => {
     });
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
-    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    stubImgMetrics(img, 800, 600);
     img.getBoundingClientRect = () => ({
       left: 0,
       top: 0,
@@ -426,7 +437,7 @@ describe('BrowserSessionPanel', () => {
     });
 
     const img = queryByTestId('browser-session-frame') as HTMLImageElement;
-    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    stubImgMetrics(img, 800, 600);
     img.getBoundingClientRect = () => ({
       left: 0,
       top: 0,
@@ -462,5 +473,99 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-pick-error')?.textContent).toContain(
       'Could not resolve element',
     );
+  });
+
+  it('forwards interact clicks as browser/input instead of pick-at', async () => {
+    const client = createMockHostClient();
+    const inputSpy = vi.spyOn(client, 'browserInput');
+    const pickAtSpy = vi.spyOn(client, 'browserPickAt');
+    renderPanel({ hostClient: client });
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({
+          type: 'browser/frame',
+          dataUrl: 'data:image/png;base64,AAAA',
+          width: 800,
+          height: 600,
+          ts: Date.now(),
+        });
+      }
+    });
+    const img = queryByTestId('browser-session-frame') as HTMLImageElement;
+    stubImgMetrics(img, 800, 600);
+    img.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      width: 800,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => '',
+    });
+    await act(async () => {
+      img.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true, clientX: 40, clientY: 20 }),
+      );
+    });
+    expect(pickAtSpy).not.toHaveBeenCalled();
+    expect(inputSpy).toHaveBeenCalled();
+    const events = inputSpy.mock.calls[0]?.[0];
+    expect(events?.[0]).toMatchObject({ type: 'mouse', action: 'down', x: 40, y: 20 });
+  });
+
+  it('Take over sends browser/lock owner user', async () => {
+    const client = createMockHostClient();
+    const lockSpy = vi.spyOn(client, 'browserLock');
+    renderPanel({ hostClient: client });
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({ type: 'browser/controller', owner: 'agent', agentWantsLock: true, ts: Date.now() });
+      }
+    });
+    const button = queryByTestId('browser-session-take-over') as HTMLButtonElement;
+    await act(async () => {
+      button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    expect(lockSpy).toHaveBeenCalledWith('user');
+  });
+
+  it('shows Give back whenever the user owns the page, even without an agent claim', async () => {
+    const client = createMockHostClient();
+    const unlockSpy = vi.spyOn(client, 'browserUnlock');
+    renderPanel({ hostClient: client });
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({ type: 'browser/controller', owner: 'user', ts: Date.now() });
+      }
+    });
+    const button = queryByTestId('browser-session-give-back') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    expect(button.textContent).toBe('Release');
+    await act(async () => {
+      button.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    expect(unlockSpy).toHaveBeenCalledWith('user');
+  });
+
+  it('labels Give back when a run still wants the lock', () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({
+          type: 'browser/controller',
+          owner: 'user',
+          agentWantsLock: true,
+          ts: Date.now(),
+        });
+      }
+    });
+    expect(queryByTestId('browser-session-give-back')?.textContent).toBe('Give back');
   });
 });

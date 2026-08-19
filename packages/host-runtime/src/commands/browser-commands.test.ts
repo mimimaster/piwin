@@ -31,6 +31,13 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
       text: 'Click',
       boundingRect: { x, y, width: 50, height: 30 },
     }),
+    dispatchInput: async () => {},
+    takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),
+    giveBack: async () => ({ owner: 'agent' as const, agentWantsLock: true }),
+    lock: async (owner) => ({ owner, agentWantsLock: owner === 'agent' }),
+    unlock: async () => ({ owner: 'idle' as const, agentWantsLock: false }),
+    releaseAgentControl: async () => {},
+    controllerState: () => ({ owner: 'idle' as const, agentWantsLock: false }),
     runExclusive: queue.runExclusive,
     subscribe: () => () => {},
     currentState: () => ({ url: 'http://localhost:3000', title: 'Test' }),
@@ -88,6 +95,9 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/pick-at', x: 1, y: 2 })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/screenshot' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/stop' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/input', events: [] })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/lock', owner: 'user' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/unlock', owner: 'user' })).toBe(true);
   });
 
   it('rejects non-browser commands', () => {
@@ -144,7 +154,7 @@ describe('handleBrowserCommand', () => {
       'req-1',
       createContext(session),
     );
-    expect(navigate).toHaveBeenCalledWith('https://example.com');
+    expect(navigate).toHaveBeenCalledWith('https://example.com', { actor: 'user' });
     expect(result).toMatchObject({ type: 'response', command: 'browser/navigate', success: true });
   });
 
@@ -236,5 +246,41 @@ describe('handleBrowserCommand', () => {
     releaseNavigate();
     await Promise.all([navResult, pickResult]);
     expect(order).toEqual(['nav-start', 'nav-end', 'pick']);
+  });
+
+  it('browser/input dispatches events', async () => {
+    const dispatchInput = vi.fn().mockResolvedValue(undefined);
+    const session = createMockSession({ dispatchInput });
+    const result = await handleBrowserCommand(
+      { type: 'browser/input', events: [{ type: 'insertText', text: 'hi' }] },
+      'req-1',
+      createContext(session),
+    );
+    expect(dispatchInput).toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, command: 'browser/input' });
+  });
+
+  it('browser/lock owner user calls takeOver', async () => {
+    const takeOver = vi.fn().mockResolvedValue({ owner: 'user', agentWantsLock: true });
+    const session = createMockSession({ takeOver });
+    const result = await handleBrowserCommand(
+      { type: 'browser/lock', owner: 'user' },
+      'req-1',
+      createContext(session),
+    );
+    expect(takeOver).toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, command: 'browser/lock' });
+  });
+
+  it('browser/unlock owner user calls giveBack', async () => {
+    const giveBack = vi.fn().mockResolvedValue({ owner: 'agent', agentWantsLock: true });
+    const session = createMockSession({ giveBack });
+    const result = await handleBrowserCommand(
+      { type: 'browser/unlock', owner: 'user' },
+      'req-1',
+      createContext(session),
+    );
+    expect(giveBack).toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true, command: 'browser/unlock' });
   });
 });

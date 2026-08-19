@@ -78,8 +78,6 @@
   /* Drag writes --right-panel-width directly; no transition chase. */
   transition: none;
   will-change: width;
-  /* Prevent scrollbar appearance/disappearance from causing layout shifts. */
-  scrollbar-gutter: stable;
   /* Backdrop blur is expensive while the column reflows every pointer sample. */
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -503,18 +501,7 @@
   flex-direction: column;
 }
 
-.terminal-dock-header--minimal {
-  min-height: 28px;
-  padding-inline: 10px;
-}
 
-.terminal-dock-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-}
 
 /* ── Header + section tabs ────────────────────────────────────────── */
 
@@ -1073,81 +1060,52 @@
   min-height: 240px;
 }
 
-.terminal-dock-header {
+.terminal-dock-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 10px;
+  gap: 6px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--line-soft);
-  background: var(--term-bg);
+  background: var(--term-bg, transparent);
+  flex-shrink: 0;
 }
 
-.terminal-dock-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.terminal-tab {
+.terminal-dock-title {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 9px;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.terminal-dock-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.terminal-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 11.5px;
+  transition: background 120ms ease, color 120ms ease;
 }
 
-.terminal-tab:hover {
-  color: var(--text);
+.terminal-icon-button:hover {
   background: var(--surface-hover);
-}
-
-.terminal-tab.active {
   color: var(--text);
-  background: var(--accent-soft);
-  font-weight: 600;
-}
-
-.terminal-tab-count {
-  font-size: 10px;
-  opacity: 0.8;
-}
-
-.terminal-dock[data-pty-mode='tauri'] .terminal-tab-count {
-  opacity: 0.85;
-}
-
-.terminal-tab-badge {
-  min-width: 14px;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 999px;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-}
-
-.terminal-tab-badge.err {
-  background: color-mix(in srgb, var(--danger) 30%, transparent);
-  color: var(--danger);
-}
-
-.terminal-tab-badge.warn {
-  background: color-mix(in srgb, var(--state-warning) 30%, transparent);
-  color: var(--state-warning);
-}
-
-.terminal-dock-actions {
-  display: flex;
-  gap: 4px;
 }
 
 /* ── Directory switcher ─────────────────────────────────────────── */
@@ -1419,24 +1377,32 @@
 .terminal-dock-session-strip {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px 0;
-  border-bottom: 1px solid var(--line-soft);
+  gap: 2px;
+  padding: 0;
+  border-bottom: 0;
   overflow-x: auto;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.terminal-dock-session-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .terminal-dock-session {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 6px 4px 8px;
-  border-radius: 6px 6px 0 0;
+  height: 20px;
+  padding: 0 4px 0 6px;
+  border-radius: 4px;
   background: transparent;
   color: var(--muted);
   font-size: 11px;
   white-space: nowrap;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .terminal-dock-session:hover {
@@ -1445,9 +1411,10 @@
 }
 
 .terminal-dock-session.active {
-  background: var(--panel);
+  background: var(--surface-raised, var(--card));
   color: var(--text);
-  box-shadow: inset 0 -1px 0 var(--accent);
+  box-shadow: none;
+  font-weight: 500;
 }
 
 .terminal-dock-session-main {
@@ -1494,6 +1461,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .terminal-dock-session-close:hover,
@@ -1519,6 +1487,132 @@
 
 .terminal-dock-surface[hidden] {
   display: none;
+}
+
+/* ── Split content & sessions sidebar ───────────────────────────── */
+
+.terminal-dock-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.terminal-surface-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-sessions-sidebar {
+  width: 150px;
+  min-width: 130px;
+  max-width: 200px;
+  border-left: 1px solid var(--line-soft);
+  background: var(--panel, var(--sidebar));
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.terminal-sessions-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+
+.terminal-sessions-count {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.terminal-session-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  user-select: none;
+}
+
+.terminal-session-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.terminal-session-item.active {
+  background: var(--surface-raised, var(--card));
+  color: var(--text);
+  font-weight: 500;
+}
+
+.terminal-session-item-icon {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.terminal-session-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-session-item-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 3px;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.terminal-session-item:hover .terminal-session-item-close {
+  display: inline-flex;
+}
+
+.terminal-session-item-close:hover {
+  opacity: 1;
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 @keyframes piwin-pulse {
@@ -3681,168 +3775,6 @@
 .doc-action-active {
   background: var(--surface-hover);
   color: var(--accent, #60a5fa);
-}
-
-/* ── Browser Session panel (ADR 0020 §6) ─────────────────────────── */
-
-.browser-session-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  background: var(--canvas, var(--bg));
-}
-
-.browser-session-urlbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-}
-
-.browser-session-urlbar-icon {
-  color: var(--muted);
-  flex-shrink: 0;
-}
-
-.browser-session-url-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-size: 12px;
-}
-
-.browser-session-url-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.browser-session-go-btn,
-.browser-session-refresh-btn {
-  display: grid;
-  place-items: center;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.browser-session-go-btn:hover,
-.browser-session-refresh-btn:hover {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.browser-session-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--line-soft);
-  flex-shrink: 0;
-}
-
-.browser-session-pick-toggle {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.browser-session-pick-toggle.active {
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 15%, transparent));
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.browser-session-pick-toggle:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.browser-session-pick-pending {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.browser-session-pick-error {
-  font-size: 11px;
-  color: var(--danger);
-}
-
-.browser-session-clear-highlight {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.browser-session-clear-highlight:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.browser-session-frame-container {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-}
-
-.browser-session-frame {
-  /* IMPORTANT: the img MUST stay auto-sized — max-width/max-height with no
-     fixed width/height. Pick coordinate scaling uses img.clientWidth and the
-     highlight overlay offset assumes the img's box equals the displayed image;
-     a fixed size (or object-fit) that detaches clientWidth from the visible
-     image would break both. object-fit: contain is inert here (auto-sized img)
-     but kept in case a fixed size is ever introduced. */
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  user-select: none;
-}
-
-.browser-session-frame.pick-mode {
-  cursor: crosshair;
-}
-
-.browser-session-frame-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.browser-session-highlight {
-  border: 2px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  pointer-events: none;
-  box-sizing: border-box;
 }
 
 /* ── Web element chip (composer + chat) ──────────────────────────── */

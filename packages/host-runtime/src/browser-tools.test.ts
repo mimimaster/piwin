@@ -6,6 +6,7 @@ import type {
   WebElementPickResult,
 } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
+import { BrowserUserHasControlError } from '@piwin/browser';
 import {
   createBrowserToolDefinitions,
   evaluateBrowserNavigatePermission,
@@ -76,6 +77,18 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
       };
       return result;
     },
+    dispatchInput: async (events) => {
+      calls.push({ method: 'dispatchInput', args: [events] });
+    },
+    takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),
+    giveBack: async () => ({ owner: 'agent' as const, agentWantsLock: true }),
+    lock: async (owner) => ({
+      owner,
+      agentWantsLock: owner === 'agent',
+    }),
+    unlock: async () => ({ owner: 'idle' as const, agentWantsLock: false }),
+    releaseAgentControl: async () => {},
+    controllerState: () => ({ owner: 'idle' as const, agentWantsLock: false }),
     runExclusive: queue.runExclusive,
     subscribe: () => () => {},
     currentState: () => ({ url: 'http://localhost:3000', title: 'Test' }),
@@ -146,13 +159,14 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   const session = createMockSession();
   const tools = createBrowserToolDefinitions(session);
 
-  it('registers all 11 browser tools', () => {
+  it('registers all 12 browser tools', () => {
     expect(tools.map((t) => t.descriptor.name).sort()).toEqual([
       'browser_back',
       'browser_click',
       'browser_fill_form',
       'browser_find',
       'browser_forward',
+      'browser_lock',
       'browser_navigate',
       'browser_screenshot',
       'browser_scroll',
@@ -232,6 +246,34 @@ describe('createBrowserToolDefinitions — execute paths', () => {
     if (!click) throw new Error('browser_click missing');
     const raw = outputOf(await executeTool(click, { selector: 'button.submit' }));
     expect((JSON.parse(raw) as { target: string }).target).toBe('button.submit');
+  });
+
+  it('browser_click returns browser-user-has-control when the human owns the page', async () => {
+    const session = createMockSession({
+      click: async () => {
+        throw new BrowserUserHasControlError('The user has the browser.');
+      },
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    const result = await executeTool(click, { ref: 'e5' });
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'browser-user-has-control',
+      retryable: false,
+    });
+  });
+
+  it('browser_lock lock acquires agent control', async () => {
+    const lock = vi.fn(async () => ({ owner: 'agent' as const, agentWantsLock: true }));
+    const session = createMockSession({ lock });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
+    if (!tool) throw new Error('browser_lock missing');
+    const raw = outputOf(await executeTool(tool, { action: 'lock' }));
+    expect(lock).toHaveBeenCalledWith('agent');
+    expect((JSON.parse(raw) as { owner: string }).owner).toBe('agent');
   });
 
   it('browser_click throws when neither ref nor selector given', async () => {

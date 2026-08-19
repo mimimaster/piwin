@@ -762,6 +762,7 @@ export class HostRuntime {
         onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
         onRunTerminal: (run) => {
           this.sessionHostToolPort?.releaseRun(run.sessionId, run.runId);
+          void this.browserSession?.releaseAgentControl();
           this.push({ type: 'run/terminal', run });
           this.queuedTurnController.notifyRunTerminal(run);
         },

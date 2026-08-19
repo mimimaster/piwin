@@ -127,6 +127,18 @@ describe('classifyHostPush', () => {
       key: ['browser', 'frame'],
     });
 
+    expect(
+      classifyHostPush({
+        type: 'browser/controller',
+        owner: 'agent',
+        ts: 1,
+        agentWantsLock: true,
+      }),
+    ).toEqual({
+      kind: 'control',
+      barrierKeys: [['browser', 'controller']],
+    });
+
     const terminal: HostPushVariant = {
       type: 'run/terminal',
       run: {
