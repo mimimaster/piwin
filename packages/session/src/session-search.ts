@@ -10,6 +10,7 @@ import type {
   SessionScope,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { isSessionBodyAvailable } from '@piwin/contracts';
 import { listAllSessionRecords } from './session-index-store.js';
 import { listTranscriptMessages } from './message-store.js';
 import { filterListableSessions } from './session-display-name.js';
@@ -70,6 +71,7 @@ export async function searchSessions(
     }
 
     if (
+      !isSessionBodyAvailable(record) ||
       (!options.searchTranscript && !options.resolveTranscriptPath) ||
       transcriptScans >= maxScans
     ) {
@@ -122,6 +124,9 @@ function indexHit(record: SessionIndexRecord, score: number): SessionSearchHit {
   if (record.updatedAt) hit.updatedAt = record.updatedAt;
   if (record.isPinned === true) hit.isPinned = true;
   if (record.lastPreview) hit.snippet = record.lastPreview.slice(0, 160);
+  if (record.storage && record.storage.state !== 'local') {
+    hit.storage = record.storage;
+  }
   return hit;
 }
 

@@ -311,6 +311,11 @@ export type SessionSummary = {
   subagentIntegrationStatus?: SubagentIntegrationStatus;
   /** SF-*: product-level session origin (duplicate or fork). Absent on legacy records. */
   origin?: import('./session-origin.js').ProductSessionOrigin;
+  /**
+   * Disk residency of the recoverable session payload. Absent means local.
+   * Offloaded / missing-pack stubs stay listable but must not be resumed.
+   */
+  storage?: import('./session-storage.js').SessionStorageInfo;
 };
 
 export type AgentMessageRole = 'user' | 'assistant' | 'system' | 'tool';

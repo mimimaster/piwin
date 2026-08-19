@@ -19,6 +19,7 @@ export type SettingsSectionId =
   | 'extensions'
   | 'knowledge'
   | 'session'
+  | 'cold-storage'
   | 'usage'
   | 'archive';
 
@@ -78,6 +79,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
   { id: 'knowledge', group: 'integrations', labelKey: 'knowledge' },
   { id: 'session', group: 'system', labelKey: 'session' },
+  { id: 'cold-storage', group: 'system', labelKey: 'coldStorage' },
   { id: 'usage', group: 'system', labelKey: 'usage' },
   { id: 'archive', group: 'system', labelKey: 'archive' },
 ] as const;

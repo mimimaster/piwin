@@ -27,10 +27,6 @@ import type {
   SessionIndexRecord,
   SessionResumeData,
   SessionRunAcceptedData,
-  SessionPauseAcceptedData,
-  SessionPauseCheckpoint,
-  SessionPauseCheckpointInput,
-  SessionResumeRunAcceptedData,
   SessionTranscriptPageData,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
@@ -40,6 +36,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
+  isSessionBodyAvailable,
   DEFAULT_PERMISSION_PRESET,
   resolvePreset,
   mergeAgentModeIntoPrompt,
@@ -92,6 +89,7 @@ import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-co
 import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
+import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinProjectsPath,
@@ -269,6 +267,15 @@ export async function handleSessionLiveCommand(
       if (!record) {
         return fail(requestId, 'session/truncate-from', `Unknown session: ${command.sessionId}`);
       }
+      const rejectedTruncate = rejectUnavailableSessionBody(
+        requestId,
+        'session/truncate-from',
+        record,
+        'truncate',
+      );
+      if (rejectedTruncate) {
+        return rejectedTruncate;
+      }
       const store = await context.getTranscriptStore(command.sessionId);
       const truncationAnchor = await store.getMessage(command.messageId);
       if (truncationAnchor === undefined) {
@@ -366,6 +373,15 @@ export async function handleSessionLiveCommand(
       let existing = await getSessionRecord(indexPath, command.sessionId);
       if (!existing) {
         return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
+      }
+      const rejectedResume = rejectUnavailableSessionBody(
+        requestId,
+        'session/resume',
+        existing,
+        'resume',
+      );
+      if (rejectedResume) {
+        return rejectedResume;
       }
       const store = await context.getTranscriptStore(command.sessionId);
       if (context.getForegroundRun(command.sessionId) === undefined) {
@@ -465,6 +481,15 @@ export async function handleSessionLiveCommand(
           `Unknown session: ${command.query.sessionId}`,
         );
       }
+      const rejectedOutline = rejectUnavailableSessionBody(
+        requestId,
+        'session/outline-page',
+        existing,
+        'transcript',
+      );
+      if (rejectedOutline) {
+        return rejectedOutline;
+      }
       try {
         const page = await (
           await context.getTranscriptStore(command.query.sessionId)
@@ -489,6 +514,15 @@ export async function handleSessionLiveCommand(
           'session/user-message-index',
           `Unknown session: ${command.query.sessionId}`,
         );
+      }
+      const rejectedUserIndex = rejectUnavailableSessionBody(
+        requestId,
+        'session/user-message-index',
+        existing,
+        'transcript',
+      );
+      if (rejectedUserIndex) {
+        return rejectedUserIndex;
       }
       try {
         const index = await (
@@ -515,6 +549,15 @@ export async function handleSessionLiveCommand(
           `Unknown session: ${command.query.sessionId}`,
         );
       }
+      const rejectedPage = rejectUnavailableSessionBody(
+        requestId,
+        'session/transcript-page',
+        existing,
+        'transcript',
+      );
+      if (rejectedPage) {
+        return rejectedPage;
+      }
       try {
         const page = await (
           await context.getTranscriptStore(command.query.sessionId)
@@ -539,6 +582,15 @@ export async function handleSessionLiveCommand(
           'session/transcript-window',
           `Unknown session: ${command.query.sessionId}`,
         );
+      }
+      const rejectedWindow = rejectUnavailableSessionBody(
+        requestId,
+        'session/transcript-window',
+        existing,
+        'transcript',
+      );
+      if (rejectedWindow) {
+        return rejectedWindow;
       }
       try {
         const window = await (
@@ -566,9 +618,11 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/runtime-status', `Unknown session: ${command.sessionId}`);
       }
       const status = context.runtimeController.getStatus(command.sessionId);
-      const pauseCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
-      if (pauseCheckpoint !== undefined) {
-        status.pauseCheckpoint = pauseCheckpoint;
+      if (!record || isSessionBodyAvailable(record)) {
+        const pauseCheckpoint = await context.getActivePauseCheckpoint(command.sessionId);
+        if (pauseCheckpoint !== undefined) {
+          status.pauseCheckpoint = pauseCheckpoint;
+        }
       }
       return ok(requestId, 'session/runtime-status', { status });
     }
@@ -592,6 +646,21 @@ export async function handleSessionLiveCommand(
       }
     }
     case 'session/messages': {
+      const messagesRecord = await getSessionRecord(
+        getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+        command.sessionId,
+      );
+      if (messagesRecord) {
+        const rejectedMessages = rejectUnavailableSessionBody(
+          requestId,
+          'session/messages',
+          messagesRecord,
+          'transcript',
+        );
+        if (rejectedMessages) {
+          return rejectedMessages;
+        }
+      }
       const page = await (
         await context.getTranscriptStore(command.sessionId)
       ).transcriptPage({
@@ -611,6 +680,7 @@ export async function handleSessionLiveCommand(
       // ADR 0038 reconciliation query: clients that suspect a lost terminal
       // push ask the registry directly. Works for any durable session, live
       // or not — no active runtime simply means no foreground run.
+
       if (!context.sessions.has(command.sessionId)) {
         const rootDir = getPiwinRoot(context.piwinRoot);
         const record = await getSessionRecord(
@@ -633,6 +703,15 @@ export async function handleSessionLiveCommand(
       const record = await getSessionRecord(indexPath, command.sessionId);
       if (!record) {
         return fail(requestId, 'session/export', `Unknown session: ${command.sessionId}`);
+      }
+      const rejectedExport = rejectUnavailableSessionBody(
+        requestId,
+        'session/export',
+        record,
+        'export',
+      );
+      if (rejectedExport) {
+        return rejectedExport;
       }
       const format: 'html' | 'md' = command.format === 'html' ? 'html' : 'md';
       const redactTools = command.redactTools === true;

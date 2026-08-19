@@ -21,6 +21,7 @@ export function summaryToListItem(
   if (session.model) item.model = session.model;
   if (session.thinkingLevel !== undefined) item.thinkingLevel = session.thinkingLevel;
   if (session.scope) item.scope = session.scope;
+  if (session.storage && session.storage.state !== 'local') item.storage = session.storage;
   return item;
 }
 
@@ -43,5 +44,6 @@ export function mapSummariesToListItems(
       ? { thinkingLevel: session.thinkingLevel }
       : {}),
     ...(session.scope ? { scope: session.scope } : {}),
+    ...(session.storage && session.storage.state !== 'local' ? { storage: session.storage } : {}),
   }));
 }

@@ -15,4 +15,13 @@ describe('sessionActionItems', () => {
     const items = sessionActionItems({ isPinned: false, isArchived: true });
     expect(items.some((item) => item.action === 'continue-in-project')).toBe(false);
   });
+
+  it('offers restore-from-pack instead of unarchive/delete for offloaded sessions', () => {
+    const items = sessionActionItems({
+      isPinned: false,
+      isArchived: true,
+      storageState: 'offloaded',
+    });
+    expect(items.map((item) => item.action)).toEqual(['restore-pack', 'rename', 'copy-id']);
+  });
 });

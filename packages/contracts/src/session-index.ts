@@ -4,6 +4,7 @@ import type { ModelRef, SessionPresentation, SessionScope, ThinkingLevel } from 
 import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { SubagentLifecycleState } from './subagent-lifecycle.js';
 import type { ProductSessionOrigin } from './session-origin.js';
+import type { SessionStorageInfo } from './session-storage.js';
 
 export type SubagentStatus = 'running' | 'done' | 'failed' | 'cancelled';
 
@@ -98,6 +99,12 @@ export type SessionIndexRecord = {
   origin?: ProductSessionOrigin;
   /** Doc Cards review session: write tools stay off for the life of this record. */
   presentation?: SessionPresentation;
+  /**
+   * Disk residency of the recoverable session payload. Absent means local
+   * (legacy-compatible). Intermediate packing/restoring states must not be
+   * persisted here.
+   */
+  storage?: SessionStorageInfo;
 };
 
 /**

@@ -263,6 +263,8 @@ export type SessionListItemUi = {
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   /** Optional session scope for multi-project list tracking. */
   scope?: import('@piwin/contracts').SessionScope;
+  /** Disk residency. Absent means local. */
+  storage?: import('@piwin/contracts').SessionStorageInfo;
 };
 
 export type RunTerminalState =

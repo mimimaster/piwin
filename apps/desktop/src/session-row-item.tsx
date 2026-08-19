@@ -104,6 +104,7 @@ export function SessionRowItem({
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
   const isArchived = 'isArchived' in session && session.isArchived === true;
+  const storageState = !isDraft && 'storage' in session ? session.storage?.state : undefined;
   const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
   const isWorking = !isDraft && workingSessionIds != null && session.id in workingSessionIds;
   const hasActiveBackendService =
@@ -128,6 +129,7 @@ export function SessionRowItem({
         data-session-id={session.id}
         data-pinned={isPinned ? 'true' : 'false'}
         data-archived={isArchived ? 'true' : 'false'}
+        data-storage={storageState ?? 'local'}
         data-draft={isDraft ? 'true' : 'false'}
         data-completed={hasCompletedAttention ? 'true' : 'false'}
         aria-current={isActive ? 'page' : undefined}
@@ -153,6 +155,24 @@ export function SessionRowItem({
             {isArchived ? (
               <span className="session-archived-mark" aria-hidden title={copy.archived}>
                 <IconDocument width={13} height={13} />
+              </span>
+            ) : null}
+            {storageState === 'offloaded' ? (
+              <span
+                className="session-storage-badge"
+                data-testid="session-storage-badge"
+                title={copy.offloaded}
+              >
+                {copy.offloaded}
+              </span>
+            ) : null}
+            {storageState === 'missing-pack' ? (
+              <span
+                className="session-storage-badge session-storage-badge--missing"
+                data-testid="session-storage-badge"
+                title={copy.missingPack}
+              >
+                {copy.missingPack}
               </span>
             ) : null}
             {isPinned ? (

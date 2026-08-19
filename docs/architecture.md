@@ -104,6 +104,22 @@ Durable chat records and live Agent runtimes are separate authorities.
 - Long-session transcript retention is bounded by the SQLite session transcript
   store (WP6), with legacy JSON fallback and doctor-detectable migration.
 
+## 2.3 Session storage residency (ADR 0044)
+
+Archive lifecycle, runtime residency, and payload storage are separate
+authorities. Runtime cold (ADR 0040) still has a local transcript. Storage
+`offloaded` means transcript + media live in a verified Host-external pack;
+the index keeps a discoverable stub.
+
+- One pack per session; destructive offload always includes full media.
+- Non-payload files (`plan.json`, walkthroughs) stay under `sessions/<id>/`.
+- `packOutputDir` is always a Host filesystem path, never a client-local path.
+- Offload is manual plan + confirm. Plans are in-memory only. Host startup
+  recovers journaled transactions under `~/.piwin/cold-storage/transactions/`.
+- Opening an offloaded or missing-pack session never creates an empty
+  `transcript.sqlite3`. Desktop is restore-first.
+- Operator recovery: [`guides/session-cold-storage.md`](./guides/session-cold-storage.md).
+
 
 ## 3. Dual-mode Agent Host
 
@@ -443,6 +459,9 @@ performed.
   config.json                 # product config (host mode, providers, imageGeneration, Desktop composer/session restore)
   credentials/                # secrets (prefer OS keychain)
   sessions-index/             # SQLite or JSONL index over Pi sessions
+  sessions/<session-id>/      # transcript.sqlite3 + leftover non-payload files
+  pack-staging/               # non-authoritative pack construction
+  cold-storage/transactions/  # offload/restore journals and quarantine (ADR 0044)
   skills/
   extensions/                  # immutable revisions, registry.json, deployment records
   mcp.json

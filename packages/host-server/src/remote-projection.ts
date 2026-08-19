@@ -23,6 +23,7 @@ import type {
   QueuedTurnRecord,
 } from '@piwin/contracts';
 import { readActivitySummaryData } from '@piwin/contracts';
+import { parseSessionStorageInfo, projectRemoteSessionStorage } from '@piwin/contracts';
 import { createRemoteProjectId } from '@piwin/host-runtime';
 import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
 
@@ -337,6 +338,10 @@ function projectSessions(data: unknown): RemoteSessionSummary[] {
       if (projectPath !== undefined) {
         summary.projectId = createRemoteProjectId(projectPath);
       }
+    }
+    const storage = projectRemoteSessionStorage(parseSessionStorageInfo(record.storage));
+    if (storage) {
+      summary.storage = storage;
     }
     projected.push(summary);
   }

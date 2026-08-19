@@ -128,6 +128,8 @@ export type RemoteSessionSummary = {
   pinned?: boolean;
   archived?: boolean;
   parentSessionId?: string;
+  /** Remote-safe storage residency. Host pack paths are never included. */
+  storage?: import('./session-storage.js').RemoteSessionStorageInfo;
 };
 
 export type RemoteSessionListData = {

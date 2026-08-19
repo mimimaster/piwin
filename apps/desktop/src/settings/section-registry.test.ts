@@ -18,6 +18,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'extensions',
   'knowledge',
   'session',
+  'cold-storage',
   'usage',
   'archive',
 ];
