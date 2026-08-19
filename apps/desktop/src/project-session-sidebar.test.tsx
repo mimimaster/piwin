@@ -271,6 +271,27 @@ it('renders archived session rows with archived mark and data attribute', () => 
   expect(container.querySelector('.session-archived-mark')).not.toBeNull();
 });
 
+it('renders an offloaded storage badge and data attribute', () => {
+  const sessions: SessionListItemUi[] = [
+    {
+      id: 'off-1',
+      name: 'Cold chat',
+      updatedAt: new Date().toISOString(),
+      isArchived: true,
+      storage: { state: 'offloaded', packId: 'pack-1' },
+    },
+  ];
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    showArchivedSessions: true,
+  });
+  const item = container.querySelector('[data-testid="session-item"]');
+  expect(item?.getAttribute('data-storage')).toBe('offloaded');
+  expect(container.querySelector('[data-testid="session-storage-badge"]')?.textContent).toMatch(
+    /Offloaded|已卸载/,
+  );
+});
+
 it('renders local drafts first with a hollow mark and restores the selected draft', () => {
   const onResumeDraft = vi.fn();
   const drafts: DraftSessionItemUi[] = [

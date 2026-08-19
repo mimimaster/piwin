@@ -69,6 +69,7 @@ export class MockHostBackend {
       isArchived?: boolean;
       archivedAt?: string;
       origin?: ProductSessionOrigin;
+      storage?: import('@piwin/contracts').SessionStorageInfo;
     }
   >();
   private plans = new Map<string, import('@piwin/contracts').SessionPlan>();
@@ -201,6 +202,7 @@ export class MockHostBackend {
       isArchived?: boolean;
       archivedAt?: string;
       origin?: ProductSessionOrigin;
+      storage?: import('@piwin/contracts').SessionStorageInfo;
     },
   ): SessionSummary {
     const scope =
@@ -225,6 +227,7 @@ export class MockHostBackend {
     if (session.isArchived === true) summary.isArchived = true;
     if (session.archivedAt) summary.archivedAt = session.archivedAt;
     if (session.origin) summary.origin = session.origin;
+    if (session.storage && session.storage.state !== 'local') summary.storage = session.storage;
     return summary;
   }
 
@@ -733,6 +736,21 @@ export class MockHostBackend {
       }
       case 'session/resume': {
         let session = this.sessions.get(command.sessionId);
+        if (
+          session?.storage?.state === 'offloaded' ||
+          session?.storage?.state === 'missing-pack'
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/resume',
+            success: false,
+            error:
+              session.storage.state === 'missing-pack'
+                ? `session-pack-missing: Session "${command.sessionId}" is missing-pack; supply a matching pack before resume`
+                : `session-body-offloaded: Session "${command.sessionId}" is offloaded; restore it from its pack before resume`,
+          };
+        }
         if (!session) {
           session = { projectPath: '/mock/project', events: [], transcript: [] };
           this.sessions.set(command.sessionId, session);
@@ -3675,6 +3693,85 @@ export class MockHostBackend {
           data: { query: command.query.query, hits },
         };
       }
+      case 'session/cold-storage-status': {
+        const cold = this.mockConfig.session?.coldStorage;
+        return {
+          id,
+          type: 'response',
+          command: 'session/cold-storage-status',
+          success: true,
+          data: {
+            config: cold ?? {
+              enabled: false,
+              minArchivedAgeDays: 30,
+            },
+            packOutputDirValid: Boolean(cold?.packOutputDir),
+            localPayloadBytes: 0,
+            overBudget: false,
+            eligibleCount: 0,
+            residualTransactions: [],
+            missingPackSessionIds: [],
+          },
+        };
+      }
+      case 'session/cold-storage-plan':
+        return {
+          id,
+          type: 'response',
+          command: 'session/cold-storage-plan',
+          success: false,
+          error: 'Cold storage planning is not available in the mock host.',
+        };
+      case 'session/cold-storage-execute':
+        return {
+          id,
+          type: 'response',
+          command: 'session/cold-storage-execute',
+          success: false,
+          error: 'Cold storage execute is not available in the mock host.',
+        };
+      case 'session/cold-storage-restore':
+      case 'session/cold-storage-import': {
+        const sessionId =
+          command.type === 'session/cold-storage-restore'
+            ? command.sessionId
+            : command.packPath;
+        const session = this.sessions.get(
+          command.type === 'session/cold-storage-restore' ? command.sessionId : '',
+        );
+        if (command.type === 'session/cold-storage-restore' && session) {
+          delete session.storage;
+        }
+        return {
+          id,
+          type: 'response',
+          command: command.type,
+          success: true,
+          data: {
+            sessionId: command.type === 'session/cold-storage-restore' ? command.sessionId : sessionId,
+            packId: 'mock-pack',
+            packPath: command.type === 'session/cold-storage-restore' ? (command.packPath ?? '') : command.packPath,
+            createdIndexRecord: false,
+            storage: { state: 'local' },
+          },
+        };
+      }
+      case 'session/cold-storage-reconcile':
+        return {
+          id,
+          type: 'response',
+          command: 'session/cold-storage-reconcile',
+          success: true,
+          data: { recovered: [], updatedSessionIds: [], reports: [] },
+        };
+      case 'session/pack-list':
+        return {
+          id,
+          type: 'response',
+          command: 'session/pack-list',
+          success: true,
+          data: { directory: command.directory, packs: [] },
+        };
       case 'session/truncate-from': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {

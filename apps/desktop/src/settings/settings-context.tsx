@@ -57,6 +57,13 @@ export type SettingsConfigRequest = (command: {
     | 'session/list'
     | 'session/unarchive'
     | 'session/delete'
+    | 'session/cold-storage-status'
+    | 'session/cold-storage-plan'
+    | 'session/cold-storage-execute'
+    | 'session/cold-storage-restore'
+    | 'session/cold-storage-import'
+    | 'session/cold-storage-reconcile'
+    | 'session/pack-list'
     | 'host/runtime-resources'
     | 'theme/list'
     | 'theme/set-active';
@@ -81,6 +88,10 @@ export type SettingsConfigRequest = (command: {
   sessionId?: string;
   expectedSettingsRevision?: string;
   when?: 'now' | 'after-current-run';
+  sessionIds?: string[];
+  confirmationDigest?: string;
+  packPath?: string;
+  directory?: string;
   customInstructions?: string;
   outputPath?: string;
   themeId?: string;

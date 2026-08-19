@@ -1,6 +1,6 @@
 /**
  * Settings page registration. Importing this module registers every canonical section
- * page; the registry covers all 7 core sections.
+ * page; the registry covers all 7 core sections plus cold storage.
  */
 import { registerSettingsSection } from '../section-registry';
 import { GeneralPage } from './general-page';
@@ -10,6 +10,7 @@ import { AgentPage } from './agent-page';
 import { ExtensionsPage } from './extensions-page';
 import { KnowledgePage } from './knowledge-page';
 import { SessionPage } from './session-page';
+import { SessionColdStoragePage } from './session-cold-storage-page';
 import { UsagePage } from './usage-page';
 import { ArchivePage } from './archive-page';
 
@@ -20,6 +21,6 @@ registerSettingsSection('agent', AgentPage);
 registerSettingsSection('extensions', ExtensionsPage);
 registerSettingsSection('knowledge', KnowledgePage);
 registerSettingsSection('session', SessionPage);
+registerSettingsSection('cold-storage', SessionColdStoragePage);
 registerSettingsSection('usage', UsagePage);
 registerSettingsSection('archive', ArchivePage);
-

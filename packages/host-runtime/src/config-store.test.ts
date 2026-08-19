@@ -200,6 +200,27 @@ describe('config-store', () => {
     expect(loaded.session?.lifecycle).toBeUndefined();
   });
 
+  it('normalizes session cold-storage config with safe defaults', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-session-cold-config-'));
+    const config = createDefaultPiwinConfig();
+    config.session = {
+      coldStorage: {
+        enabled: true,
+        packOutputDir: '/tmp/piwin-packs',
+        minArchivedAgeDays: 14,
+        localBudgetBytes: 1024,
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.session?.coldStorage).toEqual({
+      enabled: true,
+      packOutputDir: '/tmp/piwin-packs',
+      minArchivedAgeDays: 14,
+      localBudgetBytes: 1024,
+    });
+  });
+
   it('round-trips visionDelegation, imageGeneration, videoGeneration, and speech', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
     const config = createDefaultPiwinConfig();
@@ -593,4 +614,18 @@ describe('config-store', () => {
     // Profile references the model; it does not define a new provider.
     expect(parsed.subagents.profiles).toHaveLength(1);
   });
+
+  it('replaces an existing config file atomically', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-atomic-'));
+    const first = createDefaultPiwinConfig();
+    first.hostMode = 'sdk';
+    await savePiwinConfig(first, rootDir);
+    const second = createDefaultPiwinConfig();
+    second.hostMode = 'rpc';
+    const savedPath = await savePiwinConfig(second, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.hostMode).toBe('rpc');
+    expect(await readFile(savedPath, 'utf8')).toContain('"hostMode": "rpc"');
+  });
+
 });

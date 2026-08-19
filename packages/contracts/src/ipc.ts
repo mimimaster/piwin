@@ -773,6 +773,59 @@ export type HostCommand =
       /** Absolute path; when omitted host writes under session exports dir. */
       outputPath?: string;
     }
+  /** Cold Storage R1: non-destructive one-session pack backup. */
+  | {
+      id?: string;
+      type: 'session/pack-create';
+      sessionId: string;
+      /**
+       * Host-absolute publish directory for the pack + sidecar.
+       * Must not live under the piwin root.
+       */
+      outputDir: string;
+      /** Optional Host-safe pack id; Host generates one when omitted. */
+      packId?: string;
+    }
+  | {
+      id?: string;
+      type: 'session/pack-verify';
+      /** Host-absolute path to a `.piwin-pack` archive. */
+      packPath: string;
+    }
+  | {
+      id?: string;
+      type: 'session/pack-list';
+      /** Host-absolute directory that may contain `.piwin-pack` files. */
+      directory: string;
+    }
+  /** Cold Storage R1: manual plan / execute / restore / reconcile. */
+  | { id?: string; type: 'session/cold-storage-status' }
+  | {
+      id?: string;
+      type: 'session/cold-storage-plan';
+      /** When set, plan only these sessions (still must be eligible). */
+      sessionIds?: string[];
+    }
+  | {
+      id?: string;
+      type: 'session/cold-storage-execute';
+      planId: string;
+      confirmationDigest: string;
+    }
+  | {
+      id?: string;
+      type: 'session/cold-storage-restore';
+      sessionId: string;
+      /** Host-absolute pack path. Defaults to the stub's last known packPath. */
+      packPath?: string;
+    }
+  | {
+      id?: string;
+      type: 'session/cold-storage-import';
+      /** Host-absolute pack path. Recreates a missing index stub from the manifest. */
+      packPath: string;
+    }
+  | { id?: string; type: 'session/cold-storage-reconcile' }
   /**
    * Bounded on-demand read of a persisted tool output snapshot (Doc Preview
    * recovery for historical reads). Host re-checks redaction and byte caps.
@@ -1215,6 +1268,24 @@ export type SessionListData = {
 
 /** Alias for CE-SHARE-01 export response payload. */
 export type SessionExportResultData = SessionExportData;
+
+/** Cold Storage R1 pack command result aliases. */
+export type {
+  SessionPackCreateResultData,
+  SessionPackVerifyResultData,
+  SessionPackListData,
+  SessionPackListItem,
+  SessionPackManifestV1,
+} from './session-pack.js';
+
+/** Cold Storage R1 plan / execute / restore / reconcile result aliases. */
+export type {
+  SessionColdStorageExecuteResult,
+  SessionColdStoragePlan,
+  SessionColdStorageReconcileResult,
+  SessionColdStorageRestoreResult,
+  SessionColdStorageStatus,
+} from './session-cold-storage.js';
 
 /** Result payload for the compact-summary Markdown export command. */
 export type SessionCompactExportResultData = SessionCompactExportData;

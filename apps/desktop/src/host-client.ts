@@ -89,6 +89,9 @@ function getHostRequestTimeoutMs(command: HostCommand | LocalMobileAccessCommand
     case 'plugins/install':
     case 'plugins/uninstall':
     case 'plugins/registry/list':
+    case 'session/cold-storage-execute':
+    case 'session/cold-storage-restore':
+    case 'session/cold-storage-import':
     case 'theme/install-local':
     case 'pet/scan-local':
     case 'pet/install-local':

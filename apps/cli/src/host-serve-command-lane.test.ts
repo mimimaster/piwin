@@ -37,6 +37,17 @@ describe('classifyHostServeCommand', () => {
     expect(classifyHostServeCommand(command)).toBe('concurrent');
   });
 
+  it('classifies cold-storage mutations as serialized', () => {
+    expect(
+      classifyHostServeCommand({
+        type: 'session/cold-storage-execute',
+        planId: 'cold-1',
+        confirmationDigest: 'abc',
+      }),
+    ).toBe('serialized');
+    expect(classifyHostServeCommand({ type: 'session/cold-storage-status' })).toBe('concurrent');
+  });
+
   it('classifies session/list as concurrent', () => {
     const command: HostCommand = {
       type: 'session/list',

@@ -96,6 +96,7 @@ import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-co
 import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
+import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinProjectsPath,
@@ -142,6 +143,21 @@ export async function handleSessionPromptCommand(
 ): Promise<HostResponse | null> {
   switch (command.type) {
     case 'session/prompt': {
+      const promptRecord = await getSessionRecord(
+        getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+        command.sessionId,
+      );
+      if (promptRecord) {
+        const rejectedPrompt = rejectUnavailableSessionBody(
+          requestId,
+          'session/prompt',
+          promptRecord,
+          'prompt',
+        );
+        if (rejectedPrompt) {
+          return rejectedPrompt;
+        }
+      }
       // CHT-301: durable, Host-owned conversation classification. The client
       // cannot opt a pure-chat Conversation into agent semantics by sending
       // stale agent-only fields — they are ignored, not honored.

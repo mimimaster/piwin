@@ -91,6 +91,9 @@ export type DesktopCopy = {
     pinSession: string;
     unpinSession: string;
     restoreSession: string;
+    restoreFromPack: string;
+    offloaded: string;
+    missingPack: string;
     deleteSessionPermanently: string;
     sessionActions: string;
     projects: string;
@@ -342,6 +345,7 @@ export type DesktopTranslator = {
       artifact: string;
       artifactPlayground: string;
       sessions: string;
+      coldStorage: string;
       runtime: string;
       archive: string;
       rules: string;
@@ -612,6 +616,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pinSession: '置顶会话',
       unpinSession: '取消置顶',
       restoreSession: '恢复会话',
+      restoreFromPack: '从包恢复…',
+      offloaded: '已卸载',
+      missingPack: '包缺失',
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
       projects: '项目',
@@ -898,6 +905,9 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       pinSession: 'Pin session',
       unpinSession: 'Unpin session',
       restoreSession: 'Restore session',
+      restoreFromPack: 'Restore from pack…',
+      offloaded: 'Offloaded',
+      missingPack: 'Pack missing',
       deleteSessionPermanently: 'Delete session permanently',
       sessionActions: 'Session actions',
       projects: 'Projects',
@@ -1171,6 +1181,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         artifact: isChinese ? 'Artifact' : 'Artifact',
         artifactPlayground: isChinese ? 'Artifact 实验场' : 'Artifact Playground',
         sessions: 'Walkthrough',
+        coldStorage: isChinese ? '冷存储' : 'Cold storage',
         runtime: isChinese ? '会话运行时' : 'Session Runtime',
         archive: isChinese ? '归档管理' : 'Archive Management',
         rules: isChinese ? '规则' : 'Rules',

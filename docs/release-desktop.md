@@ -68,6 +68,21 @@ Exact paths depend on `tauri.conf.json` product name.
 Not required for private v1. When certs exist, document platform-specific env
 vars in a follow-up and promote **D-ENG-03** from residual to active.
 
+## Session cold storage gate (R1)
+
+Before treating a Desktop build as complete for session backup / offload /
+restore, run the focused fault suite and the repo check:
+
+```bash
+pnpm test:cold-storage
+pnpm check
+```
+
+`pnpm check` is `typecheck` + `test` + `test:architecture`. The focused suite
+covers pack hashing, body guards, journal crash recovery, Host/CLI commands,
+and Desktop restore-first settings. Operator recovery lives in
+[`guides/session-cold-storage.md`](./guides/session-cold-storage.md) (ADR 0044).
+
 ## CI note
 
 Default CI runs `pnpm typecheck` + `pnpm test` + host smoke only. Full desktop
