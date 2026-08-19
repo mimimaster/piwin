@@ -32,11 +32,14 @@ describe('pi-model-runtime', () => {
       maxTokensField: 'max_tokens',
       requiresReasoningContentOnAssistantMessages: true,
       thinkingFormat: 'deepseek',
+      supportsFinishReason: false,
     });
     expect(openAiRegistration.models[1]?.compat).toEqual(
       openAiRegistration.models[0]?.compat,
     );
-    expect(openAiRegistration.models[2]).not.toHaveProperty('compat');
+    expect(openAiRegistration.models[2]?.compat).toEqual({
+      supportsFinishReason: false,
+    });
 
     const anthropicRegistration = buildPiProviderRegistration({
       ...openAiProvider,
@@ -85,6 +88,7 @@ describe('pi-model-runtime', () => {
         maxTokens: 8_192,
       }),
     ]);
+    expect(registration.models[0]?.compat).toEqual({ supportsFinishReason: false });
     expect(registration.models[0]).not.toHaveProperty('thinkingLevels');
     expect(registration.models[0]?.thinkingLevelMap).toEqual({
       off: null,

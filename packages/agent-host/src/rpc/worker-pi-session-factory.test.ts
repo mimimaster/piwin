@@ -245,6 +245,7 @@ describe('buildWorkerProviderRegistration', () => {
       maxTokensField: 'max_tokens',
       requiresReasoningContentOnAssistantMessages: true,
       thinkingFormat: 'deepseek',
+      supportsFinishReason: false,
     });
   });
 
@@ -279,6 +280,7 @@ describe('buildWorkerProviderRegistration', () => {
       api: 'openai-completions',
       input: ['text', 'image'],
       reasoning: true,
+      compat: { supportsFinishReason: false },
       thinkingLevelMap: {
         off: null,
         minimal: null,
