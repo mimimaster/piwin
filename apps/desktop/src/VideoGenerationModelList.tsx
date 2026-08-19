@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { ModelRouteConfig, ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
-import type { DesktopLocale, DesktopTranslator } from './desktop-locale';
+import type { DesktopLocale, DesktopTranslator } from './desktop-locale.js';
 import { buildVideoGenerationRoute } from './generation-route-defaults.js';
 import { createModelConfigurationDraft, type ModelConfigurationDraft } from './model-configuration.js';
 import { ModelGenerationRouteFields } from './model-generation-route-fields.js';
-import { ProviderIcon } from './provider-icons';
-import { PageTitle } from './settings/page-title';
+import { ProviderIcon } from './provider-icons.js';
+import { PageTitle } from './settings/page-title.js';
 import {
   defaultVideoGenerationApiStyle,
   isVideoApiStyle,
   type VideoModelRow,
   videoApiStyleLabel,
-} from './video-generation-model-config';
+} from './video-generation-model-config.js';
 
 type VideoGenerationCopy = DesktopTranslator['settings']['videoGeneration'];
 
@@ -79,79 +79,90 @@ export function VideoGenerationModelList(props: VideoGenerationModelListProps) {
             return (
               <li
                 key={key}
-                className="image-gen-model-item"
+                className={`image-gen-model-item ${isEditing ? 'is-editing' : ''}`}
                 data-testid="video-model-row"
               >
-                <ProviderIcon id={provider.id} name={provider.name} size={28} />
-                <div className="image-gen-model-item-body">
-                  <div className="image-gen-model-item-title">
-                    <span className="image-gen-model-item-id">{model.id}</span>
-                    {model.label ? (
-                      <span className="muted" style={{ fontSize: 12 }}>
-                        {model.label}
-                      </span>
-                    ) : null}
-                    {isDefault ? (
-                      <span className="image-gen-default-badge">
-                        {isChinese ? '默认' : 'Default'}
-                      </span>
-                    ) : null}
+                <div className="image-gen-model-item-header">
+                  <ProviderIcon id={provider.id} name={provider.name} size={30} />
+                  <div className="image-gen-model-item-identity">
+                    <div className="image-gen-model-item-title">
+                      <span className="image-gen-model-item-id">{model.id}</span>
+                      {model.label ? (
+                        <span className="image-gen-model-item-label">{model.label}</span>
+                      ) : null}
+                      {isDefault ? (
+                        <span className="image-gen-default-badge">
+                          {isChinese ? '默认' : 'Default'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="image-gen-model-item-meta">
+                      <strong className="image-gen-provider-name">{provider.name}</strong>
+                      {!isEditing ? (
+                        <>
+                          <span className="image-gen-meta-sep">·</span>
+                          <span className="image-gen-meta-pill">
+                            {videoApiStyleLabel(apiStyle, locale)}
+                          </span>
+                          <span className="image-gen-meta-sep">·</span>
+                          <span className="image-gen-meta-path">{route?.path ?? '—'}</span>
+                          {route?.pollIntervalMs !== undefined ? (
+                            <>
+                              <span className="image-gen-meta-sep">·</span>
+                              <span>{route.pollIntervalMs / 1000}{copy.pollIntervalUnitSeconds}</span>
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="image-gen-model-item-meta">
-                    <strong style={{ color: 'var(--text)' }}>{provider.name}</strong>
-                    {' · '}
-                    {videoApiStyleLabel(apiStyle, locale)}
-                    {' · '}
-                    {route?.path ?? '—'}
-                    {route?.pollIntervalMs !== undefined
-                      ? ` · ${route.pollIntervalMs / 1000}${copy.pollIntervalUnitSeconds}`
-                      : ''}
-                  </div>
-                  {isEditing && draft ? (
-                    <div className="image-gen-route-editor" style={{ marginTop: 10 }}>
-                      <ModelGenerationRouteFields
-                        draft={draft}
-                        isChinese={isChinese}
-                        onChange={(update) => setDraft((current) => (current ? update(current) : current))}
-                      />
-                      <div className="image-gen-model-item-actions" style={{ marginTop: 8 }}>
+
+                  {!isEditing ? (
+                    <div className="image-gen-model-item-actions">
+                      <Button
+                        size="compact"
+                        variant="ghost"
+                        data-testid="video-model-edit-route"
+                        onClick={() => startEdit(provider, model)}
+                      >
+                        {copy.editRoute}
+                      </Button>
+                      {!isDefault ? (
                         <Button
                           size="compact"
-                          variant="primary"
-                          data-testid="video-model-save-route"
-                          onClick={() => saveEdit(provider, model.id)}
+                          variant="ghost"
+                          data-testid="video-model-set-default"
+                          onClick={() => onSetDefault(provider, model.id)}
                         >
-                          {copy.saveRoute}
+                          {copy.setDefault}
                         </Button>
-                        <Button size="compact" variant="ghost" onClick={cancelEdit}>
-                          {isChinese ? '取消' : 'Cancel'}
-                        </Button>
-                      </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
-                <div className="image-gen-model-item-actions">
-                  {!isEditing ? (
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      data-testid="video-model-edit-route"
-                      onClick={() => startEdit(provider, model)}
-                    >
-                      {copy.editRoute}
-                    </Button>
-                  ) : null}
-                  {!isDefault ? (
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      data-testid="video-model-set-default"
-                      onClick={() => onSetDefault(provider, model.id)}
-                    >
-                      {copy.setDefault}
-                    </Button>
-                  ) : null}
-                </div>
+
+                {isEditing && draft ? (
+                  <div className="image-gen-route-editor">
+                    <ModelGenerationRouteFields
+                      draft={draft}
+                      isChinese={isChinese}
+                      onChange={(update) => setDraft((current) => (current ? update(current) : current))}
+                    />
+                    <div className="image-gen-editor-footer">
+                      <Button size="compact" variant="ghost" onClick={cancelEdit}>
+                        {isChinese ? '取消' : 'Cancel'}
+                      </Button>
+                      <Button
+                        size="compact"
+                        variant="primary"
+                        data-testid="video-model-save-route"
+                        onClick={() => saveEdit(provider, model.id)}
+                      >
+                        {copy.saveRoute}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </li>
             );
           })}

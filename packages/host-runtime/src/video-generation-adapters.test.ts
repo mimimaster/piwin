@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ModelProviderConfig, VideoGenerationApiStyle } from '@piwin/contracts';
-import { callVideoEndpoint } from './video-generation-adapters.js';
+import { callVideoEndpoint, resolveVideoApiStyle } from './video-generation-adapters.js';
 import type { VideoGenerationAdapterOptions } from './video-generation-types.js';
 
 function responseJson(value: unknown): Response {
@@ -187,5 +187,14 @@ describe('callVideoEndpoint', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
       'https://example.test/xgrok-videos/videos/xgrok-task/content',
     );
+  });
+
+  it('infers xGrok video protocol from the model id when the route is unset', () => {
+    const configured = provider('openai-videos', '/videos');
+    const model = {
+      id: 'grok-imagine-video-1.5-preview',
+      capabilities: ['video-generation' as const],
+    };
+    expect(resolveVideoApiStyle(configured, model)).toBe('xgrok-videos');
   });
 });

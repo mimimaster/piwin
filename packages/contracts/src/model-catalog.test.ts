@@ -3,6 +3,7 @@ import {
   filterSuggestions,
   isLikelyImageGenerationModel,
   isLikelyVideoGenerationModel,
+  lookupImageGenerationRegistry,
   lookupVideoGenerationRegistry,
   matchImageCatalog,
   splitModelName,
@@ -205,6 +206,42 @@ describe('video generation discovery helpers', () => {
     });
   });
 
+  it('keeps Sora on the OpenAI Videos adapter even when the channel is Anthropic', () => {
+    expect(lookupVideoGenerationRegistry('sora-2', 'anthropic-compatible')).toMatchObject({
+      entry: { apiStyle: 'openai-videos', path: '/videos' },
+    });
+  });
+
+  it('matches grok-imagine-video version suffixes', () => {
+    expect(lookupVideoGenerationRegistry('grok-imagine-video-1.5-preview')).toMatchObject({
+      entry: { apiStyle: 'xgrok-videos', path: '/videos/generations' },
+    });
+  });
+});
+
+describe('image generation registry', () => {
+  it('uses OpenAI images for Grok Imagine image ids', () => {
+    expect(lookupImageGenerationRegistry('grok-imagine-image-quality-lite')).toMatchObject({
+      entry: { apiStyle: 'openai', path: '/images/generations' },
+    });
+  });
+
+  it('uses Gemini native for Gemini image ids on an OpenAI-compatible channel', () => {
+    expect(
+      lookupImageGenerationRegistry('gemini-3.1-flash-image', 'openai-compatible'),
+    ).toMatchObject({
+      entry: { apiStyle: 'gemini' },
+    });
+  });
+
+  it('uses Imagen for Imagen ids', () => {
+    expect(lookupImageGenerationRegistry('imagen-4.0-generate-001', 'google-gemini')).toMatchObject({
+      entry: { apiStyle: 'imagen' },
+    });
+  });
+});
+
+describe('video generation name heuristics', () => {
   it('recognizes generation-oriented heuristic names', () => {
     expect(isLikelyVideoGenerationModel('kling-v1')).toBe(true);
     expect(isLikelyVideoGenerationModel('pika-1.0')).toBe(true);

@@ -1,4 +1,5 @@
 import {
+  lookupImageGenerationRegistry,
   lookupVideoGenerationRegistry,
   type ImageGenerationApiStyle,
   type ModelCapability,
@@ -91,10 +92,14 @@ export function suggestImageGenerationRoute(
   protocol?: ModelProviderConfig['protocol'],
   existing?: ModelRouteConfig,
 ): { apiStyle: ImageGenerationApiStyle; path: string } {
+  const registry = lookupImageGenerationRegistry(modelId, protocol);
   const apiStyle = isImageApiStyle(existing?.apiStyle)
     ? existing.apiStyle
-    : defaultImageApiStyle(protocol);
-  const path = existing?.path?.trim() || defaultImagePathForStyle(apiStyle, modelId);
+    : (registry?.entry.apiStyle ?? defaultImageApiStyle(protocol));
+  const path =
+    existing?.path?.trim() ||
+    registry?.entry.path ||
+    defaultImagePathForStyle(apiStyle, modelId);
   return { apiStyle, path };
 }
 

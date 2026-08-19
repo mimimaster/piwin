@@ -1,4 +1,8 @@
-import { toMediaAttachmentRef, isModelEnabled } from '@piwin/contracts';
+import {
+  isModelEnabled,
+  lookupImageGenerationRegistry,
+  toMediaAttachmentRef,
+} from '@piwin/contracts';
 import type {
   HostToolRegistration,
   ImageGenerationApiStyle,
@@ -172,6 +176,8 @@ function resolveImageApiStyle(
       `image_gen: apiStyle "${configured}" is not valid for image generation (supported: ${IMAGE_API_STYLES.join(', ')}).`,
     );
   }
+  const registry = lookupImageGenerationRegistry(model.id, provider.protocol);
+  if (registry) return registry.entry.apiStyle;
   if (provider.protocol === 'openai-compatible') return 'openai';
   if (provider.protocol === 'google-gemini') return 'imagen';
   throw new ImageGenConfigError(

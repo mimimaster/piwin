@@ -1,13 +1,17 @@
 import type { ChangeEvent, ReactElement } from 'react';
-import type { ImageGenerationApiStyle, VideoGenerationApiStyle } from '@piwin/contracts';
 import {
+  isImageApiStyle,
   IMAGE_API_STYLE_OPTIONS,
   imageApiStyleLabel,
   withImageApiStyle,
   withVideoApiStyle,
   type GenerationRouteDraftFields,
 } from './generation-route-defaults.js';
-import { VIDEO_API_STYLE_OPTIONS, videoApiStyleLabel } from './video-generation-model-config.js';
+import {
+  isVideoApiStyle,
+  VIDEO_API_STYLE_OPTIONS,
+  videoApiStyleLabel,
+} from './video-generation-model-config.js';
 
 export type ModelGenerationRouteFieldsProps<T extends GenerationRouteDraftFields> = {
   draft: T;
@@ -24,29 +28,40 @@ export function ModelGenerationRouteFields<T extends GenerationRouteDraftFields>
     return null;
   }
   const locale = isChinese ? 'zh-CN' : 'en';
+
   return (
     <div className="model-edit-route-stack">
       {draft.supportsImageGeneration ? (
         <div className="model-edit-route-fields" data-testid="model-edit-image-route">
-          <div className="model-edit-route-fields-title">
-            {isChinese ? '生图请求' : 'Image request'}
+          <div className="model-edit-route-fields-header">
+            <div className="model-edit-route-fields-title">
+              {isChinese ? '生图协议与端点配置' : 'Image Generation Protocol & Endpoint'}
+            </div>
+            {isImageApiStyle(draft.imageApiStyle) ? (
+              <span className="model-edit-route-fields-pill">
+                {imageApiStyleLabel(draft.imageApiStyle, locale)}
+              </span>
+            ) : null}
           </div>
           <p className="model-edit-route-fields-hint">
             {isChinese
-              ? '通道协议不等于生图协议。同一 CPA 可以同时托管 OpenAI 图、Imagen 或 Gemini 原生图。'
-              : 'Channel protocol is not the image wire format. One gateway can host OpenAI, Imagen, or Gemini-native image models.'}
+              ? '独立配置该模型的图片生成协议与请求端点（支持 OpenAI DALL-E、Gemini Imagen 等标准），可与通道主协议独立。'
+              : 'Configure the image generation API wire protocol and endpoint path for this model.'}
           </p>
-          <div className="model-edit-inline-row">
-            <label className="model-edit-inline-field">
-              <span className="model-edit-inline-label">
-                {isChinese ? '接口协议' : 'API style'}
+          <div className="model-edit-route-grid">
+            <label className="model-edit-field-group">
+              <span className="model-edit-field-label">
+                {isChinese ? '接口协议' : 'API Style'}
               </span>
               <select
                 value={draft.imageApiStyle}
                 disabled={disabled}
                 onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                   onChange((current) =>
-                    withImageApiStyle(current, event.target.value as ImageGenerationApiStyle),
+                    withImageApiStyle(
+                      current,
+                      isImageApiStyle(event.target.value) ? event.target.value : 'openai',
+                    ),
                   )
                 }
                 data-testid="model-edit-image-api-style"
@@ -58,9 +73,10 @@ export function ModelGenerationRouteFields<T extends GenerationRouteDraftFields>
                 ))}
               </select>
             </label>
-            <label className="model-edit-inline-field">
-              <span className="model-edit-inline-label">
-                {isChinese ? '超时（秒）' : 'Timeout (s)'}
+
+            <label className="model-edit-field-group">
+              <span className="model-edit-field-label">
+                {isChinese ? '超时时间（秒）' : 'Timeout (seconds)'}
               </span>
               <input
                 value={draft.imageTimeoutSeconds}
@@ -77,45 +93,57 @@ export function ModelGenerationRouteFields<T extends GenerationRouteDraftFields>
                 data-testid="model-edit-image-timeout"
               />
             </label>
+
+            <label className="model-edit-field-group model-edit-field-group--full">
+              <span className="model-edit-field-label">
+                {isChinese ? '请求路径' : 'Request Path'}
+              </span>
+              <input
+                value={draft.imagePath}
+                disabled={disabled}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  onChange((current) => ({ ...current, imagePath: event.target.value }))
+                }
+                placeholder="/images/generations"
+                spellCheck={false}
+                data-testid="model-edit-image-path"
+              />
+            </label>
           </div>
-          <label className="model-edit-inline-field">
-            <span className="model-edit-inline-label">
-              {isChinese ? '请求路径' : 'Request path'}
-            </span>
-            <input
-              value={draft.imagePath}
-              disabled={disabled}
-              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                onChange((current) => ({ ...current, imagePath: event.target.value }))
-              }
-              placeholder="/images/generations"
-              spellCheck={false}
-              data-testid="model-edit-image-path"
-            />
-          </label>
         </div>
       ) : null}
+
       {draft.supportsVideoGeneration ? (
         <div className="model-edit-route-fields" data-testid="model-edit-video-route">
-          <div className="model-edit-route-fields-title">
-            {isChinese ? '视频请求' : 'Video request'}
+          <div className="model-edit-route-fields-header">
+            <div className="model-edit-route-fields-title">
+              {isChinese ? '视频生成协议与端点配置' : 'Video Generation Protocol & Endpoint'}
+            </div>
+            {isVideoApiStyle(draft.videoApiStyle) ? (
+              <span className="model-edit-route-fields-pill">
+                {videoApiStyleLabel(draft.videoApiStyle, locale)}
+              </span>
+            ) : null}
           </div>
           <p className="model-edit-route-fields-hint">
             {isChinese
-              ? '视频协议写在这个模型上，不跟通道走。xGrok、Sora、Veo 可以挂在同一个 OpenAI/Anthropic CPA 下。'
-              : 'Video protocol lives on this model, not the channel. xGrok, Sora, and Veo can share one OpenAI/Anthropic gateway.'}
+              ? '独立配置该模型的视频生成协议、端点路径与轮询间隔（支持 Grok Videos、Sora、Veo 等异步协议）。'
+              : 'Configure the video generation wire protocol, request path, and polling interval for this model.'}
           </p>
-          <div className="model-edit-inline-row">
-            <label className="model-edit-inline-field">
-              <span className="model-edit-inline-label">
-                {isChinese ? '接口协议' : 'API style'}
+          <div className="model-edit-route-grid">
+            <label className="model-edit-field-group">
+              <span className="model-edit-field-label">
+                {isChinese ? '接口协议' : 'API Style'}
               </span>
               <select
                 value={draft.videoApiStyle}
                 disabled={disabled}
                 onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                   onChange((current) =>
-                    withVideoApiStyle(current, event.target.value as VideoGenerationApiStyle),
+                    withVideoApiStyle(
+                      current,
+                      isVideoApiStyle(event.target.value) ? event.target.value : 'custom',
+                    ),
                   )
                 }
                 data-testid="model-edit-video-api-style"
@@ -127,9 +155,10 @@ export function ModelGenerationRouteFields<T extends GenerationRouteDraftFields>
                 ))}
               </select>
             </label>
-            <label className="model-edit-inline-field">
-              <span className="model-edit-inline-label">
-                {isChinese ? '超时（秒）' : 'Timeout (s)'}
+
+            <label className="model-edit-field-group">
+              <span className="model-edit-field-label">
+                {isChinese ? '超时时间（秒）' : 'Timeout (seconds)'}
               </span>
               <input
                 value={draft.videoTimeoutSeconds}
@@ -146,11 +175,10 @@ export function ModelGenerationRouteFields<T extends GenerationRouteDraftFields>
                 data-testid="model-edit-video-timeout"
               />
             </label>
-          </div>
-          <div className="model-edit-inline-row">
-            <label className="model-edit-inline-field">
-              <span className="model-edit-inline-label">
-                {isChinese ? '请求路径' : 'Request path'}
+
+            <label className="model-edit-field-group">
+              <span className="model-edit-field-label">
+                {isChinese ? '请求路径' : 'Request Path'}
               </span>
               <input
                 value={draft.videoPath}
@@ -163,9 +191,10 @@ export function ModelGenerationRouteFields<T extends GenerationRouteDraftFields>
                 data-testid="model-edit-video-path"
               />
             </label>
-            <label className="model-edit-inline-field">
-              <span className="model-edit-inline-label">
-                {isChinese ? '轮询间隔（秒）' : 'Poll interval (s)'}
+
+            <label className="model-edit-field-group">
+              <span className="model-edit-field-label">
+                {isChinese ? '轮询间隔（秒）' : 'Poll Interval (seconds)'}
               </span>
               <input
                 value={draft.videoPollIntervalSeconds}
