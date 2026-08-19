@@ -140,18 +140,19 @@ export function useTranscriptScroll(options: {
     setFollowTailState(nextFollowTail);
   }, []);
 
-  const detachFromTail = useCallback(() => {
-    userDetachedRef.current = true;
-    followTailRef.current = false;
-    setFollowTailState(false);
-  }, []);
-
   const cancelScheduledSticks = useCallback(() => {
     for (const frameId of stickFramesRef.current) {
       window.cancelAnimationFrame(frameId);
     }
     stickFramesRef.current = [];
   }, []);
+
+  const detachFromTail = useCallback(() => {
+    cancelScheduledSticks();
+    userDetachedRef.current = true;
+    followTailRef.current = false;
+    setFollowTailState(false);
+  }, [cancelScheduledSticks]);
 
   /**
    * Ignore only the synchronous scroll event from our own scrollTop write.
@@ -255,7 +256,6 @@ export function useTranscriptScroll(options: {
         nearBottom: metrics.nearBottom,
       })
     ) {
-      cancelScheduledSticks();
       detachFromTail();
       return;
     }
@@ -290,7 +290,7 @@ export function useTranscriptScroll(options: {
     }
     // Non-near-bottom without a clear upward delta (layout thrash) — leave
     // follow-tail alone only when still following; detach only on real away.
-  }, [cancelScheduledSticks, detachFromTail, setFollowTail, stickToBottomAcrossFrames]);
+  }, [detachFromTail, setFollowTail, stickToBottomAcrossFrames]);
 
   const restorePosition = useCallback(
     (position: TranscriptScrollPosition): void => {
@@ -325,7 +325,6 @@ export function useTranscriptScroll(options: {
       if (!shouldDetachFollowTailFromWheelDelta(event.deltaY)) {
         return;
       }
-      cancelScheduledSticks();
       detachFromTail();
     };
 
@@ -334,7 +333,7 @@ export function useTranscriptScroll(options: {
     return () => {
       element.removeEventListener('wheel', onWheel);
     };
-  }, [cancelScheduledSticks, detachFromTail, options.messageCount]);
+  }, [detachFromTail, options.messageCount]);
 
   useLayoutEffect(() => {
     const nextLiveTurnId = options.liveTurnId?.trim() || null;
@@ -430,6 +429,7 @@ export function useTranscriptScroll(options: {
     jumpToLatest,
     handleScroll,
     setFollowTail,
+    detachFromTail,
     restorePosition,
     /** Immediate follow-tail stick for nested growers (Artifact iframe height). */
     notifyContentGrew: stickToBottomAcrossFrames,

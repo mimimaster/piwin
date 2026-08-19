@@ -348,6 +348,13 @@ export const IconTerminal = createIcon(
   </>,
 );
 
+export const IconCode = createIcon(
+  <>
+    <path d="M15.75 7.5 20.25 12l-4.5 4.5" />
+    <path d="M8.25 7.5 3.75 12l4.5 4.5" />
+  </>,
+);
+
 export const IconGit = createIcon(
   <>
     <circle cx="6.25" cy="6" r="2.1" />

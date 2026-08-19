@@ -1944,7 +1944,13 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
             : removeSessionIdMarker(state.completedAttentionSessionIds, action.run.sessionId),
         };
       }
-      return enforceBoundedTranscriptWindow(applyRunRecord(state, action.run, true));
+      {
+        const terminalState = applyRunRecord(state, action.run, true);
+        return enforceBoundedTranscriptWindow({
+          ...terminalState,
+          messages: withoutEmptyAssistantPlaceholders(terminalState.messages),
+        });
+      }
     case 'run/stale-clear': {
       // Reconciliation only ever clears stale liveness; it never invents a
       // terminal outcome. Without an authoritative record the thread returns
@@ -2849,6 +2855,25 @@ function removeWorkingSessionId(
   return removeSessionIdMarker(working, sessionId);
 }
 
+/** Pi ends the tool-call assistant row before tool/start. Keep it until the next answer. */
+function isEmptyAssistantPlaceholder(message: ChatMessageUi): boolean {
+  return (
+    message.role === 'assistant' &&
+    message.status !== 'streaming' &&
+    message.text.trim().length === 0 &&
+    message.thinking.trim().length === 0 &&
+    message.tools.length === 0 &&
+    message.attachments.length === 0 &&
+    (message.searchEvidence?.citations.length ?? 0) === 0
+  );
+}
+
+function withoutEmptyAssistantPlaceholders(
+  messages: readonly ChatMessageUi[],
+): ChatMessageUi[] {
+  return messages.filter((message) => !isEmptyAssistantPlaceholder(message));
+}
+
 function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
   switch (event.type) {
     case 'message/start': {
@@ -2876,7 +2901,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       };
       return enforceBoundedTranscriptWindow({
         ...state,
-        messages: [...state.messages, message],
+        messages: [...withoutEmptyAssistantPlaceholders(state.messages), message],
         runPhase: 'streaming',
         ...(event.runId ? { activeRunId: event.runId, activeRunPhase: 'streaming' as const } : {}),
         streaming: true,
@@ -2984,19 +3009,10 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         ...finishMessageThinking(message, Date.now()),
         status: 'done',
       }));
-      // Pi can emit assistant lifecycle entries that contain no reasoning,
-      // tool activity, or text. They are transport bookkeeping, not a user
-      // visible answer; retaining them creates the repeated empty `piwin` rows.
-      const completedMessage = next.messages.find((message) => message.id === event.messageId);
-      if (
-        completedMessage?.role === 'assistant' &&
-        completedMessage.text.trim().length === 0 &&
-        completedMessage.thinking.trim().length === 0 &&
-        completedMessage.tools.length === 0 &&
-        (completedMessage.searchEvidence?.citations.length ?? 0) === 0
-      ) {
-        next.messages = next.messages.filter((message) => message.id !== event.messageId);
-      }
+      // Pi ends the Assistant row that carries a tool call before
+      // tool_execution_start. Keep that empty row so tool/start can attach;
+      // ChatMessageRow hides it, and the next assistant message/start prunes
+      // leftovers that never received tools (see store-transcript-recorder).
       const hasRunningTool = next.messages.some((message) =>
         message.tools.some((tool) => tool.status === 'running'),
       );

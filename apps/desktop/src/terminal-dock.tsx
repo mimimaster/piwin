@@ -12,7 +12,14 @@ import type { HostResponse } from '@piwin/contracts';
 import { Button, Notice } from '@piwin/ui-kit';
 import { isTauriPtyAvailable } from './tauri-pty';
 import { XtermSurface } from './xterm-surface';
-import { IconClose, IconPlus, IconRefresh, IconFolder } from './shell-icons';
+import {
+  IconClose,
+  IconPlus,
+  IconRefresh,
+  IconFolder,
+  IconPanelRight,
+  IconTerminal,
+} from './shell-icons';
 import {
   MAX_TERMINAL_SESSIONS,
   useTerminalSessions,
@@ -71,6 +78,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   // Directory switcher state.
   const [dirDropdownOpen, setDirDropdownOpen] = useState(false);
   const [dirInput, setDirInput] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sessionCapNotice, setSessionCapNotice] = useState<string | null>(null);
   const dirDropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -135,19 +143,6 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     return data.ptyId;
   }
 
-  async function closeHostPty(): Promise<void> {
-    if (!ptyId) return;
-    await props.request({ type: 'pty/close', ptyId });
-    setPtyId(null);
-    setPtyStatus('idle');
-  }
-
-  async function handleRestartHostPty(): Promise<void> {
-    await closeHostPty();
-    props.onClearPtyOutput();
-    await ensureHostPtyOpen();
-  }
-
   async function handleSubmitLine(): Promise<void> {
     const text = inputLine;
     if (!text) return;
@@ -186,15 +181,6 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     }
   }
 
-  const liveBadge =
-    useInteractivePty && activeSession?.status === 'open'
-      ? 'live'
-      : !useInteractivePty && ptyStatus === 'open'
-        ? 'preview'
-        : null;
-
-  const sessionCount = sessions.length;
-
   return (
     <section
       className="terminal-dock terminal-dock-panel open"
@@ -203,67 +189,61 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
       data-pty-mode={useInteractivePty ? 'tauri' : 'shell-preview'}
       aria-label="Terminal"
     >
-      <header className="terminal-dock-header terminal-dock-header--minimal">
+      <header className="terminal-dock-toolbar" data-testid="terminal-dock-toolbar">
         <div className="terminal-dock-title muted">
-          {useInteractivePty ? 'Terminal' : 'Shell'}
-          {liveBadge ? <span className="terminal-tab-count">{liveBadge}</span> : null}
-          {useInteractivePty && sessionCount > 1 ? (
-            <span className="terminal-tab-count" aria-label={`${sessionCount} sessions`}>
-              {sessionCount}
-            </span>
-          ) : null}
+          {activeSession?.name || (useInteractivePty ? 'zsh' : 'Shell')}
         </div>
 
-        {/* Directory switcher */}
-        {useInteractivePty ? (
-          <div className="terminal-dir-switcher" ref={dirDropdownRef}>
-            <button
-              type="button"
-              className="terminal-dir-btn"
-              data-testid="terminal-dir-btn"
-              title={props.currentCwd}
-              aria-label={`Current directory: ${props.currentCwd}`}
-              aria-expanded={dirDropdownOpen}
-              onClick={() => setDirDropdownOpen((prev) => !prev)}
-            >
-              <IconFolder width={12} height={12} />
-              <span className="terminal-dir-path">{truncatePath(props.currentCwd)}</span>
-            </button>
-            {dirDropdownOpen ? (
-              <div className="terminal-dir-dropdown" data-testid="terminal-dir-dropdown">
-                <div className="terminal-dir-dropdown-header">Quick directories</div>
-                {dirOptions.map((option) => (
-                  <button
-                    key={option.path}
-                    type="button"
-                    className="terminal-dir-option"
-                    data-testid={`terminal-dir-option-${option.path || 'home'}`}
-                    onClick={() => handleSelectDir(option.path || '')}
-                  >
-                    <span className="terminal-dir-option-label">{option.label}</span>
-                    <span className="terminal-dir-option-path">{option.path || '~'}</span>
-                  </button>
-                ))}
-                <form className="terminal-dir-input-row" onSubmit={handleDirInputSubmit}>
-                  <input
-                    className="terminal-dir-input"
-                    type="text"
-                    value={dirInput}
-                    onChange={(event) => setDirInput(event.target.value)}
-                    placeholder="Type a path…"
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <Button type="submit" size="compact" disabled={!dirInput.trim()}>
-                    Go
-                  </Button>
-                </form>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="terminal-dock-toolbar-right">
+          {/* Directory switcher */}
+          {useInteractivePty ? (
+            <div className="terminal-dir-switcher" ref={dirDropdownRef}>
+              <button
+                type="button"
+                className="terminal-dir-btn"
+                data-testid="terminal-dir-btn"
+                title={props.currentCwd}
+                aria-label={`Current directory: ${props.currentCwd}`}
+                aria-expanded={dirDropdownOpen}
+                onClick={() => setDirDropdownOpen((prev) => !prev)}
+              >
+                <IconFolder width={11} height={11} />
+                <span className="terminal-dir-path">{truncatePath(props.currentCwd, 24)}</span>
+              </button>
+              {dirDropdownOpen ? (
+                <div className="terminal-dir-dropdown" data-testid="terminal-dir-dropdown">
+                  <div className="terminal-dir-dropdown-header">Quick directories</div>
+                  {dirOptions.map((option) => (
+                    <button
+                      key={option.path}
+                      type="button"
+                      className="terminal-dir-option"
+                      data-testid={`terminal-dir-option-${option.path || 'home'}`}
+                      onClick={() => handleSelectDir(option.path || '')}
+                    >
+                      <span className="terminal-dir-option-label">{option.label}</span>
+                      <span className="terminal-dir-option-path">{option.path || '~'}</span>
+                    </button>
+                  ))}
+                  <form className="terminal-dir-input-row" onSubmit={handleDirInputSubmit}>
+                    <input
+                      className="terminal-dir-input"
+                      type="text"
+                      value={dirInput}
+                      onChange={(event) => setDirInput(event.target.value)}
+                      placeholder="Type a path…"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <Button type="submit" size="compact" disabled={!dirInput.trim()}>
+                      Go
+                    </Button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-        <div className="terminal-dock-actions">
           {useInteractivePty ? (
             <button
               type="button"
@@ -277,179 +257,200 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                 }
               }}
             >
-              <IconRefresh width={14} height={14} />
+              <IconRefresh width={12} height={12} />
             </button>
-          ) : (
+          ) : null}
+
+          {useInteractivePty ? (
             <button
               type="button"
-              className="terminal-icon-button"
-              data-testid="pty-restart-btn"
-              title="Restart shell"
-              aria-label="Restart shell"
-              onClick={() => {
-                void handleRestartHostPty();
-              }}
+              className={`terminal-icon-button${sidebarOpen ? ' active' : ''}`}
+              data-testid="terminal-sidebar-toggle"
+              title={sidebarOpen ? 'Hide terminal sessions' : 'Manage terminal sessions'}
+              aria-label={sidebarOpen ? 'Hide terminal sessions' : 'Manage terminal sessions'}
+              aria-pressed={sidebarOpen}
+              onClick={() => setSidebarOpen((prev) => !prev)}
             >
-              <IconRefresh width={14} height={14} />
+              <IconPanelRight width={12} height={12} />
             </button>
-          )}
+          ) : null}
         </div>
       </header>
 
       <div className="terminal-dock-body">
-        <div className="pty-panel" data-testid="pty-panel">
-          {!props.projectTrusted && props.projectPath ? (
-            <div className="muted terminal-empty" data-testid="pty-untrusted">
-              Trust this project to open a shell (PTY requires trusted cwd).
-            </div>
-          ) : useInteractivePty ? (
-            <div className="pty-xterm-wrap" data-testid="pty-xterm-wrap">
-              {sessions.length > 0 ? (
-                <>
-                  <div
-                    className="terminal-dock-session-strip"
-                    role="tablist"
-                    aria-label="Terminal sessions"
-                  >
-                    {sessions.map((session) => {
-                      const isActive = session.id === activeSessionId;
-                      return (
-                        <div
-                          key={session.id}
-                          className={
-                            isActive ? 'terminal-dock-session active' : 'terminal-dock-session'
-                          }
-                          role="tab"
-                          aria-selected={isActive}
-                          data-testid={`terminal-session-tab-${session.id}`}
-                        >
-                          <button
-                            type="button"
-                            className="terminal-dock-session-main"
-                            onClick={() => setActiveSessionId(session.id)}
-                            title={session.name}
-                          >
-                            <span className="terminal-dock-session-name">{session.name}</span>
-                            {session.status === 'error' ? (
-                              <span className="terminal-dock-session-dot error" aria-hidden />
-                            ) : session.status === 'starting' ? (
-                              <span className="terminal-dock-session-dot" aria-hidden />
-                            ) : null}
-                          </button>
-                          <button
-                            type="button"
-                            className="terminal-dock-session-close"
-                            aria-label={`Close ${session.name}`}
-                            data-testid={`terminal-session-close-${session.id}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              closeSession(session.id);
-                            }}
-                          >
-                            <IconClose width={10} height={10} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      className="terminal-dock-session-add"
-                      data-testid="terminal-session-add"
-                      aria-label="New terminal session"
-                      title="New terminal session"
-                      onClick={() => {
-                        const session = addSession();
-                        if (session) {
-                          setSessionCapNotice(null);
-                          return;
-                        }
-                        setSessionCapNotice(
-                          `At most ${MAX_TERMINAL_SESSIONS} terminal sessions can stay open.`,
-                        );
-                      }}
-                    >
-                      <IconPlus width={12} height={12} />
-                    </button>
-                  </div>
-                  {sessionCapNotice ? (
-                    <Notice tone="warning" testId="terminal-session-cap-notice">
-                      {sessionCapNotice}
-                    </Notice>
-                  ) : null}
+        <div
+          className={`terminal-dock-content${sidebarOpen ? ' has-sidebar' : ''}`}
+          data-testid="terminal-dock-content"
+        >
+          <div className="terminal-surface-main">
+            <div className="pty-panel" data-testid="pty-panel">
+              {!props.projectTrusted && props.projectPath ? (
+                <div className="muted terminal-empty" data-testid="pty-untrusted">
+                  Trust this project to open a shell (PTY requires trusted cwd).
+                </div>
+              ) : useInteractivePty ? (
+                <div className="pty-xterm-wrap" data-testid="pty-xterm-wrap">
+                  {sessions.length > 0 ? (
+                    <>
+                      {sessionCapNotice ? (
+                        <Notice tone="warning" testId="terminal-session-cap-notice">
+                          {sessionCapNotice}
+                        </Notice>
+                      ) : null}
 
-                  <div className="terminal-dock-surfaces" data-testid="terminal-dock-surfaces">
-                    {sessions.map((session) => (
-                      <div
-                        key={session.id}
-                        className="terminal-dock-surface"
-                        role="tabpanel"
-                        hidden={session.id !== activeSessionId}
-                        data-testid={`terminal-session-${session.id}`}
-                      >
-                        {session.status === 'error' && session.error ? (
-                          <Notice tone="error">{session.error}</Notice>
-                        ) : null}
-                        {session.status === 'starting' ? (
-                          <div className="muted terminal-empty">Starting interactive terminal…</div>
-                        ) : null}
-                        <XtermSurface
-                          key={`${session.id}:${session.generation}`}
-                          cwd={session.cwd}
-                          {...(session.projectPath ? { projectPath: session.projectPath } : {})}
-                          onStatus={(status, ptyId, message) => {
-                            onSessionStatus(session.id, status, ptyId, message);
-                          }}
-                        />
+                      <div className="terminal-dock-surfaces" data-testid="terminal-dock-surfaces">
+                        {sessions.map((session) => (
+                          <div
+                            key={session.id}
+                            className="terminal-dock-surface"
+                            role="tabpanel"
+                            hidden={session.id !== activeSessionId}
+                            data-testid={`terminal-session-${session.id}`}
+                          >
+                            {session.status === 'error' && session.error ? (
+                              <Notice tone="error">{session.error}</Notice>
+                            ) : null}
+                            {session.status === 'starting' ? (
+                              <div className="muted terminal-empty">Starting interactive terminal…</div>
+                            ) : null}
+                            <XtermSurface
+                              key={`${session.id}:${session.generation}`}
+                              cwd={session.cwd}
+                              {...(session.projectPath ? { projectPath: session.projectPath } : {})}
+                              onStatus={(status, ptyId, message) => {
+                                onSessionStatus(session.id, status, ptyId, message);
+                              }}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </>
+                    </>
+                  ) : (
+                    <div className="muted terminal-empty">No terminal session open.</div>
+                  )}
+                </div>
               ) : (
-                <div className="muted terminal-empty">No terminal session open.</div>
+                <>
+                  <div className="pty-stream" data-testid="pty-output" aria-live="polite">
+                    {ptyStatus === 'starting' ? <div className="muted">Starting shell…</div> : null}
+                    {ptyError ? <Notice tone="error">{ptyError}</Notice> : null}
+                    {props.ptyOutput.length === 0 && ptyStatus === 'open' ? (
+                      <div className="muted terminal-empty">
+                        Line-oriented shell preview — interactive/TUI programs are unsupported. Desktop
+                        (Tauri) uses a real PTY + xterm.
+                      </div>
+                    ) : null}
+                    <pre className="pty-pre">{props.ptyOutput.map((line) => line.data).join('')}</pre>
+                    <div ref={ptyEndRef} />
+                  </div>
+                  <form
+                    className="pty-input-row"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleSubmitLine();
+                    }}
+                  >
+                    <span className="pty-prompt muted">$</span>
+                    <input
+                      className="pty-input"
+                      data-testid="pty-input"
+                      value={inputLine}
+                      disabled={ptyStatus === 'starting'}
+                      onChange={(event) => setInputLine(event.target.value)}
+                      placeholder="command + Enter"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <Button
+                      type="submit"
+                      data-testid="pty-send-btn"
+                      disabled={ptyStatus === 'starting'}
+                    >
+                      Send
+                    </Button>
+                  </form>
+                </>
               )}
             </div>
-          ) : (
-            <>
-              <div className="pty-stream" data-testid="pty-output" aria-live="polite">
-                {ptyStatus === 'starting' ? <div className="muted">Starting shell…</div> : null}
-                {ptyError ? <Notice tone="error">{ptyError}</Notice> : null}
-                {props.ptyOutput.length === 0 && ptyStatus === 'open' ? (
-                  <div className="muted terminal-empty">
-                    Line-oriented shell preview — interactive/TUI programs are unsupported. Desktop
-                    (Tauri) uses a real PTY + xterm.
-                  </div>
-                ) : null}
-                <pre className="pty-pre">{props.ptyOutput.map((line) => line.data).join('')}</pre>
-                <div ref={ptyEndRef} />
-              </div>
-              <form
-                className="pty-input-row"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void handleSubmitLine();
-                }}
-              >
-                <span className="pty-prompt muted">$</span>
-                <input
-                  className="pty-input"
-                  data-testid="pty-input"
-                  value={inputLine}
-                  disabled={ptyStatus === 'starting'}
-                  onChange={(event) => setInputLine(event.target.value)}
-                  placeholder="command + Enter"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <Button
-                  type="submit"
-                  data-testid="pty-send-btn"
-                  disabled={ptyStatus === 'starting'}
+          </div>
+
+          {useInteractivePty && sidebarOpen ? (
+            <aside
+              className="terminal-sessions-sidebar"
+              data-testid="terminal-sessions-sidebar"
+              aria-label="Terminal sessions"
+            >
+              <div className="terminal-sessions-sidebar-header">
+                <span className="terminal-sessions-count">
+                  {sessions.length} Terminal{sessions.length > 1 ? 's' : ''}
+                </span>
+                <button
+                  type="button"
+                  className="terminal-icon-button"
+                  data-testid="terminal-session-add"
+                  aria-label="New terminal session"
+                  title="New terminal session"
+                  onClick={() => {
+                    const session = addSession();
+                    if (session) {
+                      setSessionCapNotice(null);
+                      return;
+                    }
+                    setSessionCapNotice(
+                      `At most ${MAX_TERMINAL_SESSIONS} terminal sessions can stay open.`,
+                    );
+                  }}
                 >
-                  Send
-                </Button>
-              </form>
-            </>
-          )}
+                  <IconPlus width={12} height={12} />
+                </button>
+              </div>
+              <div
+                className="terminal-sessions-list"
+                role="tablist"
+                aria-label="Terminal sessions list"
+              >
+                {sessions.map((session) => {
+                  const isActive = session.id === activeSessionId;
+                  return (
+                    <div
+                      key={session.id}
+                      className={
+                        isActive ? 'terminal-session-item active' : 'terminal-session-item'
+                      }
+                      role="tab"
+                      aria-selected={isActive}
+                      data-testid={`terminal-session-tab-${session.id}`}
+                      onClick={() => setActiveSessionId(session.id)}
+                    >
+                      <span className="terminal-session-item-icon" aria-hidden>
+                        <IconTerminal width={12} height={12} />
+                      </span>
+                      <span className="terminal-session-item-name">{session.name}</span>
+                      {session.status === 'error' ? (
+                        <span className="terminal-dock-session-dot error" aria-hidden />
+                      ) : session.status === 'starting' ? (
+                        <span className="terminal-dock-session-dot" aria-hidden />
+                      ) : null}
+                      {sessions.length > 1 ? (
+                        <button
+                          type="button"
+                          className="terminal-session-item-close"
+                          aria-label={`Close ${session.name}`}
+                          data-testid={`terminal-session-close-${session.id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            closeSession(session.id);
+                          }}
+                        >
+                          <IconClose width={10} height={10} />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </aside>
+          ) : null}
         </div>
       </div>
     </section>

@@ -267,7 +267,7 @@ describe('chatUiReducer', () => {
     expect(state.messages[0]?.id).toBe('assistant-1');
   });
 
-  it('removes an empty assistant lifecycle instead of rendering an empty agent row', () => {
+  it('prunes an empty assistant lifecycle once the next answer starts', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, {
@@ -281,7 +281,87 @@ describe('chatUiReducer', () => {
       event: { type: 'message/end', messageId: 'empty-assistant' },
     });
 
-    expect(state.messages).toHaveLength(0);
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]?.id).toBe('empty-assistant');
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/start', messageId: 'real-assistant', role: 'assistant' },
+    });
+    expect(state.messages.map((message) => message.id)).toEqual(['real-assistant']);
+  });
+
+  it('attaches generated video after Pi ends the tool-call message first', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/start',
+        messageId: 'assistant-tool',
+        role: 'assistant',
+        runId: 'run-1',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: { type: 'message/end', messageId: 'assistant-tool', runId: 'run-1' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/start',
+        toolCallId: 'tool-video',
+        toolName: 'piwin_toolbox',
+        runId: 'run-1',
+        responseMessageId: 'assistant-tool',
+        presentation: {
+          kind: 'video',
+          title: 'video_gen',
+          routedToolName: 'video_gen',
+        },
+      },
+    });
+    const generatedAttachment = {
+      id: 'video-1',
+      kind: 'media' as const,
+      path: '/tmp/.piwin/media/s1/video-1.mp4',
+      mimeType: 'video/mp4',
+      byteSize: 1210988,
+      source: 'generated' as const,
+    };
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/end',
+        toolCallId: 'tool-video',
+        isError: false,
+        runId: 'run-1',
+        responseMessageId: 'assistant-tool',
+        attachments: [generatedAttachment],
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/start',
+        messageId: 'assistant-text',
+        role: 'assistant',
+        runId: 'run-1',
+      },
+    });
+
+    expect(state.messages[0]?.id).toBe('assistant-tool');
+    expect(state.messages[0]?.attachments).toEqual([generatedAttachment]);
+    expect(state.messages[1]?.id).toBe('assistant-text');
+    expect(state.messages[1]?.attachments).toEqual([]);
   });
 
   it('accepts a run and ignores terminal events from an older run', () => {

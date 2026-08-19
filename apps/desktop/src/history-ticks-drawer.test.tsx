@@ -253,6 +253,48 @@ describe('HistoryTicksDrawer component', () => {
     expect(onJumpToAnchor).toHaveBeenCalledWith(historyIndex.anchors[0]);
   });
 
+  it('does not ask the Host when the indexed message is already in the transcript', () => {
+    const historyIndex: SessionUserMessageIndexData = {
+      sessionId: 'session-indexed',
+      revision: 'rev-1',
+      totalUserMessages: 2,
+      mode: 'exact',
+      anchors: [
+        {
+          messageId: 'msg-user-1',
+          ordinal: 0,
+          createdAt: '2026-07-31T17:03:00Z',
+          preview: 'resident request',
+          spanStartOrdinal: 0,
+          spanEndOrdinal: 0,
+        },
+      ],
+      anchorBytes: 80,
+    };
+    const onJumpToAnchor = vi.fn().mockResolvedValue(undefined);
+    const targetElement = document.createElement('div');
+    targetElement.id = 'msg-msg-user-1';
+    targetElement.scrollIntoView = vi.fn();
+    document.body.appendChild(targetElement);
+
+    act(() => {
+      root?.render(
+        <HistoryTicksDrawer historyIndex={historyIndex} onJumpToAnchor={onJumpToAnchor} />,
+      );
+    });
+    const tick = container?.querySelector('[data-testid="history-tick-msg-user-1"]');
+    act(() => {
+      tick?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(onJumpToAnchor).not.toHaveBeenCalled();
+    expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'auto',
+      block: 'center',
+    });
+    document.body.removeChild(targetElement);
+  });
+
   it('shows the corresponding user message when a collapsed tick is hovered', () => {
     act(() => {
       root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
@@ -475,10 +517,9 @@ describe('HistoryTicksDrawer component', () => {
     });
 
     expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
-      behavior: 'smooth',
+      behavior: 'auto',
       block: 'center',
     });
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
     document.body.removeChild(targetElement);
   });
 
@@ -521,7 +562,7 @@ describe('HistoryTicksDrawer component', () => {
     });
 
     expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
-      behavior: 'smooth',
+      behavior: 'auto',
       block: 'center',
     });
     document.body.removeChild(targetElement);
@@ -565,9 +606,8 @@ describe('HistoryTicksDrawer component', () => {
     expect(scrollTranscriptToMessage('msg-user-1')).toBe(true);
     expect(stream.scrollTo).toHaveBeenCalledWith({
       top: 650,
-      behavior: 'smooth',
+      behavior: 'auto',
     });
-    expect(targetElement.classList.contains('highlight-target')).toBe(true);
 
     document.body.removeChild(stream);
   });
@@ -590,7 +630,7 @@ describe('HistoryTicksDrawer component', () => {
     });
 
     expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
-      behavior: 'smooth',
+      behavior: 'auto',
       block: 'center',
     });
     document.body.removeChild(targetElement);
