@@ -18,6 +18,10 @@ describe('generation route defaults', () => {
       apiStyle: 'imagen',
       path: '/models/imagen-3:predict',
     });
+    expect(suggestImageGenerationRoute('gemini-3.1-flash-image', 'openai-compatible')).toEqual({
+      apiStyle: 'gemini',
+      path: '/models/gemini-3.1-flash-image:generateContent',
+    });
   });
 
   it('looks up video wire format from the model id, not the channel', () => {

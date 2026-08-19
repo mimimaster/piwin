@@ -2,7 +2,11 @@
  * Pi model catalog projection types (static reference from @earendil-works/pi-ai).
  * Apps never import Pi packages; they query via IPC `models/catalog/search`.
  */
-import type { ModelInputModality, VideoGenerationApiStyle } from './config.js';
+import type {
+  ImageGenerationApiStyle,
+  ModelInputModality,
+  VideoGenerationApiStyle,
+} from './config.js';
 
 export type ModelCatalogEntry = {
   /**
@@ -320,11 +324,23 @@ export type VideoGenerationRegistryEntry = {
   modelId: string;
   /** Case-insensitive aliases matched against discovered / configured ids. */
   aliases?: readonly string[];
+  /** Match `modelId-…` / `modelId.…` variants (grok-imagine-video-1.5-preview). */
+  prefix?: boolean;
   /** Display label for settings. */
   label?: string;
   /** Preferred async API style for the Video settings form. */
   apiStyle: VideoGenerationApiStyle;
   /** Default create-task path for the adapter. */
+  path?: string;
+};
+
+export type ImageGenerationRegistryEntry = {
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  modelId: string;
+  aliases?: readonly string[];
+  prefix?: boolean;
+  label?: string;
+  apiStyle: ImageGenerationApiStyle;
   path?: string;
 };
 
@@ -389,10 +405,89 @@ export const VIDEO_GENERATION_MODEL_REGISTRY: readonly VideoGenerationRegistryEn
   },
   {
     modelId: 'grok-imagine-video',
-    aliases: ['grok-imagine-video-lite'],
+    aliases: ['grok-imagine-video-lite', 'grok-imagine-video-1.5-preview', 'grok-imagine-video-1.5'],
+    prefix: true,
     label: 'Grok Imagine Video',
     apiStyle: 'xgrok-videos',
     path: '/videos/generations',
+  },
+];
+
+export const IMAGE_GENERATION_MODEL_REGISTRY_VERSION = '2026-08-19';
+
+/**
+ * Known image-generation wire formats. Channel protocol is not the image
+ * protocol: a mixed CPA can host OpenAI images, Gemini native, and Imagen.
+ */
+export const IMAGE_GENERATION_MODEL_REGISTRY: readonly ImageGenerationRegistryEntry[] = [
+  {
+    modelId: 'grok-imagine-image',
+    aliases: [
+      'grok-imagine-image-lite',
+      'grok-imagine-image-quality',
+      'grok-imagine-image-quality-lite',
+    ],
+    prefix: true,
+    label: 'Grok Imagine Image',
+    apiStyle: 'openai',
+    path: '/images/generations',
+  },
+  {
+    modelId: 'gpt-image-1',
+    aliases: ['gpt-image-1.5', 'gpt-image-2', 'gpt-image'],
+    prefix: true,
+    label: 'GPT Image',
+    apiStyle: 'openai',
+    path: '/images/generations',
+  },
+  {
+    modelId: 'dall-e-3',
+    aliases: ['dall-e-2', 'dalle-3', 'dalle3', 'dall-e'],
+    prefix: true,
+    label: 'DALL·E',
+    apiStyle: 'openai',
+    path: '/images/generations',
+  },
+  {
+    modelId: 'imagen-3.0-generate-002',
+    aliases: ['imagen-4.0-generate-001', 'imagen-3', 'imagen-4', 'imagen'],
+    prefix: true,
+    label: 'Imagen',
+    apiStyle: 'imagen',
+  },
+  {
+    modelId: 'gemini-2.5-flash-image',
+    aliases: [
+      'gemini-3.1-flash-image',
+      'gemini-3-pro-image',
+      'gemini-3.0-pro-image',
+      'gemini-2.0-flash-preview-image-generation',
+      'gemini-2.5-flash-image-preview',
+    ],
+    label: 'Gemini Image',
+    apiStyle: 'gemini',
+  },
+  {
+    modelId: 'FLUX.1-schnell',
+    aliases: ['flux.1-schnell', 'flux.1-dev', 'flux.1-pro', 'flux'],
+    label: 'FLUX',
+    apiStyle: 'openai',
+    path: '/images/generations',
+  },
+  {
+    modelId: 'Qwen-Image',
+    aliases: ['qwen-image', 'qwen-image-plus'],
+    prefix: true,
+    label: 'Qwen Image',
+    apiStyle: 'openai',
+    path: '/images/generations',
+  },
+  {
+    modelId: 'Kolors',
+    aliases: ['kolors'],
+    label: 'Kolors',
+    apiStyle: 'openai',
+    path: '/images/generations',
   },
 ];
 
@@ -407,47 +502,103 @@ const VIDEO_UNDERSTANDING_HINT_PATTERN =
 export type VideoGenerationLookupResult = {
   entry: VideoGenerationRegistryEntry;
   matchedId: string;
-  matchKind: 'exact' | 'alias';
+  matchKind: 'exact' | 'alias' | 'prefix';
 };
+
+export type ImageGenerationLookupResult = {
+  entry: ImageGenerationRegistryEntry;
+  matchedId: string;
+  matchKind: 'exact' | 'alias' | 'prefix';
+};
+
+type GenerationRegistryEntry = {
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  modelId: string;
+  aliases?: readonly string[];
+  prefix?: boolean;
+};
+
+function matchRegistryCandidate(
+  modelId: string,
+  candidate: string,
+  entryModelId: string,
+  allowPrefix: boolean,
+): 'exact' | 'alias' | 'prefix' | undefined {
+  const fullLower = modelId.toLowerCase();
+  const splitLower = splitModelName(modelId).toLowerCase();
+  const candidateLower = candidate.trim().toLowerCase();
+  if (!candidateLower) return undefined;
+  const candidateSplit = splitModelName(candidateLower).toLowerCase();
+  if (
+    fullLower === candidateLower ||
+    splitLower === candidateLower ||
+    fullLower === candidateSplit ||
+    splitLower === candidateSplit
+  ) {
+    return candidateLower === entryModelId.toLowerCase() ? 'exact' : 'alias';
+  }
+  if (
+    allowPrefix &&
+    candidateLower.length >= 8 &&
+    (fullLower.startsWith(`${candidateLower}-`) ||
+      fullLower.startsWith(`${candidateLower}.`) ||
+      splitLower.startsWith(`${candidateLower}-`) ||
+      splitLower.startsWith(`${candidateLower}.`))
+  ) {
+    return 'prefix';
+  }
+  return undefined;
+}
+
+function lookupGenerationRegistry<T extends GenerationRegistryEntry>(
+  registry: readonly T[],
+  modelId: string,
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
+): { entry: T; matchedId: string; matchKind: 'exact' | 'alias' | 'prefix' } | undefined {
+  const trimmed = modelId.trim();
+  if (!trimmed) return undefined;
+  let loose:
+    | { entry: T; matchedId: string; matchKind: 'exact' | 'alias' | 'prefix' }
+    | undefined;
+  for (const entry of registry) {
+    const protocolMismatch = Boolean(entry.protocol && protocol && entry.protocol !== protocol);
+    const candidates = [entry.modelId, ...(entry.aliases ?? [])];
+    for (const candidate of candidates) {
+      const kind = matchRegistryCandidate(
+        trimmed,
+        candidate,
+        entry.modelId,
+        entry.prefix === true,
+      );
+      if (!kind) continue;
+      const hit = { entry, matchedId: trimmed, matchKind: kind };
+      if (!protocolMismatch) return hit;
+      loose ??= hit;
+      break;
+    }
+  }
+  return loose;
+}
 
 /**
  * Look up a curated video-generation registry entry by protocol + model id.
  * Matching is case-insensitive on full id, split name after `/`, and aliases.
+ * A protocol filter prefers the same-channel row; mixed gateways still fall
+ * back to the model-id match so Sora/Grok keep their working wire format.
  */
 export function lookupVideoGenerationRegistry(
   modelId: string,
   protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
 ): VideoGenerationLookupResult | undefined {
-  const trimmed = modelId.trim();
-  if (!trimmed) return undefined;
-  const fullLower = trimmed.toLowerCase();
-  const splitLower = splitModelName(trimmed).toLowerCase();
+  return lookupGenerationRegistry(VIDEO_GENERATION_MODEL_REGISTRY, modelId, protocol);
+}
 
-  for (const entry of VIDEO_GENERATION_MODEL_REGISTRY) {
-    if (entry.protocol && protocol && entry.protocol !== protocol) {
-      continue;
-    }
-    const candidates = [entry.modelId, ...(entry.aliases ?? [])].map((value) =>
-      value.trim().toLowerCase(),
-    );
-    for (const candidate of candidates) {
-      if (!candidate) continue;
-      const candidateSplit = splitModelName(candidate).toLowerCase();
-      if (
-        fullLower === candidate ||
-        splitLower === candidate ||
-        fullLower === candidateSplit ||
-        splitLower === candidateSplit
-      ) {
-        return {
-          entry,
-          matchedId: trimmed,
-          matchKind: candidate === entry.modelId.toLowerCase() ? 'exact' : 'alias',
-        };
-      }
-    }
-  }
-  return undefined;
+/** Look up the working image wire format by model id, not channel protocol. */
+export function lookupImageGenerationRegistry(
+  modelId: string,
+  protocol?: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini',
+): ImageGenerationLookupResult | undefined {
+  return lookupGenerationRegistry(IMAGE_GENERATION_MODEL_REGISTRY, modelId, protocol);
 }
 
 /**

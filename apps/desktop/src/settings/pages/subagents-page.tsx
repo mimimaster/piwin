@@ -87,9 +87,8 @@ export function SubagentProfilesPage(): ReactElement {
           '探子角色建议选更便宜的已配置模型；留空可能与主模型同价。',
         schemeAdvanced: '本方案上限（可选）',
         advancedTitle: '高级 · 全局并行上限',
-        advancedHint: '所有方案与自由派发的硬顶。日常可不管。',
-        maxConcurrency: '全局最大并发',
-        maxTasksPerRun: '全局每批最大任务',
+        maxConcurrency: '同时最多几个',
+        maxTasksPerRun: '一次最多派几个',
         saveAdvanced: '保存上限',
         saved: '已保存',
       }
@@ -149,9 +148,8 @@ export function SubagentProfilesPage(): ReactElement {
           'Pin a cheaper model on scout roles when possible; empty may match main model cost.',
         schemeAdvanced: 'Scheme caps (optional)',
         advancedTitle: 'Advanced · global concurrency',
-        advancedHint: 'Hard ceilings for all schemes. Rarely need to touch.',
-        maxConcurrency: 'Global max concurrency',
-        maxTasksPerRun: 'Global max tasks per batch',
+        maxConcurrency: 'Max running at once',
+        maxTasksPerRun: 'Max per dispatch',
         saveAdvanced: 'Save limits',
         saved: 'Saved',
       };
@@ -399,9 +397,6 @@ export function SubagentProfilesPage(): ReactElement {
         <summary style={{ cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>
           {copy.advancedTitle}
         </summary>
-        <p className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.45 }}>
-          {copy.advancedHint}
-        </p>
         <FieldRow label={copy.maxConcurrency} testId="subagents-max-concurrency-row">
           <TextInput
             type="number"

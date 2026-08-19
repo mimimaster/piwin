@@ -341,6 +341,31 @@ describe('callImageEndpoint', () => {
     ).rejects.toThrow(/bad request \[redacted\]/i);
   });
 
+  it('infers Gemini native from the model id on an OpenAI-compatible channel', async () => {
+    const provider: OpenAiCompatibleProviderConfig = {
+      ...openAiProvider,
+      models: [{ id: 'gemini-3.1-flash-image', capabilities: ['image-generation'] }],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        candidates: [
+          { content: { parts: [{ inlineData: { mimeType: 'image/png', data: base64(PNG_BYTES) } }] } },
+        ],
+      }),
+    );
+    await callImageEndpoint(
+      provider,
+      imageModel(provider),
+      { prompt: 'a cat' },
+      'key',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      '/models/gemini-3.1-flash-image:generateContent',
+    );
+  });
+
   it('speaks Gemini native :generateContent when apiStyle is gemini', async () => {
     const provider: GoogleGeminiProviderConfig = {
       ...geminiProvider,

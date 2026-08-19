@@ -187,97 +187,111 @@ export function ImageGenerationSettings(): ReactElement {
               return (
                 <li
                   key={key}
-                  className="image-gen-model-item"
+                  className={`image-gen-model-item ${isEditing ? 'is-editing' : ''}`}
                   data-testid="image-model-row"
                 >
-                  <ProviderIcon id={provider.id} name={provider.name} size={28} />
-                  <div className="image-gen-model-item-body">
-                    <div className="image-gen-model-item-title">
-                      <span className="image-gen-model-item-id">{model.id}</span>
-                      {model.label ? (
-                        <span className="muted" style={{ fontSize: 12 }}>
-                          {model.label}
-                        </span>
-                      ) : null}
-                      {isDefault ? (
-                        <span className="image-gen-default-badge">
-                          {locale === 'zh-CN' ? '默认' : 'Default'}
-                        </span>
-                      ) : null}
+                  <div className="image-gen-model-item-header">
+                    <ProviderIcon id={provider.id} name={provider.name} size={30} />
+                    <div className="image-gen-model-item-identity">
+                      <div className="image-gen-model-item-title">
+                        <span className="image-gen-model-item-id">{model.id}</span>
+                        {model.label ? (
+                          <span className="image-gen-model-item-label">{model.label}</span>
+                        ) : null}
+                        {isDefault ? (
+                          <span className="image-gen-default-badge">
+                            {locale === 'zh-CN' ? '默认' : 'Default'}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="image-gen-model-item-meta">
+                        <strong className="image-gen-provider-name">{provider.name}</strong>
+                        {!isEditing ? (
+                          <>
+                            <span className="image-gen-meta-sep">·</span>
+                            <span className="image-gen-meta-path">{route?.path ?? '—'}</span>
+                            {isImageApiStyle(route?.apiStyle) ? (
+                              <>
+                                <span className="image-gen-meta-sep">·</span>
+                                <span className="image-gen-meta-pill">
+                                  {imageApiStyleLabel(route.apiStyle, locale)}
+                                </span>
+                              </>
+                            ) : null}
+                            {route?.timeoutMs !== undefined ? (
+                              <>
+                                <span className="image-gen-meta-sep">·</span>
+                                <span>{route.timeoutMs / 1000}{copy.timeoutUnitSeconds}</span>
+                              </>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="image-gen-model-item-meta">
-                      <strong style={{ color: 'var(--text)' }}>{provider.name}</strong>
-                      {' · '}
-                      {route?.path ?? '—'}
-                      {isImageApiStyle(route?.apiStyle)
-                        ? ` · ${imageApiStyleLabel(route.apiStyle, locale)}`
-                        : ''}
-                      {route?.timeoutMs !== undefined
-                        ? ` · ${route.timeoutMs / 1000}${copy.timeoutUnitSeconds}`
-                        : ''}
-                    </div>
-                    {isEditing && draft ? (
-                      <div className="image-gen-route-editor" style={{ marginTop: 10 }}>
-                        <ModelGenerationRouteFields
-                          draft={draft}
-                          isChinese={locale === 'zh-CN'}
-                          onChange={(update) =>
-                            setDraft((current) => (current ? update(current) : current))
-                          }
-                        />
-                        <div className="image-gen-model-item-actions" style={{ marginTop: 8 }}>
+
+                    {!isEditing ? (
+                      <div className="image-gen-model-item-actions">
+                        <Button
+                          size="compact"
+                          variant="ghost"
+                          data-testid="image-model-edit-route"
+                          onClick={() => startEdit(provider, model)}
+                        >
+                          {copy.editRoute}
+                        </Button>
+                        <Button
+                          size="compact"
+                          variant="ghost"
+                          data-testid="image-model-test"
+                          disabled={isTesting || provider.enabled === false || model.enabled === false}
+                          onClick={() => void handleTestModel(provider, model)}
+                        >
+                          {isTesting
+                            ? locale === 'zh-CN'
+                              ? '测试中…'
+                              : 'Testing…'
+                            : locale === 'zh-CN'
+                              ? '测试调用'
+                              : 'Test call'}
+                        </Button>
+                        {!isDefault ? (
                           <Button
                             size="compact"
-                            variant="primary"
-                            data-testid="image-model-save-route"
-                            onClick={() => saveEdit(provider, model.id)}
+                            variant="ghost"
+                            data-testid="image-model-set-default"
+                            onClick={() => handleSetDefault(provider, model.id)}
                           >
-                            {copy.saveRoute}
+                            {copy.setDefault}
                           </Button>
-                          <Button size="compact" variant="ghost" onClick={cancelEdit}>
-                            {locale === 'zh-CN' ? '取消' : 'Cancel'}
-                          </Button>
-                        </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
-                  <div className="image-gen-model-item-actions">
-                    {!isEditing ? (
-                      <Button
-                        size="compact"
-                        variant="ghost"
-                        data-testid="image-model-edit-route"
-                        onClick={() => startEdit(provider, model)}
-                      >
-                        {copy.editRoute}
-                      </Button>
-                    ) : null}
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      data-testid="image-model-test"
-                      disabled={isTesting || provider.enabled === false || model.enabled === false}
-                      onClick={() => void handleTestModel(provider, model)}
-                    >
-                      {isTesting
-                        ? locale === 'zh-CN'
-                          ? '测试中…'
-                          : 'Testing…'
-                        : locale === 'zh-CN'
-                          ? '测试调用'
-                          : 'Test call'}
-                    </Button>
-                    {!isDefault ? (
-                      <Button
-                        size="compact"
-                        variant="ghost"
-                        data-testid="image-model-set-default"
-                        onClick={() => handleSetDefault(provider, model.id)}
-                      >
-                        {copy.setDefault}
-                      </Button>
-                    ) : null}
-                  </div>
+
+                  {isEditing && draft ? (
+                    <div className="image-gen-route-editor">
+                      <ModelGenerationRouteFields
+                        draft={draft}
+                        isChinese={locale === 'zh-CN'}
+                        onChange={(update) =>
+                          setDraft((current) => (current ? update(current) : current))
+                        }
+                      />
+                      <div className="image-gen-editor-footer">
+                        <Button size="compact" variant="ghost" onClick={cancelEdit}>
+                          {locale === 'zh-CN' ? '取消' : 'Cancel'}
+                        </Button>
+                        <Button
+                          size="compact"
+                          variant="primary"
+                          data-testid="image-model-save-route"
+                          onClick={() => saveEdit(provider, model.id)}
+                        >
+                          {copy.saveRoute}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </li>
               );
             })}

@@ -10,8 +10,10 @@ import {
   downloadVideo,
   fetchJson,
   normalizeStatus,
+  readNestedString,
   readString,
   requireTaskId,
+  resolveDownloadUrl,
   resolvePollInterval,
   resolveVideoEndpoint,
   throwIfFailed,
@@ -24,9 +26,10 @@ import {
  *   GET    {base}/videos/{id}          poll -> {status: pending|done|failed, progress}
  *   GET    {base}/videos/{id}/content  download mp4
  *
- * The `video.url` field returned by the poll response points at the gateway's
- * internal address (127.0.0.1) and must not be used; the content endpoint is
- * derived from the configured base URL instead.
+ * When the poll response includes a `video.url` field (e.g. an absolute
+ * vidgen.x.ai URL), prefer downloading from that URL directly. Some gateways
+ * do not expose the `/content` endpoint, so `video.url` is the only reliable
+ * download source. Fall back to the content endpoint when `video.url` is absent.
  */
 export async function generateXgrokVideo(
   options: VideoGenerationAdapterOptions & { signal: AbortSignal; fetchImpl: typeof fetch },
@@ -77,9 +80,13 @@ export async function generateXgrokVideo(
       status === 'succeeded' ||
       status === 'success'
     ) {
+      const videoUrl = readNestedString(task, ['video', 'url']);
+      const downloadSource = videoUrl
+        ? resolveDownloadUrl(videoUrl, options.provider.baseUrl)
+        : `${pollEndpoint}/content`;
       const video = await downloadVideo(
         options.fetchImpl,
-        `${pollEndpoint}/content`,
+        downloadSource,
         headers,
         options.signal,
       );

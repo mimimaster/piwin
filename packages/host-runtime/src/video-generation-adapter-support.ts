@@ -1,7 +1,8 @@
-import type {
-  ModelConfigEntry,
-  ModelProviderConfig,
-  VideoGenerationApiStyle,
+import {
+  lookupVideoGenerationRegistry,
+  type ModelConfigEntry,
+  type ModelProviderConfig,
+  type VideoGenerationApiStyle,
 } from '@piwin/contracts';
 import {
   asRecord,
@@ -34,6 +35,8 @@ export function resolveVideoApiStyle(
 ): VideoGenerationApiStyle {
   const configured = model.routes?.['video-generation']?.apiStyle;
   if (isVideoApiStyle(configured)) return configured;
+  const registry = lookupVideoGenerationRegistry(model.id, provider.protocol);
+  if (registry) return registry.entry.apiStyle;
   if (provider.protocol === 'google-gemini') return 'google-veo';
   if (provider.protocol === 'openai-compatible') return 'openai-videos';
   return 'custom';
