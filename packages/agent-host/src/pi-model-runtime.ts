@@ -19,6 +19,7 @@ export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'googl
 export type PiModelCompat = {
   supportsStore?: boolean;
   supportsDeveloperRole?: boolean;
+  supportsFinishReason?: boolean;
   maxTokensField?: 'max_tokens' | 'max_completion_tokens';
   requiresReasoningContentOnAssistantMessages?: boolean;
   thinkingFormat?: 'deepseek';
@@ -40,6 +41,15 @@ const DEEPSEEK_OPENAI_COMPAT: PiModelCompat = {
   thinkingFormat: 'deepseek',
 };
 
+/**
+ * OpenAI-completions gateways (CPA, OpenCode Zen, llama.cpp) often close the
+ * SSE stream without `finish_reason`. Pi 0.84 still treats that as a retryable
+ * transport error unless this flag is false.
+ */
+const OPENAI_COMPLETIONS_COMPAT: PiModelCompat = {
+  supportsFinishReason: false,
+};
+
 /** Resolve the Pi wire compatibility profile hidden by local gateway URLs. */
 export function resolvePiModelCompat(
   api: PiProviderApi,
@@ -48,10 +58,10 @@ export function resolvePiModelCompat(
   if (api !== 'openai-completions') {
     return undefined;
   }
-  if (!modelId.trim().toLowerCase().startsWith(DEEPSEEK_MODEL_ID_PREFIX)) {
-    return undefined;
+  if (modelId.trim().toLowerCase().startsWith(DEEPSEEK_MODEL_ID_PREFIX)) {
+    return { ...DEEPSEEK_OPENAI_COMPAT, ...OPENAI_COMPLETIONS_COMPAT };
   }
-  return { ...DEEPSEEK_OPENAI_COMPAT };
+  return { ...OPENAI_COMPLETIONS_COMPAT };
 }
 
 export type PiModelRegistration = {
