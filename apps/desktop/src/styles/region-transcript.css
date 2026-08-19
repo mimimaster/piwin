@@ -105,7 +105,7 @@
   flex-direction: column;
   /* Reserve the full wave width. With overflow-y:auto, an unspecified
      overflow-x becomes auto too, so a transformed tick would otherwise be
-     painted outside the scrollport and clipped back to its 12px base width. */
+     painted outside the scrollport and clipped back to its 10px base width. */
   width: calc(30px + 6px);
   box-sizing: border-box;
   padding: 8px 6px 8px 0;
@@ -158,41 +158,6 @@
   right: 0;
   top: -5px;
   bottom: -5px;
-}
-
-.border-tick-line:hover {
-  transform: scaleX(3);
-  background: var(--text);
-}
-
-/* Direct-hover fallback for the vertical wave. The rail JS handles gaps and
-   previews; these selectors guarantee the visible wave even if a desktop
-   webview delays a mousemove event. Each rule affects only the matching
-   distance above and below the hovered tick. */
-.border-tick-line:hover + .border-tick-line,
-.border-tick-line:has(+ .border-tick-line:hover) {
-  transform: scaleX(2.5);
-}
-
-.border-tick-line:hover + .border-tick-line + .border-tick-line,
-.border-tick-line:has(+ .border-tick-line + .border-tick-line:hover) {
-  transform: scaleX(2);
-}
-
-.border-tick-line:hover + .border-tick-line + .border-tick-line + .border-tick-line,
-.border-tick-line:has(+ .border-tick-line + .border-tick-line + .border-tick-line:hover) {
-  transform: scaleX(1.5);
-}
-
-.border-tick-line:hover
-  + .border-tick-line
-  + .border-tick-line
-  + .border-tick-line
-  + .border-tick-line,
-.border-tick-line:has(
-  + .border-tick-line + .border-tick-line + .border-tick-line + .border-tick-line:hover
-) {
-  transform: scaleX(1);
 }
 
 .border-tick-line.is-hovered,
@@ -264,13 +229,6 @@
   -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.highlight-target {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: 8px;
-  transition: outline 0.3s ease;
 }
 
 .chat-stream {
@@ -3735,15 +3693,11 @@ html[data-theme-mode='light'] .permission-detail {
 }
 
 /*
- * Open preview: SVG/HTML surface + "Show code" as a true sibling side rail.
- * Never use negative full-bleed margins (chat-stream is overflow-x:hidden and
- * clips asymmetrically → left-shifted crop). Never overlay the rail on the iframe.
+ * Open preview: SVG/HTML surface takes 100% width with floating action controls in top-right corner.
  */
 .artifact-with-source--preview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 12px;
-  align-items: start;
+  position: relative;
+  display: block;
   width: 100%;
   max-width: 100%;
   margin: 0;
@@ -3751,41 +3705,63 @@ html[data-theme-mode='light'] .permission-detail {
 }
 
 .artifact-preview-surface {
+  position: relative;
   min-width: 0;
   width: 100%;
   max-width: 100%;
 }
 
-.artifact-side-rail {
-  display: flex;
-  flex-direction: column;
-  flex: none;
-  align-items: flex-end;
-  gap: 6px;
-  margin-top: 4px;
+.artifact-floating-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--surface-raised, #1c1d22);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0.35;
+  pointer-events: auto;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.artifact-with-source--preview:hover .artifact-floating-actions,
+.artifact-with-source--preview:focus-within .artifact-floating-actions,
+.artifact-floating-actions:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--surface-raised, #1c1d22) 95%, transparent);
+  border-color: var(--border, rgba(255, 255, 255, 0.2));
+}
+
+.artifact-floating-action-button.piwin-icon-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0;
-}
-
-.artifact-side-rail .artifact-frame-text-action {
-  min-height: 0;
-  height: auto;
-  padding: 2px 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 4px;
+  color: var(--muted, #888);
   background: transparent;
-  box-shadow: none;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
 }
 
-.artifact-side-rail .artifact-frame-text-action:hover:not(:disabled),
-.artifact-side-rail .artifact-frame-text-action:focus-visible {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text);
-  box-shadow: none;
+.artifact-floating-action-button.piwin-icon-button:hover:not(:disabled),
+.artifact-floating-action-button.piwin-icon-button:focus-visible {
+  color: var(--text, #fff);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+}
+
+.artifact-side-rail {
+  display: none;
 }
 
 /* Legacy class kept as no-op alias so older markup cannot reintroduce bleed. */
@@ -3914,17 +3890,12 @@ html[data-theme-mode='light'] .permission-detail {
 
 @media (max-width: 640px) {
   .artifact-with-source--preview {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+    display: block;
   }
 
-  .artifact-side-rail {
-    order: -1;
-    flex-direction: row;
-    justify-content: flex-end;
-    margin-top: 0;
-    margin-bottom: 6px;
+  .artifact-floating-actions {
+    top: 6px;
+    right: 6px;
   }
 
   .artifact-frame.has-artifact-action {

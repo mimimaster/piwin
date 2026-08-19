@@ -33,3 +33,13 @@ describe('languageFromPath', () => {
     expect(languageFromPath('Makefile')).toBe('typescript');
   });
 });
+
+describe('highlightCode', () => {
+  it('highlights python and other languages', async () => {
+    const { highlightCode } = await import('./syntax-highlight');
+    const result = await highlightCode('from transformers import AutoModelForCausalLM\n# comment\nx = "hello"', 'python');
+    console.log('highlightCode result:', JSON.stringify(result));
+    expect(result.length).toBe(3);
+  });
+});
+

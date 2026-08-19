@@ -98,8 +98,6 @@ type HistoryTickMessage = {
 /** Gap between the peak wave tip and the preview bubble. Keep small so the
  *  tooltip reads as attached to the tick rail rather than floating mid-stage. */
 const COLLAPSED_BUBBLE_OFFSET_PX = 8;
-/** How long a cold-anchor jump retries before falling back to plain DOM scroll. */
-const HISTORY_JUMP_RETRY_WINDOW_MS = 2_000;
 const COLLAPSED_BUBBLE_MAX_HALF_HEIGHT_PX = 120;
 const COLLAPSED_BUBBLE_VIEWPORT_PADDING_PX = 12;
 
@@ -150,7 +148,8 @@ export function resolveCollapsedTickIndex(options: {
   return Math.round(pointerPosition);
 }
 
-/** Scroll the transcript to a message anchor, preferring the chat-stream port. */
+/** Scroll the transcript to a message anchor. Instant: smooth scrolling fights
+ *  the virtualizer and follow-tail stick, which reads as a laggy jump. */
 export function scrollTranscriptToMessage(messageId: string): boolean {
   const targetElement = document.getElementById(messageAnchorId(messageId));
   if (!targetElement) {
@@ -164,15 +163,11 @@ export function scrollTranscriptToMessage(messageId: string): boolean {
     const targetCenterY = targetRect.top + targetRect.height / 2;
     const parentCenterY = parentRect.top + parentRect.height / 2;
     const nextScrollTop = scrollParent.scrollTop + (targetCenterY - parentCenterY);
-    scrollParent.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
+    scrollParent.scrollTo({ top: nextScrollTop, behavior: 'auto' });
   } else {
-    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
   }
 
-  targetElement.classList.add('highlight-target');
-  window.setTimeout(() => {
-    targetElement.classList.remove('highlight-target');
-  }, 2000);
   return true;
 }
 
@@ -223,21 +218,18 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
 
   const refreshRailMetrics = useCallback((rail: HTMLDivElement): CollapsedRailMetrics => {
     const bounds = rail.getBoundingClientRect();
-    const tickElements = Array.from(rail.querySelectorAll<HTMLElement>('.border-tick-line'));
     // Anchor at the peak wave tip (base left + max wave width). Do not add the
     // strip's right padding — that pushed the bubble far into the stage gutter,
     // especially when a parent backdrop-filter rebased fixed coordinates.
-    const bubbleAnchorRight = getBubbleLeftFromRailLeft(bounds.left);
-
     const metrics: CollapsedRailMetrics = {
       rail,
       top: bounds.top,
-      right: bubbleAnchorRight,
-      tickCount: tickElements.length,
+      right: getBubbleLeftFromRailLeft(bounds.left),
+      tickCount: userMessages.length,
     };
     railMetricsRef.current = metrics;
     return metrics;
-  }, []);
+  }, [userMessages.length]);
 
   const updateRailPreview = useCallback(
     (rail: HTMLDivElement, clientY: number): void => {
@@ -283,37 +275,41 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
 
   const handleTickJump = useCallback(
     (messageId: string): void => {
+      // Resident rows first. scrollToMessage() is false for short
+      // (non-virtualized) transcripts and for ticks whose DOM node is already
+      // mounted — those used to fall through to a Host window fetch.
       if (transcriptScrollPort?.scrollToMessage(messageId)) {
+        return;
+      }
+      if (scrollTranscriptToMessage(messageId)) {
+        transcriptScrollPort?.detachFromTail();
         return;
       }
       const target = userMessages.find((message) => message.id === messageId);
       const anchor = target?.anchor;
-      if (anchor && onJumpToAnchor) {
-        const jump = async (): Promise<void> => {
-          await onJumpToAnchor(anchor);
-          // The virtualized scroller re-registers only after the seek window
-          // commits and the turn list rebuilds its index. Retry across frames
-          // until the scroller accepts the message; fall back to DOM after the
-          // deadline (non-virtualized view).
-          const deadline = performance.now() + HISTORY_JUMP_RETRY_WINDOW_MS;
-          const attemptScroll = (): void => {
-            if (transcriptScrollPort?.scrollToMessage(messageId)) {
-              return;
-            }
-            if (performance.now() > deadline) {
-              scrollTranscriptToMessage(messageId);
-              return;
-            }
-            window.requestAnimationFrame(attemptScroll);
-          };
-          window.requestAnimationFrame(attemptScroll);
-        };
-        void jump().catch((error: unknown) => {
-          console.error('history anchor jump failed', error);
-        });
+      if (!anchor || !onJumpToAnchor) {
         return;
       }
-      scrollTranscriptToMessage(messageId);
+      const settleJump = (): boolean =>
+        Boolean(transcriptScrollPort?.scrollToMessage(messageId)) ||
+        scrollTranscriptToMessage(messageId);
+      const jump = async (): Promise<void> => {
+        await onJumpToAnchor(anchor);
+        if (settleJump()) {
+          return;
+        }
+        window.requestAnimationFrame(() => {
+          if (settleJump()) {
+            return;
+          }
+          window.requestAnimationFrame(() => {
+            settleJump();
+          });
+        });
+      };
+      void jump().catch((error: unknown) => {
+        console.error('history anchor jump failed', error);
+      });
     },
     [onJumpToAnchor, transcriptScrollPort, userMessages],
   );
@@ -407,7 +403,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
 
   return (
     <div
-      className="history-ticks-drawer is-collapsed"
+      className="history-ticks-drawer"
       onMouseLeave={clearRailInteraction}
       onMouseOut={(event) => {
         const nextTarget = event.relatedTarget;

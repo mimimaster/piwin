@@ -19,7 +19,7 @@ export const SECTION_META: Array<{
   hidden?: boolean;
 }> = [
   { id: 'files', icon: <IconFolder />, labelEn: 'File', labelZh: '文件' },
-  { id: 'terminal', icon: <IconTerminal />, labelEn: 'Terminal', labelZh: '终端' },
+  { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh' },
   { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更' },
   { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器' },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片' },

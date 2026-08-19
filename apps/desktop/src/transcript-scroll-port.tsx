@@ -16,6 +16,8 @@ export type TranscriptScrollPort = {
   scrollElementRef: RefObject<HTMLDivElement | null>;
   registerMessageScroller: (scroller: TranscriptMessageScroller) => () => void;
   scrollToMessage: TranscriptMessageScroller;
+  /** Stop follow-tail before a history jump so ResizeObserver sticks cannot yank back. */
+  detachFromTail: () => void;
   /**
    * Nested content grew (e.g. Artifact iframe height bridge). Re-stick to the
    * live tail when follow-tail is active — without waiting for App-level
@@ -31,11 +33,14 @@ export function TranscriptScrollProvider(props: {
   scrollElementRef: RefObject<HTMLDivElement | null>;
   /** Optional stick callback from useTranscriptScroll. */
   notifyContentGrew?: () => void;
+  detachFromTail?: () => void;
   children: ReactNode;
 }): ReactElement {
   const messageScrollerRef = useRef<TranscriptMessageScroller | null>(null);
   const notifyContentGrewRef = useRef(props.notifyContentGrew);
   notifyContentGrewRef.current = props.notifyContentGrew;
+  const detachFromTailRef = useRef(props.detachFromTail);
+  detachFromTailRef.current = props.detachFromTail;
 
   const registerMessageScroller = useCallback((scroller: TranscriptMessageScroller) => {
     messageScrollerRef.current = scroller;
@@ -46,7 +51,12 @@ export function TranscriptScrollProvider(props: {
     };
   }, []);
 
+  const detachFromTail = useCallback((): void => {
+    detachFromTailRef.current?.();
+  }, []);
+
   const scrollToMessage = useCallback((messageId: string): boolean => {
+    detachFromTailRef.current?.();
     return messageScrollerRef.current?.(messageId) ?? false;
   }, []);
 
@@ -60,9 +70,17 @@ export function TranscriptScrollProvider(props: {
       scrollElementRef: props.scrollElementRef,
       registerMessageScroller,
       scrollToMessage,
+      detachFromTail,
       notifyContentGrew,
     }),
-    [props.sessionId, props.scrollElementRef, registerMessageScroller, scrollToMessage, notifyContentGrew],
+    [
+      props.sessionId,
+      props.scrollElementRef,
+      registerMessageScroller,
+      scrollToMessage,
+      detachFromTail,
+      notifyContentGrew,
+    ],
   );
 
   return (

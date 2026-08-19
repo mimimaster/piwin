@@ -19,7 +19,7 @@ import {
   type ArtifactPreviewDecision,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
-import { Button } from '@piwin/ui-kit';
+import { Button, IconButton, IconCode } from '@piwin/ui-kit';
 import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
 import { fileNameFromPath, PathChip } from './path-chip';
@@ -1007,17 +1007,17 @@ function CodeFenceView(props: {
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
             />
           </div>
-          <div className="artifact-side-rail">
-            <Button
-              variant="ghost"
-              size="compact"
-              className="artifact-frame-text-action"
+          <div className="artifact-floating-actions">
+            <IconButton
+              label="Show code"
+              title="Show code"
+              className="artifact-floating-action-button"
               data-testid="artifact-preview-toggle"
               aria-expanded
               onClick={showArtifactSource}
             >
-              Show code
-            </Button>
+              <IconCode size={14} />
+            </IconButton>
           </div>
         </div>
       );
@@ -1198,17 +1198,17 @@ function CodeFenceView(props: {
                 {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
               />
             </div>
-            <div className="artifact-side-rail">
-              <Button
-                variant="ghost"
-                size="compact"
-                className="artifact-frame-text-action"
+            <div className="artifact-floating-actions">
+              <IconButton
+                label="Show code"
+                title="Show code"
+                className="artifact-floating-action-button"
                 data-testid="artifact-preview-toggle"
                 aria-expanded
                 onClick={showArtifactSource}
               >
-                Show code
-              </Button>
+                <IconCode size={14} />
+              </IconButton>
             </div>
           </>
         ) : (
@@ -1346,11 +1346,11 @@ function FlashcardPreviewCard(props: {
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
             />
           </div>
-          <div className="artifact-side-rail">
-            <Button
-              variant="ghost"
-              size="compact"
-              className="artifact-frame-text-action"
+          <div className="artifact-floating-actions">
+            <IconButton
+              label="Show code"
+              title="Show code"
+              className="artifact-floating-action-button"
               data-testid="flashcard-preview-card"
               aria-expanded
               onClick={() => {
@@ -1358,8 +1358,8 @@ function FlashcardPreviewCard(props: {
                 setOpen(false);
               }}
             >
-              Show code
-            </Button>
+              <IconCode size={14} />
+            </IconButton>
           </div>
         </>
       ) : decision.kind === 'blocked' ? (

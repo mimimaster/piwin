@@ -9,8 +9,8 @@ import {
   type ReactElement,
 } from 'react';
 import { defaultRangeExtractor, useVirtualizer, type Range } from '@tanstack/react-virtual';
-import { messageAnchorId } from './transcript-outline';
 import { useTranscriptScrollPort, type TranscriptScrollPort } from './transcript-scroll-port';
+import { scrollTranscriptToMessage } from './history-ticks-drawer';
 import { readTranscriptTurnHeight, rememberTranscriptTurnHeight } from './transcript-scroll-memory';
 import {
   normalizeTranscriptTurnHeight,
@@ -70,11 +70,64 @@ export type TranscriptTurnListProps = {
   streaming?: boolean;
 };
 
+function useVirtualizedMessageJump(
+  scrollPort: TranscriptScrollPort,
+  indexByMessageId: ReadonlyMap<string, number>,
+  virtualizer: {
+    scrollToIndex: (index: number, options: { align: 'start'; behavior: 'auto' }) => void;
+  },
+): void {
+  const jumpFrameRef = useRef<number | null>(null);
+  useEffect(() => {
+    const unregisterScroller = scrollPort.registerMessageScroller((messageId) => {
+      const itemIndex = indexByMessageId.get(messageId);
+      if (itemIndex === undefined) {
+        return false;
+      }
+      if (scrollTranscriptToMessage(messageId)) {
+        return true;
+      }
+      if (jumpFrameRef.current !== null) {
+        window.cancelAnimationFrame(jumpFrameRef.current);
+      }
+      virtualizer.scrollToIndex(itemIndex, { align: 'start', behavior: 'auto' });
+      jumpFrameRef.current = window.requestAnimationFrame(() => {
+        if (scrollTranscriptToMessage(messageId)) {
+          jumpFrameRef.current = null;
+          return;
+        }
+        virtualizer.scrollToIndex(itemIndex, { align: 'start', behavior: 'auto' });
+        jumpFrameRef.current = window.requestAnimationFrame(() => {
+          jumpFrameRef.current = null;
+          scrollTranscriptToMessage(messageId);
+        });
+      });
+      return true;
+    });
+    return () => {
+      unregisterScroller();
+      if (jumpFrameRef.current !== null) {
+        window.cancelAnimationFrame(jumpFrameRef.current);
+        jumpFrameRef.current = null;
+      }
+    };
+  }, [indexByMessageId, scrollPort, virtualizer]);
+}
+
 export function TranscriptTurnList(props: TranscriptTurnListProps): ReactElement {
   const scrollPort = useTranscriptScrollPort();
   const virtualize = shouldVirtualizeTranscript(props.turns.length, {
     streaming: props.streaming === true,
   });
+
+  useEffect(() => {
+    if (!scrollPort || virtualize) {
+      return;
+    }
+    return scrollPort.registerMessageScroller((messageId) =>
+      scrollTranscriptToMessage(messageId),
+    );
+  }, [scrollPort, virtualize]);
 
   if (!scrollPort || !virtualize) {
     if (props.renderItem) {
@@ -127,9 +180,6 @@ function VirtualizedTranscriptTurns(
   props: TranscriptTurnListProps & { scrollPort: TranscriptScrollPort },
 ): ReactElement {
   const listRef = useRef<HTMLDivElement | null>(null);
-  const jumpFrameRef = useRef<number | null>(null);
-  const highlightTimerRef = useRef<number | null>(null);
-  const highlightedElementRef = useRef<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const turnIndexByMessageId = useMemo(
     () => indexTranscriptTurnsByMessageId(props.turns),
@@ -243,54 +293,7 @@ function VirtualizedTranscriptTurns(
     };
   }, [props.scrollPort.scrollElementRef]);
 
-  useEffect(() => {
-    const unregisterScroller = props.scrollPort.registerMessageScroller((messageId) => {
-      const turnIndex = turnIndexByMessageId.get(messageId);
-      if (turnIndex === undefined) {
-        return false;
-      }
-
-      if (jumpFrameRef.current !== null) {
-        window.cancelAnimationFrame(jumpFrameRef.current);
-      }
-      virtualizer.scrollToIndex(turnIndex, { align: 'center', behavior: 'auto' });
-      jumpFrameRef.current = window.requestAnimationFrame(() => {
-        jumpFrameRef.current = null;
-        virtualizer.scrollToIndex(turnIndex, { align: 'center', behavior: 'auto' });
-        const targetElement = document.getElementById(messageAnchorId(messageId));
-        if (!targetElement) {
-          return;
-        }
-        if (highlightTimerRef.current !== null) {
-          window.clearTimeout(highlightTimerRef.current);
-        }
-        highlightedElementRef.current?.classList.remove('highlight-target');
-        highlightedElementRef.current = targetElement;
-        targetElement.classList.add('highlight-target');
-        highlightTimerRef.current = window.setTimeout(() => {
-          targetElement.classList.remove('highlight-target');
-          if (highlightedElementRef.current === targetElement) {
-            highlightedElementRef.current = null;
-          }
-          highlightTimerRef.current = null;
-        }, 2000);
-      });
-      return true;
-    });
-    return () => {
-      unregisterScroller();
-      if (jumpFrameRef.current !== null) {
-        window.cancelAnimationFrame(jumpFrameRef.current);
-        jumpFrameRef.current = null;
-      }
-      if (highlightTimerRef.current !== null) {
-        window.clearTimeout(highlightTimerRef.current);
-        highlightTimerRef.current = null;
-      }
-      highlightedElementRef.current?.classList.remove('highlight-target');
-      highlightedElementRef.current = null;
-    };
-  }, [props.scrollPort, turnIndexByMessageId, virtualizer]);
+  useVirtualizedMessageJump(props.scrollPort, turnIndexByMessageId, virtualizer);
 
   const virtualItems = virtualizer.getVirtualItems();
   return (
@@ -330,9 +333,6 @@ function VirtualizedTranscriptItems(
   },
 ): ReactElement {
   const listRef = useRef<HTMLDivElement | null>(null);
-  const jumpFrameRef = useRef<number | null>(null);
-  const highlightTimerRef = useRef<number | null>(null);
-  const highlightedElementRef = useRef<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
   const itemIndexByMessageId = useMemo(
@@ -448,54 +448,7 @@ function VirtualizedTranscriptItems(
     };
   }, [props.scrollPort.scrollElementRef]);
 
-  useEffect(() => {
-    const unregisterScroller = props.scrollPort.registerMessageScroller((messageId) => {
-      const itemIndex = itemIndexByMessageId.get(messageId);
-      if (itemIndex === undefined) {
-        return false;
-      }
-
-      if (jumpFrameRef.current !== null) {
-        window.cancelAnimationFrame(jumpFrameRef.current);
-      }
-      virtualizer.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
-      jumpFrameRef.current = window.requestAnimationFrame(() => {
-        jumpFrameRef.current = null;
-        virtualizer.scrollToIndex(itemIndex, { align: 'center', behavior: 'auto' });
-        const targetElement = document.getElementById(messageAnchorId(messageId));
-        if (!targetElement) {
-          return;
-        }
-        if (highlightTimerRef.current !== null) {
-          window.clearTimeout(highlightTimerRef.current);
-        }
-        highlightedElementRef.current?.classList.remove('highlight-target');
-        highlightedElementRef.current = targetElement;
-        targetElement.classList.add('highlight-target');
-        highlightTimerRef.current = window.setTimeout(() => {
-          targetElement.classList.remove('highlight-target');
-          if (highlightedElementRef.current === targetElement) {
-            highlightedElementRef.current = null;
-          }
-          highlightTimerRef.current = null;
-        }, 2000);
-      });
-      return true;
-    });
-    return () => {
-      unregisterScroller();
-      if (jumpFrameRef.current !== null) {
-        window.cancelAnimationFrame(jumpFrameRef.current);
-        jumpFrameRef.current = null;
-      }
-      if (highlightTimerRef.current !== null) {
-        window.clearTimeout(highlightTimerRef.current);
-        highlightTimerRef.current = null;
-      }
-      highlightedElementRef.current?.classList.remove('highlight-target');
-      highlightedElementRef.current = null;
-    };
-  }, [props.scrollPort, itemIndexByMessageId, virtualizer]);
+  useVirtualizedMessageJump(props.scrollPort, itemIndexByMessageId, virtualizer);
 
   const virtualItems = virtualizer.getVirtualItems();
   return (

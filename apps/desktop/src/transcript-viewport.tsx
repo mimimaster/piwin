@@ -203,10 +203,11 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const showJumpToLatest = props.historyViewActive === true || scroll.showJumpToLatest;
 
   return (
-    <TranscriptScrollProvider
+        <TranscriptScrollProvider
       sessionId={props.sessionId ?? null}
       scrollElementRef={scroll.containerRef}
       notifyContentGrew={scroll.notifyContentGrew}
+      detachFromTail={scroll.detachFromTail}
     >
       <div className="transcript-viewport">
         <HistoryTicksDrawer

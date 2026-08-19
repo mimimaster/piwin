@@ -110,8 +110,8 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
     const wrapper = container.querySelector('.artifact-with-source');
     expect(wrapper?.classList.contains('artifact-with-source--preview')).toBe(true);
-    // "Show code" is a sibling side rail outside the iframe surface.
-    expect(wrapper?.querySelector('.artifact-side-rail')).not.toBeNull();
+    // "Show code" action is rendered as floating actions overlay.
+    expect(wrapper?.querySelector('.artifact-floating-actions')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-preview-surface .artifact-frame')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-frame .artifact-frame-actions')).toBeNull();
     expect(
@@ -413,14 +413,14 @@ describe('MarkdownView artifact preview policy', () => {
     const artifactFrame = container.querySelector<HTMLElement>('.artifact-frame');
     expect(artifactFrame).not.toBeNull();
     expect(wrapper?.classList.contains('artifact-with-source--preview')).toBe(true);
-    // "Show code" is outside the iframe (sibling side rail), not over the art.
+    // "Show code" is a floating overlay action button.
     const showCode = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
     );
-    expect(showCode?.textContent).toContain('Show code');
-    expect(showCode?.classList.contains('artifact-frame-text-action')).toBe(true);
-    expect(showCode?.classList.contains('piwin-button--ghost')).toBe(true);
-    expect(wrapper?.querySelector('.artifact-side-rail')?.contains(showCode)).toBe(true);
+    expect(showCode).not.toBeNull();
+    expect(showCode?.getAttribute('aria-label')).toBe('Show code');
+    expect(showCode?.classList.contains('artifact-floating-action-button')).toBe(true);
+    expect(wrapper?.querySelector('.artifact-floating-actions')?.contains(showCode)).toBe(true);
     expect(artifactFrame?.querySelector('.artifact-frame-actions')).toBeNull();
     expect(artifactFrame?.classList.contains('has-artifact-action')).toBe(false);
     // Switch back to source.
