@@ -1540,6 +1540,7 @@ function createControlContext(
     },
     loadSideChatSnapshot: async () => undefined,
     sideChatSnapshotInjectedVersions: new Map(),
+    pendingBranchCalibrationBySession: new Map(),
     compactExportOperations: new Map(),
     stopProcessesForSession: async (): Promise<void> => {
       if (cleanupDelayMs > 0) {

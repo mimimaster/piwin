@@ -1786,7 +1786,7 @@ describe('chatUiReducer', () => {
     expect(state.contextUsage).toBeNull();
   });
 
-  it('session/truncate replaces active transcript', () => {
+  it('session/branch-switched replaces active transcript', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, {
       type: 'session/load-messages',
@@ -1809,7 +1809,7 @@ describe('chatUiReducer', () => {
       ],
     });
     state = chatUiReducer(state, {
-      type: 'session/truncate',
+      type: 'session/branch-switched',
       sessionId: 's1',
       messages: [
         {
@@ -1823,6 +1823,43 @@ describe('chatUiReducer', () => {
     });
     expect(state.messages).toHaveLength(1);
     expect(state.messages[0]?.id).toBe('u1');
+  });
+
+  it('session/branch-switched clips the target and later rows in place', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          text: 'one',
+          createdAt: '2026-07-21T00:00:00.000Z',
+          status: 'done',
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          text: 'two',
+          createdAt: '2026-07-21T00:00:01.000Z',
+          status: 'done',
+        },
+        {
+          id: 'u2',
+          role: 'user',
+          text: 'three',
+          createdAt: '2026-07-21T00:00:02.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    state = chatUiReducer(state, {
+      type: 'session/branch-switched',
+      sessionId: 's1',
+      clipBeforeMessageId: 'u2',
+    });
+    expect(state.messages.map((message) => message.id)).toEqual(['u1', 'a1']);
   });
 
   it('prepends an older transcript page without replacing the active tail', () => {

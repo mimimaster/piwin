@@ -64,6 +64,7 @@ function evictionReasonLabel(
     'memory-pressure': { zh: '内存压力', en: 'Memory pressure' },
     manual: { zh: '手动', en: 'Manual' },
     'host-dispose': { zh: 'Host 释放', en: 'Host dispose' },
+    'branch-switch': { zh: '切换分支', en: 'Branch switch' },
   };
   const entry = labels[reason];
   return isZh ? entry.zh : entry.en;

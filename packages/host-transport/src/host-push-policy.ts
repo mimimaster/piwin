@@ -146,6 +146,9 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
         deliveryKey('run', push.intervention.runId, 'intervention', push.intervention.interventionId),
         push.intervention.runId,
       );
+    case 'session/branch-updated':
+      // Latest-wins leaf pointer: a newer push fully supersedes older ones.
+      return projection(deliveryKey('session', push.sessionId, 'branch'));
     case 'session/queued-turn-updated':
       {
         const key = deliveryKey(

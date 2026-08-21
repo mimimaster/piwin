@@ -447,4 +447,49 @@ describe('ipc types', () => {
       expect(status.type).toBe('host/status');
     });
   });
+
+  describe('ADR 0055 conversation tree', () => {
+    it('accepts session/branch-list and session/branch-switch command shapes', () => {
+      const list: HostCommand = { type: 'session/branch-list', sessionId: 's1' };
+      const switchCommand: HostCommand = {
+        type: 'session/branch-switch',
+        sessionId: 's1',
+        targetMessageId: 'm-head',
+        confirm: true,
+        messageProjection: 'tail',
+      };
+      expect(list.type).toBe('session/branch-list');
+      expect(switchCommand.targetMessageId).toBe('m-head');
+    });
+
+    it('accepts the session/branch-updated push shape', () => {
+      const push: HostPush = {
+        type: 'session/branch-updated',
+        sessionId: 's1',
+        activeLeafMessageId: 'm-leaf',
+        branchPointCount: 2,
+      };
+      expect(push.branchPointCount).toBe(2);
+      const emptied: HostPush = {
+        type: 'session/branch-updated',
+        sessionId: 's1',
+        activeLeafMessageId: null,
+        branchPointCount: 0,
+      };
+      expect(emptied.activeLeafMessageId).toBeNull();
+    });
+
+    it('accepts PromptInput.branchFromMessageId', () => {
+      const prompt: HostCommand = {
+        type: 'session/prompt',
+        sessionId: 's1',
+        input: {
+          text: 'rewritten question',
+          branchFromMessageId: 'm-user-2',
+          clientMessageId: 'client-1',
+        },
+      };
+      expect(prompt.type).toBe('session/prompt');
+    });
+  });
 });

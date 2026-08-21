@@ -84,7 +84,6 @@ describe('DesktopPreferences loading', () => {
         foreground: '#CCCCCC',
         accent: '#007ACC',
       },
-      dontAskRevertConfirm: false,
     });
   });
 
@@ -120,7 +119,6 @@ describe('DesktopPreferences loading', () => {
         foreground: '#CCCCCC',
         accent: '#007ACC',
       },
-      dontAskRevertConfirm: false,
     });
   });
 
@@ -216,7 +214,6 @@ describe('DesktopPreferences saving and roundtrip', () => {
         foreground: '#FFFFFF',
         accent: '#00FF00',
       },
-      dontAskRevertConfirm: true,
     };
     saveDesktopPreferences(input);
 
@@ -248,7 +245,6 @@ describe('DesktopPreferences saving and roundtrip', () => {
         foreground: '#CCCCCC',
         accent: '#007ACC',
       },
-      dontAskRevertConfirm: false,
     };
     saveDesktopPreferences(defaults);
 

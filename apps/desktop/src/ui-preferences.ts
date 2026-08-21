@@ -73,8 +73,6 @@ export type DesktopPreferences = {
   terminalLastCwd?: string;
   /** Recent terminal directories (most recent first, max 5). */
   terminalRecentDirs?: string[];
-  /** When true, revert checkpoint confirmation modal is bypassed. */
-  dontAskRevertConfirm?: boolean;
   /** Animation selected for the compact live agent locator. */
   agentLocatorAnimation?: AgentLocatorAnimation;
 };
@@ -93,7 +91,6 @@ const LIGHT_THEME_KEY = 'piwin.desktop.lightTheme';
 const DARK_THEME_KEY = 'piwin.desktop.darkTheme';
 const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
-const DONT_ASK_REVERT_CONFIRM_KEY = 'piwin.desktop.dontAskRevertConfirm';
 const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
 /** Last successfully applied theme id — used for pre-paint bootstrap (no FOUC). */
 const LAST_THEME_ID_KEY = 'piwin.desktop.lastThemeId';
@@ -236,7 +233,6 @@ export function loadDesktopPreferences(): DesktopPreferences {
     appearanceMode: parseAppearanceMode(readString(APPEARANCE_MODE_KEY)),
     lightTheme: parseAppearanceTheme(readString(LIGHT_THEME_KEY), DEFAULT_LIGHT_THEME_SETTINGS),
     darkTheme: parseAppearanceTheme(readString(DARK_THEME_KEY), DEFAULT_DARK_THEME_SETTINGS),
-    dontAskRevertConfirm: parseBoolean(readString(DONT_ASK_REVERT_CONFIRM_KEY), false),
     ...(locatorAnimationRaw
       ? { agentLocatorAnimation: parseAgentLocatorAnimation(locatorAnimationRaw) }
       : {}),
@@ -258,7 +254,6 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(APPEARANCE_MODE_KEY, prefs.appearanceMode);
   writeString(LIGHT_THEME_KEY, JSON.stringify(prefs.lightTheme));
   writeString(DARK_THEME_KEY, JSON.stringify(prefs.darkTheme));
-  writeString(DONT_ASK_REVERT_CONFIRM_KEY, String(prefs.dontAskRevertConfirm ?? false));
   if (prefs.agentLocatorAnimation) {
     writeString(AGENT_LOCATOR_ANIMATION_KEY, prefs.agentLocatorAnimation);
   }

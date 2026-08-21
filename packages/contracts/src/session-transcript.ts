@@ -110,6 +110,11 @@ export type SessionTranscriptMessage = {
    * front/back here.
    */
   docCardSequence?: import('./doc-rag-v2.js').DocCardSequenceView;
+  /**
+   * Files this assistant turn mutated (ADR 0055 write-boundary).
+   * Absent on user rows and on turns that only read.
+   */
+  workspaceWrites?: import('./workspace-writes.js').WorkspaceWrites;
 };
 
 export type SessionTranscriptDocument = {

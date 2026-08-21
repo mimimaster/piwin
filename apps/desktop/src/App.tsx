@@ -135,6 +135,9 @@ import { useComposerMedia } from './hooks/use-composer-media';
 import { useComposerContextRefs } from './hooks/use-composer-context-refs';
 import { DesktopContextMenuProvider, type DesktopContextMenuValue } from './context-menu';
 import { useSessionActions } from './hooks/use-session-actions';
+import { useBranchActions } from './hooks/use-branch-actions';
+import { TruncateAfterDialog } from './truncate-after-dialog';
+import { BranchSwitchConfirmDialog } from './branch-switch-confirm-dialog';
 import { useSessionLineage } from './hooks/use-session-lineage';
 import { getDirectForkCountsByMessageId } from './session-lineage-tree';
 import { SessionLineageHeaderPopover } from './session-lineage-popover';
@@ -146,7 +149,7 @@ import {
   type SubagentInspectorToggle,
 } from './subagent-inspector-context';
 import { useJobs } from './hooks/use-jobs';
-import { Button, Dialog, Notice } from '@piwin/ui-kit';
+import { Button, Notice } from '@piwin/ui-kit';
 import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
 import { useConfirmDialog } from './use-confirm-dialog';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
@@ -174,6 +177,7 @@ import { SessionArchivedBanner } from './session-archived-banner';
 import { SessionColdRestoreDialog } from './session-cold-restore-dialog';
 import { StatusBar } from './status-bar';
 import { computeContextUsagePercent } from './context-usage-ring';
+import { installRendererSelfHeal } from './renderer-self-heal';
 
 import { useRightPanelResize } from './hooks/use-right-panel-resize';
 import { useSidebarResize } from './hooks/use-sidebar-resize';
@@ -240,6 +244,14 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   } = useHostRequestAdapters(hostClient);
 
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
+
+  // Renderer self-heal: relaunch WebContent when critical pressure holds while
+  // hidden and idle (pinned IOSurface leak; see renderer-self-heal.ts). The
+  // busy flag rides a ref so the installer effect never re-subscribes.
+  const selfHealBusyRef = useRef(false);
+  selfHealBusyRef.current = state.streaming || state.compacting;
+  useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
+
   const artifactCanvas = useArtifactCanvas(state.activeSessionId);
   const sessionLineage = useSessionLineage(hostClient, state.activeSessionId);
   const forkCountsByMessageId = useMemo(
@@ -379,12 +391,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   /** Filled after useComposerMedia mounts so Revert can restore text without reordering hooks. */
   const composerSetterRef = useRef<(value: SetStateAction<string>) => void>(() => undefined);
 
-  const [pendingRevertEdit, setPendingRevertEdit] = useState<{
-    messageId: string;
-    text: string;
-    isEdit?: boolean;
-  } | null>(null);
-  const [dontAskAgainChecked, setDontAskAgainChecked] = useState(false);
   const [preferences, setPreferences] = useState<DesktopPreferences>(() =>
     loadDesktopPreferences(),
   );
@@ -970,8 +976,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleForkSession,
     handleSessionMenuAction,
     confirmDeleteSession,
-    handleEditAndResend,
-    handleRetryFromMessage,
     handleAbort,
     handleCompact,
     handleCompactAbort,
@@ -990,19 +994,42 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     selectedModelKey,
     modelOptions,
     thinkingLevel,
-    agentMode,
-    orchestrationSchemeId,
-    delegationDisabled,
-    setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
-    // Composer setter is owned by useComposerMedia (declared later). Bridge via ref.
-    setComposer: (value) => {
-      composerSetterRef.current(value);
-    },
     onSessionComposerProfileRestored: (profile) => {
       sessionComposerProfileRestoredRef.current(profile);
     },
+  });
+
+  const {
+    branchPoints,
+    switchBranch,
+    branchResend,
+    requestTruncateAfter,
+    pendingTruncate,
+    confirmTruncateAfter,
+    cancelTruncateAfter,
+    pendingSwitchConfirm,
+    confirmSwitchBranch,
+    cancelSwitchBranch,
+  } = useBranchActions({
+    hostClient,
+    activeSessionId: state.activeSessionId,
+    streaming: state.streaming,
+    projectTrusted: state.projectTrusted,
+    isGeneralScope: state.activeScope.kind === 'general' || !state.projectPath,
+    transcriptOwnerSessionId: state.transcriptOwnerSessionId,
+    visibleMessages: state.historyView?.messages ?? state.messages,
+    dispatch,
+    dispatchNotification,
+    setEditingMessageId,
+    locale: desktopLocale,
+    selectedModelKey,
+    modelOptions,
+    thinkingLevel,
+    agentMode,
+    orchestrationSchemeId,
+    delegationDisabled,
     confirmForegroundReplace,
   });
 
@@ -1759,24 +1786,9 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   // CM P1: single app-level dispatcher set shared by all context-menu surfaces.
   // Deep components consume this through DesktopContextMenuProvider, so no
   // surface owns its own half-wired dispatcher set anymore.
-  const handleRetryMessage = useCallback(
-    (messageId: string): void => {
-      const visibleMessages = state.historyView?.messages ?? state.messages;
-      const msg = visibleMessages.find((message) => message.id === messageId);
-      if (!msg) return;
-      if (preferences.dontAskRevertConfirm) {
-        void handleRetryFromMessage(messageId);
-        return;
-      }
-      setPendingRevertEdit({ messageId, text: msg.text, isEdit: false });
-    },
-    [
-      handleRetryFromMessage,
-      preferences.dontAskRevertConfirm,
-      state.historyView,
-      state.messages,
-    ],
-  );
+  const handleRetryMessage = useCallback((messageId: string): void => {
+    setEditingMessageId(messageId);
+  }, []);
 
   const desktopContextMenuValue = useMemo<DesktopContextMenuValue>(() => {
     const notify = (message: string, level: 'success' | 'error' | 'info'): void => {
@@ -1848,6 +1860,9 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
         retryMessage: (messageId) => {
           handleRetryMessage(messageId);
         },
+        truncateAfterMessage: (messageId) => {
+          requestTruncateAfter(messageId);
+        },
         forkMessage: (messageId) => {
           if (!state.activeSessionId) return;
           void handleForkSession(state.activeSessionId, messageId);
@@ -1895,6 +1910,7 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     handleForkSession,
     handleOpenDocument,
     handleRetryMessage,
+    requestTruncateAfter,
     handleSend,
     hostClient,
     setComposer,
@@ -2245,15 +2261,16 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       ? ('centered' as const)
       : ('docked' as const);
 
-  const lastUserMessageId = useMemo(() => {
+  const lastUserMessage = useMemo(() => {
     for (let index = state.messages.length - 1; index >= 0; index -= 1) {
       const message = state.messages[index];
       if (message?.role === 'user') {
-        return message.id;
+        return message;
       }
     }
     return null;
   }, [state.messages]);
+  const lastUserMessageId = lastUserMessage?.id ?? null;
 
   const activeSessionListItem =
     state.activeSessionMetadata ??
@@ -2819,13 +2836,9 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   );
   const handleEditAndResendMessage = useCallback(
     (messageId: string, text: string): void => {
-      if (preferences.dontAskRevertConfirm && messageId === lastUserMessageId) {
-        void handleEditAndResend(messageId, text);
-        return;
-      }
-      setPendingRevertEdit({ messageId, text, isEdit: true });
+      void branchResend(messageId, text);
     },
-    [handleEditAndResend, lastUserMessageId, preferences.dontAskRevertConfirm],
+    [branchResend],
   );
   const handleMessageFeedback = useCallback(
     (message: string, level: 'info' | 'success' | 'error'): void => {
@@ -3075,10 +3088,10 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 }}
                 onViewPlan={() => openRightTab('terminal')}
                 onCancelCompact={() => void handleCompactAbort()}
-                {...(lastUserMessageId
+                {...(lastUserMessage
                   ? {
                       onRetry: () => {
-                        void handleRetryFromMessage(lastUserMessageId);
+                        void branchResend(lastUserMessage.id, lastUserMessage.text);
                       },
                     }
                   : {})}
@@ -3255,6 +3268,9 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         onCancelEdit={handleCancelMessageEdit}
                         onEditResend={handleEditAndResendMessage}
                         onRetry={handleRetryMessage}
+                        onBranchResend={branchResend}
+                        branchPoints={branchPoints}
+                        onSwitchBranch={switchBranch}
                         onInterventionEdit={handleInterventionEdit}
                         onInterventionCancel={handleInterventionCancel}
                         onFeedback={handleMessageFeedback}
@@ -3781,74 +3797,22 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
             />
           ) : null}
 
-          {/* Revert checkpoint confirmation dialog matching exact design specifications */}
-          {pendingRevertEdit ? (
-            <Dialog
-              label="Restore conversation to this message?"
-              open
-              onOpenChange={(open) => {
-                if (!open) {
-                  setPendingRevertEdit(null);
-                  setDontAskAgainChecked(false);
-                }
-              }}
-              testId="revert-edit-confirm"
-            >
-              <div className="revert-modal-content">
-                <h3 className="revert-modal-title">Restore conversation to this message?</h3>
-                <p className="revert-modal-subtitle muted">
-                  Later messages will be removed from this chat. File changes on disk are not
-                  undone.
-                </p>
-                <div className="revert-modal-footer">
-                  <label className="revert-dont-ask">
-                    <input
-                      type="checkbox"
-                      checked={dontAskAgainChecked}
-                      onChange={(e) => setDontAskAgainChecked(e.target.checked)}
-                      data-testid="revert-dont-ask-checkbox"
-                    />
-                    <span>Don't Ask Again</span>
-                  </label>
-                  <div className="modal-actions">
-                    <Button
-                      data-testid="revert-edit-cancel"
-                      onClick={() => {
-                        setPendingRevertEdit(null);
-                        setDontAskAgainChecked(false);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      className="revert-continue-btn"
-                      data-testid="revert-edit-confirm"
-                      onClick={() => {
-                        if (dontAskAgainChecked) {
-                          const nextPrefs = { ...preferences, dontAskRevertConfirm: true };
-                          setPreferences(nextPrefs);
-                          saveDesktopPreferences(nextPrefs);
-                        }
-                        const target = pendingRevertEdit;
-                        setPendingRevertEdit(null);
-                        setDontAskAgainChecked(false);
-                        if (target) {
-                          if (target.isEdit) {
-                            void handleEditAndResend(target.messageId, target.text);
-                          } else {
-                            void handleRetryFromMessage(target.messageId);
-                          }
-                        }
-                      }}
-                    >
-                      Continue <span className="enter-symbol">↵</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Dialog>
-          ) : null}
+          <TruncateAfterDialog
+            open={pendingTruncate !== null}
+            locale={desktopLocale}
+            onCancel={cancelTruncateAfter}
+            onConfirm={() => {
+              void confirmTruncateAfter();
+            }}
+          />
+
+          <BranchSwitchConfirmDialog
+            open={pendingSwitchConfirm !== null}
+            locale={desktopLocale}
+            offPathWrites={pendingSwitchConfirm?.offPathWrites ?? null}
+            onCancel={cancelSwitchBranch}
+            onConfirm={confirmSwitchBranch}
+          />
 
         </div>
         {settingsOpen ? (

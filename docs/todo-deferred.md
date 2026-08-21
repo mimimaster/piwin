@@ -123,9 +123,10 @@
 | ID | Item | Why deferred / unfinished | Suggested |
 |----|------|---------------------------|-----------|
 | D-M2-01 | ~~Product transcript cross-process resume~~ | **Done** product layer | done (product) |
-| D-M2-01b | Full **Pi native JSONL** session resume + tree projection | **Spike decision ADR 0009: product shell only**; Pi JSONL still residual | later host |
+| D-M2-01b | Full **Pi native JSONL** session resume + tree projection | **Superseded for branching by ADR 0055** (product-store tree). Residual is only “do not resume Pi JSONL” | later host (JSONL only) |
 | D-M2-02 | ~~Session list + linear outline UI~~ | **Done light** — list preview/count/time + jump outline | done (light) |
-| D-M2-02-full | Multi-leaf Pi branch graph UI | intentionally not main path | later UI |
+| D-M2-02-full | Multi-leaf Pi branch graph UI | **Superseded by ADR 0055 ‹n/m› switcher**; a visual tree panel stays optional | later UI |
+| S2-write-boundary | Conversation-tree Stage 5 write-boundary (warn-only confirm + git calibration) | **Done 2026-08-21** — `needs-confirmation` + Desktop/CLI confirm + `injectBranchCalibrationOnce`. Worktree button still waits on SF-06 | done (warn-only) |
 | D-M2-03 | ~~Bash hard-gate~~ | Done | done |
 | D-M2-04 | ~~Secret refs MVP (env + optional keychain)~~ | **Done** — no raw key save; `apiKeyRef` + doctor status | done (MVP) |
 | D-M2-04b | Windows Credential Manager + migrate existing plaintext configs | macOS security CLI + env MVP only | polish |

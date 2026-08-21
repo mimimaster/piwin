@@ -132,11 +132,18 @@ export type PromptInput = {
   attachments?: PromptAttachment[];
   /**
    * Optional client-generated id for the user turn. When present, the product
-   * transcript stores this id so Desktop Revert/Edit can truncate by the same
-   * id shown in the live chat bubble (optimistic paint). Host still generates
-   * an id when omitted (CLI / older clients).
+   * transcript stores this id so the optimistic chat bubble and the stored
+   * row share one identity (and later branch actions can reference it). Host
+   * still generates an id when omitted (CLI / older clients).
    */
   clientMessageId?: string;
+  /**
+   * This prompt replaces the given user message as a sibling branch
+   * (ADR 0055). Host moves the active leaf to that message's parent, then
+   * appends — the replaced turn and its subtree stay stored and switchable.
+   * Target must be a user row. Clients must not send the parent id.
+   */
+  branchFromMessageId?: string;
   /**
    * Structured context references (SIDE spec §8.2). Host resolves these
    * during prompt preparation; the user transcript keeps the original text +

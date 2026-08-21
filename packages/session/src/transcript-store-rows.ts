@@ -144,6 +144,9 @@ export type QueuedTurnRow = {
       if (metadata.replyWriter !== undefined) {
         message.replyWriter = metadata.replyWriter;
       }
+      if (metadata.workspaceWrites !== undefined) {
+        message.workspaceWrites = metadata.workspaceWrites;
+      }
     }
     return message;
   }
@@ -248,26 +251,13 @@ export type QueuedTurnRow = {
     return checkpoint;
   }
 
+/**
+ * Whole-table row count. Deliberately global (not path-scoped): legacy-import
+ * verification compares against the physical table, branches included.
+ */
 export function countRows(db: DatabaseSync): number {
   const row = db.prepare('SELECT COUNT(*) AS count FROM transcript_message').get() as {
     count: number;
   };
-  return row.count;
-}
-
-export function countRowsBeforeSequence(db: DatabaseSync, sequence: number): number {
-  const row = db
-    .prepare('SELECT COUNT(*) AS count FROM transcript_message WHERE sequence < ?')
-    .get(sequence) as { count: number };
-  return row.count;
-}
-
-export function countIndexedUserMessages(db: DatabaseSync): number {
-  const row = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM transcript_message
-       WHERE role = 'user' AND length(trim(text)) > 0`,
-    )
-    .get() as { count: number };
   return row.count;
 }

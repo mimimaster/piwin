@@ -9,6 +9,7 @@ import type {
   ModelRef,
   ProductSessionLineageView,
   SessionSummary,
+  TranscriptBranchPoint,
   SubagentInvocation,
   ThemeManifest,
   WalkthroughArtifact,
@@ -28,6 +29,8 @@ import { exploreFlowRolesEqual, type ExploreFlowRole } from './explore-flow';
 import { MarkdownView } from './MarkdownView';
 import { CitationCards } from './CitationCards';
 import { MessageAttachments } from './message-attachments';
+import { findActiveBranchPoint } from './conversation-branch.js';
+import { MessageBranchSwitcher } from './message-branch-switcher.js';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivitySlot } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
@@ -103,6 +106,8 @@ export type ChatMessageRowProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
+  branchPoints?: TranscriptBranchPoint[];
+  onSwitchBranch?: (headMessageId: string) => void;
   onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
   onInterventionCancel?: (messageId: string) => void | Promise<void>;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
@@ -570,6 +575,22 @@ export const ChatMessageRow = memo(
             message={message}
             streaming={props.streaming}
             onRetry={props.onRetry}
+            {...(() => {
+              const point = findActiveBranchPoint(props.branchPoints ?? [], message.id);
+              if (!point || !props.onSwitchBranch) {
+                return {};
+              }
+              return {
+                branchSwitcher: (
+                  <MessageBranchSwitcher
+                    point={point}
+                    disabled={props.streaming === true}
+                    onSwitch={props.onSwitchBranch}
+                    {...(props.locale !== undefined ? { locale: props.locale } : {})}
+                  />
+                ),
+              };
+            })()}
             {...(props.isConversationSession !== undefined
               ? { isConversationSession: props.isConversationSession }
               : {})}
@@ -732,6 +753,8 @@ export const ChatMessageRow = memo(
           previous.onCancelEdit === next.onCancelEdit &&
           previous.onEditResend === next.onEditResend &&
           previous.onRetry === next.onRetry &&
+          previous.onSwitchBranch === next.onSwitchBranch &&
+          previous.branchPoints === next.branchPoints &&
           previous.onInterventionEdit === next.onInterventionEdit &&
           previous.onInterventionCancel === next.onInterventionCancel &&
           (!isEditingThisRow || previous.composerCard === next.composerCard)

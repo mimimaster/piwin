@@ -104,6 +104,11 @@ Durable chat records and live Agent runtimes are separate authorities.
   `host/runtime-resources`; they never own timers, LRU, or memory thresholds.
 - Long-session transcript retention is bounded by the SQLite session transcript
   store (WP6), with legacy JSON fallback and doctor-detectable migration.
+- The store is a conversation tree (ADR 0055): each row has
+  `parent_message_id`, and `active_leaf_message_id` selects the visible path.
+  Edit/regenerate appends a sibling; `session/truncate-from` deletes a
+  subtree. Clients never hold parent ids. Switching warns when the abandoned
+  path wrote files; disk does not follow the leaf.
 
 ## 2.3 Session storage residency (ADR 0044)
 

@@ -6,7 +6,12 @@ import type {
   SessionToolCardView,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
-import { mergeSearchEvidence, USER_AUTHORED_GENERATION } from '@piwin/contracts';
+import {
+  collectWorkspaceWrites,
+  mergeSearchEvidence,
+  mergeWorkspaceWrites,
+  USER_AUTHORED_GENERATION,
+} from '@piwin/contracts';
 import type { SessionTranscriptStore, TranscriptStoreMessagePatch } from '@piwin/session';
 import { appendToolCard } from '@piwin/session';
 import type { TranscriptRecorder } from './transcript-recorder.js';
@@ -550,12 +555,21 @@ export function createStoreTranscriptRecorder(options: {
                 const attachments = event.isError
                   ? message.attachments
                   : appendGeneratedMediaAttachments(message.attachments, event.attachments);
+                const tools = (message.tools ?? []).map((tool) =>
+                  finalizeTool(tool, event, maxToolOutputBytes),
+                );
+                const ended = tools.find((tool) => tool.toolCallId === event.toolCallId);
+                const writes =
+                  ended?.presentation === undefined
+                    ? null
+                    : collectWorkspaceWrites(ended.presentation);
                 return {
                   ...message,
                   ...(attachments !== undefined ? { attachments } : {}),
-                  tools: (message.tools ?? []).map((tool) =>
-                    finalizeTool(tool, event, maxToolOutputBytes),
-                  ),
+                  tools,
+                  ...(writes
+                    ? { workspaceWrites: mergeWorkspaceWrites(message.workspaceWrites, writes) }
+                    : {}),
                 };
               },
               'tool/end',
@@ -667,6 +681,9 @@ function messagePatch(message: SessionTranscriptMessage): TranscriptStoreMessage
         ? { subagentActivity: message.subagentActivity }
         : {}),
       ...(message.searchEvidence !== undefined ? { searchEvidence: message.searchEvidence } : {}),
+      ...(message.workspaceWrites !== undefined
+        ? { workspaceWrites: message.workspaceWrites }
+        : {}),
     },
   };
 }

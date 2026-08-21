@@ -3,7 +3,7 @@
  * Handles collapsible overflow, image attachments, copy/revert/intervention actions,
  * and conversation-mode right-aligned layout with light avatar.
  */
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import { formatMessageTime } from './conversation-message-identity';
 import { MessageAttachments } from './message-attachments';
@@ -15,6 +15,7 @@ export type UserMessageContentProps = {
   message: ChatMessageUi;
   streaming?: boolean;
   onRetry: (messageId: string) => void;
+  branchSwitcher?: ReactNode;
   onInterventionEdit?: (messageId: string) => void;
   onInterventionCancel?: (messageId: string) => void | Promise<void>;
   onFeedback?: ((message: string, level: 'info' | 'success' | 'error') => void) | undefined;
@@ -210,13 +211,14 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
                     interventionStatus === 'pending' ||
                     interventionStatus === 'applying'
                   }
-                  title="Revert"
-                  aria-label="Revert message"
+                  title={isChinese ? '编辑此轮' : 'Edit this turn'}
+                  aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
                   data-testid="message-revert-btn"
                 >
                   <IconRevert />
                 </button>
               </div>
+              {props.branchSwitcher}
               {formattedTime ? (
                 <span className="user-message-time" data-testid="user-message-time">
                   {formattedTime}
@@ -331,12 +333,13 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
             interventionStatus === 'pending' ||
             interventionStatus === 'applying'
           }
-          title="Revert"
-          aria-label="Revert message"
+          title={isChinese ? '编辑此轮' : 'Edit this turn'}
+          aria-label={isChinese ? '编辑此轮' : 'Edit this turn'}
           data-testid="message-revert-btn"
         >
           <IconRevert />
         </button>
+        {props.branchSwitcher}
       </div>
     </div>
   );

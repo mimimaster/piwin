@@ -3,6 +3,16 @@ import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name
 import { buildForkSessionName } from '@piwin/session/fork-session-name';
 import { createMockSessionTranscriptPage } from './mock-session-transcript-page';
 import { createMockSessionTranscriptWindow } from './mock-session-transcript-window';
+import {
+  appendMockTranscriptMessage,
+  ensureMockTree,
+  listMockBranchPoints,
+  mockOffPathWrites,
+  rebaseMockLeaf,
+  switchMockBranch,
+  truncateMockSubtree,
+  visibleMockTranscript,
+} from './host-client-mock-tree.js';
 import { createMockSessionUserMessageIndex } from './mock-session-user-message-index';
 import { PIWIN_APPEARANCE_INK_WASH } from './appearance-tokens';
 /** Browser mock host backend — isolated from live Tauri transport. */
@@ -61,6 +71,8 @@ export class MockHostBackend {
       workingDirectory?: string;
       events: AgentEvent[];
       transcript: SessionTranscriptMessage[];
+      parentById?: Record<string, string | null>;
+      activeLeafMessageId?: string | null;
       name?: string;
       nameSource?: 'default' | 'text' | 'llm' | 'user';
       updatedAt?: string;
@@ -197,6 +209,8 @@ export class MockHostBackend {
       workingDirectory?: string;
       events: AgentEvent[];
       transcript: SessionTranscriptMessage[];
+      parentById?: Record<string, string | null>;
+      activeLeafMessageId?: string | null;
       name?: string;
       nameSource?: 'default' | 'text' | 'llm' | 'user';
       updatedAt?: string;
@@ -221,7 +235,7 @@ export class MockHostBackend {
       workingDirectory,
       projectPath: session.projectPath,
       updatedAt: session.updatedAt ?? '1970-01-01T00:00:00.000Z',
-      messageCount: session.transcript.length || session.events.length,
+      messageCount: visibleMockTranscript(session).length || session.events.length,
       name: session.name ?? `session-${sessionId.slice(0, 8)}`,
     };
     if (session.nameSource) summary.nameSource = session.nameSource;
@@ -758,7 +772,7 @@ export class MockHostBackend {
           session = { projectPath: '/mock/project', events: [], transcript: [] };
           this.sessions.set(command.sessionId, session);
         }
-        const transcriptPage = createMockSessionTranscriptPage(session.transcript, {
+        const transcriptPage = createMockSessionTranscriptPage(visibleMockTranscript(session), {
           sessionId: command.sessionId,
           limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
           maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
@@ -804,7 +818,7 @@ export class MockHostBackend {
         }
         let page: SessionTranscriptPageData;
         try {
-          page = createMockSessionTranscriptPage(session.transcript, command.query);
+          page = createMockSessionTranscriptPage(visibleMockTranscript(session), command.query);
         } catch (error) {
           return {
             id,
@@ -834,7 +848,7 @@ export class MockHostBackend {
           };
         }
         try {
-          const index = createMockSessionUserMessageIndex(session.transcript, command.query);
+          const index = createMockSessionUserMessageIndex(visibleMockTranscript(session), command.query);
           return {
             id,
             type: 'response',
@@ -864,7 +878,7 @@ export class MockHostBackend {
           };
         }
         try {
-          const window = createMockSessionTranscriptWindow(session.transcript, command.query);
+          const window = createMockSessionTranscriptWindow(visibleMockTranscript(session), command.query);
           return {
             id,
             type: 'response',
@@ -891,7 +905,7 @@ export class MockHostBackend {
           success: true,
           data: {
             sessionId: command.sessionId,
-            messages: session?.transcript ?? [],
+            messages: session ? visibleMockTranscript(session) : [],
           },
         };
       }
@@ -1075,8 +1089,39 @@ export class MockHostBackend {
             userMessage.attachments = mediaAttachments;
           }
         }
+        if (command.input.branchFromMessageId !== undefined) {
+          const target = session.transcript.find(
+            (message) => message.id === command.input.branchFromMessageId,
+          );
+          if (target === undefined) {
+            return {
+              id,
+              type: 'response',
+              command: 'session/prompt',
+              success: false,
+              error: `branch-target-not-found: ${command.input.branchFromMessageId}`,
+            };
+          }
+          if (target.role !== 'user') {
+            return {
+              id,
+              type: 'response',
+              command: 'session/prompt',
+              success: false,
+              error: `branch-target-not-user: ${command.input.branchFromMessageId}`,
+            };
+          }
+          ensureMockTree(session);
+          rebaseMockLeaf(session, session.parentById?.[target.id] ?? null);
+          this.emitPush({
+            type: 'session/branch-updated',
+            sessionId: command.sessionId,
+            activeLeafMessageId: session.activeLeafMessageId ?? null,
+            branchPointCount: listMockBranchPoints(session).length,
+          });
+        }
         if (command.input.source !== 'resume' && command.input.source !== 'queued-turn') {
-          session.transcript.push(userMessage);
+          appendMockTranscriptMessage(session, userMessage);
         }
         // Immediate text name (matches host recordUserPrompt naming pipeline).
         this.maybeMockAutoName(command.sessionId);
@@ -1291,7 +1336,7 @@ export class MockHostBackend {
         }
         const now = new Date().toISOString();
         const userMessageId = command.clientMessageId?.trim() || crypto.randomUUID();
-        session.transcript.push({
+        appendMockTranscriptMessage(session, {
           id: userMessageId,
           role: 'user',
           text: command.message,
@@ -1429,7 +1474,7 @@ export class MockHostBackend {
               revision: intervention.revision,
             },
           };
-          session.transcript.push(message);
+          appendMockTranscriptMessage(session, message);
           this.emitPush({ type: 'transcript/append', sessionId: command.sessionId, message });
         }
         this.emitPush({ type: 'run/intervention-updated', intervention });
@@ -3473,7 +3518,7 @@ export class MockHostBackend {
                 ? `${baseName} (2)`
                 : `Copy of ${baseName}`;
         const messageIdMap = new Map<string, string>();
-        const clonedTranscript = session.transcript.map((message) => {
+        const clonedTranscript = visibleMockTranscript(session).map((message) => {
           const next: SessionTranscriptMessage = {
             id: crypto.randomUUID(),
             role: message.role,
@@ -3541,7 +3586,8 @@ export class MockHostBackend {
             error: 'unknown session',
           };
         }
-        const messageIndex = session.transcript.findIndex(
+        const visibleSource = visibleMockTranscript(session);
+        const messageIndex = visibleSource.findIndex(
           (message) => message.id === command.messageId,
         );
         if (messageIndex === -1) {
@@ -3553,7 +3599,7 @@ export class MockHostBackend {
             error: 'session-fork-message-not-found',
           };
         }
-        const sourceMessage = session.transcript[messageIndex]!;
+        const sourceMessage = visibleSource[messageIndex]!;
         if (sourceMessage.role !== 'assistant' || sourceMessage.status !== 'done') {
           return {
             id,
@@ -3577,7 +3623,7 @@ export class MockHostBackend {
           session.origin?.kind === 'fork' ? session.origin.rootSessionId : command.sessionId;
         const messageIdMap = new Map<string, string>();
         const retainedRunIds = new Set<string>();
-        const forkTranscript = session.transcript.slice(0, messageIndex + 1).map((message) => {
+        const forkTranscript = visibleSource.slice(0, messageIndex + 1).map((message) => {
           const next: SessionTranscriptMessage = {
             id: crypto.randomUUID(),
             role: message.role,
@@ -3803,6 +3849,95 @@ export class MockHostBackend {
           success: true,
           data: { directory: command.directory, packs: [] },
         };
+      case 'session/branch-list': {
+        const session = this.sessions.get(command.sessionId);
+        if (!session) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/branch-list',
+            success: false,
+            error: 'unknown session',
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'session/branch-list',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            revision: `mock-branch:${visibleMockTranscript(session).length}`,
+            branchPoints: listMockBranchPoints(session),
+          },
+        };
+      }
+      case 'session/branch-switch': {
+        const session = this.sessions.get(command.sessionId);
+        if (!session) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/branch-switch',
+            success: false,
+            error: 'unknown session',
+          };
+        }
+        if (this.mockActiveRunIds.get(command.sessionId)) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/branch-switch',
+            success: true,
+            data: { status: 'run-active' },
+          };
+        }
+        const offPathWrites = mockOffPathWrites(session, command.targetMessageId);
+        if (offPathWrites !== null && command.confirm !== true) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/branch-switch',
+            success: true,
+            data: { status: 'needs-confirmation', offPathWrites },
+          };
+        }
+        try {
+          const activeLeafMessageId = switchMockBranch(session, command.targetMessageId);
+          this.emitPush({
+            type: 'session/branch-updated',
+            sessionId: command.sessionId,
+            activeLeafMessageId,
+            branchPointCount: listMockBranchPoints(session).length,
+          });
+          const visible = visibleMockTranscript(session);
+          return {
+            id,
+            type: 'response',
+            command: 'session/branch-switch',
+            success: true,
+            data: {
+              status: 'switched',
+              sessionId: command.sessionId,
+              activeLeafMessageId,
+              session: this.mockSessionSummary(command.sessionId, session),
+              ...mockSessionMessageResponse(
+                command.sessionId,
+                visible,
+                command.messageProjection ?? 'tail',
+              ),
+            },
+          };
+        } catch (error) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/branch-switch',
+            success: false,
+            error: error instanceof Error ? error.message : 'branch switch failed',
+          };
+        }
+      }
       case 'session/truncate-from': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
@@ -3814,8 +3949,8 @@ export class MockHostBackend {
             error: 'unknown session',
           };
         }
-        const cut = session.transcript.findIndex((m) => m.id === command.messageId);
-        if (cut === -1) {
+        const truncated = truncateMockSubtree(session, command.messageId);
+        if (!truncated.found) {
           return {
             id,
             type: 'response',
@@ -3824,8 +3959,12 @@ export class MockHostBackend {
             error: `Message not found in transcript: ${command.messageId}`,
           };
         }
-        const removedCount = session.transcript.length - cut;
-        session.transcript = session.transcript.slice(0, cut);
+        this.emitPush({
+          type: 'session/branch-updated',
+          sessionId: command.sessionId,
+          activeLeafMessageId: session.activeLeafMessageId ?? null,
+          branchPointCount: listMockBranchPoints(session).length,
+        });
         return {
           id,
           type: 'response',
@@ -3833,11 +3972,11 @@ export class MockHostBackend {
           success: true,
           data: {
             sessionId: command.sessionId,
-            removedCount,
-            remainingCount: session.transcript.length,
+            removedCount: truncated.removedCount,
+            remainingCount: truncated.remainingCount,
             ...mockSessionMessageResponse(
               command.sessionId,
-              session.transcript,
+              visibleMockTranscript(session),
               command.messageProjection,
             ),
           },
@@ -4540,7 +4679,7 @@ export class MockHostBackend {
       if (media.length > 0) message.attachments = media;
     }
     if (queuedTurn.input.contextRefs) message.contextRefs = queuedTurn.input.contextRefs;
-    session.transcript.push(message);
+    appendMockTranscriptMessage(session, message);
     this.emitPush({ type: 'transcript/append', sessionId: command.sessionId, message });
     this.emitMockQueuedTurn(queuedTurn);
     void this.drainMockQueue(command.sessionId);
@@ -4772,7 +4911,7 @@ export class MockHostBackend {
           createdAt: new Date().toISOString(),
           status: 'done',
         };
-        session.transcript.push(historyMessage);
+        appendMockTranscriptMessage(session, historyMessage);
         this.emitPush({
           type: 'transcript/append',
           sessionId,
@@ -4809,7 +4948,7 @@ export class MockHostBackend {
       for (const chunk of chunkText(reply, 28)) {
         if (controller.signal.aborted) {
           if (session) {
-            session.transcript.push({
+            appendMockTranscriptMessage(session, {
               id: assistantId,
               role: 'assistant',
               text: assembled,
@@ -4851,7 +4990,7 @@ export class MockHostBackend {
 
       if (controller.signal.aborted) {
         if (session) {
-          session.transcript.push({
+          appendMockTranscriptMessage(session, {
             id: assistantId,
             role: 'assistant',
             text: assembled,
@@ -4877,7 +5016,7 @@ export class MockHostBackend {
       }
 
       if (session) {
-        session.transcript.push({
+        appendMockTranscriptMessage(session, {
           id: assistantId,
           role: 'assistant',
           text: reply,

@@ -17,6 +17,7 @@ function createDispatchers() {
     copyText: vi.fn(),
     quoteInComposer: vi.fn(),
     retryMessage: vi.fn(),
+    truncateAfterMessage: vi.fn(),
     forkMessage: vi.fn(),
     openSideChat: vi.fn(),
     applyToFile: vi.fn(),
@@ -154,6 +155,8 @@ describe('dispatchContextMenuAction', () => {
     expect(dispatchers.retryMessage).toHaveBeenCalledWith('m1');
     dispatchContextMenuAction('fork', messageTarget, dispatchers);
     expect(dispatchers.forkMessage).toHaveBeenCalledWith('m1');
+    dispatchContextMenuAction('truncate-after', messageTarget, dispatchers);
+    expect(dispatchers.truncateAfterMessage).toHaveBeenCalledWith('m1');
   });
 
   it('side-chat carries sourceMessageId only for message surfaces', () => {

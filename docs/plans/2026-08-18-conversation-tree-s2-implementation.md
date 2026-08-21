@@ -554,11 +554,11 @@ insertMessageRow 成链；live 命令链；偏差 #1–#3。
 files 清单 + `git status --porcelain` + `git diff --stat` 有界摘要
 （`@piwin/git`）。默认开，无设置项。
 
-- [ ] **Step 1: collectWorkspaceWrites golden**（edit / write / str_replace /
+- [x] **Step 1: collectWorkspaceWrites golden**（edit / write / str_replace /
   bash 无路径 / 只读）
-- [ ] **Step 2: recorder 落 metadata + branch-switch 拦截测试**
-- [ ] **Step 3: Desktop 确认卡测试**
-- [ ] **Step 4: 校准注入 exactly-once 测试**
+- [x] **Step 2: recorder 落 metadata + branch-switch 拦截测试**
+- [x] **Step 3: Desktop 确认卡测试**
+- [x] **Step 4: 校准注入 exactly-once 测试**
 
 **Verify:** contracts + host-runtime + Desktop 相关测试
 
