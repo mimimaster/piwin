@@ -567,6 +567,36 @@ describe('ChatThread render isolation (E1)', () => {
   // ————————————————————————————————————————————————————————————————
   // Run activity wiring
   // ————————————————————————————————————————————————————————————————
+  it('does not pretend the model is connecting before Host accepts the run', () => {
+    const userMessage = createUserMessage('u-pending', 'with images');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            activeRunId={null}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+    expect(container.textContent).not.toContain('Connecting to model…');
+    expect(container.querySelector('[data-testid="assembly-summary-capsule"]')).toBeNull();
+  });
+
   it('renders run-activity slot when streaming and the last message is from the user', () => {
     const userMessage = createUserMessage('u1', 'Hello');
     act(() => {
@@ -575,6 +605,7 @@ describe('ChatThread render isolation (E1)', () => {
           <ChatThread
             messages={[userMessage]}
             streaming={true}
+            activeRunId="run-1"
             editingMessageId={null}
             lastUserMessageId={userMessage.id}
             activeTheme={null}
@@ -604,6 +635,7 @@ describe('ChatThread render isolation (E1)', () => {
           <ChatThread
             messages={[]}
             streaming={true}
+            activeRunId="run-empty"
             editingMessageId={null}
             lastUserMessageId={null}
             activeTheme={null}
@@ -634,6 +666,7 @@ describe('ChatThread render isolation (E1)', () => {
           <ChatThread
             messages={[userMessage]}
             streaming={true}
+            activeRunId="run-1"
             editingMessageId={null}
             lastUserMessageId={userMessage.id}
             activeTheme={null}
@@ -730,6 +763,115 @@ describe('ChatThread render isolation (E1)', () => {
         '[data-testid="message-bubble"] .markdown[style*="--streamdown-caret"]',
       ),
     ).toHaveLength(1);
+  });
+
+  it('folds consecutive read/search steps into one explore capsule and hides member bubbles', () => {
+    const userMessage = createUserMessage('u-flow', 'Find the config loader');
+    const readStep = (id: string, toolCallId: string, path: string): ChatMessageUi => ({
+      id,
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId,
+          toolName: 'read',
+          status: 'done',
+          output: 'contents',
+          presentation: {
+            kind: 'filesystem',
+            title: 'Read',
+            actionVerb: 'Read',
+            targetPaths: [path],
+          },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+      runId: 'run-flow',
+    });
+    const searchStep: ChatMessageUi = {
+      id: 'a-flow-search',
+      role: 'assistant',
+      text: '',
+      thinking: 'narrow down the loader',
+      thinkingStartedAt: 1_000,
+      thinkingEndedAt: 4_000,
+      tools: [
+        {
+          toolCallId: 'tool-grep',
+          toolName: 'grep',
+          status: 'done',
+          output: 'matches',
+          presentation: {
+            kind: 'filesystem',
+            title: 'Search',
+            actionVerb: 'Searched',
+            summary: 'loadConfig',
+          },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+      runId: 'run-flow',
+    };
+    const answer: ChatMessageUi = {
+      id: 'a-flow-answer',
+      role: 'assistant',
+      text: 'The loader lives in config.ts.',
+      thinking: 'confirm the answer',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-flow',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[
+              userMessage,
+              readStep('a-flow-read-1', 'tool-read-1', 'src/a.ts'),
+              searchStep,
+              readStep('a-flow-read-2', 'tool-read-2', 'src/b.ts'),
+              answer,
+            ]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    // One collapsed capsule owns the whole exploration; member bubbles vanish.
+    const capsules = container.querySelectorAll('[data-testid="explore-flow-capsule"]');
+    expect(capsules).toHaveLength(1);
+    expect(capsules[0]?.getAttribute('data-expanded')).toBe('false');
+    expect(capsules[0]?.textContent).toContain('Explored 2 files · 1 search');
+    expect(container.querySelectorAll('[data-testid="message-bubble"]')).toHaveLength(3);
+    expect(container.querySelector('[data-testid="tool-call-card"]')).toBeNull();
+    // The answer's own thought row is folded into the capsule, not duplicated.
+    expect(container.querySelectorAll('[data-testid="turn-work-details-summary"]')).toHaveLength(0);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="explore-flow-header"]')
+        ?.click();
+    });
+    expect(container.querySelectorAll('[data-testid="tool-call-card"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-testid="explore-thought-row"]')).toHaveLength(2);
+    expect(container.textContent).toContain('Thought for 3s');
   });
 
   it('renders every response segment in causal order without a Run summary', () => {
@@ -961,6 +1103,7 @@ describe('ChatThread render isolation (E1)', () => {
           <ChatThread
             messages={[userMessage]}
             streaming={true}
+            activeRunId="run-1"
             editingMessageId={null}
             lastUserMessageId={userMessage.id}
             activeTheme={null}
@@ -1914,16 +2057,114 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     };
     renderConversation([userMessage, thinkingOnly, generated]);
 
-    expect(container.querySelector('#msg-a-legacy-think')).not.toBeNull();
-    expect(container.querySelector('#msg-a-legacy-think [data-testid="conversation-thinking-summary"]')).not.toBeNull();
+    expect(container.querySelector('#msg-a-legacy-think')).toBeNull();
     expect(container.querySelector('#msg-a-legacy-image')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
     expect(thinkingOnly.tools).toHaveLength(1);
     expect(thinkingOnly.thinking).toBe('raw thought that must stay in the reducer');
   });
 
+  it('uses one identity header for a Conversation tool-loop turn', () => {
+    const userMessage = createUserMessage('u-fetch', 'read the page');
+    const firstCall: ChatMessageUi = {
+      id: 'a-fetch-think',
+      role: 'assistant',
+      text: '',
+      thinking: 'I will fetch the URL',
+      tools: [{ toolCallId: 'tool-fetch', toolName: 'web_fetch', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'glm5.2' },
+    };
+    const finalReply: ChatMessageUi = {
+      id: 'a-fetch-final',
+      role: 'assistant',
+      text: '页首内容已读取。',
+      thinking: 'summarize the page',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-08-20T13:25:00.000Z',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'glm5.2' },
+    };
+    renderConversation([userMessage, firstCall, finalReply]);
+
+    expect(container.querySelector('#msg-a-fetch-think')).toBeNull();
+    expect(container.querySelector('#msg-a-fetch-final')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="conversation-thinking-summary"]')).toHaveLength(1);
+    expect(container.textContent).toContain('页首内容已读取。');
+  });
+
+  it('does not repeat the identity header for two visible Conversation completions', () => {
+    const userMessage = createUserMessage('u-two', 'look this up');
+    const first: ChatMessageUi = {
+      id: 'a-two-1',
+      role: 'assistant',
+      text: 'I will look that up.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'glm5.2' },
+    };
+    const second: ChatMessageUi = {
+      id: 'a-two-2',
+      role: 'assistant',
+      text: 'Here is the result.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'glm5.2' },
+    };
+    renderConversation([userMessage, first, second]);
+
+    expect(container.querySelector('#msg-a-two-1')).not.toBeNull();
+    expect(container.querySelector('#msg-a-two-2')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="conversation-message-header"]')).toHaveLength(1);
+    expect(container.querySelector('#msg-a-two-1 [data-testid="conversation-message-header"]')).not.toBeNull();
+    expect(container.querySelector('#msg-a-two-2 [data-testid="conversation-message-header"]')).toBeNull();
+    expect(container.querySelector('#msg-a-two-2')?.classList.contains('is-turn-continuation')).toBe(
+      true,
+    );
+  });
+
+  it('still shows every Agent lifecycle row without Conversation headers', () => {
+    const userMessage = createUserMessage('u-agent', 'inspect');
+    const thinkingOnly: ChatMessageUi = {
+      id: 'a-agent-think',
+      role: 'assistant',
+      text: '',
+      thinking: 'plan the inspection',
+      tools: [{ toolCallId: 'tool-1', toolName: 'bash', status: 'done', output: 'ok' }],
+      attachments: [],
+      status: 'done',
+    };
+    const finalReply: ChatMessageUi = {
+      id: 'a-agent-final',
+      role: 'assistant',
+      text: 'Inspection done.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    renderConversation([userMessage, thinkingOnly, finalReply], { isConversationSession: false });
+
+    expect(container.querySelector('#msg-a-agent-think')).not.toBeNull();
+    expect(container.querySelector('#msg-a-agent-final')).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-message-header"]')).toBeNull();
+    expect(container.querySelector('[data-testid="turn-work-details"]')).not.toBeNull();
+  });
+
   it('shows Conversation activity instead of AgentLocator while waiting', () => {
-    renderConversation([createUserMessage('u-wait', 'hello')], { streaming: true });
+    renderConversation([createUserMessage('u-wait', 'hello')], {
+      streaming: true,
+      activeRunId: 'run-wait',
+    });
     expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
       'Thinking…',
     );
@@ -2067,6 +2308,45 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     const chip = a2Row?.querySelector('[data-testid="conversation-message-usage-chip"]');
     expect(chip).not.toBeNull();
     expect(chip?.textContent).toBe('1.2K → 486');
+  });
+
+  it('places Conversation turn usage on the identity header of a multi-completion turn', () => {
+    const userMessage = createUserMessage('u-usage-loop', 'fetch');
+    const first: ChatMessageUi = {
+      id: 'a-usage-1',
+      role: 'assistant',
+      text: 'Looking it up.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'glm5.2' },
+    };
+    const second: ChatMessageUi = {
+      id: 'a-usage-2',
+      role: 'assistant',
+      text: 'Done.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: { protocol: 'openai-compatible', providerId: 'cpa', modelId: 'glm5.2' },
+    };
+    renderConversation([userMessage, first, second], {
+      contextUsage: {
+        sessionId: 'session-1',
+        updatedAt: '2026-08-20T00:00:00.000Z',
+        source: 'assistant-usage',
+        promptTokens: 1200,
+        completionTokens: 486,
+        totalTokens: 1686,
+      },
+    });
+
+    expect(container.querySelector('#msg-a-usage-1 [data-testid="conversation-message-usage-chip"]')?.textContent).toBe(
+      '1.2K → 486',
+    );
+    expect(container.querySelector('#msg-a-usage-2 [data-testid="conversation-message-usage-chip"]')).toBeNull();
   });
 
   it('renders user message with conversation bubble class and avatar monogram in Conversation mode', () => {

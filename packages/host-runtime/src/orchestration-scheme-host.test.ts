@@ -28,7 +28,7 @@ describe('ORCH host scheme application', () => {
     const modelText = mergeOrchestrationSchemeIntoPrompt(resolved!, 'investigate flaky tests');
     expect(modelText).toContain('[piwin-scheme:ultra-code]');
     expect(modelText).toContain('[piwin-scheme-roster]');
-    expect(modelText).toContain('searcher:');
+    expect(modelText).toContain('scout:');
     expect(modelText).toContain('investigate flaky tests');
     expect(modelText).not.toMatch(/^investigate flaky tests/);
   });
@@ -47,11 +47,12 @@ describe('ORCH host scheme application', () => {
       model: { protocol: 'openai-compatible', providerId: 'p', modelId: 'm' },
       thinkingLevel: 'high',
     });
-    expect(applied.role).toBe('searcher');
+    expect(applied.role).toBe('scout');
     expect(applied.profileId).toBe('explorer');
     expect(applied.clearedModel).toBe(true);
     expect(applied.thinkingLevel).toBe('low');
     expect(applied.isolation).toBe('readonly');
+    expect(applied.reportContract).toMatch(/complete \| partial \| blocked/);
   });
 
   it('unknown role yields fallback-main without spawning', () => {

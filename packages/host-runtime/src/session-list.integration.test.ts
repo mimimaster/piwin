@@ -203,6 +203,63 @@ describe('HostRuntime session/list', () => {
     }
   });
 
+  it('excludes side-chat and subagent children from scoped and all-scopes lists', async () => {
+    const child = createSessionRecord({
+      id: 'sub-1',
+      projectPath: '',
+      scope: { kind: 'general' },
+      workingDirectory: 'general',
+      name: 'subagent-task-1',
+      nameSource: 'text',
+      kind: 'subagent',
+      parentSessionId: 'gen-alpha',
+    });
+    const side = createSessionRecord({
+      id: 'side-1',
+      projectPath: '',
+      scope: { kind: 'general' },
+      workingDirectory: 'general',
+      name: 'Side chat',
+      nameSource: 'text',
+      kind: 'side-chat',
+    });
+    const { runtime, dispose } = await createSeededRuntime([...ORDER_FIXTURE, child, side]);
+    try {
+      const scoped = listData(
+        await runtime.handleCommand({
+          type: 'session/list',
+          scope: { kind: 'general' },
+          includeArchived: true,
+          order: 'alphabetical',
+        }),
+      );
+      expect(scoped.sessions.map((session) => session.name)).toEqual([
+        'Alpha',
+        'Archived',
+        'Bravo',
+        'Zulu',
+      ]);
+
+      const all = listData(
+        await runtime.handleCommand({
+          type: 'session/list',
+          allScopes: true,
+          includeArchived: true,
+          order: 'alphabetical',
+        }),
+      );
+      expect(all.sessions.map((session) => session.name)).toEqual([
+        'Alpha',
+        'Archived',
+        'Bravo',
+        'Project Alpha',
+        'Zulu',
+      ]);
+    } finally {
+      await dispose();
+    }
+  });
+
   it('rejects maxItems that are not a positive safe integer', async () => {
     const { runtime, dispose } = await createSeededRuntime(ORDER_FIXTURE);
     try {

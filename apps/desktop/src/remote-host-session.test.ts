@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   clearDesktopRemoteHostTarget,
   createDesktopRemoteHostClient,
+  createDesktopRemoteHostProbeClientId,
+  DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES,
   loadDesktopRemoteHostTarget,
+  resolveDesktopRemoteHostClientOptions,
+  sameDesktopRemoteHostTarget,
   saveDesktopRemoteHostTarget,
 } from './remote-host-session';
 
@@ -46,9 +50,29 @@ describe('desktop remote host target', () => {
     expect(loadDesktopRemoteHostTarget()).toBeUndefined();
   });
 
+  it('rejects non-ws endpoints on load', () => {
+    window.localStorage.setItem(
+      'piwin.desktop.remote-host-target',
+      JSON.stringify({ endpoint: 'http://127.0.0.1:8787' }),
+    );
+    expect(loadDesktopRemoteHostTarget()).toBeUndefined();
+  });
+
   it('returns undefined when stored JSON is invalid', () => {
     localStorage.setItem(STORAGE_KEY, '{');
     expect(loadDesktopRemoteHostTarget()).toBeUndefined();
+  });
+
+  it('does not ask Host for hello hydration; Desktop lists sessions itself', () => {
+    expect(DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES.hydration).toBe(false);
+  });
+
+  it('reconnects the live workbench client and isolates probe ids', () => {
+    expect(resolveDesktopRemoteHostClientOptions().autoReconnect).toBe(true);
+    expect(resolveDesktopRemoteHostClientOptions({ autoReconnect: false }).autoReconnect).toBe(
+      false,
+    );
+    expect(createDesktopRemoteHostProbeClientId().startsWith('desktop-probe-')).toBe(true);
   });
 
   it('creates a remote HostClient without connecting', () => {
@@ -57,5 +81,20 @@ describe('desktop remote host target', () => {
       authToken: 'secret',
     });
     expect(client.getState().kind).toBe('idle');
+  });
+
+  it('treats the same endpoint and token as the same target', () => {
+    expect(
+      sameDesktopRemoteHostTarget(
+        { endpoint: 'ws://127.0.0.1:8787' },
+        { endpoint: 'ws://127.0.0.1:8787' },
+      ),
+    ).toBe(true);
+    expect(
+      sameDesktopRemoteHostTarget(
+        { endpoint: 'ws://127.0.0.1:8787' },
+        { endpoint: 'ws://127.0.0.1:9999' },
+      ),
+    ).toBe(false);
   });
 });

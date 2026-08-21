@@ -35,6 +35,7 @@ function getSearchRoutePreviewInput(command: SettingsCommand): SearchRoutePrevie
 type WebPageHarnessProps = {
   request: SettingsRequest;
   initialDraft?: DraftWeb;
+  transport?: 'live' | 'remote';
 };
 
 function baseConfig(): PiwinConfig {
@@ -171,6 +172,13 @@ function WebPageHarness(props: WebPageHarnessProps): ReactElement {
   const contextValue = createContextValue(props.request);
   contextValue.webDraft = webDraft;
   contextValue.setWebDraft = setWebDraft;
+  if (props.transport) {
+    const transport = props.transport;
+    contextValue.hostClient = {
+      subscribe: () => () => {},
+      getTransport: () => transport,
+    };
+  }
 
   return (
     <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -221,13 +229,21 @@ describe('WebPage search route settings', () => {
     vi.useRealTimers();
   });
 
-  function renderPage(request: SettingsRequest, initialDraft?: DraftWeb): HTMLElement {
+  function renderPage(
+    request: SettingsRequest,
+    initialDraft?: DraftWeb,
+    transport?: 'live' | 'remote',
+  ): HTMLElement {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
     activeContainer = container;
     activeRoot = root;
-    const harnessProps = initialDraft === undefined ? { request } : { request, initialDraft };
+    const harnessProps = {
+      request,
+      ...(initialDraft === undefined ? {} : { initialDraft }),
+      ...(transport === undefined ? {} : { transport }),
+    };
     act(() => {
       root.render(<WebPageHarness {...harnessProps} />);
     });
@@ -339,5 +355,97 @@ describe('WebPage search route settings', () => {
     );
     expect(selectedStatus?.getAttribute('data-tone')).toBe('warning');
     expect(container.querySelector('[data-testid="search-route-issues"]')).toBeTruthy();
+  });
+
+  it('lists chat models for focused web_fetch extract', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+    const fetchTab = Array.from(container.querySelectorAll('label')).find(
+      (element) => element.textContent === 'Fetch',
+    );
+    if (!fetchTab) throw new Error('Fetch tab missing');
+    act(() => {
+      fetchTab.click();
+    });
+
+    const delegateSelect = container.querySelector<HTMLSelectElement>(
+      '[data-testid="web-fetch-delegate-model"]',
+    );
+    if (!delegateSelect) throw new Error('fetch extract selector missing');
+    expect(delegateSelect.textContent).toContain('Gemini Search');
+    expect(delegateSelect.textContent).toContain('gemini-plain');
+    act(() => {
+      delegateSelect.value = 'google-gemini/gemini/gemini-plain';
+      delegateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="web-fetch-delegate-active"]')).toBeTruthy();
+  });
+
+  it('lets the user enable jina fallback for thin local extracts', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+
+    const container = renderPage(request);
+    await flushPreviewDebounce();
+    const fetchTab = Array.from(container.querySelectorAll('label')).find(
+      (element) => element.textContent === 'Fetch',
+    );
+    if (!fetchTab) throw new Error('Fetch tab missing');
+    act(() => {
+      fetchTab.click();
+    });
+
+    const fallbackSelect = container.querySelector<HTMLSelectElement>(
+      '[data-testid="web-fetch-fallback"]',
+    );
+    if (!fallbackSelect) throw new Error('fetch fallback selector missing');
+    act(() => {
+      fallbackSelect.value = 'jina';
+      fallbackSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(fallbackSelect.value).toBe('jina');
+    expect(container.querySelector('[data-testid="web-fetch-return-max-chars"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="web-fetch-store-max-chars"]')).toBeTruthy();
+  });
+
+  it('does not show empty CLI launcher fields on a remote shell', async () => {
+    const request = vi.fn<SettingsRequest>(async (command: SettingsCommand) => {
+      const input = getSearchRoutePreviewInput(command);
+      if (input) {
+        return successResponse(nativePreview(input.policy));
+      }
+      return { type: 'response', command: command.type, success: true, data: {} };
+    });
+    const draft = webToDraft({
+      ...createDefaultWebConfig(),
+      searchProvider: 'cli',
+      searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
+    });
+    const container = renderPage(request, draft, 'remote');
+    await flushPreviewDebounce();
+    const cliHeader = container.querySelector<HTMLButtonElement>(
+      '[data-testid="web-search-source-cli"]',
+    );
+    if (!cliHeader) {
+      throw new Error('CLI source card missing');
+    }
+    act(() => {
+      cliHeader.click();
+    });
+    expect(container.querySelector('[data-testid="web-search-cli-host-held"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="web-search-cli-command"]')).toBeNull();
   });
 });

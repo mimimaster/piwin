@@ -58,6 +58,7 @@ export {
   isPlaceholderSessionName,
   sessionHasListName,
 } from './session-display-name.js';
+export { isPrimarySessionRecord } from './session-list-visibility.js';
 export type { SessionNameFields, SessionNameSource } from './session-display-name.js';
 export { exportCompactionMarkdown, suggestCompactionExportBasename } from './export-compaction.js';
 export type { ExportCompactionMarkdownOptions } from './export-compaction.js';

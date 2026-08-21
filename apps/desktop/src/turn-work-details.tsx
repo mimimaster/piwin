@@ -19,12 +19,15 @@ import { buildActivityPhrases, runtimeStatusText } from './run-activity-strings.
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { TurnToolGroup } from './turn-tool-group';
+import { ExploreFlowCapsule } from './explore-flow-capsule';
+import type { ExploreFlowRole } from './explore-flow';
 import type { DocumentOpenInput } from './tool-call-card';
 import type { DiffCardRequest } from './diff-card';
 import type { AgentLocatorAnimation, WorkDetailsExpanded } from './ui-preferences.js';
 import { IconChevronRight, IconBrain } from './shell-icons';
 import { resolveGenerationToolKind } from './generation-tool-kind.js';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
+import type { ModelOption } from './model-options';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
@@ -36,10 +39,18 @@ export type TurnWorkDetailsProps = {
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity?: 'compact' | 'comfortable' | 'detailed';
   showThinking?: boolean;
+  /**
+   * Cross-message explore-flow role: anchors render the grouped capsule in
+   * place of their own thinking/tool rows; members and folded thoughts render
+   * inside the anchor's capsule instead of their own rows.
+   */
+  exploreRole?: ExploreFlowRole;
   locale?: 'zh-CN' | 'en';
+  modelOptions?: readonly ModelOption[];
   projectPath?: string | null;
   request?: DiffCardRequest;
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   activeSkill?: SkillActivityView | null;
   agentLocatorAnimation?: AgentLocatorAnimation;
@@ -87,16 +98,26 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const tools = presentation.workItems
     .filter((item): item is Extract<typeof item, { kind: 'tool' }> => item.kind === 'tool')
     .map((item) => item.tool);
-  const inlineTools = tools.filter((tool) => resolveGenerationToolKind(tool) === null);
+  const exploreRole = props.exploreRole;
+  const isFlowAnchor = exploreRole?.kind === 'anchor';
+  const workFoldedIntoFlow = isFlowAnchor || exploreRole?.kind === 'member';
+  // Anchor/member tools and folded thoughts render inside the flow capsule.
+  const inlineTools = workFoldedIntoFlow
+    ? []
+    : tools.filter((tool) => resolveGenerationToolKind(tool) === null);
   const thinkingItem = presentation.workItems.find((item) => item.kind === 'thinking');
   const permissionItem = presentation.workItems.find((item) => item.kind === 'permission');
-  const hasThinking = props.showThinking !== false && thinkingItem?.kind === 'thinking';
+  const hasThinking =
+    props.showThinking !== false &&
+    thinkingItem?.kind === 'thinking' &&
+    exploreRole === undefined;
   const thinkingIsStreaming = presentation.isThinkingActive && Boolean(hasThinking);
   const thinkingLabelClass = behaviorTextClass('thinking', thinkingIsStreaming);
   const liveActivityLabel = buildActivityPhrases(
     turnPresentationToActivityInput(presentation, props.message, locale),
   )[0];
   const hasVisibleWork =
+    isFlowAnchor ||
     hasThinking ||
     inlineTools.length > 0 ||
     presentation.isWaitingForModel ||
@@ -120,6 +141,20 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       data-run-id={presentation.runId ?? undefined}
       data-open={hasThinking && thinkingOpen ? 'true' : 'false'}
     >
+      {isFlowAnchor && exploreRole?.kind === 'anchor' ? (
+        <ExploreFlowCapsule
+          group={exploreRole.group}
+          locale={locale}
+          {...(props.showThinking !== undefined ? { showThinking: props.showThinking } : {})}
+          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+          {...(props.request !== undefined ? { request: props.request } : {})}
+          {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+          {...(props.onOpenDiff !== undefined ? { onOpenDiff: props.onOpenDiff } : {})}
+          {...(props.onOpenDocument !== undefined
+            ? { onOpenDocument: props.onOpenDocument }
+            : {})}
+        />
+      ) : null}
       {hasThinking && thinkingItem?.kind === 'thinking' ? (
         <>
           <button
@@ -227,9 +262,11 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         tools={inlineTools}
         density={props.toolDensity ?? 'compact'}
         locale={locale}
+        {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
         {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
         {...(props.request !== undefined ? { request: props.request } : {})}
         {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+        {...(props.onOpenDiff !== undefined ? { onOpenDiff: props.onOpenDiff } : {})}
         {...(props.onOpenDocument !== undefined ? { onOpenDocument: props.onOpenDocument } : {})}
         {...(props.subagentChildren ? { subagentChildren: props.subagentChildren } : {})}
         {...(props.subagentInvocations

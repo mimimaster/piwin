@@ -11,7 +11,7 @@ import type {
   SettingsMutation,
   SettingsSnapshot,
 } from '@piwin/contracts';
-import { PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
+import { isRedactedStoredSecret, PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from '../paths.js';
 import {
   createDefaultPiwinConfig,
@@ -28,6 +28,8 @@ export class SettingsRevisionConflictError extends Error {
   constructor(
     readonly expectedRevision: string,
     readonly actualRevision: string,
+    readonly conflictingDomains: SettingsDomain[] = [],
+    readonly snapshot?: SettingsSnapshot,
   ) {
     super(
       `Settings changed since revision ${expectedRevision}; current revision is ${actualRevision}`,
@@ -79,15 +81,14 @@ type SettingsServiceOptions = {
  * keeps the existing PiwinConfig shape during Phase 1; later phases can move
  * capability fields without reintroducing whole-document writes.
  */
+/**
+ * One chain per data root. Catalog commands construct a new SettingsService
+ * per request; concurrent remote applies must still rebase, not race the file.
+ */
+const mutationChains = new Map<string, Promise<unknown>>();
+
 export class SettingsService {
   private readonly rootDir: string;
-  /**
-   * Process-local mutation mutex. The CLI dispatcher already serializes
-   * `settings/apply`, but the service must not silently lose updates when two
-   * writers (panels, tests, future transports) race the same base revision:
-   * the read-modify-write cycle is atomic only within this chain.
-   */
-  private mutationChain: Promise<unknown> = Promise.resolve();
 
   constructor(options: SettingsServiceOptions = {}) {
     this.rootDir = getPiwinRoot(options.piwinRoot);
@@ -103,9 +104,13 @@ export class SettingsService {
   }
 
   private runSerialized<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.mutationChain.then(operation, operation);
+    const previous = mutationChains.get(this.rootDir) ?? Promise.resolve();
+    const result = previous.then(operation, operation);
     // A failed mutation must never wedge the chain; later applies still run.
-    this.mutationChain = result.catch(() => undefined);
+    mutationChains.set(
+      this.rootDir,
+      result.catch(() => undefined),
+    );
     return result;
   }
 
@@ -115,7 +120,15 @@ export class SettingsService {
       input.expectedRevision !== undefined &&
       input.expectedRevision !== currentSnapshot.revision
     ) {
-      throw new SettingsRevisionConflictError(input.expectedRevision, currentSnapshot.revision);
+      const conflictingDomains = collectConflictingDomains(currentSnapshot, input);
+      if (conflictingDomains.length > 0) {
+        throw new SettingsRevisionConflictError(
+          input.expectedRevision,
+          currentSnapshot.revision,
+          conflictingDomains,
+          currentSnapshot,
+        );
+      }
     }
 
     const nextConfig = applySettingsMutations(currentSnapshot.config, input.mutations);
@@ -156,8 +169,71 @@ export function createSettingsSnapshot(config: PiwinConfig): SettingsSnapshot {
     schemaVersion: PIWIN_SETTINGS_SCHEMA_VERSION,
     revision,
     runtimeRevision: createRuntimeSettingsRevision(normalizedConfig),
+    domainRevisions: createSettingsDomainRevisions(normalizedConfig),
     config: normalizedConfig,
   };
+}
+
+export function createSettingsDomainRevision(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
+}
+
+export function createSettingsDomainRevisions(
+  config: PiwinConfig,
+): Partial<Record<SettingsDomain, string>> {
+  const normalized = normalizePiwinConfig(config);
+  const revisions: Partial<Record<SettingsDomain, string>> = {};
+  for (const domain of [
+    'hostMode',
+    'agentMock',
+    'providers',
+    'defaultProviderId',
+    'defaultModelId',
+    'thinking',
+    'desktop',
+    'media',
+    'artifact',
+    'web',
+    'skills',
+    'extensions',
+    'prompts',
+    'compaction',
+    'process',
+    'session',
+    'notes',
+    'flashcards',
+    'automation',
+    'marketplace',
+    'imageGeneration',
+    'speech',
+    'visionDelegation',
+    'replyWriter',
+    'permissions',
+    'walkthrough',
+    'subagents',
+    'remote',
+  ] as const satisfies readonly SettingsDomain[]) {
+    revisions[domain] = createSettingsDomainRevision(readConfigDomain(normalized, domain));
+  }
+  return revisions;
+}
+
+function collectConflictingDomains(
+  current: SettingsSnapshot,
+  input: ApplySettingsInput,
+): SettingsDomain[] {
+  const mutated = [...new Set(input.mutations.map((mutation) => mutation.domain))];
+  const expected = input.expectedDomainRevisions;
+  if (expected === undefined) {
+    return mutated;
+  }
+  return mutated.filter((domain) => {
+    const expectedHash = expected[domain];
+    if (expectedHash === undefined) {
+      return true;
+    }
+    return current.domainRevisions[domain] !== expectedHash;
+  });
 }
 
 /**
@@ -180,6 +256,49 @@ export function createRuntimeSettingsRevision(config: PiwinConfig): string {
     .digest('hex');
 }
 
+/**
+ * Remote settings/get strips secrets and Host paths. A later replace-domain
+ * must keep those omitted fields or apply would wipe them / fail validation.
+ *
+ * Arrays of `{ id }` records merge by id (source order in a projected web
+ * domain is not authoritative). Host-held launchers that the shell omitted
+ * entirely stay on disk — toggling a source sets `enabled`, it does not drop
+ * the row.
+ */
+function mergeMissingDomainFields(current: unknown, incoming: unknown): unknown {
+  if (incoming === undefined) {
+    return current;
+  }
+  if (isRedactedHostPath(incoming) && typeof current === 'string' && current.length > 0) {
+    return current;
+  }
+  if (isRedactedStoredSecret(incoming) && typeof current === 'string' && current.length > 0) {
+    return current;
+  }
+  if (incoming === null || typeof incoming !== 'object') {
+    return incoming;
+  }
+  if (Array.isArray(incoming)) {
+    if (!Array.isArray(current)) {
+      return incoming;
+    }
+    if (canMergeRecordsById(current, incoming)) {
+      return mergeIdRecordArrays(current, incoming);
+    }
+    return incoming.map((item, index) => mergeMissingDomainFields(current[index], item));
+  }
+  if (current === null || typeof current !== 'object' || Array.isArray(current)) {
+    return incoming;
+  }
+  const currentRecord = current as Record<string, unknown>;
+  const incomingRecord = incoming as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...currentRecord };
+  for (const [key, value] of Object.entries(incomingRecord)) {
+    merged[key] = mergeMissingDomainFields(currentRecord[key], value);
+  }
+  return merged;
+}
+
 export function applySettingsMutations(
   config: PiwinConfig,
   mutations: SettingsMutation[],
@@ -188,7 +307,10 @@ export function applySettingsMutations(
   for (const mutation of mutations) {
     nextConfig = {
       ...nextConfig,
-      [mutation.domain]: mutation.value,
+      [mutation.domain]: mergeMissingDomainFields(
+        readConfigDomain(nextConfig, mutation.domain),
+        mutation.value,
+      ),
     } as PiwinConfig;
   }
   return normalizePiwinConfig(nextConfig);
@@ -203,6 +325,7 @@ export function classifySettingsImpact(
     'media',
     'artifact',
     'visionDelegation',
+    'replyWriter',
     'automation',
     'desktop',
   ]);
@@ -316,6 +439,55 @@ function permissionModeRank(mode: 'auto' | 'ask-all' | 'bypass' | undefined): nu
     default:
       return 1;
   }
+}
+
+function isIdRecord(value: unknown): value is Record<string, unknown> & { id: unknown } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'id' in value;
+}
+
+function isRedactedHostPath(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('[host-path]');
+}
+
+function hasHostHeldFields(value: unknown): boolean {
+  if (!isIdRecord(value)) {
+    return false;
+  }
+  return ['command', 'apiKeyRef', 'apiKeyEnv'].some((key) => {
+    const field = value[key];
+    return typeof field === 'string' && field.trim().length > 0;
+  });
+}
+
+function canMergeRecordsById(current: unknown[], incoming: unknown[]): boolean {
+  const currentIds = current.filter(isIdRecord).map((item) => String(item.id));
+  const incomingIds = incoming.filter(isIdRecord).map((item) => String(item.id));
+  return (
+    currentIds.length === current.length &&
+    incomingIds.length === incoming.length &&
+    new Set(currentIds).size === currentIds.length
+  );
+}
+
+function mergeIdRecordArrays(current: unknown[], incoming: unknown[]): unknown[] {
+  const currentById = new Map(
+    current.filter(isIdRecord).map((item) => [String(item.id), item] as const),
+  );
+  const merged = incoming.map((item) => {
+    if (!isIdRecord(item)) {
+      return item;
+    }
+    const prior = currentById.get(String(item.id));
+    return prior === undefined ? item : mergeMissingDomainFields(prior, item);
+  });
+  const incomingIds = new Set(incoming.filter(isIdRecord).map((item) => String(item.id)));
+  for (const item of current) {
+    if (!isIdRecord(item) || incomingIds.has(String(item.id)) || !hasHostHeldFields(item)) {
+      continue;
+    }
+    merged.push(item);
+  }
+  return merged;
 }
 
 function readConfigDomain(config: PiwinConfig, domain: SettingsDomain): unknown {

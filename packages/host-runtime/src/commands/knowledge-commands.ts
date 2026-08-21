@@ -20,6 +20,7 @@ import {
 import { canonicalizeFolderPath, isPathConfined, type FolderRag } from '@piwin/doc-rag';
 import {
   loadGoldenSet,
+  NoteRevisionConflictError,
   runRecallEval,
   searchNotes,
   type NoteIndex,
@@ -88,8 +89,26 @@ const TYPES = new Set<HostCommand['type']>([
   'doccards/cancel-generation',
 ]);
 
+/** One notes rebuild at a time for this Host process. */
+let notesReindexInFlight: Promise<unknown> | undefined;
+/** Last-applied flashcard rate wins; overlapping rates for one card wait. */
+const flashcardRateChains = new Map<string, Promise<unknown>>();
+
 export function isKnowledgeCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
+}
+
+async function runSerializedCardRate<T>(cardId: string, work: () => Promise<T>): Promise<T> {
+  const previous = flashcardRateChains.get(cardId) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(work);
+  flashcardRateChains.set(
+    cardId,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
 }
 
 export async function handleKnowledgeCommand(
@@ -128,17 +147,52 @@ export async function handleKnowledgeCommand(
     }
     case 'notes/update': {
       const { store } = await context.getNotesServices();
-      const record = await store.update(command.input);
-      return ok(requestId, 'notes/update', { record });
+      try {
+        const record = await store.update(command.input);
+        return ok(requestId, 'notes/update', { record });
+      } catch (error) {
+        if (error instanceof NoteRevisionConflictError) {
+          return fail(requestId, 'notes/update', 'notes-revision-conflict', {
+            code: 'notes-revision-conflict',
+            data: {
+              noteId: error.noteId,
+              ...(error.actualContentHash === undefined
+                ? {}
+                : { actualContentHash: error.actualContentHash }),
+            },
+          });
+        }
+        throw error;
+      }
     }
     case 'notes/delete': {
       const { store } = await context.getNotesServices();
-      const result = await store.delete(command.noteId);
-      return ok(requestId, 'notes/delete', result);
+      try {
+        const result = await store.delete(command.noteId, command.expectedContentHash);
+        return ok(requestId, 'notes/delete', result);
+      } catch (error) {
+        if (error instanceof NoteRevisionConflictError) {
+          return fail(requestId, 'notes/delete', 'notes-revision-conflict', {
+            code: 'notes-revision-conflict',
+            data: {
+              noteId: error.noteId,
+              ...(error.actualContentHash === undefined
+                ? {}
+                : { actualContentHash: error.actualContentHash }),
+            },
+          });
+        }
+        throw error;
+      }
     }
     case 'notes/reindex': {
       const { index } = await context.getNotesServices();
-      await index.rebuild();
+      if (notesReindexInFlight === undefined) {
+        notesReindexInFlight = index.rebuild().finally(() => {
+          notesReindexInFlight = undefined;
+        });
+      }
+      await notesReindexInFlight;
       return ok(requestId, 'notes/reindex', { rebuilt: true });
     }
     case 'notes/eval-run': {
@@ -242,7 +296,9 @@ export async function handleKnowledgeCommand(
     }
     case 'flashcards/rate': {
       const store = await context.getCardStore();
-      const state = await store.rate(command.cardId, command.rating);
+      const state = await runSerializedCardRate(command.cardId, () =>
+        store.rate(command.cardId, command.rating),
+      );
       return ok(requestId, 'flashcards/rate', { state });
     }
     case 'flashcards/export': {

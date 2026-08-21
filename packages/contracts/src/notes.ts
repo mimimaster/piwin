@@ -36,6 +36,8 @@ export type NoteUpdateInput = {
   title?: string;
   content?: string;
   tags?: string[];
+  /** CAS token from the last `notes/read` `contentHash`. */
+  expectedContentHash?: string;
 };
 
 /** Retrieval channel selection. `auto` = hybrid when embeddings exist, else fts. */

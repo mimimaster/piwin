@@ -144,23 +144,25 @@ export function resolvePresentedToolInvocation(
   toolName: string,
   args: unknown,
 ): PresentedToolInvocation {
+  const normalizedArgs = coerceToolArgs(args);
   const unchanged = (): PresentedToolInvocation => ({
     invokedToolName: toolName,
     effectiveToolName: toolName,
-    ...(args !== undefined ? { effectiveArgs: args } : {}),
+    ...(normalizedArgs !== undefined ? { effectiveArgs: normalizedArgs } : {}),
   });
-  if (toolName.trim().toLowerCase() !== 'piwin_toolbox' || !isPlainRecord(args)) {
+  if (toolName.trim().toLowerCase() !== 'piwin_toolbox' || !isPlainRecord(normalizedArgs)) {
     return unchanged();
   }
-  const action = typeof args.action === 'string' ? args.action.trim().toLowerCase() : '';
-  const target = typeof args.target === 'string' ? args.target.trim() : '';
-  if (action !== 'call' || target.length === 0 || !isPlainRecord(args.arguments)) {
+  const action =
+    typeof normalizedArgs.action === 'string' ? normalizedArgs.action.trim().toLowerCase() : '';
+  const target = typeof normalizedArgs.target === 'string' ? normalizedArgs.target.trim() : '';
+  if (action !== 'call' || target.length === 0 || !isPlainRecord(normalizedArgs.arguments)) {
     return unchanged();
   }
   return {
     invokedToolName: toolName,
     effectiveToolName: target,
-    effectiveArgs: args.arguments,
+    effectiveArgs: normalizedArgs.arguments,
     routedToolName: target,
   };
 }
@@ -181,27 +183,44 @@ function hasSemanticTruncation(toolName: string, outputText: string): boolean {
  * Build a ToolPresentation from known tool metadata. Does not invent fields
  * the provider did not supply.
  */
+/** Pi/host sometimes ship tool args as a JSON string instead of an object. */
+export function coerceToolArgs(args: unknown): unknown {
+  if (typeof args !== 'string') {
+    return args;
+  }
+  const trimmed = args.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return args;
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return args;
+  }
+}
+
 export function buildToolPresentation(input: BuildToolPresentationInput): ToolPresentation {
   const family = resolveActionFamily(input.toolName);
   const kind = classifyToolKind(input.toolName);
   const title = humanizeToolTitle(input.toolName, kind);
+  const args = coerceToolArgs(input.args);
   const presentation: ToolPresentation = {
     kind,
     title,
     ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
   };
 
-  const argsPreview = formatArgsPreview(input.args, family);
+  const argsPreview = formatArgsPreview(args, family);
   if (argsPreview) {
     presentation.inputPreview = argsPreview;
   }
 
-  const command = extractCommand(family, input.args);
+  const command = extractCommand(family, args);
   if (command) {
     presentation.command = command;
   }
 
-  const targetPaths = extractTargetPaths(family, input.args);
+  const targetPaths = extractTargetPaths(family, args);
   if (targetPaths && targetPaths.length > 0) {
     presentation.targetPaths = targetPaths;
   }
@@ -247,7 +266,7 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
   const details = extractActionDetails({
     toolName: input.toolName,
     family,
-    args: input.args,
+    args,
     ...(input.outputText !== undefined ? { outputText: input.outputText } : {}),
     ...(presentation.targetPaths !== undefined ? { targetPaths: presentation.targetPaths } : {}),
     ...(presentation.command !== undefined ? { command: presentation.command } : {}),
@@ -501,6 +520,8 @@ function extractTargetPaths(family: ToolActionFamily, args: unknown): string[] |
     'target',
     'target_file',
     'targetFile',
+    'filepath',
+    'filePath',
     'glob',
     'glob_pattern',
     'GlobPattern',
@@ -617,6 +638,19 @@ export function isWriteLikeTool(toolName: string, kind: ToolKind): boolean {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
 }
 
 function clipSummary(text: string, max = MAX_SUMMARY_CHARS): string {
@@ -806,13 +840,21 @@ function extractActionDetails(input: {
     }
   }
 
-  // Line range (explicit start/end only — avoid treating limit/offset as lines).
-  const start = record.StartLine ?? record.startLine ?? record.start_line;
-  const end = record.EndLine ?? record.endLine ?? record.end_line;
-  if (typeof start === 'number' && typeof end === 'number') {
+  // Line range: explicit start/end, or read offset+limit (1-based span).
+  const start = toFiniteNumber(record.StartLine ?? record.startLine ?? record.start_line);
+  const end = toFiniteNumber(record.EndLine ?? record.endLine ?? record.end_line);
+  if (start !== undefined && end !== undefined) {
     lineRange = `L${start}-${end}`;
-  } else if (typeof start === 'number') {
+  } else if (start !== undefined) {
     lineRange = `L${start}`;
+  } else if (family === 'read') {
+    const offset = toFiniteNumber(record.offset ?? record.line_offset);
+    const limit = toFiniteNumber(record.limit ?? record.line_limit ?? record.lines);
+    if (offset !== undefined) {
+      const from = offset < 1 ? 1 : offset;
+      lineRange =
+        limit !== undefined && limit > 0 ? `L${from}-${from + limit - 1}` : `L${from}`;
+    }
   }
 
   // Result counts for search / explore.

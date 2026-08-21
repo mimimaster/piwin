@@ -44,7 +44,7 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
-  DEFAULT_PERMISSION_PRESET,
+  resolvePermissionPreset,
   resolvePreset,
   mergeAgentModeIntoPrompt,
   resolveOrchestrationScheme,
@@ -424,7 +424,7 @@ async function applyAgentPromptContext(
   if (agentMode === 'plan' || agentMode === 'ask') {
     try {
       const config = await context.loadConfig();
-      const preset = config.permissions?.preset ?? DEFAULT_PERMISSION_PRESET;
+      const preset = resolvePermissionPreset(config.permissions);
       const resolved = resolvePreset(preset, agentMode);
       context.setSessionPermissionOverride(command.sessionId, resolved.mode);
     } catch {

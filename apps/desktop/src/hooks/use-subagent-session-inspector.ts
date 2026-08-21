@@ -15,8 +15,12 @@ import { formatError } from '@piwin/contracts';;
 import type { HostClient } from '../host-client';
 import type { ChatMessageUi, SubagentStreamState } from '../chat-reducer';
 import type { SubagentInspectorSelection } from '../subagent-activity-model';
-import { deriveSubagentDialogStatus, type ActiveSubagentStatus } from '../subagent-activity-model';
+import {
+  deriveSubagentInspectorStatus,
+  type ActiveSubagentStatus,
+} from '../subagent-activity-model';
 import { reconcileSubagentTranscript } from '../subagent-session-projection';
+import { retainBoundedSessionTranscript } from '../transcript-page-cache';
 
 export type SubagentInspectorOptions = {
   hostClient: HostClient;
@@ -29,7 +33,7 @@ export type SubagentInspectorOptions = {
 };
 
 export type SubagentInspectorController = {
-  /** Selected child identity; null when the inspector is closed. */
+  /** Selected child identity; null when no inline panel is expanded. */
   selection: SubagentInspectorSelection | null;
   /** Derived header status (live stream preferred over summary). */
   status: ActiveSubagentStatus;
@@ -89,7 +93,7 @@ export function useSubagentSessionInspector(
         }
         if (response.success) {
           const data = response.data as { messages: SessionTranscriptMessage[] } | undefined;
-          setHistoricalMessages(data?.messages ?? []);
+          setHistoricalMessages(retainBoundedSessionTranscript(data?.messages ?? []));
           loadedChildIdRef.current = targetSessionId;
         } else {
           setError(response.error);
@@ -115,7 +119,7 @@ export function useSubagentSessionInspector(
       const switchingChild = loadedChildIdRef.current !== next.childSessionId;
       setSelection(next);
       // Keep the previous transcript when re-opening the same child so the
-      // dialog does not flash empty; clear only when switching to another child.
+      // panel does not flash empty; clear only when switching to another child.
       if (switchingChild) {
         setHistoricalMessages([]);
         loadedChildIdRef.current = null;
@@ -156,7 +160,7 @@ export function useSubagentSessionInspector(
   // Absorb finished live content into persisted history: refresh once per
   // completed message (and once for a terminal stream that never finished a
   // message, e.g. an abort). The hook keeps the last loaded view visible
-  // while refreshing so the dialog never flashes empty; closing during the
+  // while refreshing so the panel never flashes empty; closing during the
   // refresh is protected by the request seq.
   useEffect(() => {
     if (childSessionId === null || stream === null) {
@@ -177,7 +181,7 @@ export function useSubagentSessionInspector(
   const status: ActiveSubagentStatus =
     childSessionId === null
       ? 'running'
-      : deriveSubagentDialogStatus({
+      : deriveSubagentInspectorStatus({
           child: childForRef.current(childSessionId),
           stream: stream ?? undefined,
         });

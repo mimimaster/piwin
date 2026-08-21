@@ -70,6 +70,8 @@ export type SessionTodoList = {
   sessionId: string;
   items: SessionTodoItem[];
   updatedAt: string;
+  /** Hash of items; used as the `todo/set` CAS token. */
+  revision: string;
 };
 
 export function createDefaultAutomationConfig(): AutomationConfig {

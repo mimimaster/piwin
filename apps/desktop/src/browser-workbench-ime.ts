@@ -2,7 +2,7 @@
  * Hidden-textarea IME capture for the browser workbench (ADR 0057).
  * Composed Chinese must become insertText, not keydown character playback.
  */
-import type { BrowserInputEvent } from '@piwin/contracts';
+import { MAX_BROWSER_INSERT_TEXT_BYTES, type BrowserInputEvent } from '@piwin/contracts';
 
 const SPECIAL_KEYS = new Set([
   'Enter',
@@ -18,7 +18,7 @@ const SPECIAL_KEYS = new Set([
   'End',
 ]);
 
-export const MAX_INSERT_TEXT_BYTES = 8 * 1024;
+export const MAX_INSERT_TEXT_BYTES = MAX_BROWSER_INSERT_TEXT_BYTES;
 
 export type ImeKeyInput = {
   type: 'keydown' | 'keyup';

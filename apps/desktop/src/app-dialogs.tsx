@@ -32,6 +32,9 @@ export type AppDialogsProps = {
   sessions: ChatUiState['sessions'];
   showArchivedSessions: boolean;
   onSessionMenuAction: (sessionId: string, action: SessionRowMenuAction) => void;
+  sessionMenuCanExport?: boolean;
+  sessionMenuCanDuplicate?: boolean;
+  sessionMenuCanContinueInProject?: boolean;
   renameDraft: SessionRenameDraft | null;
   onRenameDraftChange: (draft: SessionRenameDraft | null) => void;
   onRenameSession: (sessionId: string, name: string) => void;
@@ -158,6 +161,11 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
               )?.storage?.state;
               return storageState ? { storageState } : {};
             })()}
+            {...(props.sessionMenuCanExport === false ? { canExport: false } : {})}
+            {...(props.sessionMenuCanDuplicate === false ? { canDuplicate: false } : {})}
+            {...(props.sessionMenuCanContinueInProject === false
+              ? { canContinueInProject: false }
+              : {})}
             position={{ x: props.sessionMenu.x, y: props.sessionMenu.y }}
             onClose={props.onCloseSessionMenu}
             onAction={(action) => {

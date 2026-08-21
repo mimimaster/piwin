@@ -56,4 +56,16 @@ describe('worker process lifecycle (integration)', () => {
     expect(client.isRunning).toBe(false);
     expect(exitCode).toBeNull();
   }, 10_000);
+
+  it('starts from the source worker entry when no workerScript is provided', async () => {
+    const client = new RpcSdkWorkerClient({
+      context: {
+        sessionId: 'default-script-session',
+        runtimeGenerationId: 'default-script-generation',
+      },
+    });
+    await client.start();
+    expect(client.isRunning).toBe(true);
+    await client.close();
+  }, 10_000);
 });

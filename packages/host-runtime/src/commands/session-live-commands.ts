@@ -89,6 +89,8 @@ import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-co
 import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
+import { sessionBusyResponse } from '../session-body-gate.js';
+import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { rejectUnavailableSessionBody } from '../session-body-guard.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
@@ -106,6 +108,7 @@ import { createSessionMessageResponse } from '../session-message-response.js';
 import {
   indexProjectPathForScope,
   resolveSessionLocation,
+  stripBoundProjectId,
   scopeFromIndexRecord,
   workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
@@ -185,7 +188,7 @@ export async function handleSessionLiveCommand(
       try {
         const location = await resolveSessionLocation(command.input, context.piwinRoot);
         createInput = {
-          ...command.input,
+          ...stripBoundProjectId(command.input),
           scope: location.scope,
           // Index field: empty for general. Adapters re-resolve workingDirectory.
           projectPath: indexProjectPathForScope(location.scope),
@@ -241,6 +244,23 @@ export async function handleSessionLiveCommand(
         });
       }
       context.pushStatus();
+      try {
+        const createdRecord = await getSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(context.piwinRoot)),
+          session.id,
+        );
+        context.push(
+          sessionIndexUpdatedPush({
+            op: 'created',
+            sessionId: session.id,
+            ...(createdRecord === undefined
+              ? {}
+              : { session: indexRecordToSummary(createdRecord) }),
+          }),
+        );
+      } catch {
+        // Index write is best-effort; create still succeeded.
+      }
       return ok(requestId, 'session/create', {
         sessionId: session.id,
       });
@@ -276,6 +296,23 @@ export async function handleSessionLiveCommand(
       if (rejectedTruncate) {
         return rejectedTruncate;
       }
+      if (context.getForegroundRun(command.sessionId)) {
+        return sessionBusyResponse(
+          requestId,
+          'session/truncate-from',
+          command.sessionId,
+          'foreground-run',
+        );
+      }
+      if (!context.tryReserveSessionBody(command.sessionId)) {
+        return sessionBusyResponse(
+          requestId,
+          'session/truncate-from',
+          command.sessionId,
+          'body-job',
+        );
+      }
+      try {
       const store = await context.getTranscriptStore(command.sessionId);
       const truncationAnchor = await store.getMessage(command.messageId);
       if (truncationAnchor === undefined) {
@@ -366,6 +403,9 @@ export async function handleSessionLiveCommand(
         ...createSessionMessageResponse(command.sessionId, remaining, command.messageProjection),
         session: indexRecordToSummary(record),
       });
+      } finally {
+        context.releaseSessionBody(command.sessionId);
+      }
     }
     case 'session/resume': {
       const rootDir = getPiwinRoot(context.piwinRoot);

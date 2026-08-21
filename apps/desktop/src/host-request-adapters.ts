@@ -11,9 +11,12 @@ import type {
   PiwinConfig,
   PluginInstallSource,
 } from '@piwin/contracts';
-import { buildSettingsDomainMutations } from '@piwin/contracts';
+import { partitionRemoteSettingsMutations, type SettingsMutation } from '@piwin/contracts';
 import type { HostClient } from './host-client';
+import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { sessionListCommandForTransport } from './remote-session-hydrate';
+import { settingsApplyInputFromSnapshot } from './settings-apply-input.js';
+import { settingsMutationsFromViewDraft } from './settings/settings-view-config.js';
 
 export type HostRequestAdapters = {
   requestSubAgent: (command: Parameters<HostClient['request']>[0]) => Promise<HostResponse>;
@@ -26,6 +29,7 @@ export type HostRequestAdapters = {
       | 'models/image-catalog/search'
       | 'models/test'
       | 'models/image-test'
+      | 'models/configured'
       | 'vision/delegate'
       | 'vision/cache/clear'
       | 'secrets/set'
@@ -230,11 +234,76 @@ async function getSettingsAsLegacyConfigView(hostClient: HostClient): Promise<Ho
     ...response,
     data: {
       config: data.snapshot.config,
-      root: data.root,
+      root: data.root ?? (hostClient.getTransport() === 'remote' ? 'Remote Host' : '~/.piwin'),
       revision: data.snapshot.revision,
       schemaVersion: data.snapshot.schemaVersion,
     },
   };
+}
+
+export function allowedRemoteSettingsMutations(
+  requested: SettingsMutation[],
+): SettingsMutation[] | undefined {
+  const { allowed, blocked } = partitionRemoteSettingsMutations(requested);
+  if (allowed.length > 0) {
+    return allowed;
+  }
+  return blocked.length > 0 ? undefined : allowed;
+}
+
+/** Remote Hosts reject `desktop`. Write the shared defaults instead. */
+export function composerProfileSettingsMutations(input: {
+  transport: string;
+  currentDesktop: PiwinConfig['desktop'];
+  composerProfile: NonNullable<PiwinConfig['desktop']>['composerProfile'];
+  currentThinking: PiwinConfig['thinking'];
+  selectedModel: { providerId: string; modelId: string } | undefined;
+}): SettingsMutation[] {
+  const desktopMutation: SettingsMutation = {
+    kind: 'replace-domain',
+    domain: 'desktop',
+    value: {
+      ...input.currentDesktop,
+      composerProfile: input.composerProfile,
+    } as NonNullable<PiwinConfig['desktop']>,
+  };
+  if (input.transport === 'remote') {
+    const mutations: SettingsMutation[] = [desktopMutation];
+    if (input.selectedModel) {
+      mutations.push({
+        kind: 'replace-domain',
+        domain: 'defaultProviderId',
+        value: input.selectedModel.providerId,
+      });
+      mutations.push({
+        kind: 'replace-domain',
+        domain: 'defaultModelId',
+        value: input.selectedModel.modelId,
+      });
+    }
+    const thinkingLevel = input.composerProfile?.thinkingLevel;
+    mutations.push({
+      kind: 'replace-domain',
+      domain: 'thinking',
+      value: {
+        ultraEnabled: input.currentThinking?.ultraEnabled === true,
+        ...(thinkingLevel === undefined ? {} : { defaultLevel: thinkingLevel }),
+      },
+    });
+    return mutations;
+  }
+  return [desktopMutation];
+}
+
+/** Remote Hosts reject `desktop`. Skip it instead of toasting a payload reject. */
+export function settingsMutationsForHostApply(
+  requested: SettingsMutation[],
+  transport: string,
+): SettingsMutation[] {
+  if (transport !== 'remote') {
+    return requested;
+  }
+  return partitionRemoteSettingsMutations(requested).allowed;
 }
 
 async function applyConfigDraft(
@@ -246,7 +315,11 @@ async function applyConfigDraft(
     return currentResponse;
   }
   const data = currentResponse.data as {
-    snapshot?: { config: PiwinConfig; revision: string };
+    snapshot?: {
+      config: PiwinConfig;
+      revision: string;
+      domainRevisions?: import('@piwin/contracts').SettingsSnapshot['domainRevisions'];
+    };
   };
   if (!data.snapshot) {
     return {
@@ -256,13 +329,40 @@ async function applyConfigDraft(
       error: 'settings/get returned no snapshot',
     };
   }
-  return hostClient.request({
-    type: 'settings/apply',
-    input: {
-      expectedRevision: data.snapshot.revision,
-      mutations: buildSettingsDomainMutations(data.snapshot.config, nextConfig),
+  const requested = settingsMutationsFromViewDraft(data.snapshot.config, nextConfig);
+  const mutations =
+    hostClient.getTransport() === 'remote'
+      ? allowedRemoteSettingsMutations(requested)
+      : requested;
+  if (mutations === undefined) {
+    return {
+      type: 'response',
+      command: 'settings/apply',
+      success: true,
+      data: { snapshot: data.snapshot, changedDomains: [] },
+    };
+  }
+  if (mutations.length === 0) {
+    return {
+      type: 'response',
+      command: 'settings/apply',
+      success: true,
+      data: { snapshot: data.snapshot, changedDomains: [] },
+    };
+  }
+  return hostClient.request(
+    {
+      type: 'settings/apply',
+      input: settingsApplyInputFromSnapshot(
+        {
+          revision: data.snapshot.revision,
+          domainRevisions: data.snapshot.domainRevisions ?? {},
+        },
+        mutations,
+      ),
     },
-  });
+    { idempotencyKey: createGestureIdempotencyKey() },
+  );
 }
 
 export function createHostRequestAdapters(hostClient: HostClient): HostRequestAdapters {
@@ -299,6 +399,9 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           provider: command.provider,
           ...(command.apiKey ? { apiKey: command.apiKey } : {}),
         });
+      }
+      if (command.type === 'models/configured') {
+        return hostClient.request({ type: 'models/configured' });
       }
       if (command.type === 'models/test') {
         if (!command.provider || !command.modelId?.trim()) {
@@ -413,7 +516,9 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           (command.scope && command.scope.kind === 'project'
             ? command.scope.projectPath
             : undefined);
-        if (projectPath) payload.projectPath = projectPath;
+        if (hostClient.getTransport() !== 'remote' && projectPath) {
+          payload.projectPath = projectPath;
+        }
         if (command.window) payload.window = command.window;
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
         return hostClient.request(payload);
@@ -565,7 +670,9 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'skills/list') {
         const payload: { type: 'skills/list'; projectPath?: string } = { type: 'skills/list' };
-        if (command.projectPath) payload.projectPath = command.projectPath;
+        if (hostClient.getTransport() !== 'remote' && command.projectPath) {
+          payload.projectPath = command.projectPath;
+        }
         return hostClient.request(payload);
       }
       if (command.type === 'skills/store-list') {
@@ -621,7 +728,9 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         const payload: { type: 'extensions/list'; projectPath?: string } = {
           type: 'extensions/list',
         };
-        if (command.projectPath) payload.projectPath = command.projectPath;
+        if (hostClient.getTransport() !== 'remote' && command.projectPath) {
+          payload.projectPath = command.projectPath;
+        }
         return hostClient.request(payload);
       }
       if (command.type === 'extensions/ensure-bundled') {
@@ -693,7 +802,9 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
     requestPrompts: async (command) => {
       if (command.type === 'prompts/list') {
         const payload: { type: 'prompts/list'; projectPath?: string } = { type: 'prompts/list' };
-        if (command.projectPath) payload.projectPath = command.projectPath;
+        if (hostClient.getTransport() !== 'remote' && command.projectPath) {
+          payload.projectPath = command.projectPath;
+        }
         return hostClient.request(payload);
       }
       return hostClient.request({

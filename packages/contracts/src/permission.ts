@@ -260,6 +260,21 @@ export function modeToPreset(mode: PermissionMode): PermissionPreset {
   }
 }
 
+/** Same fallback Host uses when `permissions.preset` is omitted. */
+export function resolvePermissionPreset(
+  permissions: PermissionConfig | null | undefined,
+): PermissionPreset {
+  const preset = permissions?.preset;
+  if (preset === 'ask' || preset === 'auto' || preset === 'yolo') {
+    return preset;
+  }
+  const mode = permissions?.mode;
+  if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass') {
+    return modeToPreset(mode);
+  }
+  return DEFAULT_PERMISSION_PRESET;
+}
+
 export function createEmptyRuleSet(): PermissionRuleSet {
   return { deny: [], ask: [], allow: [] };
 }

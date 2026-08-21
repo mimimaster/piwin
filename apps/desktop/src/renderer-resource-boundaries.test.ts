@@ -210,10 +210,11 @@ describe('Desktop renderer resource boundaries', () => {
   it('keeps composer and transcript thumbs off the original File / asset URL', () => {
     const composerMedia = readSource('./hooks/use-composer-media.ts');
     const mediaPreview = readSource('./MediaPreview.tsx');
+    const transcriptPreview = readSource('./transcript-media-preview.ts');
     expect(composerMedia).toContain('beginComposerImagePreview');
     expect(composerMedia).toContain('commitLimitedChipPreview');
-    expect(mediaPreview).toContain('createLimitedPreviewUrlFromHref');
-    expect(mediaPreview).toContain('TRANSCRIPT_THUMB_MAX_EDGE_PX');
+    expect(transcriptPreview).toContain('createLimitedPreviewUrlFromHref');
+    expect(transcriptPreview).toContain('TRANSCRIPT_THUMB_MAX_EDGE_PX');
     expect(mediaPreview).toContain('decoding="async"');
   });
 

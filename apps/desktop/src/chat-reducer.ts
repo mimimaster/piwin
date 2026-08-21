@@ -9,6 +9,7 @@ import type {
   MediaAttachmentRef,
   ModelRef,
   PromptAttachment,
+  PromptContextRef,
   PermissionDecision,
   PermissionRequestContext,
   SessionRunOutcome,
@@ -47,6 +48,15 @@ import {
   setSessionListScopeMeta,
   type SessionListScopeState,
 } from './session-list-scope';
+import {
+  evictCompletedFirst,
+  MAX_SUBAGENT_BATCHES,
+  MAX_SUBAGENT_CHILDREN,
+  MAX_SUBAGENT_INVOCATIONS,
+  MAX_SUBAGENT_TASK_RESULTS,
+  putRecordLru,
+  retainRecordKeys,
+} from './record-budget';
 import {
   measureTranscriptCacheBytes,
   prependBoundedTranscriptPage,
@@ -122,8 +132,19 @@ export type ChatMessageUi = {
   thinkingTruncated?: boolean;
   instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
   docCardSequence?: SessionTranscriptMessage['docCardSequence'];
+  /** Context references attached to this user message (e.g. selections, file pins). */
+  contextRefs?: PromptContextRef[];
   /** Model snapshot used to produce this Assistant message. */
   model?: ModelRef;
+  /** Reply Writer is rewriting this bubble. */
+  replyWriterPending?: boolean;
+  /** Writer model that replaced the visible text. */
+  replyWriter?: {
+    model: ModelRef;
+    language: import('@piwin/contracts').ReplyWriterLanguage;
+  };
+  /** Error message if generation or execution failed. */
+  error?: string;
 };
 
 export type TranscriptHistoryViewUi = {
@@ -455,6 +476,7 @@ export type ChatUiAction =
       projectPath: string;
       sessions: SessionListItemUi[];
     }
+  | { type: 'session/retain-project-paths'; projectPaths: string[] }
   | {
       type: 'session/load-messages';
       sessionId: string;
@@ -508,6 +530,7 @@ export type ChatUiAction =
       type: 'user/send';
       text: string;
       attachments?: PromptAttachment[];
+      contextRefs?: PromptContextRef[];
       /** Client-generated id so failed sends can roll back the optimistic bubble. */
       clientMessageId?: string;
       /** Skill selected by the composer, if this prompt used `/skill`. */
@@ -556,6 +579,14 @@ export type ChatUiAction =
   | { type: 'error'; message: string }
   | { type: 'error/clear' }
   | { type: 'transcript/append'; sessionId: string; message: SessionTranscriptMessage }
+  | {
+      type: 'reply-writer/updated';
+      sessionId: string;
+      messageId: string;
+      status: 'started' | 'applied' | 'failed';
+      model?: ModelRef;
+      language?: import('@piwin/contracts').ReplyWriterLanguage;
+    }
   | {
       type: 'subagent/stream';
       parentSessionId: string;
@@ -658,6 +689,31 @@ export function createInitialChatUiState(): ChatUiState {
   };
 }
 
+const CLEARED_SUBAGENT_UI = {
+  subagentStreams: {} as Record<string, SubagentStreamState>,
+  subagentChildren: {} as Record<string, SessionSummary>,
+  subagentInvocations: {} as Record<string, SubagentInvocation>,
+  subagentBatches: {} as Record<string, SubagentBatchProjection>,
+  subagentTaskResults: {} as Record<string, SubagentTaskResult>,
+};
+
+function isTerminalSubagentChild(child: SessionSummary): boolean {
+  return (
+    child.subagentStatus === 'done' ||
+    child.subagentStatus === 'failed' ||
+    child.subagentStatus === 'cancelled'
+  );
+}
+
+function isTerminalSubagentInvocation(invocation: SubagentInvocation): boolean {
+  return (
+    invocation.status === 'completed' ||
+    invocation.status === 'needs-integration' ||
+    invocation.status === 'failed' ||
+    invocation.status === 'cancelled'
+  );
+}
+
 /**
  * Shared persisted-transcript → UI message projection.
  *
@@ -715,7 +771,19 @@ export function mapTranscriptMessagesToUi(
       ? { instructionDelivery: message.instructionDelivery }
       : {}),
     ...(message.docCardSequence ? { docCardSequence: message.docCardSequence } : {}),
+    ...(message.contextRefs && message.contextRefs.length > 0
+      ? { contextRefs: message.contextRefs }
+      : {}),
     ...(message.model ? { model: message.model } : {}),
+    ...(message.replyWriter
+      ? {
+          replyWriter: {
+            model: message.replyWriter.model,
+            language: message.replyWriter.language,
+          },
+        }
+      : {}),
+    ...(message.terminalMessage ? { error: message.terminalMessage } : {}),
   }));
 }
 
@@ -1016,6 +1084,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
+        ...CLEARED_SUBAGENT_UI,
       };
     case 'project/set':
       return {
@@ -1049,9 +1118,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         walkthroughsByMessageId: {},
         // Subagent activity is scoped to the active parent session; switching
         // scope must not surface another session's children or live streams.
-        subagentStreams: {},
-        subagentChildren: {},
-        subagentInvocations: {},
+        ...CLEARED_SUBAGENT_UI,
       };
     case 'project/clear':
       return {
@@ -1081,9 +1148,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
-        subagentStreams: {},
-        subagentChildren: {},
-        subagentInvocations: {},
+        ...CLEARED_SUBAGENT_UI,
       };
     case 'project/trust-dialog':
       return { ...state, trustDialogOpen: action.open };
@@ -1202,9 +1267,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
               : null,
         // Subagent activity belongs to the previously active parent; the new
         // session hydrates its own children on resume.
-        subagentStreams: {},
-        subagentChildren: {},
-        subagentInvocations: {},
+        ...CLEARED_SUBAGENT_UI,
         workingSessionIds: preserveOptimisticDraftSend
           ? { ...state.workingSessionIds, [action.sessionId]: true }
           : state.workingSessionIds,
@@ -1320,12 +1383,15 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         messages,
         collectRetainedTranscriptMessageIds(messages, state.streaming),
       );
+      const retainedMessageIds = new Set(bounded.messages.map((message) => message.id));
       return {
         ...state,
         historyView: {
           anchorMessageId: action.window.anchorMessageId,
           messages: bounded.messages,
-          runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
+          runRecordsById: buildRunRecordsFromTranscriptMessages(
+            action.messages.filter((message) => retainedMessageIds.has(message.id)),
+          ),
         },
       };
     }
@@ -1481,6 +1547,20 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           ...state.projectSessionsByPath,
           [action.projectPath]: listable,
         },
+      };
+    }
+    case 'session/retain-project-paths': {
+      const keep = new Set(action.projectPaths);
+      if (state.projectPath) {
+        keep.add(state.projectPath);
+      }
+      const keys = Object.keys(state.projectSessionsByPath);
+      if (keys.every((projectPath) => keep.has(projectPath))) {
+        return state;
+      }
+      return {
+        ...state,
+        projectSessionsByPath: retainRecordKeys(state.projectSessionsByPath, [...keep]),
       };
     }
     case 'session/hydrate-general': {
@@ -1706,6 +1786,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           state.completedAttentionSessionIds,
           action.sessionId,
         ),
+        workingSessionIds: removeWorkingSessionId(state.workingSessionIds, action.sessionId),
       };
     }
     case 'session/mark-archived-active':
@@ -1754,6 +1835,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         activeSkill: null,
         runTerminal: { kind: 'none' },
         walkthroughsByMessageId: {},
+        ...CLEARED_SUBAGENT_UI,
       };
     case 'session/truncate': {
       if (state.activeSessionId !== action.sessionId) {
@@ -1797,6 +1879,9 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         thinking: '',
         tools: [],
         attachments: action.attachments ?? [],
+        ...(action.contextRefs && action.contextRefs.length > 0
+          ? { contextRefs: action.contextRefs }
+          : {}),
         status: 'done',
         createdAt: new Date().toISOString(),
       };
@@ -2126,6 +2211,29 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         lastCompactionDurationMs: null,
         lastCompactionFileOps: null,
       };
+    case 'reply-writer/updated': {
+      if (state.activeSessionId !== action.sessionId) {
+        return state;
+      }
+      if (!state.messages.some((message) => message.id === action.messageId)) {
+        return state;
+      }
+      return updateMessage(state, action.messageId, (message) => {
+        if (action.status === 'started') {
+          return { ...message, replyWriterPending: true };
+        }
+        if (action.status === 'failed') {
+          return { ...message, replyWriterPending: false };
+        }
+        return {
+          ...message,
+          replyWriterPending: false,
+          ...(action.model && action.language
+            ? { replyWriter: { model: action.model, language: action.language } }
+            : {}),
+        };
+      });
+    }
     case 'transcript/append': {
       if (state.activeSessionId !== action.sessionId) {
         return state;
@@ -2201,7 +2309,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       }
       const child = action.child;
       const nextChildren = { ...state.subagentChildren, [child.id]: child };
-      return { ...state, subagentChildren: nextChildren };
+      return {
+        ...state,
+        subagentChildren: evictCompletedFirst(
+          nextChildren,
+          MAX_SUBAGENT_CHILDREN,
+          isTerminalSubagentChild,
+        ),
+      };
     }
     case 'subagent/invocation-updated': {
       if (state.activeSessionId !== action.parentSessionId) {
@@ -2213,10 +2328,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       }
       return {
         ...state,
-        subagentInvocations: {
-          ...state.subagentInvocations,
-          [action.invocation.id]: action.invocation,
-        },
+        subagentInvocations: evictCompletedFirst(
+          {
+            ...state.subagentInvocations,
+            [action.invocation.id]: action.invocation,
+          },
+          MAX_SUBAGENT_INVOCATIONS,
+          isTerminalSubagentInvocation,
+        ),
       };
     }
     case 'subagent/children-hydrate': {
@@ -2229,7 +2348,14 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       for (const child of action.children) {
         nextChildren[child.id] = child;
       }
-      return { ...state, subagentChildren: nextChildren };
+      return {
+        ...state,
+        subagentChildren: evictCompletedFirst(
+          nextChildren,
+          MAX_SUBAGENT_CHILDREN,
+          isTerminalSubagentChild,
+        ),
+      };
     }
     case 'subagent/invocations-hydrate': {
       if (state.activeSessionId !== action.parentSessionId) {
@@ -2242,18 +2368,39 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           nextInvocations[invocation.id] = invocation;
         }
       }
-      return { ...state, subagentInvocations: nextInvocations };
+      return {
+        ...state,
+        subagentInvocations: evictCompletedFirst(
+          nextInvocations,
+          MAX_SUBAGENT_INVOCATIONS,
+          isTerminalSubagentInvocation,
+        ),
+      };
     }
     case 'subagent/batch-updated': {
       if (state.activeSessionId !== action.parentSessionId) return state;
-      const nextBatches = { ...state.subagentBatches, [action.runId]: action.result };
-      return { ...state, subagentBatches: nextBatches };
+      return {
+        ...state,
+        subagentBatches: putRecordLru(
+          state.subagentBatches,
+          action.runId,
+          action.result,
+          MAX_SUBAGENT_BATCHES,
+        ),
+      };
     }
     case 'subagent/task-updated': {
       if (state.activeSessionId !== action.parentSessionId) return state;
       const key = `${action.runId}:${action.result.taskId}`;
-      const nextTaskResults = { ...state.subagentTaskResults, [key]: action.result };
-      return { ...state, subagentTaskResults: nextTaskResults };
+      return {
+        ...state,
+        subagentTaskResults: putRecordLru(
+          state.subagentTaskResults,
+          key,
+          action.result,
+          MAX_SUBAGENT_TASK_RESULTS,
+        ),
+      };
     }
     case 'subagent/clear-stream': {
       if (!(action.childSessionId in state.subagentStreams)) {
@@ -2862,6 +3009,8 @@ function isEmptyAssistantPlaceholder(message: ChatMessageUi): boolean {
   return (
     message.role === 'assistant' &&
     message.status !== 'streaming' &&
+    message.status !== 'error' &&
+    !message.error &&
     message.text.trim().length === 0 &&
     message.thinking.trim().length === 0 &&
     message.tools.length === 0 &&
@@ -3285,27 +3434,90 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       }
       return { ...state, contextUsage: event.usage };
     case 'error':
-      if (isStaleOptionalRunEvent(state, event.runId)) {
+      // Host often terminates the Run first, then emits the agent error with the
+      // same runId. Accept that payload for the just-finished run; only drop
+      // errors that belong to a different live or terminal run.
+      if (
+        event.runId !== undefined &&
+        state.activeRunId !== null &&
+        state.activeRunId !== event.runId
+      ) {
+        return state;
+      }
+      if (
+        event.runId !== undefined &&
+        state.activeRunId === null &&
+        state.lastTerminalRunId !== null &&
+        state.lastTerminalRunId !== event.runId
+      ) {
         return state;
       }
       {
-        const failedMessages = state.messages.map((message) => ({
-          ...message,
-          status: message.status === 'streaming' ? ('error' as const) : message.status,
-          tools: message.tools.map((tool) => ({
+        const errorMessage = event.message.trim() || 'Run failed';
+        const targetRunId = event.runId ?? state.activeRunId ?? state.lastTerminalRunId;
+        let stampedAssistant = false;
+        const nextMessages = state.messages.map((message) => {
+          const tools = message.tools.map((tool) => ({
             ...tool,
             status: tool.status === 'running' ? ('error' as const) : tool.status,
-          })),
-        }));
+          }));
+          if (message.role !== 'assistant') {
+            return { ...message, tools };
+          }
+          const matchesRun =
+            targetRunId !== null && message.runId !== undefined && message.runId === targetRunId;
+          if (matchesRun || message.status === 'streaming') {
+            stampedAssistant = true;
+            return {
+              ...message,
+              status: 'error' as const,
+              error: errorMessage,
+              tools,
+            };
+          }
+          return { ...message, tools };
+        });
+        let messages = nextMessages;
+        if (!stampedAssistant) {
+          let lastAssistantIndex = -1;
+          for (let index = messages.length - 1; index >= 0; index -= 1) {
+            if (messages[index]?.role === 'assistant') {
+              lastAssistantIndex = index;
+              break;
+            }
+          }
+          if (lastAssistantIndex >= 0) {
+            messages = messages.map((message, index) =>
+              index === lastAssistantIndex
+                ? { ...message, status: 'error' as const, error: errorMessage }
+                : message,
+            );
+          } else {
+            messages = [
+              ...messages,
+              {
+                id: `piw-m-error-${targetRunId ?? Date.now().toString(36)}`,
+                role: 'assistant',
+                text: '',
+                thinking: '',
+                tools: [],
+                attachments: [],
+                status: 'error',
+                error: errorMessage,
+                ...(targetRunId ? { runId: targetRunId } : {}),
+              },
+            ];
+          }
+        }
         return {
           ...state,
-          messages: failedMessages,
-          error: event.message,
+          messages,
+          error: errorMessage,
           runPhase: 'idle',
           streaming: false,
           compacting: false,
           activeSkill: null,
-          runTerminal: { kind: 'failed', message: event.message, at: Date.now() },
+          runTerminal: { kind: 'failed', message: errorMessage, at: Date.now() },
         };
       }
     default:
@@ -3424,8 +3636,63 @@ function applyRunRecord(
   if (state.activeRunId === null && state.lastTerminalRunId === run.runId) {
     return state;
   }
+  const errorMessage =
+    outcome === 'failed' ? (run.error?.trim() || 'Run failed') : undefined;
+  let messages = state.messages;
+  if (errorMessage !== undefined) {
+    let stamped = false;
+    messages = state.messages.map((message) => {
+      if (message.role !== 'assistant') return message;
+      if (message.runId !== undefined && message.runId === run.runId) {
+        stamped = true;
+        return {
+          ...message,
+          status: 'error' as const,
+          error: message.error ?? errorMessage,
+        };
+      }
+      return message;
+    });
+    if (!stamped) {
+      let lastAssistantIndex = -1;
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        if (messages[index]?.role === 'assistant') {
+          lastAssistantIndex = index;
+          break;
+        }
+      }
+      if (lastAssistantIndex >= 0) {
+        messages = messages.map((message, index) =>
+          index === lastAssistantIndex
+            ? {
+                ...message,
+                status: 'error' as const,
+                error: message.error ?? errorMessage,
+                ...(message.runId === undefined ? { runId: run.runId } : {}),
+              }
+            : message,
+        );
+      } else {
+        messages = [
+          ...messages,
+          {
+            id: `piw-m-error-${run.runId}`,
+            role: 'assistant',
+            text: '',
+            thinking: '',
+            tools: [],
+            attachments: [],
+            status: 'error',
+            error: errorMessage,
+            runId: run.runId,
+          },
+        ];
+      }
+    }
+  }
   return {
     ...state,
+    messages,
     activeRunId: null,
     activeRunPhase: null,
     activeRunPhaseDetail: null,

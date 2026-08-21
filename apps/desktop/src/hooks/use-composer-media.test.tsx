@@ -685,6 +685,70 @@ describe('useComposerMedia session transitions', () => {
     expect(latest().pendingAttachments).toEqual([]);
   });
 
+  it('sends remote-asset refs when media/save omits Host paths', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    let promptAttachments: Array<{ path?: string }> | undefined;
+    const hostClient = {
+      request: vi.fn(async (command: { type: string; input?: { attachments?: Array<{ path?: string }> } }) => {
+        if (command.type === 'media/save') {
+          return {
+            type: 'response' as const,
+            command: 'media/save',
+            success: true,
+            data: {
+              asset: {
+                id: 'asset-remote-1',
+                mimeType: 'image/png',
+                byteSize: 4,
+                contentKind: 'image',
+                name: 'screenshot.png',
+              },
+            },
+          };
+        }
+        if (command.type === 'session/prompt') {
+          promptAttachments = command.input?.attachments;
+          return createSavedMediaResponse('session/prompt');
+        }
+        return createSavedMediaResponse(command.type);
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('session-1');
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch: vi.fn(),
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const state = {
+      ...createInitialChatUiState(),
+      activeSessionId: 'session-1',
+    };
+    act(() => root?.render(<Harness state={state} />));
+    const latest = (): ComposerMediaResult => {
+      if (captured === undefined) throw new Error('hook not rendered');
+      return captured;
+    };
+
+    pasteImage(latest);
+    await act(async () => {
+      await latest().handleSend();
+    });
+
+    expect(promptAttachments).toEqual([
+      expect.objectContaining({ id: 'asset-remote-1', path: 'remote-asset:asset-remote-1' }),
+    ]);
+  });
+
   it('restores text and attachment chip when session/prompt fails; retry reuses the saved attachment', async () => {
     container = document.createElement('div');
     document.body.append(container);
@@ -1373,5 +1437,50 @@ describe('useComposerMedia Conversation send path', () => {
     expect(input.text).toBe('hello project');
     expect(input.agentMode).toBe('plan');
     expect(input.orchestrationSchemeId).toBe('ultra-code');
+  });
+
+  it('puts New Agent text back in the composer when session/prompt never ACKs', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: false,
+        error: 'Host request timed out: session/prompt',
+      }),
+    } as unknown as HostClient;
+    const ensureSession = vi.fn().mockResolvedValue('session-created-on-send');
+    const dispatch = vi.fn();
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+        ensureSession,
+      });
+      return null;
+    }
+
+    const draftState = {
+      ...createInitialChatUiState(),
+      activeSessionId: null,
+    };
+    act(() => root?.render(<Harness state={draftState} />));
+    act(() => {
+      captured?.setComposer('keep this unsent prompt');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    expect(captured?.composer).toBe('keep this unsent prompt');
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send-rollback' }),
+    );
   });
 });

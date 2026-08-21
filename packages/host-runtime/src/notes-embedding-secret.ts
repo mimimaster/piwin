@@ -1,21 +1,33 @@
 /**
  * Resolve the notes embedding API key without logging values.
- * Precedence mirrors provider secrets: apiKeyRef (keychain) → apiKeyEnv → none.
+ * Uses the Host secret store (keychain or ~/.piwin/secrets), then apiKeyEnv.
  * Ollama needs no key; absence is not an error here — providers fail at
  * request time with a clear message if the endpoint requires auth.
  */
-import { spawn } from 'node:child_process';
-import type { KnowledgeHttpAuth, NotesEmbeddingConfig } from '@piwin/contracts';
+import {
+  isRedactedStoredSecret,
+  type KnowledgeHttpAuth,
+  type NotesEmbeddingConfig,
+} from '@piwin/contracts';
+import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
 
 export async function resolveKnowledgeHttpApiKey(
   config: KnowledgeHttpAuth | undefined,
+  secretResolver: Pick<SecretResolver, 'readSecretByRef'> = createSecretResolver(),
 ): Promise<string | undefined> {
   if (!config) return undefined;
-  if (config.apiKeyRef?.trim()) {
-    const fromKeychain = await readKeychain(config.apiKeyRef.trim());
-    if (fromKeychain) return fromKeychain;
+  const ref = config.apiKeyRef?.trim();
+  if (ref && !isRedactedStoredSecret(ref)) {
+    const secret = await secretResolver.readSecretByRef(ref);
+    const line = secret
+      ?.split(/\r?\n/)
+      .map((value) => value.trim())
+      .find((value) => value.length > 0);
+    if (line) {
+      return line;
+    }
   }
-  if (config.apiKeyEnv?.trim()) {
+  if (config.apiKeyEnv?.trim() && !isRedactedStoredSecret(config.apiKeyEnv)) {
     const fromEnv = process.env[config.apiKeyEnv.trim()];
     if (typeof fromEnv === 'string' && fromEnv.length > 0) {
       return fromEnv;
@@ -28,23 +40,4 @@ export async function resolveNotesEmbeddingApiKey(
   config: NotesEmbeddingConfig,
 ): Promise<string | undefined> {
   return resolveKnowledgeHttpApiKey(config);
-}
-
-function readKeychain(ref: string): Promise<string | undefined> {
-  if (process.platform !== 'darwin') {
-    return Promise.resolve(undefined);
-  }
-  return new Promise((resolvePromise) => {
-    const child = spawn('security', ['find-generic-password', '-s', ref, '-w'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    let output = '';
-    child.stdout.on('data', (chunk: Buffer) => {
-      output += chunk.toString('utf8');
-    });
-    child.on('close', (code) => {
-      resolvePromise(code === 0 && output.trim() ? output.trim() : undefined);
-    });
-    child.on('error', () => resolvePromise(undefined));
-  });
 }

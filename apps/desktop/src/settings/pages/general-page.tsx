@@ -6,7 +6,7 @@
 import { useState, type ReactElement } from 'react';
 import { SegmentedControl } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { useSettings } from '../settings-context';
+import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 import { AppearancePage } from './appearance-page';
 import { ShortcutsPage } from './shortcuts-page';
 import { PetPanel } from '../../PetPanel';
@@ -80,7 +80,8 @@ function getCapabilityLabel(capabilityId: string, fallback: string, locale: Desk
 function GeneralPreferencesSection(): ReactElement {
   const { locale, setLocale } = useDesktopLocale();
   const copy = getDesktopCopy(locale);
-  const { hostStatus } = useSettings();
+  const settings = useSettings();
+  const { hostStatus } = settings;
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
 
   return (
@@ -226,7 +227,9 @@ function AnimationLocatorCard(): ReactElement {
 export function GeneralPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
-  const { requestPet, onPetActiveChanged } = useSettings();
+  const settings = useSettings();
+  const { requestPet, onPetActiveChanged } = settings;
+  const petsAvailable = settingsHostSupportsCommand(settings, 'pet/list');
   const [activeTab, setActiveTab] = useState<GeneralSubTab>('appearance');
 
   return (
@@ -239,7 +242,11 @@ export function GeneralPage(): ReactElement {
             { value: 'appearance', label: isChinese ? '外观与主题' : 'Appearance' },
             { value: 'general', label: isChinese ? '基础设置' : 'General' },
             { value: 'shortcuts', label: isChinese ? '快捷键' : 'Shortcuts' },
-            { value: 'pets', label: isChinese ? '灵动伴侣 (桌宠)' : 'Companion' },
+            {
+              value: 'pets',
+              label: isChinese ? '灵动伴侣 (桌宠)' : 'Companion',
+              disabled: !petsAvailable,
+            },
           ]}
           testId="general-subtabs-control"
         />

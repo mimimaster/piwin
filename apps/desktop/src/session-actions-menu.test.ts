@@ -24,4 +24,15 @@ describe('sessionActionItems', () => {
     });
     expect(items.map((item) => item.action)).toEqual(['restore-pack', 'rename', 'copy-id']);
   });
+
+  it('hides export, duplicate, and continue-in-project when the Host omits those commands', () => {
+    const items = sessionActionItems({
+      isPinned: false,
+      isArchived: false,
+      canExport: false,
+      canDuplicate: false,
+      canContinueInProject: false,
+    });
+    expect(items.map((item) => item.action)).toEqual(['pin', 'rename', 'copy-id', 'archive', 'delete']);
+  });
 });

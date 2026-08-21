@@ -24,11 +24,12 @@ import type {
   ToolCardUi,
 } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
+import { exploreFlowRolesEqual, type ExploreFlowRole } from './explore-flow';
 import { MarkdownView } from './MarkdownView';
 import { CitationCards } from './CitationCards';
 import { MessageAttachments } from './message-attachments';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
-import { SubagentActivityCard } from './subagent-activity-card';
+import { SubagentActivitySlot } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
 import type { DocumentOpenInput } from './tool-call-card';
 import { AssemblySummaryCapsule } from './assembly-summary-capsule';
@@ -43,7 +44,6 @@ import {
 } from './generation-tool-kind.js';
 import {
   ConversationResponseContent,
-  messageHasFlashcardToolResult,
   extractFlashcardRecords,
   extractFlashcardArtifactHtml,
 } from './conversation-response-content.js';
@@ -54,17 +54,16 @@ import type { ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
 import { AssistantResponseActions } from './assistant-response-actions';
 import { buildConversationTurnUsageChip } from './conversation-message-header';
+import { shouldHideConversationAssistantRow } from './conversation-turn-chrome';
 import { UserMessageContent } from './conversation-user-message';
 import type { ModelOption } from './model-options';
 import { SystemMessageContent } from './system-message-content';
 import { resolveAssistantRenderingPhase } from './streaming-caret';
-import {
-  ContextMenuFromCatalog,
-  useDesktopContextMenu,
-  type ContextMenuTarget,
-} from './context-menu';
+import { useDesktopContextMenu, type ContextMenuTarget } from './context-menu';
 import type { DocCardSequenceRequest } from './DocCardSequenceView';
 import { MessageEditCard } from './chat-message-edit-card';
+import { TurnErrorCard } from './turn-error-card';
+import { MessageBubbleContextMenu } from './message-bubble-context-menu';
 
 export type ChatMessageRowProps = {
   message: ChatMessageUi;
@@ -92,6 +91,8 @@ export type ChatMessageRowProps = {
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity: ToolCallDensity;
   showThinking: boolean;
+  /** Cross-message explore-flow role (anchor capsule / suppressed member). */
+  exploreRole?: ExploreFlowRole;
   /** Project root forwarded to tool cards → DiffCard. */
   projectPath?: string | null;
   /** Host git request adapter forwarded to tool cards → DiffCard. */
@@ -121,6 +122,8 @@ export type ChatMessageRowProps = {
   artifactMaxBytes?: number;
   /** Callback when clicking a search result file or file link. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  /** Open an edited file's diff in the right inspector. */
+  onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Locale used by all run activity components. */
@@ -170,6 +173,10 @@ export type ChatMessageRowProps = {
   configProviders?: readonly ModelProviderConfig[];
   contextUsage?: ContextUsageSnapshot | null;
   onRegenerate?: (() => void) | undefined;
+  /** Conversation only: identity header on the first visible assistant in the turn. */
+  showConversationHeader?: boolean;
+  /** Conversation only: turn usage chip on that identity header. */
+  showConversationTurnUsage?: boolean;
 };
 
 function areFilePathListsEqual(
@@ -218,7 +225,7 @@ export const ChatMessageRow = memo(
       }
       return (
         <div id={`msg-${message.id}`} className="chat-subagent-slot">
-          <SubagentActivityCard
+          <SubagentActivitySlot
             activity={message.subagentActivity}
             {...(props.onInspectSubagent ? { onInspect: props.onInspectSubagent } : {})}
           />
@@ -227,30 +234,53 @@ export const ChatMessageRow = memo(
     }
 
     const isEditingThis = props.editingMessageId === message.id;
-    // Keep every lifecycle segment that contains causal output. Only discard a
-    // truly empty transport placeholder; tool-only and thinking-only messages
-    // are real transcript rows and must retain their event position.
-    const conversationHidesAgentOnlyRow =
+    // Conversation projects one assistant reply per user turn. Intermediate
+    // thinking/tool completions stay in the transcript but do not get a row.
+    // Agent mode still keeps every lifecycle segment in document order.
+    if (
       props.isConversationSession === true &&
-      message.role === 'assistant' &&
-      message.text.trim().length === 0 &&
-      message.thinking.trim().length === 0 &&
-      message.attachments.length === 0 &&
-      (message.searchEvidence?.citations.length ?? 0) === 0 &&
-      imageGenerationStatus === null &&
-      videoGenerationStatus === null &&
-      !messageHasFlashcardToolResult(message);
+      shouldHideConversationAssistantRow({
+        message,
+        isLastAssistantInTurn: props.isLastAssistantInTurn === true,
+        isActivelyStreaming: message.status === 'streaming',
+      })
+    ) {
+      return null;
+    }
+    // Keep errored turns visible even when the provider failed before any
+    // content: an empty bubble is still the only place TurnErrorCard renders.
     if (
       message.role === 'assistant' &&
       message.status !== 'streaming' &&
-      (conversationHidesAgentOnlyRow ||
-        (message.text.trim().length === 0 &&
-          message.thinking.trim().length === 0 &&
-          message.tools.length === 0 &&
-          message.attachments.length === 0 &&
-          (message.searchEvidence?.citations.length ?? 0) === 0 &&
-          imageGenerationStatus === null &&
-          videoGenerationStatus === null))
+      message.status !== 'error' &&
+      !message.error &&
+      props.runRecord?.outcome !== 'failed' &&
+      message.text.trim().length === 0 &&
+      message.thinking.trim().length === 0 &&
+      message.tools.length === 0 &&
+      message.attachments.length === 0 &&
+      (message.searchEvidence?.citations.length ?? 0) === 0 &&
+      imageGenerationStatus === null &&
+      videoGenerationStatus === null
+    ) {
+      return null;
+    }
+    // Explore-flow members render inside the anchor's capsule. Skip the empty
+    // bubble unless this row still owns other chrome (permission gate, failed
+    // run diagnostics, or the action row of a completed turn).
+    if (
+      props.exploreRole?.kind === 'member' &&
+      message.role === 'assistant' &&
+      message.text.trim().length === 0 &&
+      message.attachments.length === 0 &&
+      !message.error &&
+      message.status !== 'error' &&
+      (message.searchEvidence?.citations.length ?? 0) === 0 &&
+      imageGenerationStatus === null &&
+      videoGenerationStatus === null &&
+      props.runRecord?.outcome !== 'failed' &&
+      !(props.isLastAssistantInTurn === true && props.permissionPrompt) &&
+      !(props.isLastAssistantInTurn === true && !props.streaming)
     ) {
       return null;
     }
@@ -261,6 +291,11 @@ export const ChatMessageRow = memo(
       'chat-message-row',
       `role-${message.role}`,
       props.isConversationSession === true && isUserMessage ? 'is-conversation-bubble' : '',
+      props.isConversationSession === true &&
+      message.role === 'assistant' &&
+      props.showConversationHeader === false
+        ? 'is-turn-continuation'
+        : '',
       message.role === 'assistant' &&
       message.text.trim().length === 0 &&
       message.thinking.trim().length === 0 &&
@@ -344,10 +379,11 @@ export const ChatMessageRow = memo(
               {...(props.livePromptModel !== undefined ? { livePromptModel: props.livePromptModel } : {})}
               {...(props.modelOptions !== undefined ? { modelOptions: props.modelOptions } : {})}
               {...(props.configProviders !== undefined ? { configProviders: props.configProviders } : {})}
+              showHeader={props.showConversationHeader !== false}
               usageChip={
                 props.isConversationSession === true &&
-                props.isLatestAssistantResponse === true &&
-                message.status === 'done'
+                props.showConversationHeader !== false &&
+                props.showConversationTurnUsage === true
                   ? buildConversationTurnUsageChip(props.contextUsage, props.locale ?? 'zh-CN')
                   : null
               }
@@ -375,9 +411,11 @@ export const ChatMessageRow = memo(
               workDetailsExpanded={props.workDetailsExpanded}
               toolDensity={props.toolDensity}
               showThinking={props.showThinking}
+              {...(props.exploreRole !== undefined ? { exploreRole: props.exploreRole } : {})}
               {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
               {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
               {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+              {...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {})}
               {...(props.onOpenDocument
                 ? {
                     onOpenDocument: (input) =>
@@ -394,6 +432,7 @@ export const ChatMessageRow = memo(
               {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
               {...(props.onInspectSubagent ? { onInspectSubagent: props.onInspectSubagent } : {})}
               {...(props.locale ? { locale: props.locale } : {})}
+              {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
             >
               {message.text.trim().length > 0 ? (
                 <MarkdownView
@@ -499,6 +538,7 @@ export const ChatMessageRow = memo(
         {message.role === 'assistant' || isEditingThis ? (
           <MessageAttachments
             attachments={message.attachments}
+            {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
             role={message.role}
             {...(props.locale !== undefined ? { locale: props.locale } : {})}
           />
@@ -572,6 +612,26 @@ export const ChatMessageRow = memo(
           />
         ) : null}
         {message.role === 'assistant' &&
+        (message.status === 'error' || Boolean(message.error) || props.runRecord?.outcome === 'failed') ? (
+          <TurnErrorCard
+            messageId={message.id}
+            error={
+              message.error ||
+              props.runRecord?.terminalMessage ||
+              (message.status === 'error' ? (props.locale === 'zh-CN' ? '生成失败' : 'Generation failed') : null)
+            }
+            locale={props.locale}
+            onRetry={() => {
+              if (props.onRegenerate) {
+                props.onRegenerate();
+              } else if (props.lastUserMessageId) {
+                props.onRetry(props.lastUserMessageId);
+              }
+            }}
+            onFeedback={props.onFeedback}
+          />
+        ) : null}
+        {message.role === 'assistant' &&
         message.status === 'done' &&
         (props.isLastAssistantInTurn === true ||
           (props.isConversationSession === true && Boolean(message.text?.trim()))) &&
@@ -623,6 +683,7 @@ export const ChatMessageRow = memo(
       isUserMessage &&
       props.assemblySummary === undefined &&
       props.streaming === true &&
+      props.activeRunId != null &&
       props.lastUserMessageId === message.id;
     const capsule =
       props.isConversationSession !== true &&
@@ -646,14 +707,16 @@ export const ChatMessageRow = memo(
       return row;
     }
     return (
-      <ContextMenuFromCatalog
-        testId="message-context-menu"
-        target={messageTarget}
-        caps={contextMenu.caps}
-        dispatchers={contextMenu.dispatchers}
-      >
-        {row}
-      </ContextMenuFromCatalog>
+      <>
+        <MessageBubbleContextMenu
+          messageTarget={messageTarget}
+          caps={contextMenu.caps}
+          dispatchers={contextMenu.dispatchers}
+        >
+          {bubble}
+        </MessageBubbleContextMenu>
+        {capsule}
+      </>
     );
   },
   (previous, next) => {
@@ -703,12 +766,15 @@ export const ChatMessageRow = memo(
       previous.workDetailsExpanded === next.workDetailsExpanded &&
       previous.toolDensity === next.toolDensity &&
       previous.showThinking === next.showThinking &&
+      exploreFlowRolesEqual(previous.exploreRole, next.exploreRole) &&
       previous.projectPath === next.projectPath &&
       previous.toolDiffRequest === next.toolDiffRequest &&
       previous.locale === next.locale &&
       previous.onArtifactAction === next.onArtifactAction &&
       previous.onOpenArtifactCanvas === next.onOpenArtifactCanvas &&
       previous.onOpenDocument === next.onOpenDocument &&
+      previous.onOpenFile === next.onOpenFile &&
+      previous.onOpenDiff === next.onOpenDiff &&
       previous.subagentChildren === next.subagentChildren &&
       previous.subagentInvocations === next.subagentInvocations &&
       previous.subagentStreams === next.subagentStreams &&
@@ -732,6 +798,8 @@ export const ChatMessageRow = memo(
       previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
       previous.assemblySummary === next.assemblySummary &&
       previous.isConversationSession === next.isConversationSession &&
+      previous.showConversationHeader === next.showConversationHeader &&
+      previous.showConversationTurnUsage === next.showConversationTurnUsage &&
       previous.onResolveFlashcards === next.onResolveFlashcards &&
       previous.onRegenerate === next.onRegenerate &&
       previous.livePromptModel === next.livePromptModel &&

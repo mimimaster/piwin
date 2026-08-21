@@ -696,7 +696,9 @@ Root `pnpm typecheck` before considering the slice mergeable (implementers of `H
 - [ ] User IME uses `insertText`; tests cover compositionend → 你好.
 - [ ] Panel default Interact; pick still attaches; Take over / Give back wired; `agentRunning` / `state.streaming` no longer freeze the workbench.
 - [ ] Console/network drawer exists; capture on while a mirror lease is held.
-- [ ] Run terminal releases agent control.
+- [ ] Run terminal releases agent control of the **holder run** only
+      (see [browser-takeover-repair](./2026-08-19-browser-takeover-repair.md)).
+      `browser:lock` must be in `HOST_TOOL_PERMISSION_ACTIONS`.
 - [ ] `docs/architecture.md` §8 matches the workbench. No file over 1000 lines. No new CSS in `region-inspector.css`.
 - [ ] CLI visual panel still absent by design.
 

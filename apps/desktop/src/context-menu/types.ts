@@ -118,6 +118,8 @@ export type ContextMenuItemSpec =
       disabled?: boolean;
       danger?: boolean;
       testId: string;
+      icon?: string;
+      shortcut?: string;
     }
   | { type: 'separator' }
   | {
@@ -125,4 +127,5 @@ export type ContextMenuItemSpec =
       id: string;
       label: string;
       children: ContextMenuItemSpec[];
+      icon?: string;
     };

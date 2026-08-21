@@ -25,3 +25,9 @@ export type { BrowserControllerState, AcquireResult } from './controller.js';
 export type { RunExclusive } from './mutex.js';
 export { getBrowserInstallStatus } from './install-status.js';
 export type { BrowserInstallStatus } from './install-status.js';
+export { renderPageHtml, FetchRenderUnavailableError } from './render-page.js';
+export type {
+  RenderPageHtmlInput,
+  RenderPageHtmlResult,
+  RenderPageHtmlDependencies,
+} from './render-page.js';

@@ -5,6 +5,7 @@ import {
   MAX_TRANSCRIPT_CACHE_MESSAGES,
   measureTranscriptCacheBytes,
   prependBoundedTranscriptPage,
+  retainBoundedSessionTranscript,
   retainBoundedTranscriptWindow,
 } from './transcript-page-cache';
 
@@ -64,5 +65,19 @@ describe('transcript page cache', () => {
     );
     expect(bounded.droppedCount).toBe(80);
     expect(bounded.cacheLimitReached).toBe(true);
+  });
+
+  it('keeps the newest Host transcript rows under the shared cache budget', () => {
+    const messages = Array.from({ length: 200 }, (_, index) => ({
+      id: `m-${index}`,
+      role: 'assistant' as const,
+      text: `row ${index}`,
+      createdAt: '2026-08-20T00:00:00.000Z',
+      status: 'done' as const,
+    }));
+    const bounded = retainBoundedSessionTranscript(messages);
+    expect(bounded).toHaveLength(MAX_TRANSCRIPT_CACHE_MESSAGES);
+    expect(bounded[0]?.id).toBe('m-40');
+    expect(bounded[bounded.length - 1]?.id).toBe('m-199');
   });
 });

@@ -10,7 +10,7 @@
  * *more* cautious, not less).
  */
 
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type {
@@ -35,6 +35,43 @@ export type LoadMergedPermissionRulesInput = {
 };
 
 const FILE_VERSION = 1;
+const USER_RULES_FILE = 'permissions.json';
+
+export function userPermissionRulesPath(piwinRoot: string): string {
+  return join(piwinRoot, USER_RULES_FILE);
+}
+
+/** Read the operator-editable user-global rules file. Missing file → empty v1. */
+export async function readUserPermissionRulesFile(
+  piwinRoot: string,
+): Promise<PermissionRulesFile> {
+  try {
+    const raw = await readFile(userPermissionRulesPath(piwinRoot), 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return asRulesFile(parsed) ?? { version: 1 };
+  } catch (error) {
+    if (isNotFound(error)) {
+      return { version: 1 };
+    }
+    throw error;
+  }
+}
+
+/** Host writes its own `permissions.json`. The shell only sends the document. */
+export async function writeUserPermissionRulesFile(
+  piwinRoot: string,
+  rules: PermissionRulesFile,
+): Promise<void> {
+  if (rules.version !== FILE_VERSION) {
+    throw new Error(`permissions.json version must be ${FILE_VERSION}`);
+  }
+  await mkdir(piwinRoot, { recursive: true });
+  await writeFile(
+    userPermissionRulesPath(piwinRoot),
+    `${JSON.stringify(rules, null, 2)}\n`,
+    'utf8',
+  );
+}
 
 /**
  * Load, validate, and merge permission rules from all configured layers.

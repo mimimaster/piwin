@@ -75,6 +75,84 @@ describe('ContextMenuFromCatalog submenu (CM-16)', () => {
     return { container: host, root: menuRoot };
   }
 
+  it('opens with a resolveTarget captured on contextmenu', () => {
+    const dispatchers = noopDispatchers();
+    const messageTarget: ContextMenuTarget = {
+      surface: 'message-assistant',
+      sessionId: 's1',
+      messageId: 'm1',
+      text: 'whole bubble',
+      label: 'Assistant',
+      capabilities: { canRetry: false, canFork: false, canSideChat: false },
+    };
+    const selectionTarget: ContextMenuTarget = {
+      surface: 'selection',
+      selectedText: '42',
+      label: '42',
+    };
+    let resolved: ContextMenuTarget = messageTarget;
+    const rendered = renderMenu(
+      <ContextMenuFromCatalog
+        testId="cm-resolve"
+        target={messageTarget}
+        resolveTarget={() => resolved}
+        caps={caps}
+        dispatchers={dispatchers}
+      >
+        <button type="button" data-testid="cm-trigger">
+          bubble
+        </button>
+      </ContextMenuFromCatalog>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    resolved = selectionTarget;
+    const trigger = container.querySelector('[data-testid="cm-trigger"]') as HTMLElement | null;
+    expect(trigger).not.toBeNull();
+    act(() => {
+      trigger?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+
+    expect(document.body.querySelector('[data-testid="context-menu-add-to-chat"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="context-menu-quote-in-composer"]')).toBeNull();
+  });
+
+  it('keeps quote-in-composer when resolveTarget is the whole message', () => {
+    const dispatchers = noopDispatchers();
+    const messageTarget: ContextMenuTarget = {
+      surface: 'message-assistant',
+      sessionId: 's1',
+      messageId: 'm1',
+      text: 'whole bubble',
+      label: 'Assistant',
+      capabilities: { canRetry: false, canFork: false, canSideChat: false },
+    };
+    const rendered = renderMenu(
+      <ContextMenuFromCatalog
+        testId="cm-message"
+        target={messageTarget}
+        resolveTarget={() => messageTarget}
+        caps={caps}
+        dispatchers={dispatchers}
+      >
+        <button type="button" data-testid="cm-trigger">
+          bubble
+        </button>
+      </ContextMenuFromCatalog>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector('[data-testid="cm-trigger"]') as HTMLElement | null;
+    act(() => {
+      trigger?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    });
+
+    expect(document.body.querySelector('[data-testid="context-menu-quote-in-composer"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="context-menu-add-to-chat"]')).not.toBeNull();
+  });
+
   it('renders the More submenu trigger from the catalog', () => {
     const dispatchers = noopDispatchers();
     const rendered = renderMenu(
@@ -108,5 +186,38 @@ describe('ContextMenuFromCatalog submenu (CM-16)', () => {
     );
     expect(more).toBeDefined();
     expect(document.body.querySelector('[data-testid="context-menu-sub-more"]')).not.toBeNull();
+  });
+
+  it('renders target header and action icons for file target', () => {
+    const dispatchers = noopDispatchers();
+    const rendered = renderMenu(
+      <ContextMenuFromCatalog
+        testId="cm-header-test"
+        target={fileTarget}
+        caps={caps}
+        dispatchers={dispatchers}
+      >
+        <button type="button" data-testid="cm-trigger">
+          a.ts
+        </button>
+      </ContextMenuFromCatalog>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector('[data-testid="cm-trigger"]') as HTMLElement | null;
+    act(() => {
+      trigger?.dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    const header = document.body.querySelector('.ui-menu-header');
+    expect(header).not.toBeNull();
+    expect(header?.textContent).toContain('a.ts');
+
+    const addToChatItem = document.body.querySelector('[data-testid="context-menu-add-to-chat"]');
+    expect(addToChatItem).not.toBeNull();
+    expect(addToChatItem?.querySelector('.ui-menu-item-icon')).not.toBeNull();
   });
 });

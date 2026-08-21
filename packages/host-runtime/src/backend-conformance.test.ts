@@ -313,7 +313,13 @@ describe('WP4 task 4: tool family matrix', () => {
     {
       name: 'browser',
       family: 'browser',
-      toolNames: ['browser_navigate', 'browser_screenshot', 'browser_click', 'browser_eval'],
+      toolNames: [
+        'browser_navigate',
+        'browser_screenshot',
+        'browser_click',
+        'browser_wait',
+        'browser_lock',
+      ],
     },
     {
       name: 'notes',

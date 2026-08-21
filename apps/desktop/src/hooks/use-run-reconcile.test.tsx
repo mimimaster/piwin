@@ -83,7 +83,13 @@ function terminalRun(): ExecutionRunRecord {
 function mountProbe(
   hostClient: HostClient,
   dispatch: (action: ChatUiAction) => void,
-  props: { activeSessionId: string | null; activeRunId: string | null; runLive: boolean },
+  props: {
+    activeSessionId: string | null;
+    activeRunId: string | null;
+    runLive: boolean;
+    hostReady?: boolean;
+    catchUpEpoch?: number;
+  },
 ): { root: Root; container: HTMLElement } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -95,6 +101,8 @@ function mountProbe(
       activeSessionId: props.activeSessionId,
       activeRunId: props.activeRunId,
       runLive: props.runLive,
+      ...(props.hostReady === undefined ? {} : { hostReady: props.hostReady }),
+      ...(props.catchUpEpoch === undefined ? {} : { catchUpEpoch: props.catchUpEpoch }),
     });
     return null;
   }
@@ -196,6 +204,62 @@ describe('useRunReconcile', () => {
     });
     expect(fake.requests).toHaveLength(0);
 
+    root.unmount();
+    container.remove();
+  });
+
+  it('reconciles when the Host socket becomes ready again', async () => {
+    const fake = new FakeHostClient();
+    fake.scriptForegroundRun({ kind: 'run', run: terminalRun() });
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(fake as unknown as HostClient, (action) => {
+      actions.push(action);
+    }, {
+      activeSessionId: 'session-1',
+      activeRunId: 'run-1',
+      runLive: true,
+      hostReady: true,
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(fake.requests.length).toBeGreaterThan(0);
+      });
+    });
+
+    expect(fake.requests.map((command) => command.type)).toEqual([
+      'session/foreground-run',
+      'session/messages',
+    ]);
+    expect(actions.map((action) => action.type)).toEqual([
+      'session/load-messages',
+      'run/terminal',
+    ]);
+    root.unmount();
+    container.remove();
+  });
+
+  it('on catch-up epoch while idle, reloads the active transcript', async () => {
+    const fake = new FakeHostClient();
+    const actions: ChatUiAction[] = [];
+    const { root, container } = mountProbe(fake as unknown as HostClient, (action) => {
+      actions.push(action);
+    }, {
+      activeSessionId: 'session-1',
+      activeRunId: null,
+      runLive: false,
+      hostReady: true,
+      catchUpEpoch: 1,
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(fake.requests.some((command) => command.type === 'session/messages')).toBe(true);
+      });
+    });
+
+    expect(fake.requests.map((command) => command.type)).toContain('session/messages');
+    expect(actions.map((action) => action.type)).toContain('session/load-messages');
     root.unmount();
     container.remove();
   });

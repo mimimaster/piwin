@@ -57,6 +57,7 @@ export function buildPersistedSubagentRepair(
           (child.subagentMode === 'worktree' ? 'retained' : 'not-requested'),
         error: 'interrupted by host restart',
         failure: HOST_INTERRUPTED_FAILURE,
+        ...(storedResult?.role ? { role: storedResult.role } : {}),
         ...(storedResult?.profileId ? { profileId: storedResult.profileId } : {}),
         ...(storedResult?.model ? { model: storedResult.model } : {}),
         ...(storedResult?.worktreePath

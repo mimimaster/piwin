@@ -142,6 +142,14 @@ describe('SettingsShell', () => {
     expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
   });
 
+  it('renders the restored Web settings page', () => {
+    act(() => {
+      root.render(<ShellHarness initialSection="web" />);
+    });
+    expect(container.querySelector('[data-testid="settings-nav-web"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="web-search-route-policy"]')).not.toBeNull();
+  });
+
   it('uses the page content heading without rendering a duplicate shell title', () => {
     act(() => {
       root.render(

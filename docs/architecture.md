@@ -84,7 +84,8 @@ observe and control that Host through `HostCommand` / `HostPush`; they do not
 create independent Agent loops or synchronize independent session databases.
 The canonical target and implementation phases are recorded in
 [`specs/host-server-multi-client.md`](./specs/host-server-multi-client.md) and
-ADR 0036.
+ADR 0036. Concurrent edits from several shells on one Host follow
+[`specs/multi-client-concurrency.md`](./specs/multi-client-concurrency.md).
 
 
 ## 2.2 Session runtime residency (ADR 0040)
@@ -410,10 +411,13 @@ revisioned `SubagentInvocation` keyed to its parent Run and normalized tool
 call. The parent transcript tool position is the visual anchor; low-frequency
 `subagent/invocation-updated` pushes carry lifecycle/latest activity while the
 ordered child Agent stream carries full conversation content. The run manifest
-is restart truth and repairs stale active-looking child records. The Desktop
-child window reuses normal transcript/tool/permission/file rendering, supports
-same-child terminal follow-up, and exposes explicit worktree
-apply/retain/discard. There is no composer-adjacent current-work dock.
+is restart truth and repairs stale active-looking child records. Child sessions
+persist in the index but are excluded from `session/list` and `session/search`
+(same main-list rule as SIDE-D9). They remain reachable through the parent
+transcript inline panel and `session/list-children`. The Desktop child
+inspector reuses normal transcript/tool/permission/file rendering and exposes
+explicit worktree apply/retain/discard. There is no composer-adjacent
+current-work dock.
 
 Runtime reload is a Host-owned replacement transaction. Settings persistence
 records the active and desired revisions separately, then resident sessions
@@ -441,7 +445,7 @@ performed.
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
 | `@piwin/extensions` | Host-owned immutable Pi Extension revisions, registry, and deployment journal |
 | `@piwin/mcp` | Config document, MCP Supervisor/ProcessSlot lifecycle, owned transport, metadata catalog |
-| `@piwin/tools-web` | `web_search`, `web_fetch` providers |
+| `@piwin/tools-web` | `web_search`, `web_fetch` (HTML/PDF extract; long pages may return `spillPath`) |
 | `@piwin/git` | Status, diff, commit graph model |
 | `@piwin/theme` | Theme packages install/apply |
 | `@piwin/pet` | Codex pet adapter + state machine |
@@ -485,7 +489,9 @@ the project without granting new trust; sending remains gated by its current
 trust state. The `imageGeneration` / `videoGeneration` / `speech.asr` config
 sections hold **default `ModelRef`s** into `providers[].models`. Image and
 video pages may edit that model's generation routes; they do not add, delete,
-or retag catalog rows (ADR 0056).
+or retag catalog rows (ADR 0056). `visionDelegation` and `replyWriter` are
+optional Host one-shot delegates (pre-turn image describe; post-turn reply
+rewrite). They do not start a second Pi session.
 
 ## 6. Model protocols
 
@@ -577,7 +583,9 @@ recovery continue to use the Host-owned canonical state.
 
 A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) that
 owns **one** headless Chromium shared by the agent and the desktop panel — "what
-the user sees == what the agent controls".
+the user sees == what the agent controls". `web_fetch` `fetchFallback: 'browser'`
+is a **different** Chromium (ADR 0058): one-shot `renderPageHtml`, no profile,
+no panel pushes, then the same Readability extract.
 
 - **Workbench** — the desktop `BrowserSessionPanel` is an interactive mirror of
   the same Chromium: CDP `Page.startScreencast` (~12–15 fps, JPEG) falling back
@@ -586,7 +594,8 @@ the user sees == what the agent controls".
 - **Controller lock** — `idle | user | agent` (ADR 0057). Write tools auto-acquire
   `agent` from idle. The human takes over explicitly; the agent never auto-steals.
   If the user holds the page, write tools return `browser-user-has-control`.
-  Streaming a coding turn is **not** the lock. Run terminal releases agent control.
+  Streaming a coding turn is **not** the lock. The run that first acquired
+  `agent` releases that claim when it terminals; other runs do not.
 - **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
   `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
   `browser_find` / `browser_back` / `browser_forward` / `browser_wait` /

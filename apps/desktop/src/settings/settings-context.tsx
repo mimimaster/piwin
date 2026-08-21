@@ -40,6 +40,7 @@ export type SettingsConfigRequest = (command: {
     | 'models/image-catalog/search'
     | 'models/test'
     | 'models/image-test'
+    | 'models/configured'
     | 'vision/delegate'
     | 'vision/cache/clear'
     | 'secrets/set'
@@ -110,10 +111,13 @@ export type SettingsContextValue = {
     subscribe: (listener: (message: HostServerMessage) => void) => () => void;
     request?: (command: HostCommand | LocalMobileAccessCommand) => Promise<HostResponse>;
     getTransport?: () => 'mock' | 'live' | 'remote';
+    supportsCommand?: (type: HostCommand['type']) => boolean;
   };
   config: PiwinConfig | null;
   root: string;
   saving: boolean;
+  /** True when the attached Host does not advertise `settings/apply`. */
+  remoteSettingsReadOnly?: boolean;
   setError: (message: string | null) => void;
   setInfo: (message: string | null, tone?: 'info' | 'success' | 'warning') => void;
   /** Persist config through the host; returns false (and sets error) on failure. */
@@ -171,6 +175,14 @@ export type SettingsContextValue = {
     input: import('@piwin/contracts').WebSearchTestInput,
   ) => Promise<import('@piwin/contracts').WebSearchTestResult>;
 };
+
+/** Local/legacy Hosts are permissive; negotiated remote ceilings are authoritative when present. */
+export function settingsHostSupportsCommand(
+  settings: Pick<SettingsContextValue, 'hostClient'>,
+  type: HostCommand['type'],
+): boolean {
+  return settings.hostClient?.supportsCommand?.(type) ?? true;
+}
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 

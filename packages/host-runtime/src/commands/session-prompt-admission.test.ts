@@ -321,17 +321,20 @@ describe('session/prompt foreground admission', () => {
     const first = await runtime.handleCommand({
       type: 'session/prompt',
       sessionId,
-      input: { text: 'original' },
+      input: { text: 'hang-until-fixture-abort' },
     });
     expect(first.success).toBe(true);
     if (!first.success) throw new Error(first.error);
     const oldRunId = (first.data as { runId: string }).runId;
 
+    const startedAt = Date.now();
     const superseded = await runtime.handleCommand({
       type: 'session/prompt',
       sessionId,
       input: { text: 'newer omitted prompt' },
     });
+    // Must ack before joining the previous turn's abort (same budget as replace-run).
+    expect(Date.now() - startedAt).toBeLessThan(150);
     expect(superseded.success).toBe(true);
     if (!superseded.success) throw new Error(superseded.error);
     expect((superseded.data as { runId: string }).runId).not.toBe(oldRunId);

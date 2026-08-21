@@ -141,6 +141,9 @@ export type QueuedTurnRow = {
       if (metadata.docCardSequence !== undefined) {
         message.docCardSequence = metadata.docCardSequence;
       }
+      if (metadata.replyWriter !== undefined) {
+        message.replyWriter = metadata.replyWriter;
+      }
     }
     return message;
   }

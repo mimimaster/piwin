@@ -12,6 +12,7 @@
 import { resolve as resolvePath } from 'node:path';
 import type {
   HostToolDescriptor,
+  HostToolExecutionContext,
   HostToolExecutor,
   HostToolPermissionSpec,
   HostToolRegistration,
@@ -20,7 +21,7 @@ import type {
   ToolResult,
   ToolResultImage,
 } from '@piwin/contracts';
-import type { BrowserSession } from '@piwin/browser';
+import type { BrowserOpOptions, BrowserSession } from '@piwin/browser';
 import { BrowserUserHasControlError } from '@piwin/browser';
 import { isPrivateOrLocalHostname, mappedIpv4FromIpv6 } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
@@ -158,6 +159,13 @@ function success(
 const USER_CONTROL_HINT =
   ' Fails with browser-user-has-control if the human took over the workbench; wait or ask them to give it back.';
 
+function agentWriteOptions(
+  signal: AbortSignal,
+  context: HostToolExecutionContext,
+): BrowserOpOptions {
+  return { signal, actor: 'agent', runId: context.runId };
+}
+
 function userControlResult(error: unknown): ToolResult {
   if (
     error instanceof BrowserUserHasControlError ||
@@ -254,10 +262,10 @@ export function createBrowserToolDefinitions(
         }
       },
     },
-    async (args, signal) => {
+    async (args, signal, context) => {
       const url = String(args.url ?? '');
       try {
-        await session.navigate(url, { signal });
+        await session.navigate(url, agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -328,10 +336,10 @@ export function createBrowserToolDefinitions(
       },
     },
     permissionSpec('browser:click'),
-    async (args, signal) => {
+    async (args, signal, context) => {
       const target = resolveTarget(args);
       try {
-        await session.click(target, { signal });
+        await session.click(target, agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -356,11 +364,11 @@ export function createBrowserToolDefinitions(
       },
     },
     permissionSpec('browser:type'),
-    async (args, signal) => {
+    async (args, signal, context) => {
       const target = resolveTarget(args);
       const text = String(args.text ?? '');
       try {
-        await session.type(target, text, { signal });
+        await session.type(target, text, agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -395,7 +403,7 @@ export function createBrowserToolDefinitions(
       },
     },
     permissionSpec('browser:fill-form'),
-    async (args, signal) => {
+    async (args, signal, context) => {
       const rawFields = (args.fields ?? []) as Array<Record<string, unknown>>;
       const fields: Record<string, string> = {};
       for (const field of rawFields) {
@@ -403,7 +411,7 @@ export function createBrowserToolDefinitions(
         fields[target] = String(field.value ?? '');
       }
       try {
-        await session.fillForm(fields, { signal });
+        await session.fillForm(fields, agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -432,7 +440,7 @@ export function createBrowserToolDefinitions(
       },
     },
     permissionSpec('browser:scroll'),
-    async (args, signal) => {
+    async (args, signal, context) => {
       const direction = String(args.direction ?? 'down');
       const deltaMap: Record<string, { x?: number; y?: number }> = {
         up: { y: -400 },
@@ -442,7 +450,7 @@ export function createBrowserToolDefinitions(
       };
       const delta = deltaMap[direction] ?? { y: 400 };
       try {
-        await session.scroll(delta, { signal });
+        await session.scroll(delta, agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -535,9 +543,9 @@ export function createBrowserToolDefinitions(
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:back'),
-    async (_args, signal) => {
+    async (_args, signal, context) => {
       try {
-        await session.back({ signal });
+        await session.back(agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -552,9 +560,9 @@ export function createBrowserToolDefinitions(
       parameters: { type: 'object', properties: {}, required: [] },
     },
     permissionSpec('browser:forward'),
-    async (_args, signal) => {
+    async (_args, signal, context) => {
       try {
-        await session.forward({ signal });
+        await session.forward(agentWriteOptions(signal, context));
       } catch (error) {
         return userControlResult(error);
       }
@@ -600,14 +608,14 @@ export function createBrowserToolDefinitions(
       },
     },
     permissionSpec('browser:lock'),
-    async (args) => {
+    async (args, signal, context) => {
       const action = String(args.action ?? '');
       if (action !== 'lock' && action !== 'unlock') {
         return { ok: false, code: 'invalid-input', message: 'action must be lock or unlock' };
       }
       try {
         if (action === 'lock') {
-          const state = await session.lock('agent');
+          const state = await session.lock('agent', agentWriteOptions(signal, context));
           return success({ ok: true, action, ...state }, { action, owner: state.owner });
         }
         const state = await session.unlock('agent');

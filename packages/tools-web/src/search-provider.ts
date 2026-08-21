@@ -6,7 +6,7 @@ import type {
   WebSearchSource,
   WebSearchStrategy,
 } from '@piwin/contracts';
-import { createDefaultWebConfig } from '@piwin/contracts';
+import { DEFAULT_FETCH_FALLBACK, createDefaultWebConfig } from '@piwin/contracts';
 import { mergeSearchHitBatches, type SourceHitBatch } from './search-merge.js';
 import { createProviderForSource, type SearchProvider } from './search-source-providers.js';
 import type { WebRuntimeCredentials } from './runtime-credentials.js';
@@ -29,12 +29,21 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
     searchTimeoutMs: partial.searchTimeoutMs ?? defaults.searchTimeoutMs,
     searchSources,
     ...(partial.searchDelegateModel ? { searchDelegateModel: partial.searchDelegateModel } : {}),
+    ...(partial.fetchDelegateModel ? { fetchDelegateModel: partial.fetchDelegateModel } : {}),
     searchStrategy,
     searchRoutePolicy: partial.searchRoutePolicy ?? defaults.searchRoutePolicy,
     fetchProvider: partial.fetchProvider ?? defaults.fetchProvider,
+    fetchFallback: partial.fetchFallback ?? defaults.fetchFallback ?? DEFAULT_FETCH_FALLBACK,
     ...(partial.fetchApiKeyRef ? { fetchApiKeyRef: partial.fetchApiKeyRef } : {}),
     fetchApiKeyEnv: partial.fetchApiKeyEnv ?? defaults.fetchApiKeyEnv,
     fetchMaxBytes: partial.fetchMaxBytes ?? defaults.fetchMaxBytes,
+    ...(partial.fetchReturnMaxChars !== undefined
+      ? { fetchReturnMaxChars: partial.fetchReturnMaxChars }
+      : {}),
+    ...(partial.fetchStoreMaxChars !== undefined
+      ? { fetchStoreMaxChars: partial.fetchStoreMaxChars }
+      : {}),
+    ...(partial.fetchCacheTtlMs !== undefined ? { fetchCacheTtlMs: partial.fetchCacheTtlMs } : {}),
     fetchTimeoutMs: partial.fetchTimeoutMs ?? defaults.fetchTimeoutMs,
     fetchBlockedUrlPrefixes: partial.fetchBlockedUrlPrefixes ?? defaults.fetchBlockedUrlPrefixes,
   };

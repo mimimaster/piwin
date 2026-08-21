@@ -86,7 +86,7 @@ describe('ToolBatchCapsule', () => {
     const capsule = container.querySelector('[data-testid="tool-batch-capsule"]');
     expect(capsule).not.toBeNull();
     expect(capsule?.getAttribute('data-expanded')).toBe('false');
-    expect(container.textContent).toContain('检索了 3 处代码与定义');
+    expect(container.textContent).toContain('检索了 3 处代码');
     expect(container.querySelector('[data-testid="tool-batch-body"]')).toBeNull();
   });
 
@@ -112,7 +112,7 @@ describe('ToolBatchCapsule', () => {
       );
     });
 
-    expect(container.textContent).toContain('Explored 2 files, 2 searches');
+    expect(container.textContent).toContain('Explored 2 files · 2 searches');
   });
 
   it('displays running exploration title and active action marquee when a tool is running', () => {
@@ -137,7 +137,7 @@ describe('ToolBatchCapsule', () => {
 
     const marquee = container.querySelector('[data-testid="action-marquee"]');
     expect(marquee).not.toBeNull();
-    expect(container.textContent).toContain('Exploring 1 files, 1 searches');
+    expect(container.textContent).toContain('Exploring codebase');
     expect(marquee?.textContent).toContain('Searching createRemoteProjectId');
   });
 

@@ -22,16 +22,47 @@ describe('RunEventCorrelator', () => {
     expect(lateDelta.event).toMatchObject({ messageId: 'message-1', runId: 'run-1' });
   });
 
-  it('does not invent a current run for an uncorrelated error', () => {
+  it('attributes identity-less provider errors to the active run when ALS is lost', () => {
+    // Pi stream callbacks often break AsyncLocalStorage. Provider failures still
+    // belong to the live foreground turn (ADR 0015); dropping them replaces
+    // upstream text with a generic empty-response fallback.
     const correlator = new RunEventCorrelator();
     const result = correlator.correlate(
       'session-1',
-      { type: 'error', message: 'late error' },
+      { type: 'error', message: '404: No endpoints available' },
+      'run-1',
+      undefined,
+    );
+    expect(result.accepted).toBe(true);
+    expect(result.event).toMatchObject({
+      type: 'error',
+      message: '404: No endpoints available',
+      runId: 'run-1',
+    });
+  });
+
+  it('still rejects explicit errors from a replaced run', () => {
+    const correlator = new RunEventCorrelator();
+    correlator.correlate(
+      'session-1',
+      { type: 'message/start', messageId: 'message-1', role: 'assistant' },
+      'run-1',
+      'run-1',
+    );
+    correlator.correlate(
+      'session-1',
+      { type: 'message/start', messageId: 'message-2', role: 'assistant' },
+      'run-2',
+      'run-2',
+    );
+
+    const result = correlator.correlate(
+      'session-1',
+      { type: 'error', message: 'late error', runId: 'run-1' },
       'run-2',
       undefined,
     );
     expect(result.accepted).toBe(false);
-    expect(result.event).toEqual({ type: 'error', message: 'late error' });
   });
 
   it('uses execution context ownership for events without stable identities', () => {
@@ -140,19 +171,5 @@ describe('RunEventCorrelator', () => {
     );
     expect(toolStart.accepted).toBe(true);
     expect(toolStart.event).toMatchObject({ runId: 'run-1', toolName: 'write' });
-  });
-
-  it('still rejects uncorrelated errors when execution context is lost', () => {
-    // Errors have no stable identity, so they must NOT be attributed to the
-    // active run when the execution context is missing — a late background
-    // error should not contaminate the current foreground run.
-    const correlator = new RunEventCorrelator();
-    const result = correlator.correlate(
-      'session-1',
-      { type: 'error', message: 'mystery error' },
-      'run-1',
-      undefined,
-    );
-    expect(result.accepted).toBe(false);
   });
 });

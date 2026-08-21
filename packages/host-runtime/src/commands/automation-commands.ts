@@ -83,6 +83,16 @@ export async function handleAutomationCommand(
           return ok(requestId, 'todo/get', list);
         }
         case 'todo/set': {
+          const current = context.todoStore.get(command.sessionId);
+          if (
+            command.expectedRevision !== undefined &&
+            command.expectedRevision !== current.revision
+          ) {
+            return fail(requestId, 'todo/set', 'todo-revision-conflict', {
+              code: 'todo-revision-conflict',
+              data: { sessionId: command.sessionId, actualRevision: current.revision },
+            });
+          }
           const list = context.todoStore.set(command.sessionId, command.items);
           context.push({ type: 'todo/updated', sessionId: command.sessionId, items: list.items });
           return ok(requestId, 'todo/set', list);

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildEnabledModelOptions, isComposerChatModel } from './model-options.js';
+import {
+  buildEnabledModelOptions,
+  isComposerChatModel,
+  modelOptionsFromConfiguredModels,
+  readConfiguredChatModelsData,
+} from './model-options.js';
 import type { ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
 
 function makeProvider(
@@ -187,5 +192,70 @@ describe('buildEnabledModelOptions', () => {
     const options = buildEnabledModelOptions(providers);
     expect(options).toHaveLength(1);
     expect(options[0]).toMatchObject({ providerId: 'enabled-second' });
+  });
+});
+
+describe('modelOptionsFromConfiguredModels', () => {
+  it('maps the secret-free Host list into composer options', () => {
+    expect(
+      modelOptionsFromConfiguredModels([
+        {
+          providerId: 'custom-openai',
+          protocol: 'openai-compatible',
+          modelId: 'deepseek-v4-flash',
+          label: 'DeepSeek',
+          reasoning: true,
+        },
+        {
+          providerId: 'anthropic',
+          protocol: 'anthropic-compatible',
+          modelId: 'claude-sonnet',
+        },
+      ]),
+    ).toEqual([
+      {
+        providerId: 'custom-openai',
+        protocol: 'openai-compatible',
+        modelId: 'deepseek-v4-flash',
+        label: 'custom-openai / DeepSeek',
+        reasoning: true,
+      },
+      {
+        providerId: 'anthropic',
+        protocol: 'anthropic-compatible',
+        modelId: 'claude-sonnet',
+        label: 'anthropic / claude-sonnet',
+      },
+    ]);
+  });
+});
+
+describe('readConfiguredChatModelsData', () => {
+  it('keeps defaults and drops unknown protocols', () => {
+    const data = readConfiguredChatModelsData({
+      defaultProviderId: 'custom-openai',
+      defaultModelId: 'deepseek-v4-flash',
+      models: [
+        {
+          providerId: 'custom-openai',
+          protocol: 'openai-compatible',
+          modelId: 'deepseek-v4-flash',
+          label: 'DeepSeek',
+        },
+        { providerId: 'bad', protocol: 'mystery', modelId: 'x' },
+      ],
+    });
+    expect(data).toEqual({
+      defaultProviderId: 'custom-openai',
+      defaultModelId: 'deepseek-v4-flash',
+      models: [
+        {
+          providerId: 'custom-openai',
+          protocol: 'openai-compatible',
+          modelId: 'deepseek-v4-flash',
+          label: 'DeepSeek',
+        },
+      ],
+    });
   });
 });

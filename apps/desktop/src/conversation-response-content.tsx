@@ -357,6 +357,8 @@ export function ConversationResponseContent(props: {
   sourceTools?: readonly ToolCardUi[];
   /** Fallback when tool output was stripped: resolve card ids from the reply text. */
   onResolveFlashcards?: (itemIds: string[]) => Promise<FlashcardReviewCard[]>;
+  /** False for later completions in the same Conversation turn. Default true. */
+  showHeader?: boolean;
 }): ReactElement {
   const { message, locale } = props;
   const presentation = buildTurnPresentation({
@@ -427,17 +429,28 @@ export function ConversationResponseContent(props: {
       })
     : undefined;
 
+  const showHeader = props.showHeader !== false;
+
   return (
-    <div className="conversation-response" data-testid="conversation-response">
-      <ConversationMessageHeader
-        message={message}
-        {...(resolvedModel !== undefined ? { model: resolvedModel } : {})}
-        {...(modelDisplay?.providerName !== undefined ? { providerName: modelDisplay.providerName } : {})}
-        {...(modelDisplay?.shortModelName !== undefined ? { shortModelName: modelDisplay.shortModelName } : {})}
-        {...(modelDisplay?.modelLabel !== undefined ? { modelLabel: modelDisplay.modelLabel } : {})}
-        {...(props.usageChip !== undefined ? { usageChip: props.usageChip } : {})}
-        locale={locale}
-      />
+    <div
+      className={`conversation-response${showHeader ? '' : ' is-continuation'}`}
+      data-testid="conversation-response"
+    >
+      {showHeader ? (
+        <ConversationMessageHeader
+          message={message}
+          {...(resolvedModel !== undefined ? { model: resolvedModel } : {})}
+          {...(modelDisplay?.providerName !== undefined
+            ? { providerName: modelDisplay.providerName }
+            : {})}
+          {...(modelDisplay?.shortModelName !== undefined
+            ? { shortModelName: modelDisplay.shortModelName }
+            : {})}
+          {...(modelDisplay?.modelLabel !== undefined ? { modelLabel: modelDisplay.modelLabel } : {})}
+          {...(props.usageChip !== undefined ? { usageChip: props.usageChip } : {})}
+          locale={locale}
+        />
+      ) : null}
       {hasThinking ? (
         <div
           className={`conversation-thinking-wrapper${thinkingOpen ? ' is-open' : ' is-collapsed'}`}

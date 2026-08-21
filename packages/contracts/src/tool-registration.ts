@@ -45,6 +45,7 @@ export const HOST_TOOL_PERMISSION_ACTIONS = [
   'browser:back',
   'browser:forward',
   'browser:wait',
+  'browser:lock',
   'notes:note_list',
   'notes:note_search',
   'notes:note_read',

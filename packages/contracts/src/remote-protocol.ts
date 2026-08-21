@@ -1,4 +1,4 @@
-import type { AgentMessageRole, HostMode, PermissionDecision } from './host.js';
+import type { AgentMessageRole, HostMode, PermissionDecision, ToolPresentation } from './host.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
 import type { QueuedTurnRecord } from './queued-turn.js';
@@ -45,7 +45,93 @@ export type HostClientSubscriptions = {
   sessionIds?: string[];
 };
 
+/**
+ * Historical subset kept for tests that still name it. Hello that omits
+ * `allowedCommands` means the admitted client is the operator: every command
+ * is on. A present list is still honored as an explicit ceiling.
+ */
+export const FALLBACK_REMOTE_ALLOWED_COMMANDS = [
+  'host/ping',
+  'host/status',
+  'activity/summary',
+  'project/list',
+  'project/remove',
+  'session/list',
+  'session/list-page',
+  'session/create',
+  'session/resume',
+  'session/user-message-index',
+  'session/transcript-page',
+  'session/transcript-window',
+  'session/messages',
+  'session/queued-turn-submit',
+  'session/queued-turn-list',
+  'session/queued-turn-edit',
+  'session/queued-turn-cancel',
+  'session/queued-turn-reorder',
+  'session/replace-run',
+  'session/model-context-summary',
+  'models/configured',
+  'models/discover',
+  'models/test',
+  'models/image-test',
+  'models/catalog/search',
+  'secrets/set',
+  'secrets/get',
+  'web/test-search-source',
+  'web/search-route-preview',
+  'settings/get',
+  'settings/apply',
+  'session/prompt',
+  'session/pause',
+  'session/resume-run',
+  'session/abort',
+  'session/steer',
+  'session/follow_up',
+  'run/intervention-submit',
+  'run/intervention-edit',
+  'run/intervention-cancel',
+  'session/runtime-status',
+  'session/pin',
+  'session/unpin',
+  'session/rename',
+  'session/archive',
+  'session/unarchive',
+  'session/delete',
+  'session/tool-output',
+  'session/cold-storage-status',
+  'session/cold-storage-plan',
+  'session/cold-storage-execute',
+  'session/cold-storage-restore',
+  'session/cold-storage-import',
+  'session/cold-storage-reconcile',
+  'permission/resolve',
+  'media/save',
+  'media/read',
+  'preview/read-trusted-text',
+  'skills/read',
+  'extensions/list',
+] as const satisfies readonly HostCommand['type'][];
+
+/** True when this Host advertised the command, or omitted the ceiling (operator). */
+export function remoteHostSupportsCommand(
+  allowedCommands: readonly HostCommand['type'][] | undefined,
+  type: HostCommand['type'],
+): boolean {
+  if (allowedCommands === undefined) {
+    return true;
+  }
+  return allowedCommands.includes(type);
+}
+
 export type RemoteCapabilitySummary = {
+  /**
+   * Exact command ceiling selected by the Host for this connection.
+   * Omitted means the admitted client is the operator (every command).
+   * A present list is an explicit ceiling; the Host still enforces payload
+   * checks independently.
+   */
+  allowedCommands?: readonly HostCommand['type'][];
   pushSequencing: boolean;
   replay: boolean;
   snapshot: boolean;
@@ -90,6 +176,10 @@ export type HostHello = {
   authRequired: boolean;
   authenticated: boolean;
   capabilities: RemoteCapabilitySummary;
+  /** Opaque Host build/revision for shell compatibility diagnostics. */
+  hostBuildId?: string;
+  /** When set, shells older than this should not keep auto-retrying. */
+  minClientVersion?: string;
   /** Host-issued principal for a paired connection. */
   deviceId?: string;
   /** Returned only immediately after pairing enrollment. Never log this field. */
@@ -148,6 +238,11 @@ export type RemoteTranscriptTool = {
   status: 'running' | 'done' | 'error';
   output: string;
   runId?: string;
+  /**
+   * Collapsed-row head fields. Host filesystem roots are redacted or reduced
+   * to basenames; full tool output stays on `output`, not `presentation.output`.
+   */
+  presentation?: ToolPresentation;
 };
 
 export type RemoteTranscriptMessage = {

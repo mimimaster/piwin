@@ -52,7 +52,7 @@ export type BrowserSessionEvent =
 
 export type BrowserActor = 'agent' | 'user';
 
-export type BrowserOpOptions = { signal?: AbortSignal; actor?: BrowserActor };
+export type BrowserOpOptions = { signal?: AbortSignal; actor?: BrowserActor; runId?: string };
 
 export type BrowserSessionOptions = {
   /** Default true. When false the browser runs headed (useful for debugging). */
@@ -115,9 +115,10 @@ export type BrowserSession = {
   dispatchInput(events: BrowserInputEvent[], options?: { signal?: AbortSignal }): Promise<void>;
   takeOver(): Promise<BrowserControllerState>;
   giveBack(): Promise<BrowserControllerState>;
-  lock(owner: BrowserActor): Promise<BrowserControllerState>;
+  lock(owner: BrowserActor, options?: BrowserOpOptions): Promise<BrowserControllerState>;
   unlock(owner: BrowserActor): Promise<BrowserControllerState>;
   releaseAgentControl(): Promise<void>;
+  releaseAgentControlIfHeldBy(runId: string): Promise<void>;
   controllerState(): BrowserControllerState;
   runExclusive: RunExclusive;
   subscribe(listener: (event: BrowserSessionEvent) => void): () => void;
@@ -407,8 +408,8 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
     for (const listener of subscribers) listener(event);
   }
 
-  function assertActor(actor: BrowserActor, reason: string): void {
-    const result = controller.acquire(actor);
+  function assertActor(actor: BrowserActor, reason: string, runId?: string): void {
+    const result = controller.acquire(actor, actor === 'agent' ? runId : undefined);
     if (!result.ok) {
       if (result.code === BROWSER_USER_HAS_CONTROL) {
         throw new BrowserUserHasControlError(
@@ -444,8 +445,12 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         },
       });
       frameLoop.stop();
-    } catch {
+    } catch (error) {
       screencastHandle = undefined;
+      console.warn(
+        '[browser] screencast failed; falling back to screenshot frames',
+        error instanceof Error ? error.message : error,
+      );
       if (subscribers.size > 0) frameLoop.start();
     }
   }
@@ -618,7 +623,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     navigate: (url, options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', options?.actor === 'user' ? 'user-write' : 'agent-write');
+        assertActor(
+          options?.actor ?? 'agent',
+          options?.actor === 'user' ? 'user-write' : 'agent-write',
+          options?.runId,
+        );
         assertHttpUrl(url);
         const activePage = await getPage();
         await activePage.goto(url);
@@ -635,14 +644,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     click: (target, options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', 'agent-write');
+        assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
         const activePage = await getPage();
         await activePage.locator(toLocator(target)).click();
       }, options?.signal),
 
     type: (target, text, options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', 'agent-write');
+        assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
         const activePage = await getPage();
         await activePage.locator(toLocator(target)).click();
         await activePage.keyboard.type(text);
@@ -650,7 +659,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     fillForm: (fields, options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', 'agent-write');
+        assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
         const activePage = await getPage();
         for (const [target, value] of Object.entries(fields)) {
           await activePage.locator(toLocator(target)).fill(value);
@@ -659,7 +668,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     scroll: (delta, options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', 'agent-write');
+        assertActor(options?.actor ?? 'agent', 'agent-write', options?.runId);
         const activePage = await getPage();
         await activePage.mouse.wheel(delta.x ?? 0, delta.y ?? 0);
       }, options?.signal),
@@ -686,7 +695,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     back: (options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', options?.actor === 'user' ? 'user-write' : 'agent-write');
+        assertActor(
+          options?.actor ?? 'agent',
+          options?.actor === 'user' ? 'user-write' : 'agent-write',
+          options?.runId,
+        );
         const activePage = await getPage();
         await activePage.goBack();
         await emitState();
@@ -694,7 +707,11 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
 
     forward: (options) =>
       withAbort(async () => {
-        assertActor(options?.actor ?? 'agent', options?.actor === 'user' ? 'user-write' : 'agent-write');
+        assertActor(
+          options?.actor ?? 'agent',
+          options?.actor === 'user' ? 'user-write' : 'agent-write',
+          options?.runId,
+        );
         const activePage = await getPage();
         await activePage.goForward();
         await emitState();
@@ -792,14 +809,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       return next;
     },
 
-    lock: async (owner) => {
+    lock: async (owner, options) => {
       if (owner === 'user') {
         const previous = controller.snapshot();
         const next = controller.takeOver();
         if (previous.owner !== next.owner) emitController('take-over');
         return next;
       }
-      assertActor('agent', 'agent-lock');
+      assertActor('agent', 'agent-lock', options?.runId);
       return controller.snapshot();
     },
 
@@ -826,6 +843,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       }
     },
 
+    releaseAgentControlIfHeldBy: async (runId) => {
+      const previous = controller.snapshot();
+      const next = controller.releaseAgentControlIfHeldBy(runId);
+      if (previous.owner !== next.owner || previous.agentWantsLock !== next.agentWantsLock) {
+        emitController('run-terminal');
+      }
+    },
+
     controllerState: () => controller.snapshot(),
 
     runExclusive,
@@ -838,6 +863,7 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       runExclusive(async () => {
         if (closed) return;
         closed = true;
+        controller.releaseAgentControl();
         legacyMirrorLeaseActive = false;
         activeMirrorLeaseIds.clear();
         releasedMirrorLeaseIds.clear();

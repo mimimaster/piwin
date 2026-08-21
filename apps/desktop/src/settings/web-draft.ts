@@ -3,10 +3,14 @@
  * Draft keeps raw strings so users can type freely; parsing happens on save.
  */
 import {
+  DEFAULT_FETCH_CACHE_TTL_MS,
+  DEFAULT_FETCH_RETURN_MAX_CHARS,
+  DEFAULT_FETCH_STORE_MAX_CHARS,
   DEFAULT_SEARCH_ROUTE_POLICY,
   type ModelRef,
   type SearchRoutePolicy,
   type WebConfig,
+  type WebFetchFallback,
   type WebSearchSource,
   type WebSearchSourceKind,
 } from '@piwin/contracts';
@@ -27,6 +31,7 @@ export type DraftSearchSource = {
 export type DraftWeb = {
   searchSources: DraftSearchSource[];
   searchDelegateModel?: ModelRef;
+  fetchDelegateModel?: ModelRef;
   searchRoutePolicy: SearchRoutePolicy;
   perSourceTimeoutMs: string;
   searchMaxResults: string;
@@ -35,24 +40,62 @@ export type DraftWeb = {
   fetchApiKeyRef: string;
   fetchApiKeyEnv: string;
   fetchMaxBytes: string;
+  fetchReturnMaxChars: string;
+  fetchStoreMaxChars: string;
+  fetchCacheTtlMs: string;
+  fetchFallback: WebFetchFallback;
   fetchTimeoutMs: string;
   fetchBlockedUrlPrefixes: string;
 };
 
 export function webToDraft(web: WebConfig): DraftWeb {
   return {
-    searchSources: web.searchSources.map(sourceToDraft),
+    searchSources: (web.searchSources ?? []).map(sourceToDraft),
     ...(web.searchDelegateModel ? { searchDelegateModel: web.searchDelegateModel } : {}),
+    ...(web.fetchDelegateModel ? { fetchDelegateModel: web.fetchDelegateModel } : {}),
     searchRoutePolicy: web.searchRoutePolicy ?? DEFAULT_SEARCH_ROUTE_POLICY,
-    perSourceTimeoutMs: String(web.searchStrategy.perSourceTimeoutMs),
-    searchMaxResults: String(web.searchMaxResults),
-    searchTimeoutMs: String(web.searchTimeoutMs),
-    fetchProvider: web.fetchProvider,
+    perSourceTimeoutMs: String(web.searchStrategy?.perSourceTimeoutMs ?? 8000),
+    searchMaxResults: String(web.searchMaxResults ?? 10),
+    searchTimeoutMs: String(web.searchTimeoutMs ?? 15000),
+    fetchProvider: web.fetchProvider ?? 'supermarkdown',
     fetchApiKeyRef: web.fetchApiKeyRef ?? '',
-    fetchApiKeyEnv: web.fetchApiKeyEnv,
-    fetchMaxBytes: String(web.fetchMaxBytes),
-    fetchTimeoutMs: String(web.fetchTimeoutMs),
-    fetchBlockedUrlPrefixes: web.fetchBlockedUrlPrefixes.join(', '),
+    fetchApiKeyEnv: web.fetchApiKeyEnv ?? '',
+    fetchMaxBytes: String(web.fetchMaxBytes ?? 65536),
+    fetchReturnMaxChars: String(web.fetchReturnMaxChars ?? DEFAULT_FETCH_RETURN_MAX_CHARS),
+    fetchStoreMaxChars: String(web.fetchStoreMaxChars ?? DEFAULT_FETCH_STORE_MAX_CHARS),
+    fetchCacheTtlMs: String(web.fetchCacheTtlMs ?? DEFAULT_FETCH_CACHE_TTL_MS),
+    fetchFallback: web.fetchFallback ?? 'none',
+    fetchTimeoutMs: String(web.fetchTimeoutMs ?? 15000),
+    fetchBlockedUrlPrefixes: (web.fetchBlockedUrlPrefixes ?? []).join(', '),
+  };
+}
+
+/** Remote Settings strips `command`; keep the Host CLI path if the draft omitted it. */
+export function preserveWebCliLaunchers(next: WebConfig, previous?: WebConfig): WebConfig {
+  if (!previous) {
+    return next;
+  }
+  const previousById = new Map(previous.searchSources.map((source) => [source.id, source]));
+  return {
+    ...next,
+    searchSources: next.searchSources.map((source) => {
+      if (source.kind !== 'cli') {
+        return source;
+      }
+      const prior =
+        previousById.get(source.id) ??
+        previous.searchSources.find((candidate) => candidate.kind === 'cli');
+      if (!prior) {
+        return source;
+      }
+      const command = source.command?.trim() || prior.command;
+      const args = source.args && source.args.length > 0 ? source.args : prior.args;
+      return {
+        ...source,
+        ...(command ? { command } : {}),
+        ...(args && args.length > 0 ? { args } : {}),
+      };
+    }),
   };
 }
 
@@ -74,6 +117,11 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
     enabled.find((source) => source.apiKeyEnv)?.apiKeyEnv ??
     searchSources.find((source) => source.apiKeyEnv)?.apiKeyEnv ??
     '';
+  const fetchReturnMaxChars =
+    positiveInt(draft.fetchReturnMaxChars) ?? DEFAULT_FETCH_RETURN_MAX_CHARS;
+  const fetchStoreMaxChars =
+    positiveInt(draft.fetchStoreMaxChars) ?? DEFAULT_FETCH_STORE_MAX_CHARS;
+  const fetchCacheTtlMs = positiveInt(draft.fetchCacheTtlMs) ?? DEFAULT_FETCH_CACHE_TTL_MS;
   return {
     searchProvider,
     searchApiKeyEnv: firstKey,
@@ -83,6 +131,7 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
       Number.isFinite(searchTimeoutMs) && searchTimeoutMs > 0 ? Math.floor(searchTimeoutMs) : 15000,
     searchSources,
     ...(draft.searchDelegateModel ? { searchDelegateModel: draft.searchDelegateModel } : {}),
+    ...(draft.fetchDelegateModel ? { fetchDelegateModel: draft.fetchDelegateModel } : {}),
     searchStrategy: {
       // Multi-source search is always parallel (aggregate + URL dedupe).
       mode: 'parallel',
@@ -92,11 +141,15 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
           : 8000,
     },
     fetchProvider: draft.fetchProvider,
-    ...(draft.fetchApiKeyRef.trim() ? { fetchApiKeyRef: draft.fetchApiKeyRef.trim() } : {}),
-    fetchApiKeyEnv: draft.fetchApiKeyEnv.trim() || 'FIRECRAWL_API_KEY',
+    fetchFallback: draft.fetchFallback,
+    ...(draft.fetchApiKeyRef?.trim() ? { fetchApiKeyRef: draft.fetchApiKeyRef.trim() } : {}),
+    fetchApiKeyEnv: draft.fetchApiKeyEnv?.trim() || 'FIRECRAWL_API_KEY',
     fetchMaxBytes: Number.isFinite(maxBytes) && maxBytes > 0 ? Math.floor(maxBytes) : 65536,
+    fetchReturnMaxChars,
+    fetchStoreMaxChars,
+    fetchCacheTtlMs,
     fetchTimeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : 15000,
-    fetchBlockedUrlPrefixes: draft.fetchBlockedUrlPrefixes
+    fetchBlockedUrlPrefixes: (draft.fetchBlockedUrlPrefixes ?? '')
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean),
@@ -148,26 +201,26 @@ function sourceToDraft(source: WebSearchSource): DraftSearchSource {
 
 function draftSourceToConfig(draft: DraftSearchSource): WebSearchSource {
   const source: WebSearchSource = {
-    id: draft.id.trim() || draft.kind,
+    id: draft.id?.trim() || draft.kind,
     kind: draft.kind,
     enabled: draft.enabled,
   };
-  if (draft.label.trim()) {
+  if (draft.label?.trim()) {
     source.label = draft.label.trim();
   }
-  if (draft.apiKeyEnv.trim()) {
+  if (draft.apiKeyEnv?.trim()) {
     source.apiKeyEnv = draft.apiKeyEnv.trim();
   }
-  if (draft.apiKeyRef.trim()) {
+  if (draft.apiKeyRef?.trim()) {
     source.apiKeyRef = draft.apiKeyRef.trim();
   }
-  if (draft.baseUrl.trim()) {
+  if (draft.baseUrl?.trim()) {
     source.baseUrl = draft.baseUrl.trim();
   }
-  if (draft.command.trim()) {
+  if (draft.command?.trim()) {
     source.command = draft.command.trim();
   }
-  const args = draft.args
+  const args = (draft.args ?? '')
     .split(/\r?\n/)
     .map((part) => part.trim())
     .filter(Boolean);
@@ -175,6 +228,14 @@ function draftSourceToConfig(draft: DraftSearchSource): WebSearchSource {
     source.args = args;
   }
   return source;
+}
+
+function positiveInt(raw: string): number | undefined {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+  return Math.floor(value);
 }
 
 function uniqueSourceId(kind: WebSearchSourceKind, existingIds: readonly string[]): string {

@@ -41,12 +41,18 @@ importers:
       '@piwin/flashcards':
         specifier: workspace:*
         version: link:../../packages/flashcards
+      '@piwin/host-client':
+        specifier: workspace:*
+        version: link:../../packages/host-client
       '@piwin/host-runtime':
         specifier: workspace:*
         version: link:../../packages/host-runtime
       '@piwin/host-server':
         specifier: workspace:*
         version: link:../../packages/host-server
+      '@piwin/host-transport':
+        specifier: workspace:*
+        version: link:../../packages/host-transport
       '@piwin/marketplace':
         specifier: workspace:*
         version: link:../../packages/marketplace
@@ -68,10 +74,16 @@ importers:
       '@piwin/theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      ws:
+        specifier: ^8.21.1
+        version: 8.21.1
     devDependencies:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       tsx:
         specifier: ^4.19.2
         version: 4.23.1
@@ -132,6 +144,9 @@ importers:
       '@tauri-apps/plugin-shell':
         specifier: ^2.3.5
         version: 2.3.5
+      '@tauri-apps/plugin-websocket':
+        specifier: ^2.4.2
+        version: 2.4.2
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
@@ -587,6 +602,9 @@ importers:
         specifier: ^8.21.1
         version: 8.21.1
     devDependencies:
+      '@piwin/host-client':
+        specifier: workspace:*
+        version: link:../host-client
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.1
@@ -1910,6 +1928,7 @@ packages:
   '@lancedb/lancedb@0.37.1':
     resolution: {integrity: sha512-l+si3t+bQ1JNxrnEfbbfKt9gWk2HcWYWx0dzoEBTVAs8B0BP79OrAv+mKTJ0EwG5wRDS3MwEChEg0g0Wh8I3tQ==}
     engines: {node: '>= 18'}
+    cpu: [x64, arm64]
     os: [darwin, linux, win32]
     peerDependencies:
       '@types/node': '>=18'
@@ -2798,6 +2817,9 @@ packages:
 
   '@tauri-apps/plugin-shell@2.3.5':
     resolution: {integrity: sha512-jewtULhiQ7lI7+owCKAjc8tYLJr92U16bPOeAa472LHJdgaibLP83NcfAF2e+wkEcA53FxKQAZ7byDzs2eeizg==}
+
+  '@tauri-apps/plugin-websocket@2.4.2':
+    resolution: {integrity: sha512-B1/csKPwJH9kLduNoqWFUdCsTgCvLM84T5ZZYK35jeBc9m2cm2m2G/hbSr28ZpVOZrl0x24fCWFe/9rpp7WETw==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -7232,6 +7254,10 @@ snapshots:
       '@tauri-apps/api': 2.11.1
 
   '@tauri-apps/plugin-shell@2.3.5':
+    dependencies:
+      '@tauri-apps/api': 2.11.1
+
+  '@tauri-apps/plugin-websocket@2.4.2':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

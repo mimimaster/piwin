@@ -9,6 +9,7 @@ import type {
   SkillStoreEntry,
 } from '@piwin/contracts';
 import { WELL_KNOWN_SKILL_PATH_PRESETS } from '@piwin/contracts';
+import { isRemoteCommandGapError } from './remote-command-gap.js';
 import {
   Button,
   Collapse,
@@ -44,6 +45,7 @@ export type SkillsPanelProps = {
   }) => Promise<HostResponse>;
   onClose?: () => void;
   variant?: 'inline' | 'modal';
+  readOnly?: boolean;
 };
 
 export function SkillsPanel(props: SkillsPanelProps) {
@@ -78,7 +80,9 @@ export function SkillsPanel(props: SkillsPanelProps) {
     const response = await props.request(command);
     setLoading(false);
     if (!response.success) {
-      setError(response.error);
+      if (!isRemoteCommandGapError(response.error)) {
+        setError(response.error);
+      }
       return;
     }
     const data = response.data as SkillsListData;
@@ -91,7 +95,9 @@ export function SkillsPanel(props: SkillsPanelProps) {
     const response = await props.request({ type: 'skills/store-list' });
     setStoreLoading(false);
     if (!response.success) {
-      setError(response.error);
+      if (!isRemoteCommandGapError(response.error)) {
+        setError(response.error);
+      }
       return;
     }
     const data = response.data as { entries?: SkillStoreEntry[] };
@@ -99,6 +105,10 @@ export function SkillsPanel(props: SkillsPanelProps) {
   }, [props]);
 
   const loadMappedPaths = useCallback(async () => {
+    if (props.readOnly) {
+      setMappedPaths([]);
+      return;
+    }
     const response = await props.request({ type: 'config/get' });
     if (!response.success) return;
     const data = response.data as { config: PiwinConfig };
@@ -280,7 +290,12 @@ export function SkillsPanel(props: SkillsPanelProps) {
             >
               {isChinese ? '已安装' : 'Installed'}
             </TabsTrigger>
-            <TabsTrigger value="store" className="segmented-control-item" testId="skills-tab-store">
+            <TabsTrigger
+              value="store"
+              className="segmented-control-item"
+              testId="skills-tab-store"
+              disabled={props.readOnly === true}
+            >
               {isChinese ? '商店' : 'Store'}
             </TabsTrigger>
           </TabsList>
@@ -338,6 +353,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
                       </div>
                       <Switch
                         checked={skill.enabled}
+                        disabled={props.readOnly}
                         onCheckedChange={() => void handleToggle(skill)}
                         aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
                         testId={`skill-toggle-${skill.id}`}
@@ -375,7 +391,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
                       key={preset.id}
                       size="compact"
                       variant={mapped ? 'ghost' : 'secondary'}
-                      disabled={mappingBusy || mapped}
+                      disabled={mappingBusy || mapped || props.readOnly}
                       onClick={() => void handleMapPreset(preset.path)}
                       data-testid={`skill-map-${preset.id}`}
                     >
@@ -397,6 +413,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
               <button
                 type="button"
                 className="settings-collapsible-trigger"
+                disabled={props.readOnly}
                 onClick={() => setInstallOpen((v) => !v)}
                 aria-expanded={installOpen}
                 data-testid="skills-install-toggle"
@@ -468,7 +485,9 @@ export function SkillsPanel(props: SkillsPanelProps) {
                   />
                   <Button
                     disabled={
-                      installing || (installKind === 'local' ? !installPath : !installGitUrl)
+                      installing ||
+                      props.readOnly ||
+                      (installKind === 'local' ? !installPath : !installGitUrl)
                     }
                     onClick={() =>
                       installKind === 'local' ? handleInstallLocal() : handleInstallGit()

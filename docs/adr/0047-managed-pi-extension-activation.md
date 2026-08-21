@@ -197,19 +197,24 @@ set. The new capability becomes available on a later Run after replacement.
 
 All clients observe the same registry, deployment and runtime binding. Commands
 are idempotent and CAS-protected. Remote extension install remains denied by
-default, and remote activation gains a separate default-deny policy because it
-causes Host code execution.
+default. Remote activation used to be a separate default-deny because it
+causes Host code execution; that default was wrong for a single-operator Host
+whose attached shell is the only settings UI. Activation is now on the default
+remote allowlist. `allowRemoteExtensionActivation` /
+`PIWIN_HOST_ALLOW_EXTENSION_ACTIVATION=1` remain so a custom allowlist can merge
+activation back in if it was stripped.
 
 Client paths are never interpreted as Host paths. Gateway processes only relay
 contracts and never inspect, store, approve, or execute extension code.
 
-Implemented (2026-08-13): `HostServer` excludes `extensions/set_enabled` and
-`extensions/apply` from the remote command allowlist by default; observation
-(`extensions/list`) stays allowed. The operator opt-in is
-`HostServerOptions.allowRemoteExtensionActivation`, surfaced in `apps/host` as
-`PIWIN_HOST_ALLOW_EXTENSION_ACTIVATION=1`. Local Desktop attaches through the
-in-process `HostRuntime` client, not `HostServer`, so local activation is
-unaffected. Remote install has no opt-in and remains denied unconditionally.
+Implemented (2026-08-13): observation (`extensions/list`) allowed; activation
+opt-in via `HostServerOptions.allowRemoteExtensionActivation`.
+
+Implemented (2026-08-20): default allowlist includes `extensions/set_enabled`
+and `extensions/apply` because the attached operator shell must be able to
+open and close Host settings. Local Desktop attached through in-process
+`HostRuntime` is unchanged. Remote install has no opt-in and remains denied
+unconditionally.
 
 Implemented (2026-08-13, recovery): Host startup scans in-flight deployment
 journal records. The journal is the recovery source of truth; the current

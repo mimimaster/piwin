@@ -97,7 +97,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           role: {
             type: 'string',
             description:
-              'Orchestration scheme roster role (e.g. "searcher", "coder", "reviewer"). ' +
+              'Orchestration scheme roster role (e.g. "scout", "coder", "reviewer"). ' +
               'When an orchestration scheme is active, prefer role over free-form profileId/model. ' +
               'The Host resolves the role to a profile, model, and isolation from the scheme members.',
           },

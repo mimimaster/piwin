@@ -84,6 +84,7 @@ import type {
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 import type { PluginInstallSource } from './plugin.js';
 import type { SearchRoutePreviewInput, WebSearchTestInput } from './web.js';
+import type { PermissionRulesFile } from './permission.js';
 import type { ApplySettingsInput } from './settings.js';
 import type {
   JobHostPush,
@@ -97,7 +98,7 @@ import type { RunHostPush } from './run.js';
 import type { QueuedTurnRecord } from './queued-turn.js';
 import type { RunInterventionRecord, UserInstructionPayload } from './run-intervention.js';
 import type { SessionRuntimeStatus } from './session-runtime.js';
-import type { HostHydrationFrame } from './remote-protocol.js';
+import type { HostHydrationFrame, HostSnapshotFrame } from './remote-protocol.js';
 import type { HostProblem } from './host-problem.js';
 import type { PromptForegroundAdmission } from './prompt-admission.js';
 import type { SessionListScopeRef } from './session-list-scope.js';
@@ -563,6 +564,14 @@ export type HostCommand =
   | { id?: string; type: 'config/get' }
   | { id?: string; type: 'settings/get' }
   | { id?: string; type: 'settings/apply'; input: ApplySettingsInput }
+  | { id?: string; type: 'permissions/get-rules'; layer: 'user' }
+  | {
+      id?: string;
+      type: 'permissions/set-rules';
+      layer: 'user';
+      rules: PermissionRulesFile;
+      expectedRevision?: string;
+    }
   | {
       id?: string;
       type: 'models/discover';
@@ -640,7 +649,7 @@ export type HostCommand =
   | { id?: string; type: 'notes/search'; query: NoteSearchQuery }
   | { id?: string; type: 'notes/write'; input: NoteWriteInput }
   | { id?: string; type: 'notes/update'; input: NoteUpdateInput }
-  | { id?: string; type: 'notes/delete'; noteId: string }
+  | { id?: string; type: 'notes/delete'; noteId: string; expectedContentHash?: string }
   | { id?: string; type: 'notes/reindex' }
   | { id?: string; type: 'notes/eval-run'; k?: number }
   | { id?: string; type: 'notes/eval-history' }
@@ -858,7 +867,13 @@ export type HostCommand =
   | { id?: string; type: 'hooks/list' }
   | { id?: string; type: 'hooks/set'; hooks: HookDefinition[] }
   | { id?: string; type: 'todo/get'; sessionId: string }
-  | { id?: string; type: 'todo/set'; sessionId: string; items: SessionTodoList['items'] }
+  | {
+      id?: string;
+      type: 'todo/set';
+      sessionId: string;
+      items: SessionTodoList['items'];
+      expectedRevision?: string;
+    }
   /** CE-OBS: token usage rollup (global / project / session). */
   | {
       id?: string;
@@ -968,6 +983,18 @@ export type HostPushVariant =
       name: string;
       nameSource: 'text' | 'llm' | 'user';
     }
+  | {
+      type: 'session/index-updated';
+      op: 'created' | 'pinned' | 'unpinned' | 'archived' | 'unarchived' | 'deleted';
+      sessionId: string;
+      session?: import('./host.js').SessionSummary;
+    }
+  | {
+      type: 'settings/updated';
+      revision: string;
+      runtimeRevision: string;
+      changedDomains: import('./settings.js').SettingsDomain[];
+    }
   | { type: 'plan/updated'; sessionId: string; plan: SessionPlan | null }
   | { type: 'plan/execution-updated'; state: PlanExecutionState }
   | {
@@ -1005,6 +1032,14 @@ export type HostPushVariant =
       type: 'transcript/append';
       sessionId: string;
       message: import('./session-transcript.js').SessionTranscriptMessage;
+    }
+  | {
+      type: 'reply-writer/updated';
+      sessionId: string;
+      messageId: string;
+      status: 'started' | 'applied' | 'failed';
+      model?: import('./host.js').ModelRef;
+      language?: import('./reply-writer.js').ReplyWriterLanguage;
     }
   | {
       type: 'permission/request';
@@ -1114,7 +1149,12 @@ export type HostPushBatchFrame = {
   items: HostSequencedPush[];
 };
 
-export type HostServerMessage = HostResponse | HostPush | HostPushBatchFrame | HostHydrationFrame;
+export type HostServerMessage =
+  | HostResponse
+  | HostPush
+  | HostPushBatchFrame
+  | HostHydrationFrame
+  | HostSnapshotFrame;
 
 export type HostStatusData = {
   mode: HostMode;
@@ -1295,15 +1335,30 @@ export type ConfigGetData = {
   root: string;
 };
 
+/**
+ * Remote `media/save` strips Host filesystem paths. Prompt attachments must
+ * then use the opaque `remote-asset:<id>` ref the Host already remaps.
+ */
+export const REMOTE_MEDIA_ASSET_PREFIX = 'remote-asset:';
+
+/** Local save (has `absolutePath`) or remote projection (id only). */
+export type MediaSaveAssetForPrompt = Pick<SavedMediaAsset, 'id' | 'mimeType' | 'byteSize'> &
+  Partial<Pick<SavedMediaAsset, 'absolutePath' | 'name' | 'contentKind' | 'width' | 'height'>>;
+
 /** The UI-facing form of a saved asset accepted by PromptInput.attachments. */
 export function toMediaAttachmentRef(
-  asset: SavedMediaAsset,
+  asset: MediaSaveAssetForPrompt,
   source: SaveMediaInput['source'],
 ): MediaAttachmentRef {
+  const hostPath = asset.absolutePath?.trim();
+  const path =
+    hostPath !== undefined && hostPath.length > 0
+      ? hostPath
+      : `${REMOTE_MEDIA_ASSET_PREFIX}${asset.id}`;
   const attachment: MediaAttachmentRef = {
     id: asset.id,
     kind: 'media',
-    path: asset.absolutePath,
+    path,
     mimeType: asset.mimeType,
     byteSize: asset.byteSize,
     source,

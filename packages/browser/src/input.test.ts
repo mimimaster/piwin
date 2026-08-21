@@ -38,6 +38,15 @@ describe('dispatchBrowserInput', () => {
     expect(page.keyboard.type).not.toHaveBeenCalled();
   });
 
+  it('caps insertText at the shared 8 KiB budget', async () => {
+    const page = createPage();
+    await dispatchBrowserInput(page as unknown as Page, [
+      { type: 'insertText', text: 'a'.repeat(9000) },
+    ]);
+    const sent = page.keyboard.insertText.mock.calls[0]?.[0] as string;
+    expect(new TextEncoder().encode(sent).byteLength).toBe(8 * 1024);
+  });
+
   it('moves to the point before wheel delta', async () => {
     const page = createPage();
     await dispatchBrowserInput(page as unknown as Page, [

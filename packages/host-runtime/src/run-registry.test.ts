@@ -259,6 +259,21 @@ describe('RunRegistry semantic AgentEvent publication', () => {
     expect(updates).toHaveLength(1);
   });
 
+  it('remembers upstream agent error text for silent-completion terminalization', () => {
+    const reg = new RunRegistry({ createId: makeIdGen() });
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-error' });
+
+    expect(reg.getLastAgentError(run.runId)).toBeUndefined();
+    reg.noteAgentEvent(run.runId, {
+      type: 'error',
+      message: '404: No endpoints available matching your guardrail',
+    });
+    expect(reg.getLastAgentError(run.runId)).toBe(
+      '404: No endpoints available matching your guardrail',
+    );
+    expect(reg.hasFirstToken(run.runId)).toBe(false);
+  });
+
   it('ignores an explicitly mismatched Run ID without publishing', () => {
     const updates: ExecutionRunRecord[] = [];
     const reg = new RunRegistry({

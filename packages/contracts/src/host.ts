@@ -297,6 +297,8 @@ export type SessionSummary = {
   subagentApplyPolicy?: 'none' | 'auto' | 'explicit';
   worktreePath?: string;
   worktreeBranch?: string;
+  /** Scheme/product role (scout, reviewer, …). Distinct from profile id. */
+  subagentRole?: string;
   /** CE-SUB-PROF: resolved profile id (safe projection of runtime snapshot). */
   subagentProfileId?: string;
   /** CE-SUB-PROF: resolved model ref (safe projection of runtime snapshot). */

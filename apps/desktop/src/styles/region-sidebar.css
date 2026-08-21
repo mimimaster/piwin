@@ -731,13 +731,17 @@
   background: var(--hover);
 }
 
-.session-item.active {
+.session-item.active,
+.session-item.context-active,
+.session-item[data-context-active='true'] {
   /* Keep the selected row quiet: neutral surface, no accent frame or rail. */
   background: var(--selected);
   box-shadow: none;
 }
 
-.session-item.active:hover {
+.session-item.active:hover,
+.session-item.context-active:hover,
+.session-item[data-context-active='true']:hover {
   background: var(--selected);
 }
 
@@ -1583,8 +1587,6 @@ html[data-theme-visual-style='ink-wash'] .sidebar-footer {
 
 html[data-theme-visual-style='ink-wash'] .session-item:hover {
   background: rgba(255, 255, 255, 0.04);
-  transform: translateX(2px);
-  transition: transform 0.15s ease, background 0.2s ease;
 }
 
 html[data-theme-visual-style='ink-wash'] .session-item.active {

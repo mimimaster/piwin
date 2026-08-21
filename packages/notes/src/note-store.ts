@@ -21,12 +21,23 @@ export type ScannedNote = {
   mtimeMs: number;
 };
 
+export class NoteRevisionConflictError extends Error {
+  readonly name = 'NoteRevisionConflictError';
+
+  constructor(
+    readonly noteId: string,
+    readonly actualContentHash?: string,
+  ) {
+    super(`Note ${noteId} changed since the client last read it`);
+  }
+}
+
 export type NoteStore = {
   list: (filter?: { collection?: string; tags?: string[] }) => Promise<NoteRecord[]>;
   read: (noteId: string) => Promise<NoteRecord>;
   write: (input: NoteWriteInput) => Promise<NoteRecord>;
   update: (input: NoteUpdateInput) => Promise<NoteRecord>;
-  delete: (noteId: string) => Promise<{ deleted: true; id: string }>;
+  delete: (noteId: string, expectedContentHash?: string) => Promise<{ deleted: true; id: string }>;
   /** Full scan with mtimes; the index layer reconciles against this. */
   scan: () => Promise<ScannedNote[]>;
   getNotesRoot: () => string;
@@ -40,6 +51,20 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
    * (full scan is O(n) file reads + sha256 each — seconds at 10k notes).
    */
   const idPathCache = new Map<string, string>();
+  const mutationChains = new Map<string, Promise<unknown>>();
+
+  function runSerialized<T>(noteId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = mutationChains.get(noteId) ?? Promise.resolve();
+    const next = previous.then(operation, operation);
+    mutationChains.set(
+      noteId,
+      next.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return next;
+  }
 
   async function ensureRoot(): Promise<void> {
     await mkdir(notesRoot, { recursive: true });
@@ -185,45 +210,65 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
     },
 
     async update(input) {
-      const found = await findById(input.id);
-      if (!found) {
-        throw new Error(`note not found: ${input.id}`);
-      }
-      const record = { ...found.record };
-      if (input.title !== undefined) record.title = input.title;
-      if (input.content !== undefined) record.content = input.content;
-      if (input.tags !== undefined) {
-        if (input.tags.length > 0) {
-          record.tags = input.tags;
-        } else {
-          delete record.tags;
-        }
-      }
-      record.updatedAt = new Date().toISOString();
-
-      const absolutePath = assertInsideNotesRoot(notesRoot, join(notesRoot, record.relativePath));
-      const raw = encodeNoteMarkdown(record);
-      record.contentHash = sha256(raw);
-      await writeFile(absolutePath, raw, 'utf8');
-      return record;
+      return runSerialized(input.id, () => updateNote(input));
     },
 
-    async delete(noteId) {
-      const found = await findById(noteId);
-      if (!found) {
-        throw new Error(`note not found: ${noteId}`);
-      }
-      const absolutePath = assertInsideNotesRoot(
-        notesRoot,
-        join(notesRoot, found.record.relativePath),
-      );
-      await rm(absolutePath);
-      idPathCache.delete(noteId);
-      return { deleted: true, id: noteId };
+    async delete(noteId, expectedContentHash) {
+      return runSerialized(noteId, () => deleteNote(noteId, expectedContentHash));
     },
 
     scan,
   };
+
+  async function updateNote(input: NoteUpdateInput): Promise<NoteRecord> {
+    const found = await findById(input.id);
+    if (!found) {
+      throw new Error(`note not found: ${input.id}`);
+    }
+    if (
+      input.expectedContentHash !== undefined &&
+      input.expectedContentHash !== found.record.contentHash
+    ) {
+      throw new NoteRevisionConflictError(input.id, found.record.contentHash);
+    }
+    const record = { ...found.record };
+    if (input.title !== undefined) record.title = input.title;
+    if (input.content !== undefined) record.content = input.content;
+    if (input.tags !== undefined) {
+      if (input.tags.length > 0) {
+        record.tags = input.tags;
+      } else {
+        delete record.tags;
+      }
+    }
+    record.updatedAt = new Date().toISOString();
+
+    const absolutePath = assertInsideNotesRoot(notesRoot, join(notesRoot, record.relativePath));
+    const raw = encodeNoteMarkdown(record);
+    record.contentHash = sha256(raw);
+    await writeFile(absolutePath, raw, 'utf8');
+    return record;
+  }
+
+  async function deleteNote(
+    noteId: string,
+    expectedContentHash?: string,
+  ): Promise<{ deleted: true; id: string }> {
+    const found = await findById(noteId);
+    if (!found) {
+      throw new Error(`note not found: ${noteId}`);
+    }
+    if (expectedContentHash !== undefined && expectedContentHash !== found.record.contentHash) {
+      throw new NoteRevisionConflictError(noteId, found.record.contentHash);
+    }
+    const absolutePath = assertInsideNotesRoot(
+      notesRoot,
+      join(notesRoot, found.record.relativePath),
+    );
+    await rm(absolutePath);
+    idPathCache.delete(noteId);
+    return { deleted: true, id: noteId };
+  }
 }
 
 function sha256(text: string): string {

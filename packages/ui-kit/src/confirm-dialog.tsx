@@ -12,6 +12,8 @@ export type ConfirmDialogProps = {
   /** Object name shown for destructive context, e.g. session or server id. */
   affectedObject?: string | undefined;
   confirmLabel?: string;
+  alternateLabel?: string;
+  onAlternate?: () => void;
   cancelLabel?: string;
   tone?: ConfirmDialogTone;
   busy?: boolean;
@@ -84,6 +86,19 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactElement {
         >
           {cancelLabel}
         </Button>
+        {props.alternateLabel && props.onAlternate ? (
+          <Button
+            data-testid="confirm-dialog-alternate"
+            disabled={busy}
+            onClick={() => {
+              if (!busy) {
+                props.onAlternate?.();
+              }
+            }}
+          >
+            {props.alternateLabel}
+          </Button>
+        ) : null}
         <Button
           variant={tone === 'danger' ? 'danger' : 'primary'}
           data-testid="confirm-dialog-confirm"

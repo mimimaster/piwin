@@ -16,6 +16,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'models',
   'agent',
   'extensions',
+  'web',
   'knowledge',
   'session',
   'cold-storage',
@@ -57,14 +58,14 @@ describe('section registry', () => {
     expect(normalizeSettingsSection('skills')).toBe('extensions');
     expect(normalizeSettingsSection('tools')).toBe('extensions');
     expect(normalizeSettingsSection('subagents')).toBe('agent');
-    expect(normalizeSettingsSection('web')).toBe('knowledge');
+    expect(normalizeSettingsSection('web')).toBe('web');
     expect(normalizeSettingsSection('runtime')).toBe('session');
     expect(normalizeSettingsSection('archive')).toBe('archive');
     expect(normalizeSettingsSection('usage')).toBe('usage');
     expect(isLegacySettingsSectionId('rules')).toBe(true);
     expect(isLegacySettingsSectionId('agents')).toBe(true);
     expect(isLegacySettingsSectionId('general')).toBe(false);
-    expect(isLegacySettingsSectionId('web')).toBe(true);
+    expect(isLegacySettingsSectionId('web')).toBe(false);
     expect(isLegacySettingsSectionId('archive')).toBe(false);
     expect(isLegacySettingsSectionId('usage')).toBe(false);
     expect(isLegacySettingsSectionId('image-generation')).toBe(true);

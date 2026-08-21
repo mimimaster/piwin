@@ -14,6 +14,9 @@ export function sessionActionItems(options: {
   isPinned: boolean;
   isArchived: boolean;
   storageState?: 'local' | 'offloaded' | 'missing-pack';
+  canExport?: boolean;
+  canDuplicate?: boolean;
+  canContinueInProject?: boolean;
 }): SessionActionItem[] {
   if (options.storageState === 'offloaded' || options.storageState === 'missing-pack') {
     return [
@@ -27,7 +30,9 @@ export function sessionActionItems(options: {
       { action: 'unarchive', label: 'Restore', testId: 'session-menu-unarchive' },
       { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
       { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
-      { action: 'export', label: 'Export…', testId: 'session-menu-export' },
+      ...(options.canExport === false
+        ? []
+        : [{ action: 'export' as const, label: 'Export…', testId: 'session-menu-export' }]),
       {
         action: 'delete',
         label: 'Delete permanently',
@@ -44,13 +49,21 @@ export function sessionActionItems(options: {
     },
     { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
     { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
-    { action: 'duplicate', label: 'Duplicate', testId: 'session-menu-duplicate' },
-    {
-      action: 'continue-in-project',
-      label: 'Continue in project…',
-      testId: 'session-menu-continue-in-project',
-    },
-    { action: 'export', label: 'Export…', testId: 'session-menu-export' },
+    ...(options.canDuplicate === false
+      ? []
+      : [{ action: 'duplicate' as const, label: 'Duplicate', testId: 'session-menu-duplicate' }]),
+    ...(options.canContinueInProject === false
+      ? []
+      : [
+          {
+            action: 'continue-in-project' as const,
+            label: 'Continue in project…',
+            testId: 'session-menu-continue-in-project',
+          },
+        ]),
+    ...(options.canExport === false
+      ? []
+      : [{ action: 'export' as const, label: 'Export…', testId: 'session-menu-export' }]),
     { action: 'archive', label: 'Archive', testId: 'session-menu-archive' },
     {
       action: 'delete',

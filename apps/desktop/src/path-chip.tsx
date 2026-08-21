@@ -89,7 +89,7 @@ export function PathChip({
     hasProject: hasProjectContext,
     canReveal: false,
     sideChatAvailable: false,
-    applyAvailable: false,
+    applyAvailable: true,
     locale: locale as DesktopLocale,
   };
 

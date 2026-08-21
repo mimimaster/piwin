@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { JobRecord } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
+import { MAX_JOB_LOGS_BY_ID, putRecordLru, retainRecordKeys } from '../record-budget';
 
 export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: boolean }) {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [jobLogsById, setJobLogsById] = useState<Record<string, string>>({});
 
   const refreshJobs = useCallback(async (): Promise<void> => {
+    if (hostClient.supportsCommand?.('job/list') === false) {
+      return;
+    }
     const response = await hostClient.request({ type: 'job/list' });
     if (!response.success) {
       return;
     }
     const listedJobs = (response.data as { jobs?: JobRecord[] } | undefined)?.jobs ?? [];
     setJobs(listedJobs);
+    setJobLogsById((current) => retainListedJobLogs(current, listedJobs));
   }, [hostClient]);
 
   const loadJobLogs = useCallback(
@@ -27,10 +32,7 @@ export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: b
       const chunks =
         (response.data as { chunks?: Array<{ text: string }> } | undefined)?.chunks ?? [];
       const text = chunks.map((chunk) => chunk.text).join('');
-      setJobLogsById((current) => ({
-        ...current,
-        [jobId]: limitJobLog(text),
-      }));
+      setJobLogsById((current) => rememberJobLog(current, jobId, text));
     },
     [hostClient],
   );
@@ -47,10 +49,7 @@ export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: b
   );
 
   const appendJobLog = useCallback((jobId: string, text: string): void => {
-    setJobLogsById((current) => ({
-      ...current,
-      [jobId]: limitJobLog(`${current[jobId] ?? ''}${text}`),
-    }));
+    setJobLogsById((current) => rememberJobLog(current, jobId, `${current[jobId] ?? ''}${text}`));
   }, []);
 
   useEffect(() => {
@@ -67,6 +66,24 @@ export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: b
     stopJob,
     appendJobLog,
   };
+}
+
+export function rememberJobLog(
+  current: Record<string, string>,
+  jobId: string,
+  text: string,
+): Record<string, string> {
+  return putRecordLru(current, jobId, limitJobLog(text), MAX_JOB_LOGS_BY_ID);
+}
+
+export function retainListedJobLogs(
+  current: Record<string, string>,
+  jobs: readonly Pick<JobRecord, 'jobId'>[],
+): Record<string, string> {
+  return retainRecordKeys(
+    current,
+    jobs.map((job) => job.jobId),
+  );
 }
 
 function limitJobLog(text: string): string {

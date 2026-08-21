@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { WebConfig } from '@piwin/contracts';
-import { createDraftSearchSource, draftToWeb, webToDraft, type DraftWeb } from './web-draft';
+import {
+  DEFAULT_FETCH_CACHE_TTL_MS,
+  DEFAULT_FETCH_RETURN_MAX_CHARS,
+  DEFAULT_FETCH_STORE_MAX_CHARS,
+  type WebConfig,
+} from '@piwin/contracts';
+import {
+  createDraftSearchSource,
+  draftToWeb,
+  preserveWebCliLaunchers,
+  webToDraft,
+  type DraftWeb,
+} from './web-draft';
 
 const SAMPLE_WEB: WebConfig = {
   searchProvider: 'aggregate',
@@ -22,17 +33,59 @@ const SAMPLE_WEB: WebConfig = {
     providerId: 'gemini',
     modelId: 'gemini-search',
   },
+  fetchDelegateModel: {
+    protocol: 'openai-compatible',
+    providerId: 'local',
+    modelId: 'small-extract',
+  },
   searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 7000 },
   searchRoutePolicy: 'native-first',
   fetchProvider: 'firecrawl',
+  fetchFallback: 'none',
   fetchApiKeyRef: 'keychain:piwin-web-fetch-firecrawl',
   fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
   fetchMaxBytes: 32768,
+  fetchReturnMaxChars: DEFAULT_FETCH_RETURN_MAX_CHARS,
+  fetchStoreMaxChars: DEFAULT_FETCH_STORE_MAX_CHARS,
+  fetchCacheTtlMs: DEFAULT_FETCH_CACHE_TTL_MS,
   fetchTimeoutMs: 20000,
   fetchBlockedUrlPrefixes: ['http://internal', 'http://10.'],
 };
 
 describe('web draft conversion', () => {
+  it('keeps the Host CLI command when a remote draft omitted it', () => {
+    const previous: WebConfig = {
+      ...SAMPLE_WEB,
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli',
+          enabled: true,
+          command: '/usr/bin/node',
+          args: ['/tmp/search.mjs', '{{query}}'],
+        },
+      ],
+    };
+    const stripped = draftToWeb(
+      webToDraft({
+        ...previous,
+        searchSources: [{ id: 'cli', kind: 'cli', enabled: true }],
+      }),
+    );
+    expect(stripped.searchSources[0]?.command).toBeUndefined();
+    expect(preserveWebCliLaunchers(stripped, previous).searchSources[0]).toMatchObject({
+      command: '/usr/bin/node',
+      args: ['/tmp/search.mjs', '{{query}}'],
+    });
+  });
+
+  it('survives a remote Settings projection that omitted fetchApiKeyEnv', () => {
+    const { fetchApiKeyEnv: _omitted, fetchApiKeyRef: _ref, ...sparse } = SAMPLE_WEB;
+    const parsed = draftToWeb(webToDraft(sparse as WebConfig));
+    expect(parsed.fetchApiKeyEnv).toBe('FIRECRAWL_API_KEY');
+    expect(parsed.fetchApiKeyRef).toBeUndefined();
+  });
+
   it('round-trips config → draft → config', () => {
     expect(draftToWeb(webToDraft(SAMPLE_WEB))).toEqual(SAMPLE_WEB);
   });
@@ -51,6 +104,14 @@ describe('web draft conversion', () => {
     expect(draftToWeb(draft).searchDelegateModel).toBeUndefined();
   });
 
+  it('round-trips the optional web_fetch extract model', () => {
+    const draft = webToDraft(SAMPLE_WEB);
+    expect(draft.fetchDelegateModel).toEqual(SAMPLE_WEB.fetchDelegateModel);
+    expect(draftToWeb(draft).fetchDelegateModel).toEqual(SAMPLE_WEB.fetchDelegateModel);
+    delete draft.fetchDelegateModel;
+    expect(draftToWeb(draft).fetchDelegateModel).toBeUndefined();
+  });
+
   it('uses external-first when loading a legacy Web config without a route policy', () => {
     const legacy: Partial<typeof SAMPLE_WEB> = { ...SAMPLE_WEB };
     delete legacy.searchRoutePolicy;
@@ -58,6 +119,35 @@ describe('web draft conversion', () => {
     expect(draftToWeb(webToDraft(legacy as typeof SAMPLE_WEB)).searchRoutePolicy).toBe(
       'external-first',
     );
+  });
+
+  it('round-trips fetchFallback', () => {
+    const config: WebConfig = { ...SAMPLE_WEB, fetchFallback: 'jina' };
+    expect(draftToWeb(webToDraft(config)).fetchFallback).toBe('jina');
+    expect(draftToWeb(webToDraft({ ...SAMPLE_WEB, fetchFallback: 'browser' })).fetchFallback).toBe(
+      'browser',
+    );
+  });
+
+  it('fills progressive fetch caps when a legacy Web config omits them', () => {
+    const { fetchReturnMaxChars, fetchStoreMaxChars, fetchCacheTtlMs, ...legacy } = SAMPLE_WEB;
+    void fetchReturnMaxChars;
+    void fetchStoreMaxChars;
+    void fetchCacheTtlMs;
+    const parsed = draftToWeb(webToDraft(legacy as WebConfig));
+    expect(parsed.fetchReturnMaxChars).toBe(DEFAULT_FETCH_RETURN_MAX_CHARS);
+    expect(parsed.fetchStoreMaxChars).toBe(DEFAULT_FETCH_STORE_MAX_CHARS);
+    expect(parsed.fetchCacheTtlMs).toBe(DEFAULT_FETCH_CACHE_TTL_MS);
+  });
+
+  it('round-trips progressive fetch caps when present', () => {
+    const config: WebConfig = {
+      ...SAMPLE_WEB,
+      fetchReturnMaxChars: 12000,
+      fetchStoreMaxChars: 80000,
+      fetchCacheTtlMs: 600000,
+    };
+    expect(draftToWeb(webToDraft(config))).toEqual(config);
   });
 
   it('renders numbers and prefixes as editable strings', () => {

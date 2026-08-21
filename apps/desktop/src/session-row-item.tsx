@@ -83,6 +83,7 @@ export function SessionRowItem({
   onDeleteSession,
   onResumeDraft,
   activeDraftId,
+  isContextActive,
   copy,
 }: {
   session: SessionListItemUi | DraftSessionItemUi;
@@ -95,6 +96,7 @@ export function SessionRowItem({
   onDeleteSession?: ((sessionId: string) => void) | undefined;
   onResumeDraft?: ((draftId: string) => void) | undefined;
   activeDraftId?: string | null | undefined;
+  isContextActive?: boolean | undefined;
   copy: DesktopCopy['sidebar'];
   workingSessionIds?: Record<string, true> | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
@@ -132,6 +134,7 @@ export function SessionRowItem({
         data-storage={storageState ?? 'local'}
         data-draft={isDraft ? 'true' : 'false'}
         data-completed={hasCompletedAttention ? 'true' : 'false'}
+        data-context-active={isContextActive ? 'true' : 'false'}
         aria-current={isActive ? 'page' : undefined}
         className={
           isActive
@@ -140,7 +143,9 @@ export function SessionRowItem({
               : 'session-item active'
             : isWorking
               ? 'session-item working'
-              : 'session-item'
+              : isContextActive
+                ? 'session-item context-active'
+                : 'session-item'
         }
         onClick={() => (isDraft ? onResumeDraft?.(session.id) : onResumeSession(session.id))}
         onContextMenu={(event) => {

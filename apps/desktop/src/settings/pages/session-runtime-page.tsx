@@ -27,7 +27,7 @@ import {
 import { Button, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
-import { useSettings } from '../settings-context';
+import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
 function residencyLabel(
   residency: SessionRuntimeResidency | undefined,
@@ -113,8 +113,10 @@ export function buildSessionRuntimeRetentionDraft(input: {
 export function SessionRuntimePage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
-  const { request, hostClient, activeSessionId, config, saveConfig, setInfo, saving } =
-    useSettings();
+  const settings = useSettings();
+  const { request, hostClient, activeSessionId, config, saveConfig, setInfo, saving } = settings;
+  const canReadRuntimeResources = settingsHostSupportsCommand(settings, 'host/runtime-resources');
+  const canReadRuntimeStatus = settingsHostSupportsCommand(settings, 'session/runtime-status');
   const [runtimeStatus, setRuntimeStatus] = useState<SessionRuntimeStatus | null>(null);
   const [resources, setResources] = useState<HostRuntimeResourcesData | null>(null);
   const [retryingRuntime, setRetryingRuntime] = useState(false);
@@ -170,6 +172,10 @@ export function SessionRuntimePage(): ReactElement {
     draftRetention.memoryHighWaterMiB !== savedRetention.memoryHighWaterMiB;
 
   const refreshStatus = useCallback(async (): Promise<void> => {
+    if (!canReadRuntimeStatus) {
+      setRuntimeStatus(null);
+      return;
+    }
     if (!activeSessionId) {
       setRuntimeStatus(null);
       return;
@@ -184,16 +190,20 @@ export function SessionRuntimePage(): ReactElement {
     }
     const data = response.data as { status?: SessionRuntimeStatus };
     setRuntimeStatus(data.status ?? null);
-  }, [activeSessionId, request]);
+  }, [activeSessionId, canReadRuntimeStatus, request]);
 
   const refreshResources = useCallback(async (): Promise<void> => {
+    if (!canReadRuntimeResources) {
+      setResources(null);
+      return;
+    }
     const response = await request({ type: 'host/runtime-resources' });
     if (!response.success) {
       setResources(null);
       return;
     }
     setResources(response.data as HostRuntimeResourcesData);
-  }, [request]);
+  }, [canReadRuntimeResources, request]);
 
   useEffect(() => {
     if (!activeSessionId) {

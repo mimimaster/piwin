@@ -12,6 +12,9 @@ import {
   getBehaviorActivitySpec,
   type BehaviorActivityId,
 } from './behavior-activity.js';
+import type { ModelOption } from './model-options';
+import { SubagentIdentityChips } from './subagent-identity-chip';
+import { IconChevronDown } from './shell-icons';
 
 export type SubagentInvocationBlockProps = {
   tool: ToolCardUi;
@@ -19,7 +22,11 @@ export type SubagentInvocationBlockProps = {
   child?: SessionSummary;
   stream?: SubagentStreamState;
   locale: 'zh-CN' | 'en';
+  modelOptions?: readonly ModelOption[];
+  /** Toggles the inline session panel anchored to this block. */
   onInspect?: (selection: SubagentInspectorSelection) => void;
+  /** Whether the inline session panel is currently expanded below the block. */
+  expanded?: boolean;
 };
 
 type InvocationStatus =
@@ -171,16 +178,19 @@ export function SubagentInvocationBlock(
     props.invocation?.task?.trim() ||
     props.child?.task?.trim() ||
     (props.locale === 'zh-CN' ? '子代理任务' : 'Subagent task');
-  const role = props.child?.subagentProfileId ?? props.invocation?.profileId;
-  const model = props.child?.subagentModel?.modelId ?? props.invocation?.model?.modelId;
+  const role = props.invocation?.role ?? props.child?.subagentRole;
+  const profileId = props.invocation?.profileId ?? props.child?.subagentProfileId;
+  const model = props.invocation?.model ?? props.child?.subagentModel;
   const canInspect = props.child !== undefined && props.onInspect !== undefined;
+  const expanded = props.expanded === true;
   const behaviorId = behaviorIdForStatus(status);
-  const openInspector = (): void => {
+  const toggleInspector = (): void => {
     if (!props.child || !props.onInspect) return;
     props.onInspect({
       childSessionId: props.child.id,
       displayName: title,
       taskSummary: props.child.task ?? '',
+      anchorId: props.tool.toolCallId,
     });
   };
 
@@ -195,21 +205,37 @@ export function SubagentInvocationBlock(
       data-activity-id={behaviorId}
       data-activity-animation={getBehaviorActivitySpec(behaviorId).animation}
       data-tool-status={isActive ? 'running' : status === 'failed' ? 'error' : 'done'}
+      data-expanded={expanded}
       disabled={!canInspect}
-      onClick={openInspector}
+      onClick={toggleInspector}
+      aria-expanded={expanded}
       aria-label={`${title}: ${latestActivity(props, status)}`}
     >
       <ActivitySvgIcon kind={statusKind(status)} className="subagent-invocation-icon" />
       <span className="subagent-invocation-copy">
         <span className="subagent-invocation-heading">
           <span className="subagent-invocation-title">{title}</span>
-          {role ? <span className="subagent-invocation-meta">{role}</span> : null}
-          {model ? <span className="subagent-invocation-meta">{model}</span> : null}
+          <SubagentIdentityChips
+            locale={props.locale}
+            showModelPlaceholder
+            {...(role ? { role } : {})}
+            {...(profileId ? { profileId } : {})}
+            {...(model ? { model } : {})}
+            {...(props.modelOptions ? { modelOptions: props.modelOptions } : {})}
+          />
         </span>
         <span className="subagent-invocation-activity" role="status" aria-live="polite">
           {latestActivity(props, status)}
         </span>
       </span>
+      {canInspect ? (
+        <IconChevronDown
+          className="subagent-invocation-chevron"
+          width={14}
+          height={14}
+          aria-hidden="true"
+        />
+      ) : null}
     </button>
   );
 }

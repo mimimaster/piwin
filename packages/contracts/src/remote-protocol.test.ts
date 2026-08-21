@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { HostHydrationFrame, HostPushBatchFrame, HostServerMessage } from './index.js';
+import {
+  FALLBACK_REMOTE_ALLOWED_COMMANDS,
+  remoteHostSupportsCommand,
+} from './remote-protocol.js';
 
 describe('Host cursor batch contracts', () => {
   it('keeps a batch as a HostServerMessage without changing singular push shapes', () => {
@@ -60,5 +64,36 @@ describe('Host cursor batch contracts', () => {
 
     const message: HostServerMessage = frame;
     expect(message.type).toBe('hydration');
+  });
+});
+
+describe('remoteHostSupportsCommand', () => {
+  it('treats an omitted ceiling as the operator', () => {
+    expect(remoteHostSupportsCommand(undefined, 'host/status')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'models/configured')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'settings/get')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'settings/apply')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'plan/get')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'pet/list')).toBe(true);
+    expect(remoteHostSupportsCommand(undefined, 'theme/get-active')).toBe(true);
+  });
+
+  it('keeps Host settings mutations on the historical fallback ceiling', () => {
+    expect(FALLBACK_REMOTE_ALLOWED_COMMANDS).toEqual(
+      expect.arrayContaining([
+        'models/discover',
+        'models/test',
+        'models/image-test',
+        'secrets/set',
+        'secrets/get',
+        'settings/get',
+        'settings/apply',
+      ]),
+    );
+  });
+
+  it('trusts the advertised ceiling when present', () => {
+    expect(remoteHostSupportsCommand(['host/ping', 'settings/get'], 'settings/get')).toBe(true);
+    expect(remoteHostSupportsCommand(['host/ping'], 'host/status')).toBe(false);
   });
 });

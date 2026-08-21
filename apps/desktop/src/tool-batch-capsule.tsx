@@ -28,6 +28,7 @@ export type ToolBatchCapsuleProps = {
   projectPath?: string | null;
   request?: DiffCardRequest;
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
 };
 
@@ -55,7 +56,7 @@ function getClusterIcon(kind: ToolClusterKind): ReactElement {
   }
 }
 
-function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
+export function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
   const verb = tool.presentation?.actionVerb || tool.toolName;
   const target =
     tool.presentation?.targetPaths?.[0]?.split(/[/\\]/).pop() ||
@@ -88,39 +89,54 @@ function formatActiveToolLabel(tool: ToolCardUi, isChinese: boolean): string {
   return `Executing ${target}`;
 }
 
+/**
+ * One collapsed-title wording shared by both capsule variants (within-message
+ * batch + cross-message explore flow) so the transcript never shows two
+ * different phrasings for the same idea.
+ */
+export function formatExploreCapsuleTitle(input: {
+  fileCount: number;
+  searchCount: number;
+  totalCount: number;
+  live: boolean;
+  isChinese: boolean;
+}): string {
+  if (input.live) {
+    return input.isChinese ? '正在探索代码库' : 'Exploring codebase';
+  }
+  const files = input.fileCount;
+  const searches = input.searchCount;
+  if (input.isChinese) {
+    if (files > 0 && searches > 0) return `已探索 ${files} 个文件 · ${searches} 次检索`;
+    if (files > 0) return `已探索 ${files} 个文件`;
+    if (searches > 0) return `检索了 ${searches} 处代码`;
+    return `已探索 ${input.totalCount} 项`;
+  }
+  if (files > 0 && searches > 0) {
+    return `Explored ${files} file${files === 1 ? '' : 's'} · ${searches} search${
+      searches === 1 ? '' : 'es'
+    }`;
+  }
+  if (files > 0) return `Explored ${files} file${files === 1 ? '' : 's'}`;
+  if (searches > 0) return `Searched ${searches} location${searches === 1 ? '' : 's'}`;
+  return `Explored ${input.totalCount} items`;
+}
+
 function getBatchTitle(
   kind: ToolClusterKind,
   summary: BatchClusterSummary,
   isChinese: boolean,
 ): string {
   const count = summary.totalCount;
-  const fileCount = summary.fileCount ?? 0;
-  const searchCount = summary.searchCount ?? 0;
 
   if (kind === 'explore' || kind === 'read' || kind === 'search') {
-    if (isChinese) {
-      if (fileCount > 0 && searchCount > 0) {
-        return `已探索 ${fileCount} 个文件，${searchCount} 次检索`;
-      }
-      if (searchCount > 0 && fileCount === 0) {
-        return `检索了 ${searchCount} 处代码与定义`;
-      }
-      if (fileCount > 0) {
-        return `查看了 ${fileCount} 个文件与目录`;
-      }
-      return `已探索 ${count} 项上下文`;
-    }
-
-    if (fileCount > 0 && searchCount > 0) {
-      return `Explored ${fileCount} files, ${searchCount} searches`;
-    }
-    if (searchCount > 0 && fileCount === 0) {
-      return `Searched ${searchCount} code locations`;
-    }
-    if (fileCount > 0) {
-      return `Read ${fileCount} files`;
-    }
-    return `Explored ${count} context items`;
+    return formatExploreCapsuleTitle({
+      fileCount: summary.fileCount ?? 0,
+      searchCount: summary.searchCount ?? 0,
+      totalCount: count,
+      live: false,
+      isChinese,
+    });
   }
 
   if (isChinese) {
@@ -149,20 +165,14 @@ function getRunningBatchTitle(
   summary: BatchClusterSummary,
   isChinese: boolean,
 ): string {
-  const fileCount = summary.fileCount ?? 0;
-  const searchCount = summary.searchCount ?? 0;
-
   if (kind === 'explore' || kind === 'read' || kind === 'search') {
-    if (isChinese) {
-      if (fileCount > 0 || searchCount > 0) {
-        return `正在探索 ${fileCount} 个文件，${searchCount} 次检索`;
-      }
-      return `正在检索与读取上下文…`;
-    }
-    if (fileCount > 0 || searchCount > 0) {
-      return `Exploring ${fileCount} files, ${searchCount} searches`;
-    }
-    return `Exploring codebase…`;
+    return formatExploreCapsuleTitle({
+      fileCount: summary.fileCount ?? 0,
+      searchCount: summary.searchCount ?? 0,
+      totalCount: summary.totalCount,
+      live: true,
+      isChinese,
+    });
   }
 
   if (isChinese) {
@@ -232,16 +242,6 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
           ) : null}
         </div>
 
-        {!summary.hasRunning && summary.keyTargets.length > 0 ? (
-          <span className="tool-batch-pills" data-testid="tool-batch-pills">
-            {summary.keyTargets.map((target, idx) => (
-              <span key={`${target}-${idx}`} className="tool-batch-pill">
-                {target}
-              </span>
-            ))}
-          </span>
-        ) : null}
-
         <div className="tool-batch-meta">
           {summary.hasRunning ? (
             <span className="tool-batch-status-running" aria-label="running">
@@ -258,9 +258,7 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
                 {isChinese ? `${summary.errorCount} 项失败` : `${summary.errorCount} failed`}
               </span>
             </span>
-          ) : (
-            <span className="tool-call-ok" aria-label="done" data-testid="tool-batch-ok" />
-          )}
+          ) : null}
 
           {typeof summary.totalDurationMs === 'number' ? (
             <span className="tool-call-duration" data-testid="tool-batch-duration">
@@ -286,9 +284,11 @@ export function ToolBatchCapsule(props: ToolBatchCapsuleProps): ReactElement {
                 key={tool.toolCallId}
                 tool={tool}
                 density="compact"
+                expandWhileRunning={false}
                 {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
                 {...(props.request !== undefined ? { request: props.request } : {})}
                 {...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {})}
+                {...(props.onOpenDiff !== undefined ? { onOpenDiff: props.onOpenDiff } : {})}
                 {...(props.onOpenDocument !== undefined
                   ? { onOpenDocument: props.onOpenDocument }
                   : {})}

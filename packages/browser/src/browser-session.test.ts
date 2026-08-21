@@ -502,6 +502,37 @@ describe('workbench controller and input (ADR 0057)', () => {
     expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
   });
 
+  it('releaseAgentControlIfHeldBy only releases the holder run', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1', { runId: 'parent' });
+    await session.releaseAgentControlIfHeldBy('child');
+    expect(session.controllerState().owner).toBe('agent');
+    await session.releaseAgentControlIfHeldBy('parent');
+    expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
+  });
+
+  it('close resets the controller', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.click('e1');
+    await session.close();
+    expect(session.controllerState()).toEqual({ owner: 'idle', agentWantsLock: false });
+  });
+
+  it('falls back to screenshot frames when CDP screencast cannot start', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await expect(session.start('panel')).resolves.toEqual(expect.any(Object));
+    expect(warn).toHaveBeenCalledWith(
+      '[browser] screencast failed; falling back to screenshot frames',
+      'cdp unavailable',
+    );
+    await session.stop('panel');
+    warn.mockRestore();
+  });
+
   it('attaches console listeners when a mirror lease is acquired', async () => {
     const { page } = installWorkingBrowser();
     const session = createBrowserSession();

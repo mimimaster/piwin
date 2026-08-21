@@ -8,9 +8,12 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 > **Distribution status (ADR 0017):** packaging now runs `pnpm bundle:host` +
 > `pnpm fetch:node-runtime` before `tauri build`, and the Rust host bridge
 > prefers the packaged sidecar when `host/host-serve.mjs` is present.
-> **Clean-machine smoke (S5) is still required** before treating installers as
-> public-ready — until then, prefer internal/dev distribution. See
+> Host bundle pins Pi `@earendil-works/pi-coding-agent@0.84.2` and Node
+> `v22.19.0` (Pi 0.84 engines). **Clean-machine smoke (S5) is still required**
+> before treating installers as public-ready — until then, prefer
+> internal/dev distribution. See
 > `docs/plans/2026-07-26-host-sidecar-bundling-execution-plan.md`.
+> Shell / Host split packaging: `docs/plans/2026-08-19-shell-host-split-packaging.md`.
 
 ## Prerequisites
 
@@ -33,22 +36,42 @@ notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 
 ## One-command package
 
-From repo root:
+Three artifacts. **Do not run the all-in-one Desktop app and a standalone Host
+on the same `~/.piwin` at once.**
+
+### All-in-one Desktop (shell + local Host)
 
 ```bash
 pnpm install
 pnpm package:desktop
 ```
 
-This runs, in order:
+1. `pnpm bundle:host` — `dist-host/host-serve.mjs` + `host-listen.mjs` + worker + pruned `node_modules`
+2. `pnpm fetch:node-runtime` — Node `v22.19.0` → `apps/desktop/src-tauri/binaries/piwin-host-<triple>`
+3. `tauri build` with `tauri.conf.sidecar.json` — embeds Host files
 
-1. `pnpm bundle:host` — esbuild `dist-host/host-serve.mjs` + pruned
-   `node_modules` + `bundled-assets` (S0 layout)
-2. `pnpm fetch:node-runtime` — official Node LTS →
-   `apps/desktop/src-tauri/binaries/piwin-host-<triple>`
-3. `tauri build` — embeds `externalBin` + `host/` resources
+### Thin shell (no local Host)
 
-Optional scripted bundle smoke (not part of default `pnpm test`):
+```bash
+pnpm package:desktop-shell
+```
+
+Same UI, no Host files, no bundled Node. Opens on the connect wall. Connect
+`ws://127.0.0.1:8787` (or a remote address) after the standalone Host is up.
+
+Dev: `pnpm dev:tauri:shell`
+
+### Standalone Host
+
+```bash
+pnpm package:host
+```
+
+Writes `dist/piwin-host/`. Start with `./start-host.sh` (listens on
+`ws://127.0.0.1:8787`, includes `agent-worker.mjs`). Then open the thin shell
+and connect.
+
+Optional JSONL sidecar smoke (not part of default `pnpm test`):
 
 ```bash
 pnpm bundle:host
@@ -60,8 +83,10 @@ pnpm test:bundle
 - macOS: `apps/desktop/src-tauri/target/release/bundle/dmg/` and `macos/`
 - Linux: `apps/desktop/src-tauri/target/release/bundle/deb/` / `appimage/`
 - Windows: `apps/desktop/src-tauri/target/release/bundle/msi/` / `nsis/`
+- Standalone Host: `dist/piwin-host/`
 
-Exact paths depend on `tauri.conf.json` product name.
+Thin-shell product name is `piwinwin Shell` (`app.piwinwin.desktop.shell`).
+All-in-one remains `piwinwin`.
 
 ## Signing / notarization
 

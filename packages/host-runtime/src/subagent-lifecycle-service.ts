@@ -12,20 +12,20 @@
  *   integration: not-requested → pending → applied | conflict | failed | retained
  */
 
-import type {
-  CreateSessionInput,
-  PiwinConfig,
-  SessionHandle,
-  SubagentApplyPolicy,
-  SubagentIsolationMode,
-  SubagentLifecycleState,
-  SubagentProfileSelector,
-  SubagentRuntimeSnapshot,
-  SubagentSpawnOptions,
-  ThinkingLevel,
-  ModelRef,
+import {
+  createDefaultSubagentLifecycleState,
+  formatSubagentReportContractBlock,
+  type PiwinConfig,
+  type SubagentApplyPolicy,
+  type SubagentIsolationMode,
+  type SubagentLifecycleState,
+  type SubagentProfileSelector,
+  type SubagentRuntimeSnapshot,
+  type SubagentSpawnOptions,
+  type SubagentTaskSpec,
+  type ThinkingLevel,
+  type ModelRef,
 } from '@piwin/contracts';
-import { createDefaultSubagentLifecycleState } from '@piwin/contracts';
 import {
   buildSubagentRuntimeSnapshot,
   resolveSubagentProfile,
@@ -136,13 +136,34 @@ export function planSubagentSpawn(input: {
 /**
  * Build the seed prompt for a child. The task text is the first user message;
  * profile instructions are not injected as hidden transcript messages.
+ * When a scheme member supplies `reportContract`, it is prepended so the
+ * parent only needs the child's last assistant message.
  */
-export function buildSubagentSeedPrompt(task: string, snapshot: SubagentRuntimeSnapshot): string {
+export function buildSubagentSeedPrompt(
+  task: string,
+  snapshot: Pick<SubagentRuntimeSnapshot, 'isolation'>,
+  options?: { reportContract?: string },
+): string {
   const prefix =
     snapshot.isolation === 'readonly'
       ? '[READONLY sub-agent] Do not modify files or run destructive commands.'
       : '[WORKTREE sub-agent] Work only under the allocated worktree.';
-  return `${prefix}\n\n${task}`;
+  const contractBlock = formatSubagentReportContractBlock(options?.reportContract);
+  if (!contractBlock) return `${prefix}\n\n${task}`;
+  return `${prefix}\n\n${contractBlock}\n\n---\n${task}`;
+}
+
+/**
+ * Model-facing first prompt for a child task. Continuations send the follow-up
+ * text as-is (contract was already on the original seed).
+ */
+export function resolveSubagentChildPrompt(task: Pick<SubagentTaskSpec, 'task' | 'isolationOverride' | 'reportContract' | 'continuationSessionId'>): string {
+  if (task.continuationSessionId) return task.task;
+  return buildSubagentSeedPrompt(
+    task.task,
+    { isolation: task.isolationOverride ?? 'readonly' },
+    task.reportContract ? { reportContract: task.reportContract } : {},
+  );
 }
 
 /**

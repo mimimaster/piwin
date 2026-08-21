@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { assertInsideMediaRoot, readMediaAsset, saveMediaAsset } from './media-service.js';
 import { UnsafeAttachmentError } from './attachment-policy.js';
-import { extractAttachmentText, formatAttachmentTextInjection } from './document-extractor.js';
+import {
+  extractAttachmentText,
+  extractAttachmentTextFromBytes,
+  formatAttachmentTextInjection,
+} from './document-extractor.js';
 
 describe('media-service', () => {
   it('saves png under session dir', async () => {
@@ -135,6 +139,14 @@ describe('media-service', () => {
       const pdf = await extractAttachmentText(pdfPath, 'application/pdf');
       expect(pdf.pageCount).toBe(1);
       expect(pdf.text).toContain('Hello PDF');
+      const fromBytes = await extractAttachmentTextFromBytes(
+        createSinglePagePdf('Hello bytes'),
+        'application/pdf',
+        { name: 'bytes.pdf' },
+      );
+      expect(fromBytes.pageCount).toBe(1);
+      expect(fromBytes.text).toContain('Hello bytes');
+      expect(fromBytes.name).toBe('bytes.pdf');
     } finally {
       await rm(rootDir, { recursive: true, force: true });
     }

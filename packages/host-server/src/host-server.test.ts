@@ -278,6 +278,60 @@ class FakeRuntime implements HostRuntimePort {
         },
       };
     }
+    if (command.type === 'settings/get') {
+      return {
+        type: 'response',
+        command: command.type,
+        success: true,
+        data: {
+          root: '/Users/private/.piwin',
+          snapshot: {
+            schemaVersion: 2,
+            revision: 'settings-revision',
+            runtimeRevision: 'runtime-revision',
+            domainRevisions: {},
+            config: {
+              hostMode: 'sdk',
+              providers: [
+                {
+                  id: 'custom-anthropic',
+                  protocol: 'openai-compatible',
+                  name: 'Private provider',
+                  baseUrl: 'http://127.0.0.1:8317/v1',
+                  apiKeyRef: 'keychain:private',
+                  headers: { Authorization: 'Bearer secret' },
+                  models: [{ id: 'deepseek-v4-flash', label: 'Flash' }],
+                },
+              ],
+              media: { maxPasteBytes: 1024, allowedMimeTypes: ['image/png'] },
+              artifact: {
+                enabled: true,
+                triggerMode: 'automatic',
+                decisionPrompt: { mode: 'default', customPrompt: '' },
+                maxBytes: 1024,
+              },
+              subagents: {
+                profiles: [],
+                maxConcurrency: 4,
+                maxTasksPerRun: 8,
+                processIsolation: 'required',
+                parallelWritePolicy: 'worktree-only',
+                dirtyBasePolicy: 'ask',
+              },
+              desktop: {
+                lastSession: {
+                  sessionId: 'session-private',
+                  scope: {
+                    kind: 'project',
+                    projectPath: '/Users/private/Projects/piwin',
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+    }
     return {
       type: 'response',
       command: command.type,
@@ -373,7 +427,19 @@ describe('HostServer', () => {
         lastSeq: 0,
       }),
     );
-    await inbox.waitFor((message) => message.type === 'host/hello');
+    const hello = await inbox.waitFor((message) => message.type === 'host/hello');
+    expect(hello).toMatchObject({
+      type: 'host/hello',
+      capabilities: {
+        sessionRead: true,
+        sessionControl: true,
+        permissionResolve: true,
+      },
+    });
+    if (hello.type !== 'host/hello') {
+      throw new Error('Expected host/hello');
+    }
+    expect(hello.capabilities.allowedCommands).toBeUndefined();
 
     socket.send(
       encodeHostWireMessage({
@@ -556,6 +622,37 @@ describe('HostServer', () => {
     );
     expect(JSON.stringify(models)).not.toContain('apiKey');
     expect(JSON.stringify(models)).not.toContain('8317');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'settings-get',
+        command: { type: 'settings/get' },
+      }),
+    );
+    const settings = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'settings-get',
+    );
+    expect(settings).toMatchObject({
+      type: 'response',
+      response: {
+        success: true,
+        data: {
+          snapshot: {
+            config: {
+              subagents: { maxConcurrency: 4 },
+              providers: [{ id: 'custom-anthropic', models: [{ id: 'deepseek-v4-flash' }] }],
+            },
+          },
+        },
+      },
+    });
+    const serializedSettings = JSON.stringify(settings);
+    expect(serializedSettings).not.toContain('/Users/private');
+    expect(serializedSettings).not.toContain('keychain:private');
+    expect(serializedSettings).not.toContain('Bearer secret');
+    expect(serializedSettings).not.toContain('"root"');
+    expect(serializedSettings).not.toContain('/Users/private/Projects/piwin');
 
     socket.close();
     await server.stop();
@@ -845,7 +942,59 @@ describe('HostServer', () => {
       },
     });
     const replayDone = await inbox.waitFor((message) => message.type === 'replay/done');
-    expect(replayDone).toMatchObject({ type: 'replay/done', complete: false });
+    // Post-hydration fence is at snapshotSeq (= live head); the continuous
+    // window from that fence must report complete:true even though the
+    // pre-fence journal gap that triggered hydration was incomplete.
+    expect(replayDone).toMatchObject({ type: 'replay/done', complete: true });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('sends snapshot then complete replay/done when hydration is disabled', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({
+      runtime,
+      port: 0,
+      instanceId: 'host-snapshot-test',
+      maxReplay: 1,
+    });
+    const address = await server.start();
+    runtime.emit({ type: 'host/log', level: 'info', message: 'first' });
+    runtime.emit({ type: 'host/log', level: 'info', message: 'second' });
+    await waitForDrain();
+
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => {
+      inbox.push(decodeHostWireMessage(data.toString()));
+    });
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-snapshot-test',
+        lastSeq: 0,
+        capabilities: {
+          pushBatching: true,
+          cursorBatches: true,
+          boundedReplay: true,
+          hydration: false,
+        },
+      }),
+    );
+
+    await inbox.waitFor((message) => message.type === 'host/hello');
+    const snapshot = await inbox.waitFor((message) => message.type === 'snapshot');
+    expect(snapshot).toMatchObject({
+      type: 'snapshot',
+      reason: 'replay-too-old',
+    });
+    const replayDone = await inbox.waitFor((message) => message.type === 'replay/done');
+    expect(replayDone).toMatchObject({ type: 'replay/done', complete: true });
 
     socket.close();
     await server.stop();
@@ -902,6 +1051,7 @@ describe('HostServer', () => {
       encodeHostWireMessage({
         type: 'command',
         requestId: 'prompt-with-media',
+        idempotencyKey: 'prompt-media-1',
         command: {
           type: 'session/prompt',
           id: 'prompt-with-media',
@@ -930,6 +1080,69 @@ describe('HostServer', () => {
       type: 'session/prompt',
       input: { attachments: [{ path: '/Users/private/.piwin/media/asset-1.png' }] },
     });
+
+    socket.close();
+    await server.stop();
+  });
+
+  it('rejects a path-free prompt attachment with the same requestId', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-media-reject-test' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => {
+      inbox.push(decodeHostWireMessage(data.toString()));
+    });
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-media-reject',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'prompt-missing-path',
+        idempotencyKey: 'prompt-missing-path-1',
+        command: {
+          type: 'session/prompt',
+          id: 'prompt-missing-path',
+          sessionId: 'session-1',
+          input: {
+            text: 'inspect this image',
+            attachments: [
+              {
+                id: 'asset-1',
+                kind: 'media',
+                mimeType: 'image/png',
+                byteSize: 4,
+                source: 'paste',
+              } as never,
+            ],
+          },
+          foreground: { kind: 'if-idle' },
+        },
+      }),
+    );
+    const rejected = await inbox.waitFor(
+      (message) =>
+        (message.type === 'error' || message.type === 'response') &&
+        message.requestId === 'prompt-missing-path',
+    );
+    expect(rejected).toMatchObject({
+      type: 'error',
+      requestId: 'prompt-missing-path',
+      code: 'command-not-allowed',
+    });
+    expect(runtime.lastPrompt).toBeUndefined();
 
     socket.close();
     await server.stop();
@@ -1203,7 +1416,7 @@ describe('HostServer', () => {
     await server.stop();
   });
 
-  it('denies remote extension activation by default (ADR 0047 §12)', async () => {
+  it('admits remote extension activation by default for the operator shell', async () => {
     const runtime = new FakeRuntime();
     const server = new HostServer({ runtime, port: 0, instanceId: 'host-ext-deny-test' });
     const address = await server.start();
@@ -1223,7 +1436,6 @@ describe('HostServer', () => {
     );
     await inbox.waitFor((message) => message.type === 'host/hello');
 
-    // Activation causes Host code execution: default-deny for remote clients.
     socket.send(
       encodeHostWireMessage({
         type: 'command',
@@ -1237,9 +1449,11 @@ describe('HostServer', () => {
       }),
     );
     const enableDenied = await inbox.waitFor(
-      (message) => message.type === 'error' && message.requestId === 'ext-enable-denied',
+      (message) =>
+        (message.type === 'response' || message.type === 'error') &&
+        message.requestId === 'ext-enable-denied',
     );
-    expect(enableDenied).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+    expect(enableDenied).toMatchObject({ type: 'response' });
 
     socket.send(
       encodeHostWireMessage({
@@ -1254,9 +1468,11 @@ describe('HostServer', () => {
       }),
     );
     const applyDenied = await inbox.waitFor(
-      (message) => message.type === 'error' && message.requestId === 'ext-apply-denied',
+      (message) =>
+        (message.type === 'response' || message.type === 'error') &&
+        message.requestId === 'ext-apply-denied',
     );
-    expect(applyDenied).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+    expect(applyDenied).toMatchObject({ type: 'response' });
 
     // Observation stays allowed: all clients may read the shared registry.
     socket.send(
@@ -1405,6 +1621,66 @@ describe('HostServer', () => {
     await server.stop();
   });
 
+  it('admits a remote session/prompt that carries a transcript selection', async () => {
+    const runtime = new FakeRuntime();
+    const server = new HostServer({
+      runtime,
+      port: 0,
+      instanceId: 'host-prompt-selection-test',
+    });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-prompt-selection-test',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'selection-prompt',
+        idempotencyKey: 'selection-1',
+        command: {
+          type: 'session/prompt',
+          sessionId: 'session-1',
+          input: {
+            text: '我选中了啥发给你',
+            contextRefs: [
+              {
+                kind: 'selection',
+                snapshotText: '已完全对齐仓库现状与架构约束。',
+                label: '已完全对齐仓库现状与架…',
+              },
+            ],
+          },
+          foreground: { kind: 'if-idle' },
+        },
+      }),
+    );
+    const admitted = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'selection-prompt',
+    );
+    expect(admitted).toMatchObject({
+      type: 'response',
+      response: { success: true },
+    });
+    expect(runtime.lastPrompt).toMatchObject({
+      type: 'session/prompt',
+      input: { text: '我选中了啥发给你' },
+    });
+    socket.close();
+    await server.stop();
+  });
+
   it('serves activity/summary without Host paths and rejects oversized pages', async () => {
     const runtime = new FakeRuntime();
     runtime.activitySummary = {
@@ -1490,6 +1766,69 @@ describe('HostServer', () => {
       code: 'command-not-allowed',
     });
 
+    socket.close();
+    await server.stop();
+  });
+
+  it('answers host/ping without waiting on a slow runtime command', async () => {
+    let releaseStatus: () => void = () => undefined;
+    const statusGate = new Promise<void>((resolve) => {
+      releaseStatus = resolve;
+    });
+    const runtime = new FakeRuntime();
+    const original = runtime.handleCommand.bind(runtime);
+    runtime.handleCommand = async (command: HostCommand): Promise<HostResponse> => {
+      if (command.type === 'host/status') {
+        await statusGate;
+        return {
+          type: 'response',
+          command: 'host/status',
+          success: true,
+          data: { ready: true, mode: 'sdk', mock: false },
+        };
+      }
+      return original(command);
+    };
+    const server = new HostServer({ runtime, port: 0, instanceId: 'host-ping-fast' });
+    const address = await server.start();
+    const socket = new WebSocket(address.url);
+    const inbox = new MessageInbox();
+    socket.on('message', (data) => inbox.push(decodeHostWireMessage(data.toString())));
+    await waitForOpen(socket);
+    socket.send(
+      encodeHostWireMessage({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'desktop-ping-fast',
+        lastSeq: 0,
+      }),
+    );
+    await inbox.waitFor((message) => message.type === 'host/hello');
+
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'status-blocked',
+        command: { type: 'host/status' },
+      }),
+    );
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'ping-live',
+        command: { type: 'host/ping' },
+      }),
+    );
+    const ping = await inbox.waitFor(
+      (message) => message.type === 'response' && message.requestId === 'ping-live',
+    );
+    expect(ping).toMatchObject({
+      type: 'response',
+      response: { command: 'host/ping', success: true, data: { pong: true } },
+    });
+    releaseStatus();
     socket.close();
     await server.stop();
   });

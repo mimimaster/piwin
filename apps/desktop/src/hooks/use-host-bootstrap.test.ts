@@ -3,15 +3,39 @@ import type { ExtensionDeploymentRecord, SessionPlan, ThemeManifest } from '@piw
 import {
   cacheSessionPlan,
   describeExtensionDeploymentFailure,
+  resolveShellHostReady,
   resolveThemeBootstrapResponse,
   selectSessionPlan,
   shouldAnnounceExtensionDeploymentFailure,
   toPermissionPromptUi,
 } from './use-host-bootstrap';
+import { MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS, MAX_SESSION_PLAN_CACHE } from '../record-budget';
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
 } from '../appearance-tokens';
+
+describe('resolveShellHostReady', () => {
+  it('keeps remote shells online on hello when host/status enrichment fails', () => {
+    expect(
+      resolveShellHostReady({
+        transport: 'remote',
+        wireReady: true,
+        statusSuccess: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('still requires host/status for local sidecar admission', () => {
+    expect(
+      resolveShellHostReady({
+        transport: 'live',
+        wireReady: true,
+        statusSuccess: false,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('describeExtensionDeploymentFailure', () => {
   const record = (
@@ -82,6 +106,16 @@ describe('shouldAnnounceExtensionDeploymentFailure', () => {
     expect(shouldAnnounceExtensionDeploymentFailure(seen, record('waiting-current-run'))).toBe(
       false,
     );
+  });
+
+  it('caps remembered deployment announcement keys', () => {
+    const seen = new Set<string>();
+    for (let index = 0; index < MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS + 5; index += 1) {
+      expect(
+        shouldAnnounceExtensionDeploymentFailure(seen, record('rolled-back', `deploy-${index}`)),
+      ).toBe(true);
+    }
+    expect(seen.size).toBe(MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS);
   });
 });
 
@@ -199,5 +233,21 @@ describe('session plan cache', () => {
     expect(selectSessionPlan(cache, 'session-1')).toBe(first);
     expect(selectSessionPlan(cache, 'session-2')).toBeNull();
     expect(selectSessionPlan(cache, null)).toBeNull();
+  });
+
+  it('evicts the oldest plan and keeps the protected active session', () => {
+    let cache: Record<string, SessionPlan | null> = {};
+    cache = cacheSessionPlan(cache, 'keep-active', plan('keep-active', 'active-plan'));
+    for (let index = 0; index < MAX_SESSION_PLAN_CACHE; index += 1) {
+      cache = cacheSessionPlan(
+        cache,
+        `session-${index}`,
+        plan(`session-${index}`, `plan-${index}`),
+        'keep-active',
+      );
+    }
+    expect(Object.keys(cache)).toHaveLength(MAX_SESSION_PLAN_CACHE);
+    expect(cache['keep-active']?.id).toBe('active-plan');
+    expect(cache['session-0']).toBeUndefined();
   });
 });

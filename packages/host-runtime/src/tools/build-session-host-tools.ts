@@ -36,7 +36,7 @@ import {
   type McpGenerationSnapshot,
   type McpLifecycleManager,
 } from '@piwin/mcp';
-import { resolveWebConfig } from '@piwin/tools-web';
+import { resolveWebConfig, type FetchCache } from '@piwin/tools-web';
 import {
   findConfiguredModel,
   resolveNativeSearchAdapterSupport,
@@ -48,7 +48,7 @@ import type { NoteStore, NoteIndex, SearchNotesOptions } from '@piwin/notes';
 import type { CardStore } from '@piwin/flashcards';
 import type { JobController } from '@piwin/contracts';
 import type { ModelRef, PiwinConfig } from '@piwin/contracts';
-import { getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
+import { getPiwinSessionDir, getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
 import { getPiwinMediaDir } from '../paths.js';
 import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
 import {
@@ -60,6 +60,10 @@ import { isHostToolboxTargetFamily } from '../host-toolbox.js';
 import { buildHostToolboxRegistration } from '../tool-catalog/catalog-tool.js';
 import { createToolCatalogService } from '../tool-catalog/catalog-service.js';
 import { buildWebSearchModelDelegate } from '../model-web-search-delegate.js';
+import { buildWebFetchExtractDelegate } from '../model-web-fetch-extract-delegate.js';
+import { buildWebPageRenderer } from '../model-web-page-renderer.js';
+import { buildWebDocumentExtractor } from '../model-web-document-extractor.js';
+import { createSessionFetchSpillStore } from '../fetch-spill-store.js';
 
 /**
  * Lazy provider for notes services. The Host owns the lifecycle; this
@@ -120,8 +124,11 @@ export type BuildSessionHostToolsOptions = {
   /** Publish mutations made by model-facing plan tools. */
   onPlanUpdated?: (plan: SessionPlan) => void;
 
+  /** Host-scoped extracted-page cache shared across session generations. */
+  fetchCache?: FetchCache;
+
   /** Observe optional capability failures while composing a generation. */
-  onDiagnostic?: (diagnostic: HostToolCompositionDiagnostic) => void;
+  onDiagnostic?: (diagnostic: { capability: string; message: string }) => void;
   /** Preserve the exact MCP capability brief on the frozen generation surface. */
   onMcpCapabilityBrief?: (brief: McpCapabilityBrief) => void;
 };
@@ -164,9 +171,19 @@ export async function buildSessionHostTools(
     const webSearchDelegate = options.secretResolver
       ? buildWebSearchModelDelegate(options.config, options.secretResolver)
       : undefined;
+    const webFetchExtractDelegate = options.secretResolver
+      ? buildWebFetchExtractDelegate(options.config, options.secretResolver)
+      : undefined;
     const webRegistration = buildSessionTools({
       webConfig: options.config.web,
       ...(webSearchDelegate ? { webSearchDelegate } : {}),
+      ...(webFetchExtractDelegate ? { webFetchExtractDelegate } : {}),
+      ...(options.config.web.fetchFallback === 'browser'
+        ? { pageRenderer: buildWebPageRenderer() }
+        : {}),
+      documentExtractor: buildWebDocumentExtractor(),
+      spillStore: createSessionFetchSpillStore(getPiwinSessionDir(rootDir, options.sessionId)),
+      ...(options.fetchCache ? { fetchCache: options.fetchCache } : {}),
     });
     const configuredModel = findConfiguredModel(options.config, options.model);
     const searchRoute = resolveSearchRoute({

@@ -19,7 +19,10 @@
 import {
   isModelEnabled,
   isProviderEnabled,
+  isThinkingLevel,
   modelSupportsCapability,
+  type ConfiguredChatModel,
+  type ConfiguredChatModelsData,
   type ModelConfigEntry,
   type ModelProviderConfig,
   type ThinkingLevel,
@@ -54,6 +57,77 @@ export type ModelOption = {
  */
 export function isComposerChatModel(model: ModelConfigEntry): boolean {
   return modelSupportsCapability(model, 'chat');
+}
+
+/** Remote shells cannot read `config/get`; this is the secret-free picker list. */
+export function modelOptionsFromConfiguredModels(
+  models: readonly ConfiguredChatModel[],
+): ModelOption[] {
+  return models.map((model) => ({
+    providerId: model.providerId,
+    protocol: model.protocol,
+    modelId: model.modelId,
+    label:
+      typeof model.label === 'string' && model.label.trim().length > 0
+        ? `${model.providerId} / ${model.label}`
+        : `${model.providerId} / ${model.modelId}`,
+    ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
+    ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
+    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+  }));
+}
+
+export function readConfiguredChatModelsData(data: unknown): ConfiguredChatModelsData {
+  const record = isRecord(data) ? data : undefined;
+  const models: ConfiguredChatModel[] = [];
+  const rawModels = record?.models;
+  if (Array.isArray(rawModels)) {
+    for (const item of rawModels) {
+      if (!isRecord(item) || typeof item.providerId !== 'string' || typeof item.modelId !== 'string') {
+        continue;
+      }
+      if (
+        item.protocol !== 'openai-compatible' &&
+        item.protocol !== 'anthropic-compatible' &&
+        item.protocol !== 'google-gemini'
+      ) {
+        continue;
+      }
+      const model: ConfiguredChatModel = {
+        providerId: item.providerId,
+        protocol: item.protocol,
+        modelId: item.modelId,
+      };
+      if (typeof item.label === 'string' && item.label.trim().length > 0) {
+        model.label = item.label;
+      }
+      if (isThinkingLevel(item.thinkingLevel)) {
+        model.thinkingLevel = item.thinkingLevel;
+      }
+      if (Array.isArray(item.thinkingLevels)) {
+        const thinkingLevels = item.thinkingLevels.filter(isThinkingLevel);
+        if (thinkingLevels.length > 0) {
+          model.thinkingLevels = thinkingLevels;
+        }
+      }
+      if (typeof item.reasoning === 'boolean') {
+        model.reasoning = item.reasoning;
+      }
+      models.push(model);
+    }
+  }
+  const next: ConfiguredChatModelsData = { models };
+  if (typeof record?.defaultProviderId === 'string' && record.defaultProviderId.length > 0) {
+    next.defaultProviderId = record.defaultProviderId;
+  }
+  if (typeof record?.defaultModelId === 'string' && record.defaultModelId.length > 0) {
+    next.defaultModelId = record.defaultModelId;
+  }
+  return next;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 export function buildEnabledModelOptions(

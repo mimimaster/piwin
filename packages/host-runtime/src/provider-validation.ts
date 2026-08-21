@@ -11,6 +11,7 @@ import {
   validateWalkthroughConfig,
 } from '@piwin/contracts';
 import { findReadyWebSearchDelegate } from './capabilities/search-route-resolver.js';
+import { findReadyFetchExtractDelegate } from './model-web-fetch-extract-delegate.js';
 
 export type ProviderValidationIssue = {
   path: string;
@@ -318,6 +319,13 @@ export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssu
       path: 'web.searchDelegateModel',
       message:
         'web_search delegate model is missing, disabled, or not native-web-search capable',
+      severity: 'warning',
+    });
+  }
+  if (config.web?.fetchDelegateModel && findReadyFetchExtractDelegate(config) === undefined) {
+    issues.push({
+      path: 'web.fetchDelegateModel',
+      message: 'web_fetch extract model is missing, disabled, or not chat-capable',
       severity: 'warning',
     });
   }

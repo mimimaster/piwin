@@ -223,7 +223,8 @@ html[data-theme-visual-style='ink-wash'] .session-title-text {
   background: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
-::selection {
+::selection,
+::selection:window-inactive {
   background: var(--accent-ring);
   color: var(--text);
 }
@@ -248,4 +249,49 @@ html[data-theme-visual-style='ink-wash'] .session-title-text {
 
 .app-shell.is-resizing-panels {
   cursor: col-resize;
+}
+
+/* Boot gate: choose Host / connect wall before workbench mounts. */
+.host-gate {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.host-gate-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.host-gate-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.host-gate-description {
+  margin: 0;
+  color: var(--fg-muted, var(--fg));
+  opacity: 0.8;
+  line-height: 1.45;
+}
+
+.host-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.host-gate-actions-stack {
+  flex-direction: column;
+}
+
+.host-gate-actions-stack > * {
+  width: 100%;
 }

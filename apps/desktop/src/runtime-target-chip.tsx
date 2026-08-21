@@ -1,23 +1,27 @@
 /**
  * Local / Remote Host runtime-target chip (D-CTX-01b).
- * Local is the default. Remote Host is enabled only when a saved target is
- * connected; Local stays available to switch back to the sidecar.
+ * Local stays available to switch back to the sidecar. Attach opens the
+ * connect wall (stops the local Host when leaving the workbench).
  */
 import type { ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
+import { isDesktopShellOnlyBuild } from './desktop-shell-build';
 import { IconChevronDown, IconCloud, IconLaptop } from './shell-icons';
 
 export type RuntimeTargetChipProps = {
   /** True when Desktop is attached to a saved standalone Host. */
   remoteConnected?: boolean;
   onSelectLocal?: () => void;
+  /** Leave the local sidecar and open the attach connect wall. */
+  onSelectAttach?: () => void;
 };
 
 export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).composer;
+  const shellOnly = isDesktopShellOnlyBuild();
   const remoteConnected = props.remoteConnected === true;
   const activeLabel = remoteConnected ? copy.runtimeCloudLabel : copy.runtimeLocalLabel;
   const activeTooltip = remoteConnected
@@ -58,7 +62,7 @@ export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
       }
     >
       <DropdownMenuItem
-        disabled={!remoteConnected}
+        disabled={!remoteConnected || shellOnly}
         testId="composer-runtime-local-item"
         onSelect={() => {
           props.onSelectLocal?.();
@@ -71,6 +75,20 @@ export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
           </span>
         </span>
       </DropdownMenuItem>
+      {shellOnly ? null : (
+      <DropdownMenuItem
+        disabled={remoteConnected}
+        testId="composer-runtime-attach-item"
+        onSelect={() => {
+          props.onSelectAttach?.();
+        }}
+      >
+        <span className="composer-context-menu-row">
+          <IconCloud width={13} height={13} />
+          <span>{copy.runtimeAttachAction}</span>
+        </span>
+      </DropdownMenuItem>
+      )}
       <DropdownMenuItem disabled={!remoteConnected} testId="composer-runtime-remote-item">
         <span
           className={`composer-context-menu-row${remoteConnected ? '' : ' is-muted'}`}

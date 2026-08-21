@@ -63,6 +63,18 @@
   display: none;
 }
 
+.composer-sticky-banner {
+  width: var(--chat-max, 780px);
+  max-width: 100%;
+  margin: 0 auto 8px;
+}
+
+.composer-sticky-banner .ui-notice {
+  margin: 0;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.12));
+}
+
 /* This is the concrete conversation-width boundary. It intentionally matches
    .chat-thread, so Default equals the Composer width and Narrow / Wide change
    both visible surfaces together. */
@@ -824,26 +836,66 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   padding: 4px 10px 8px;
 }
 
-/* ─── Attachments ───────────────────────────────────────────────────── */
+/* ─── Attachments / diversion shelf ──────────────────────────────────── */
+
+.composer-attachment-shelf {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 160px;
+  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  background: transparent;
+  animation: composer-shelf-open 180ms ease-out;
+}
+
+[data-theme='light'] .composer-attachment-shelf {
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+}
+
+@keyframes composer-shelf-open {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 160px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-attachment-shelf {
+    animation: none;
+  }
+}
+
+.composer-attachment-shelf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 8px;
+  overflow: auto;
+  max-height: 140px;
+}
 
 .composer-v2-attachments {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 14px 4px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 8px;
 }
 
 /* Text-only model + image attachment: warn at attach time (not only on send). */
 .composer-v2-vision-warning {
-  /* Chip-like: sits with attachment thumbs, not a full-width resident banner */
-  flex: 1 1 auto;
-  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin: 8px 14px 0;
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 35%, var(--line-soft, transparent));
   background: color-mix(in srgb, var(--warn, #f59e0b) 12%, var(--surface, transparent));
   color: var(--text);
@@ -875,52 +927,275 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: color-mix(in srgb, var(--warn, #f59e0b) 28%, transparent);
 }
 
+/* Base chip container */
 .composer-v2-attachment-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
   background: var(--surface, rgba(255, 255, 255, 0.04));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
+[data-theme='light'] .composer-v2-attachment-chip {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.composer-v2-attachment-chip:focus {
+  outline: none;
+}
+
+.composer-v2-attachment-chip:focus-visible {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+/* Media (image/screenshot) thumbnail card */
+.composer-v2-attachment-chip.composer-v2-media-chip,
+.composer-v2-attachment-chip:not(.composer-v2-doc-comment-chip):not(.composer-v2-context-chip) {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.composer-v2-attachment-chip.composer-v2-media-chip:hover,
+.composer-v2-attachment-chip:not(.composer-v2-doc-comment-chip):not(.composer-v2-context-chip):hover {
+  border-color: color-mix(in srgb, var(--text) 32%, transparent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.composer-v2-attachment-chip .media-chip-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.composer-v2-attachment-chip .media-chip-thumb-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: inherit;
+}
+
+.composer-v2-attachment-chip .media-chip-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* Badge (GIF / Resolution) on media thumbnail */
+.composer-attachment-media-badge {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+  z-index: 4;
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  pointer-events: none;
+}
+
+/* Saving/preparing status overlay */
 .composer-v2-attachment-status {
   position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  z-index: 1;
-  display: inline-flex;
+  inset: 0;
+  z-index: 6;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: 2px 4px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface, #0f172a) 82%, transparent);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--surface, #0f172a) 85%, transparent);
   color: var(--text, #f8fafc);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.2;
+  text-align: center;
   pointer-events: none;
 }
 
 .composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb,
 .composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb-button {
-  opacity: 0.72;
+  opacity: 0.65;
 }
 
-/* Phase 0: failed chips keep the thumbnail visible — a danger ring marks the
-   chip, and reasons/actions render in the failure rows below the list. */
+/* Failed attachment chip */
 .composer-v2-attachment-chip[data-upload-status='error'] {
-  border-color: color-mix(in srgb, var(--danger, #ef4444) 72%, transparent);
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 75%, transparent);
 }
 
+.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb,
+.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb-button {
+  opacity: 0.5;
+  filter: grayscale(0.4);
+}
+
+/* Media card delete button (✕ on top-right of image) */
+.composer-v2-chip-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 10;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.78);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.composer-v2-chip-remove:hover {
+  opacity: 1;
+  background: var(--danger, #ef4444);
+  border-color: var(--danger, #ef4444);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.composer-v2-attachment-chip:hover .composer-v2-chip-remove,
+.composer-v2-attachment-chip:focus-within .composer-v2-chip-remove {
+  opacity: 1;
+}
+
+/* Context / Doc comment chip (Text pills) */
+.composer-v2-doc-comment-chip {
+  width: auto;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--card, var(--surface)) 92%,
+    var(--surface-inset, transparent)
+  );
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text, #f1f5f9);
+  max-width: 280px;
+  position: relative;
+}
+
+[data-theme='light'] .composer-v2-doc-comment-chip {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1e293b;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.composer-v2-context-chip.is-error {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 55%, transparent);
+}
+
+.composer-v2-context-chip.is-error .doc-comment-chip-icon {
+  color: var(--danger, #ef4444);
+}
+
+.doc-comment-chip-icon {
+  display: inline-flex;
+  color: var(--accent, #3b82f6);
+  flex-shrink: 0;
+}
+
+.doc-comment-chip-title,
+.composer-v2-context-chip .chip-text {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.doc-comment-chip-dot {
+  color: var(--muted, #94a3b8);
+  flex-shrink: 0;
+}
+
+.doc-comment-chip-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted, #94a3b8);
+  flex-shrink: 0;
+}
+
+.doc-comment-chip-count-icon {
+  opacity: 0.85;
+}
+
+/* Remove control: inline for text chips */
+.composer-v2-doc-comment-chip .doc-comment-chip-remove {
+  position: static;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted, #94a3b8);
+  opacity: 0.7;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.composer-v2-doc-comment-chip:hover .doc-comment-chip-remove,
+.composer-v2-doc-comment-chip:focus-within .doc-comment-chip-remove {
+  opacity: 1;
+}
+
+.composer-v2-doc-comment-chip .doc-comment-chip-remove:hover {
+  background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
+  color: var(--danger, #ef4444);
+}
+
+/* Attachment failure rows */
 .composer-v2-attachment-failures {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 4px 12px 0;
+  padding: 0 14px 8px;
 }
 
 .composer-v2-attachment-failure {
@@ -970,129 +1245,6 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 /* Only failed attachments remain: the action button is a retry. */
 .composer-v2-send-btn.is-retry {
   background: color-mix(in srgb, var(--danger, #ef4444) 24%, transparent);
-  color: var(--danger, #ef4444);
-}
-
-.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb,
-.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb-button {
-  opacity: 0.55;
-  filter: grayscale(0.35);
-}
-
-.composer-v2-attachment-chip .media-chip-thumb {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  display: block;
-  object-fit: cover;
-}
-
-.composer-v2-doc-comment-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px 5px 8px;
-  border-radius: 10px;
-  background: color-mix(
-    in srgb,
-    var(--card, var(--surface)) 92%,
-    var(--surface-inset, transparent)
-  );
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text, #f1f5f9);
-  max-width: 280px;
-  position: relative;
-}
-
-[data-theme='light'] .composer-v2-doc-comment-chip {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.08);
-  color: #1e293b;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.doc-comment-chip-icon {
-  display: inline-flex;
-  color: var(--accent, #3b82f6);
-  flex-shrink: 0;
-}
-
-.doc-comment-chip-title {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;
-}
-
-.doc-comment-chip-dot {
-  color: var(--muted, #94a3b8);
-  flex-shrink: 0;
-}
-
-.doc-comment-chip-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 12px;
-  color: var(--muted, #94a3b8);
-  flex-shrink: 0;
-}
-
-.doc-comment-chip-count-icon {
-  opacity: 0.85;
-}
-
-.composer-v2-chip-remove {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  /* Deliberate literals: scrim over arbitrary image thumbnails, theme-independent. */
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 11px;
-  cursor: pointer;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.composer-v2-attachment-chip:hover .composer-v2-chip-remove,
-.composer-v2-attachment-chip:focus-within .composer-v2-chip-remove {
-  opacity: 1;
-}
-
-/* Remove control: inline for text chips (not absolute over image thumbs) */
-.composer-v2-doc-comment-chip .doc-comment-chip-remove {
-  position: static;
-  width: 18px;
-  height: 18px;
-  margin-left: 2px;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted, #94a3b8);
-  opacity: 0;
-  transition:
-    opacity 0.12s ease,
-    background 0.12s ease,
-    color 0.12s ease;
-}
-
-.composer-v2-doc-comment-chip:hover .doc-comment-chip-remove,
-.composer-v2-doc-comment-chip:focus-within .doc-comment-chip-remove {
-  opacity: 1;
-}
-
-.composer-v2-doc-comment-chip .doc-comment-chip-remove:hover {
-  background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
   color: var(--danger, #ef4444);
 }
 
@@ -1528,11 +1680,10 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: color-mix(in srgb, var(--text, #ffffff) 10%, var(--composer, #1c1c21));
   color: var(--danger, #ef4444);
   cursor: pointer;
-  animation: composerActionBtnPopIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transition:
-    background-color 180ms ease,
-    color 180ms ease,
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    background-color 140ms ease,
+    color 140ms ease,
+    filter 140ms ease;
   flex-shrink: 0;
 }
 
@@ -1540,30 +1691,20 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   display: none;
 }
 
-.composer-v2-pause-btn {
-  color: var(--accent, #6ea8fe);
-}
-
-.composer-v2-pause-btn:hover:not(:disabled) {
-  color: color-mix(in srgb, var(--accent, #6ea8fe) 95%, #ffffff);
-}
-
 .composer-v2-stop-btn svg {
   position: relative;
   z-index: 1;
   width: 16px;
   height: 16px;
-  transition: transform 180ms ease;
 }
 
 .composer-v2-stop-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text, #ffffff) 22%, var(--composer, #1c1c21));
   color: color-mix(in srgb, var(--danger, #ef4444) 95%, #ffffff);
-  transform: scale(1.05);
 }
 
 .composer-v2-stop-btn:active:not(:disabled) {
-  transform: scale(0.92);
+  filter: brightness(0.92);
 }
 
 .composer-v2-stop-btn:disabled {
@@ -1571,33 +1712,6 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   cursor: default;
   background: color-mix(in srgb, var(--text, #ffffff) 8%, var(--composer, #1c1c21));
   color: color-mix(in srgb, var(--fg) 40%, transparent);
-  animation: none;
-}
-
-@keyframes composerActionBtnPopIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.75) rotate(-8deg);
-  }
-  65% {
-    transform: scale(1.05) rotate(2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-@keyframes composerStopPulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.85;
-    transform: scale(1.08);
-  }
 }
 
 .composer-v2-streaming-actions {
@@ -2026,6 +2140,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   overflow-y: auto;
   padding: 2px;
   margin: 0 -2px;
+  isolation: isolate;
 }
 
 .thinking-effort-model-option {
@@ -2799,6 +2914,29 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .orchestration-scheme-control {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.orchestration-scheme-unpinned-hint {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  font-size: 11px;
+  line-height: 1.3;
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 0;
+}
+.orchestration-scheme-unpinned-hint:hover:not(:disabled) {
+  opacity: 0.95;
+  text-decoration: underline;
+}
+.orchestration-scheme-unpinned-hint:disabled {
+  cursor: default;
 }
 .orchestration-scheme-trigger {
   display: inline-flex;
@@ -3001,7 +3139,6 @@ html[data-theme-visual-style='ink-wash'] .composer-card-v2::before {
 
 /* 发送钮与工具条在纹理层之上 */
 html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn,
-html[data-theme-visual-style='ink-wash'] .send-btn,
 html[data-theme-visual-style='ink-wash'] .composer-v2-action-slot {
   position: relative !important;
   z-index: 10 !important;
@@ -3038,6 +3175,7 @@ html[data-theme-visual-style='ink-wash'] .composer-card-v2:focus-within {
 }
 
 /* Keep children above the paper wash layer; do not grow the textarea. */
+html[data-theme-visual-style='ink-wash'] .composer-attachment-shelf,
 html[data-theme-visual-style='ink-wash'] .composer-v2-attachments,
 html[data-theme-visual-style='ink-wash'] .composer-v2-input-area,
 html[data-theme-visual-style='ink-wash'] .composer-v2-toolbar {
@@ -3076,29 +3214,39 @@ html[data-theme-visual-style='ink-wash'] .composer-v2-textarea::placeholder {
 }
 
 /* 朱砂印章 Send Button */
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn,
-html[data-theme-visual-style='ink-wash'] .composer-send-btn,
-html[data-theme-visual-style='ink-wash'] .send-btn {
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn {
   background: #c24d43 !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 8px !important;
-  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.45) !important;
-  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: none !important;
+  transition:
+    opacity 0.12s ease,
+    filter 0.12s ease,
+    background-color 0.12s ease !important;
 }
 
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:hover,
-html[data-theme-visual-style='ink-wash'] .composer-send-btn:hover,
-html[data-theme-visual-style='ink-wash'] .send-btn:hover {
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:hover:not(:disabled) {
   background: #d6554a !important;
-  box-shadow: 0 4px 18px rgba(194, 77, 67, 0.65) !important;
-  transform: translateY(-1px) scale(1.03) !important;
+  filter: brightness(1.06);
 }
 
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:active,
-html[data-theme-visual-style='ink-wash'] .composer-send-btn:active,
-html[data-theme-visual-style='ink-wash'] .send-btn:active {
-  transform: translateY(0) scale(0.95) !important;
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:active:not(:disabled) {
+  background: #b7443a !important;
+  filter: brightness(0.96);
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:disabled {
+  opacity: 0.35 !important;
+  cursor: default !important;
+  background: rgba(214, 205, 190, 0.1) !important;
+  color: rgba(214, 205, 190, 0.4) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn.is-retry {
+  background: rgba(194, 77, 67, 0.24) !important;
+  color: #c24d43 !important;
 }
 
 /* 模型选择器 / 附件按钮 / 扩展选项 (Toolbar Pill Buttons & Model Selectors) */
@@ -3173,7 +3321,6 @@ html[data-theme-visual-style='ink-wash'] .slash-command-item.selected::before {
 
 /* 1. 外框弹窗与背景质感 */
 html[data-theme-visual-style='ink-wash'] .ui-popover-content.thinking-effort-popover {
-  position: relative !important;
   background-color: rgba(22, 23, 26, 0.95) !important;
   background-image:
     linear-gradient(180deg, rgba(34, 35, 39, 0.96) 0%, rgba(20, 21, 24, 0.95) 100%),

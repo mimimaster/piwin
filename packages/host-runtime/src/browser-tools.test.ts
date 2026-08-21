@@ -5,6 +5,7 @@ import type {
   ToolResult,
   WebElementPickResult,
 } from '@piwin/contracts';
+import { isHostToolPermissionAction } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
 import { BrowserUserHasControlError } from '@piwin/browser';
 import {
@@ -15,6 +16,7 @@ import { createBundledRuleSet } from './permission-defaults.js';
 import type { PermissionRuleSet } from '@piwin/contracts';
 import { createHostToolAdmission } from './tools/tool-admission.js';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+import { toolFamilyIndex } from './tools/tool-family-index.js';
 
 /** Minimal mock session that records calls and can be controlled in tests. */
 function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSession {
@@ -88,6 +90,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     }),
     unlock: async () => ({ owner: 'idle' as const, agentWantsLock: false }),
     releaseAgentControl: async () => {},
+    releaseAgentControlIfHeldBy: async () => {},
     controllerState: () => ({ owner: 'idle' as const, agentWantsLock: false }),
     runExclusive: queue.runExclusive,
     subscribe: () => () => {},
@@ -213,6 +216,13 @@ describe('createBrowserToolDefinitions — schema golden', () => {
     if (!snap) throw new Error('browser_snapshot missing');
     expect(snap.descriptor.parameters).toMatchObject({ type: 'object', required: [] });
   });
+
+  it('compose indexes every browser permission action', () => {
+    expect(() => toolFamilyIndex(tools)).not.toThrow();
+    expect(tools.every((tool) => isHostToolPermissionAction(tool.permissionSpec.action))).toBe(
+      true,
+    );
+  });
 });
 
 describe('createBrowserToolDefinitions — execute paths', () => {
@@ -272,8 +282,36 @@ describe('createBrowserToolDefinitions — execute paths', () => {
     const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
     if (!tool) throw new Error('browser_lock missing');
     const raw = outputOf(await executeTool(tool, { action: 'lock' }));
-    expect(lock).toHaveBeenCalledWith('agent');
+    expect(lock).toHaveBeenCalledWith('agent', expect.objectContaining({ runId: 'run-1' }));
     expect((JSON.parse(raw) as { owner: string }).owner).toBe('agent');
+  });
+
+  it('browser_lock unlock yields agent control', async () => {
+    const unlock = vi.fn(async () => ({ owner: 'idle' as const, agentWantsLock: false }));
+    const session = createMockSession({ unlock });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
+    if (!tool) throw new Error('browser_lock missing');
+    const raw = outputOf(await executeTool(tool, { action: 'unlock' }));
+    expect(unlock).toHaveBeenCalledWith('agent');
+    expect((JSON.parse(raw) as { owner: string }).owner).toBe('idle');
+  });
+
+  it('browser_lock lock returns browser-user-has-control when the human owns the page', async () => {
+    const session = createMockSession({
+      lock: async () => {
+        throw new BrowserUserHasControlError('The user has the browser.');
+      },
+    });
+    const tools = createBrowserToolDefinitions(session);
+    const tool = tools.find((t) => t.descriptor.name === 'browser_lock');
+    if (!tool) throw new Error('browser_lock missing');
+    const result = await executeTool(tool, { action: 'lock' });
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'browser-user-has-control',
+      retryable: false,
+    });
   });
 
   it('browser_click throws when neither ref nor selector given', async () => {

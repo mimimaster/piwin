@@ -252,6 +252,7 @@ export function evaluateHostToolDomainPolicy(input: {
     case 'browser:scroll':
     case 'browser:back':
     case 'browser:forward':
+    case 'browser:lock':
       return {
         decision: input.mode === 'ask-all' ? 'ask' : 'allow',
         reason: input.mode === 'ask-all' ? 'ask-all-browser-interaction' : 'browser-interaction',

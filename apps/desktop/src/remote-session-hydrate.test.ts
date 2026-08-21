@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import type { HostCommand } from '@piwin/contracts';
 import {
+  activateProjectOnHost,
+  hydrationSessionApplyActions,
+  isOpaqueRemoteProjectId,
   isRemoteDesktopTransport,
   mapListedProjects,
   mapListedSessionItems,
+  mergeRecentProjects,
+  sessionCreateInputForTransport,
   sessionListCommandForTransport,
 } from './remote-session-hydrate';
 
@@ -135,17 +141,38 @@ describe('mapListedProjects', () => {
   it('maps remote projectId + displayName onto a synthetic path key', () => {
     expect(
       mapListedProjects({
-        projects: [{ projectId: 'project-abc', displayName: 'Demo', trust: 'trusted' }],
+        projects: [
+          {
+            projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+            displayName: 'Demo',
+            trust: 'trusted',
+          },
+        ],
       }),
     ).toEqual([
       {
-        path: 'project-abc',
+        path: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
         displayName: 'Demo',
         trust: 'trusted',
         lastOpenedAt: '',
         createdAt: '',
       },
     ]);
+  });
+
+  it('prefers opaque projectId when a Host path is also present', () => {
+    const listed = mapListedProjects({
+      projects: [
+        {
+          projectId: 'project-bbbbbbbbbbbbbbbbbbbbbbbb',
+          path: '/Users/me/piwin',
+          displayName: 'piwin',
+          trust: 'trusted',
+        },
+      ],
+    });
+    expect(listed[0]?.path).toBe('project-bbbbbbbbbbbbbbbbbbbbbbbb');
+    expect(listed[0]?.path).not.toContain('/');
   });
 
   it('keeps local ProjectRecord paths', () => {
@@ -178,5 +205,145 @@ describe('isRemoteDesktopTransport', () => {
     expect(isRemoteDesktopTransport('remote')).toBe(true);
     expect(isRemoteDesktopTransport('live')).toBe(false);
     expect(isRemoteDesktopTransport('mock')).toBe(false);
+  });
+});
+
+describe('hydrationSessionApplyActions', () => {
+  it('replaces each scope once instead of one update per session', () => {
+    const actions = hydrationSessionApplyActions([
+      { id: 'g1', name: 'General', scope: { kind: 'general' } },
+      { id: 'g2', name: 'Also general' },
+      { id: 'p1', name: 'In project', scope: { kind: 'project', projectPath: 'project-a' } },
+      { id: 'p2', name: 'Same project', scope: { kind: 'project', projectPath: 'project-a' } },
+      { id: 'p3', name: 'Other project', scope: { kind: 'project', projectPath: 'project-b' } },
+    ]);
+    expect(actions).toEqual([
+      {
+        type: 'session/hydrate-scope',
+        scope: { kind: 'general' },
+        sessions: [
+          { id: 'g1', name: 'General', scope: { kind: 'general' } },
+          { id: 'g2', name: 'Also general' },
+        ],
+        totalCount: 2,
+        truncated: false,
+      },
+      {
+        type: 'session/hydrate-scope',
+        scope: { kind: 'project', projectPath: 'project-a' },
+        sessions: [
+          { id: 'p1', name: 'In project', scope: { kind: 'project', projectPath: 'project-a' } },
+          { id: 'p2', name: 'Same project', scope: { kind: 'project', projectPath: 'project-a' } },
+        ],
+        totalCount: 2,
+        truncated: false,
+      },
+      {
+        type: 'session/hydrate-scope',
+        scope: { kind: 'project', projectPath: 'project-b' },
+        sessions: [
+          { id: 'p3', name: 'Other project', scope: { kind: 'project', projectPath: 'project-b' } },
+        ],
+        totalCount: 1,
+        truncated: false,
+      },
+    ]);
+  });
+});
+
+describe('mergeRecentProjects', () => {
+  it('returns the previous array when paths are unchanged', () => {
+    const previous = [
+      {
+        path: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+        displayName: 'piwin',
+        trust: 'trusted' as const,
+        lastOpenedAt: '',
+        createdAt: '',
+      },
+    ];
+    const next = mergeRecentProjects(previous, [
+      {
+        path: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+        displayName: 'piwin',
+        trust: 'trusted',
+        lastOpenedAt: '',
+        createdAt: '',
+      },
+    ]);
+    expect(next).toBe(previous);
+  });
+
+  it('caps the merged list and keeps the active project', () => {
+    const fetched = Array.from({ length: 20 }, (_, index) => ({
+      path: `/p/${index}`,
+      displayName: `P${index}`,
+      trust: 'trusted' as const,
+      lastOpenedAt: '',
+      createdAt: '',
+    }));
+    const next = mergeRecentProjects([], fetched, ['/p/19']);
+    expect(next).toHaveLength(16);
+    expect(next.some((project) => project.path === '/p/19')).toBe(true);
+    expect(next.some((project) => project.path === '/p/16')).toBe(false);
+  });
+});
+
+describe('activateProjectOnHost', () => {
+  it('skips project/open for opaque remote project ids', async () => {
+    const calls: HostCommand['type'][] = [];
+    const result = await activateProjectOnHost(
+      async (command) => {
+        calls.push(command.type);
+        if (command.type === 'project/list') {
+          return {
+            type: 'response',
+            command: 'project/list',
+            success: true,
+            data: {
+              projects: [
+                {
+                  projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+                  displayName: 'piwin',
+                  trust: 'trusted',
+                },
+              ],
+            },
+          };
+        }
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      },
+      'remote',
+      'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    expect(calls).toEqual(['project/list']);
+    expect(result).toEqual({
+      ok: true,
+      path: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+      trusted: true,
+    });
+  });
+});
+
+describe('sessionCreateInputForTransport', () => {
+  it('uses projectId on remote opaque keys', () => {
+    expect(
+      sessionCreateInputForTransport('remote', {
+        useGeneral: false,
+        projectKey: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+        sessionName: 'draft',
+      }),
+    ).toEqual({
+      projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+      sessionName: 'draft',
+    });
+  });
+});
+
+describe('isOpaqueRemoteProjectId', () => {
+  it('accepts Host-issued ids and rejects filesystem paths', () => {
+    expect(isOpaqueRemoteProjectId('project-aaaaaaaaaaaaaaaaaaaaaaaa')).toBe(true);
+    expect(isOpaqueRemoteProjectId('/Users/me/Developer/piwin')).toBe(false);
+    expect(isOpaqueRemoteProjectId('project-abc')).toBe(false);
   });
 });

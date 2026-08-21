@@ -42,6 +42,10 @@ import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
 import { scanPrompts } from '../prompt-scanner.js';
 import { decodeBase64Media } from '../media-decode.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
+import {
+  mergeProviderSecretSource,
+  resolveProviderCallSecret,
+} from '../provider-discovery-auth.js';
 import { searchPiCatalog, searchPiImagesCatalog } from '@piwin/agent-host';
 import { testProviderModel } from '../provider-model-test.js';
 import { testImageGenerationModel } from '../image-generation-test.js';
@@ -218,12 +222,13 @@ export async function handleCatalogCommand(
     }
     case 'media/read': {
       // ADR 0052: preview reads address the vault by logical identity only.
-      // Hard cap keeps one bounded base64 payload per request; oversized
-      // assets surface as an unavailable state, not a truncated image.
-      const DEFAULT_MAX_MEDIA_READ_BYTES = 8 * 1024 * 1024;
+      // Cap must fit a single Host wire frame (1 MiB JSON). Base64 expands
+      // ~4/3; leave headroom for the response envelope so Host does not 1011
+      // the whole WebSocket on encode.
+      const MAX_MEDIA_READ_WIRE_SAFE_BYTES = 700 * 1024;
       const maxBytes = Math.min(
-        DEFAULT_MAX_MEDIA_READ_BYTES,
-        Math.max(1024, command.input.maxBytes ?? DEFAULT_MAX_MEDIA_READ_BYTES),
+        MAX_MEDIA_READ_WIRE_SAFE_BYTES,
+        Math.max(1024, command.input.maxBytes ?? MAX_MEDIA_READ_WIRE_SAFE_BYTES),
       );
       const rootDir = getPiwinRoot(context.piwinRoot);
       const config = await loadPiwinConfig(rootDir);
@@ -564,10 +569,26 @@ export async function handleCatalogCommand(
       const settingsService = new SettingsService({ piwinRoot: context.piwinRoot });
       try {
         const result = await settingsService.apply(command.input);
+        if (result.changedDomains.length > 0) {
+          context.push({
+            type: 'settings/updated',
+            revision: result.snapshot.revision,
+            runtimeRevision: result.snapshot.runtimeRevision,
+            changedDomains: result.changedDomains.map((impact) => impact.domain),
+          });
+        }
         return ok(requestId, 'settings/apply', result);
       } catch (error) {
         if (error instanceof SettingsRevisionConflictError) {
-          return fail(requestId, 'settings/apply', 'settings-revision-conflict');
+          return fail(requestId, 'settings/apply', 'settings-revision-conflict', {
+            code: 'settings-revision-conflict',
+            data: {
+              expectedRevision: error.expectedRevision,
+              actualRevision: error.actualRevision,
+              conflictingDomains: error.conflictingDomains,
+              ...(error.snapshot === undefined ? {} : { snapshot: error.snapshot }),
+            },
+          });
         }
         throw error;
       }
@@ -579,28 +600,20 @@ export async function handleCatalogCommand(
     }
     case 'models/discover': {
       try {
+        // Host owns secrets. Remote shells send a stripped provider row; pull
+        // the stored ref from this Host's config and resolve it here.
         const secretResolver = createSecretResolver();
         const oneShotApiKey = command.apiKey?.trim();
-        const result = await discoverProviderModels(command.provider, {
-          resolveSecret: async (provider) => {
-            if (oneShotApiKey) {
-              return oneShotApiKey;
-            }
-            // Soft resolve: missing env/keychain must not block local no-auth endpoints.
-            try {
-              if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
-                return await secretResolver.resolveProviderSecret(provider);
-              }
-            } catch (error) {
-              // Surface the real cause (env unset, keychain locked) so the
-              // downstream "no auth" error is diagnosable. Soft-resolve
-              // still returns null to not block local no-auth endpoints.
-              const detail = formatError(error);
-              console.warn(`[piwin] models/discover secret resolve failed: ${detail}`);
-              return null;
-            }
-            return null;
-          },
+        const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
+        const persisted = config.providers.find((entry) => entry.id === command.provider.id);
+        const provider = mergeProviderSecretSource(command.provider, persisted);
+        const result = await discoverProviderModels(provider, {
+          resolveSecret: async (candidate) =>
+            resolveProviderCallSecret({
+              provider: candidate,
+              ...(oneShotApiKey ? { oneShotApiKey } : {}),
+              resolveSecret: (source) => secretResolver.resolveProviderSecret(source),
+            }),
         });
         return ok(requestId, 'models/discover', result);
       } catch (error) {
@@ -637,22 +650,17 @@ export async function handleCatalogCommand(
       try {
         const secretResolver = createSecretResolver();
         const oneShotApiKey = command.apiKey?.trim();
-        const result = await testProviderModel(command.provider, command.modelId, {
-          resolveSecret: async (provider) => {
-            if (oneShotApiKey) {
-              return oneShotApiKey;
-            }
-            try {
-              if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
-                return await secretResolver.resolveProviderSecret(provider);
-              }
-            } catch (error) {
-              const detail = formatError(error);
-              console.warn(`[piwin] models/test secret resolve failed: ${detail}`);
-              return null;
-            }
-            return null;
-          },
+        const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
+        const persisted = config.providers.find((entry) => entry.id === command.provider.id);
+        // Same Host-owned secret rule as models/discover.
+        const provider = mergeProviderSecretSource(command.provider, persisted);
+        const result = await testProviderModel(provider, command.modelId, {
+          resolveSecret: async (candidate) =>
+            resolveProviderCallSecret({
+              provider: candidate,
+              ...(oneShotApiKey ? { oneShotApiKey } : {}),
+              resolveSecret: (source) => secretResolver.resolveProviderSecret(source),
+            }),
         });
         return ok(requestId, 'models/test', result);
       } catch (error) {
@@ -664,8 +672,11 @@ export async function handleCatalogCommand(
       try {
         const secretResolver = createSecretResolver();
         const oneShotApiKey = command.apiKey?.trim();
+        const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
+        const persisted = config.providers.find((entry) => entry.id === command.provider.id);
+        const provider = mergeProviderSecretSource(command.provider, persisted);
         const result = await testImageGenerationModel(
-          command.provider,
+          provider,
           command.modelId,
           command.prompt,
           {

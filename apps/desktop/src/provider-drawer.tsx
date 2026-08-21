@@ -294,8 +294,8 @@ export function ProviderDrawer({
           <div className="provider-field-hint">
             {hasStoredKey
               ? isChinese
-                ? '密钥已加密存于本机钥匙串，留空则保持不变'
-                : 'Key is encrypted in the local keychain — leave blank to keep'
+                ? '密钥已保存在 Host，留空则保持不变；新填的 Key 会写回 Host'
+                : 'Key is stored on the Host — leave blank to keep, or paste a new key to update it'
               : copy.connectionHint}
           </div>
 

@@ -16,6 +16,7 @@ import {
   type SessionPresentation,
 } from '@piwin/contracts';
 import { isLegacyInternalSessionName, isPlaceholderSessionName } from './session-display-name.js';
+import { isPrimarySessionRecord } from './session-list-visibility.js';
 import { writeTextFileAtomic } from './atomic-text-file.js';
 
 /** Serializes read-modify-write cycles per index file (single-writer). */
@@ -259,8 +260,8 @@ export async function listSessionsForProject(
 
   return sortSessionRecords(
     document.sessions.filter((item) => {
-      // Side chats never surface in the main session list (SIDE-D9).
-      if (item.kind === 'side-chat') {
+      // Side chats (SIDE-D9) and subagent children stay off the main list.
+      if (!isPrimarySessionRecord(item)) {
         return false;
       }
       if (!matchesScope(item)) {

@@ -46,11 +46,13 @@ import type { DiffCardRequest } from './diff-card';
 import type { ModelOption } from './model-options';
 import { TranscriptTurnList } from './transcript-turn-list';
 import { groupTranscriptTurns } from './transcript-turns';
+import { buildExploreFlowRoles } from './explore-flow';
 import { collectMessageChangedFiles } from './collect-message-changed-files';
 import { findStreamingCaretMessageId } from './streaming-caret';
 import { DocCardSequenceView, type DocCardSequenceRequest } from './DocCardSequenceView';
 import { ChatMessageRow } from './chat-message-row';
 import { collectFlashcardToolsFromMessages } from './conversation-response-content.js';
+import { resolveConversationTurnChrome } from './conversation-turn-chrome';
 
 /** Legacy helper retained for callers that still compute the old preference. */
 /** @deprecated Run Inspector disclosure is now explicitly user-owned. */
@@ -135,6 +137,8 @@ export type ChatThreadProps = {
   composerCard: ComposerDockProps;
   /** Callback when clicking a search result file or file link. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  /** Open an edited file's diff in the right inspector. */
+  onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
   /** Called when the user selects an execution mode for the session plan. */
@@ -251,6 +255,16 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     () => groupTranscriptTurns(chatMessages),
     [chatMessages],
   );
+  // Cursor-style explore flow: consecutive read/search/thought-only assistant
+  // steps collapse into one "Explored N files" capsule anchored at the first
+  // step (agent sessions only — conversation mode keeps per-reply chrome).
+  const exploreRolesByMessageId = useMemo(
+    () =>
+      props.isConversationSession === true
+        ? new Map()
+        : buildExploreFlowRoles(chatMessages, { streamActive: props.streaming === true }),
+    [chatMessages, props.isConversationSession, props.streaming],
+  );
   const precedingUserMessageId = useMemo(() => {
     for (let i = chatMessages.length - 1; i >= 0; i--) {
       const msg = chatMessages[i];
@@ -263,6 +277,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   const currentResponseTurnId = turnGroups[turnGroups.length - 1]?.id ?? null;
   const showRunActivity =
     props.streaming &&
+    props.activeRunId != null &&
     !props.permissionPrompt &&
     (transcriptMessages.length === 0 ||
       transcriptMessages[transcriptMessages.length - 1]?.role === 'user');
@@ -396,14 +411,24 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         pinnedMessageId={props.editingMessageId}
         streaming={props.streaming === true}
         latestAssistantMessageId={latestAssistantMessageId}
-        renderTurn={(turn) => (
-          <section
-            key={turn.id}
-            className={`chat-turn-group${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
-            {...(turn.id === currentResponseTurnId
-              ? { 'data-testid': 'current-response-turn' }
-              : {})}
-          >
+        renderTurn={(turn) => {
+          const turnMessages = turn.items.map((item) => item.message);
+          const turnFlashcardTools = collectFlashcardToolsFromMessages(turnMessages);
+          const conversationChrome = conversationSession
+            ? resolveConversationTurnChrome({
+                messages: turnMessages,
+                lastAssistantMessageId: turn.lastAssistantMessageId,
+                latestAssistantMessageId,
+              })
+            : null;
+          return (
+            <section
+              key={turn.id}
+              className={`chat-turn-group${turn.id === currentResponseTurnId ? ' is-current-response' : ''}`}
+              {...(turn.id === currentResponseTurnId
+                ? { 'data-testid': 'current-response-turn' }
+                : {})}
+            >
               {turn.items.map(({ message, messageIndex }, itemIndex) => {
                 const followingAssistantRunId = turn.items
                   .slice(itemIndex + 1)
@@ -423,18 +448,24 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       })
                     : undefined;
                 const isLatestAssistant = latestAssistantMessageId === message.id;
-                const turnFlashcardTools = collectFlashcardToolsFromMessages(
-                  turn.items.map((item) => item.message),
-                );
                 const onRegenerate =
                   conversationSession && isLatestAssistant && precedingUserMessageId
                     ? () => props.onRetry(precedingUserMessageId)
                     : undefined;
+                const exploreRole = exploreRolesByMessageId.get(message.id);
                 return (
                   <ChatMessageRow
                     key={message.id}
                     message={message}
+                    {...(exploreRole !== undefined ? { exploreRole } : {})}
                     isConversationSession={conversationSession}
+                    {...(conversationChrome
+                      ? {
+                          showConversationHeader:
+                            conversationChrome.identityMessageId === message.id,
+                          showConversationTurnUsage: conversationChrome.showUsageOnIdentity,
+                        }
+                      : {})}
                     {...(props.onResolveFlashcards
                       ? { onResolveFlashcards: props.onResolveFlashcards }
                       : {})}
@@ -527,6 +558,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       ? { artifactMaxBytes: props.artifactMaxBytes }
                       : {})}
                     {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+                    {...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {})}
                     {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
                     {...(props.locale ? { locale: props.locale } : {})}
                     {...(props.walkthroughsByMessageId
@@ -571,9 +603,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                   />
                 );
               })}
-            {turn.id === currentResponseTurnId ? runActivitySlot : null}
-          </section>
-        )}
+              {turn.id === currentResponseTurnId ? runActivitySlot : null}
+            </section>
+          );
+        }}
       />
       {currentResponseTurnId === null && runActivitySlot !== null ? (
         <section

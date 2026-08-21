@@ -19,10 +19,9 @@ const MISMATCH_REASONS: ReadonlySet<ForegroundRunMismatchReason> = new Set([
   'transitioning',
 ]);
 
-const CONFIRMABLE_REASONS: ReadonlySet<ForegroundRunMismatchReason> = new Set([
-  'active',
-  'transitioning',
-]);
+const CONFIRMABLE_REASONS: ReadonlySet<ForegroundRunMismatchReason> = new Set(['active']);
+
+export type BusyRunChoice = 'queue' | 'replace' | 'dismiss';
 
 export type SessionPromptCommand = {
   type: 'session/prompt';
@@ -54,7 +53,7 @@ export function canConfirmReplaceRun(
   problem: ForegroundRunMismatchProblem,
 ): problem is ForegroundRunMismatchProblem & {
   data: {
-    reason: 'active' | 'transitioning';
+    reason: 'active';
     actualRun: { runId: string; status?: 'queued' | 'running' | 'cancelling' };
   };
 } {
@@ -87,6 +86,7 @@ export function foregroundMismatchNotice(
     case 'changed':
       return copy.foregroundMismatchChanged;
     case 'active':
+      return copy.busyOtherClient;
     case 'transitioning':
       return copy.foregroundReplaceDescription;
   }
@@ -97,11 +97,17 @@ export function supersededByNewPromptNotice(locale: DesktopLocale): string {
 }
 
 export async function requestPromptWithForeground(args: {
-  request: (command: SessionPromptCommand) => Promise<HostResponse>;
+  request: (
+    command: SessionPromptCommand,
+    options?: { idempotencyKey?: string },
+  ) => Promise<HostResponse>;
   sessionId: string;
   input: PromptInput;
+  resolveBusy?: (problem: ForegroundRunMismatchProblem) => Promise<BusyRunChoice>;
   confirmReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
+  onQueue?: (problem: ForegroundRunMismatchProblem) => Promise<HostResponse>;
   allowReplaceConfirm?: boolean;
+  createIdempotencyKey?: () => string;
   /**
    * Remote-only gate. When false, the Host hello lacked
    * `foregroundRunAdmission` and this client must not send prompts.
@@ -123,30 +129,59 @@ export async function requestPromptWithForeground(args: {
     sessionId: args.sessionId,
     input: args.input,
   };
-  const first = await args.request({
-    ...commandBase,
-    foreground: nextPromptForeground({}),
-  });
+  const nextKey = (): { idempotencyKey?: string } => {
+    const key = args.createIdempotencyKey?.();
+    return key === undefined ? {} : { idempotencyKey: key };
+  };
+  const first = await args.request(
+    {
+      ...commandBase,
+      foreground: nextPromptForeground({}),
+    },
+    nextKey(),
+  );
   const problem = readForegroundProblem(first);
   if (problem === undefined) {
     return first;
   }
-  if (
-    args.allowReplaceConfirm !== false &&
-    args.confirmReplace !== undefined &&
-    canConfirmReplaceRun(problem)
-  ) {
-    const confirmed = await args.confirmReplace(problem);
-    if (confirmed) {
-      return args.request({
+  if (args.allowReplaceConfirm === false) {
+    return first;
+  }
+  const choice = await resolveBusyChoice(problem, args);
+  if (choice === 'queue' && args.onQueue !== undefined) {
+    return args.onQueue(problem);
+  }
+  if (choice === 'replace' && canConfirmReplaceRun(problem)) {
+    return args.request(
+      {
         ...commandBase,
         foreground: nextPromptForeground({
           confirmedReplaceRunId: problem.data.actualRun.runId,
         }),
-      });
-    }
+      },
+      nextKey(),
+    );
   }
   return first;
+}
+
+async function resolveBusyChoice(
+  problem: ForegroundRunMismatchProblem,
+  args: {
+    resolveBusy?: (problem: ForegroundRunMismatchProblem) => Promise<BusyRunChoice>;
+    confirmReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
+  },
+): Promise<BusyRunChoice> {
+  if (!canConfirmReplaceRun(problem)) {
+    return 'dismiss';
+  }
+  if (args.resolveBusy !== undefined) {
+    return args.resolveBusy(problem);
+  }
+  if (args.confirmReplace !== undefined) {
+    return (await args.confirmReplace(problem)) ? 'replace' : 'dismiss';
+  }
+  return 'dismiss';
 }
 
 function parseForegroundProblem(value: unknown): ForegroundRunMismatchProblem | undefined {

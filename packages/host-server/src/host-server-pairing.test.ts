@@ -81,7 +81,7 @@ describe('HostServer pairing admission', () => {
     await expect(server.start()).rejects.toThrow('auth token or device pairing');
   });
 
-  it('enrolls once, reconnects with the issued secret, and still denies secrets/get', async () => {
+  it('enrolls once, reconnects with the issued secret, and admits operator settings', async () => {
     const pairing = new HostDevicePairing();
     const minted = pairing.mintToken();
     const runtime = new FakeRuntime();
@@ -146,9 +146,11 @@ describe('HostServer pairing admission', () => {
       }),
     );
     const denied = await firstInbox.waitFor(
-      (message) => message.type === 'error' && message.requestId === 'secrets-denied',
+      (message) =>
+        (message.type === 'response' || message.type === 'error') &&
+        message.requestId === 'secrets-denied',
     );
-    expect(denied).toMatchObject({ type: 'error', code: 'command-not-allowed' });
+    expect(denied).toMatchObject({ type: 'response' });
     firstSocket.close();
 
     const replay = await openHello(address.url, {

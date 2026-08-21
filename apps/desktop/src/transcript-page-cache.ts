@@ -1,3 +1,4 @@
+import type { SessionTranscriptMessage } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
 
 export const MAX_TRANSCRIPT_CACHE_MESSAGES = 160;
@@ -102,6 +103,34 @@ export function prependBoundedTranscriptPage(
 
 export function measureTranscriptCacheBytes(messages: readonly ChatMessageUi[]): number {
   return new TextEncoder().encode(JSON.stringify(messages)).byteLength;
+}
+
+/** Newest-first bound for Host transcript rows (inspector / raw session/messages). */
+export function retainBoundedSessionTranscript(
+  messages: readonly SessionTranscriptMessage[],
+): SessionTranscriptMessage[] {
+  const newest =
+    messages.length > MAX_TRANSCRIPT_CACHE_MESSAGES
+      ? messages.slice(-MAX_TRANSCRIPT_CACHE_MESSAGES)
+      : [...messages];
+  let retainedBytes = 2;
+  let start = 0;
+  for (let index = newest.length - 1; index >= 0; index -= 1) {
+    const message = newest[index];
+    if (message === undefined) {
+      continue;
+    }
+    const messageBytes = new TextEncoder().encode(JSON.stringify(message)).byteLength;
+    if (
+      retainedBytes + messageBytes + (retainedBytes === 2 ? 0 : 1) > MAX_TRANSCRIPT_CACHE_BYTES &&
+      index < newest.length - 1
+    ) {
+      start = index + 1;
+      break;
+    }
+    retainedBytes += messageBytes + (retainedBytes === 2 ? 0 : 1);
+  }
+  return start === 0 ? newest : newest.slice(start);
 }
 
 function measureTranscriptMessageBytes(message: ChatMessageUi): number {

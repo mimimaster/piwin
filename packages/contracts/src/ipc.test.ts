@@ -60,6 +60,18 @@ describe('ipc types', () => {
     expect(attachment.source).toBe('paste');
   });
 
+  it('maps a path-free remote media/save asset to a remote-asset ref', () => {
+    const attachment = toMediaAttachmentRef(
+      {
+        id: 'asset-9fc3',
+        mimeType: 'image/png',
+        byteSize: 78866,
+      },
+      'paste',
+    );
+    expect(attachment.path).toBe('remote-asset:asset-9fc3');
+  });
+
   it('accepts media/save command shape', () => {
     const command: HostCommand = {
       type: 'media/save',
@@ -118,6 +130,17 @@ describe('ipc types', () => {
     expect(sessionDuplicate.type).toBe('session/duplicate');
     expect(sessionSearch.type).toBe('session/search');
     expect(truncate.type).toBe('session/truncate-from');
+  });
+
+  it('accepts permissions rules get/set command shapes', () => {
+    const getRules: HostCommand = { type: 'permissions/get-rules', layer: 'user' };
+    const setRules: HostCommand = {
+      type: 'permissions/set-rules',
+      layer: 'user',
+      rules: { version: 1 },
+    };
+    expect(getRules.type).toBe('permissions/get-rules');
+    expect(setRules.type).toBe('permissions/set-rules');
   });
 
   it('accepts project permission list/revoke command shapes', () => {

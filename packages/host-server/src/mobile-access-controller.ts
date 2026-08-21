@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type {
   HostResponse,
   LocalMobileAccessCommand,
@@ -39,14 +40,15 @@ export type MobileAccessControllerOptions = {
 };
 
 /**
- * Owns one HostServer for the sidecar lifetime so listen toggles keep
- * hostInstanceId, pairing records, and replay state.
+ * Owns one HostServer for the sidecar lifetime. Listen toggles keep pairing
+ * records; stop destroys the server and rotates hostInstanceId so clients
+ * treat the next start as a new Host (fresh journal) instead of a future cursor.
  */
 export class MobileAccessController {
   private readonly runtime: HostRuntimePort;
   private readonly pairing: HostDevicePairing;
   private readonly pairingStore: HostDevicePairingFileStore | undefined;
-  private readonly instanceId: string;
+  private instanceId: string;
   private readonly bindHost: string;
   private readonly bindPort: number;
   private readonly onError: ((error: Error) => void) | undefined;
@@ -167,6 +169,9 @@ export class MobileAccessController {
     await this.persist();
     await this.server.stop(PHONE_ACCESS_DISABLED_REASON);
     this.server = undefined;
+    // Pairing records stay; journal does not. Rotate identity so reconnecting
+    // shells see host-instance-changed instead of a future cursor on seq 0.
+    this.instanceId = randomUUID();
     this.listening = false;
     this.bindAddress = undefined;
     this.advertisedEndpoint = undefined;

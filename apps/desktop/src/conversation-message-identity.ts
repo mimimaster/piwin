@@ -118,11 +118,7 @@ export function resolveConversationMessageModel(
     return input.message.model;
   }
 
-  if (
-    input.isStreaming &&
-    input.message.status === 'streaming' &&
-    input.livePromptModel
-  ) {
+  if (input.livePromptModel) {
     return input.livePromptModel;
   }
 

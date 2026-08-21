@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   HostClientHello,
   HostCommandFrame,
@@ -10,18 +10,22 @@ import type {
   HostResponseFrame,
   HostWireMessage,
 } from '@piwin/contracts';
-import type {
-  HostTransport,
-  HostTransportMessageListener,
-  HostTransportState,
-  HostTransportStateListener,
+import {
+  WebSocketHostTransport,
+  type HostTransport,
+  type HostTransportMessageListener,
+  type HostTransportState,
+  type HostTransportStateListener,
+  type WebSocketLike,
 } from '@piwin/host-transport';
-import { HostClient } from './host-client.js';
+import { HostClient, MAX_PENDING_PUSH_FRAMES } from './host-client.js';
 
 class FakeTransport implements HostTransport {
   public readonly sent: Array<HostCommandFrame | HostReplayFrame> = [];
   public nextHello: HostHello | undefined;
   public helloAtConnect: HostClientHello | undefined;
+  /** When true, connect() returns hello before emitting replay/done. */
+  public deferCatchUp = false;
   private helloFactory: ((lastSeq: number) => HostClientHello) | undefined;
   private lastSeq = 0;
   private readonly messageListeners = new Set<HostTransportMessageListener>();
@@ -56,8 +60,22 @@ class FakeTransport implements HostTransport {
       },
     };
     this.emit(hello);
+    if (!this.deferCatchUp) {
+      this.emitCatchUp(hello.currentSeq);
+    }
     this.emitState({ kind: 'open' });
     return hello;
+  }
+
+  public emitCatchUp(currentSeq = this.lastSeq): void {
+    this.emit({
+      type: 'replay/done',
+      requestId: 'fake-hello-replay',
+      fromSeq: this.lastSeq + 1,
+      toSeq: this.lastSeq,
+      currentSeq,
+      complete: true,
+    });
   }
 
   public send(message: HostCommandFrame | HostReplayFrame): void {
@@ -110,14 +128,14 @@ class FakeTransport implements HostTransport {
     this.emit(frame);
   }
 
-  public getConfiguredHello(): HostClientHello | undefined {
-    return this.helloFactory?.(this.lastSeq);
-  }
-
-  private emit(message: HostWireMessage): void {
+  public emit(message: HostWireMessage): void {
     for (const listener of this.messageListeners) {
       listener(message);
     }
+  }
+
+  public getConfiguredHello(): HostClientHello | undefined {
+    return this.helloFactory?.(this.lastSeq);
   }
 
   private emitState(state: HostTransportState): void {
@@ -149,6 +167,109 @@ describe('HostClient', () => {
     expect(response).toMatchObject({ success: true, command: 'host/ping' });
     expect(transport.sent[0]).toMatchObject({ command: { type: 'host/ping' } });
 
+    await client.close();
+  });
+
+  it('does not mint an idempotency key and fails remote mutations that omit one', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'mobile-test',
+      clientType: 'mobile',
+      clientVersion: 'test',
+    });
+    await client.connect();
+    const missing = await client.request({
+      type: 'session/prompt',
+      sessionId: 's1',
+      input: { text: 'hi' },
+      foreground: { kind: 'if-idle' },
+    });
+    expect(missing).toMatchObject({
+      success: false,
+      error: 'idempotency-key-required',
+      problem: { code: 'idempotency-key-required' },
+    });
+    expect(transport.sent).toHaveLength(0);
+
+    const ok = await client.request(
+      {
+        type: 'session/prompt',
+        sessionId: 's1',
+        input: { text: 'hi' },
+        foreground: { kind: 'if-idle' },
+      },
+      { idempotencyKey: 'gesture-1' },
+    );
+    expect(ok.success).toBe(true);
+    expect(transport.sent[0]).toMatchObject({
+      type: 'command',
+      idempotencyKey: 'gesture-1',
+      command: { type: 'session/prompt' },
+    });
+    await client.close();
+  });
+
+  it('rejects commands outside the negotiated ceiling without sending them', async () => {
+    const transport = new FakeTransport();
+    transport.nextHello = {
+      type: 'host/hello',
+      protocolVersion: 1,
+      hostInstanceId: 'host-command-ceiling',
+      currentSeq: 0,
+      authRequired: false,
+      authenticated: true,
+      capabilities: {
+        allowedCommands: ['host/ping'],
+        pushSequencing: true,
+        replay: true,
+        snapshot: true,
+        sessionRead: true,
+        sessionControl: false,
+        permissionResolve: false,
+        mediaUpload: false,
+      },
+    };
+    const client = new HostClient({
+      transport,
+      clientId: 'desktop-command-ceiling',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+
+    await client.connect();
+    expect(client.supportsCommand('host/ping')).toBe(true);
+    expect(client.supportsCommand('settings/get')).toBe(false);
+
+    const response = await client.request({ type: 'settings/get' });
+    expect(response).toMatchObject({
+      command: 'settings/get',
+      success: false,
+      error: 'This Host does not expose settings/get to remote clients',
+    });
+    expect(transport.sent).toEqual([]);
+    await client.close();
+  });
+
+  it('sends settings/get when the Host omitted the command ceiling', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'desktop-legacy-ceiling',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+
+    await client.connect();
+    expect(client.supportsCommand('host/status')).toBe(true);
+    expect(client.supportsCommand('settings/get')).toBe(true);
+    expect(client.supportsCommand('settings/apply')).toBe(true);
+
+    const response = await client.request({ type: 'settings/get' });
+    expect(response.success).toBe(true);
+    expect(transport.sent).toHaveLength(1);
+    const sent = transport.sent[0] as HostCommandFrame | undefined;
+    expect(sent?.command.type).toBe('settings/get');
     await client.close();
   });
 
@@ -226,6 +347,30 @@ describe('HostClient', () => {
     expect(received).toEqual([1, 2, 3]);
     expect(states).toContainEqual({ kind: 'resync-required', expectedSeq: 2, receivedSeq: 3 });
     expect(transport.sent.some((message) => message.type === 'replay')).toBe(true);
+
+    await client.close();
+  });
+
+  it('drops buffered out-of-order pushes once the pending cap is reached', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'desktop-test',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    const received: number[] = [];
+    client.subscribePush((_push, frame) => received.push(frame.seq));
+
+    await client.connect();
+    transport.emitPush(1);
+    for (let seq = 3; seq < 3 + MAX_PENDING_PUSH_FRAMES; seq += 1) {
+      transport.emitPush(seq);
+    }
+    transport.emitPush(3 + MAX_PENDING_PUSH_FRAMES);
+    transport.emitPush(2);
+
+    expect(received).toEqual([1, 2]);
 
     await client.close();
   });
@@ -340,6 +485,236 @@ describe('HostClient', () => {
         }),
     ).toThrow('exactly one admission key');
   });
+
+  it('keeps Transport lastSeq in sync so reconnect hellos use the live cursor', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'cursor-sync',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    await client.connect();
+    expect(client.getState().kind).toBe('ready');
+    transport.emitPush(1);
+    transport.emitPush(2);
+    expect(client.getLastSeq()).toBe(2);
+    expect(transport.getConfiguredHello()).toMatchObject({ lastSeq: 2 });
+    await client.close();
+  });
+
+  it('soft-fails durable cursor writes without publishing sticky error', async () => {
+    const transport = new FakeTransport();
+    const states: HostClientStateSnapshot[] = [];
+    const client = new HostClient({
+      transport,
+      clientId: 'cursor-soft-fail',
+      clientType: 'desktop',
+      clientVersion: 'test',
+      lastSeqStore: {
+        read: () => 0,
+        write: () => {
+          throw new Error('quota exceeded');
+        },
+      },
+    });
+    client.subscribeState((state) => states.push(state));
+    await client.connect();
+    expect(client.getState().kind).toBe('ready');
+    transport.emitPush(1);
+    expect(client.getLastSeq()).toBe(1);
+    expect(transport.getConfiguredHello()).toMatchObject({ lastSeq: 1 });
+    expect(states.some((state) => state.kind === 'error')).toBe(false);
+    expect(client.getState().kind).toBe('ready');
+    await client.close();
+  });
+
+  it('does not go sticky-error on an uncorrelated Host error after hello', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'uncorrelated-error',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    await client.connect();
+    expect(client.getState().kind).toBe('ready');
+    transport.emit({
+      type: 'error',
+      code: 'request-failed',
+      message: 'Remote media asset is not available on this Host',
+    });
+    expect(client.getState().kind).toBe('ready');
+    await client.close();
+  });
+
+  it('does not close the socket when catch-up exceeds the request timeout', async () => {
+    const transport = new FakeTransport();
+    transport.deferCatchUp = true;
+    const close = vi.spyOn(transport, 'close');
+    const client = new HostClient({
+      transport,
+      clientId: 'catch-up-timeout',
+      clientType: 'desktop',
+      clientVersion: 'test',
+      requestTimeoutMs: 20,
+    });
+    await client.connect();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 40);
+    });
+    expect(client.getState().kind).toBe('connecting');
+    expect(close).not.toHaveBeenCalled();
+    transport.emitCatchUp();
+    await vi.waitFor(() => {
+      expect(client.getState().kind).toBe('ready');
+    });
+    await client.close();
+  });
+
+  it('returns from connect after hello without waiting for a delayed catch-up', async () => {
+    const transport = new FakeTransport();
+    transport.deferCatchUp = true;
+    const client = new HostClient({
+      transport,
+      clientId: 'hello-first',
+      clientType: 'desktop',
+      clientVersion: 'test',
+      requestTimeoutMs: 5_000,
+    });
+    const pending = client.connect();
+    await expect(pending).resolves.toMatchObject({ type: 'host/hello' });
+    expect(client.getState().kind).toBe('connecting');
+    expect(client.getHostHello()?.hostInstanceId).toBe('host-test');
+    transport.emitCatchUp();
+    await vi.waitFor(() => {
+      expect(client.getState().kind).toBe('ready');
+    });
+    await client.close();
+  });
+
+  it('clamps a future cursor when Host currentSeq is behind the stored cursor', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'future-cursor',
+      clientType: 'desktop',
+      clientVersion: 'test',
+      lastSeqStore: {
+        read: () => 99,
+        write: () => undefined,
+      },
+    });
+    transport.nextHello = {
+      type: 'host/hello',
+      protocolVersion: 1,
+      hostInstanceId: 'host-restarted',
+      currentSeq: 3,
+      authRequired: false,
+      authenticated: true,
+      capabilities: {
+        pushSequencing: true,
+        replay: true,
+        snapshot: true,
+        sessionRead: true,
+        sessionControl: false,
+        permissionResolve: false,
+        mediaUpload: false,
+      },
+    };
+    await client.connect();
+    expect(client.getLastSeq()).toBe(3);
+    await client.close();
+  });
+
+  it('connects after the first dial fails when the transport auto-reconnects', async () => {
+    const sockets: RetryFakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      reconnectMinDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      webSocketFactory: () => {
+        const socket = new RetryFakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    const client = new HostClient({
+      transport,
+      clientId: 'cold-host',
+      clientType: 'desktop',
+      clientVersion: 'test',
+    });
+    const pending = client.connect();
+    const first = sockets[0];
+    if (first === undefined) {
+      throw new Error('Expected the first fake socket');
+    }
+    first.emitClose(1006, 'connection refused');
+    await vi.waitFor(() => {
+      expect(sockets.length).toBe(2);
+    });
+    const second = sockets[1];
+    if (second === undefined) {
+      throw new Error('Expected a retry socket');
+    }
+    second.emitOpen();
+    second.emitHello('host-late');
+    await expect(pending).resolves.toMatchObject({ hostInstanceId: 'host-late' });
+    expect(client.getHostHello()?.hostInstanceId).toBe('host-late');
+    await client.close();
+  });
 });
+
+class RetryFakeSocket implements WebSocketLike {
+  public readonly sent: string[] = [];
+  public readyState = 0;
+  public onopen: (() => void) | null = null;
+  public onmessage: ((event: { data: unknown }) => void) | null = null;
+  public onerror: ((event: unknown) => void) | null = null;
+  public onclose: ((event: { code: number; reason: string }) => void) | null = null;
+
+  public send(data: string): void {
+    this.sent.push(data);
+  }
+
+  public close(code = 1000, reason = 'closed'): void {
+    this.readyState = 3;
+    this.onclose?.({ code, reason });
+  }
+
+  public emitOpen(): void {
+    this.readyState = 1;
+    this.onopen?.();
+  }
+
+  public emitClose(code = 1006, reason = 'network'): void {
+    this.readyState = 3;
+    this.onclose?.({ code, reason });
+  }
+
+  public emitHello(hostInstanceId: string): void {
+    this.onmessage?.({
+      data: JSON.stringify({
+        type: 'host/hello',
+        protocolVersion: 1,
+        hostInstanceId,
+        currentSeq: 0,
+        authRequired: false,
+        authenticated: true,
+        capabilities: {
+          pushSequencing: true,
+          replay: true,
+          snapshot: true,
+          sessionRead: true,
+          sessionControl: false,
+          permissionResolve: false,
+          mediaUpload: false,
+        },
+      }),
+    });
+  }
+}
 
 type HostClientStateSnapshot = ReturnType<HostClient['getState']>;

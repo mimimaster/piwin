@@ -5,13 +5,14 @@ import type { ModelConfigEntry, ModelProviderConfig, PiwinConfig } from '@piwin/
 import { StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import { ProviderSettings } from '../../ProviderSettings';
 import { VisionDelegationSettings } from '../../VisionDelegationSettings';
+import { ReplyWriterSettings } from '../../ReplyWriterSettings';
 import { ImageGenerationSettings } from '../../ImageGenerationSettings';
 import { VideoGenerationSettings } from '../../VideoGenerationSettings';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
 import { AsrModelSettings } from '../asr-model-settings.js';
 
-type ModelTab = 'text' | 'vision' | 'image' | 'video' | 'speech';
+type ModelTab = 'text' | 'vision' | 'writer' | 'image' | 'video' | 'speech';
 type CapabilityKind = ModelTab;
 
 type ModelTarget = {
@@ -177,6 +178,7 @@ export function ModelsPage(): ReactElement {
     testProviderModel,
     searchModelCatalog,
     storeProviderSecret,
+    remoteSettingsReadOnly,
   } = useSettings();
   const [activeTab, setActiveTab] = useState<ModelTab>('text');
 
@@ -272,6 +274,17 @@ export function ModelsPage(): ReactElement {
               testId="model-config-tab-vision"
             />
             <WorkspaceNavItem
+              value="writer"
+              kind="writer"
+              title={isChinese ? '输出委托' : 'Reply writer'}
+              description={
+                isChinese ? '干活模型之后用写作模型改写可见回复' : 'Rewrite the visible reply after the worker turn'
+              }
+              count={config.replyWriter?.enabled ? 1 : 0}
+              defaultLabel={config.replyWriter?.enabled ? (isChinese ? '已启用' : 'Enabled') : (isChinese ? '未启用' : 'Disabled')}
+              testId="model-config-tab-writer"
+            />
+            <WorkspaceNavItem
               value="image"
               kind="image"
               title={isChinese ? '图片生成' : 'Images'}
@@ -310,7 +323,7 @@ export function ModelsPage(): ReactElement {
             <div className="settings-card settings-card-flush" data-testid="settings-provider-card">
               <ProviderSettings
                 config={config}
-                saving={saving}
+                saving={saving || remoteSettingsReadOnly === true}
                 onSave={saveConfig}
                 onError={setError}
                 onInfo={setInfo}
@@ -332,6 +345,16 @@ export function ModelsPage(): ReactElement {
           >
             <div className="settings-section settings-section-card" data-testid="settings-vision-page">
               <VisionDelegationSettings />
+            </div>
+          </TabsContent>
+
+          <TabsContent
+            value="writer"
+            className="model-management-tab-content"
+            testId="model-config-panel-writer"
+          >
+            <div className="settings-section settings-section-card" data-testid="settings-reply-writer-page">
+              <ReplyWriterSettings />
             </div>
           </TabsContent>
 
@@ -358,7 +381,7 @@ export function ModelsPage(): ReactElement {
           >
             <AsrModelSettings
               config={config}
-              saving={saving}
+                saving={saving || remoteSettingsReadOnly === true}
               onSave={saveConfig}
               onError={setError}
               onInfo={setInfo}
@@ -421,6 +444,12 @@ function ModelCapabilityIcon(props: { kind: CapabilityKind }): ReactElement {
       <>
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    writer: (
+      <>
+        <path d="M4 19.5 14.5 9 17 11.5 6.5 22H4z" />
+        <path d="m13.2 7.7 2.3-2.3a1.5 1.5 0 0 1 2.1 0l1 1a1.5 1.5 0 0 1 0 2.1l-2.3 2.3" />
       </>
     ),
     image: (

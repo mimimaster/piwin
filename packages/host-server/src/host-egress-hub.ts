@@ -238,7 +238,11 @@ export class HostEgressHub {
     currentSeq: number;
   } {
     const records = this.journal.listSince(sinceSeq).map((sequence) => this.toRecord(sequence));
-    return { complete: this.journal.isCompleteSince(sinceSeq), records, currentSeq: this.sequence };
+    // Empty/expired journals are incomplete whenever the client is behind the
+    // live head — otherwise reconnects skip hydration and filter new pushes.
+    const complete =
+      sinceSeq >= this.sequence || this.journal.isCompleteSince(sinceSeq);
+    return { complete, records, currentSeq: this.sequence };
   }
 
   public selectReplay(sinceSeq: number): {

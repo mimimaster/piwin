@@ -109,4 +109,38 @@ describe('createBrowserController', () => {
     controller.takeOver();
     expect(controller.release('user')).toEqual({ owner: 'agent', agentWantsLock: true });
   });
+
+  it('stamps holderRunId only on idle to agent', () => {
+    const controller = createBrowserController();
+    controller.acquire('agent', 'parent');
+    expect(controller.holderRunId()).toBe('parent');
+    controller.acquire('agent', 'child');
+    expect(controller.holderRunId()).toBe('parent');
+  });
+
+  it('releaseAgentControlIfHeldBy ignores other runs', () => {
+    const controller = createBrowserController();
+    controller.acquire('agent', 'parent');
+    expect(controller.releaseAgentControlIfHeldBy('child')).toEqual({
+      owner: 'agent',
+      agentWantsLock: true,
+    });
+    expect(controller.holderRunId()).toBe('parent');
+    expect(controller.releaseAgentControlIfHeldBy('parent')).toEqual({
+      owner: 'idle',
+      agentWantsLock: false,
+    });
+    expect(controller.holderRunId()).toBeUndefined();
+  });
+
+  it('releaseAgentControlIfHeldBy after takeOver keeps user and clears the claim', () => {
+    const controller = createBrowserController();
+    controller.acquire('agent', 'parent');
+    controller.takeOver();
+    expect(controller.releaseAgentControlIfHeldBy('parent')).toEqual({
+      owner: 'user',
+      agentWantsLock: false,
+    });
+    expect(controller.giveBack()).toEqual({ owner: 'idle', agentWantsLock: false });
+  });
 });

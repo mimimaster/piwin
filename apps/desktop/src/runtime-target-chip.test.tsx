@@ -110,4 +110,30 @@ describe('RuntimeTargetChip', () => {
     });
     expect(onSelectLocal).toHaveBeenCalledOnce();
   });
+
+  it('offers attach when running on the local sidecar', () => {
+    const onSelectAttach = vi.fn();
+    const rendered = renderChip(<RuntimeTargetChip onSelectAttach={onSelectAttach} />, 'zh-CN');
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector(
+      '[data-testid="composer-runtime-target"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      trigger?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false }),
+      );
+    });
+
+    const attachItem = document.querySelector(
+      '[data-testid="composer-runtime-attach-item"]',
+    ) as HTMLElement | null;
+    expect(attachItem).not.toBeNull();
+    expect(attachItem?.hasAttribute('data-disabled')).toBe(false);
+    act(() => {
+      attachItem?.click();
+    });
+    expect(onSelectAttach).toHaveBeenCalledOnce();
+  });
 });

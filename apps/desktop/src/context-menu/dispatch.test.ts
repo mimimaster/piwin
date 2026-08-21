@@ -60,6 +60,23 @@ const codeBlockTarget: ContextMenuTarget = {
 };
 
 describe('dispatchContextMenuAction', () => {
+  it('add-to-chat on a transcript selection only adds a capsule', () => {
+    const dispatchers = createDispatchers();
+    const transcriptSelection: ContextMenuTarget = {
+      surface: 'selection',
+      selectedText: 'the number 42',
+      label: 'the number 42',
+    };
+    dispatchContextMenuAction('add-to-chat', transcriptSelection, dispatchers);
+    expect(dispatchers.addToChat).toHaveBeenCalledWith({
+      kind: 'selection',
+      snapshotText: 'the number 42',
+      label: 'the number 42',
+    });
+    expect(dispatchers.quoteInComposer).not.toHaveBeenCalled();
+    expect(dispatchers.sendPreset).not.toHaveBeenCalled();
+  });
+
   it('add-to-chat maps target to a ref and does not send', () => {
     const dispatchers = createDispatchers();
     dispatchContextMenuAction('add-to-chat', fileTarget, dispatchers);

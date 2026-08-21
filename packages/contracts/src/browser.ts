@@ -69,6 +69,8 @@ export type BrowserControllerPush = {
 /** Model-facing byte caps for picked web-element payloads. */
 export const MAX_WEB_ELEMENT_TEXT_BYTES = 2 * 1024; // ~2 KB
 export const MAX_WEB_ELEMENT_HTML_BYTES = 8 * 1024; // ~8 KB
+/** Workbench IME / paste insertText budget (Desktop + Host dispatch). */
+export const MAX_BROWSER_INSERT_TEXT_BYTES = 8 * 1024;
 
 const TRUNCATION_MARKER = '…';
 

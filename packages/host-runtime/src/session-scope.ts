@@ -58,6 +58,15 @@ export async function resolveSessionLocation(
   };
 }
 
+/** Drop the remote locator after Host has bound it to a filesystem path. */
+export function stripBoundProjectId(input: CreateSessionInput): CreateSessionInput {
+  if (input.projectId === undefined) {
+    return input;
+  }
+  const { projectId: _projectId, ...rest } = input;
+  return rest;
+}
+
 async function bindProjectIdToScope(
   input: CreateSessionInput,
   piwinRoot?: string,
@@ -66,16 +75,21 @@ async function bindProjectIdToScope(
   if (!projectId) {
     return input;
   }
-  if (input.scope?.kind === 'project' || (input.projectPath?.trim().length ?? 0) > 0) {
-    throw new Error('projectId cannot be combined with projectPath');
-  }
   const projects = await listProjects(getPiwinProjectsPath(getPiwinRoot(piwinRoot)));
   const match = projects.find((project) => createRemoteProjectId(project.path) === projectId);
   if (match === undefined) {
     throw new Error('Unknown project');
   }
+  const existingPath =
+    input.scope?.kind === 'project' ? input.scope.projectPath.trim() : input.projectPath?.trim();
+  if (existingPath && existingPath !== match.path) {
+    throw new Error('projectId cannot be combined with projectPath');
+  }
+  // Remote create sends projectId only. The live command then stamps the
+  // resolved path onto scope/projectPath and compileBlueprint resolves again.
+  // Drop the locator so the second pass is not treated as a mixed payload.
   return {
-    ...input,
+    ...stripBoundProjectId(input),
     scope: { kind: 'project', projectPath: match.path },
   };
 }

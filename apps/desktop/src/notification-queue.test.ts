@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEmptyNotificationState,
+  emitDesktopNotification,
   notificationReducer,
   pushError,
+  pushInfo,
   pushSuccess,
+  pushWarning,
 } from './notification-queue';
 
 describe('notificationReducer', () => {
@@ -34,5 +37,22 @@ describe('notificationReducer', () => {
   it('success defaults auto-dismiss ttl', () => {
     const state = notificationReducer(createEmptyNotificationState(), pushSuccess('saved'));
     expect(state.items[0]?.ttlMs).toBeGreaterThan(0);
+  });
+
+  it('supports pushWarning and pushInfo action creators', () => {
+    let state = createEmptyNotificationState();
+    state = notificationReducer(state, pushWarning('disk almost full'));
+    state = notificationReducer(state, pushInfo('indexing done'));
+
+    expect(state.items).toHaveLength(2);
+    expect(state.items[0]?.level).toBe('info');
+    expect(state.items[0]?.message).toBe('indexing done');
+    expect(state.items[1]?.level).toBe('warning');
+    expect(state.items[1]?.message).toBe('disk almost full');
+  });
+
+  it('emitDesktopNotification safely returns id even in non-DOM', () => {
+    const id = emitDesktopNotification({ level: 'info', message: 'hello' });
+    expect(typeof id).toBe('string');
   });
 });

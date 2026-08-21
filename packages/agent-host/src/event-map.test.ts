@@ -24,6 +24,30 @@ describe('mapPiSessionEvent', () => {
     expect(events).toEqual([{ type: 'message/text_delta', messageId: 'm1', delta: 'hello' }]);
   });
 
+  it('reads nested tool args so silent shell/file tools still get a transcript', () => {
+    const nested = mapPiSessionEvent({
+      type: 'tool_execution_start',
+      toolCallId: 'copy-1',
+      toolName: 'bash',
+      toolCall: { arguments: { command: 'cp shot.png docs/shot.png' } },
+    });
+    expect(nested[0]).toMatchObject({
+      type: 'tool/start',
+      presentation: { command: 'cp shot.png docs/shot.png' },
+    });
+
+    const jsonArgs = mapPiSessionEvent({
+      type: 'tool_execution_start',
+      toolCallId: 'write-1',
+      toolName: 'write_file',
+      args: '{"path":"README.md","content":"# hi"}',
+    });
+    expect(jsonArgs[0]).toMatchObject({
+      type: 'tool/start',
+      presentation: { targetPaths: ['README.md'], changedPaths: ['README.md'] },
+    });
+  });
+
   it('reconstructs assistant content carried only by message_end', () => {
     const mapper = createPiSessionEventMapper();
     const events = mapper
@@ -59,6 +83,142 @@ describe('mapPiSessionEvent', () => {
       messageId: 'm-final',
       role: 'assistant',
     });
+  });
+
+  it('surfaces an error event when the assistant message ends with stopReason error', () => {
+    // Provider rejections (e.g. instant 400) arrive as stopReason:'error' on
+    // the recorded message, not as a standalone Pi error event.
+    const mapper = createPiSessionEventMapper();
+    const events = mapper
+      .map({
+        type: 'message_end',
+        messageId: 'm-failed',
+        message: {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: '400: model_not_found',
+        },
+      })
+      .map((wrapped) => wrapped.event);
+
+    expect(events.slice(0, 2)).toEqual([
+      { type: 'message/end', messageId: 'm-failed' },
+      { type: 'error', message: '400: model_not_found' },
+    ]);
+    expect(events.filter((event) => event.type === 'error')).toHaveLength(1);
+  });
+
+  it('pulls nested provider error objects and aborted details through to AgentEvent', () => {
+    const nested = mapPiSessionEvent({
+      type: 'message_end',
+      messageId: 'm-nested',
+      message: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'error',
+        error: {
+          message: 'No endpoints available matching your guardrail restrictions and data policy',
+        },
+      },
+    });
+    expect(nested.filter((event) => event.type === 'error')).toEqual([
+      {
+        type: 'error',
+        message: 'No endpoints available matching your guardrail restrictions and data policy',
+      },
+    ]);
+
+    const aborted = mapPiSessionEvent({
+      type: 'message_end',
+      messageId: 'm-aborted',
+      message: {
+        role: 'assistant',
+        content: [],
+        stopReason: 'aborted',
+        errorMessage: 'stream closed by gateway: timeout',
+      },
+    });
+    expect(aborted.filter((event) => event.type === 'error')).toEqual([
+      { type: 'error', message: 'stream closed by gateway: timeout' },
+    ]);
+  });
+
+  it('recovers provider errors from agent_end when message_end omitted stopReason', () => {
+    const mapper = createPiSessionEventMapper();
+    const events = mapper
+      .map({
+        type: 'agent_end',
+        sessionId: 'session-1',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            stopReason: 'error',
+            errorMessage: '401: Invalid Authentication',
+          },
+        ],
+      })
+      .map((wrapped) => wrapped.event);
+
+    expect(events.filter((event) => event.type === 'error')).toEqual([
+      { type: 'error', message: '401: Invalid Authentication' },
+    ]);
+  });
+
+  it('dedupes identical provider errors across message_end and agent_end', () => {
+    const mapper = createPiSessionEventMapper();
+    const first = mapper
+      .map({
+        type: 'message_end',
+        messageId: 'm-dup',
+        message: {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: '429: rate limited',
+        },
+      })
+      .map((wrapped) => wrapped.event);
+    const second = mapper
+      .map({
+        type: 'agent_end',
+        sessionId: 'session-1',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            stopReason: 'error',
+            errorMessage: '429: rate limited',
+          },
+        ],
+      })
+      .map((wrapped) => wrapped.event);
+
+    expect(first.filter((event) => event.type === 'error')).toHaveLength(1);
+    expect(second.filter((event) => event.type === 'error')).toHaveLength(0);
+  });
+
+  it('maps standalone Pi error events including errorMessage aliases', () => {
+    expect(
+      mapPiSessionEvent({
+        type: 'error',
+        errorMessage: 'provider rejected request',
+      }),
+    ).toEqual([{ type: 'error', message: 'provider rejected request', retriable: false }]);
+  });
+
+  it('does not invent errors for assistant messages that end normally', () => {
+    const events = mapPiSessionEvent({
+      type: 'message_end',
+      messageId: 'm-ok',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'done' }],
+        stopReason: 'stop',
+      },
+    });
+    expect(events.some((event) => event.type === 'error')).toBe(false);
   });
 
   it('maps only normalized search evidence from assistant message metadata', () => {

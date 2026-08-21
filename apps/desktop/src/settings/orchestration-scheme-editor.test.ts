@@ -7,10 +7,12 @@ import {
 } from './orchestration-scheme-editor';
 
 describe('orchestration scheme editor helpers', () => {
-  it('turns ultra builtin into an editable draft with searcher', () => {
+  it('turns ultra builtin into an editable draft with scout', () => {
     const draft = schemeToEditableDraft(BUILTIN_ULTRA_CODE_SCHEME);
     expect(draft.id).toBe('ultra-code');
-    expect(draft.members?.[0]?.role).toBe('searcher');
+    expect(draft.members?.[0]?.role).toBe('scout');
+    expect(draft.members?.[0]?.reportContract).toMatch(/complete \| partial \| blocked/);
+    expect(draft.systemPreamble).toMatch(/foundational/i);
     expect(draft.systemPreamble.length).toBeGreaterThan(20);
     expect(validateSchemeDraft(draft)).toBeUndefined();
   });

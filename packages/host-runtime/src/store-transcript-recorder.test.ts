@@ -648,4 +648,87 @@ describe('createStoreTranscriptRecorder', () => {
     recorder.dispose();
     store.close();
   });
+
+  it('persists a synthetic error bubble when the provider fails with no assistant row', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-silent-error-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-silent-error',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-silent-error',
+    });
+
+    try {
+      await recorder.recordUserPrompt({ text: 'ping' });
+      await recorder.recordEvent({
+        type: 'error',
+        message: 'No endpoints available matching your guardrail',
+        retriable: true,
+        runId: 'run-silent',
+      });
+      await recorder.flush();
+
+      const messages = await store.listTail(10);
+      expect(messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', text: 'ping' }),
+          expect.objectContaining({
+            role: 'assistant',
+            status: 'error',
+            terminalMessage: 'No endpoints available matching your guardrail',
+            outcome: 'failed',
+            runId: 'run-silent',
+          }),
+        ]),
+      );
+    } finally {
+      recorder.dispose();
+      store.close();
+    }
+  });
+
+  it('does not prune an empty assistant after it is marked as a failed generation', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-keep-error-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-keep-error',
+      projectPath: '/project',
+    });
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-keep-error',
+    });
+
+    try {
+      await recorder.recordEvent({
+        type: 'message/start',
+        messageId: 'assistant-empty',
+        role: 'assistant',
+        runId: 'run-empty',
+      });
+      await recorder.recordEvent({
+        type: 'message/end',
+        messageId: 'assistant-empty',
+        runId: 'run-empty',
+      });
+      await recorder.recordEvent({
+        type: 'error',
+        message: 'provider 404',
+        runId: 'run-empty',
+      });
+      await recorder.flush();
+
+      expect(await store.getMessage('assistant-empty')).toMatchObject({
+        status: 'error',
+        terminalMessage: 'provider 404',
+        outcome: 'failed',
+      });
+    } finally {
+      recorder.dispose();
+      store.close();
+    }
+  });
 });

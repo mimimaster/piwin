@@ -48,4 +48,48 @@ describe('ProviderIcon', () => {
     expect(azure).toContain('data-provider-brand=');
     expect(azure).toContain('<svg');
   });
+
+  it('resolves official brand icon from modelId when provider is custom/proxy', () => {
+    const geminiProxy = renderToStaticMarkup(
+      createElement(ProviderIcon, {
+        id: 'cpa',
+        name: 'Cpa',
+        modelId: 'gemini-3.7-flash-high',
+      }),
+    );
+    expect(geminiProxy).toContain('data-provider-brand="Gemini"');
+    expect(geminiProxy).toContain('<svg');
+
+    const claudeProxy = renderToStaticMarkup(
+      createElement(ProviderIcon, {
+        id: 'custom-relay',
+        name: 'Relay',
+        modelId: 'claude-3-7-sonnet-20250219',
+      }),
+    );
+    expect(claudeProxy).toContain('data-provider-brand="Anthropic"');
+
+    const deepseekProxy = renderToStaticMarkup(
+      createElement(ProviderIcon, {
+        id: 'custom-relay',
+        modelId: 'deepseek-reasoner',
+      }),
+    );
+    expect(deepseekProxy).toContain('data-provider-brand="DeepSeek"');
+  });
+
+  it('resolves Zhipu brand icon for zhipu preset and glm models', () => {
+    const zhipu = renderToStaticMarkup(createElement(ProviderIcon, { id: 'zhipu' }));
+    expect(zhipu).toContain('data-provider-icon="zhipu"');
+    expect(zhipu).toContain('data-provider-brand="Zhipu"');
+    expect(zhipu).toContain('<svg');
+
+    const glmProxy = renderToStaticMarkup(
+      createElement(ProviderIcon, {
+        id: 'custom-relay',
+        modelId: 'glm-4-plus',
+      }),
+    );
+    expect(glmProxy).toContain('data-provider-brand="Zhipu"');
+  });
 });

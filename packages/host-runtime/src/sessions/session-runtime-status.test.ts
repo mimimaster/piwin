@@ -38,6 +38,7 @@ describe('runtime stale domain classification (contracts)', () => {
       'artifact',
       'media',
       'visionDelegation',
+      'replyWriter',
       'automation',
       'mcp',
     ]) {

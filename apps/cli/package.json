@@ -18,20 +18,24 @@
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",
     "@piwin/flashcards": "workspace:*",
+    "@piwin/host-client": "workspace:*",
     "@piwin/host-runtime": "workspace:*",
     "@piwin/host-server": "workspace:*",
+    "@piwin/host-transport": "workspace:*",
     "@piwin/marketplace": "workspace:*",
     "@piwin/mcp": "workspace:*",
     "@piwin/media": "workspace:*",
     "@piwin/notes": "workspace:*",
     "@piwin/pet": "workspace:*",
     "@piwin/skills": "workspace:*",
-    "@piwin/theme": "workspace:*"
+    "@piwin/theme": "workspace:*",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5",
-    "@types/node": "^22.10.5"
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.18.1"
   }
 }

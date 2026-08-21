@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HostPushBatchFrame, HostResponse, HostServerMessage } from '@piwin/contracts';
-import { HostClient } from './host-client';
+import { HostClient, mergeRemoteCapabilities } from './host-client';
 
 const invokeMock = vi.fn();
 const listenMock = vi.fn();
@@ -282,6 +282,45 @@ describe('HostClient', () => {
     expect(client.supportsForegroundAdmission()).toBe(false);
     const response = await client.request({ type: 'host/ping' });
     expect(response.success).toBe(false);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
+  it('drops a previous remote command ceiling when the Host hello omits one', () => {
+    const previous = {
+      allowedCommands: ['host/ping'] as const,
+      pushSequencing: true,
+      replay: true,
+      snapshot: true,
+      sessionRead: true,
+      sessionControl: true,
+      permissionResolve: true,
+      mediaUpload: false,
+    };
+    const next = {
+      pushSequencing: true,
+      replay: true,
+      snapshot: true,
+      sessionRead: true,
+      sessionControl: true,
+      permissionResolve: true,
+      mediaUpload: true,
+    };
+    expect(mergeRemoteCapabilities(previous, next).allowedCommands).toBeUndefined();
+  });
+
+  it('does not send remote commands the Host did not advertise', async () => {
+    const remote = new HostClient({
+      transport: 'remote',
+      remoteTarget: { endpoint: 'ws://127.0.0.1:8787' },
+    });
+    (remote as unknown as { remoteCapabilities: { allowedCommands: ['host/ping'] } }).remoteCapabilities =
+      { allowedCommands: ['host/ping'] };
+    const denied = await remote.request({ type: 'theme/get-active' });
+    expect(denied).toMatchObject({
+      success: false,
+      command: 'theme/get-active',
+      error: 'This Host does not expose theme/get-active to remote clients',
+    });
     expect(invokeMock).not.toHaveBeenCalled();
   });
 

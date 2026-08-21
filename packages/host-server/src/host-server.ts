@@ -36,7 +36,7 @@ import {
 import type { HostRuntime } from '@piwin/host-runtime';
 import { isRemoteProjectId } from '@piwin/host-runtime';
 import { WebSocket, WebSocketServer } from 'ws';
-import { decodeHostWireMessage, encodeHostWireMessage } from '@piwin/host-transport';
+import { decodeHostWireMessage, encodeHostWireMessage, HOST_WIRE_HARD_FRAME_BYTES, HostProtocolError } from '@piwin/host-transport';
 import {
   createRemoteCapabilities,
   projectRemotePush,
@@ -48,9 +48,25 @@ import {
 import { HostEgressChannel } from './host-egress-channel.js';
 import { HostEgressHub } from './host-egress-hub.js';
 import { HostReplayJournal } from './host-replay-journal.js';
+import { areSafeRemoteContextRefs } from './remote-context-ref.js';
+import {
+  createRemoteCommandDigest,
+  remoteCommandRequiresIdempotencyKey,
+} from './remote-idempotency.js';
+import { isSafeRemoteSettingsApply } from './remote-settings-apply.js';
+import { isSafeRemotePermissionRulesCommand } from './remote-permission-rules.js';
 import type { HostDevicePairing } from './device-pairing.js';
 import type { HostDevicePairingFileStore } from './device-pairing-store.js';
 import { authenticateHostHello } from './host-hello-auth.js';
+import {
+  compareClientVersions,
+  HOST_IDLE_CONNECTION_MS,
+  HOST_LIVENESS_SWEEP_MS,
+  HOST_SOCKET_SEND_BUDGET_BYTES,
+  isHostIngressBypassCommand,
+  waitForSocketSendBudget,
+  type HostConnectionEvent,
+} from './host-connection-lifecycle.js';
 
 export type HostRuntimePort = Pick<HostRuntime, 'handleCommand' | 'attachPushSink'>;
 
@@ -67,16 +83,17 @@ export type HostServerOptions = {
   /** Browser Origin allowlist; absent Origin remains valid for CLI/Node clients. */
   allowedOrigins?: readonly string[];
   /**
-   * ADR 0047 §12: extension activation executes code on the Host, so remote
-   * `extensions/set_enabled` / `extensions/apply` stay denied unless the
-   * operator opts in explicitly. Observation (`extensions/list`) is always
-   * allowed. Remote install stays denied unconditionally.
+   * Accepted for compatibility. Admitted clients already receive the full
+   * command surface. This is not a guest role.
    */
   allowRemoteExtensionActivation?: boolean;
   maxReplay?: number;
   maxClientQueueItems?: number;
   maxClientQueueBytes?: number;
+  hostBuildId?: string;
+  minClientVersion?: string;
   onError?: (error: Error) => void;
+  onConnectionEvent?: (event: HostConnectionEvent) => void;
 };
 
 export type HostServerAddress = {
@@ -95,10 +112,15 @@ type ClientConnection = {
   egressDetach: () => void;
   deviceId: string | undefined;
   idempotencyScope: string;
+  connectionId: string;
+  clientId: string | undefined;
+  lastInboundAt: number;
+  ingressTail: Promise<void>;
 };
 
 type CachedResponse = {
   response: HostResponse;
+  digest: string;
   expiresAt: number;
 };
 
@@ -115,69 +137,11 @@ const MAX_HYDRATION_TEXT_BYTES = 16 * 1024;
 const MAX_HYDRATION_THINKING_BYTES = 8 * 1024;
 const MAX_HYDRATION_FRAME_BYTES = 900 * 1024;
 const OPEN_READY_STATE = 1;
+const CONNECTING_READY_STATE = 0;
 
-const DEFAULT_ALLOWED_COMMANDS = new Set<HostCommand['type']>([
-  'host/ping',
-  'host/status',
-  'activity/summary',
-  'project/list',
-  'project/remove',
-  'session/list',
-  'session/list-page',
-  'session/create',
-  'session/resume',
-  'session/user-message-index',
-  'session/transcript-page',
-  'session/transcript-window',
-  'session/messages',
-  'session/queued-turn-submit',
-  'session/queued-turn-list',
-  'session/queued-turn-edit',
-  'session/queued-turn-cancel',
-  'session/queued-turn-reorder',
-  'session/replace-run',
-  'session/model-context-summary',
-  'models/configured',
-  'session/prompt',
-  'session/pause',
-  'session/resume-run',
-  'session/abort',
-  'session/steer',
-  'session/follow_up',
-  'run/intervention-submit',
-  'run/intervention-edit',
-  'run/intervention-cancel',
-  'session/runtime-status',
-  'session/pin',
-  'session/unpin',
-  'session/rename',
-  'session/archive',
-  'session/unarchive',
-  'session/delete',
-  'session/tool-output',
-  'session/cold-storage-status',
-  'session/cold-storage-plan',
-  'session/cold-storage-execute',
-  'session/cold-storage-restore',
-  'session/cold-storage-import',
-  'session/cold-storage-reconcile',
-  'permission/resolve',
-  'media/save',
-  'media/read',
-  'preview/read-trusted-text',
-  'skills/read',
-  'extensions/list',
-]);
-
-/**
- * Commands that activate extension code on the Host. Excluded from the
- * default allowlist (ADR 0047 §12) and enabled only through the explicit
- * `allowRemoteExtensionActivation` operator opt-in.
- */
-const EXTENSION_ACTIVATION_COMMANDS: readonly HostCommand['type'][] = [
-  'extensions/set_enabled',
-  'extensions/apply',
-];
+// Admitted clients are the operator. There is no guest command ceiling;
+// hello omits `allowedCommands`. Payload checks in isSafeRemoteCommand remain
+// (size caps, path traversal), not a role.
 
 export class HostServer {
   private readonly runtime: HostRuntimePort;
@@ -189,14 +153,18 @@ export class HostServer {
   private readonly devicePairing: HostDevicePairing | undefined;
   private readonly devicePairingStore: HostDevicePairingFileStore | undefined;
   private readonly allowedOrigins: ReadonlySet<string> | undefined;
-  private readonly allowedCommands: ReadonlySet<HostCommand['type']>;
   private readonly capabilities: RemoteCapabilitySummary;
   private readonly connections = new Set<ClientConnection>();
   private readonly idempotencyCache = new Map<string, CachedResponse>();
+  private readonly idempotencyInFlight = new Map<string, { digest: string; result: Promise<HostResponse> }>();
   private readonly remoteMediaPaths = new Map<string, string>();
   private readonly onError: (error: Error) => void;
+  private readonly onConnectionEvent: (event: HostConnectionEvent) => void;
+  private readonly hostBuildId: string | undefined;
+  private readonly minClientVersion: string | undefined;
   private readonly egressHub: HostEgressHub;
   private server: WebSocketServer | undefined;
+  private livenessTimer: ReturnType<typeof setInterval> | undefined;
 
   public constructor(options: HostServerOptions) {
     if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0)) {
@@ -212,12 +180,11 @@ export class HostServer {
     this.devicePairingStore = options.devicePairingStore;
     this.allowedOrigins =
       options.allowedOrigins === undefined ? undefined : new Set(options.allowedOrigins);
-    this.allowedCommands =
-      options.allowRemoteExtensionActivation === true
-        ? new Set([...DEFAULT_ALLOWED_COMMANDS, ...EXTENSION_ACTIVATION_COMMANDS])
-        : DEFAULT_ALLOWED_COMMANDS;
     this.capabilities = createRemoteCapabilities();
     this.onError = options.onError ?? (() => undefined);
+    this.onConnectionEvent = options.onConnectionEvent ?? (() => undefined);
+    this.hostBuildId = options.hostBuildId?.trim() || undefined;
+    this.minClientVersion = options.minClientVersion?.trim() || undefined;
     this.egressHub = new HostEgressHub({
       hostInstanceId: this.instanceId,
       attachRuntimeSink: (sink) =>
@@ -262,9 +229,15 @@ export class HostServer {
       throw new Error('An auth token or device pairing store is required when Host binds beyond loopback');
     }
 
-    const server = new WebSocketServer({ host: this.host, port: this.port });
+    const server = new WebSocketServer({
+      host: this.host,
+      port: this.port,
+      maxPayload: HOST_WIRE_HARD_FRAME_BYTES,
+    });
     this.server = server;
     server.on('connection', (socket, request) => this.handleConnection(socket, request));
+    this.livenessTimer = setInterval(() => this.sweepIdleConnections(), HOST_LIVENESS_SWEEP_MS);
+    this.livenessTimer.unref?.();
 
     let listening = false;
     const listeningPromise = new Promise<HostServerAddress>((resolve, reject) => {
@@ -302,10 +275,25 @@ export class HostServer {
   }
 
   public async stop(closeReason = 'Host server stopping'): Promise<void> {
+    if (this.livenessTimer !== undefined) {
+      clearInterval(this.livenessTimer);
+      this.livenessTimer = undefined;
+    }
     for (const connection of this.connections) {
       clearTimeout(connection.handshakeTimer);
-      if (connection.socket.readyState === OPEN_READY_STATE) {
-        connection.socket.close(1001, closeReason);
+      if (
+        connection.socket.readyState === OPEN_READY_STATE ||
+        connection.socket.readyState === CONNECTING_READY_STATE
+      ) {
+        try {
+          connection.socket.close(1001, closeReason);
+        } catch {
+          try {
+            connection.socket.terminate();
+          } catch {
+            // Best-effort teardown.
+          }
+        }
       }
     }
     for (const connection of this.connections) {
@@ -321,7 +309,20 @@ export class HostServer {
     }
 
     await new Promise<void>((resolve) => {
-      server.close(() => resolve());
+      const timer = setTimeout(() => {
+        for (const client of server.clients) {
+          try {
+            client.terminate();
+          } catch {
+            // Ignore terminate races during forced shutdown.
+          }
+        }
+        server.close(() => resolve());
+      }, 2_000);
+      server.close(() => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
   }
 
@@ -340,6 +341,12 @@ export class HostServer {
 
   private handleConnection(socket: WebSocket, request: IncomingMessage): void {
     if (!this.isAllowedOrigin(request.headers.origin)) {
+      this.onConnectionEvent({
+        phase: 'hello-reject',
+        connectionId: 'pre-hello',
+        code: 4009,
+        reason: 'Origin not allowed',
+      });
       socket.close(4009, 'Origin not allowed');
       return;
     }
@@ -352,6 +359,10 @@ export class HostServer {
       egressDetach: () => undefined,
       deviceId: undefined,
       idempotencyScope: '',
+      connectionId: randomUUID(),
+      clientId: undefined,
+      lastInboundAt: Date.now(),
+      ingressTail: Promise.resolve(),
       handshakeTimer: setTimeout(() => {
         if (!connection.authenticated) {
           this.sendError(connection, 'authentication-required', 'Host hello is required');
@@ -360,22 +371,93 @@ export class HostServer {
       }, HANDSHAKE_TIMEOUT_MS),
     };
     this.connections.add(connection);
-    socket.on('message', (data) => {
-      void this.handleWireMessage(connection, data.toString()).catch((error: unknown) => {
-        this.sendError(connection, 'request-failed', toError(error, 'Host request failed').message);
-      });
+    this.onConnectionEvent({ phase: 'accept', connectionId: connection.connectionId });
+    socket.on('pong', () => {
+      connection.lastInboundAt = Date.now();
     });
-    socket.on('close', () => {
+    socket.on('message', (data) => {
+      connection.lastInboundAt = Date.now();
+      const serialized = data.toString();
+      // Heartbeat and turn-control must not wait behind session/list / media /
+      // settings floods. Decode only enough to short-circuit; everything else
+      // stays serialized.
+      if (connection.authenticated) {
+        try {
+          const preview = decodeHostWireMessage(serialized);
+          if (preview.type === 'command' && isHostIngressBypassCommand(preview.command.type)) {
+            void this.handleWireMessage(connection, serialized).catch((error: unknown) => {
+              this.sendError(
+                connection,
+                'request-failed',
+                toError(error, 'Host request failed').message,
+                requestIdFromSerializedWire(serialized),
+              );
+            });
+            return;
+          }
+        } catch {
+          // Fall through to the serialized ingress path.
+        }
+      }
+      connection.ingressTail = connection.ingressTail
+        .then(() => this.handleWireMessage(connection, serialized))
+        .catch((error: unknown) => {
+          this.sendError(
+            connection,
+            'request-failed',
+            toError(error, 'Host request failed').message,
+            requestIdFromSerializedWire(serialized),
+          );
+        });
+    });
+    socket.on('close', (code, reasonBuffer) => {
       clearTimeout(connection.handshakeTimer);
       connection.egressDetach();
       this.connections.delete(connection);
+      this.onConnectionEvent({
+        phase: 'close',
+        connectionId: connection.connectionId,
+        ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+        ...(connection.deviceId === undefined ? {} : { deviceId: connection.deviceId }),
+        code,
+        reason: reasonBuffer.toString(),
+      });
     });
     socket.on('error', (error) => this.onError(toError(error, 'Host client socket error')));
+  }
+
+  private sweepIdleConnections(): void {
+    const now = Date.now();
+    for (const connection of [...this.connections]) {
+      if (connection.socket.readyState !== OPEN_READY_STATE) {
+        continue;
+      }
+      if (now - connection.lastInboundAt <= HOST_IDLE_CONNECTION_MS) {
+        try {
+          connection.socket.ping();
+        } catch {
+          // Ignore ping failures; terminate path handles dead sockets.
+        }
+        continue;
+      }
+      this.onConnectionEvent({
+        phase: 'idle-terminate',
+        connectionId: connection.connectionId,
+        ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+        reason: 'idle',
+      });
+      try {
+        connection.socket.terminate();
+      } catch {
+        // Best-effort.
+      }
+    }
   }
 
   private isAllowedOrigin(origin: string | string[] | undefined): boolean {
     const normalized = Array.isArray(origin) ? origin[0] : origin;
     if (normalized === undefined || normalized.length === 0) {
+      // CLI / Node / native clients often omit Origin.
       return true;
     }
     if (this.allowedOrigins !== undefined) {
@@ -403,6 +485,22 @@ export class HostServer {
     }
 
     if (message.type === 'command') {
+      // Ping must not wait behind session/prompt or a tool-output flood.
+      // The desktop heartbeat treats a missed reply as a dead Host.
+      if (message.command.type === 'host/ping') {
+        await this.sendResponse(connection, {
+          type: 'response',
+          requestId: message.requestId,
+          response: {
+            type: 'response',
+            command: 'host/ping',
+            success: true,
+            data: { pong: true },
+            ...(message.command.id === undefined ? {} : { id: message.command.id }),
+          },
+        });
+        return;
+      }
       await this.handleCommand(connection, message);
     } else if (message.type === 'replay') {
       await this.replayConnection(connection, message.requestId, message.sinceSeq);
@@ -416,11 +514,41 @@ export class HostServer {
     message: Extract<HostWireMessage, { type: 'client/hello' }>,
   ): Promise<void> {
     if (message.protocolVersion !== HOST_PROTOCOL_VERSION) {
+      this.onConnectionEvent({
+        phase: 'hello-reject',
+        connectionId: connection.connectionId,
+        code: 4002,
+        reason: 'protocol-mismatch',
+      });
       this.sendError(connection, 'protocol-mismatch', 'Unsupported Host protocol version');
       connection.socket.close(4002, 'Protocol mismatch');
       return;
     }
+    if (
+      this.minClientVersion !== undefined &&
+      compareClientVersions(message.clientVersion, this.minClientVersion) < 0
+    ) {
+      this.onConnectionEvent({
+        phase: 'hello-reject',
+        connectionId: connection.connectionId,
+        code: 4002,
+        reason: 'client-version-too-old',
+      });
+      this.sendError(
+        connection,
+        'protocol-mismatch',
+        `Client version ${message.clientVersion} is older than required ${this.minClientVersion}`,
+      );
+      connection.socket.close(4002, 'Client version too old');
+      return;
+    }
     if (message.clientId.trim().length === 0) {
+      this.onConnectionEvent({
+        phase: 'hello-reject',
+        connectionId: connection.connectionId,
+        code: 4003,
+        reason: 'invalid-client-id',
+      });
       this.sendError(connection, 'bad-message', 'clientId is required');
       connection.socket.close(4003, 'Invalid client ID');
       return;
@@ -438,6 +566,12 @@ export class HostServer {
       tokensEqual: authTokensEqual,
     });
     if (!admission.ok) {
+      this.onConnectionEvent({
+        phase: 'hello-reject',
+        connectionId: connection.connectionId,
+        code: 4004,
+        reason: 'authentication-failed',
+      });
       this.sendError(connection, 'authentication-required', admission.message);
       connection.socket.close(4004, 'Authentication failed');
       return;
@@ -453,16 +587,28 @@ export class HostServer {
       });
     }
 
+    if (connection.egressChannel !== undefined) {
+      connection.egressDetach();
+      connection.egressChannel = undefined;
+    }
+
     connection.authenticated = true;
+    connection.clientId = message.clientId.trim();
     connection.hydrationEnabled = message.capabilities?.hydration === true;
     connection.deviceId = admission.pairedDeviceId;
     connection.idempotencyScope = admission.pairedDeviceId ?? message.clientId.trim();
     clearTimeout(connection.handshakeTimer);
     const egressClientId = `client:${message.clientId}:${randomUUID()}`;
     connection.egressClientId = egressClientId;
+    const currentSeq = this.egressHub.getCurrentSeq();
     const hostChanged =
       message.lastHostInstanceId !== undefined && message.lastHostInstanceId !== this.instanceId;
-    const initialSeq = hostChanged ? 0 : normalizeSeq(message.lastSeq);
+    const requestedSeq = hostChanged ? 0 : normalizeSeq(message.lastSeq);
+    // Future cursor (Host restarted, journal reset, same or missing instance id)
+    // must not fence the egress channel ahead of the live head.
+    const futureCursor = requestedSeq > currentSeq;
+    const initialSeq = futureCursor ? 0 : requestedSeq;
+    const forceHydration = hostChanged || futureCursor;
     const egressChannel = this.egressHub.addClient({
       id: egressClientId,
       initialSeq,
@@ -470,21 +616,36 @@ export class HostServer {
         message.capabilities?.pushBatching === true && message.capabilities.cursorBatches === true,
       canSend: () =>
         connection.socket.readyState === OPEN_READY_STATE &&
-        connection.socket.bufferedAmount < 4 * 1024 * 1024,
+        connection.socket.bufferedAmount < HOST_SOCKET_SEND_BUDGET_BYTES,
       sendNow: (frame) => this.send(connection, frame),
       sendBatchNow: (frame) => this.send(connection, frame),
-      closeSlowConsumer: (reason) => connection.socket.close(4008, reason),
+      closeSlowConsumer: (reason) => {
+        this.onConnectionEvent({
+          phase: 'slow-consumer',
+          connectionId: connection.connectionId,
+          ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+          reason,
+        });
+        connection.socket.close(4008, reason);
+      },
     });
     connection.egressChannel = egressChannel;
     connection.egressDetach = () => this.egressHub.removeClient(egressClientId);
     egressChannel.setPaused(true);
     this.send(connection, this.createHostHello(admission.pairedDeviceId, admission.issuedDeviceSecret));
+    this.onConnectionEvent({
+      phase: 'hello-ok',
+      connectionId: connection.connectionId,
+      clientId: connection.clientId,
+      ...(connection.deviceId === undefined ? {} : { deviceId: connection.deviceId }),
+      seq: currentSeq,
+    });
     try {
       await this.replayConnection(
         connection,
         `hello-replay-${message.clientId}-${randomUUID()}`,
         initialSeq,
-        hostChanged,
+        forceHydration,
         message.subscriptions,
       );
     } finally {
@@ -501,6 +662,8 @@ export class HostServer {
       authRequired: this.authToken !== undefined || this.devicePairing !== undefined,
       authenticated: true,
       capabilities: this.capabilities,
+      ...(this.hostBuildId === undefined ? {} : { hostBuildId: this.hostBuildId }),
+      ...(this.minClientVersion === undefined ? {} : { minClientVersion: this.minClientVersion }),
       ...(deviceId === undefined ? {} : { deviceId }),
       ...(deviceSecret === undefined ? {} : { deviceSecret }),
     };
@@ -510,17 +673,41 @@ export class HostServer {
     connection: ClientConnection,
     frame: Extract<HostWireMessage, { type: 'command' }>,
   ): Promise<void> {
-    if (!this.allowedCommands.has(frame.command.type) || !isSafeRemoteCommand(frame.command)) {
+    let commandAllowed = false;
+    try {
+      commandAllowed = isSafeRemoteCommand(frame.command);
+    } catch {
+      commandAllowed = false;
+    }
+    if (!commandAllowed) {
       this.sendError(
         connection,
         'command-not-allowed',
-        `Remote command is not enabled yet: ${frame.command.type}`,
+        `Remote command payload was rejected: ${frame.command.type}`,
         frame.requestId,
       );
       return;
     }
 
     this.pruneIdempotencyCache();
+    if (
+      remoteCommandRequiresIdempotencyKey(frame.command.type) &&
+      (frame.idempotencyKey === undefined || frame.idempotencyKey.trim().length === 0)
+    ) {
+      await this.sendResponse(connection, {
+        type: 'response',
+        requestId: frame.requestId,
+        response: {
+          type: 'response',
+          command: frame.command.type,
+          success: false,
+          error: 'idempotency-key-required',
+          problem: { code: 'idempotency-key-required' },
+        },
+      });
+      return;
+    }
+    const digest = createRemoteCommandDigest(frame.command);
     const cacheKey =
       frame.idempotencyKey === undefined
         ? undefined
@@ -528,16 +715,54 @@ export class HostServer {
     const cached =
       cacheKey === undefined ? undefined : this.idempotencyCache.get(cacheKey);
     if (cached !== undefined && cached.expiresAt > Date.now()) {
-      this.send(connection, {
+      if (cached.digest !== digest) {
+        await this.sendResponse(connection, {
+          type: 'response',
+          requestId: frame.requestId,
+          response: {
+            type: 'response',
+            command: frame.command.type,
+            success: false,
+            error: 'idempotency-conflict',
+            problem: { code: 'idempotency-conflict' },
+          },
+        });
+        return;
+      }
+      await this.sendResponse(connection, {
         type: 'response',
         requestId: frame.requestId,
         response: cached.response,
       });
       return;
     }
+    const inFlight = cacheKey === undefined ? undefined : this.idempotencyInFlight.get(cacheKey);
+    if (inFlight !== undefined) {
+      if (inFlight.digest !== digest) {
+        await this.sendResponse(connection, {
+          type: 'response',
+          requestId: frame.requestId,
+          response: {
+            type: 'response',
+            command: frame.command.type,
+            success: false,
+            error: 'idempotency-conflict',
+            problem: { code: 'idempotency-conflict' },
+          },
+        });
+        return;
+      }
+      const shared = await inFlight.result;
+      await this.sendResponse(connection, {
+        type: 'response',
+        requestId: frame.requestId,
+        response: shared,
+      });
+      return;
+    }
 
     if (frame.command.type === 'session/prompt' && frame.command.foreground === undefined) {
-      this.send(connection, {
+      await this.sendResponse(connection, {
         type: 'response',
         requestId: frame.requestId,
         response: {
@@ -555,18 +780,26 @@ export class HostServer {
       return;
     }
 
-    try {
+    const execute = async (): Promise<HostResponse> => {
       const remoteCommand = resolveRemoteCommand(frame.command, this.remoteMediaPaths);
       const response = await this.runtime.handleCommand(remoteCommand);
       this.rememberRemoteMediaAsset(remoteCommand, response);
-      const safeResponse = projectRemoteResponse(frame.command, response, this.projectionContext());
+      return projectRemoteResponse(frame.command, response, this.projectionContext());
+    };
+    const pending = execute();
+    if (cacheKey !== undefined) {
+      this.idempotencyInFlight.set(cacheKey, { digest, result: pending });
+    }
+    try {
+      const safeResponse = await pending;
       if (cacheKey !== undefined) {
         this.idempotencyCache.set(cacheKey, {
           response: safeResponse,
+          digest,
           expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
         });
       }
-      this.send(connection, {
+      await this.sendResponse(connection, {
         type: 'response',
         requestId: frame.requestId,
         response: safeResponse,
@@ -578,6 +811,10 @@ export class HostServer {
         toError(error, 'Host command failed').message,
         frame.requestId,
       );
+    } finally {
+      if (cacheKey !== undefined) {
+        this.idempotencyInFlight.delete(cacheKey);
+      }
     }
   }
 
@@ -643,11 +880,21 @@ export class HostServer {
       let replay = initialReplay;
       let replaySinceSeq = normalizedSinceSeq;
       if (shouldHydrate && connection.hydrationEnabled) {
+        // Fence before async I/O so snapshotSeq cannot include pushes that
+        // are absent from the hydration payload.
+        const fenceSeq = this.egressHub.getCurrentSeq();
         const hydration = await this.createHydrationFrame(
           forceHydration ? 'host-instance-changed' : 'replay-too-old',
           subscriptions,
+          fenceSeq,
         );
         this.send(connection, hydration);
+        this.onConnectionEvent({
+          phase: 'hydration',
+          connectionId: connection.connectionId,
+          ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+          seq: fenceSeq,
+        });
         replaySinceSeq = hydration.snapshot.snapshotSeq;
         egressChannel.advanceCursor(replaySinceSeq);
         replay = this.egressHub.listReplay(replaySinceSeq);
@@ -660,6 +907,16 @@ export class HostServer {
           status: await this.getRemoteStatus(),
         };
         this.send(connection, snapshot);
+        this.onConnectionEvent({
+          phase: 'snapshot',
+          connectionId: connection.connectionId,
+          ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+          seq: snapshot.currentSeq,
+        });
+        // Snapshot fences the client at currentSeq; only replay the live tail.
+        replaySinceSeq = snapshot.currentSeq;
+        egressChannel.advanceCursor(replaySinceSeq);
+        replay = this.egressHub.listReplay(replaySinceSeq);
       }
 
       const fromSeq = replaySinceSeq + 1;
@@ -676,9 +933,17 @@ export class HostServer {
         fromSeq,
         toSeq,
         currentSeq: replay.currentSeq,
-        complete: initialReplay.complete,
+        // Must reflect the post-hydration / post-snapshot continuous window,
+        // not the pre-fence initialReplay gap that triggered recovery.
+        complete: replay.complete,
       };
       this.send(connection, replayDone);
+      this.onConnectionEvent({
+        phase: 'replay-done',
+        connectionId: connection.connectionId,
+        ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+        seq: replay.currentSeq,
+      });
     } finally {
       egressChannel.setPaused(false);
     }
@@ -710,7 +975,8 @@ export class HostServer {
 
   private async createHydrationFrame(
     reason: HostHydrationFrame['reason'],
-    subscriptions?: { sessionIds?: string[] },
+    subscriptions: { sessionIds?: string[] } | undefined,
+    fenceSeq: number,
   ): Promise<HostHydrationFrame> {
     const status = await this.getRemoteStatus();
     const context = this.projectionContext();
@@ -758,7 +1024,7 @@ export class HostServer {
     const snapshot: HostHydrationFrame['snapshot'] = {
       snapshotId: randomUUID(),
       hostInstanceId: this.instanceId,
-      snapshotSeq: this.egressHub.getCurrentSeq(),
+      snapshotSeq: fenceSeq,
       status,
       sessions,
       messagesBySession,
@@ -773,7 +1039,7 @@ export class HostServer {
     context: RemoteProjectionContext,
   ): Promise<RemoteSessionSummary[]> {
     try {
-      const command = { type: 'session/list' as const };
+      const command = { type: 'session/list' as const, maxItems: MAX_HYDRATION_SESSIONS };
       const response = await this.runtime.handleCommand(command);
       const projected = projectRemoteResponse(command, response, context);
       const data = projected.success && isRecord(projected.data) ? projected.data : undefined;
@@ -852,6 +1118,24 @@ export class HostServer {
     }
   }
 
+  private async sendResponse(
+    connection: ClientConnection,
+    message: Extract<HostWireMessage, { type: 'response' }>,
+  ): Promise<void> {
+    const writable = await waitForSocketSendBudget(() => connection.socket.bufferedAmount);
+    if (!writable) {
+      this.onConnectionEvent({
+        phase: 'slow-consumer',
+        connectionId: connection.connectionId,
+        ...(connection.clientId === undefined ? {} : { clientId: connection.clientId }),
+        reason: 'response-backpressure-timeout',
+      });
+      connection.socket.close(4008, 'slow-consumer on response');
+      return;
+    }
+    this.send(connection, message);
+  }
+
   private send(connection: ClientConnection, message: HostWireMessage): void {
     if (connection.socket.readyState !== OPEN_READY_STATE) {
       return;
@@ -860,6 +1144,23 @@ export class HostServer {
       connection.socket.send(encodeHostWireMessage(message));
     } catch (error) {
       this.onError(toError(error, 'Unable to send Host message'));
+      // Oversized command responses must not tear down the whole session —
+      // push an error frame when possible; only close on hard failures.
+      if (error instanceof HostProtocolError && message.type === 'response') {
+        try {
+          connection.socket.send(
+            encodeHostWireMessage({
+              type: 'error',
+              code: 'request-failed',
+              message: error.message,
+              requestId: message.requestId,
+            }),
+          );
+          return;
+        } catch {
+          // Fall through to close.
+        }
+      }
       connection.socket.close(1011, 'Host send failed');
     }
   }
@@ -893,6 +1194,10 @@ function normalizeSeq(value: number): number {
 
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+}
+
+function isWildcardHost(host: string): boolean {
+  return host === '0.0.0.0' || host === '::' || host === '[::]';
 }
 
 function isLoopbackBrowserOrigin(origin: string): boolean {
@@ -930,8 +1235,29 @@ function authTokensEqual(expected: string, provided: string | undefined): boolea
 }
 
 function formatWebSocketUrl(host: string, port: number): string {
-  const displayHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+  // Wildcard binds are not dialable; advertise loopback so local shells can connect.
+  const dialHost = isWildcardHost(host) ? '127.0.0.1' : host;
+  const displayHost =
+    dialHost.includes(':') && !dialHost.startsWith('[') ? `[${dialHost}]` : dialHost;
   return `ws://${displayHost}:${port}`;
+}
+
+function isSafeRemoteProjectLocator(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && isRemoteProjectId(value));
+}
+
+function isSafeRemoteSessionListPageScope(scope: unknown): boolean {
+  if (!isRecord(scope) || typeof scope.kind !== 'string') {
+    return false;
+  }
+  if (scope.kind === 'general') {
+    return true;
+  }
+  return (
+    scope.kind === 'project' &&
+    typeof scope.projectPath === 'string' &&
+    isRemoteProjectId(scope.projectPath)
+  );
 }
 
 function isSafeRemoteSessionListScopeRef(scopeRef: unknown): boolean {
@@ -952,6 +1278,10 @@ function isSafeRemoteSessionListScopeRef(scopeRef: unknown): boolean {
 }
 
 function isSafeRemoteCommand(command: HostCommand): boolean {
+  // Phone-access listen/pairing is local sidecar IPC, not a Host command.
+  if (command.type.startsWith('mobile-access/')) {
+    return false;
+  }
   switch (command.type) {
     case 'activity/summary':
       return (
@@ -963,8 +1293,10 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
       );
     case 'session/list':
       return (
-        command.projectPath === undefined &&
-        (command.scope === undefined || command.scope.kind === 'general') &&
+        isSafeRemoteProjectLocator(command.projectPath) &&
+        (command.scope === undefined ||
+          command.scope.kind === 'general' ||
+          (command.scope.kind === 'project' && isRemoteProjectId(command.scope.projectPath))) &&
         isSafeRemoteSessionListScopeRef(command.scopeRef) &&
         (command.allScopes === undefined || command.allScopes === true || command.allScopes === false) &&
         (command.order === undefined ||
@@ -981,7 +1313,7 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         return false;
       }
       return (
-        query.scope.kind === 'general' &&
+        isSafeRemoteSessionListPageScope(query.scope) &&
         (query.lifecycle === 'active' || query.lifecycle === 'archived') &&
         (query.order === 'updated' || query.order === 'alphabetical') &&
         typeof query.limit === 'number' &&
@@ -996,6 +1328,51 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
           (typeof query.cursor === 'string' && query.cursor.length <= 512))
       );
     }
+    case 'session/foreground-run':
+    case 'session/lineage':
+    case 'session/runtime-status':
+      return isSafeRemoteId(command.sessionId);
+    case 'session/reload-runtime':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        command.expectedSettingsRevision.length > 0 &&
+        command.expectedSettingsRevision.length <= 256 &&
+        (command.when === 'now' || command.when === 'after-current-run')
+      );
+    case 'session/list-children':
+      return isSafeRemoteId(command.parentSessionId);
+    case 'session/duplicate':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        (command.name === undefined || command.name.length <= 512) &&
+        (command.targetScope === undefined || command.targetScope.kind === 'general') &&
+        command.messageProjection === 'none'
+      );
+    case 'session/fork':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.messageId) &&
+        (command.name === undefined || command.name.length <= 512) &&
+        command.workspaceStrategy === 'shared' &&
+        command.messageProjection === 'none'
+      );
+    case 'session/truncate-from':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.messageId) &&
+        (command.messageProjection === 'tail' || command.messageProjection === 'none')
+      );
+    case 'session/compact':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        (command.customInstructions === undefined ||
+          Buffer.byteLength(command.customInstructions, 'utf8') <= 64 * 1024) &&
+        (command.targetModel === undefined ||
+          (isSafeRemoteId(command.targetModel.providerId) &&
+            isSafeRemoteId(command.targetModel.modelId)))
+      );
+    case 'session/compact-abort':
+      return isSafeRemoteId(command.sessionId);
     case 'session/transcript-page': {
       const query: unknown = command.query;
       if (!isRecord(query)) return false;
@@ -1065,8 +1442,37 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         (command.input.attachments === undefined ||
           (command.input.attachments.length <= 8 &&
             command.input.attachments.every(isSafeRemoteAttachment))) &&
-        (command.input.contextRefs === undefined || command.input.contextRefs.length === 0) &&
+        areSafeRemoteContextRefs(command.input.contextRefs) &&
         command.input.text.length <= 512_000
+      );
+    case 'settings/apply':
+      return isSafeRemoteSettingsApply(command);
+    case 'permissions/get-rules':
+    case 'permissions/set-rules':
+      return isSafeRemotePermissionRulesCommand(command);
+    case 'todo/get':
+      return isSafeRemoteId(command.sessionId);
+    case 'todo/set':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        command.items.length <= 64 &&
+        (command.expectedRevision === undefined ||
+          (command.expectedRevision.length > 0 && command.expectedRevision.length <= 256))
+      );
+    case 'notes/write':
+      return command.input.title.length <= 512 && command.input.content.length <= 256 * 1024;
+    case 'notes/update':
+      return (
+        isSafeRemoteId(command.input.id) &&
+        (command.input.expectedContentHash === undefined ||
+          (command.input.expectedContentHash.length > 0 &&
+            command.input.expectedContentHash.length <= 256))
+      );
+    case 'notes/delete':
+      return (
+        isSafeRemoteId(command.noteId) &&
+        (command.expectedContentHash === undefined ||
+          (command.expectedContentHash.length > 0 && command.expectedContentHash.length <= 256))
       );
     case 'session/queued-turn-submit':
       return isSafeQueuedTurnCommand(command.sessionId, command.queuedTurnId, command.userMessageId, command.input);
@@ -1102,6 +1508,59 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
       return (
         command.message.length <= 512_000 &&
         (command.clientMessageId === undefined || command.clientMessageId.length <= 256)
+      );
+    case 'session/cold-storage-status':
+    case 'session/cold-storage-reconcile':
+      return true;
+    case 'session/cold-storage-plan':
+      return (
+        command.sessionIds === undefined ||
+        (command.sessionIds.length <= 128 && command.sessionIds.every(isSafeRemoteId))
+      );
+    case 'session/cold-storage-execute':
+      return (
+        isSafeRemoteId(command.planId) &&
+        command.confirmationDigest.length > 0 &&
+        command.confirmationDigest.length <= 512
+      );
+    case 'session/cold-storage-restore':
+      return isSafeRemoteId(command.sessionId) && command.packPath === undefined;
+    case 'plan/get':
+      return isSafeRemoteId(command.sessionId);
+    case 'plan/execute':
+      return (
+        isSafeRemoteId(command.request.sessionId) &&
+        isSafeRemoteId(command.request.planId) &&
+        (command.request.mode === 'inline' || command.request.mode === 'subagent-driven') &&
+        (command.request.expectedRevision === undefined ||
+          (Number.isSafeInteger(command.request.expectedRevision) &&
+            command.request.expectedRevision >= 0))
+      );
+    case 'plan/abort':
+      return isSafeRemoteId(command.sessionId) && isSafeRemoteId(command.planId);
+    case 'walkthrough/list':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        (command.knownMessageIds === undefined ||
+          (command.knownMessageIds.length <= 256 &&
+            command.knownMessageIds.every(isSafeRemoteId)))
+      );
+    case 'walkthrough/generate':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.messageId) &&
+        (command.runId === undefined || isSafeRemoteId(command.runId))
+      );
+    case 'walkthrough/cancel':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.messageId) &&
+        (command.generationId === undefined || isSafeRemoteId(command.generationId))
+      );
+    case 'extension/ui_resolve':
+      return (
+        isSafeRemoteId(command.requestId) &&
+        (command.value === undefined || Buffer.byteLength(command.value, 'utf8') <= 64 * 1024)
       );
     case 'session/follow_up':
       return (
@@ -1172,6 +1631,66 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
             command.input.maxBytes >= 1024 &&
             command.input.maxBytes <= 8 * 1024 * 1024))
       );
+    case 'host/runtime-resources':
+      return true;
+    case 'notes/list':
+      return (
+        (command.collection === undefined || command.collection.length <= 256) &&
+        (command.tags === undefined ||
+          (command.tags.length <= 32 && command.tags.every((tag) => tag.length <= 128)))
+      );
+    case 'notes/read':
+      return isSafeRemoteId(command.noteId);
+    case 'notes/search':
+      return (
+        Buffer.byteLength(command.query.query, 'utf8') <= 16 * 1024 &&
+        (command.query.collection === undefined || command.query.collection.length <= 256) &&
+        (command.query.tags === undefined ||
+          (command.query.tags.length <= 32 &&
+            command.query.tags.every((tag) => tag.length <= 128))) &&
+        (command.query.limit === undefined ||
+          (Number.isSafeInteger(command.query.limit) &&
+            command.query.limit > 0 &&
+            command.query.limit <= 100)) &&
+        (command.query.mode === undefined ||
+          command.query.mode === 'auto' ||
+          command.query.mode === 'fts' ||
+          command.query.mode === 'vector' ||
+          command.query.mode === 'hybrid')
+      );
+    case 'flashcards/list':
+      return (
+        command.sourceFolder === undefined &&
+        (command.deck === undefined || command.deck.length <= 256) &&
+        (command.sourceNoteId === undefined || isSafeRemoteId(command.sourceNoteId)) &&
+        (command.sequenceId === undefined || isSafeRemoteId(command.sequenceId))
+      );
+    case 'flashcards/decks':
+      return true;
+    case 'flashcards/queue':
+      return command.deck === undefined || command.deck.length <= 256;
+    case 'flashcards/rate':
+      return (
+        isSafeRemoteId(command.cardId) &&
+        (command.rating === 'again' ||
+          command.rating === 'hard' ||
+          command.rating === 'good' ||
+          command.rating === 'easy')
+      );
+    case 'usage/get-rollup':
+      return (
+        command.projectPath === undefined &&
+        (command.topSessions === undefined ||
+          (Number.isSafeInteger(command.topSessions) &&
+            command.topSessions > 0 &&
+            command.topSessions <= 100)) &&
+        (command.window === undefined ||
+          ((command.window.from === undefined || command.window.from.length <= 128) &&
+            (command.window.to === undefined || command.window.to.length <= 128)))
+      );
+    case 'skills/list':
+    case 'prompts/list':
+      return command.projectPath === undefined;
     case 'preview/read-trusted-text':
       // Config-root-relative only. Reject absolute paths, traversal, and
       // media-vault prefixes before the command reaches the runtime.
@@ -1271,7 +1790,7 @@ function isSafeQueuedTurnCommand(
     Buffer.byteLength(input.text, 'utf8') <= QUEUED_TURN_MAX_TEXT_BYTES &&
     (input.attachments === undefined ||
       (input.attachments.length <= 8 && input.attachments.every(isSafeRemoteAttachment))) &&
-    (input.contextRefs === undefined || input.contextRefs.length === 0) &&
+    areSafeRemoteContextRefs(input.contextRefs) &&
     input.source === undefined &&
     input.resumeCheckpointId === undefined
   );
@@ -1336,7 +1855,24 @@ function isSafeTrustedTextRelativePath(relativePath: string): boolean {
 }
 
 function isSafeRemoteAttachment(attachment: PromptAttachment): boolean {
-  return attachment.kind === 'media' && attachment.path.startsWith('remote-asset:');
+  return (
+    attachment.kind === 'media' &&
+    typeof attachment.path === 'string' &&
+    attachment.path.startsWith('remote-asset:') &&
+    attachment.path.length > 'remote-asset:'.length
+  );
+}
+
+function requestIdFromSerializedWire(serialized: string): string | undefined {
+  try {
+    const preview = decodeHostWireMessage(serialized);
+    if (preview.type === 'command' && typeof preview.requestId === 'string') {
+      return preview.requestId;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function toError(error: unknown, fallback: string): Error {

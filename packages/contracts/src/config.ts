@@ -1,6 +1,12 @@
 /** Product config shapes stored under ~/.piwin */
 
-import type { WebConfig } from './web.js';
+import {
+  DEFAULT_FETCH_CACHE_TTL_MS,
+  DEFAULT_FETCH_FALLBACK,
+  DEFAULT_FETCH_RETURN_MAX_CHARS,
+  DEFAULT_FETCH_STORE_MAX_CHARS,
+  type WebConfig,
+} from './web.js';
 import type { SkillsConfig } from './skills.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { PromptsConfig } from './prompts.js';
@@ -17,6 +23,7 @@ import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentProfileSettings } from './subagent-profile.js';
 import type { OrchestrationSchemeSettings } from './orchestration-scheme.js';
 import type { RemoteConfig } from './remote.js';
+import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SessionLifecycleConfig } from './session-lifecycle.js';
 import type { SessionColdStorageConfig } from './session-cold-storage.js';
 
@@ -321,6 +328,8 @@ export function createDefaultProcessConfig(): ProcessConfig {
 /** Product opt-in for the enhanced Ultra composer effort stop. */
 export type ThinkingConfig = {
   ultraEnabled: boolean;
+  /** Host-shared default thinking stop. Composer chrome stays in this window. */
+  defaultLevel?: ThinkingLevel;
 };
 
 /**
@@ -583,6 +592,8 @@ export type PiwinConfig = {
   speech?: SpeechConfig;
   /** Text-only vision delegation (composer images). */
   visionDelegation?: VisionDelegationConfig;
+  /** Post-turn rewrite of the visible assistant reply (spec: reply-writer). */
+  replyWriter?: ReplyWriterConfig;
   /** Permission policy mode and rule sets (ADR 0019). */
   permissions?: PermissionConfig;
   /** Walkthrough generation settings (spec §6.1). */
@@ -612,6 +623,10 @@ export function createDefaultWebConfig(): WebConfig {
     fetchProvider: 'supermarkdown',
     fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
     fetchMaxBytes: 65536,
+    fetchReturnMaxChars: DEFAULT_FETCH_RETURN_MAX_CHARS,
+    fetchStoreMaxChars: DEFAULT_FETCH_STORE_MAX_CHARS,
+    fetchCacheTtlMs: DEFAULT_FETCH_CACHE_TTL_MS,
+    fetchFallback: DEFAULT_FETCH_FALLBACK,
     fetchTimeoutMs: 15000,
     fetchBlockedUrlPrefixes: ['file:', 'localhost', '127.0.0.1'],
   };

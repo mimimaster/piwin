@@ -36,6 +36,12 @@ interface RunNode {
   admissionClosed: boolean;
   /** Resolvers waiting for this run to become terminal. */
   joinResolvers: Array<() => void>;
+  /**
+   * Last provider/agent error text observed on this run. Kept off the public
+   * record so UI projections stay lean; used to terminalize silent completions
+   * with the upstream message instead of a generic empty-response string.
+   */
+  lastAgentErrorMessage?: string;
 }
 
 /** Options for creating a run. */
@@ -341,6 +347,13 @@ export class RunRegistry {
       case 'permission/request':
         nextPhase = 'waiting-permission';
         break;
+      case 'error': {
+        const message = event.message.trim();
+        if (message.length > 0) {
+          node.lastAgentErrorMessage = message;
+        }
+        break;
+      }
       default:
         break;
     }
@@ -357,6 +370,12 @@ export class RunRegistry {
 
   hasFirstToken(runId: string): boolean {
     return this.nodes.get(runId)?.record.firstTokenReceived === true;
+  }
+
+  /** Upstream provider/agent error text captured for this run, if any. */
+  getLastAgentError(runId: string): string | undefined {
+    const message = this.nodes.get(runId)?.lastAgentErrorMessage?.trim();
+    return message && message.length > 0 ? message : undefined;
   }
 
   /** Whether a run owns any non-terminal descendant. */

@@ -125,6 +125,23 @@ describe('buildToolPresentation', () => {
     expect(presentation.changedPaths).toBeUndefined();
   });
 
+  it('parses JSON-string args so silent tools still get command and path', () => {
+    const shell = buildToolPresentation({
+      toolName: 'bash',
+      args: '{"command":"cp screenshot.png docs/shot.png"}',
+    });
+    expect(shell.command).toBe('cp screenshot.png docs/shot.png');
+    expect(shell.summary).toBe('cp screenshot.png docs/shot.png');
+
+    const write = buildToolPresentation({
+      toolName: 'write_file',
+      args: '{"path":"README.md","content":"# hi"}',
+    });
+    expect(write.targetPaths).toEqual(['README.md']);
+    expect(write.changedPaths).toEqual(['README.md']);
+    expect(write.actionVerb).toBe('Edited');
+  });
+
   it('sets changedPaths for successful write/edit tools', () => {
     const write = buildToolPresentation({
       toolName: 'write',
@@ -198,6 +215,14 @@ describe('buildToolPresentation', () => {
     expect(presentation.actionVerb).toBe('Read');
     expect(presentation.summary).toBe('turn-work-details.tsx');
     expect(presentation.targetPaths).toEqual(['apps/desktop/src/turn-work-details.tsx']);
+  });
+
+  it('formats read offset+limit as L1-80', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'read',
+      args: { path: 'apps/desktop/src/tool-group-clustering.ts', offset: 1, limit: 80 },
+    });
+    expect(presentation.lineRange).toBe('L1-80');
   });
 
   it('formats multi-file read as "file and N other files"', () => {

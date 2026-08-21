@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadSessionPlan, openSessionTranscriptStore, saveSessionPlan } from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
-import { getPiwinProjectsPath, getPiwinSessionPlanPath } from '../paths.js';
+import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionPlanPath } from '../paths.js';
+import { createRemoteProjectId } from '../remote-project-id.js';
 import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contracts';
 import { RunRegistry } from '../run-registry.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
@@ -759,8 +760,12 @@ describe('session live control commands', () => {
     const session = createDelayedSessionHandle();
     const { context } = createPromptContext(session);
     const order: string[] = [];
+    let releasePrepare: (() => void) | undefined;
     context.prepareDelegationRuntime = async (_sessionId, mode) => {
       order.push(`prepare:${mode}`);
+      await new Promise<void>((release) => {
+        releasePrepare = release;
+      });
     };
     context.setRunDelegationMode = (_runId, mode) => {
       order.push(`bind:${mode}`);
@@ -779,8 +784,9 @@ describe('session live control commands', () => {
       undefined,
       context,
     );
-
     expect(response).toMatchObject({ success: true });
+    expect(order).toEqual(['prepare:disabled']);
+    releasePrepare?.();
     await vi.waitFor(() => expect(order).toContain('activate'));
     expect(order).toEqual(['prepare:disabled', 'bind:disabled', 'activate']);
   });
@@ -895,6 +901,46 @@ describe('session live control commands', () => {
       type: 'error',
       retriable: true,
     });
+  });
+
+  it('terminalizes silent completions with the upstream provider error text', async () => {
+    const silentSession = createSilentSessionHandle();
+    const promptContext = createPromptContext(silentSession);
+    const { events, context } = promptContext;
+    const upstream =
+      'No endpoints available matching your guardrail restrictions and data policy';
+    context.getRunLastAgentError = () => upstream;
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: silentSession.id,
+        input: { text: 'hello' },
+      },
+      undefined,
+      context,
+    );
+    expect(response).toMatchObject({ success: true });
+
+    await vi.waitFor(() => {
+      expect(context.getForegroundRun(silentSession.id)).toBeUndefined();
+    });
+
+    const terminal = events.find(
+      (message): message is Extract<HostPush, { type: 'run/terminal' }> =>
+        message.type === 'run/terminal',
+    );
+    expect(terminal?.run).toMatchObject({
+      status: 'failed',
+      error: upstream,
+    });
+    // Upstream already surfaced via the agent stream — do not invent a second
+    // generic empty-response error event.
+    expect(
+      events.filter(
+        (message) => message.type === 'event' && message.event.type === 'error',
+      ),
+    ).toHaveLength(0);
   });
 
   it('completes Plan mode only after a new durable SessionPlan revision exists', async () => {
@@ -1522,9 +1568,13 @@ function createControlContext(
     tryReservePromptAdmission: () => true,
     releasePromptAdmission: (): void => undefined,
     isPromptAdmissionReserved: () => false,
+    tryReserveSessionBody: () => true,
+    releaseSessionBody: (): void => undefined,
+    isSessionBodyReserved: () => false,
     joinRun: (runId) => registry.join(runId),
     getRunSignal: (runId) => registry.getSignal(runId),
     hasRunReceivedFirstToken: (runId) => registry.hasFirstToken(runId),
+    getRunLastAgentError: (runId) => registry.getLastAgentError(runId),
     requestCancelRun: (_sessionId, runId) =>
       runId === undefined ? undefined : registry.requestCancel(runId),
     requestPauseRun: (_sessionId, runId, reason) =>
@@ -1889,6 +1939,43 @@ describe('Conversation prompt path (CHT-301~308)', () => {
     } finally {
       await rm(rootDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('session/create projectId binding', () => {
+  it('strips projectId before createSession after resolving the Host path', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-create-project-id-'));
+    const projectPath = join(rootDir, 'repo');
+    const created = await openOrCreateProject(getPiwinProjectsPath(getPiwinRoot(rootDir)), projectPath, {
+      displayName: 'repo',
+    });
+    const session = createDelayedSessionHandle();
+    const { context } = createControlContext(session);
+    context.piwinRoot = rootDir;
+    const captured: Array<import('@piwin/contracts').CreateSessionInput> = [];
+    context.createSession = async (input) => {
+      captured.push(input);
+      return session;
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/create',
+        input: {
+          projectId: createRemoteProjectId(created.path),
+          sessionName: 'New chat',
+        },
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true, command: 'session/create' });
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.projectId).toBeUndefined();
+    expect(captured[0]?.scope).toEqual({ kind: 'project', projectPath: created.path });
+    expect(captured[0]?.projectPath).toBe(created.path);
+    await rm(rootDir, { recursive: true, force: true });
   });
 });
 

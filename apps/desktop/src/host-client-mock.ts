@@ -101,6 +101,7 @@ export class MockHostBackend {
   private mockPauseRequested = new Set<string>();
   /** Mock browser session current URL (null = stopped). */
   private mockBrowserUrl: string | null = null;
+  private mockBrowserAgentWantsLock = false;
   /** ADR 0015: the run currently owning each session's foreground turn. */
   private mockActiveRunIds = new Map<string, string>();
   private mockAssemblySummaries = new Map<string, ContextSummaryPush[]>();
@@ -126,6 +127,8 @@ export class MockHostBackend {
   private mockSettingsRevision = 'mock-settings-v1';
   /** Runtime-only revision kept separate from the full settings CAS token. */
   private mockRuntimeSettingsRevision = 'mock-runtime-settings-v1';
+  private mockUserPermissionRules: import('@piwin/contracts').PermissionRulesFile = { version: 1 };
+  private mockUserPermissionRulesRevision = 'mock-rules-empty';
   private readonly e2eCommandCounts = {
     sessionList: 0,
     sessionListPage: 0,
@@ -3019,6 +3022,32 @@ export class MockHostBackend {
             config: this.mockConfig,
           },
         };
+      case 'permissions/get-rules':
+        return {
+          id,
+          type: 'response',
+          command: 'permissions/get-rules',
+          success: true,
+          data: {
+            layer: 'user',
+            rules: this.mockUserPermissionRules,
+            revision: this.mockUserPermissionRulesRevision,
+          },
+        };
+      case 'permissions/set-rules':
+        this.mockUserPermissionRules = command.rules;
+        this.mockUserPermissionRulesRevision = `mock-rules-${Date.now()}`;
+        return {
+          id,
+          type: 'response',
+          command: 'permissions/set-rules',
+          success: true,
+          data: {
+            layer: 'user',
+            rules: this.mockUserPermissionRules,
+            revision: this.mockUserPermissionRulesRevision,
+          },
+        };
       case 'settings/get':
         return {
           id,
@@ -3031,6 +3060,7 @@ export class MockHostBackend {
               schemaVersion: 2,
               revision: this.mockSettingsRevision,
               runtimeRevision: this.mockRuntimeSettingsRevision,
+              domainRevisions: {},
               config: this.mockConfig,
             },
           },
@@ -3112,7 +3142,7 @@ export class MockHostBackend {
         if (
           input.mutations.some(
             (mutation) =>
-              !['desktop', 'media', 'artifact', 'automation', 'visionDelegation'].includes(
+              !['desktop', 'media', 'artifact', 'automation', 'visionDelegation', 'replyWriter'].includes(
                 mutation.domain,
               ),
           )
@@ -3131,6 +3161,7 @@ export class MockHostBackend {
               schemaVersion: 2,
               revision: this.mockSettingsRevision,
               runtimeRevision: this.mockRuntimeSettingsRevision,
+              domainRevisions: {},
               config: this.mockConfig,
             },
             changedDomains: input.mutations.map((mutation) => ({
@@ -4062,7 +4093,12 @@ export class MockHostBackend {
           type: 'response',
           command: 'todo/get',
           success: true,
-          data: { sessionId: command.sessionId, items: [], updatedAt: new Date().toISOString() },
+          data: {
+            sessionId: command.sessionId,
+            items: [],
+            updatedAt: new Date().toISOString(),
+            revision: 'empty',
+          },
         };
       case 'todo/set':
         return {
@@ -4074,6 +4110,7 @@ export class MockHostBackend {
             sessionId: command.sessionId,
             items: command.items,
             updatedAt: new Date().toISOString(),
+            revision: 'empty',
           },
         };
 
@@ -4121,22 +4158,31 @@ export class MockHostBackend {
       case 'browser/input':
         return { id, type: 'response', command: 'browser/input', success: true, data: null };
       case 'browser/lock': {
+        if (command.owner === 'agent') this.mockBrowserAgentWantsLock = true;
         const owner = command.owner === 'user' ? 'user' : 'agent';
         this.emitPush({
           type: 'browser/controller',
           owner,
           ts: Date.now(),
-          ...(owner === 'agent' || command.owner === 'user' ? { agentWantsLock: true } : {}),
+          ...(this.mockBrowserAgentWantsLock ? { agentWantsLock: true } : {}),
         });
         return { id, type: 'response', command: 'browser/lock', success: true, data: null };
       }
       case 'browser/unlock': {
-        const owner = command.owner === 'user' ? 'agent' : 'idle';
+        const owner =
+          command.owner === 'user'
+            ? this.mockBrowserAgentWantsLock
+              ? 'agent'
+              : 'idle'
+            : 'idle';
+        if (command.owner !== 'user' || !this.mockBrowserAgentWantsLock) {
+          this.mockBrowserAgentWantsLock = false;
+        }
         this.emitPush({
           type: 'browser/controller',
           owner,
           ts: Date.now(),
-          ...(owner === 'agent' ? { agentWantsLock: true } : {}),
+          ...(this.mockBrowserAgentWantsLock ? { agentWantsLock: true } : {}),
         });
         return { id, type: 'response', command: 'browser/unlock', success: true, data: null };
       }

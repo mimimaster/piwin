@@ -58,12 +58,19 @@ import {
   foregroundMismatchNotice,
   readForegroundProblem,
   requestPromptWithForeground,
+  type BusyRunChoice,
 } from '../prompt-foreground';
+import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
+import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
+import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
+import { flattenUnsafeRemoteContextRefs } from '../remote-context-refs.js';
+import { pushError, type NotificationAction } from '../notification-queue';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
   state: ChatUiState;
   dispatch: Dispatch<ChatUiAction>;
+  dispatchNotification?: Dispatch<NotificationAction>;
   agentMode: AgentModeId;
   onAgentModeChange?: (mode: AgentModeId) => void;
   /** Skills available for `/name` send intercept. */
@@ -103,6 +110,7 @@ export type UseComposerMediaArgs = {
   /** Optional confirm dialog for text-only + media without delegation. */
   confirmTextOnlyImageSend?: (message: string) => Promise<boolean>;
   confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
+  confirmBusyRun?: (problem: ForegroundRunMismatchProblem) => Promise<BusyRunChoice>;
   /** CM: pending structured context refs for session/prompt. */
   getPendingContextRefs?: () => PromptContextRef[];
   /** CM: token-stable snapshot so a send never re-reads mutable chips. */
@@ -222,6 +230,17 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   const prevActiveSessionIdRef = useRef<string | null>(args.state.activeSessionId);
   const activeSessionIdRef = useRef<string | null>(args.state.activeSessionId);
   activeSessionIdRef.current = args.state.activeSessionId;
+
+  const notifyError = useCallback(
+    (message: string): void => {
+      if (args.dispatchNotification) {
+        args.dispatchNotification(pushError(message));
+      } else {
+        args.dispatch({ type: 'error', message });
+      }
+    },
+    [args],
+  );
 
   const setActiveDraft = useCallback((draftId: string | null): void => {
     activeDraftIdRef.current = draftId;
@@ -652,7 +671,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       return null;
     }
     if (!args.ensureSession) {
-      args.dispatch({ type: 'error', message: 'Create a session before sending' });
+      notifyError('Create a session before sending');
       return null;
     }
     // We only reach this point from draft mode (activeSessionId was null).
@@ -1366,6 +1385,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     (params: {
       text: string;
       attachments?: PromptAttachment[];
+      contextRefs?: PromptContextRef[];
       displayText?: string;
       skill?: SkillActivityView;
     }): string => {
@@ -1374,6 +1394,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         type: 'user/send',
         text: params.displayText ?? params.text,
         attachments: params.attachments ?? [],
+        ...(params.contextRefs && params.contextRefs.length > 0
+          ? { contextRefs: params.contextRefs }
+          : {}),
         clientMessageId,
         ...(params.skill ? { skill: params.skill } : {}),
       });
@@ -1395,13 +1418,29 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       restoreAttachments?: PendingComposerAttachment[],
     ): void => {
       args.dispatch({ type: 'user/send-rollback', clientMessageId });
+      composerRef.current = restoreText;
       setComposer(restoreText);
       if (restoreAttachments && restoreAttachments.length > 0) {
         pendingAttachmentsRef.current = [...restoreAttachments];
         setPendingAttachments([...restoreAttachments]);
       }
+      // Send from New Agent deletes the local draft before ACK. If Host never
+      // accepted the turn, park the unsent text: live session → composer
+      // snapshot, still-draft → draft row. Reconnect must not restore empty.
+      skipDraftSaveRef.current = false;
+      const sessionId = activeSessionIdRef.current;
+      if (sessionId) {
+        sessionComposerSnapshotsRef.current.delete(sessionId);
+        sessionComposerSnapshotsRef.current.set(sessionId, {
+          text: restoreText,
+          attachments: [...(restoreAttachments ?? pendingAttachmentsRef.current)],
+          contextRefs: [...pendingContextRefsRef.current],
+        });
+      } else {
+        upsertCurrentDraft(restoreText, currentDraftScopeRef.current);
+      }
     },
-    [args],
+    [args, upsertCurrentDraft],
   );
 
   const refreshQueuedTurnQueue = useCallback(
@@ -1438,6 +1477,10 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     async (overrideText?: string): Promise<void> => {
       const text = (overrideText ?? composer).trim();
       if (promptSubmissionInProgress.current) {
+        return;
+      }
+      if (shouldBlockRemoteHostGesture(args.hostClient)) {
+        notifyError(hostReconnectNotice(locale));
         return;
       }
       // Legacy Host checkpoint pause (CLI): clear it so a normal prompt can
@@ -1672,7 +1715,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
-      const promptContextRefs = contextRefs;
+      let promptContextRefs = contextRefs;
       let skillActivity: SkillActivityView | undefined;
       if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
         const skills = (args.menuSkills ?? []).map((skill) => ({
@@ -1700,6 +1743,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
       }
 
+      if (args.hostClient.getTransport?.() === 'remote') {
+        const flattened = flattenUnsafeRemoteContextRefs(hostPromptText, promptContextRefs);
+        hostPromptText = flattened.text;
+        promptContextRefs = flattened.contextRefs;
+      }
+
       // Stage 4: an ordinary Send during an active Run is a Host-owned
       // next-turn queue admission. The Host persists the same user identity
       // and later drains it after the exact foreground Run terminalizes.
@@ -1712,27 +1761,30 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         pendingContextRefsRef.current = contextRefs;
         promptSubmissionInProgress.current = true;
         try {
-          const response = await args.hostClient.request({
-            type: 'session/queued-turn-submit',
-            sessionId,
-            queuedTurnId,
-            userMessageId: clientMessageId,
-            input: buildPromptRequestInput({
-              text: hostPromptText,
-              attachments: promptAttachments,
-              contextRefs: promptContextRefs,
-              agentMode: promptAgentMode,
-              clientMessageId,
-              ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
-            }),
-          });
+          const response = await args.hostClient.request(
+            {
+              type: 'session/queued-turn-submit',
+              sessionId,
+              queuedTurnId,
+              userMessageId: clientMessageId,
+              input: buildPromptRequestInput({
+                text: hostPromptText,
+                attachments: promptAttachments,
+                contextRefs: promptContextRefs,
+                agentMode: promptAgentMode,
+                clientMessageId,
+                ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
+              }),
+            },
+            { idempotencyKey: createGestureIdempotencyKey() },
+          );
           if (!response.success) {
             setComposer(text);
             if (paintSnapshotAttachments.length > 0) {
               pendingAttachmentsRef.current = [...paintSnapshotAttachments];
               setPendingAttachments([...paintSnapshotAttachments]);
             }
-            args.dispatch({ type: 'error', message: response.error });
+            notifyError(hostFailureNotice(response, locale));
             return;
           }
           disposeComposerAttachments(paintSnapshotAttachments);
@@ -1753,7 +1805,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             pendingAttachmentsRef.current = [...paintSnapshotAttachments];
             setPendingAttachments([...paintSnapshotAttachments]);
           }
-          args.dispatch({ type: 'error', message: formatError(error) });
+          notifyError(formatError(error));
         } finally {
           promptSubmissionInProgress.current = false;
         }
@@ -1782,6 +1834,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         text,
         displayText,
         attachments: promptAttachments,
+        contextRefs,
         ...(skillActivity ? { skill: skillActivity } : {}),
       });
       // paintOptimisticUserSend hides attachment chips; workspace refs belong
@@ -1808,26 +1861,59 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           ...(skillActivity ? { skillId: skillActivity.skillId } : {}),
         });
         const response = await requestPromptWithForeground({
-          request: (command) => args.hostClient.request(command),
+          request: (command, options) => args.hostClient.request(command, options),
           sessionId,
           input,
+          createIdempotencyKey: createGestureIdempotencyKey,
+          ...(args.confirmBusyRun ? { resolveBusy: args.confirmBusyRun } : {}),
           ...(args.confirmForegroundReplace
             ? { confirmReplace: args.confirmForegroundReplace }
             : {}),
+          onQueue: async () => {
+            rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+            const queuedTurnId = crypto.randomUUID();
+            return args.hostClient.request(
+              {
+                type: 'session/queued-turn-submit',
+                sessionId,
+                queuedTurnId,
+                userMessageId: clientMessageId,
+                input,
+              },
+              { idempotencyKey: createGestureIdempotencyKey() },
+            );
+          },
           ...(typeof args.hostClient.supportsForegroundAdmission === 'function'
             ? { remoteForegroundAdmission: args.hostClient.supportsForegroundAdmission() }
             : {}),
         });
+        if (response.command === 'session/queued-turn-submit') {
+          if (!response.success) {
+            rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
+            notifyError(hostFailureNotice(response, locale));
+            return;
+          }
+          disposeComposerAttachments(paintSnapshotAttachments);
+          pendingContextRefsRef.current = [];
+          const queuedData = response.data as { queuedTurn?: QueuedTurnRecord } | undefined;
+          if (queuedData?.queuedTurn) {
+            args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: queuedData.queuedTurn });
+          }
+          refreshQueuedTurnQueue(sessionId);
+          if (promptRefsSnapshot) {
+            args.consumePendingContextRefs?.(promptRefsSnapshot);
+          } else {
+            args.clearPendingContextRefs?.();
+          }
+          return;
+        }
         if (!response.success) {
           rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
           const problem = readForegroundProblem(response);
           if (problem) {
-            args.dispatch({
-              type: 'error',
-              message: foregroundMismatchNotice(problem, locale),
-            });
+            notifyError(foregroundMismatchNotice(problem, locale));
           } else {
-            args.dispatch({ type: 'error', message: response.error });
+            notifyError(hostFailureNotice(response, locale));
           }
           return;
         }
@@ -1866,7 +1952,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         if (clientMessageId) {
           rollbackOptimisticUserSend(clientMessageId, text, paintSnapshotAttachments);
         }
-        args.dispatch({ type: 'error', message: formatError(error) });
+        notifyError(formatError(error));
       } finally {
         promptSubmissionInProgress.current = false;
       }
@@ -1888,6 +1974,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       resolveSessionIdForComposer,
       rollbackOptimisticUserSend,
       saveDeferredMediaChips,
+      upsertCurrentDraft,
     ],
   );
 
@@ -1940,7 +2027,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         if (overrideText === undefined) {
           setComposer(text);
         }
-        args.dispatch({ type: 'error', message: response.error });
+        notifyError(hostFailureNotice(response, locale));
         return false;
       }
       const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
@@ -1956,12 +2043,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (overrideText === undefined) {
         setComposer(text);
       }
-      args.dispatch({ type: 'error', message: formatError(error) });
+      notifyError(formatError(error));
       return false;
     } finally {
       promptSubmissionInProgress.current = false;
     }
-  }, [args, composer]);
+  }, [args, composer, notifyError]);
 
   const handleFollowUp = useCallback((): void => {
     const text = composer.trim();
@@ -1982,22 +2069,25 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     const userMessageId = crypto.randomUUID();
     setComposer('');
     void args.hostClient
-      .request({
-        type: 'session/queued-turn-submit',
-        sessionId,
-        queuedTurnId,
-        userMessageId,
-        input: buildPromptRequestInput({
-          text,
-          attachments: [],
-          contextRefs: [],
-          agentMode: args.agentMode,
-          clientMessageId: userMessageId,
-        }),
-      })
+      .request(
+        {
+          type: 'session/queued-turn-submit',
+          sessionId,
+          queuedTurnId,
+          userMessageId,
+          input: buildPromptRequestInput({
+            text,
+            attachments: [],
+            contextRefs: [],
+            agentMode: args.agentMode,
+            clientMessageId: userMessageId,
+          }),
+        },
+        { idempotencyKey: createGestureIdempotencyKey() },
+      )
       .then((response) => {
         if (!response.success) {
-          args.dispatch({ type: 'error', message: response.error });
+          notifyError(hostFailureNotice(response, locale));
           setComposer(text);
           return;
         }
@@ -2009,13 +2099,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         refreshQueuedTurnQueue(sessionId);
       })
       .catch((error: unknown) => {
-        args.dispatch({ type: 'error', message: formatError(error) });
+        notifyError(formatError(error));
         setComposer(text);
       })
       .finally(() => {
         promptSubmissionInProgress.current = false;
       });
-  }, [args, buildPromptRequestInput, composer, refreshQueuedTurnQueue]);
+  }, [args, buildPromptRequestInput, composer, notifyError, refreshQueuedTurnQueue]);
 
   const hostQueueForActiveSession = args.state.activeSessionId
     ? (args.state.queuedTurnsBySession[args.state.activeSessionId] ?? [])
@@ -2039,16 +2129,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         })
         .then((response) => {
           if (!response.success) {
-            args.dispatch({ type: 'error', message: response.error });
+            notifyError(hostFailureNotice(response, locale));
             return;
           }
           const updated = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
             ?.queuedTurn;
           if (updated) args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: updated });
         })
-        .catch((error: unknown) => args.dispatch({ type: 'error', message: formatError(error) }));
+        .catch((error: unknown) => notifyError(formatError(error)));
     },
-    [args],
+    [args, notifyError],
   );
 
   const handleSteerQueueRemove = useCallback(
@@ -2068,7 +2158,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         })
         .then((response) => {
           if (!response.success) {
-            args.dispatch({ type: 'error', message: response.error });
+            notifyError(hostFailureNotice(response, locale));
             return;
           }
           const cancelled = (response.data as { queuedTurn?: QueuedTurnRecord } | undefined)
@@ -2077,9 +2167,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             args.dispatch({ type: 'session/queued-turn-updated', queuedTurn: cancelled });
           }
         })
-        .catch((error: unknown) => args.dispatch({ type: 'error', message: formatError(error) }));
+        .catch((error: unknown) => notifyError(formatError(error)));
     },
-    [args],
+    [args, notifyError],
   );
 
   const handleSteerQueueSendNow = useCallback(
@@ -2096,10 +2186,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       // nothing to steer — the Host drain admits the queue on its own.
       if (!args.state.activeRunId || !args.state.streaming) return;
       if ((target.input.attachments?.length ?? 0) > 0 || (target.input.contextRefs?.length ?? 0) > 0) {
-        args.dispatch({
-          type: 'error',
-          message: '带附件或上下文引用的消息暂不支持调整为当前任务',
-        });
+        notifyError('带附件或上下文引用的消息暂不支持调整为当前任务');
         return;
       }
       const command = {
@@ -2121,7 +2208,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         response = await args.hostClient.request(command);
       }
       if (!response.success) {
-        args.dispatch({ type: 'error', message: response.error });
+        notifyError(hostFailureNotice(response, locale));
         return;
       }
       const data = response.data as

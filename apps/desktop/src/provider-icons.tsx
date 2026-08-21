@@ -9,7 +9,6 @@ import {
   Anthropic,
   Azure,
   AzureAI,
-  ChatGLM,
   DeepSeek,
   Gemini,
   Groq,
@@ -20,6 +19,7 @@ import {
   OpenRouter,
   Qwen,
   SiliconCloud,
+  Zhipu,
 } from 'modelicons';
 
 export type ProviderIconProps = {
@@ -27,6 +27,8 @@ export type ProviderIconProps = {
   id: string;
   /** Display name — used for monogram when no brand mark matches. */
   name?: string;
+  /** Model ID for fallback brand detection when provider ID is custom (e.g. OpenAI proxy / custom gateway). */
+  modelId?: string;
   size?: number;
   className?: string;
   style?: CSSProperties;
@@ -93,9 +95,9 @@ const BRANDS: Record<string, BrandEntry> = {
   deepseek: { Icon: DeepSeek as BrandIcon, softBg: '#e8ecff', softFg: '#4d6bfe' },
   moonshot: { Icon: Moonshot as BrandIcon, softBg: '#edf1f6', softFg: '#16191d' },
   kimi: { Icon: Moonshot as BrandIcon, softBg: '#edf1f6', softFg: '#16191d' },
-  zhipu: { Icon: ChatGLM as BrandIcon, softBg: '#e8f3ff', softFg: '#0f6cbd' },
-  glm: { Icon: ChatGLM as BrandIcon, softBg: '#e8f3ff', softFg: '#0f6cbd' },
-  chatglm: { Icon: ChatGLM as BrandIcon, softBg: '#e8f3ff', softFg: '#0f6cbd' },
+  zhipu: { Icon: Zhipu as BrandIcon, softBg: '#e8f3ff', softFg: '#3859FF' },
+  glm: { Icon: Zhipu as BrandIcon, softBg: '#e8f3ff', softFg: '#3859FF' },
+  chatglm: { Icon: Zhipu as BrandIcon, softBg: '#e8f3ff', softFg: '#3859FF' },
   qwen: { Icon: Qwen as BrandIcon, softBg: '#eee9fe', softFg: '#6a4df4' },
   dashscope: { Icon: Qwen as BrandIcon, softBg: '#eee9fe', softFg: '#6a4df4' },
   tongyi: { Icon: Qwen as BrandIcon, softBg: '#eee9fe', softFg: '#6a4df4' },
@@ -114,11 +116,52 @@ const BRANDS: Record<string, BrandEntry> = {
   azureai: { Icon: AzureAI as BrandIcon, softBg: '#e8f0fe', softFg: '#0078d4' },
 };
 
-function resolveBrand(id: string): BrandEntry | null {
+function resolveBrand(id: string, modelId?: string): BrandEntry | null {
   const direct = BRANDS[id];
   if (direct) return direct;
 
   const lower = id.toLowerCase();
+
+  // If modelId is provided (e.g. proxying gemini/claude via a custom endpoint or openai-compatible relay),
+  // check modelId first for specific brand matching before falling back to generic protocol marks.
+  if (modelId) {
+    const lowerModel = modelId.toLowerCase();
+    if (lowerModel.includes('gemini') || lowerModel.includes('google')) return BRANDS.gemini!;
+    if (lowerModel.includes('claude') || lowerModel.includes('anthropic')) return BRANDS.anthropic!;
+    if (lowerModel.includes('deepseek')) return BRANDS.deepseek!;
+    if (
+      lowerModel.includes('qwen') ||
+      lowerModel.includes('dashscope') ||
+      lowerModel.includes('tongyi')
+    ) {
+      return BRANDS.qwen!;
+    }
+    if (lowerModel.includes('moonshot') || lowerModel.includes('kimi')) return BRANDS.moonshot!;
+    if (
+      lowerModel.includes('zhipu') ||
+      lowerModel.includes('glm') ||
+      lowerModel.includes('chatglm')
+    ) {
+      return BRANDS.zhipu!;
+    }
+    if (lowerModel.includes('silicon') || lowerModel.includes('siliconflow')) {
+      return BRANDS.siliconflow!;
+    }
+    if (lowerModel.includes('groq')) return BRANDS.groq!;
+    if (lowerModel.includes('ollama')) return BRANDS.ollama!;
+    if (lowerModel.includes('lmstudio') || lowerModel.includes('lm-studio')) {
+      return BRANDS.lmstudio!;
+    }
+    if (
+      lowerModel.includes('openai') ||
+      lowerModel.includes('gpt') ||
+      lowerModel.includes('o1') ||
+      lowerModel.includes('o3') ||
+      lowerModel.includes('chatgpt')
+    ) {
+      return BRANDS.openai!;
+    }
+  }
 
   // Protocol-style custom presets: custom-openai / custom-anthropic still
   // show the protocol brand mark (OAI protocol → OpenAI icon is correct).
@@ -171,7 +214,7 @@ function resolveBrand(id: string): BrandEntry | null {
 /** Soft pastel tile with real brand SVG (or monogram fallback). */
 export function ProviderIcon(props: ProviderIconProps): ReactElement {
   const size = props.size ?? 28;
-  const brand = resolveBrand(props.id);
+  const brand = resolveBrand(props.id, props.modelId);
   const radius = Math.max(8, Math.round(size * 0.29));
   const className = ['provider-icon', props.className].filter(Boolean).join(' ');
 

@@ -16,6 +16,24 @@ describe('parseToolCitations', () => {
     expect(parsed.citations[0]?.url).toBe('https://example.com');
   });
 
+  it('parses web_fetch plain metadata output', () => {
+    const parsed = parseToolCitations(
+      'web_fetch',
+      [
+        'url: https://example.com/a',
+        'finalUrl: https://example.com/a',
+        'title: Doc',
+        'truncated: false',
+        '',
+        '---',
+        'Body text here',
+      ].join('\n'),
+    );
+    expect(parsed.kind).toBe('web_fetch');
+    expect(parsed.citations[0]?.title).toBe('Doc');
+    expect(parsed.fetchPreview?.excerpt).toContain('Body');
+  });
+
   it('parses web_fetch result', () => {
     const parsed = parseToolCitations(
       'web_fetch',

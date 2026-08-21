@@ -12,6 +12,10 @@ export type UseRunReconcileArgs = {
   activeRunId: string | null;
   /** True while the UI believes a run is live (streaming or aborting). */
   runLive: boolean;
+  /** Re-ask Host after a remote socket comes back. */
+  hostReady?: boolean;
+  /** Remote snapshot / catch-up fence — reload transcript even when idle. */
+  catchUpEpoch?: number;
 };
 
 /**
@@ -28,9 +32,38 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
   const runLiveRef = useRef(args.runLive);
   runLiveRef.current = args.runLive;
 
-  const reconcile = useCallback(async (): Promise<void> => {
+  const loadTranscript = useCallback(
+    async (sessionId: string): Promise<void> => {
+      const messagesResponse = await hostClient.request({
+        type: 'session/messages',
+        sessionId,
+      });
+      if (sessionRef.current !== sessionId) {
+        return;
+      }
+      if (!messagesResponse.success) {
+        return;
+      }
+      const data = messagesResponse.data as { messages?: SessionTranscriptMessage[] } | undefined;
+      if (!Array.isArray(data?.messages)) {
+        return;
+      }
+      dispatch({
+        type: 'session/load-messages',
+        sessionId,
+        messages: data.messages,
+      });
+    },
+    [dispatch, hostClient],
+  );
+
+  /** Live-run path: gap / focus / visibility. Idle sessions stay quiet. */
+  const reconcileLive = useCallback(async (): Promise<void> => {
     const sessionId = sessionRef.current;
     if (!sessionId || !runLiveRef.current) {
+      return;
+    }
+    if (hostClient.supportsCommand?.('session/foreground-run') === false) {
       return;
     }
     const runIdAtStart = runIdRef.current;
@@ -51,59 +84,75 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
     // pull the authoritative transcript before settling run state. The
     // load-messages dispatch resets live-run fields; dispatch the terminal
     // afterwards so the resting state keeps the authoritative outcome.
-    const messagesResponse = await hostClient.request({
-      type: 'session/messages',
-      sessionId,
-    });
+    await loadTranscript(sessionId);
     if (sessionRef.current !== sessionId || runIdRef.current !== runIdAtStart) {
       return;
-    }
-    if (messagesResponse.success) {
-      const data = messagesResponse.data as { messages?: SessionTranscriptMessage[] } | undefined;
-      if (Array.isArray(data?.messages)) {
-        dispatch({
-          type: 'session/load-messages',
-          sessionId,
-          messages: data.messages,
-        });
-      }
     }
     if (decision === 'apply-terminal' && run) {
       dispatch({ type: 'run/terminal', run });
     } else {
       dispatch({ type: 'run/stale-clear', sessionId });
     }
-  }, [dispatch, hostClient]);
+  }, [dispatch, hostClient, loadTranscript]);
 
-  const reconcilingRef = useRef(false);
-  const rerunRef = useRef(false);
-  const scheduleReconcile = useCallback((): void => {
-    if (reconcilingRef.current) {
-      rerunRef.current = true;
+  /** Snapshot / reconnect catch-up: reload transcript even when idle. */
+  const reconcileCatchUp = useCallback(async (): Promise<void> => {
+    const sessionId = sessionRef.current;
+    if (!sessionId) {
       return;
     }
-    reconcilingRef.current = true;
-    void reconcile()
-      .catch(() => undefined)
-      .finally(() => {
-        reconcilingRef.current = false;
-        if (rerunRef.current) {
-          rerunRef.current = false;
-          scheduleReconcile();
+    if (runLiveRef.current) {
+      await reconcileLive();
+      return;
+    }
+    await loadTranscript(sessionId);
+  }, [loadTranscript, reconcileLive]);
+
+  const reconcilingRef = useRef(false);
+  const rerunLiveRef = useRef(false);
+  const rerunCatchUpRef = useRef(false);
+
+  const schedule = useCallback(
+    (mode: 'live' | 'catch-up'): void => {
+      if (reconcilingRef.current) {
+        if (mode === 'live') {
+          rerunLiveRef.current = true;
+        } else {
+          rerunCatchUpRef.current = true;
         }
-      });
-  }, [reconcile]);
+        return;
+      }
+      reconcilingRef.current = true;
+      const work = mode === 'live' ? reconcileLive() : reconcileCatchUp();
+      void work
+        .catch(() => undefined)
+        .finally(() => {
+          reconcilingRef.current = false;
+          if (rerunCatchUpRef.current) {
+            rerunCatchUpRef.current = false;
+            rerunLiveRef.current = false;
+            schedule('catch-up');
+            return;
+          }
+          if (rerunLiveRef.current) {
+            rerunLiveRef.current = false;
+            schedule('live');
+          }
+        });
+    },
+    [reconcileCatchUp, reconcileLive],
+  );
 
   useEffect(() => {
-    hostClient.registerSequenceGapHandler(() => scheduleReconcile());
+    hostClient.registerSequenceGapHandler(() => schedule('live'));
     return () => hostClient.registerSequenceGapHandler(null);
-  }, [hostClient, scheduleReconcile]);
+  }, [hostClient, schedule]);
 
   useEffect(() => {
-    const handleFocus = (): void => scheduleReconcile();
+    const handleFocus = (): void => schedule('live');
     const handleVisibility = (): void => {
       if (document.visibilityState === 'visible') {
-        scheduleReconcile();
+        schedule('live');
       }
     };
     window.addEventListener('focus', handleFocus);
@@ -112,5 +161,22 @@ export function useRunReconcile(args: UseRunReconcileArgs): void {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [scheduleReconcile]);
+  }, [schedule]);
+
+  useEffect(() => {
+    if (args.hostReady !== true) {
+      return;
+    }
+    schedule('catch-up');
+  }, [args.hostReady, schedule]);
+
+  useEffect(() => {
+    if (args.catchUpEpoch === undefined || args.catchUpEpoch === 0) {
+      return;
+    }
+    if (args.hostReady !== true) {
+      return;
+    }
+    schedule('catch-up');
+  }, [args.catchUpEpoch, args.hostReady, schedule]);
 }

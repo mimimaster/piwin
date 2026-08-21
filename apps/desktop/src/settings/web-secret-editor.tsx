@@ -18,7 +18,7 @@ export type WebSecretEditorProps = {
   testId: string;
 };
 
-/** Keychain-backed Web API key editor with explicit save feedback and collapse. */
+/** Host-backed Web API key editor with explicit save feedback and collapse. */
 export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
   const legacyPlaintextKey = isLegacyPlaintextKey(props.apiKeyEnv) ? props.apiKeyEnv.trim() : '';
   const initialEnvironmentVariable = legacyPlaintextKey
@@ -38,7 +38,7 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
   );
 
   useEffect(() => {
-    if (!props.apiKeyRef) {
+    if (props.disabled || !props.apiKeyRef) {
       setLoading(false);
       return;
     }
@@ -66,7 +66,7 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [props.apiKeyRef, props.loadSecret, props.secretId]);
+  }, [props.apiKeyRef, props.disabled, props.loadSecret, props.secretId]);
 
   async function testConnection(): Promise<void> {
     if (!props.testConnection) {
@@ -112,8 +112,8 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
       if (!configSaved) {
         throw new Error(
           props.zh
-            ? '密钥已写入钥匙串，但 Web 配置保存失败。'
-            : 'Key stored, but Web config save failed.',
+            ? '密钥已写入 Host，但 Web 配置保存失败。'
+            : 'Key stored on the Host, but Web config save failed.',
         );
       }
       await testConnection();
@@ -179,16 +179,16 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
       {legacyPlaintextKey ? (
         <div className="web-secret-warning">
           {props.zh
-            ? '检测到旧版配置里可能直接写入了密钥。保存后会迁移到 macOS 钥匙串，并从配置中移除明文。'
-            : 'A key appears to be stored in the legacy config. Saving migrates it to macOS Keychain and removes the plaintext value.'}
+            ? '检测到旧版配置里可能直接写入了密钥。保存后会迁到 Host 密钥库，并从配置中移除明文。'
+            : 'A key appears to be stored in the legacy config. Saving migrates it to the Host secret store and removes the plaintext value.'}
         </div>
       ) : null}
       <Field
         label="API Key"
         description={
           props.zh
-            ? '密钥保存到 macOS 钥匙串，不写入 ~/.piwin/config.json。点击眼睛可临时显示。'
-            : 'Stored in macOS Keychain, never in ~/.piwin/config.json. Use the eye button to reveal it temporarily.'
+            ? '密钥保存在 Host，不写入配置文件。新填会写回 Host。点击眼睛可临时显示。'
+            : 'Stored on the Host, never in config. Paste a new key to update it. Use the eye button to reveal it temporarily.'
         }
         className="web-source-field"
       >
@@ -210,8 +210,8 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
           label={props.zh ? '环境变量名' : 'Environment variable'}
           description={
             props.zh
-              ? '钥匙串中没有密钥时才读取该变量；这里只填变量名。'
-              : 'Used only when Keychain has no key. Enter the variable name, not its value.'
+              ? 'Host 密钥库没有密钥时才读取该变量；这里只填变量名。'
+              : 'Used only when the Host secret store has no key. Enter the variable name, not its value.'
           }
           className="web-source-field"
         >

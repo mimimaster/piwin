@@ -15,6 +15,7 @@ import type {
   SubagentConfig,
   VisionDelegationConfig,
 } from './config.js';
+import type { ReplyWriterConfig } from './reply-writer.js';
 import type { SkillsConfig } from './skills.js';
 import type { WalkthroughConfig } from './walkthrough.js';
 import type { WebConfig } from './web.js';
@@ -47,6 +48,7 @@ export type SettingsDomain =
   | 'imageGeneration'
   | 'speech'
   | 'visionDelegation'
+  | 'replyWriter'
   | 'permissions'
   | 'walkthrough'
   | 'subagents'
@@ -78,6 +80,7 @@ export type SettingsDomainValueMap = {
   imageGeneration: ImageGenerationConfig | undefined;
   speech: SpeechConfig | undefined;
   visionDelegation: VisionDelegationConfig | undefined;
+  replyWriter: ReplyWriterConfig | undefined;
   permissions: PermissionConfig | undefined;
   walkthrough: WalkthroughConfig | undefined;
   subagents: SubagentConfig | undefined;
@@ -101,6 +104,8 @@ export type SettingsSnapshot = {
   revision: string;
   /** Revision of settings that require a new Agent Runtime generation. */
   runtimeRevision: string;
+  /** Per-domain hashes used to rebase non-overlapping applies. */
+  domainRevisions: Partial<Record<SettingsDomain, string>>;
   config: PiwinConfig;
 };
 
@@ -108,7 +113,78 @@ export type ApplySettingsInput = {
   /** Optional for transitional callers; new callers should always send it. */
   expectedRevision?: string;
   mutations: SettingsMutation[];
+  /** Hash of each mutated domain as last read. Required to rebase a stale document revision. */
+  expectedDomainRevisions?: Partial<Record<SettingsDomain, string>>;
 };
+
+/** Domains a remote shell may write through `settings/apply`. */
+export const REMOTE_SETTINGS_APPLY_DOMAINS = [
+  'hostMode',
+  'agentMock',
+  'providers',
+  'defaultProviderId',
+  'defaultModelId',
+  'thinking',
+  'media',
+  'artifact',
+  'web',
+  'skills',
+  'extensions',
+  'prompts',
+  'compaction',
+  'process',
+  'session',
+  'notes',
+  'flashcards',
+  'automation',
+  'marketplace',
+  'imageGeneration',
+  'speech',
+  'visionDelegation',
+  'replyWriter',
+  'permissions',
+  'walkthrough',
+  'subagents',
+  'remote',
+  'mcp',
+  'desktop',
+] as const satisfies readonly SettingsDomain[];
+
+export type RemoteSettingsApplyDomain = (typeof REMOTE_SETTINGS_APPLY_DOMAINS)[number];
+
+/** Window layout lives in the shell. `desktop` restore (model, last session) is Host-shared. */
+export const DEVICE_LOCAL_SETTINGS_DOMAINS = [] as const satisfies readonly SettingsDomain[];
+
+/**
+ * Remote settings projection for `apiKeyRef` / `apiKeyEnv`. The shell can show
+ * that Host already has a key without learning the ref. Apply must keep the
+ * real Host value when this placeholder comes back.
+ */
+export const REDACTED_STORED_SECRET = '[stored-secret]';
+
+export function isRedactedStoredSecret(value: unknown): boolean {
+  return value === REDACTED_STORED_SECRET;
+}
+
+export function isRemoteSettingsApplyDomain(domain: SettingsDomain): boolean {
+  return (REMOTE_SETTINGS_APPLY_DOMAINS as readonly SettingsDomain[]).includes(domain);
+}
+
+export function partitionRemoteSettingsMutations(mutations: SettingsMutation[]): {
+  allowed: SettingsMutation[];
+  blocked: SettingsMutation[];
+} {
+  const allowed: SettingsMutation[] = [];
+  const blocked: SettingsMutation[] = [];
+  for (const mutation of mutations) {
+    if (isRemoteSettingsApplyDomain(mutation.domain)) {
+      allowed.push(mutation);
+    } else {
+      blocked.push(mutation);
+    }
+  }
+  return { allowed, blocked };
+}
 
 export type SettingsApplyTiming =
   | 'immediate'
@@ -183,6 +259,38 @@ export function buildSettingsDomainMutations(
   return mutations;
 }
 
+export const SETTINGS_DOMAINS = [
+  'hostMode',
+  'agentMock',
+  'providers',
+  'defaultProviderId',
+  'defaultModelId',
+  'thinking',
+  'desktop',
+  'media',
+  'artifact',
+  'web',
+  'skills',
+  'extensions',
+  'prompts',
+  'compaction',
+  'process',
+  'session',
+  'notes',
+  'flashcards',
+  'automation',
+  'marketplace',
+  'imageGeneration',
+  'speech',
+  'visionDelegation',
+  'replyWriter',
+  'permissions',
+  'walkthrough',
+  'subagents',
+  'remote',
+  'mcp',
+] as const satisfies readonly SettingsDomain[];
+
 const settingsDomainValueMap: Record<SettingsDomain, true> = {
   hostMode: true,
   agentMock: true,
@@ -207,6 +315,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   imageGeneration: true,
   speech: true,
   visionDelegation: true,
+  replyWriter: true,
   permissions: true,
   walkthrough: true,
   subagents: true,

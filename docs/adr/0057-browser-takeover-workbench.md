@@ -70,7 +70,10 @@ Invariants:
   path. Opening the URL bar is not an implicit steal.
 - **Take over / Give back are user-initiated** — no permission prompt (same
   as pick).
-- **Run terminal** (success, error, abort) releases `agent` → `idle`.
+- **Run terminal** of the run that first acquired `agent` (success, error,
+  abort) releases that claim → `idle` (or keeps `user` and clears
+  `agentWantsLock`). Other runs, including subagents and other sessions, do
+  not release the shared lock.
 - Panel `agentRunning={state.streaming}` is **not** the lock. Streaming a
   coding turn that never uses the browser must not freeze the workbench.
 

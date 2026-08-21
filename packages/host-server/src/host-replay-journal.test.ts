@@ -40,5 +40,6 @@ describe('HostReplayJournal', () => {
     now = 111;
     expect(journal.listSince(0)).toEqual([]);
     expect(journal.getSize()).toEqual({ items: 0, bytes: 0 });
+    expect(journal.isCompleteSince(0)).toBe(false);
   });
 });

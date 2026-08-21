@@ -57,6 +57,7 @@ export class HostEgressChannel {
   private queuedBytes = 0;
   private lastSentSeq: number;
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
+  private drainTimer: ReturnType<typeof setTimeout> | undefined;
   private closed = false;
   private paused = false;
   private highWaterItems = 0;
@@ -107,9 +108,11 @@ export class HostEgressChannel {
 
   /** Mark a hydration snapshot cursor as applied before post-snapshot replay. */
   public advanceCursor(sequence: number): void {
-    if (!Number.isSafeInteger(sequence) || sequence < this.lastSentSeq) {
-      throw new Error('Host egress cursor must advance monotonically');
+    if (!Number.isSafeInteger(sequence) || sequence < 0) {
+      throw new Error('Host egress cursor must be a non-negative safe integer');
     }
+    // Allow rewind after Host restart / journal reset. A throw here would tear
+    // the socket after hello already succeeded (future-cursor reconnects).
     this.lastSentSeq = sequence;
     this.dataQueue = this.dataQueue.filter((record) => record.sequence.seq > sequence);
     this.controlQueue = this.controlQueue.filter((record) => record.sequence.seq > sequence);
@@ -230,11 +233,17 @@ export class HostEgressChannel {
     if (!this.paused) {
       this.flushData();
     }
+    const replayRecords = records.filter((record) => record.sequence.seq > this.lastSentSeq);
+    if (replayRecords.length === 0) return;
     if (!this.canSend()) {
-      this.closeSlow('slow-consumer cannot accept replay');
+      for (const record of replayRecords) {
+        this.dataQueue.push(record);
+        this.queuedBytes += record.encodedBytes;
+      }
+      this.updateHighWater();
+      this.scheduleDrainRetry();
       return;
     }
-    const replayRecords = records.filter((record) => record.sequence.seq > this.lastSentSeq);
     this.sendRecordsInChunks(replayRecords, 'replay');
   }
 
@@ -244,13 +253,21 @@ export class HostEgressChannel {
       clearTimeout(this.flushTimer);
       this.flushTimer = undefined;
     }
+    if (this.drainTimer !== undefined) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = undefined;
+    }
     this.dataQueue = [];
     this.controlQueue = [];
     this.queuedBytes = 0;
   }
 
   private flushControl(): void {
-    if (this.controlQueue.length === 0 || this.closed || this.paused || !this.canSend()) return;
+    if (this.controlQueue.length === 0 || this.closed || this.paused) return;
+    if (!this.canSend()) {
+      this.scheduleDrainRetry();
+      return;
+    }
     const controls = this.controlQueue.splice(0, this.maxBatchItems);
     const firstControl = controls[0];
     if (firstControl === undefined) return;
@@ -279,8 +296,21 @@ export class HostEgressChannel {
     }, 24);
   }
 
+  private scheduleDrainRetry(): void {
+    if (this.drainTimer !== undefined || this.closed || this.paused) return;
+    this.drainTimer = this.schedule(() => {
+      this.drainTimer = undefined;
+      this.flushControl();
+      this.flushData();
+    }, 16);
+  }
+
   private flushData(): void {
-    if (this.closed || this.paused || this.dataQueue.length === 0 || !this.canSend()) return;
+    if (this.closed || this.paused || this.dataQueue.length === 0) return;
+    if (!this.canSend()) {
+      this.scheduleDrainRetry();
+      return;
+    }
     const records: HostEgressRecord[] = [];
     let bytes = 0;
     while (records.length < this.maxBatchItems && this.dataQueue.length > 0) {
@@ -335,7 +365,15 @@ export class HostEgressChannel {
     let recordIndex = 0;
     while (!this.closed && recordIndex < records.length) {
       if (!this.canSend()) {
-        this.closeSlow('slow-consumer cannot continue replay');
+        // Pause and resume instead of 4008 mid-replay — large reconnect
+        // catch-up must not immediately re-kick the socket.
+        const remaining = records.slice(recordIndex);
+        for (const record of remaining) {
+          this.dataQueue.push(record);
+          this.queuedBytes += record.encodedBytes;
+        }
+        this.updateHighWater();
+        this.scheduleDrainRetry();
         return;
       }
       const chunk: HostEgressRecord[] = [];
@@ -370,6 +408,10 @@ export class HostEgressChannel {
     if (this.flushTimer !== undefined) {
       clearTimeout(this.flushTimer);
       this.flushTimer = undefined;
+    }
+    if (this.drainTimer !== undefined) {
+      clearTimeout(this.drainTimer);
+      this.drainTimer = undefined;
     }
     this.dataQueue = [];
     this.controlQueue = [];

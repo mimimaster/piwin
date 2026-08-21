@@ -1,35 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  collectSessionTools,
   looksLikeArgsDumpSummary,
   recoverSummaryFromInputPreview,
   resolveToolCallHeaderPreview,
-  resolveToolOpenPath,
-} from './tool-call-card';
-import type { ToolCardUi } from './chat-reducer';
-
-describe('collectSessionTools', () => {
-  it('flattens tools from all messages in order', () => {
-    const first: ToolCardUi = {
-      toolCallId: 'a',
-      toolName: 'bash',
-      status: 'done',
-      output: 'ok',
-    };
-    const second: ToolCardUi = {
-      toolCallId: 'b',
-      toolName: 'read',
-      status: 'running',
-      output: '',
-    };
-    const tools = collectSessionTools([
-      { tools: [first] },
-      { tools: [] },
-      { tools: [second] },
-    ]);
-    expect(tools).toEqual([first, second]);
-  });
-});
+} from './tool-call-head';
 
 describe('resolveToolCallHeaderPreview', () => {
   const shellCommand =
@@ -169,30 +143,5 @@ describe('recoverSummaryFromInputPreview', () => {
     expect(recoverSummaryFromInputPreview('not json')).toBeUndefined();
     expect(recoverSummaryFromInputPreview(JSON.stringify({ n: 1 }))).toBeUndefined();
     expect(recoverSummaryFromInputPreview(undefined)).toBeUndefined();
-  });
-});
-
-describe('resolveToolOpenPath', () => {
-  it('joins project-relative paths to the project root', () => {
-    expect(resolveToolOpenPath('pelican-bicycle-animation.html', '/workspace')).toEqual({
-      absolutePath: '/workspace/pelican-bicycle-animation.html',
-      relativePath: 'pelican-bicycle-animation.html',
-    });
-  });
-
-  it('keeps absolute paths and derives a project-relative path when under the root', () => {
-    expect(
-      resolveToolOpenPath('/workspace/apps/desktop/src/App.tsx', '/workspace'),
-    ).toEqual({
-      absolutePath: '/workspace/apps/desktop/src/App.tsx',
-      relativePath: 'apps/desktop/src/App.tsx',
-    });
-  });
-
-  it('returns the raw path when no project root is available', () => {
-    expect(resolveToolOpenPath('src/App.tsx')).toEqual({
-      absolutePath: 'src/App.tsx',
-      relativePath: 'src/App.tsx',
-    });
   });
 });
