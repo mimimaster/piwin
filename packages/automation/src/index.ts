@@ -14,4 +14,4 @@ export {
 } from './hooks-store.js';
 export { runMatchingHooks } from './hook-runner.js';
 export type { HookRunContext, HookRunResult } from './hook-runner.js';
-export { SessionTodoStore } from './todo-store.js';
+export { SessionTodoStore, createTodoListRevision } from './todo-store.js';

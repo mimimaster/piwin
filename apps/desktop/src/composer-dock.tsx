@@ -20,7 +20,6 @@ import type {
   ContextUsageSnapshot,
   HostStatusData,
   ProjectRecord,
-  PromptAttachment,
 } from '@piwin/contracts';
 import { Button, Dialog, IconButton } from '@piwin/ui-kit';
 import {
@@ -31,9 +30,11 @@ import {
 } from './composer-plus-menu';
 import type { PendingContextRefItem } from './hooks/use-composer-context-refs';
 import { getAgentMode, type AgentModeId } from './agent-mode';
-import { MediaPreview } from './MediaPreview';
-import { WebElementChip } from './WebElementChip';
 import { isFailedMediaAttachment, type PendingComposerAttachment } from './media-utils';
+import {
+  ComposerAttachmentShelf,
+  nextComposerShelfPop,
+} from './composer-attachment-shelf';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
@@ -42,18 +43,13 @@ import {
   type OrchestrationSchemeOption,
 } from './OrchestrationSchemeControl';
 import {
-  IconBook,
-  IconChat,
   IconClose,
-  IconDocument,
   IconMic,
-
   IconPlus,
   IconRefresh,
   IconSend,
   IconStop,
 } from './shell-icons';
-import { ContextRefChip } from './context-ref-chip';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -64,6 +60,7 @@ import {
 } from './slash';
 import {
   buildAtCatalog,
+  contextRefFromAtItem,
   detectActiveAtToken,
   filterAtItems,
   replaceActiveAtToken,
@@ -78,6 +75,7 @@ import { useDesktopLocale } from './desktop-locale-context';
 import { BranchChip, type BranchChipRequest } from './branch-chip';
 import { RuntimeTargetChip } from './runtime-target-chip';
 import { ProjectChip } from './project-chip';
+import { projectLabel } from './project-display-name';
 import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 import { ActiveJobsStrip } from './active-jobs-strip';
 import { useSpeechInput } from './hooks/use-speech-input.js';
@@ -212,6 +210,7 @@ export type ComposerDockProps = {
   /** True when Desktop is attached to a saved standalone Host. */
   runtimeRemoteConnected?: boolean;
   onSelectLocalRuntime?: () => void;
+  onSelectAttachRuntime?: () => void;
   /** Open Knowledge Center overlay from plus menu or UI. */
   onOpenKnowledge?: ((subTab?: 'doccards' | 'cards' | 'wiki') => void) | undefined;
   /** Open the right-panel Flashcards due queue. */
@@ -553,13 +552,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     }
     // CM-17: workspace file/folder mentions also land in the structured
     // pending refs so Host resolves them the same way as right-click refs.
-    if (props.onAddContextRef && (item.kind === 'file' || item.kind === 'folder') && props.projectPath) {
-      props.onAddContextRef({
-        kind: item.kind === 'folder' ? 'folder' : 'file',
-        projectPath: props.projectPath,
-        relativePath: item.name,
-        label: item.name,
-      });
+    const mentionRef = contextRefFromAtItem(item, props.projectPath);
+    if (props.onAddContextRef && mentionRef) {
+      props.onAddContextRef(mentionRef);
     }
     const next = replaceActiveAtToken(props.composer, activeAtToken, item.insertValue);
     props.onComposerChange(next);
@@ -808,6 +803,53 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
+    // Shift+Tab from the textarea lands on the last shelf card, skipping
+    // failure-row buttons that sit between the chips and the input.
+    if (
+      event.key === 'Tab' &&
+      event.shiftKey &&
+      !slashMenuOpen &&
+      !atMenuOpen &&
+      !historyMenuOpen
+    ) {
+      const shelf = event.currentTarget
+        .closest('.composer-card-v2')
+        ?.querySelector('[data-testid="composer-attachment-shelf-chips"]');
+      const chips = shelf?.querySelectorAll<HTMLElement>('[data-shelf-chip]');
+      const last = chips && chips.length > 0 ? chips[chips.length - 1] : null;
+      if (last) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+    }
+
+    // Empty textarea + caret at 0: Backspace pops the last shelf card.
+    if (
+      event.key === 'Backspace' &&
+      !event.nativeEvent.isComposing &&
+      !isComposingRef.current &&
+      composerValue.length === 0 &&
+      (event.currentTarget.selectionStart ?? 0) === 0
+    ) {
+      const pop = nextComposerShelfPop({
+        attachments: props.pendingAttachments,
+        contextRefs: props.pendingContextRefs ?? [],
+        hasDocComments: Boolean(props.docCommentsAttachment),
+      });
+      if (pop) {
+        event.preventDefault();
+        if (pop.kind === 'attachment') {
+          props.onRemoveAttachment(pop.localId);
+        } else if (pop.kind === 'context-ref') {
+          props.onRemoveContextRef?.(pop.key);
+        } else {
+          props.onRemoveDocComments?.();
+        }
+        return;
+      }
+    }
+
     // 4. ⌘Enter submits a run intervention (bypasses IME protection).
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
@@ -920,159 +962,23 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         </div>
       ) : null}
 
-      {/* Attachments row */}
-      {props.docCommentsAttachment ||
-      props.pendingAttachments.length > 0 ||
-      (props.pendingContextRefs && props.pendingContextRefs.length > 0) ? (
-        <div className="composer-v2-attachments">
-          {showTextOnlyImageWarning ? (
-            <div
-              className="composer-v2-vision-warning"
-              data-testid="composer-text-only-image-warning"
-              role="status"
-            >
-              <span className="composer-v2-vision-warning-text">{copy.textOnlyModelWarning}</span>
-              {props.onOpenModelSettings ? (
-                <button
-                  type="button"
-                  className="composer-v2-vision-warning-action"
-                  onClick={props.onOpenModelSettings}
-                >
-                  {copy.openModelSettings}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {props.docCommentsAttachment ? (
-            <div
-              className="composer-v2-attachment-chip composer-v2-doc-comment-chip"
-              data-testid="doc-comment-chip"
-            >
-              <span className="doc-comment-chip-icon" aria-hidden>
-                {/walkthrough/i.test(props.docCommentsAttachment.docTitle) ? (
-                  <IconBook width={14} height={14} />
-                ) : (
-                  <IconDocument width={14} height={14} />
-                )}
-              </span>
-              <span className="doc-comment-chip-title">{props.docCommentsAttachment.docTitle}</span>
-              <span className="doc-comment-chip-dot" aria-hidden>
-                ·
-              </span>
-              <span className="doc-comment-chip-count">
-                {props.docCommentsAttachment.commentCount}
-                <IconChat width={12} height={12} className="doc-comment-chip-count-icon" />
-              </span>
-              {props.onRemoveDocComments ? (
-                <button
-                  type="button"
-                  className="composer-v2-chip-remove doc-comment-chip-remove"
-                  onClick={props.onRemoveDocComments}
-                  aria-label={copy.removeCommentAttachment}
-                >
-                  <IconClose width={12} height={12} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {(props.pendingContextRefs ?? []).map((item) => (
-            <ContextRefChip
-              key={item.key}
-              item={item}
-              {...(props.onRemoveContextRef
-                ? { onRemove: props.onRemoveContextRef }
-                : {})}
-            />
-          ))}
-          {props.pendingAttachments.map((item) => (
-            <div
-              key={item.localId}
-              className="composer-v2-attachment-chip"
-              data-upload-status={item.uploadStatus ?? 'ready'}
-            >
-              {item.attachment.kind === 'web-element' ? (
-                <WebElementChip attachment={item.attachment} compact />
-              ) : (
-                <>
-                  {/* Phase 0: failures never cover the thumbnail — the reason
-                      and actions live in the failure rows under this list. */}
-                  <MediaPreview
-                    attachment={item.attachment}
-                    compact
-                    {...(item.previewUrl ? { previewUrl: item.previewUrl } : {})}
-                    {...(item.lightboxUrl ? { lightboxUrl: item.lightboxUrl } : {})}
-                  />
-                  {item.uploadStatus === 'saving' ? (
-                    <span
-                      className="composer-v2-attachment-status"
-                      data-testid="composer-attachment-saving"
-                    >
-                      {isGifAttachment(item.attachment)
-                        ? copy.attachmentPreparingGif
-                        : copy.attachmentPreparing}
-                    </span>
-                  ) : null}
-                </>
-              )}
-              <button
-                type="button"
-                className="composer-v2-chip-remove"
-                onClick={() => props.onRemoveAttachment(item.localId)}
-                aria-label={copy.removeAttachment}
-              >
-                <IconClose width={12} height={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {/* Failed attachment rows: reason as plain text + retry/remove actions
-          outside the chip, so the thumbnail stays visible (Phase 0). */}
-      {failedAttachments.length > 0 ? (
-        <div className="composer-v2-attachment-failures" role="alert">
-          {failedAttachments.map((item) => (
-            <div
-              key={item.localId}
-              className="composer-v2-attachment-failure"
-              data-testid="composer-attachment-failure"
-            >
-              <span className="composer-v2-attachment-failure-label">
-                {copy.attachmentFailedLabel}
-                {item.attachment.kind === 'media' && item.attachment.name
-                  ? ` · ${item.attachment.name}`
-                  : ''}
-              </span>
-              <span className="composer-v2-attachment-failure-reason">
-                {item.uploadErrorKind === 'connection'
-                  ? `${copy.attachmentFailureConnectionHint} — `
-                  : ''}
-                {item.uploadError ?? ''}
-              </span>
-              <span className="composer-v2-attachment-failure-actions">
-                {props.onRetryAttachment ? (
-                  <button
-                    type="button"
-                    className="composer-v2-attachment-failure-action"
-                    data-testid="composer-attachment-failure-retry"
-                    onClick={() => props.onRetryAttachment?.(item.localId)}
-                  >
-                    {copy.attachmentRetry}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="composer-v2-attachment-failure-action"
-                  data-testid="composer-attachment-failure-remove"
-                  onClick={() => props.onRemoveAttachment(item.localId)}
-                >
-                  {copy.attachmentRemove}
-                </button>
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <ComposerAttachmentShelf
+        copy={copy}
+        pendingAttachments={props.pendingAttachments}
+        showTextOnlyImageWarning={showTextOnlyImageWarning}
+        onRemoveAttachment={props.onRemoveAttachment}
+        {...(props.pendingContextRefs ? { pendingContextRefs: props.pendingContextRefs } : {})}
+        {...(props.docCommentsAttachment
+          ? { docCommentsAttachment: props.docCommentsAttachment }
+          : {})}
+        {...(props.onRetryAttachment ? { onRetryAttachment: props.onRetryAttachment } : {})}
+        {...(props.onRemoveContextRef ? { onRemoveContextRef: props.onRemoveContextRef } : {})}
+        {...(props.onRemoveDocComments ? { onRemoveDocComments: props.onRemoveDocComments } : {})}
+        {...(props.onOpenModelSettings ? { onOpenModelSettings: props.onOpenModelSettings } : {})}
+        onRequestComposerFocus={() => {
+          textareaRef.current?.focus();
+        }}
+      />
 
       {/* Textarea area */}
       <div className="composer-v2-input-area">
@@ -1437,7 +1343,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
               data-testid="composer-project-chip"
               title={props.projectPath}
             >
-              <span className="composer-context-link-label">{props.projectPath}</span>
+              <span className="composer-context-link-label">
+                {projectLabel(props.projectPath, props.recentProjects ?? [])}
+              </span>
             </span>
           ) : null}
           {props.branchRequest && props.projectPath ? (
@@ -1450,6 +1358,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           <RuntimeTargetChip
             {...(props.runtimeRemoteConnected === true ? { remoteConnected: true } : {})}
             {...(props.onSelectLocalRuntime ? { onSelectLocal: props.onSelectLocalRuntime } : {})}
+            {...(props.onSelectAttachRuntime
+              ? { onSelectAttach: props.onSelectAttachRuntime }
+              : {})}
           />
         </div>
       ) : null}
@@ -1470,13 +1381,5 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       ) : null}
       <ComposerCard {...props} />
     </footer>
-  );
-}
-
-function isGifAttachment(attachment: PromptAttachment): boolean {
-  return (
-    attachment.kind === 'media' &&
-    (attachment.mimeType.toLowerCase() === 'image/gif' ||
-      attachment.name?.toLowerCase().endsWith('.gif') === true)
   );
 }

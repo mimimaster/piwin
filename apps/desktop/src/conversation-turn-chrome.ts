@@ -1,0 +1,116 @@
+/**
+ * Conversation turn chrome: one identity header per user turn, not per
+ * model completion. Tool-loop assistant rows stay in the transcript;
+ * Conversation only projects the user-visible reply.
+ */
+import type { ChatMessageUi, ToolCardUi } from './chat-reducer';
+import { resolveGenerationToolKind } from './generation-tool-kind.js';
+
+export type ConversationTurnChrome = {
+  /** First assistant row Conversation will actually paint; owns the identity header. */
+  identityMessageId: string | null;
+  hiddenAssistantIds: ReadonlySet<string>;
+  /** Turn usage belongs on the identity header of the session's latest turn. */
+  showUsageOnIdentity: boolean;
+};
+
+/**
+ * Content Conversation paints besides thinking / identity. Tools themselves
+ * are Agent chrome and do not keep an intermediate completion on screen.
+ */
+export function conversationAssistantHasVisibleBody(message: ChatMessageUi): boolean {
+  if (message.text.trim().length > 0) {
+    return true;
+  }
+  if (message.attachments.length > 0) {
+    return true;
+  }
+  if ((message.searchEvidence?.citations.length ?? 0) > 0) {
+    return true;
+  }
+  return message.tools.some((tool) => resolveGenerationToolKind(tool) !== null);
+}
+
+export function shouldHideConversationAssistantRow(input: {
+  message: ChatMessageUi;
+  isLastAssistantInTurn: boolean;
+  isActivelyStreaming: boolean;
+}): boolean {
+  const { message } = input;
+  if (message.role !== 'assistant') {
+    return false;
+  }
+  if (message.subagentActivity) {
+    return true;
+  }
+  // Failed turns must stay visible even with empty body — TurnErrorCard lives
+  // on the assistant row, and Conversation used to hide them as "no reply".
+  if (message.status === 'error' || Boolean(message.error)) {
+    return false;
+  }
+  if (input.isActivelyStreaming) {
+    return false;
+  }
+  if (conversationAssistantHasVisibleBody(message)) {
+    return false;
+  }
+  if (input.isLastAssistantInTurn) {
+    return message.thinking.trim().length === 0 && !assistantHasFlashcardResult(message);
+  }
+  return true;
+}
+
+function assistantHasFlashcardResult(message: ChatMessageUi): boolean {
+  return message.tools.some((tool) => tool.status === 'done' && toolNameLooksLikeFlashcard(tool));
+}
+
+/** Keep aligned with `isFlashcardCreateTool` name matching; this file must stay UI-free. */
+function toolNameLooksLikeFlashcard(tool: ToolCardUi): boolean {
+  const names = [tool.toolName, tool.presentation?.routedToolName, tool.presentation?.title]
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.toLowerCase());
+  return names.some(
+    (name) => name.includes('flashcard_create') || name.includes('flashcard_batch_create'),
+  );
+}
+
+export function resolveConversationTurnChrome(input: {
+  messages: readonly ChatMessageUi[];
+  lastAssistantMessageId: string | null;
+  latestAssistantMessageId: string | null;
+}): ConversationTurnChrome {
+  const hiddenAssistantIds = new Set<string>();
+  let identityMessageId: string | null = null;
+  const lastAssistantMessageId = input.lastAssistantMessageId;
+  const lastAssistant = lastAssistantMessageId
+    ? input.messages.find((message) => message.id === lastAssistantMessageId)
+    : undefined;
+  const showUsageOnIdentity =
+    lastAssistantMessageId !== null &&
+    lastAssistantMessageId === input.latestAssistantMessageId &&
+    lastAssistant?.status === 'done';
+
+  for (const message of input.messages) {
+    if (message.role !== 'assistant') {
+      continue;
+    }
+    const hide = shouldHideConversationAssistantRow({
+      message,
+      isLastAssistantInTurn: message.id === lastAssistantMessageId,
+      isActivelyStreaming: message.status === 'streaming',
+    });
+    if (hide) {
+      hiddenAssistantIds.add(message.id);
+      continue;
+    }
+    if (identityMessageId === null) {
+      identityMessageId = message.id;
+    }
+  }
+
+  return {
+    identityMessageId,
+    hiddenAssistantIds,
+    showUsageOnIdentity,
+  };
+}

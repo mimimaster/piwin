@@ -34,6 +34,7 @@ export { assertAttachmentPayloadSafe, UnsafeAttachmentError } from './attachment
 export type { ExtractedAttachmentText } from './document-extractor.js';
 export {
   extractAttachmentText,
+  extractAttachmentTextFromBytes,
   formatAttachmentTextInjection,
   MAX_ATTACHMENT_TEXT_BYTES,
 } from './document-extractor.js';

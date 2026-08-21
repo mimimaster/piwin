@@ -23,7 +23,7 @@ export type OrchestrationMemberFallback = 'main' | 'none';
  * description is required so the main agent knows when to delegate (Claude-style).
  */
 export type OrchestrationSchemeMember = {
-  /** Main-agent call name, unique within the scheme (e.g. searcher). */
+  /** Main-agent call name, unique within the scheme (e.g. scout). */
   role: string;
   /** When to use this role — injected into the scheme roster. */
   description: string;
@@ -35,6 +35,11 @@ export type OrchestrationSchemeMember = {
   isolation?: SubagentIsolationMode;
   /** Default `main`: tell parent to do the work itself when spawn is impossible. */
   fallback?: OrchestrationMemberFallback;
+  /**
+   * Scout return format injected into the child's first user message.
+   * Empty/omit = no contract block. Ultra Code scout has a builtin default.
+   */
+  reportContract?: string;
 };
 
 /**
@@ -96,6 +101,12 @@ export const ORCHESTRATION_SCHEME_OFF_ID = 'off' as const;
 
 export const ULTRA_CODE_SCHEME_ID = 'ultra-code' as const;
 
+/** Builtin Ultra Code scout role. Not researcher — that name is reserved for user research packs. */
+export const ULTRA_CODE_SCOUT_ROLE = 'scout' as const;
+
+/** Pre-rename Ultra Code role; aliased to scout only on scheme id ultra-code. */
+const LEGACY_ULTRA_CODE_SCOUT_ROLE = 'searcher';
+
 /** Scheme ids are lowercase kebab tokens (builtins: ultra-code). */
 export const ORCHESTRATION_SCHEME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -143,6 +154,7 @@ export type ResolvedOrchestrationMember = {
   fallback: OrchestrationMemberFallback;
   available: boolean;
   unavailableReason?: string;
+  reportContract?: string;
 };
 
 export type ResolvedOrchestrationScheme = {
@@ -174,7 +186,7 @@ const THINKING_RANK: Readonly<Record<ThinkingLevel, number>> = {
 
 /** Map legacy defaultProfileId → product role name when synthesizing members. */
 const PROFILE_TO_DEFAULT_ROLE: Readonly<Record<string, string>> = {
-  explorer: 'searcher',
+  explorer: ULTRA_CODE_SCOUT_ROLE,
   implementer: 'coder',
   reviewer: 'reviewer',
   tester: 'tester',
@@ -206,30 +218,62 @@ export function clampThinkingLevelToMax(
   return compareThinkingLevel(value, maximum) <= 0 ? value : maximum;
 }
 
-const ULTRA_CODE_SEARCHER_DESCRIPTION =
-  'Read-only codebase scout. Use for broad search, file reads, and evidence gathering that would pollute the main context. Return dense citations only; do not edit files or make final design decisions.';
-
-const ULTRA_CODE_PREAMBLE = [
-  'Orchestration scheme Ultra Code is active for this turn.',
-  'You are the main agent (composer model). Proactively delegate work that would pollute this context — broad search, multi-file reads, long greps — to the searcher role via piwin_subagent_run with role "searcher".',
-  'Subagents are scouts only: gather facts, paths, and citations; return dense evidence reports. They must not make final product decisions or large design calls; you synthesize and verify.',
-  'After a parallel wave of spawns, wait for all tool results before continuing analysis, search, commands, or edits. Do not re-do the same broad search the scouts were assigned; use their reports.',
-  'Prefer role-based delegation; do not invent expensive models or high thinking for subagents.',
-  'Do not spawn nested subagents. Trivial single-file lookups need not force a subagent (avoid schedule pollution).',
-  'If a role is unavailable, complete the subtask yourself carefully and keep context pollution minimal.',
-].join(' ');
+const ULTRA_CODE_SCOUT_DESCRIPTION =
+  'Read-only scout for wide/heavy reads that would rot the main context: locating symbols, tracing call/type/import relationships, cross-file search, huge files (except foundational docs), independent parallel investigations, logs and search dumps. Return a dense evidence report with file:line citations; do not edit files or make final design decisions.';
 
 /**
- * Builtin Ultra Code: article-aligned scout pack (single searcher template +
+ * Main-agent discipline (Codex AGENTS.md analogue). Injected only when Ultra
+ * Code is selected for the turn. Covers when to spawn, when not to, wait, and
+ * how to verify compressed scout reports.
+ */
+const ULTRA_CODE_PREAMBLE = [
+  'Orchestration scheme Ultra Code is active for this turn.',
+  'You are the main agent (composer model): orchestrate, synthesize, and decide. Scouts exist to keep context rot out of this thread.',
+  'Delegate wide or heavy reads that would pollute this context — locating unknown symbols, tracing call/type/import relationships across files, cross-file search, huge files except foundational docs, independent parallel investigations, and large logs or search dumps — via piwin_subagent_run with role "scout". Split heavier exploration into several small concurrent scouts and fire those tool calls in one turn. Prefer more, lighter scouts over one giant scout.',
+  'Do not delegate: a known small file or single fact; the exact code you are about to edit; work whose spawn/wait cost is not cheaper than reading it yourself; foundational documents (architecture, design, handoff). Those stay with you even if long; a scout may only locate them.',
+  'Every scout task must be self-contained: scope, question, and expected output. When precision matters, demand file:line, symbol names, and short verbatim quotes.',
+  'Scout reports are compressed clues. Verify by sampling their citations; do not re-read the material they already searched. Re-reading spends the compression you bought. The only texts you must read in full are (1) code you are about to change and (2) foundational docs.',
+  'After a parallel wave, wait for all tool results before analysis, search, commands, or edits. Do not repeat the same broad search the scouts were assigned.',
+  'Scouts gather facts and citations; they must not edit, make product decisions, or spawn nested subagents. Prefer role-based delegation; do not invent expensive models or high thinking. Trivial lookups need not force a subagent. If a role is unavailable, complete the subtask yourself and keep pollution minimal.',
+].join(' ');
+
+/** Child seed contract (Codex agents/default.toml analogue). */
+export const ULTRA_CODE_SCOUT_REPORT_CONTRACT = [
+  'You are a one-shot read-only scout for the parent agent. Explore, retrieve, and verify only.',
+  'Do not edit files, run mutating commands, make design or product decisions, or spawn subagents.',
+  'Your last assistant message is the only thing the parent reads. Dense, no chatter, no process recap.',
+  'First line: exactly one of complete | partial | blocked.',
+  'Separate facts from inferences; label guesses. Negative findings must include the search scope and queries used.',
+  'Cite file:line, symbol names, and short verbatim quotes for anything the parent might spot-check.',
+  'Keep exact names, signatures, values, and paths; compress everything else. Do not restate whole files.',
+  'If blocked, say why. If partial, say what was covered and what was not.',
+].join(' ');
+
+export const PIWIN_REPORT_CONTRACT_MARKER = '[piwin-report-contract]';
+
+/** Wrap a member report contract for the child's first user message. */
+export function formatSubagentReportContractBlock(contract: string | undefined): string | undefined {
+  const trimmed = contract?.trim();
+  if (!trimmed) return undefined;
+  return `${PIWIN_REPORT_CONTRACT_MARKER}\n${trimmed}\nYour last assistant message must follow this contract. The parent only reads that message.`;
+}
+
+/** True when an assistant message follows the scout report-contract first line. */
+export function isSubagentReportContractMessage(text: string): boolean {
+  return /^(complete|partial|blocked)\b/i.test(text.trim());
+}
+
+/**
+ * Builtin Ultra Code: article-aligned scout pack (single scout template +
  * wait discipline + soft generic). Users may overlay-edit via settings.
  */
 export const BUILTIN_ULTRA_CODE_SCHEME: OrchestrationScheme = {
   id: ULTRA_CODE_SCHEME_ID,
   name: 'Ultra Code',
   description:
-    'Built-in scout pack for high-effort main agents: cheap readonly searcher, low thinking, wait-for-scouts discipline',
+    'Built-in scout pack for high-effort main agents: cheap readonly scout, low thinking, wait-for-scouts discipline',
   source: 'builtin',
-  defaultRole: 'searcher',
+  defaultRole: ULTRA_CODE_SCOUT_ROLE,
   defaultProfileId: 'explorer',
   exposeSpawnMetadata: false,
   maxConcurrency: 6,
@@ -238,12 +282,13 @@ export const BUILTIN_ULTRA_CODE_SCHEME: OrchestrationScheme = {
   maxSubagentThinkingLevel: 'low',
   members: [
     {
-      role: 'searcher',
-      description: ULTRA_CODE_SEARCHER_DESCRIPTION,
+      role: ULTRA_CODE_SCOUT_ROLE,
+      description: ULTRA_CODE_SCOUT_DESCRIPTION,
       profileId: 'explorer',
       thinkingLevel: 'low',
       isolation: 'readonly',
       fallback: 'main',
+      reportContract: ULTRA_CODE_SCOUT_REPORT_CONTRACT,
     },
   ],
   systemPreamble: ULTRA_CODE_PREAMBLE,
@@ -257,12 +302,13 @@ const BUILTIN_SCHEMES: readonly OrchestrationScheme[] = [BUILTIN_ULTRA_CODE_SCHE
  */
 export const DEFAULT_ORCHESTRATION_ROLE_TEMPLATES: readonly OrchestrationSchemeMember[] = [
   {
-    role: 'searcher',
-    description: ULTRA_CODE_SEARCHER_DESCRIPTION,
+    role: ULTRA_CODE_SCOUT_ROLE,
+    description: ULTRA_CODE_SCOUT_DESCRIPTION,
     profileId: 'explorer',
     isolation: 'readonly',
     thinkingLevel: 'low',
     fallback: 'main',
+    reportContract: ULTRA_CODE_SCOUT_REPORT_CONTRACT,
   },
   {
     role: 'coder',
@@ -291,6 +337,54 @@ export const DEFAULT_ORCHESTRATION_ROLE_TEMPLATES: readonly OrchestrationSchemeM
 ] as const;
 
 /**
+ * Map the retired Ultra Code role `searcher` onto `scout`. Custom schemes may
+ * still use `searcher` as their own role id.
+ */
+export function canonicalizeOrchestrationRole(schemeId: string, role: string): string {
+  if (schemeId === ULTRA_CODE_SCHEME_ID && role === LEGACY_ULTRA_CODE_SCOUT_ROLE) {
+    return ULTRA_CODE_SCOUT_ROLE;
+  }
+  return role;
+}
+
+/**
+ * Rewrite an ultra-code overlay that still stores `searcher` so Settings and
+ * resolve see `scout`. Leaves `searcher` in place only if the overlay already
+ * has a `scout` member (user added both).
+ */
+export function canonicalizeUltraCodeSchemeSettings<T extends OrchestrationSchemeSettings>(
+  scheme: T,
+): T {
+  if (scheme.id !== ULTRA_CODE_SCHEME_ID) return scheme;
+  const members = scheme.members;
+  if (members && members.length > 0) {
+    const hasScout = members.some((member) => member.role.trim() === ULTRA_CODE_SCOUT_ROLE);
+    const nextMembers = members.map((member) => {
+      const role = member.role.trim();
+      if (role === LEGACY_ULTRA_CODE_SCOUT_ROLE && !hasScout) {
+        return { ...member, role: ULTRA_CODE_SCOUT_ROLE };
+      }
+      return member;
+    });
+    const defaultRoleRaw = scheme.defaultRole?.trim();
+    const defaultRole =
+      defaultRoleRaw === LEGACY_ULTRA_CODE_SCOUT_ROLE &&
+      nextMembers.some((member) => member.role === ULTRA_CODE_SCOUT_ROLE)
+        ? ULTRA_CODE_SCOUT_ROLE
+        : defaultRoleRaw;
+    return {
+      ...scheme,
+      members: nextMembers,
+      ...(defaultRole ? { defaultRole } : {}),
+    };
+  }
+  if (scheme.defaultRole?.trim() === LEGACY_ULTRA_CODE_SCOUT_ROLE) {
+    return { ...scheme, defaultRole: ULTRA_CODE_SCOUT_ROLE };
+  }
+  return scheme;
+}
+
+/**
  * Merge builtin schemes with Settings schemes. Settings with the same id
  * override builtin fields (source becomes settings). Settings-only schemes
  * append after builtins.
@@ -298,7 +392,9 @@ export const DEFAULT_ORCHESTRATION_ROLE_TEMPLATES: readonly OrchestrationSchemeM
 export function listOrchestrationSchemes(
   config: OrchestrationSchemeConfigSlice,
 ): OrchestrationScheme[] {
-  const settingsSchemes = config.schemes ?? [];
+  const settingsSchemes = (config.schemes ?? []).map((scheme) =>
+    canonicalizeUltraCodeSchemeSettings(scheme),
+  );
   const byId = new Map<string, OrchestrationScheme>();
   for (const builtin of BUILTIN_SCHEMES) {
     byId.set(builtin.id, { ...builtin, source: 'builtin' });
@@ -360,8 +456,16 @@ export function migrateSchemeMembers(
       member.description.trim(),
   );
   if (existing && existing.length > 0) {
+    const hasScout = existing.some(
+      (member) => member.role.trim() === ULTRA_CODE_SCOUT_ROLE,
+    );
     return existing.map((member) => ({
-      role: member.role.trim(),
+      role:
+        scheme.id === ULTRA_CODE_SCHEME_ID &&
+        member.role.trim() === LEGACY_ULTRA_CODE_SCOUT_ROLE &&
+        !hasScout
+          ? ULTRA_CODE_SCOUT_ROLE
+          : member.role.trim(),
       description: member.description.trim(),
       ...(member.profileId?.trim() ? { profileId: member.profileId.trim() } : {}),
       ...(member.model ? { model: member.model } : {}),
@@ -374,6 +478,9 @@ export function migrateSchemeMembers(
       ...(member.fallback === 'none' || member.fallback === 'main'
         ? { fallback: member.fallback }
         : { fallback: 'main' as const }),
+      ...(member.reportContract?.trim()
+        ? { reportContract: member.reportContract.trim() }
+        : {}),
     }));
   }
 
@@ -381,7 +488,7 @@ export function migrateSchemeMembers(
   const role =
     scheme.defaultRole?.trim() ||
     PROFILE_TO_DEFAULT_ROLE[profileId] ||
-    (isValidOrchestrationRoleId(profileId) ? profileId : 'searcher');
+    (isValidOrchestrationRoleId(profileId) ? profileId : ULTRA_CODE_SCOUT_ROLE);
   const description =
     PROFILE_DEFAULT_DESCRIPTION[profileId] ??
     `Delegated work using profile "${profileId}".`;
@@ -466,6 +573,9 @@ function resolveMembers(
     if (member.isolation === 'readonly' || member.isolation === 'worktree') {
       row.isolation = member.isolation;
     }
+    if (member.reportContract?.trim()) {
+      row.reportContract = member.reportContract.trim();
+    }
     if (unavailableReason) row.unavailableReason = unavailableReason;
     resolved.push(row);
   }
@@ -478,6 +588,27 @@ function resolveMembers(
   }
 
   return resolved;
+}
+
+/**
+ * Overlay of ultra-code replaces the whole scheme object. New recipe fields
+ * (reportContract) still apply when the overlay member omitted them.
+ */
+function applyUltraCodeMemberRecipe(
+  schemeId: string,
+  members: ResolvedOrchestrationMember[],
+): ResolvedOrchestrationMember[] {
+  if (schemeId !== ULTRA_CODE_SCHEME_ID) return members;
+  const recipes = new Map(
+    (BUILTIN_ULTRA_CODE_SCHEME.members ?? []).map((member) => [member.role, member]),
+  );
+  return members.map((member) => {
+    if (member.reportContract?.trim()) return member;
+    const recipe = recipes.get(member.role);
+    const contract = recipe?.reportContract?.trim();
+    if (!contract) return member;
+    return { ...member, reportContract: contract };
+  });
 }
 
 /**
@@ -513,7 +644,10 @@ export function resolveOrchestrationScheme(
   }
 
   const migratedMembers = migrateSchemeMembers(scheme);
-  const members = resolveMembers(trimmed, migratedMembers, options);
+  const members = applyUltraCodeMemberRecipe(
+    trimmed,
+    resolveMembers(trimmed, migratedMembers, options),
+  );
 
   const defaultRoleRaw = scheme.defaultRole?.trim();
   const defaultRole =
@@ -639,6 +773,7 @@ export type SchemeSpawnApplication = {
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
   isolation?: SubagentIsolationMode;
+  reportContract?: string;
   clearedModel: boolean;
   forcedProfile: boolean;
   /** When set, Host should not spawn — return fallback tool result instead. */
@@ -674,7 +809,10 @@ export function applySchemeToSubagentSpawnInput(
   }
 
   const requestedRole = input.role?.trim();
-  const role = requestedRole || resolved.defaultRole;
+  const role = canonicalizeOrchestrationRole(
+    resolved.schemeId,
+    requestedRole || resolved.defaultRole,
+  );
   const member = resolved.members.find((item) => item.role === role);
 
   if (!member) {
@@ -739,9 +877,29 @@ export function applySchemeToSubagentSpawnInput(
     ...(model ? { model } : {}),
     ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
     ...(member.isolation ? { isolation: member.isolation } : {}),
+    ...(member.reportContract ? { reportContract: member.reportContract } : {}),
     clearedModel: !resolved.exposeSpawnMetadata || Boolean(member.model),
     forcedProfile: !input.profileId || input.profileId !== profileId,
   };
+}
+
+/**
+ * Default roster role when the member has no pinned model (inherits composer).
+ * Undefined when Off-equivalent, empty, or the default member already pins one.
+ */
+export function resolveUnpinnedOrchestrationDefaultRole(
+  scheme: Pick<OrchestrationSchemeSettings, 'members' | 'defaultProfileId' | 'defaultRole' | 'id'>,
+): string | undefined {
+  const members = migrateSchemeMembers(scheme);
+  const defaultRoleRaw = scheme.defaultRole?.trim();
+  const defaultRole =
+    defaultRoleRaw && members.some((member) => member.role === defaultRoleRaw)
+      ? defaultRoleRaw
+      : members[0]?.role;
+  if (!defaultRole) return undefined;
+  const member = members.find((item) => item.role === defaultRole);
+  if (!member || member.model) return undefined;
+  return defaultRole;
 }
 
 /** Look up a resolved member by role (Host helper). */

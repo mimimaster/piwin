@@ -60,7 +60,10 @@ terminal batch or silently leave a retained worktree.
 - Host tool execution input gains an optional/proven parent tool-call identity,
   and SDK/RPC worker adapters must normalize it exactly as Agent events do.
 - Child session/index projections carry invocation linkage for restart and
-  `session/list-children` hydration.
+  `session/list-children` hydration. Child records persist but do not appear
+  in the product main session list (`session/list`, `session/list-page`,
+  `session/search`); they are reached from the parent transcript inline panel
+  and `session/list-children`. Side chats already follow the same rule (SIDE-D9).
 - Desktop can render an immediate shell before child allocation and bind it
   later without matching task text.
 - Lifecycle persistence and transport push are separate effects; a dropped UI

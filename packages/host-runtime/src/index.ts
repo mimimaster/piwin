@@ -36,7 +36,11 @@ export {
   BUNDLED_ALLOW,
   createBundledRuleSet,
 } from './permission-defaults.js';
-export { loadMergedPermissionRules } from './permission-rule-loader.js';
+export {
+  loadMergedPermissionRules,
+  readUserPermissionRulesFile,
+  writeUserPermissionRulesFile,
+} from './permission-rule-loader.js';
 export type { LoadMergedPermissionRulesInput } from './permission-rule-loader.js';
 export { computePermissionRulesRevision } from './permission-rule-revision.js';
 export { buildProcessTools } from './process-tools.js';
@@ -234,6 +238,7 @@ export type { ResolveProfileIssue, ResolveProfileResult } from './subagent-profi
 export {
   planSubagentSpawn,
   buildSubagentSeedPrompt,
+  resolveSubagentChildPrompt,
   transitionExecutionStatus,
   transitionSummaryStatus,
   transitionIntegrationStatus,

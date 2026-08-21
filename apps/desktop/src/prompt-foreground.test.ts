@@ -105,14 +105,14 @@ describe('readForegroundProblem', () => {
 });
 
 describe('canConfirmReplaceRun', () => {
-  it('is true only for active/transitioning with an actual runId', () => {
+  it('is true only for active with an actual runId', () => {
     expect(canConfirmReplaceRun(activeProblem)).toBe(true);
     expect(
       canConfirmReplaceRun({
         code: 'foreground-run-mismatch',
         data: { reason: 'transitioning', actualRun: { runId: 'run-a', status: 'cancelling' } },
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       canConfirmReplaceRun({
         code: 'foreground-run-mismatch',
@@ -226,6 +226,27 @@ describe('requestPromptWithForeground', () => {
     expect(request.mock.calls[0]?.[0]).toMatchObject({ foreground: { kind: 'if-idle' } });
   });
 
+  it('queues with a new key when resolveBusy returns queue', async () => {
+    const request = vi.fn().mockResolvedValue(failResponse(activeProblem));
+    const onQueue = vi.fn().mockResolvedValue({
+      type: 'response' as const,
+      command: 'session/queued-turn-submit',
+      success: true,
+      data: { queuedTurn: { queuedTurnId: 'q1' } },
+    });
+    const response = await requestPromptWithForeground({
+      request,
+      sessionId: 's1',
+      input: { text: 'hello' },
+      resolveBusy: async () => 'queue',
+      onQueue,
+      createIdempotencyKey: () => 'key-1',
+    });
+    expect(onQueue).toHaveBeenCalledOnce();
+    expect(response.command).toBe('session/queued-turn-submit');
+    expect(request.mock.calls[0]?.[1]).toEqual({ idempotencyKey: 'key-1' });
+  });
+
   it('does not silently replace from Side Chat / queued drain', async () => {
     const request = vi.fn().mockResolvedValue(failResponse(activeProblem));
     const confirmReplace = vi.fn().mockResolvedValue(true);
@@ -260,10 +281,8 @@ describe('requestPromptWithForeground', () => {
 
 describe('notice copy', () => {
   it('uses the specified confirm copy for an active remote run', () => {
-    expect(foregroundMismatchNotice(activeProblem, 'zh-CN')).toBe(
-      '另一端正在处理这个会话，发送会中断当前任务',
-    );
-    expect(foregroundMismatchNotice(activeProblem, 'en')).toMatch(/interrupt/i);
+    expect(foregroundMismatchNotice(activeProblem, 'zh-CN')).toMatch(/排队|中断/);
+    expect(foregroundMismatchNotice(activeProblem, 'en')).toMatch(/queue|interrupt/i);
   });
 
   it('does not treat already-finished / changed as a crash', () => {

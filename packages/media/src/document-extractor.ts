@@ -36,14 +36,26 @@ export async function extractAttachmentText(
   mimeType: string,
   options?: { maxBytes?: number; name?: string },
 ): Promise<ExtractedAttachmentText> {
+  const bytes = await readFile(absolutePath);
+  return extractAttachmentTextFromBytes(bytes, mimeType, {
+    ...(options?.maxBytes !== undefined ? { maxBytes: options.maxBytes } : {}),
+    name: options?.name?.trim() || attachmentNameFromPath(absolutePath),
+  });
+}
+
+export async function extractAttachmentTextFromBytes(
+  bytes: Uint8Array,
+  mimeType: string,
+  options?: { maxBytes?: number; name?: string },
+): Promise<ExtractedAttachmentText> {
   const normalizedMimeType = mimeType.trim().toLowerCase();
   const contentKind = contentKindForMimeType(normalizedMimeType);
   const maxBytes = options?.maxBytes ?? MAX_ATTACHMENT_TEXT_BYTES;
+  const name = options?.name?.trim() || 'document';
   if (contentKind === 'text') {
-    const bytes = await readFile(absolutePath);
     const result = truncateUtf8(new TextDecoder().decode(bytes), maxBytes);
     return {
-      name: options?.name?.trim() || attachmentNameFromPath(absolutePath),
+      name,
       mimeType: normalizedMimeType,
       contentKind,
       text: result.text,
@@ -52,24 +64,18 @@ export async function extractAttachmentText(
   }
 
   if (normalizedMimeType === 'application/pdf' && contentKind === 'document') {
-    return extractPdfText(
-      absolutePath,
-      normalizedMimeType,
-      maxBytes,
-      options?.name?.trim() || attachmentNameFromPath(absolutePath),
-    );
+    return extractPdfText(bytes, normalizedMimeType, maxBytes, name);
   }
 
   throw new Error(`attachment text extraction is not supported for ${mimeType}`);
 }
 
 async function extractPdfText(
-  absolutePath: string,
+  bytes: Uint8Array,
   mimeType: string,
   maxBytes: number,
   name: string,
 ): Promise<ExtractedAttachmentText> {
-  const bytes = await readFile(absolutePath);
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(bytes),

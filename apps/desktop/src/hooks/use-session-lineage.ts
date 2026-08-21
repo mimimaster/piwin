@@ -37,7 +37,7 @@ export function useSessionLineage(
   useEffect(() => {
     let cancelled = false;
     setLoadedLineage(null);
-    if (!sessionId) return;
+    if (!sessionId || hostClient.supportsCommand?.('session/lineage') === false) return;
 
     void hostClient
       .request({ type: 'session/lineage', sessionId })

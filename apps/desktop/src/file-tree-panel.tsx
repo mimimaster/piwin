@@ -838,6 +838,12 @@ function FileTreeNodeView(props: {
           props.onSelectFile(node.entry.relativePath);
         }
       }}
+      onContextMenu={() => {
+        props.onSelectPath(node.entry.relativePath);
+        if (!isDir) {
+          props.onSelectFile(node.entry.relativePath);
+        }
+      }}
       title={node.entry.relativePath}
     >
       <span className="file-tree-twist" aria-hidden>

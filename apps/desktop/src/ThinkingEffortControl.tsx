@@ -63,6 +63,19 @@ export function ThinkingEffortControl({
   const isUltra = effectiveValue === 'ultra';
   const showThinking = levels.length > 0;
 
+  function chooseModel(key: string): void {
+    onSelectModel?.(key);
+    setOpen(false);
+  }
+
+  function keepPopoverThroughPointer(event: { button: number; preventDefault: () => void }): void {
+    // Autofocused search blurs on option pointerdown; Radix then treats the
+    // interaction as focus-outside and unmounts the popover before `click`.
+    if (event.button === 0) {
+      event.preventDefault();
+    }
+  }
+
   // Put the caret in the search field on open; reset the query on close so the
   // next open starts from a clean, unfiltered list.
   useEffect(() => {
@@ -139,6 +152,7 @@ export function ThinkingEffortControl({
                     aria-checked={isActive}
                     className={isActive ? 'thinking-effort-chip is-active' : 'thinking-effort-chip'}
                     disabled={disabled}
+                    onPointerDown={keepPopoverThroughPointer}
                     onClick={() => onChange(level)}
                     data-testid={`thinking-level-${level}`}
                   >
@@ -171,7 +185,7 @@ export function ThinkingEffortControl({
                   onChange={(event) => setModelSearchQuery(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && filteredModels[0]) {
-                      onSelectModel?.(filteredModels[0].key);
+                      chooseModel(filteredModels[0].key);
                     }
                   }}
                   placeholder="Search models…"
@@ -217,8 +231,11 @@ export function ThinkingEffortControl({
                             : 'thinking-effort-model-option'
                         }
                         disabled={disabled}
-                        onClick={() => {
-                          onSelectModel?.(model.key);
+                        onPointerDown={(event) => {
+                          keepPopoverThroughPointer(event);
+                          if (event.button === 0) {
+                            chooseModel(model.key);
+                          }
                         }}
                         title={model.label}
                       >

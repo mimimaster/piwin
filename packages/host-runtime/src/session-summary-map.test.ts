@@ -36,6 +36,25 @@ describe('indexRecordToSummary', () => {
     expect(summary.subagentMode).toBe('readonly');
   });
 
+  it('projects the scheme role separately from the profile id', () => {
+    const record: SessionIndexRecord = {
+      id: 'child-role',
+      projectPath: '/tmp/project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 0,
+      subagentRole: 'scout',
+      subagentRuntime: {
+        profileId: 'explorer',
+        isolation: 'readonly',
+        workingDirectory: '/tmp/project',
+      },
+    };
+    const summary = indexRecordToSummary(record);
+    expect(summary.subagentRole).toBe('scout');
+    expect(summary.subagentProfileId).toBe('explorer');
+  });
+
   it('projects subagent lifecycle state axes', () => {
     const record: SessionIndexRecord = {
       id: 'child-2',

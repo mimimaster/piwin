@@ -22,13 +22,44 @@ describe('resolveSessionLocation projectId', () => {
     expect(location.workingDirectory).toBe(created.path);
   });
 
-  it('rejects combining projectId with a filesystem path', async () => {
+  it('rejects combining projectId with a different filesystem path', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-id-conflict-'));
+    const projectPath = join(rootDir, 'repo');
+    const created = await openOrCreateProject(getPiwinProjectsPath(getPiwinRoot(rootDir)), projectPath, {
+      displayName: 'repo',
+    });
     await expect(
-      resolveSessionLocation({
-        projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
-        projectPath: '/tmp/repo',
-      }),
+      resolveSessionLocation(
+        {
+          projectId: createRemoteProjectId(created.path),
+          projectPath: join(rootDir, 'other'),
+        },
+        rootDir,
+      ),
     ).rejects.toThrow('projectId cannot be combined with projectPath');
+  });
+
+  it('resolves leftover projectId after the path has already been bound', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-id-rebind-'));
+    const projectPath = join(rootDir, 'repo');
+    const created = await openOrCreateProject(getPiwinProjectsPath(getPiwinRoot(rootDir)), projectPath, {
+      displayName: 'repo',
+    });
+    const input = {
+      projectId: createRemoteProjectId(created.path),
+      sessionName: 'New chat',
+    };
+    const first = await resolveSessionLocation(input, rootDir);
+    const second = await resolveSessionLocation(
+      {
+        ...input,
+        scope: first.scope,
+        projectPath: first.workingDirectory,
+      },
+      rootDir,
+    );
+    expect(second.scope).toEqual({ kind: 'project', projectPath: created.path });
+    expect(second.workingDirectory).toBe(created.path);
   });
 });
 

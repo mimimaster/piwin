@@ -56,6 +56,7 @@ function KnowledgeBaseWorkspace(): ReactElement {
     setInfo,
     storeProviderSecret,
     loadProviderSecret,
+    remoteSettingsReadOnly,
   } = useSettings();
 
   const [activeTab, setActiveTab] = useState<KnowledgeTab>('embedding');
@@ -340,7 +341,7 @@ function KnowledgeBaseWorkspace(): ReactElement {
                     apiKeyRef={draft.apiKeyRef}
                     apiKeyEnv={draft.apiKeyEnv}
                     defaultApiKeyEnv={DEFAULT_EMBEDDING_API_KEY_ENV}
-                    disabled={saving}
+                    disabled={saving || remoteSettingsReadOnly === true}
                     zh={isZh}
                     loadSecret={loadProviderSecret}
                     storeSecret={storeProviderSecret}
@@ -430,7 +431,7 @@ function KnowledgeBaseWorkspace(): ReactElement {
                   apiKeyRef={extras.rerankerApiKeyRef}
                   apiKeyEnv={extras.rerankerApiKeyEnv}
                   defaultApiKeyEnv={DEFAULT_RERANKER_API_KEY_ENV}
-                  disabled={saving}
+                  disabled={saving || remoteSettingsReadOnly === true}
                   zh={isZh}
                   loadSecret={loadProviderSecret}
                   storeSecret={storeProviderSecret}

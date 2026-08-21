@@ -205,6 +205,90 @@ export function mergeSearchEvidence(
  */
 export type WebFetchProvider = 'supermarkdown' | 'jina' | 'firecrawl';
 
+/**
+ * Reader that actually produced a stored extract. `'browser'` is only a
+ * fallback result (ADR 0058), not a primary Settings provider card.
+ */
+export type WebFetchResultProvider = WebFetchProvider | 'browser';
+
+/**
+ * Automatic retry when local extract looks JS-rendered.
+ * `browser` uses an injected {@link WebPageRenderer} (ADR 0058).
+ */
+export type WebFetchFallback = 'none' | 'jina' | 'browser';
+
+/** One-shot headless HTML render. Host injects this; tools-web stays pure. */
+export type WebPageRenderer = {
+  renderHtml: (input: {
+    url: string;
+    signal?: AbortSignal;
+    timeoutMs: number;
+  }) => Promise<{ finalUrl: string; html: string }>;
+};
+
+/** Default: do not auto-retry a thin extract. */
+export const DEFAULT_FETCH_FALLBACK: WebFetchFallback = 'none';
+
+/** How `web_fetch` chose the text returned for one call. */
+export type WebFetchExtraction = 'head' | 'offset' | 'outline' | 'delegate';
+
+/** Character window returned by one `web_fetch` view. */
+export type WebFetchRange = {
+  start: number;
+  end: number;
+};
+
+/** Default per-call text injected into the model context. */
+export const DEFAULT_FETCH_RETURN_MAX_CHARS = 18_000;
+/** Default extracted text retained in FetchCache for continuation. */
+export const DEFAULT_FETCH_STORE_MAX_CHARS = 200_000;
+/** Default FetchCache TTL. */
+export const DEFAULT_FETCH_CACHE_TTL_MS = 900_000;
+/** FetchCache LRU byte budget (extracted text, not raw HTML). */
+export const DEFAULT_FETCH_CACHE_MAX_BYTES = 24 * 1024 * 1024;
+/** Heading outline cap attached to a fetch result. */
+export const MAX_FETCH_OUTLINE_ITEMS = 60;
+/** Stored text passed into the focused-extract delegate. */
+export const DEFAULT_FETCH_DELEGATE_INPUT_CHARS = 150_000;
+/** Focused excerpt returned when `web_fetch` is called with `query`. */
+export const DEFAULT_FETCH_DELEGATE_OUTPUT_CHARS = 4_000;
+
+/** Page text + question handed to a configured fetch-extract model. */
+export type WebFetchExtractInput = {
+  query: string;
+  url: string;
+  title: string | null;
+  text: string;
+};
+
+/**
+ * Host-injected port: a small model extracts query-relevant passages from a
+ * cached page. tools-web must not call providers directly.
+ */
+export type WebFetchExtractDelegate = {
+  model: ModelRef;
+  extract: (
+    input: WebFetchExtractInput,
+    options?: { signal?: AbortSignal },
+  ) => Promise<string>;
+};
+
+/** Host-injected PDF / document text extract. tools-web must not import media. */
+export type WebDocumentExtractor = {
+  extract: (input: {
+    bytes: Uint8Array;
+    mimeType: string;
+    url: string;
+    maxChars: number;
+    signal?: AbortSignal;
+  }) => Promise<{ text: string; title: string | null; pageCount?: number }>;
+};
+
+/** Host-injected write of the full extracted text for grep / read_file. */
+export type WebFetchSpillStore = {
+  write: (input: { url: string; text: string }) => Promise<string>;
+};
+
 export type SearchHit = {
   title: string;
   url: string;
@@ -235,6 +319,27 @@ export type WebFetchResult = {
   byteSize: number;
   truncated: boolean;
   truncationReason?: WebFetchTruncationReason;
+  /** Extracted text length retained in cache (may exceed `text`). */
+  totalChars?: number;
+  /** Character window of `text` inside the cached extraction. */
+  range?: WebFetchRange;
+  /** Cached extraction has text after `range.end`. */
+  hasMore?: boolean;
+  /** `offset` to pass on the next call to continue reading. */
+  nextOffset?: number;
+  /** Flattened h1–h6 / markdown headings, capped at {@link MAX_FETCH_OUTLINE_ITEMS}. */
+  outline?: string[];
+  /** True when this call reused a cached extraction (permission still ran). */
+  fromCache?: boolean;
+  /** Reader backend that produced the cached extraction. */
+  provider?: WebFetchResultProvider;
+  extraction?: WebFetchExtraction;
+  /** Suspected JS-rendered page: extracted text is thin relative to HTML. */
+  thinContent?: boolean;
+  /** Absolute path of the full extracted text when it exceeded this call's window. */
+  spillPath?: string;
+  /** PDF page count when the extract came from a document extractor. */
+  pageCount?: number;
 };
 
 export type WebConfig = {
@@ -260,6 +365,17 @@ export type WebConfig = {
    * delegate is selected.
    */
   searchDelegateModel?: ModelRef;
+  /**
+   * Optional chat model used to extract a query-focused excerpt from a
+   * cached `web_fetch` page. Missing or failed extraction falls back to the
+   * mechanical head window.
+   */
+  fetchDelegateModel?: ModelRef;
+  /**
+   * When local `supermarkdown` extract is thin, retry once with this backend.
+   * Default {@link DEFAULT_FETCH_FALLBACK}.
+   */
+  fetchFallback?: WebFetchFallback;
   /** Merge / run strategy for multi-source search. */
   searchStrategy: WebSearchStrategy;
   /**
@@ -277,6 +393,19 @@ export type WebConfig = {
    */
   fetchApiKeyEnv: string;
   fetchMaxBytes: number;
+  /**
+   * Per-call text returned to the model. When omitted, equals the store cap
+   * (legacy: {@link fetchMaxBytes}).
+   */
+  fetchReturnMaxChars?: number;
+  /**
+   * Extracted text retained for offset / outline continuation. When set,
+   * transport uses a 1 MiB body cap and a 512 KiB parse cap. When omitted,
+   * store/body/parse caps derive from {@link fetchMaxBytes} (legacy).
+   */
+  fetchStoreMaxChars?: number;
+  /** FetchCache TTL in ms. Default {@link DEFAULT_FETCH_CACHE_TTL_MS}. */
+  fetchCacheTtlMs?: number;
   fetchTimeoutMs: number;
   fetchBlockedUrlPrefixes: string[];
 };

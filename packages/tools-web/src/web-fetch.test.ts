@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { assertSafeFetchUrl, validateFetchUrl, webFetch } from './web-fetch.js';
+import { describe, expect, it, vi } from 'vitest';
+import { FetchCache, assertSafeFetchUrl, validateFetchUrl, webFetch } from './web-fetch.js';
 
 describe('validateFetchUrl', () => {
   it('allows https', () => {
@@ -211,5 +211,239 @@ describe('webFetch', () => {
     });
     expect(result.title).toBe('Giant page');
     expect(result.text.length).toBeGreaterThan(0);
+  });
+
+  it('reuses a cached extraction and serves offset/outline views without another GET', async () => {
+    let calls = 0;
+    const html =
+      '<html><head><title>Long</title></head><body><h1>Intro</h1><p>' +
+      'word '.repeat(80) +
+      '</p><h2>API</h2></body></html>';
+    const cache = new FetchCache();
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      });
+    };
+    const config = {
+      fetchMaxBytes: 10_000,
+      fetchReturnMaxChars: 40,
+      fetchStoreMaxChars: 4000,
+      fetchTimeoutMs: 5000,
+      fetchBlockedUrlPrefixes: [] as string[],
+    };
+    const first = await webFetch('https://example.com/long', {
+      fetchImpl,
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      cache,
+      config,
+    });
+    expect(calls).toBe(1);
+    expect(first.fromCache).toBe(false);
+    expect(first.extraction).toBe('head');
+    expect(first.hasMore).toBe(true);
+    expect(first.text.length).toBe(40);
+    expect(first.outline).toContain('Intro');
+    expect(first.nextOffset).toBeDefined();
+
+    const continued = await webFetch('https://example.com/long', {
+      fetchImpl,
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      cache,
+      config,
+      ...(first.nextOffset !== undefined ? { view: { offset: first.nextOffset } } : {}),
+    });
+    expect(calls).toBe(1);
+    expect(continued.fromCache).toBe(true);
+    expect(continued.extraction).toBe('offset');
+    expect(continued.range?.start).toBe(40);
+
+    const outline = await webFetch('https://example.com/long', {
+      fetchImpl,
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      cache,
+      config,
+      view: { outline: true },
+    });
+    expect(calls).toBe(1);
+    expect(outline.extraction).toBe('outline');
+    expect(outline.text).toContain('- Intro');
+  });
+
+  it('marks a SPA shell as thinContent when fallback is off', async () => {
+    const spa =
+      '<html><head><title>App</title></head><body><div id="root"></div>' +
+      '<script>window.__NEXT_DATA__={}</script></body></html>';
+    const result = await webFetch('https://example.com/app', {
+      fetchImpl: async () =>
+        new Response(spa, { status: 200, headers: { 'content-type': 'text/html' } }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchBlockedUrlPrefixes: [], fetchFallback: 'none' },
+    });
+    expect(result.provider).toBe('supermarkdown');
+    expect(result.thinContent).toBe(true);
+  });
+
+  it('retries a thin SPA page with jina and labels the actual provider', async () => {
+    const spa =
+      '<html><head><title>App</title></head><body><div id="root"></div>' +
+      '<script>window.__NEXT_DATA__={}</script></body></html>';
+    const urls: string[] = [];
+    const result = await webFetch('https://example.com/app', {
+      fetchImpl: async (input) => {
+        const href = String(input);
+        urls.push(href);
+        if (href.startsWith('https://r.jina.ai/')) {
+          return new Response('# Docs\n\nRendered article body after JavaScript hydration.', {
+            status: 200,
+            headers: { 'content-type': 'text/markdown' },
+          });
+        }
+        return new Response(spa, { status: 200, headers: { 'content-type': 'text/html' } });
+      },
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchBlockedUrlPrefixes: [], fetchFallback: 'jina' },
+    });
+    expect(urls.some((href) => href.includes('example.com/app'))).toBe(true);
+    expect(urls.some((href) => href.startsWith('https://r.jina.ai/'))).toBe(true);
+    expect(result.provider).toBe('jina');
+    expect(result.thinContent).toBeUndefined();
+    expect(result.text).toContain('Rendered article body after JavaScript hydration.');
+  });
+
+  it('retries a thin SPA page with the injected browser renderer', async () => {
+    const spa =
+      '<html><head><title>App</title></head><body><div id="root"></div>' +
+      '<script>window.__NEXT_DATA__={}</script></body></html>';
+    const rendered =
+      '<html><head><title>Docs</title></head><body><article><h1>Docs</h1>' +
+      '<p>Rendered article body after JavaScript hydration.</p></article></body></html>';
+    const result = await webFetch('https://example.com/app', {
+      fetchImpl: async () =>
+        new Response(spa, { status: 200, headers: { 'content-type': 'text/html' } }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchBlockedUrlPrefixes: [], fetchFallback: 'browser' },
+      pageRenderer: {
+        renderHtml: async (input) => {
+          expect(input.url).toContain('https://example.com/app');
+          return { finalUrl: 'https://example.com/app', html: rendered };
+        },
+      },
+    });
+    expect(result.provider).toBe('browser');
+    expect(result.thinContent).toBeUndefined();
+    expect(result.text.toLowerCase()).toContain('rendered article');
+  });
+
+  it('keeps the thin local extract when the renderer redirects to a private host', async () => {
+    const spa =
+      '<html><head><title>App</title></head><body><div id="root"></div>' +
+      '<script>window.__NEXT_DATA__={}</script></body></html>';
+    const result = await webFetch('https://example.com/app', {
+      fetchImpl: async () =>
+        new Response(spa, { status: 200, headers: { 'content-type': 'text/html' } }),
+      resolveHostAddresses: async (hostname) =>
+        hostname === 'example.com' ? ['93.184.216.34'] : ['127.0.0.1'],
+      config: { fetchBlockedUrlPrefixes: [], fetchFallback: 'browser' },
+      pageRenderer: {
+        renderHtml: async () => ({
+          finalUrl: 'http://internal.local/secret',
+          html: '<html><body>should not leak</body></html>',
+        }),
+      },
+    });
+    expect(result.provider).toBe('supermarkdown');
+    expect(result.thinContent).toBe(true);
+    expect(result.text).not.toContain('should not leak');
+  });
+
+  it('keeps the thin local extract when the browser renderer is missing', async () => {
+    const spa =
+      '<html><head><title>App</title></head><body><div id="root"></div>' +
+      '<script>window.__NEXT_DATA__={}</script></body></html>';
+    const result = await webFetch('https://example.com/app', {
+      fetchImpl: async () =>
+        new Response(spa, { status: 200, headers: { 'content-type': 'text/html' } }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchBlockedUrlPrefixes: [], fetchFallback: 'browser' },
+    });
+    expect(result.provider).toBe('supermarkdown');
+    expect(result.thinContent).toBe(true);
+  });
+
+  it('extracts PDF bytes through the injected document extractor', async () => {
+    const pdfBytes = new TextEncoder().encode('%PDF-1.4 fake');
+    const result = await webFetch('https://example.com/report.pdf', {
+      fetchImpl: async () =>
+        new Response(pdfBytes, {
+          status: 200,
+          headers: { 'content-type': 'application/pdf' },
+        }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchBlockedUrlPrefixes: [] },
+      documentExtractor: {
+        extract: async (input) => {
+          expect(input.mimeType).toBe('application/pdf');
+          expect(input.bytes.byteLength).toBe(pdfBytes.byteLength);
+          return { text: 'Hello from the PDF.', title: 'report.pdf', pageCount: 1 };
+        },
+      },
+    });
+    expect(result.text).toBe('Hello from the PDF.');
+    expect(result.pageCount).toBe(1);
+    expect(result.contentType).toContain('application/pdf');
+  });
+
+  it('spills the full extract when the returned window has more', async () => {
+    const body = 'word '.repeat(80);
+    const result = await webFetch('https://example.com/long.txt', {
+      fetchImpl: async () =>
+        new Response(body, { status: 200, headers: { 'content-type': 'text/plain' } }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: {
+        fetchBlockedUrlPrefixes: [],
+        fetchReturnMaxChars: 40,
+        fetchStoreMaxChars: 4000,
+      },
+      spillStore: {
+        write: async ({ text }) => {
+          expect(text.length).toBeGreaterThan(40);
+          return '/tmp/session/fetch-spills/abcd.txt';
+        },
+      },
+    });
+    expect(result.hasMore).toBe(true);
+    expect(result.spillPath).toBe('/tmp/session/fetch-spills/abcd.txt');
+  });
+
+  it('does not spill when the returned window already covers the page', async () => {
+    const write = vi.fn(async () => '/tmp/session/fetch-spills/unused.txt');
+    const result = await webFetch('https://example.com/short.txt', {
+      fetchImpl: async () =>
+        new Response('short page', { status: 200, headers: { 'content-type': 'text/plain' } }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchBlockedUrlPrefixes: [] },
+      spillStore: { write },
+    });
+    expect(result.hasMore).toBe(false);
+    expect(result.spillPath).toBeUndefined();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('still rejects PDF when no document extractor is injected', async () => {
+    const pdfBytes = new TextEncoder().encode('%PDF-1.4 fake');
+    await expect(
+      webFetch('https://example.com/report.pdf', {
+        fetchImpl: async () =>
+          new Response(pdfBytes, {
+            status: 200,
+            headers: { 'content-type': 'application/pdf' },
+          }),
+        resolveHostAddresses: async () => ['93.184.216.34'],
+        config: { fetchBlockedUrlPrefixes: [] },
+      }),
+    ).rejects.toThrow(/unsupported content-type/);
   });
 });

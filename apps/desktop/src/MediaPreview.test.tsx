@@ -239,4 +239,41 @@ describe('MediaPreview', () => {
     revokeSpy.mockRestore();
     root = createRoot(container);
   });
+
+  it('loads remote-asset thumbs through media/read when convertFileSrc cannot resolve', async () => {
+    const resolveSpy = vi
+      .spyOn(mediaUtils, 'resolveMediaPreviewUrl')
+      .mockResolvedValue(null);
+    const limitSpy = vi
+      .spyOn(previewBitmap, 'createLimitedPreviewUrlFromHref')
+      .mockResolvedValue({ url: 'blob:host-thumb', owned: true });
+    const readMedia = vi.fn(async () => 'blob:host-full');
+
+    const attachment: MediaAttachmentRef = {
+      id: 'asset-9',
+      kind: 'media',
+      path: 'remote-asset:asset-9',
+      mimeType: 'image/png',
+      byteSize: 78865,
+      source: 'paste',
+    };
+
+    await act(async () => {
+      root.render(
+        <MediaPreview attachment={attachment} sessionId="sess-1" readMedia={readMedia} />,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(readMedia).toHaveBeenCalledWith({ sessionId: 'sess-1', assetId: 'asset-9' });
+    const thumb = container.querySelector<HTMLImageElement>('.media-preview-image');
+    expect(thumb?.src).toContain('blob:host-thumb');
+    expect(container.textContent).not.toContain('image/png · 78865B');
+
+    resolveSpy.mockRestore();
+    limitSpy.mockRestore();
+  });
 });

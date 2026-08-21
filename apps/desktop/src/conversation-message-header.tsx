@@ -89,8 +89,9 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
           <>
             <ProviderIcon
               id={model.providerId}
+              modelId={model.modelId}
               {...(providerName !== undefined ? { name: providerName } : {})}
-              size={20}
+              size={32}
               className="conversation-message-provider-icon"
             />
             <span
@@ -102,7 +103,7 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
             </span>
             {providerName ? (
               <span
-                className="conversation-message-provider-name"
+                className="conversation-message-provider-name conversation-message-provider-badge"
                 data-testid="conversation-message-provider-name"
               >
                 {providerName}
@@ -113,6 +114,21 @@ export function ConversationMessageHeader(props: ConversationMessageHeaderProps)
         {formattedTime ? (
           <span className="conversation-message-time" data-testid="conversation-message-time">
             {formattedTime}
+          </span>
+        ) : null}
+        {message.replyWriterPending ? (
+          <span className="conversation-reply-writer-chip is-pending" data-testid="conversation-reply-writer-chip">
+            {props.locale === 'en' ? 'Rewriting reply…' : '正在整理输出…'}
+          </span>
+        ) : message.replyWriter ? (
+          <span
+            className="conversation-reply-writer-chip"
+            data-testid="conversation-reply-writer-chip"
+            title={message.replyWriter.model.modelId}
+          >
+            {props.locale === 'en'
+              ? `Rewritten by ${message.replyWriter.model.modelId}`
+              : `由 ${message.replyWriter.model.modelId} 整理`}
           </span>
         ) : null}
       </div>

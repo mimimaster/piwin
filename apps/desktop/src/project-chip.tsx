@@ -8,7 +8,7 @@ import {
 import type { ReactElement } from 'react';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
-import { projectDisplayName } from './project-display-name';
+import { projectLabel } from './project-display-name';
 import { IconCheck, IconChevronDown, IconFolder } from './shell-icons';
 
 export type ProjectChipProps = {
@@ -20,6 +20,7 @@ export type ProjectChipProps = {
 export function ProjectChip(props: ProjectChipProps): ReactElement {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).sidebar;
+  const chipLabel = projectLabel(props.projectPath, props.recentProjects);
 
   return (
     <DropdownMenu
@@ -35,9 +36,9 @@ export function ProjectChip(props: ProjectChipProps): ReactElement {
           className="composer-context-link"
           data-testid="composer-project-chip"
           title={props.projectPath}
-          aria-label={`${copy.recentProjects}: ${props.projectPath}`}
+          aria-label={`${copy.recentProjects}: ${chipLabel}`}
         >
-          <span className="composer-context-link-label">{props.projectPath}</span>
+          <span className="composer-context-link-label">{chipLabel}</span>
           <span className="composer-context-link-caret" aria-hidden>
             <IconChevronDown width={13} height={13} />
           </span>
@@ -51,7 +52,7 @@ export function ProjectChip(props: ProjectChipProps): ReactElement {
       {props.recentProjects.length > 0 ? (
         props.recentProjects.map((project, index) => {
           const active = project.path === props.projectPath;
-          const displayName = project.displayName ?? projectDisplayName(project.path);
+          const displayName = projectLabel(project.path, [project]);
           return (
             <DropdownMenuItem
               key={project.path}

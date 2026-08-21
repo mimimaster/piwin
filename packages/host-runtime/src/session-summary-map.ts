@@ -35,6 +35,7 @@ export function indexRecordToSummary(
     | 'subagentApplyPolicy'
     | 'worktreePath'
     | 'worktreeBranch'
+    | 'subagentRole'
     | 'subagentRuntime'
     | 'subagentLifecycle'
     | 'origin'
@@ -79,6 +80,7 @@ export function indexRecordToSummary(
   if (record.archivedAt) summary.archivedAt = record.archivedAt;
   if (record.subagentMode) summary.subagentMode = record.subagentMode;
   if (record.subagentApplyPolicy) summary.subagentApplyPolicy = record.subagentApplyPolicy;
+  if (record.subagentRole) summary.subagentRole = record.subagentRole;
   if (record.worktreePath) summary.worktreePath = record.worktreePath;
   if (record.worktreeBranch) summary.worktreeBranch = record.worktreeBranch;
   // CE-SUB-PROF: safe projection of runtime snapshot (no secrets/skill bodies).

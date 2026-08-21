@@ -101,6 +101,11 @@ export type SubagentTaskSpec = {
   parentToolCallId?: string;
   /** Optional display name for the child session. */
   sessionName?: string;
+  /**
+   * Product call name (scheme roster role, e.g. scout). Distinct from
+   * `profileId`, which is the capability recipe.
+   */
+  role?: string;
   profileId?: string;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
@@ -119,6 +124,11 @@ export type SubagentTaskSpec = {
   /** Resolved skill allowlist captured before dispatch. */
   skillIds?: string[];
   allowedOutputPaths?: string[];
+  /**
+   * Optional scout return-format contract. Host prepends it to the child's
+   * first prompt; continuations do not re-inject it.
+   */
+  reportContract?: string;
   /** Reuse an existing terminal child identity for a continuation Run. */
   continuationSessionId?: string;
   /** Host-validated existing workspace; continuation never allocates a new worktree. */
@@ -154,6 +164,8 @@ export type SubagentInvocation = {
   taskId: string;
   task: string;
   title?: string;
+  /** Scheme/product role when known (scout, reviewer, …). */
+  role?: string;
   profileId?: string;
   model?: ModelRef;
   isolation?: SubagentIsolationMode;
@@ -212,6 +224,7 @@ export type SubagentTaskResult = {
   executionStatus: SubagentExecutionStatus;
   summaryStatus: SubagentSummaryStatus;
   integrationStatus: SubagentIntegrationStatus;
+  role?: string;
   profileId?: string;
   model?: ModelRef;
   summaryPreview?: string;

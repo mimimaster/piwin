@@ -6,8 +6,16 @@
  * The persistent sidebar is the navigation surface; the main column owns the
  * active section heading and its content.
  */
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Button } from '@piwin/ui-kit';
+import {
+  Component,
+  useEffect,
+  useRef,
+  useState,
+  type ErrorInfo,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
+import { Button, Notice } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import {
@@ -103,6 +111,22 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M17 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
       <path d="m19 19-2-2" />
       <path d="M20 21a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2" />
+    </svg>
+  ),
+  web: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   ),
   knowledge: (
@@ -358,7 +382,11 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
           </nav>
           <div className="settings-nav-footer">
             <span className="settings-connection-dot" aria-hidden />
-            {translator.settings.configuredLocally}
+            {contextValue.remoteSettingsReadOnly
+              ? translator.settings.remoteHostViewOnly
+              : contextValue.hostClient?.getTransport?.() === 'remote'
+                ? translator.settings.remoteSavedOnHost
+                : translator.settings.configuredLocally}
           </div>
         </aside>
         <div className="settings-main" ref={mainScrollRef} data-testid="settings-main-scroll">
@@ -367,6 +395,11 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
               <h1>{activeSectionLabel}</h1>
             </div>
           </header>
+          {contextValue.remoteSettingsReadOnly ? (
+            <Notice tone="info" testId="settings-remote-read-only">
+              {translator.settings.remoteSettingsViewOnly}
+            </Notice>
+          ) : null}
           <div
             className={`settings-main-content${
               activeSection === 'models'
@@ -376,7 +409,9 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
           >
             {PageComponent ? (
               <SettingsProvider value={contextValue}>
-                <PageComponent />
+                <SettingsPageErrorBoundary section={activeSection}>
+                  <PageComponent />
+                </SettingsPageErrorBoundary>
               </SettingsProvider>
             ) : null}
           </div>
@@ -384,4 +419,36 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
       </div>
     </div>
   );
+}
+
+class SettingsPageErrorBoundary extends Component<
+  { children: ReactNode; section: SettingsSectionId },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error('[piwin] settings page crash', this.props.section, error, info.componentStack);
+  }
+
+  componentDidUpdate(previous: { section: SettingsSectionId }): void {
+    if (previous.section !== this.props.section && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <Notice tone="error" testId="settings-page-error">
+          {this.state.error.message}
+        </Notice>
+      );
+    }
+    return this.props.children;
+  }
 }

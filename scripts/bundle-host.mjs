@@ -22,9 +22,10 @@ const distHost = join(root, 'dist-host');
 const outfile = join(distHost, 'host-serve.mjs');
 const workerOutfile = join(distHost, 'agent-worker.mjs');
 
-/** Keep on disk for assets / WASM / dynamic loads (ADR 0017). */
+/** Keep on disk for assets / WASM / native / dynamic loads (ADR 0017). */
 const EXTERNAL_DEPS = {
-  '@earendil-works/pi-coding-agent': '0.80.10',
+  '@earendil-works/pi-coding-agent': '0.84.2',
+  '@lancedb/lancedb': '0.37.1',
   '@silvia-odwyer/photon-node': '0.3.4',
   esbuild: '0.25.12',
   'playwright-core': '1.61.1',
@@ -120,6 +121,22 @@ async function main() {
     logLevel: 'info',
   });
 
+  console.log('[bundle-host] esbuild standalone Host Server (host-listen.mjs)…');
+  await build({
+    entryPoints: [join(root, 'apps/host/src/index.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    outfile: join(distHost, 'host-listen.mjs'),
+    packages: 'bundle',
+    external: Object.keys(EXTERNAL_DEPS),
+    banner: {
+      js: "import { createRequire as __piwinCreateRequire } from 'node:module'; const require = __piwinCreateRequire(import.meta.url);",
+    },
+    logLevel: 'info',
+  });
+
   await writeFile(
     join(distHost, 'metafile.json'),
     JSON.stringify(result.metafile, null, 2),
@@ -175,6 +192,12 @@ async function main() {
       'missing @earendil-works/pi-coding-agent in dist-host/node_modules — external install failed',
     );
   }
+  const lancePkg = join(distHost, 'node_modules/@lancedb/lancedb/package.json');
+  if (!(await pathExists(lancePkg))) {
+    throw new Error(
+      'missing @lancedb/lancedb in dist-host/node_modules — external install failed',
+    );
+  }
 
   const photonCandidates = [
     join(distHost, 'node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm'),
@@ -210,6 +233,9 @@ async function main() {
   // RPC worker must sit beside host-serve.mjs (import.meta.url resolution).
   if (!(await pathExists(workerOutfile))) {
     throw new Error('missing dist-host/agent-worker.mjs after esbuild — bundle incomplete');
+  }
+  if (!(await pathExists(join(distHost, 'host-listen.mjs')))) {
+    throw new Error('missing dist-host/host-listen.mjs after esbuild — bundle incomplete');
   }
 
   console.log(`[bundle-host] done → ${relative(root, distHost)}`);

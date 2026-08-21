@@ -1,5 +1,132 @@
 import { describe, expect, it } from 'vitest';
-import { createRemoteCapabilities, projectRemoteResponse } from './remote-projection.js';
+import {
+  createRemoteCapabilities,
+  projectRemoteResponse,
+  projectRemoteSettingsData,
+} from './remote-projection.js';
+
+describe('remote settings projection', () => {
+  it('keeps renderable settings while removing secrets, Host paths, and remote credentials', () => {
+    const projected = projectRemoteSettingsData({
+      root: '/Users/private/.piwin',
+      snapshot: {
+        schemaVersion: 2,
+        revision: 'settings-revision',
+        runtimeRevision: 'runtime-revision',
+        domainRevisions: { thinking: 'abc' },
+        config: {
+          hostMode: 'sdk',
+          providers: [
+            {
+              id: 'provider-1',
+              protocol: 'openai-compatible',
+              name: 'Private provider',
+              baseUrl: 'https://models.example.test/v1',
+              apiKeyEnv: 'PRIVATE_API_KEY',
+              apiKeyRef: 'keychain:provider-1',
+              headers: { Authorization: 'Bearer secret' },
+              models: [{ id: 'model-1', label: 'Model One' }],
+            },
+          ],
+          desktop: {
+            lastSession: {
+              sessionId: 'session-1',
+              scope: { kind: 'project', projectPath: '/Users/private/Projects/piwin' },
+            },
+          },
+          skills: {
+            extraPaths: ['/Users/private/.cursor/skills'],
+            disabledIds: ['disabled-skill'],
+          },
+          subagents: {
+            profiles: [],
+            schemes: [{ id: 'scheme-1', name: 'Visual review' }],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+          },
+          remote: {
+            enabled: true,
+            gatewayUrl: 'wss://gateway.example.test',
+            tokenRef: 'keychain:remote',
+          },
+        },
+      },
+    });
+
+    expect(projected).toMatchObject({
+      snapshot: {
+        schemaVersion: 2,
+        revision: 'settings-revision',
+        runtimeRevision: 'runtime-revision',
+        domainRevisions: { thinking: 'abc' },
+        config: {
+          hostMode: 'sdk',
+          providers: [
+            {
+              id: 'provider-1',
+              name: 'Private provider',
+              baseUrl: 'https://models.example.test/v1',
+              apiKeyEnv: '[stored-secret]',
+              apiKeyRef: '[stored-secret]',
+              models: [{ id: 'model-1', label: 'Model One' }],
+            },
+          ],
+          desktop: {
+            lastSession: {
+              sessionId: 'session-1',
+            },
+          },
+          skills: { disabledIds: ['disabled-skill'] },
+          subagents: {
+            schemes: [{ id: 'scheme-1', name: 'Visual review' }],
+          },
+        },
+      },
+    });
+    const serialized = JSON.stringify(projected);
+    expect(serialized).not.toContain('/Users/private');
+    expect(serialized).not.toContain('PRIVATE_API_KEY');
+    expect(serialized).not.toContain('Bearer secret');
+    expect(serialized).not.toContain('keychain:');
+    expect(serialized).toContain('[stored-secret]');
+    expect(serialized).toContain('"desktop"');
+    expect(serialized).not.toContain('"remote"');
+  });
+
+  it('keeps a CLI search source visible without leaking its Host launcher', () => {
+    const projected = projectRemoteSettingsData({
+      snapshot: {
+        schemaVersion: 2,
+        revision: 'settings-revision',
+        config: {
+          web: {
+            searchProvider: 'cli',
+            searchSources: [
+              {
+                id: 'cli',
+                kind: 'cli',
+                enabled: true,
+                command: '/Users/private/.local/share/fnm/node-versions/v24.11.1/installation/bin/node',
+                args: ['/Users/private/.piwin/bin/windsurf-search.mjs', '{{query}}'],
+              },
+            ],
+          },
+        },
+      },
+    });
+    const serialized = JSON.stringify(projected);
+    expect(serialized).toContain('"id":"cli"');
+    expect(serialized).toContain('"kind":"cli"');
+    expect(serialized).toContain('"enabled":true');
+    expect(serialized).not.toContain('command');
+    expect(serialized).not.toContain('args');
+    expect(serialized).not.toContain('/Users/private');
+    expect(serialized).not.toContain('[host-path]');
+  });
+});
 
 describe('remote session list storage projection', () => {
   it('projects offloaded residency without Host pack paths', () => {
@@ -533,9 +660,24 @@ describe('remote transcript tool projection', () => {
                   output: 'contents of /Users/private/.piwin/secret.txt',
                   runId: 'run-1',
                   presentation: {
-                    kind: 'read',
+                    kind: 'filesystem',
                     title: 'Read',
+                    actionVerb: 'Read',
+                    summary: 'a.ts',
                     targetPaths: ['/Users/private/Projects/example/src/a.ts'],
+                  },
+                },
+                {
+                  toolCallId: 'call-2',
+                  toolName: 'bash',
+                  status: 'done',
+                  output: 'ok',
+                  presentation: {
+                    kind: 'shell',
+                    title: 'bash',
+                    actionVerb: 'Ran command',
+                    command: 'cat /Users/private/secret.txt',
+                    summary: 'cat /Users/private/secret.txt',
                   },
                 },
               ],
@@ -555,7 +697,6 @@ describe('remote transcript tool projection', () => {
       throw new Error(projected.error);
     }
     expect(JSON.stringify(projected.data)).not.toContain('/Users/private');
-    expect(JSON.stringify(projected.data)).not.toContain('targetPaths');
     expect(projected.data).toMatchObject({
       messages: [
         {
@@ -566,6 +707,90 @@ describe('remote transcript tool projection', () => {
               toolName: 'read',
               status: 'done',
               runId: 'run-1',
+              presentation: {
+                kind: 'filesystem',
+                title: 'Read',
+                actionVerb: 'Read',
+                summary: 'a.ts',
+                targetPaths: ['a.ts'],
+              },
+            },
+            {
+              toolCallId: 'call-2',
+              toolName: 'bash',
+              status: 'done',
+              presentation: {
+                kind: 'shell',
+                title: 'bash',
+                actionVerb: 'Ran command',
+                command: 'cat [host-path]',
+                summary: 'cat [host-path]',
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('keeps a shell command summary so resume does not collapse to a bare verb', () => {
+    const projected = projectRemoteResponse(
+      { type: 'session/resume', sessionId: 'session-1' },
+      {
+        type: 'response',
+        command: 'session/resume',
+        success: true,
+        data: {
+          sessionId: 'session-1',
+          live: false,
+          messages: [
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              text: 'ok',
+              createdAt: '2026-08-21T00:00:00.000Z',
+              status: 'done',
+              tools: [
+                {
+                  toolCallId: 'call-bash',
+                  toolName: 'bash',
+                  status: 'done',
+                  output: 'tick 1\n',
+                  presentation: {
+                    kind: 'shell',
+                    title: 'bash',
+                    actionVerb: 'Ran command',
+                    command: 'for i in $(seq 1 12); do echo tick $i; sleep 1; done',
+                    summary: 'for i in $(seq 1 12); do echo tick $i; sleep 1; done',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(projected.data).toMatchObject({
+      messages: [
+        {
+          tools: [
+            {
+              presentation: {
+                kind: 'shell',
+                actionVerb: 'Ran command',
+                command: 'for i in $(seq 1 12); do echo tick $i; sleep 1; done',
+                summary: 'for i in $(seq 1 12); do echo tick $i; sleep 1; done',
+              },
             },
           ],
         },

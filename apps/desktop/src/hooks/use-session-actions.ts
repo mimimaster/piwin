@@ -41,20 +41,29 @@ import { chooseSessionPackPath } from '../session-pack-dialog';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
 import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
-import { DESKTOP_SESSION_LIST_MAX_ITEMS } from '../session-list-policy';
+import { desktopSessionListMaxItems } from '../session-list-policy';
 import { sessionScopeKey } from '../session-scope-key';
 import { requestSessionTranscriptPage } from '../session-transcript-page-request';
 import {
+  activateProjectOnHost,
+  isOpaqueRemoteProjectId,
+  isRemoteDesktopTransport,
   mapListedSessionItems,
+  sessionCreateInputForTransport,
   sessionListCommandForTransport,
 } from '../remote-session-hydrate';
+import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
+import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
+import { hostReconnectNotice } from '../host-problem-copy.js';
 import {
   foregroundMismatchNotice,
   readForegroundProblem,
   requestPromptWithForeground,
 } from '../prompt-foreground';
 import { useDesktopLocale } from '../desktop-locale-context';
+import { findAdjacentSessionId } from '../session-navigation';
 import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
+import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 
 export type ModelOption = {
   providerId: string;
@@ -224,7 +233,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         return;
       }
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const data = response.data as SessionTranscriptWindowData;
@@ -296,17 +305,28 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const scopeKey = sessionScopeKey(scope);
       const requestGeneration = (sessionListRequestGenerations.current.get(scopeKey) ?? 0) + 1;
       sessionListRequestGenerations.current.set(scopeKey, requestGeneration);
+      const transport = hostClient.getTransport();
+      if (
+        isRemoteDesktopTransport(transport) &&
+        scope.kind === 'project' &&
+        !isOpaqueRemoteProjectId(scope.projectPath)
+      ) {
+        return [];
+      }
       const listed = await hostClient.request(
         sessionListCommandForTransport({
-          transport: hostClient.getTransport(),
+          transport,
           scope,
           includeArchived,
           order: options?.order ?? sessionListOrder,
-          maxItems: DESKTOP_SESSION_LIST_MAX_ITEMS,
+          maxItems: desktopSessionListMaxItems(transport),
         }),
       );
       if (!listed.success) {
-        if (sessionListRequestGenerations.current.get(scopeKey) === requestGeneration) {
+        if (
+          sessionListRequestGenerations.current.get(scopeKey) === requestGeneration &&
+          !isWorkbenchHostTeardownError(listed.error)
+        ) {
           dispatch({ type: 'error', message: `Could not load sessions: ${listed.error}` });
         }
         return [];
@@ -347,6 +367,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       sessionId: string,
       context?: { scope?: SessionScope },
     ): Promise<void> => {
+      if (shouldBlockRemoteHostGesture(hostClient)) {
+        dispatchNotification(pushInfo(hostReconnectNotice(locale)));
+        return;
+      }
       const effectiveActiveScope = context?.scope ?? state.activeScope;
       const targetScopeHint = context?.scope ?? resolveSessionScopeHint?.(sessionId);
       // Project ownership wins when a session is dual-listed (the bug that
@@ -373,35 +397,22 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       ) {
         // Switch into the owning project without going through handleOpenProject
         // (that helper also resumes, which would recurse).
-        const openResponse = await hostClient.request({
-          type: 'project/open',
-          path: knownProjectPath,
-        });
-        if (!openResponse.success) {
-          dispatch({ type: 'error', message: openResponse.error });
+        const activation = await activateProjectOnHost(
+          (command) => hostClient.request(command),
+          hostClient.getTransport(),
+          knownProjectPath,
+        );
+        if (!activation.ok) {
+          dispatchNotification(pushError(activation.error));
           return;
         }
-        const openPayload = openResponse.data as {
-          path?: string;
-          trusted?: boolean;
-          trust?: string;
-        };
-        let trusted = openPayload.trusted === true || openPayload.trust === 'trusted';
-        const openedPath = openPayload.path ?? knownProjectPath;
-        if (!trusted) {
-          const trustResponse = await hostClient.request({
-            type: 'project/trust',
-            path: openedPath,
-          });
-          if (!trustResponse.success) {
-            dispatch({ type: 'project/set', path: openedPath, trusted: false });
-            dispatch({ type: 'error', message: trustResponse.error });
-            return;
-          }
-          trusted = true;
+        if (!activation.trusted) {
+          dispatch({ type: 'project/set', path: activation.path, trusted: false });
+          dispatchNotification(pushError('Project is not trusted on the Host.'));
+          return;
         }
-        dispatch({ type: 'project/set', path: openedPath, trusted });
-        await hydrateSessions(openedPath, {
+        dispatch({ type: 'project/set', path: activation.path, trusted: true });
+        await hydrateSessions(activation.path, {
           fillActiveList: true,
         });
         void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
@@ -430,10 +441,13 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         sessionId,
       });
       if (!resumed.success) {
-        dispatch({
-          type: 'error',
-          message: `${resumed.error} — start a New session to continue in this process.`,
-        });
+        dispatchNotification(
+          pushError(
+            isWorkbenchHostTeardownError(resumed.error)
+              ? hostReconnectNotice(locale)
+              : `${resumed.error} — start a New session to continue in this process.`,
+          ),
+        );
         // Clear the painted previous transcript and exit awaitingTranscript so
         // the UI does not stay stuck showing another session's rows.
         dispatch({
@@ -473,34 +487,21 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           effectiveActiveScope.projectPath !== resumedProjectPath) &&
         knownProjectPath !== resumedProjectPath
       ) {
-        const openResponse = await hostClient.request({
-          type: 'project/open',
-          path: resumedProjectPath,
-        });
-        if (openResponse.success) {
-          const openPayload = openResponse.data as {
-            path?: string;
-            trusted?: boolean;
-            trust?: string;
-          };
-          let trusted = openPayload.trusted === true || openPayload.trust === 'trusted';
-          const openedPath = openPayload.path ?? resumedProjectPath;
-          if (!trusted) {
-            const trustResponse = await hostClient.request({
-              type: 'project/trust',
-              path: openedPath,
-            });
-            trusted = trustResponse.success;
-          }
-          if (trusted) {
-            dispatch({ type: 'project/set', path: openedPath, trusted: true });
-            await hydrateSessions(openedPath, {
-              fillActiveList: true,
-              includeArchived: showArchivedSessions,
-            });
-            void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-            dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
-          }
+        const activation = await activateProjectOnHost(
+          (command) => hostClient.request(command),
+          hostClient.getTransport(),
+          resumedProjectPath,
+        );
+        if (activation.ok && activation.trusted) {
+          dispatch({ type: 'project/set', path: activation.path, trusted: true });
+          await hydrateSessions(activation.path, {
+            fillActiveList: true,
+            includeArchived: showArchivedSessions,
+          });
+          void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+          dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
+        } else if (!activation.ok) {
+          dispatch({ type: 'error', message: activation.error });
         }
       }
       if (
@@ -620,6 +621,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       hydrateQueuedTurns,
       hostClient,
       hydrateSessions,
+      locale,
       onSessionComposerProfileRestored,
       resolveSessionScopeHint,
       showArchivedSessions,
@@ -650,7 +652,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         ...(resolvedPackPath ? { packPath: resolvedPackPath } : {}),
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const existing =
@@ -667,6 +669,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [
       coldRestorePrompt,
       dispatch,
+      dispatchNotification,
       handleResumeSession,
       hostClient,
       state.generalSessions,
@@ -701,7 +704,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         },
       );
       if (!pageResult.success) {
-        dispatch({ type: 'error', message: pageResult.error });
+        dispatchNotification(pushError(pageResult.error));
         return;
       }
       if (!pageResult.restartedAtTail) {
@@ -722,7 +725,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         outline: state.outline,
         preserveActiveTail: true,
       });
-      // dispatchNotification(pushInfo('Transcript changed; refreshed the newest history page.'));
     } finally {
       if (transcriptHistoryRequestSessionId.current === sessionId) {
         transcriptHistoryRequestSessionId.current = null;
@@ -745,18 +747,19 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
       sessionName?: string;
     }): Promise<string | null> => {
-      const explicitScope = options?.scope;
-      const useGeneral =
-        explicitScope?.kind === 'general' ||
-        (!explicitScope &&
-          !options?.projectPath &&
-          (state.activeScope.kind === 'general' || !state.projectPath));
-
+      const requestedScope = options?.scope;
       const requestedProjectPath =
-        options?.projectPath ??
-        (explicitScope?.kind === 'project' ? explicitScope.projectPath : undefined) ??
-        state.projectPath;
-      const scopeKey = useGeneral ? 'general' : `project:${requestedProjectPath?.trim() ?? ''}`;
+        requestedScope?.kind === 'project'
+          ? requestedScope.projectPath
+          : (options?.projectPath ?? state.projectPath);
+      const useGeneral =
+        requestedScope?.kind === 'general' ||
+        (!requestedScope && !requestedProjectPath && state.activeScope.kind === 'general');
+      const scopeKey = useGeneral
+        ? 'general'
+        : requestedProjectPath
+          ? `project:${requestedProjectPath}`
+          : 'general';
       const existingCreation = pendingSessionCreations.current.get(scopeKey);
       if (existingCreation) {
         return existingCreation;
@@ -772,13 +775,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         };
 
         if (useGeneral) {
-          createInput = {
-            scope: { kind: 'general' },
-          };
+          createInput = sessionCreateInputForTransport(hostClient.getTransport(), {
+            useGeneral: true,
+            ...(options?.sessionName !== undefined ? { sessionName: options.sessionName } : {}),
+          });
         } else {
           const projectPath = requestedProjectPath;
           if (!projectPath) {
-            dispatch({ type: 'error', message: 'Open a project first' });
+            dispatchNotification(pushError('Open a project first'));
             return null;
           }
           const trusted = options?.alreadyTrusted === true || state.projectTrusted;
@@ -786,13 +790,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             dispatch({ type: 'project/trust-dialog', open: true });
             return null;
           }
-          createInput = {
-            scope: { kind: 'project', projectPath },
-            projectPath,
-          };
-        }
-        if (options?.sessionName) {
-          createInput.sessionName = options.sessionName;
+          createInput = sessionCreateInputForTransport(hostClient.getTransport(), {
+            useGeneral: false,
+            projectKey: projectPath,
+            ...(options?.sessionName !== undefined ? { sessionName: options.sessionName } : {}),
+          });
         }
         const model = selectedModelRef();
         if (model) {
@@ -806,7 +808,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           input: createInput,
         });
         if (!created.success) {
-          dispatch({ type: 'error', message: created.error });
+          dispatchNotification(pushError(created.error));
           return null;
         }
         const sessionId = (created.data as { sessionId: string }).sessionId;
@@ -834,6 +836,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     },
     [
       dispatch,
+      dispatchNotification,
       hostClient,
       selectedModelRef,
       thinkingLevel,
@@ -849,37 +852,30 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       options?: { autoTrust?: boolean; resumeSessionId?: string; switchSession?: boolean },
     ): Promise<void> => {
       const resumeSessionId = options?.resumeSessionId;
-      const response = await hostClient.request({
-        type: 'project/open',
+      const openOptions =
+        options?.autoTrust !== undefined ? { autoTrust: options.autoTrust } : undefined;
+      const activation = await activateProjectOnHost(
+        (command) => hostClient.request(command),
+        hostClient.getTransport(),
         path,
-      });
-      if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        openOptions,
+      );
+      if (!activation.ok) {
+        dispatchNotification(pushError(activation.error));
         return;
       }
-      const payload = response.data as {
-        path?: string;
-        trusted?: boolean;
-        trust?: string;
-      };
-      let trusted = payload.trusted === true || payload.trust === 'trusted';
-      const openedPath = payload.path ?? path;
-      // Explicitly opening a folder is consent. Startup restoration passes
-      // autoTrust: false so reopening history never expands trust silently.
-      if (!trusted && options?.autoTrust !== false) {
-        const trustResponse = await hostClient.request({
-          type: 'project/trust',
-          path: openedPath,
-        });
-        if (!trustResponse.success) {
-          dispatch({ type: 'project/set', path: openedPath, trusted: false });
-          setProjectPickerOpen(false);
-          dispatch({ type: 'error', message: trustResponse.error });
-          return;
-        }
-        trusted = true;
+      if (!activation.trusted) {
+        dispatch({ type: 'project/set', path: activation.path, trusted: false });
+        setProjectPickerOpen(false);
+        dispatchNotification(
+          pushError(
+            'This project is not trusted on the Host yet. Trust it on the machine running the Host.',
+          ),
+        );
+        return;
       }
-      dispatch({ type: 'project/set', path: openedPath, trusted });
+      const openedPath = activation.path;
+      dispatch({ type: 'project/set', path: openedPath, trusted: true });
       setProjectPickerOpen(false);
       // Hydrate sessions for opened project. Do not force-switch session when simply opening/expanding a folder.
       const sessions = await hydrateSessions(openedPath, {
@@ -897,7 +893,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           await handleResumeSession(sessions[0].id, {
             scope: { kind: 'project', projectPath: openedPath },
           });
-        } else if (trusted) {
+        } else {
           await ensureSession({ projectPath: openedPath, alreadyTrusted: true });
         }
       }
@@ -961,12 +957,24 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         return;
       }
       const projectPath = state.projectPath;
+      if (
+        isRemoteDesktopTransport(hostClient.getTransport()) &&
+        isOpaqueRemoteProjectId(projectPath)
+      ) {
+        dispatch({ type: 'project/trust-dialog', open: false });
+        dispatch({
+          type: 'error',
+          message:
+            'Remote shells cannot change project trust. Trust this project in Settings on the machine running the Host.',
+        });
+        return;
+      }
       const response = await hostClient.request({
         type: 'project/trust',
         path: projectPath,
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       dispatch({ type: 'project/trusted' });
@@ -981,6 +989,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     },
     [
       dispatch,
+      dispatchNotification,
       ensureSession,
       handleResumeSession,
       hostClient,
@@ -1008,7 +1017,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     async (options?: { format?: 'md' | 'html'; redactTools?: boolean }): Promise<void> => {
       const sessionId = state.activeSessionId;
       if (!sessionId) {
-        dispatch({ type: 'error', message: 'Select a session before exporting.' });
+        dispatchNotification(pushError('Select a session before exporting.'));
         return;
       }
       const format = options?.format === 'html' ? 'html' : 'md';
@@ -1047,7 +1056,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       const response = await hostClient.request(command);
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const data = response.data as { path?: string; byteLength?: number; format?: string };
@@ -1061,7 +1070,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         }),
       );
     },
-    [dispatch, hostClient, setHostLogEntries, state.activeSessionId],
+    [dispatchNotification, hostClient, setHostLogEntries, state.activeSessionId],
   );
 
   const handleTogglePin = useCallback(
@@ -1071,7 +1080,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         sessionId,
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const data = response.data as {
@@ -1103,7 +1112,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       dispatch({ type: 'session/update', session: nextSession });
     },
-    [dispatch, hostClient, state],
+    [dispatch, dispatchNotification, hostClient, state],
   );
 
   const handleRenameSession = useCallback(
@@ -1114,7 +1123,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         name,
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const data = response.data as { session?: SessionSummary; name?: string };
@@ -1135,30 +1144,47 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     async (sessionId: string): Promise<void> => {
       const sessionScope =
         resolveSessionScopeHint?.(sessionId) ?? resolveKnownSessionScope(state, sessionId);
+      const wasActive = state.activeSessionId === sessionId;
+      const nextSessionId = wasActive
+        ? findAdjacentSessionId({
+            activeSessionId: sessionId,
+            sessions: state.sessions,
+            fallbackSessions:
+              state.activeScope.kind === 'project' ? state.generalSessions : undefined,
+          })
+        : null;
+
       const response = await hostClient.request({ type: 'session/archive', sessionId });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       dispatchNotification(pushSuccess('Agent archived'));
-      if (showArchivedSessions) {
-        await hydrateSessions(sessionScope, {
-          includeArchived: true,
-        });
-      } else {
-        const wasActive = state.activeSessionId === sessionId;
-        if (wasActive) {
-          // Keep transcript visible; remove only from the active list.
-          dispatch({ type: 'session/hide-from-list', sessionId });
-        } else {
+      if (wasActive) {
+        if (!showArchivedSessions) {
           dispatch({ type: 'session/remove', sessionId });
         }
-        await hydrateSessions(sessionScope, { includeArchived: false });
+        if (nextSessionId) {
+          await handleResumeSession(nextSessionId);
+        } else {
+          dispatch({ type: 'session/clear-active' });
+        }
+        await hydrateSessions(sessionScope, { includeArchived: showArchivedSessions });
+      } else {
+        if (showArchivedSessions) {
+          await hydrateSessions(sessionScope, {
+            includeArchived: true,
+          });
+        } else {
+          dispatch({ type: 'session/remove', sessionId });
+          await hydrateSessions(sessionScope, { includeArchived: false });
+        }
       }
     },
     [
       dispatch,
       dispatchNotification,
+      handleResumeSession,
       hostClient,
       hydrateSessions,
       resolveSessionScopeHint,
@@ -1173,7 +1199,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         resolveSessionScopeHint?.(sessionId) ?? resolveKnownSessionScope(state, sessionId);
       const response = await hostClient.request({ type: 'session/unarchive', sessionId });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       if (state.activeSessionId === sessionId) {
@@ -1197,9 +1223,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const confirmDeleteSession = useCallback(
     async (sessionId: string): Promise<boolean> => {
-      const response = await hostClient.request({ type: 'session/delete', sessionId });
+      const response = await hostClient.request(
+        { type: 'session/delete', sessionId },
+        { idempotencyKey: createGestureIdempotencyKey() },
+      );
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return false;
       }
       forgetTranscriptScrollPosition(sessionId);
@@ -1241,7 +1270,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messageProjection: 'none',
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const data = response.data as {
@@ -1274,7 +1303,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messageProjection: 'none',
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return false;
       }
       const data = response.data as {
@@ -1313,7 +1342,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messageProjection: 'none',
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const data = response.data as {
@@ -1358,7 +1387,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             await navigator.clipboard.writeText(sessionId);
             dispatchNotification(pushSuccess('Session ID copied to clipboard'));
           } catch {
-            dispatch({ type: 'error', message: 'Could not copy session ID' });
+            dispatchNotification(pushError('Could not copy session ID'));
           }
           break;
         case 'duplicate':
@@ -1394,6 +1423,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [
       handleArchiveSession,
       confirmDeleteSession,
+      dispatchNotification,
       handleDuplicateSession,
       handleExportSession,
       handleResumeSession,
@@ -1412,13 +1442,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const uiMessage = visibleMessages.find((message) => message.id === uiMessageId);
       if (!uiMessage || uiMessage.role !== 'user') {
         const errorMessage = `Cannot restore: message not found in chat (${uiMessageId})`;
-        dispatch({ type: 'error', message: errorMessage });
         dispatchNotification(pushError(errorMessage));
         return null;
       }
       return uiMessage.id;
     },
-    [dispatch, dispatchNotification, state.historyView, state.messages],
+    [dispatchNotification, state.historyView, state.messages],
   );
 
   const handleEditAndResend = useCallback(
@@ -1455,7 +1484,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messageProjection: 'tail',
       });
       if (!truncate.success) {
-        dispatch({ type: 'error', message: truncate.error });
         dispatchNotification(pushError(truncate.error));
         return;
       }
@@ -1502,9 +1530,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         editInput.thinkingLevel = thinkingLevel;
       }
       const response = await requestPromptWithForeground({
-        request: (command) => hostClient.request(command),
+        request: (command, options) => hostClient.request(command, options),
         sessionId: state.activeSessionId,
         input: editInput,
+        createIdempotencyKey: createGestureIdempotencyKey,
         ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
         ...(typeof hostClient.supportsForegroundAdmission === 'function'
           ? { remoteForegroundAdmission: hostClient.supportsForegroundAdmission() }
@@ -1514,9 +1543,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({ type: 'user/send-rollback', clientMessageId: resendClientMessageId });
         const problem = readForegroundProblem(response);
         if (problem) {
-          dispatch({ type: 'error', message: foregroundMismatchNotice(problem, locale) });
+          dispatchNotification(pushError(foregroundMismatchNotice(problem, locale)));
         } else {
-          dispatch({ type: 'error', message: response.error });
           dispatchNotification(pushError(response.error));
         }
       } else {
@@ -1607,7 +1635,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messageProjection: 'tail',
       });
       if (!truncate.success) {
-        dispatch({ type: 'error', message: truncate.error });
         dispatchNotification(pushError(truncate.error));
         return;
       }
@@ -1651,13 +1678,16 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     if (hasActiveRun || state.streaming) {
       dispatch({ type: 'run/aborting' });
     }
-    const response = await hostClient.request({
-      type: 'session/abort',
-      sessionId: state.activeSessionId,
-      ...(state.activeRunId ? { runId: state.activeRunId } : {}),
-    });
+    const response = await hostClient.request(
+      {
+        type: 'session/abort',
+        sessionId: state.activeSessionId,
+        ...(state.activeRunId ? { runId: state.activeRunId } : {}),
+      },
+      { idempotencyKey: createGestureIdempotencyKey() },
+    );
     if (!response.success) {
-      dispatch({ type: 'error', message: response.error });
+      dispatchNotification(pushError(response.error));
       return;
     }
     const data = response.data as { cancelled?: boolean; reason?: string } | undefined;
@@ -1692,7 +1722,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       ...(state.activeRunId ? { runId: state.activeRunId } : {}),
     });
     if (!response.success) {
-      dispatch({ type: 'error', message: response.error });
+      dispatchNotification(pushError(response.error));
       return;
     }
     const data = response.data as { state?: string } | undefined;
@@ -1718,7 +1748,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       ...(state.runTerminal.checkpointId ? { checkpointId: state.runTerminal.checkpointId } : {}),
     });
     if (!response.success) {
-      dispatch({ type: 'error', message: response.error });
+      dispatchNotification(pushError(response.error));
       return;
     }
     const data = response.data as { runId?: string; acceptedAt?: string } | undefined;
@@ -1729,7 +1759,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         ...(data.acceptedAt ? { acceptedAt: data.acceptedAt } : {}),
       });
     }
-  }, [dispatch, hostClient, state.activeSessionId, state.runTerminal]);
+  }, [dispatch, dispatchNotification, hostClient, state.activeSessionId, state.runTerminal]);
 
   const handleCompact = useCallback(
     async (customInstructions?: string): Promise<void> => {
@@ -1749,10 +1779,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       const response = await hostClient.request(payload);
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
       }
     },
-    [dispatch, hostClient, state.activeSessionId, state.compacting, state.streaming],
+    [dispatchNotification, hostClient, state.activeSessionId, state.compacting, state.streaming],
   );
 
   const handleCompactAbort = useCallback(async (): Promise<void> => {
@@ -1764,9 +1794,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       sessionId: state.activeSessionId,
     });
     if (!response.success) {
-      dispatch({ type: 'error', message: response.error });
+      dispatchNotification(pushError(response.error));
     }
-  }, [dispatch, hostClient, state.activeSessionId]);
+  }, [dispatchNotification, hostClient, state.activeSessionId]);
 
   const handlePermission = useCallback(
     async (
@@ -1790,13 +1820,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (decision === 'allow') {
         payload.rememberScope = rememberScope;
       }
-      const response = await hostClient.request(payload);
+      const response = await hostClient.request(payload, {
+        idempotencyKey: createGestureIdempotencyKey(),
+      });
       dispatch({ type: 'permission/clear', requestId: prompt.requestId });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
       }
     },
-    [dispatch, hostClient, state.permissionPrompt],
+    [dispatch, dispatchNotification, hostClient, state.permissionPrompt],
   );
 
   return {

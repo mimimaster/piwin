@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
-import { access, readdir, readFile } from 'node:fs/promises';
+import { access, mkdtemp, readdir, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import {
   getPiwinRoot,
-  getPiwinMediaDir,
   HostRuntime,
   type HostRuntimeTestFixture,
   initPiwinConfig,
@@ -38,6 +38,9 @@ import {
   formatError,
 } from '@piwin/contracts';
 import type { PromptAttachment } from '@piwin/contracts';
+import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
+import { openCliHost, type CliHostHandle } from './cli-host.js';
+import { saveAttachedCliImageAttachment, saveLocalCliImageAttachment } from './cli-prompt-image.js';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
@@ -49,7 +52,6 @@ import {
   DEFAULT_PLUGIN_REGISTRY_URL,
 } from '@piwin/marketplace';
 import { pluginSecretRef, type PluginInstallSource } from '@piwin/contracts';
-import { createMediaService } from '@piwin/media';
 import { HostEgressHub } from '@piwin/host-server';
 import { collectRefArgs, buildCliContextRefs } from './context-ref-args.js';
 
@@ -461,7 +463,7 @@ async function commandDoctor(args: string[] = []): Promise<void> {
     console.log(`- browser chromium: (unavailable: ${formatError(error)})`);
   }
   try {
-    const runtime = new HostRuntime({
+    const runtime = await openCliHost({
       mode: config.hostMode === 'rpc' ? 'rpc' : 'sdk',
       mock: config.agentMock === true || process.env.PIWIN_MOCK === '1',
     });
@@ -586,8 +588,10 @@ async function commandDoctor(args: string[] = []): Promise<void> {
 }
 
 async function commandHostMode(): Promise<void> {
-  const sdkRuntime = new HostRuntime({ mode: 'sdk', mock: true });
-  const rpcRuntime = new HostRuntime({ mode: 'rpc', mock: true });
+  const sdkRoot = await mkdtemp(join(tmpdir(), 'piwin-cli-host-mode-sdk-'));
+  const rpcRoot = await mkdtemp(join(tmpdir(), 'piwin-cli-host-mode-rpc-'));
+  const sdkRuntime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: sdkRoot });
+  const rpcRuntime = new HostRuntime({ mode: 'rpc', mock: true, piwinRoot: rpcRoot });
   console.log(`sdk runtime mode=${sdkRuntime.getMode()}`);
   console.log(`rpc runtime mode=${rpcRuntime.getMode()}`);
   await sdkRuntime.dispose();
@@ -615,7 +619,7 @@ async function commandSession(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   const mock = parseMock(argv);
   const mode = parseMode(argv);
-  const runtime = new HostRuntime({ mode, mock });
+  const runtime = await openCliHost({ mode, mock });
 
   try {
     if (sub === 'lifecycle') {
@@ -1080,7 +1084,7 @@ async function commandSession(argv: string[]): Promise<void> {
 }
 
 async function commandStatus(argv: string[]): Promise<void> {
-  const runtime = new HostRuntime({
+  const runtime = await openCliHost({
     mode: parseMode(argv),
     mock: parseMock(argv),
   });
@@ -1155,32 +1159,13 @@ async function commandChat(argv: string[]): Promise<void> {
     return;
   }
 
+  const attachTarget = readCliHostAttachTarget();
   const attachments: PromptAttachment[] = [];
-  if (imagePath) {
-    const root = getPiwinRoot();
-    const config = await loadPiwinConfig(root);
-    const media = createMediaService({
-      mediaRoot: getPiwinMediaDir(root),
-      maxPasteBytes: config.media.maxPasteBytes,
-      allowedMimeTypes: config.media.allowedMimeTypes,
-    });
-    const bytes = await readFile(resolve(imagePath));
-    const saved = await media.saveMediaAsset({
-      sessionId: 'cli',
-      bytes,
-      mimeType: guessMime(imagePath),
-      source: 'file-picker',
-    });
-    // ADR 0005 (2026-08-01): pass media as attachment; host routes native vs path/D1.
-    attachments.push({
-      id: saved.id,
-      kind: 'media',
-      path: saved.absolutePath,
-      mimeType: saved.mimeType,
-      byteSize: saved.byteSize,
-      source: 'file-picker',
-    });
-    console.error(`[media] saved ${saved.absolutePath}`);
+  if (imagePath && !attachTarget) {
+    const saved = await saveLocalCliImageAttachment(imagePath);
+    attachments.push(saved.attachment);
+    console.error(`[media] saved ${saved.logPath}`);
+    const config = await loadPiwinConfig(getPiwinRoot());
     const defaultProvider = config.providers.find((item) => item.id === config.defaultProviderId);
     const defaultModel = defaultProvider?.models.find((item) => item.id === config.defaultModelId);
     const supportsImage = defaultModel?.input?.includes('image') === true;
@@ -1210,10 +1195,111 @@ async function commandChat(argv: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  if (attachTarget) {
+    if (projectPath && !/^project-[a-f0-9]{24}$/.test(projectPath)) {
+      console.error(
+        'PIWIN_HOST_URL is set; --project must be a Host projectId, not a local folder.',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const client = await connectCliAttachedHost(attachTarget);
+    let resolveAttachedCompletion: (() => void) | undefined;
+    let rejectAttachedCompletion: ((error: Error) => void) | undefined;
+    const attachedCompletion = new Promise<void>((resolve, reject) => {
+      resolveAttachedCompletion = resolve;
+      rejectAttachedCompletion = reject;
+    });
+    const attachedPromptTimeoutMs = 10 * 60 * 1000;
+    const attachedTimeout = setTimeout(() => {
+      rejectAttachedCompletion?.(
+        new Error(`Attached Host prompt timed out after ${attachedPromptTimeoutMs}ms waiting for run/terminal`),
+      );
+    }, attachedPromptTimeoutMs);
+    const attachedDisplay = createAssistantCliDisplay();
+    const unsubscribe = client.subscribePush((push) => {
+      if (push.type === 'run/terminal') {
+        resolveAttachedCompletion?.();
+        return;
+      }
+      if (push.type !== 'event') {
+        return;
+      }
+      const line = attachedDisplay.feed(push.event);
+      if (line !== null) {
+        process.stdout.write(line);
+      }
+    });
+    try {
+      const createResponse = await client.request({
+        type: 'session/create',
+        input: projectPath
+          ? { projectId: projectPath }
+          : { scope: { kind: 'general' } },
+      });
+      if (!createResponse.success) {
+        throw new Error(createResponse.error);
+      }
+      const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+      if (imagePath) {
+        const saved = await saveAttachedCliImageAttachment({
+          request: (command) => client.request(command),
+          sessionId,
+          imagePath,
+        });
+        attachments.push(saved.attachment);
+        console.error(`[media] saved ${saved.logPath}`);
+      }
+      const schemeId = readOption(argv, '--scheme')?.trim();
+      const refArgs = collectRefArgs(argv);
+      const refsResult = refArgs.length > 0 ? await buildCliContextRefs(projectPath, refArgs) : null;
+      if (refsResult && !refsResult.ok) {
+        console.error(`[ref] ${refsResult.reason}`);
+        process.exitCode = 1;
+        return;
+      }
+      const promptResponse = await client.request(
+        {
+          type: 'session/prompt',
+          sessionId,
+          input: {
+            text: resolvedChatPrompt.text,
+            ...(resolvedChatPrompt.skillId ? { skillId: resolvedChatPrompt.skillId } : {}),
+            ...(attachments.length > 0 ? { attachments } : {}),
+            ...(refsResult && refsResult.ok && refsResult.refs.length > 0
+              ? { contextRefs: refsResult.refs }
+              : {}),
+            ...(schemeId && schemeId !== 'off' ? { orchestrationSchemeId: schemeId } : {}),
+          },
+          foreground: { kind: 'if-idle' },
+        },
+        { idempotencyKey: randomUUID() },
+      );
+      if (!promptResponse.success) {
+        throw new Error(promptResponse.error);
+      }
+      await attachedCompletion;
+      process.stdout.write('\n');
+    } finally {
+      clearTimeout(attachedTimeout);
+      unsubscribe();
+      await client.close();
+    }
+    return;
+  }
+
   let resolvePromptCompletion: (() => void) | undefined;
-  const promptCompletion = new Promise<void>((resolve) => {
+  let rejectPromptCompletion: ((error: Error) => void) | undefined;
+  const promptCompletion = new Promise<void>((resolve, reject) => {
     resolvePromptCompletion = resolve;
+    rejectPromptCompletion = reject;
   });
+  const localPromptTimeoutMs = 10 * 60 * 1000;
+  const localPromptTimeout = setTimeout(() => {
+    rejectPromptCompletion?.(
+      new Error(`Local Host prompt timed out after ${localPromptTimeoutMs}ms waiting for run/terminal`),
+    );
+  }, localPromptTimeoutMs);
   const display = createAssistantCliDisplay();
   const runtime = new HostRuntime({
     mode,
@@ -1273,17 +1359,9 @@ async function commandChat(argv: string[]): Promise<void> {
     await promptCompletion;
     process.stdout.write('\n');
   } finally {
+    clearTimeout(localPromptTimeout);
     await runtime.dispose();
   }
-}
-
-function guessMime(filePath: string): string {
-  const lower = filePath.toLowerCase();
-  if (lower.endsWith('.png')) return 'image/png';
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  if (lower.endsWith('.gif')) return 'image/gif';
-  return 'image/png';
 }
 
 async function commandSkill(argv: string[]): Promise<void> {
@@ -2168,7 +2246,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
     ...(embeddingProvider ? { embeddingProvider } : {}),
   });
   const store = createCardStore({ piwinRoot: root });
-  let host: HostRuntime | undefined;
+  let host: CliHostHandle | undefined;
 
   try {
     if (sub === 'scan') {
@@ -2341,7 +2419,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
         return;
       }
 
-      host = new HostRuntime({
+      host = await openCliHost({
         mode,
         mock,
         piwinRoot: root,
@@ -2570,7 +2648,7 @@ async function commandCron(argv: string[]): Promise<void> {
     return;
   }
   const mock = hasFlag(argv, '--mock') || process.env.PIWIN_MOCK === '1';
-  const runtime = new HostRuntime({
+  const runtime = await openCliHost({
     mode: 'sdk',
     mock: mock === true,
   });
@@ -2602,7 +2680,7 @@ async function commandUsage(argv: string[]): Promise<void> {
   const mock = parseMock(argv);
   const projectPath = parseOptionalProject(argv);
   const globalFlag = hasFlag(argv, '--global');
-  const runtime = new HostRuntime({
+  const runtime = await openCliHost({
     mode: 'sdk',
     mock,
   });
@@ -2689,7 +2767,7 @@ async function commandContext(argv: string[]): Promise<void> {
   }
   const mock = parseMock(argv);
   const mode = parseMode(argv);
-  const runtime = new HostRuntime({ mode, mock });
+  const runtime = await openCliHost({ mode, mock });
   try {
     await runContextSummary(runtime, sessionId, console.log);
   } catch (error) {
@@ -2712,7 +2790,7 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createWalkthroughHostClient(mode, mock);
+    const client = await createWalkthroughHostClient(mode, mock);
     try {
       await runWalkthroughList(client, sessionId, console.log);
     } catch (error) {
@@ -2732,7 +2810,7 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createWalkthroughHostClient(mode, mock);
+    const client = await createWalkthroughHostClient(mode, mock);
     try {
       await runWalkthroughGenerate(client, sessionId, messageId, console.log);
     } catch (error) {
@@ -2755,7 +2833,7 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
       return;
     }
     const outputPath = readOption(argv, '--output');
-    const client = createWalkthroughHostClient(mode, mock);
+    const client = await createWalkthroughHostClient(mode, mock);
     try {
       await runWalkthroughExport(client, sessionId, messageId, console.log, {
         ...(outputPath ? { outputPath } : {}),
@@ -2790,7 +2868,7 @@ async function commandSubagent(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createWalkthroughHostClient(mode, mock);
+    const client = await createWalkthroughHostClient(mode, mock);
     try {
       const response = await client.handleCommand({
         type: 'subagent/batch-status',
@@ -2827,7 +2905,7 @@ async function commandSubagent(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createWalkthroughHostClient(mode, mock);
+    const client = await createWalkthroughHostClient(mode, mock);
     try {
       const response = await client.handleCommand({
         type: 'subagent/batch-cancel',
@@ -2872,7 +2950,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
       return;
     }
     const includeArchived = hasFlag(argv, '--include-archived');
-    const client = createSideChatHostClient(mode, mock);
+    const client = await createSideChatHostClient(mode, mock);
     try {
       await runSideChatList(client, sourceSessionId, console.log, {
         ...(includeArchived ? { includeArchived: true } : {}),
@@ -2897,7 +2975,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
     }
     const name = readOption(argv, '--name');
     const sourceMessageId = readOption(argv, '--message');
-    const client = createSideChatHostClient(mode, mock);
+    const client = await createSideChatHostClient(mode, mock);
     try {
       await runSideChatOpen(client, sourceSessionId, console.log, {
         ...(name ? { name } : {}),
@@ -2919,7 +2997,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createSideChatHostClient(mode, mock);
+    const client = await createSideChatHostClient(mode, mock);
     try {
       await runSideChatSync(client, sideChatSessionId, console.log);
     } catch (error) {
@@ -2942,7 +3020,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createSideChatHostClient(mode, mock);
+    const client = await createSideChatHostClient(mode, mock);
     try {
       await runSideChatSend(client, sideChatSessionId, text, console.log);
     } catch (error) {
@@ -2961,7 +3039,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const client = createSideChatHostClient(mode, mock);
+    const client = await createSideChatHostClient(mode, mock);
     try {
       await runSideChatResume(client, sideChatSessionId, console.log);
     } catch (error) {
@@ -2979,11 +3057,11 @@ async function commandSideChat(argv: string[]): Promise<void> {
 }
 
 /**
- * Build a {@link SideChatHostClient} backed by a real {@link HostRuntime}.
+ * Build a {@link SideChatHostClient} on the live Host, or an in-process runtime.
  */
-function createSideChatHostClient(mode: HostMode, mock: boolean): SideChatHostClient {
+async function createSideChatHostClient(mode: HostMode, mock: boolean): Promise<SideChatHostClient> {
   const pushHandlers = new Set<(message: HostPush) => void>();
-  const runtime = new HostRuntime({
+  const host = await openCliHost({
     mode,
     mock,
     onPush: (message) => {
@@ -2993,27 +3071,27 @@ function createSideChatHostClient(mode: HostMode, mock: boolean): SideChatHostCl
     },
   });
   return {
-    handleCommand: (command) => runtime.handleCommand(command),
+    handleCommand: (command) => host.handleCommand(command),
     onPush: (handler) => {
       pushHandlers.add(handler);
       return () => {
         pushHandlers.delete(handler);
       };
     },
-    dispose: async () => {
-      await runtime.dispose();
-    },
+    dispose: () => host.dispose(),
   };
 }
 
 /**
- * Build a {@link WalkthroughHostClient} backed by a real {@link HostRuntime}.
- * The runtime's `onPush` is bridged into the client's `onPush` registry so
- * `generate` can wait for `walkthrough/updated` pushes.
+ * Build a {@link WalkthroughHostClient} on the live Host, or an in-process runtime.
+ * `onPush` is bridged so `generate` can wait for `walkthrough/updated`.
  */
-function createWalkthroughHostClient(mode: HostMode, mock: boolean): WalkthroughHostClient {
+async function createWalkthroughHostClient(
+  mode: HostMode,
+  mock: boolean,
+): Promise<WalkthroughHostClient> {
   const pushHandlers = new Set<(message: HostPush) => void>();
-  const runtime = new HostRuntime({
+  const host = await openCliHost({
     mode,
     mock,
     onPush: (message) => {
@@ -3023,16 +3101,14 @@ function createWalkthroughHostClient(mode: HostMode, mock: boolean): Walkthrough
     },
   });
   return {
-    handleCommand: (command) => runtime.handleCommand(command),
+    handleCommand: (command) => host.handleCommand(command),
     onPush: (handler) => {
       pushHandlers.add(handler);
       return () => {
         pushHandlers.delete(handler);
       };
     },
-    dispose: async () => {
-      await runtime.dispose();
-    },
+    dispose: () => host.dispose(),
   };
 }
 

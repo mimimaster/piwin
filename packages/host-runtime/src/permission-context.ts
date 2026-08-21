@@ -52,11 +52,14 @@ export function buildPermissionRequestContext(
 
   if (lowered.startsWith('browser:') || lowered.includes('browser_navigate')) {
     const host = extractHost(detailText);
+    const navigate = lowered === 'browser:navigate' || lowered.includes('browser_navigate');
     return {
       kind: 'network',
       summary: action,
       ...(host ? { host } : {}),
-      reason: 'Browser navigation requires review',
+      reason: navigate
+        ? 'Browser navigation requires review'
+        : 'Browser interaction requires review',
       ...(detailText ? { command: detailText } : {}),
     };
   }

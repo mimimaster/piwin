@@ -48,10 +48,11 @@ describe('buildContextMenuItems', () => {
       label: 'sel',
     };
     const ids = actionIds(target);
+    expect(ids[0]).toBe('add-to-chat');
     expect(ids).toContain('ask-about');
     expect(ids).toContain('explain');
     expect(ids).toContain('fix');
-    expect(ids).toContain('add-to-chat');
+    expect(ids).not.toContain('quote-in-composer');
   });
 
   it('hides side-chat when unavailable', () => {
@@ -156,5 +157,19 @@ describe('buildContextMenuItems', () => {
     expect(actionIds(target, { ...baseCaps, openChangedFilesAvailable: false })).not.toContain(
       'open-changed-files',
     );
+  });
+
+  it('disables Host file open/apply when the remote ceiling omits project/read-file', () => {
+    const target: ContextMenuTarget = {
+      surface: 'code-block',
+      selectedText: 'const x = 1',
+      relativePath: 'src/a.ts',
+      label: 'a.ts',
+    };
+    const items = buildContextMenuItems(target, { ...baseCaps, applyAvailable: false });
+    const apply = items.find((item) => item.type === 'item' && item.id === 'apply-to-file');
+    const open = items.find((item) => item.type === 'item' && item.id === 'open');
+    expect(apply && apply.type === 'item' && apply.disabled).toBe(true);
+    expect(open && open.type === 'item' && open.disabled).toBe(true);
   });
 });

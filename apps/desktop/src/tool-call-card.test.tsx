@@ -3,7 +3,7 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ToolCardUi } from './chat-reducer';
-import { ToolCallCard } from './tool-call-card';
+import { collectSessionTools, resolveToolOpenPath, ToolCallCard } from './tool-call-card';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -46,7 +46,7 @@ describe('ToolCallCard openable file paths', () => {
     container.remove();
   });
 
-  it('opens the primary Read target from the file pill without expanding the card', () => {
+  it('opens the file from the collapsed read summary instead of expanding', () => {
     const onOpenFile = vi.fn();
 
     act(() => {
@@ -60,16 +60,9 @@ describe('ToolCallCard openable file paths', () => {
       );
     });
 
-    const filePill = container.querySelector<HTMLButtonElement>(
-      '[data-testid="tool-call-file-pill"]',
-    );
+    const filePill = container.querySelector<HTMLElement>('[data-testid="tool-call-file-pill"]');
     expect(filePill).not.toBeNull();
-    expect(filePill?.tagName).toBe('BUTTON');
-    expect(filePill?.classList.contains('is-openable')).toBe(true);
-    expect(filePill?.getAttribute('data-full-path')).toBe(
-      '/workspace/pelican-bicycle-animation.html',
-    );
-    expect(container.querySelector('[data-testid="tool-call-output-truncated"]')).not.toBeNull();
+    expect(filePill?.classList.contains('is-link')).toBe(true);
     expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
       false,
     );
@@ -84,6 +77,33 @@ describe('ToolCallCard openable file paths', () => {
     );
     expect(container.querySelector('.tool-call-card')?.classList.contains('is-expanded')).toBe(
       false,
+    );
+  });
+
+  it('shows the recovered read range next to the filename', () => {
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={createReadTool({
+            presentation: {
+              title: 'Read',
+              kind: 'filesystem',
+              actionVerb: 'Read',
+              inputPreview: '{"path":"src/tool-group-clustering.ts","offset":1,"limit":80}',
+            },
+          })}
+          projectPath="/workspace"
+          density="comfortable"
+          onOpenFile={vi.fn()}
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="tool-call-file-pill"]')?.textContent).toContain(
+      'tool-group-clustering.ts',
+    );
+    expect(container.querySelector('[data-testid="tool-call-line-range"]')?.textContent).toBe(
+      'L1-80',
     );
   });
 
@@ -123,7 +143,7 @@ describe('ToolCallCard openable file paths', () => {
     expect(onOpenFile).toHaveBeenCalledWith('/workspace/docs/a.html', 'docs/a.html');
   });
 
-  it('keeps the file pill non-interactive when onOpenFile is absent', () => {
+  it('keeps the file pill a non-nested span so the row can expand', () => {
     act(() => {
       root.render(
         <ToolCallCard tool={createReadTool()} projectPath="/workspace" density="comfortable" />,
@@ -214,7 +234,49 @@ describe('ToolCallCard openable file paths', () => {
     expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('命令失败');
     expect(card?.querySelector('.tool-call-summary')?.textContent).not.toContain('Tool error');
     expect(card?.querySelector('.tool-call-body')?.textContent).toContain('Command failed');
+    expect(card?.querySelector('[data-testid="tool-call-error"]')?.textContent).toContain(
+      'Command failed',
+    );
+    // Same failure string must not also render as a raw output pre.
+    expect(card?.querySelector('.tool-call-output')).toBeNull();
     expect(card?.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+  });
+
+  it('keeps longer stderr under a structured error when it adds detail', () => {
+    const stderr = [
+      'Command failed: ls /missing',
+      'ls: /missing: No such file or directory',
+      'stack: at runShell (host.js:12)',
+      'stack: at dispatch (host.js:40)',
+      'stack: at main (host.js:90)',
+    ].join('\n');
+    const failedTool: ToolCardUi = {
+      toolCallId: 'shell-error-stderr',
+      toolName: 'bash',
+      status: 'error',
+      output: stderr,
+      presentation: {
+        title: 'Bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+        summary: 'ls /missing',
+        command: 'ls /missing',
+        error: { category: 'execution', message: 'Command failed: ls /missing' },
+        output: { text: stderr },
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={failedTool} density="compact" locale="en" />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.querySelector('[data-testid="tool-call-error"]')?.textContent).toContain(
+      'Command failed: ls /missing',
+    );
+    expect(card?.querySelector('.tool-call-output')?.textContent).toContain(
+      'No such file or directory',
+    );
   });
 
   it('preserves a manual collapse while a running tool streams output', () => {
@@ -340,5 +402,263 @@ describe('ToolCallCard openable file paths', () => {
       'GET https://example.com/docs',
     );
     expect(card?.querySelector('.citation-card')).not.toBeNull();
+  });
+
+  it('shows an inline diff when an edit row is expanded', async () => {
+    const editTool: ToolCardUi = {
+      toolCallId: 'edit-diff-1',
+      toolName: 'replace_file_content',
+      status: 'done',
+      output: 'ok',
+      presentation: {
+        title: 'Edit',
+        kind: 'filesystem',
+        actionVerb: 'Edited',
+        targetPaths: ['src/foo.ts'],
+        changedPaths: ['src/foo.ts'],
+      },
+    };
+    const request = vi.fn(async () => ({
+      type: 'response' as const,
+      command: 'git/diff-file',
+      success: true as const,
+      data: {
+        diff: {
+          repository: { rootPath: '/workspace', isRepository: true },
+          path: 'src/foo.ts',
+          scope: 'combined' as const,
+          isBinary: false,
+          patch: '--- a/src/foo.ts\n+++ b/src/foo.ts\n@@ -1 +1,2 @@\n keep\n+added\n',
+          truncated: false,
+        },
+      },
+    }));
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={editTool} projectPath="/workspace" request={request} locale="en" />,
+      );
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
+
+    act(() => {
+      card?.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+    expect(card?.classList.contains('is-expanded')).toBe(true);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(request).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
+  });
+
+  it('keeps a finished silent tool collapsed without a No output body', () => {
+    const silent: ToolCardUi = {
+      toolCallId: 'copy-1',
+      toolName: 'bash',
+      status: 'done',
+      output: '',
+      presentation: {
+        title: 'Bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={silent} density="comfortable" locale="en" />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('.tool-call-empty')).toBeNull();
+    expect(container.textContent).not.toContain('No output');
+  });
+
+  it('keeps a silent tool collapsed and does not invent an empty-output body', () => {
+    const silent: ToolCardUi = {
+      toolCallId: 'copy-2',
+      toolName: 'bash',
+      status: 'done',
+      output: '',
+      presentation: {
+        title: 'Bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={silent} density="comfortable" locale="zh-CN" />);
+    });
+
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.classList.contains('is-expanded')).toBe(false);
+    expect(container.querySelector('[data-testid="tool-call-empty-hint"]')).toBeNull();
+    expect(container.textContent).not.toContain('无输出');
+  });
+
+  it('opens an edit file pill through onOpenDiff instead of expanding inline', async () => {
+    const onOpenFile = vi.fn();
+    const onOpenDiff = vi.fn();
+    const editTool: ToolCardUi = {
+      toolCallId: 'edit-pill-1',
+      toolName: 'write_file',
+      status: 'done',
+      output: '',
+      presentation: {
+        title: 'Edit',
+        kind: 'filesystem',
+        actionVerb: 'Edited',
+        targetPaths: ['src/foo.ts'],
+        changedPaths: ['src/foo.ts'],
+      },
+    };
+    const request = vi.fn(async () => ({
+      type: 'response' as const,
+      command: 'git/diff-file',
+      success: true as const,
+      data: {
+        diff: {
+          repository: { rootPath: '/workspace', isRepository: true },
+          path: 'src/foo.ts',
+          scope: 'combined' as const,
+          isBinary: false,
+          patch: '--- a/src/foo.ts\n+++ b/src/foo.ts\n@@ -1 +1,2 @@\n keep\n+added\n',
+          truncated: false,
+        },
+      },
+    }));
+
+    act(() => {
+      root.render(
+        <ToolCallCard
+          tool={editTool}
+          projectPath="/workspace"
+          request={request}
+          locale="en"
+          onOpenFile={onOpenFile}
+          onOpenDiff={onOpenDiff}
+        />,
+      );
+    });
+
+    act(() => {
+      container.querySelector<HTMLElement>('[data-testid="tool-call-file-pill"]')?.click();
+    });
+
+    expect(onOpenDiff).toHaveBeenCalledWith('/workspace/src/foo.ts', 'src/foo.ts');
+    expect(onOpenFile).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="tool-call-card"]')?.classList.contains('is-expanded')).toBe(
+      false,
+    );
+    expect(container.querySelector('[data-testid="diff-card"]')).toBeNull();
+  });
+
+  it('recovers a write path from inputPreview JSON so click can show a diff', async () => {
+    const writeTool: ToolCardUi = {
+      toolCallId: 'write-preview-1',
+      toolName: 'write_file',
+      status: 'done',
+      output: '',
+      presentation: {
+        title: 'write_file',
+        kind: 'filesystem',
+        actionVerb: 'Edited',
+        inputPreview: '{"path":"README.md","content":"# hi"}',
+      },
+    };
+    const request = vi.fn(async () => ({
+      type: 'response' as const,
+      command: 'git/diff-file',
+      success: true as const,
+      data: {
+        diff: {
+          repository: { rootPath: '/workspace', isRepository: true },
+          path: 'README.md',
+          scope: 'combined' as const,
+          isBinary: false,
+          patch: '--- a/README.md\n+++ b/README.md\n@@ -0,0 +1 @@\n+# hi\n',
+          truncated: false,
+        },
+      },
+    }));
+
+    act(() => {
+      root.render(
+        <ToolCallCard tool={writeTool} projectPath="/workspace" request={request} locale="en" />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="tool-call-file-pill"]')?.textContent).toContain(
+      'README.md',
+    );
+    expect(container.querySelector('[data-testid="tool-call-diff-stats"]')?.textContent).toContain('+1');
+
+    act(() => {
+      container.querySelector<HTMLElement>('.tool-call-summary')?.click();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(request).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="diff-card"]')).not.toBeNull();
+  });
+});
+
+describe('collectSessionTools', () => {
+  it('flattens tools from all messages in order', () => {
+    const first: ToolCardUi = {
+      toolCallId: 'a',
+      toolName: 'bash',
+      status: 'done',
+      output: 'ok',
+    };
+    const second: ToolCardUi = {
+      toolCallId: 'b',
+      toolName: 'read',
+      status: 'running',
+      output: '',
+    };
+    const tools = collectSessionTools([
+      { tools: [first] },
+      { tools: [] },
+      { tools: [second] },
+    ]);
+    expect(tools).toEqual([first, second]);
+  });
+});
+
+describe('resolveToolOpenPath', () => {
+  it('joins project-relative paths to the project root', () => {
+    expect(resolveToolOpenPath('pelican-bicycle-animation.html', '/workspace')).toEqual({
+      absolutePath: '/workspace/pelican-bicycle-animation.html',
+      relativePath: 'pelican-bicycle-animation.html',
+    });
+  });
+
+  it('keeps absolute paths and derives a project-relative path when under the root', () => {
+    expect(
+      resolveToolOpenPath('/workspace/apps/desktop/src/App.tsx', '/workspace'),
+    ).toEqual({
+      absolutePath: '/workspace/apps/desktop/src/App.tsx',
+      relativePath: 'apps/desktop/src/App.tsx',
+    });
+  });
+
+  it('returns the raw path when no project root is available', () => {
+    expect(resolveToolOpenPath('src/App.tsx')).toEqual({
+      absolutePath: 'src/App.tsx',
+      relativePath: 'src/App.tsx',
+    });
   });
 });

@@ -32,11 +32,14 @@ export type WebSocketHostTransportOptions = {
 };
 
 const OPEN_READY_STATE = 1;
+const CONNECTING_READY_STATE = 0;
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
 const DEFAULT_RECONNECT_MIN_DELAY_MS = 500;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 10_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const HEARTBEAT_TIMEOUT_MS = 10_000;
+/** Close codes that mean "do not auto-reconnect" (auth / protocol / origin). */
+const FATAL_CLOSE_CODES = new Set([4002, 4003, 4004, 4009]);
 
 export class WebSocketHostTransport implements HostTransport {
   private readonly endpoint: string;
@@ -67,6 +70,7 @@ export class WebSocketHostTransport implements HostTransport {
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
   private heartbeatRequestId: string | undefined;
   private reconnectAttempt = 0;
+  private lastHeartbeatTickAt = 0;
 
   public constructor(options: WebSocketHostTransportOptions) {
     if (options.endpoint.trim().length === 0) {
@@ -168,7 +172,13 @@ export class WebSocketHostTransport implements HostTransport {
   private openSocket(waitForHello: true): Promise<HostHello>;
   private openSocket(waitForHello: false): void;
   private openSocket(waitForHello: boolean): Promise<HostHello> | undefined {
-    const promise = waitForHello ? this.createHelloPromise() : undefined;
+    if (waitForHello) {
+      if (this.helloPromise === undefined) {
+        this.createHelloPromise();
+      } else {
+        this.resetAttemptTimer();
+      }
+    }
     try {
       const socket = this.webSocketFactory(this.endpoint);
       this.socket = socket;
@@ -177,13 +187,9 @@ export class WebSocketHostTransport implements HostTransport {
       socket.onerror = () => this.handleSocketError(socket);
       socket.onclose = (event) => this.handleClose(socket, event);
     } catch (error) {
-      const connectionError = toError(error, 'Unable to create Host WebSocket');
-      this.failHello(connectionError);
-      this.publishState({ kind: 'error', reason: connectionError.message });
-      this.disposeSocket();
-      this.scheduleReconnect();
+      this.abandonAttempt(toError(error, 'Unable to create Host WebSocket'), false);
     }
-    return promise;
+    return waitForHello ? this.helloPromise?.promise : undefined;
   }
 
   private createHelloPromise(): Promise<HostHello> {
@@ -193,23 +199,34 @@ export class WebSocketHostTransport implements HostTransport {
       resolveHello = resolve;
       rejectHello = reject;
     });
-    const timer = setTimeout(() => {
-      if (this.helloPromise?.promise !== promise) {
-        return;
-      }
-      const error = new Error(`Timed out connecting to Host at ${this.endpoint}`);
-      this.failHello(error);
-      this.publishState({ kind: 'error', reason: error.message });
-      this.disposeSocket();
-      this.scheduleReconnect();
-    }, this.connectTimeoutMs);
     this.helloPromise = {
       promise,
       resolve: resolveHello,
       reject: rejectHello,
-      timer,
+      timer: this.startAttemptTimer(promise),
     };
     return promise;
+  }
+
+  private startAttemptTimer(promise: Promise<HostHello>): ReturnType<typeof setTimeout> {
+    return setTimeout(() => {
+      if (this.helloPromise?.promise !== promise) {
+        return;
+      }
+      this.abandonAttempt(
+        new Error(`Timed out connecting to Host at ${this.endpoint}`),
+        false,
+      );
+    }, this.connectTimeoutMs);
+  }
+
+  private resetAttemptTimer(): void {
+    const pending = this.helloPromise;
+    if (pending === undefined) {
+      return;
+    }
+    clearTimeout(pending.timer);
+    pending.timer = this.startAttemptTimer(pending.promise);
   }
 
   private handleOpen(socket: WebSocketLike): void {
@@ -222,11 +239,7 @@ export class WebSocketHostTransport implements HostTransport {
       const hello: HostClientHello = this.createHello(this.lastSeq);
       socket.send(encodeHostWireMessage(hello));
     } catch (error) {
-      const connectionError = toError(error, 'Unable to send Host hello');
-      this.failHello(connectionError);
-      this.publishState({ kind: 'error', reason: connectionError.message });
-      this.disposeSocket();
-      this.scheduleReconnect();
+      this.abandonAttempt(toError(error, 'Unable to send Host hello'), false);
     }
   }
 
@@ -241,12 +254,11 @@ export class WebSocketHostTransport implements HostTransport {
 
     try {
       const message = decodeHostWireMessage(data);
+      // Any inbound frame means the Host process is alive. Agent turns flood
+      // pushes for longer than HEARTBEAT_TIMEOUT; counting only ping replies
+      // then tears the socket and the shell paints "connecting".
+      this.noteInboundLiveness();
       if (message.type === 'response' && message.requestId === this.heartbeatRequestId) {
-        this.heartbeatRequestId = undefined;
-        if (this.heartbeatTimeoutTimer !== undefined) {
-          clearTimeout(this.heartbeatTimeoutTimer);
-          this.heartbeatTimeoutTimer = undefined;
-        }
         return;
       }
       if (message.type === 'host/hello') {
@@ -272,11 +284,21 @@ export class WebSocketHostTransport implements HostTransport {
     if (this.socket !== socket) {
       return;
     }
-    this.failHello(new Error(reason));
     this.publishState({ kind: 'error', reason });
-    if (socket.readyState === OPEN_READY_STATE) {
-      socket.close(4007, reason);
+    // Let handleClose be the single settlement: do not reject connect() here
+    // or autoReconnect cannot resolve the original handshake.
+    if (
+      socket.readyState === OPEN_READY_STATE ||
+      socket.readyState === CONNECTING_READY_STATE
+    ) {
+      try {
+        socket.close(4007, reason);
+      } catch {
+        this.handleClose(socket, { code: 1006, reason });
+      }
+      return;
     }
+    this.handleClose(socket, { code: 1006, reason });
   }
 
   private handleClose(socket: WebSocketLike, event: { code: number; reason: string }): void {
@@ -285,12 +307,44 @@ export class WebSocketHostTransport implements HostTransport {
     }
     this.socket = undefined;
     this.clearHeartbeat();
-    this.failHello(new Error('Host WebSocket closed before handshake'));
-    if (!this.closing) {
-      const reason = event.reason.length > 0 ? event.reason : `WebSocket closed (${event.code})`;
-      this.publishState({ kind: 'closed', reason });
-      this.scheduleReconnect();
+    const reason =
+      event.reason.length > 0 ? event.reason : `WebSocket closed (${event.code})`;
+    const fatal = FATAL_CLOSE_CODES.has(event.code);
+    const error = new Error(
+      fatal
+        ? `Host rejected the connection (${event.code}): ${reason}`
+        : `Host WebSocket closed before handshake (${event.code}): ${reason}`,
+    );
+    if (this.closing) {
+      this.failHello(error);
+      return;
     }
+    this.publishState({ kind: fatal ? 'error' : 'closed', reason });
+    if (fatal || !this.autoReconnect) {
+      this.failHello(error);
+      return;
+    }
+    this.clearHelloTimer();
+    this.scheduleReconnect();
+  }
+
+  private abandonAttempt(error: Error, fatal: boolean): void {
+    this.disposeSocket();
+    this.publishState({ kind: 'error', reason: error.message });
+    if (fatal || !this.autoReconnect || this.closing) {
+      this.failHello(error);
+      return;
+    }
+    this.clearHelloTimer();
+    this.scheduleReconnect();
+  }
+
+  private clearHelloTimer(): void {
+    const pendingHello = this.helloPromise;
+    if (pendingHello === undefined) {
+      return;
+    }
+    clearTimeout(pendingHello.timer);
   }
 
   private failHello(error: Error): void {
@@ -316,8 +370,17 @@ export class WebSocketHostTransport implements HostTransport {
     socket.onmessage = null;
     socket.onerror = null;
     socket.onclose = null;
-    if (socket.readyState === OPEN_READY_STATE) {
-      socket.close();
+    // CONNECTING sockets must be aborted too — otherwise a black-hole dial
+    // keeps the shared Tauri plugin queue blocked after connect timeout.
+    if (
+      socket.readyState === OPEN_READY_STATE ||
+      socket.readyState === CONNECTING_READY_STATE
+    ) {
+      try {
+        socket.close(1000, 'transport disposed');
+      } catch {
+        // Some runtimes throw if the underlying dial already failed.
+      }
     }
   }
 
@@ -325,9 +388,12 @@ export class WebSocketHostTransport implements HostTransport {
     if (!this.autoReconnect || this.closing || this.reconnectTimer !== undefined) {
       return;
     }
-    const delay = Math.min(
-      this.reconnectMaxDelayMs,
-      this.reconnectMinDelayMs * 2 ** Math.min(this.reconnectAttempt, 6),
+    const exponential = this.reconnectMinDelayMs * 2 ** Math.min(this.reconnectAttempt, 6);
+    const capped = Math.min(this.reconnectMaxDelayMs, exponential);
+    // Jitter avoids reconnect stampedes when many shells drop together.
+    const delay = Math.max(
+      this.reconnectMinDelayMs,
+      Math.floor(capped * (0.5 + Math.random() * 0.5)),
     );
     this.reconnectAttempt += 1;
     this.reconnectTimer = setTimeout(() => {
@@ -336,6 +402,10 @@ export class WebSocketHostTransport implements HostTransport {
         return;
       }
       this.publishState({ kind: 'connecting' });
+      if (this.helloPromise !== undefined) {
+        this.openSocket(true);
+        return;
+      }
       const handshake = this.openSocket(true);
       void handshake.catch(() => undefined);
     }, delay);
@@ -354,13 +424,31 @@ export class WebSocketHostTransport implements HostTransport {
       return;
     }
     this.clearHeartbeat();
+    this.lastHeartbeatTickAt = Date.now();
     this.heartbeatTimer = setInterval(() => {
       if (this.socket !== socket || socket.readyState !== OPEN_READY_STATE) {
         this.clearHeartbeat();
         return;
       }
+      const now = Date.now();
+      // System sleep freezes timers; on wake the first tick looks like a huge gap.
+      // Reset outstanding ping state instead of declaring the Host dead.
+      if (
+        this.lastHeartbeatTickAt > 0 &&
+        now - this.lastHeartbeatTickAt >
+          this.heartbeatIntervalMs * 2 + HEARTBEAT_TIMEOUT_MS
+      ) {
+        this.heartbeatRequestId = undefined;
+        if (this.heartbeatTimeoutTimer !== undefined) {
+          clearTimeout(this.heartbeatTimeoutTimer);
+          this.heartbeatTimeoutTimer = undefined;
+        }
+      }
+      this.lastHeartbeatTickAt = now;
       if (this.heartbeatRequestId !== undefined) {
-        this.handleSocketError(socket, 'Host heartbeat timed out');
+        // A delayed interval tick is not death. The outstanding ping still
+        // has its timeout; overlapping that with a busy agent turn used to
+        // close a live socket.
         return;
       }
       const requestId = `heartbeat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -373,17 +461,32 @@ export class WebSocketHostTransport implements HostTransport {
             command: { type: 'host/ping', id: requestId },
           }),
         );
-        this.heartbeatTimeoutTimer = setTimeout(() => {
-          if (this.socket !== socket || this.heartbeatRequestId !== requestId) {
-            return;
-          }
-          this.handleSocketError(socket, 'Host heartbeat timed out');
-        }, HEARTBEAT_TIMEOUT_MS);
+        this.armHeartbeatTimeout(socket, requestId);
       } catch (error) {
         this.heartbeatRequestId = undefined;
         this.handleSocketError(socket, toError(error, 'Unable to send Host heartbeat').message);
       }
     }, this.heartbeatIntervalMs);
+  }
+
+  private noteInboundLiveness(): void {
+    this.heartbeatRequestId = undefined;
+    if (this.heartbeatTimeoutTimer !== undefined) {
+      clearTimeout(this.heartbeatTimeoutTimer);
+      this.heartbeatTimeoutTimer = undefined;
+    }
+  }
+
+  private armHeartbeatTimeout(socket: WebSocketLike, requestId: string): void {
+    if (this.heartbeatTimeoutTimer !== undefined) {
+      clearTimeout(this.heartbeatTimeoutTimer);
+    }
+    this.heartbeatTimeoutTimer = setTimeout(() => {
+      if (this.socket !== socket || this.heartbeatRequestId !== requestId) {
+        return;
+      }
+      this.handleSocketError(socket, 'Host heartbeat timed out');
+    }, HEARTBEAT_TIMEOUT_MS);
   }
 
   private clearHeartbeat(): void {

@@ -41,6 +41,7 @@ export type ExtensionsPanelProps = {
   }) => Promise<HostResponse>;
   onClose?: () => void;
   variant?: 'inline' | 'modal';
+  readOnly?: boolean;
 };
 
 export function ExtensionsPanel(props: ExtensionsPanelProps) {
@@ -271,6 +272,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                 </div>
                 <Switch
                   checked={extension.enabled}
+                  disabled={props.readOnly}
                   onCheckedChange={() => void handleToggle(extension)}
                   aria-label={isChinese ? `启用 ${extension.name}` : `Enable ${extension.name}`}
                   data-testid={`extension-toggle-${extension.id}`}
@@ -287,6 +289,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
           <button
             type="button"
             className="settings-collapsible-trigger"
+            disabled={props.readOnly}
             onClick={() => setInstallOpen((v) => !v)}
             aria-expanded={installOpen}
             data-testid="extensions-install-toggle"
@@ -354,7 +357,11 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                 }}
               />
               <Button
-                disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
+                disabled={
+                  installing ||
+                  props.readOnly ||
+                  (installKind === 'local' ? !installPath : !installGitUrl)
+                }
                 onClick={() =>
                   installKind === 'local' ? handleInstallLocal() : handleInstallGit()
                 }

@@ -85,6 +85,20 @@ describe('discoverProviderModels', () => {
     ]);
   });
 
+  it('includes the gateway error body in a 401 discovery failure', async () => {
+    await expect(
+      discoverProviderModels(createProvider({ baseUrl: 'http://127.0.0.1:8317/v1' }), {
+        resolveSecret: async () => null,
+        fetch: async () =>
+          new Response(JSON.stringify({ error: 'Missing API key' }), {
+            status: 401,
+            statusText: 'Unauthorized',
+            headers: { 'content-type': 'application/json' },
+          }),
+      }),
+    ).rejects.toThrow('Model discovery failed (401 Unauthorized: Missing API key)');
+  });
+
   it('allows an unauthenticated local OpenAI-compatible endpoint', async () => {
     let authorization: string | null = null;
     await discoverProviderModels(createProvider({ baseUrl: 'http://127.0.0.1:11434/v1' }), {

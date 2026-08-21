@@ -51,7 +51,8 @@ export async function handleBrowserCommand(
     return null;
   }
 
-  const session = context.getBrowserSession?.();
+  const session =
+    context.getBrowserSession?.() ?? (await context.ensureBrowserSession?.());
   if (!session) {
     return fail(
       requestId,

@@ -74,9 +74,33 @@ describe('ConversationMessageHeader', () => {
       '[data-testid="conversation-message-provider-name"]',
     );
     expect(providerName?.textContent).toBe('Anthropic');
+    expect(providerName?.classList.contains('conversation-message-provider-badge')).toBe(true);
 
     const time = container.querySelector('[data-testid="conversation-message-time"]');
     expect(time).not.toBeNull();
+  });
+
+  it('resolves brand icon from modelId for custom proxy providers', () => {
+    const customGeminiModel: ModelRef = {
+      protocol: 'openai-compatible',
+      providerId: 'cpa-custom',
+      modelId: 'gemini-3.7-flash-high',
+    };
+
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={baseMessage}
+          model={customGeminiModel}
+          shortModelName="gemini-3.7-flash-high"
+          providerName="Cpa"
+        />,
+      );
+    });
+
+    const providerIcon = container.querySelector('.conversation-message-provider-icon');
+    expect(providerIcon).not.toBeNull();
+    expect(providerIcon?.getAttribute('data-provider-brand')).toBe('Gemini');
   });
 
   it('renders only timestamp when model snapshot is absent (legacy rows)', () => {
@@ -97,6 +121,25 @@ describe('ConversationMessageHeader', () => {
 
     const time = container.querySelector('[data-testid="conversation-message-time"]');
     expect(time).not.toBeNull();
+  });
+
+  it('shows a reply-writer chip after a rewrite', () => {
+    act(() => {
+      root.render(
+        <ConversationMessageHeader
+          message={{
+            ...baseMessage,
+            replyWriter: {
+              language: 'zh-CN',
+              model: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4.1' },
+            },
+          }}
+          locale="zh-CN"
+        />,
+      );
+    });
+    const chip = container.querySelector('[data-testid="conversation-reply-writer-chip"]');
+    expect(chip?.textContent).toBe('由 gpt-4.1 整理');
   });
 
   it('renders usage chip when provided', () => {

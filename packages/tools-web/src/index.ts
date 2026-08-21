@@ -10,9 +10,29 @@ export {
   WebSearchModelDelegateResponseError,
 } from './model-search-delegate.js';
 export type { WebSearchModelDelegate } from './model-search-delegate.js';
-export { createDefaultFetchConfig, validateFetchUrl, webFetch } from './web-fetch.js';
-export type { WebFetchOptions } from './web-fetch.js';
+export {
+  createDefaultFetchConfig,
+  formatWebFetchOutput,
+  resolveFetchCaps,
+  validateFetchUrl,
+  assertSafeFetchUrl,
+  webFetch,
+  FetchCache,
+  normalizeFetchCacheKey,
+} from './web-fetch.js';
+export type {
+  WebFetchOptions,
+  WebFetchViewInput,
+  FetchStoreRecord,
+  FetchHostResolver,
+} from './web-fetch.js';
 export { createWebToolDefinitions } from './tool-definitions.js';
 export type { WebRuntimeCredentials } from './runtime-credentials.js';
+export {
+  FETCH_EXTRACT_SYSTEM_PROMPT,
+  buildFetchExtractUserPrompt,
+  clampFetchExtractOutput,
+  sliceFetchExtractInput,
+} from './fetch-extract-delegate.js';
+export type { WebFetchExtractDelegate, WebFetchExtractInput } from './fetch-extract-delegate.js';
 export { isPrivateOrLocalHostname, isPrivateOrLocalIpAddress, mappedIpv4FromIpv6 } from './private-address.js';
-export { assertSafeFetchUrl } from './web-fetch.js';

@@ -61,4 +61,18 @@ describe('mapTargetToContextRef', () => {
       snapshotText: 'plain',
     });
   });
+
+  it('maps a transcript selection without path to a bounded selection ref', () => {
+    const selectedText = `${'n'.repeat(8010)}`;
+    const target: ContextMenuTarget = {
+      surface: 'selection',
+      selectedText,
+      label: 'n…',
+    };
+    expect(mapTargetToContextRef(target)).toEqual({
+      kind: 'selection',
+      snapshotText: selectedText.slice(0, 8000),
+      label: 'n…',
+    });
+  });
 });

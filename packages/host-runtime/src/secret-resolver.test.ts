@@ -66,4 +66,25 @@ describe('createSecretResolver', () => {
     const report = await resolver.reportProviderSecret(provider);
     expect(report.status).toBe('missing');
   });
+
+  it('persists shell-updated keys in the Host file store', async () => {
+    const { mkdtemp, readFile } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = await mkdtemp(join(tmpdir(), 'piwin-secrets-'));
+    const resolver = createSecretResolver({
+      piwinRoot: root,
+      preferFileStore: true,
+    });
+    const apiKeyRef = await resolver.writeProviderSecret('custom-openai', 'cliproxy-new-key');
+    expect(apiKeyRef).toBe('keychain:piwin-custom-openai');
+    const stored = await readFile(join(root, 'secrets', 'piwin-custom-openai'), 'utf8');
+    expect(stored).toBe('cliproxy-new-key');
+    const value = await resolver.resolveProviderSecret({
+      ...provider,
+      id: 'custom-openai',
+      apiKeyRef,
+    });
+    expect(value).toBe('cliproxy-new-key');
+  });
 });

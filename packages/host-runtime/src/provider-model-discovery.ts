@@ -64,7 +64,7 @@ export async function discoverProviderModels(
     });
     if (!response.ok) {
       throw new ProviderModelDiscoveryError(
-        `Model discovery failed (${response.status} ${response.statusText || 'request rejected'})`,
+        `Model discovery failed (${await formatDiscoveryHttpFailure(response)})`,
       );
     }
     const payload: unknown = await response.json();
@@ -85,6 +85,52 @@ export async function discoverProviderModels(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function formatDiscoveryHttpFailure(response: Response): Promise<string> {
+  const status = `${response.status} ${response.statusText || 'request rejected'}`.trim();
+  let raw = '';
+  try {
+    raw = (await response.text()).trim();
+  } catch {
+    return status;
+  }
+  if (!raw) {
+    return status;
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const message = readDiscoveryErrorMessage(parsed);
+    if (message) {
+      return `${status}: ${message}`;
+    }
+  } catch {
+    // Keep a short raw snippet for gateways that return plain text.
+  }
+  return `${status}: ${raw.slice(0, 180)}`;
+}
+
+function readDiscoveryErrorMessage(payload: unknown): string | null {
+  if (typeof payload === 'string' && payload.trim()) {
+    return payload.trim();
+  }
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  if (typeof record.error === 'string' && record.error.trim()) {
+    return record.error.trim();
+  }
+  if (record.error && typeof record.error === 'object') {
+    const nested = record.error as Record<string, unknown>;
+    if (typeof nested.message === 'string' && nested.message.trim()) {
+      return nested.message.trim();
+    }
+  }
+  if (typeof record.message === 'string' && record.message.trim()) {
+    return record.message.trim();
+  }
+  return null;
 }
 
 function buildDiscoveryEndpoint(provider: ModelProviderConfig): string {

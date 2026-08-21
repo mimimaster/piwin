@@ -13,20 +13,19 @@ import { parseToolCitations } from './tool-citations';
 import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { TokenSpans, useHighlight } from './syntax-highlight';
+import { IconChevronDown, IconMore } from './shell-icons';
+import { toolCallKindIcon } from './tool-call-kind-icon';
 import {
-  IconChevronDown,
-  IconFile,
-  IconTerminal,
-  IconGit,
-  IconSearch,
-  IconPlug,
-  IconActivity,
-  IconBook,
-  IconBrowser,
-  IconSpark,
-  IconMore,
-} from './shell-icons';
-import type { ToolKind } from '@piwin/contracts';
+  extractCommandDescription,
+  formatToolDuration,
+  isFetchLikeShellCommand,
+  kindVerb,
+  looksLikeArgsDumpSummary,
+  recoverSummaryFromInputPreview,
+  resolveFetchRequestPreview,
+  resolveToolCallHeaderPreview,
+  toolHasExpandableBody,
+} from './tool-call-head';
 import {
   behaviorTextClass,
   getBehaviorActivitySpec,
@@ -34,12 +33,14 @@ import {
   resolveToolBehaviorId,
   resolveToolBehaviorStateId,
 } from './behavior-activity.js';
-import type { BehaviorActivityId } from './behavior-activity.js';
 import {
   ContextMenuFromCatalog,
   useDesktopContextMenu,
   type ContextMenuTarget,
 } from './context-menu';
+import { recoverToolArgsFromInputPreview } from './tool-call-arg-recovery';
+import { toolOutputDuplicatesError } from './tool-output-duplicates-error.js';
+import { useToolEditDiffStats } from './use-tool-edit-diff-stats';
 
 
 export type ToolCallCardProps = {
@@ -63,6 +64,8 @@ export type ToolCallCardProps = {
   request?: DiffCardRequest | undefined;
   /** Callback when user clicks a matched file in tool results. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  /** Open this edit's file diff in the right inspector (Cursor-style). */
+  onOpenDiff?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /**
    * Callback when user clicks a logical document target (skill / project file).
    * Carries the owning message/tool identity so Doc Preview can recover the
@@ -213,178 +216,6 @@ function ToolDocumentTargetList(props: {
   );
 }
 
-function formatDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${ms}ms`;
-  }
-  const seconds = ms / 1000;
-  return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
-}
-
-/** Map action verb / kind / tool name → head-row icon. Prefer presentation verb. */
-function kindIcon(
-  kind: ToolKind | 'unknown',
-  toolName?: string,
-  actionVerb?: string,
-  behaviorId?: BehaviorActivityId,
-): ReactElement {
-  switch (behaviorId) {
-    case 'mcp.server.connect':
-    case 'mcp.discovery':
-    case 'mcp.call':
-      return <IconPlug className="tool-call-kind-icon" />;
-    case 'web.search':
-    case 'web.fetch':
-    case 'browser':
-      return <IconBrowser className="tool-call-kind-icon" />;
-    case 'search':
-    case 'explore':
-      return <IconSearch className="tool-call-kind-icon" />;
-    case 'read':
-    case 'edit':
-      return <IconFile className="tool-call-kind-icon" />;
-    case 'shell':
-    case 'test':
-    case 'build':
-    case 'process':
-      return <IconTerminal className="tool-call-kind-icon" />;
-    case 'git':
-      return <IconGit className="tool-call-kind-icon" />;
-    case 'image':
-    case 'video':
-      return <IconSpark className="tool-call-kind-icon" />;
-    default:
-      break;
-  }
-  const verb = (actionVerb ?? '').toLowerCase();
-  const name = (toolName ?? '').toLowerCase();
-
-  if (verb.startsWith('searched') || verb.startsWith('explored')) {
-    return <IconSearch className="tool-call-kind-icon" />;
-  }
-  if (verb.startsWith('read') || verb.startsWith('edited')) {
-    return <IconFile className="tool-call-kind-icon" />;
-  }
-  if (verb.startsWith('ran command') || verb === 'bash') {
-    return <IconTerminal className="tool-call-kind-icon" />;
-  }
-  if (verb.startsWith('ran test') || verb.startsWith('built')) {
-    return <IconTerminal className="tool-call-kind-icon" />;
-  }
-  if (verb.startsWith('git')) {
-    return <IconGit className="tool-call-kind-icon" />;
-  }
-  if (verb.startsWith('fetched') || verb.startsWith('searched') || verb.includes('web')) {
-    return <IconBrowser className="tool-call-kind-icon" />;
-  }
-  if (verb.startsWith('mcp') || verb.includes('mcp')) {
-    return <IconPlug className="tool-call-kind-icon" />;
-  }
-  if (verb.includes('image') || verb.includes('generated')) {
-    return <IconSpark className="tool-call-kind-icon" />;
-  }
-
-  if (
-    name.includes('web') ||
-    name.includes('url') ||
-    name.includes('fetch') ||
-    name.includes('http')
-  ) {
-    return <IconBrowser className="tool-call-kind-icon" />;
-  }
-  if (
-    name.includes('search') ||
-    name.includes('grep') ||
-    name.includes('glob') ||
-    name.includes('find')
-  ) {
-    return <IconSearch className="tool-call-kind-icon" />;
-  }
-  if (
-    name.includes('read') ||
-    name.includes('view') ||
-    name.includes('write') ||
-    name.includes('edit')
-  ) {
-    return <IconFile className="tool-call-kind-icon" />;
-  }
-  if (
-    name.includes('bash') ||
-    name.includes('command') ||
-    name.includes('exec') ||
-    name.includes('test') ||
-    name.includes('build') ||
-    name === 'shell'
-  ) {
-    return <IconTerminal className="tool-call-kind-icon" />;
-  }
-  if (name.includes('git')) {
-    return <IconGit className="tool-call-kind-icon" />;
-  }
-  if (name.startsWith('goal')) {
-    return <IconSpark className="tool-call-kind-icon" />;
-  }
-
-  switch (kind) {
-    case 'filesystem':
-      return <IconFile className="tool-call-kind-icon" />;
-    case 'shell':
-    case 'process':
-      return <IconTerminal className="tool-call-kind-icon" />;
-    case 'git':
-      return <IconGit className="tool-call-kind-icon" />;
-    case 'web':
-      return <IconBrowser className="tool-call-kind-icon" />;
-    case 'mcp':
-      return <IconPlug className="tool-call-kind-icon" />;
-    case 'image':
-    case 'video':
-      return <IconSpark className="tool-call-kind-icon" />;
-    case 'other':
-      return <IconActivity className="tool-call-kind-icon" />;
-    default:
-      return <IconBook className="tool-call-kind-icon" />;
-  }
-}
-
-/** Fallback verb when host presentation is missing (legacy transcripts). */
-function kindVerb(kind: ToolKind | 'unknown', toolName: string): string {
-  const name = toolName.toLowerCase();
-  if (name === 'goal_complete') return 'Goal Completed';
-  if (name === 'goal_blocked') return 'Goal Blocked';
-  if (name === 'goal_wait') return 'Goal Waiting';
-  if (name.includes('grep') || name.includes('search')) return 'Searched';
-  if (name.includes('glob') || name.includes('list_dir') || name === 'ls') return 'Explored';
-  if (name.includes('read') || name.includes('view')) return 'Read';
-  if (name.includes('write') || name.includes('edit') || name.includes('replace')) return 'Edited';
-  if (name.includes('test')) return 'Ran tests';
-  if (name.includes('build') || name.includes('compile')) return 'Built';
-  if (name.includes('bash') || name.includes('shell') || name.includes('command'))
-    return 'Ran command';
-  if (name.includes('git')) return 'Git';
-  if (name.includes('fetch')) return 'Fetched';
-  if (name.includes('image')) return 'Generated image';
-  switch (kind) {
-    case 'filesystem':
-      return 'Read';
-    case 'shell':
-    case 'process':
-      return 'Ran command';
-    case 'git':
-      return 'Git';
-    case 'web':
-      return 'Fetched';
-    case 'mcp':
-      return 'MCP';
-    case 'image':
-      return 'Generated image';
-    case 'video':
-      return 'Generated video';
-    default:
-      return toolName;
-  }
-}
-
 export function ToolStatusDot(props: { status: ToolCardUi['status'] }): ReactElement {
   return (
     <span
@@ -408,49 +239,6 @@ function resolveDensity(
   return 'comfortable';
 }
 
-/** True for shell commands that are acting as a fetch/request transcript. */
-function isFetchLikeShellCommand(command: string | undefined): boolean {
-  if (!command) {
-    return false;
-  }
-  return /(^|\s)(?:curl|wget|fetch)\b/i.test(command) || /^\s*#\s*fetch\b/im.test(command);
-}
-
-/** Use a leading shell comment or echo header as the human-readable title. */
-function extractCommandDescription(command: string | undefined): string | undefined {
-  if (!command) {
-    return undefined;
-  }
-  const comment = command.match(/^\s*#\s*(.+?)\s*$/m)?.[1];
-  if (comment?.trim()) {
-    return comment.trim();
-  }
-  const echoMatch = command.match(/^\s*echo\s+["'](?:===+\s*)?([^"'=\n]+?)(?:\s*===+)?["']/);
-  if (echoMatch?.[1]?.trim()) {
-    return echoMatch[1].trim();
-  }
-  return undefined;
-}
-
-/** Keep native web_fetch requests truthful while presenting them as code. */
-function resolveFetchRequestPreview(inputPreview: string | undefined, fallback: string): string {
-  if (!inputPreview) {
-    return fallback;
-  }
-  try {
-    const parsed: unknown = JSON.parse(inputPreview);
-    if (parsed && typeof parsed === 'object') {
-      const url = (parsed as Record<string, unknown>).url;
-      if (typeof url === 'string' && url.trim()) {
-        return `GET ${url.trim()}`;
-      }
-    }
-  } catch {
-    // Legacy transcripts may store a non-JSON request preview.
-  }
-  return inputPreview;
-}
-
 function FetchCommandCode(props: { source: string }): ReactElement {
   const tokenLines = useHighlight(props.source, 'bash');
   return (
@@ -467,119 +255,19 @@ function FetchCommandCode(props: { source: string }): ReactElement {
   );
 }
 
-/** True when a head summary is really a raw args/JSON dump, not a tool/query label. */
-export function looksLikeArgsDumpSummary(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length < 2) return false;
-  // Full dumps end with }/]; clipSummary-truncated dumps keep the opening brace
-  // but end with `…` / `...` and must still be suppressed in the tool title row.
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    return true;
-  }
-  return false;
-}
-
-/**
- * Recover a human label from tool inputPreview when the stored summary is a
- * raw JSON dump (legacy image_gen presentations after tool/end overwrite).
- */
-export function recoverSummaryFromInputPreview(
-  inputPreview: string | undefined,
-): string | undefined {
-  if (!inputPreview) {
-    return undefined;
-  }
-  const trimmed = inputPreview.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const record = parsed as Record<string, unknown>;
-      for (const key of ['prompt', 'description', 'query', 'command', 'cmd']) {
-        const value = record[key];
-        if (typeof value === 'string' && value.trim()) {
-          return clipHeaderSummary(value);
-        }
-      }
-    }
-  } catch {
-    // inputPreview may itself be clipSummary-truncated and not valid JSON.
-    // Best-effort: pull a quoted prompt/description field from the partial text.
-    for (const key of ['prompt', 'description', 'query', 'command', 'cmd']) {
-      const match = new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)`, 'i').exec(trimmed);
-      const captured = match?.[1];
-      if (captured && captured.trim()) {
-        return clipHeaderSummary(captured.replace(/\\"/g, '"').replace(/\\n/g, ' '));
-      }
-    }
-  }
-  return undefined;
-}
-
-function clipHeaderSummary(text: string): string {
-  const compact = text.replace(/\s+/g, ' ').trim();
-  if (!compact) {
-    return compact;
-  }
-  return compact.length > 96 ? `${compact.slice(0, 95)}…` : compact;
-}
-
-/**
- * Header mono preview (query / command / path summary).
- * Detail payloads (shell command / MCP args) are shown only while collapsed —
- * expanded body already owns the full detail block.
- */
-export function resolveToolCallHeaderPreview(input: {
-  summary: string;
-  displayName: string;
-  showFilePill: boolean;
-  pillLabel: string;
-  singleBasename: string;
-  isPathLike: boolean;
-  expanded: boolean;
-  /** True when body will render command and/or inputPreview. */
-  hasDetailInBody: boolean;
-  /** True when summary is just a raw args dump (same text as inputPreview). */
-  isArgsDumpSummary?: boolean;
-}): string {
-  const {
-    summary,
-    displayName,
-    showFilePill,
-    pillLabel,
-    singleBasename,
-    isPathLike,
-    expanded,
-    hasDetailInBody,
-    isArgsDumpSummary = false,
-  } = input;
-  if (!summary || summary === displayName) return '';
-  // Never promote raw JSON/args dumps into the title row (MCP legacy presentations).
-  if (isArgsDumpSummary) return '';
-  // Expanded body already renders the full detail — keep the head as verb-only
-  // so long shell/MCP lines do not wrap into a multi-line "title".
-  if (expanded && hasDetailInBody) return '';
-  if (showFilePill && pillLabel && (summary === pillLabel || summary === singleBasename)) {
-    return '';
-  }
-  if (showFilePill && isPathLike) return '';
-  return summary;
-}
-
 export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const { tool } = props;
   const contextMenu = useDesktopContextMenu();
   const density = resolveDensity(props.density, props.compact);
   const expandWhileRunning = props.expandWhileRunning !== false;
   const terminalMustCollapse = props.collapseWhenTerminal === true && tool.status !== 'running';
+  const hasExpandableBody = toolHasExpandableBody(tool);
   const autoExpand = terminalMustCollapse
     ? false
     : (props.defaultExpanded ??
-      ((tool.status === 'running' && expandWhileRunning) ||
+      ((tool.status === 'running' && expandWhileRunning && hasExpandableBody) ||
         tool.status === 'error' ||
-        (density === 'detailed' && Boolean(tool.output))));
+        (density === 'detailed' && hasExpandableBody)));
   const [internalExpanded, setInternalExpanded] = useState(autoExpand);
   const disclosureIntentRef = useRef<'automatic' | 'user-open' | 'user-closed'>('automatic');
   const expanded = props.expanded ?? internalExpanded;
@@ -592,16 +280,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       return;
     }
     if (tool.status === 'running') {
-      setInternalExpanded(expandWhileRunning);
+      setInternalExpanded(expandWhileRunning && toolHasExpandableBody(tool));
     } else if (props.collapseWhenTerminal === true) {
       setInternalExpanded(false);
     } else if (tool.status === 'error') {
       setInternalExpanded(true);
-    } else if (tool.status === 'done' && density !== 'detailed') {
+    } else if (tool.status === 'done' && (density !== 'detailed' || !toolHasExpandableBody(tool))) {
       setInternalExpanded(false);
     } else if (density === 'compact') {
       setInternalExpanded(false);
-    } else if (density === 'detailed' && tool.output) {
+    } else if (density === 'detailed' && toolHasExpandableBody(tool)) {
       setInternalExpanded(true);
     }
   }, [
@@ -625,18 +313,28 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
 
   const displayOutput = tool.presentation?.output?.text ?? tool.output;
   const outputTruncated = tool.presentation?.output?.truncated === true;
+  // Prefer the structured error row; hide the body pre when it only repeats that text.
+  const bodyOutput = toolOutputDuplicatesError(displayOutput, tool.presentation?.error)
+    ? undefined
+    : displayOutput;
   const citations = parseToolCitations(tool.toolName, displayOutput);
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
+  const recoveredArgs = recoverToolArgsFromInputPreview(tool.presentation?.inputPreview);
+  const targetPaths =
+    tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0
+      ? tool.presentation.targetPaths
+      : recoveredArgs.paths;
+  const command = tool.presentation?.command ?? recoveredArgs.command;
   // Prefer host changedPaths; fall back to write-like targetPaths so DiffCard
   // still works for older transcripts that only stored targetPaths.
+  const isWriteLikeTool =
+    tool.presentation?.actionVerb === 'Edited' || /write|edit|replace|patch/i.test(tool.toolName);
   const changedPaths =
     tool.presentation?.changedPaths && tool.presentation.changedPaths.length > 0
       ? tool.presentation.changedPaths
-      : tool.status !== 'error' &&
-          (tool.presentation?.actionVerb === 'Edited' ||
-            /write|edit|replace|patch/i.test(tool.toolName))
-        ? (tool.presentation?.targetPaths ?? [])
+      : tool.status !== 'error' && isWriteLikeTool
+        ? targetPaths
         : [];
   const hasChangedPaths = changedPaths.length > 0;
   const canRenderDiffCard = hasChangedPaths && Boolean(props.projectPath) && Boolean(props.request);
@@ -650,7 +348,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const behaviorSpec = getBehaviorActivitySpec(behaviorId);
   const locale = props.locale ?? 'en';
   const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
-  const targetPaths = tool.presentation?.targetPaths ?? [];
   const multiPath = targetPaths.length > 1;
   const isQueryLike =
     baseBehaviorId === 'search' ||
@@ -660,15 +357,18 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     baseBehaviorId === 'image' ||
     baseBehaviorId === 'mcp.call' ||
     baseBehaviorId === 'mcp.discovery';
-  const isPathLike = behaviorId === 'read' || behaviorId === 'edit' || behaviorId === 'git';
+  const isPathLike =
+    baseBehaviorId === 'read' || baseBehaviorId === 'edit' || baseBehaviorId === 'git';
+  const isEditTool = baseBehaviorId === 'edit';
+  const lineRange = tool.presentation?.lineRange ?? recoveredArgs.lineRange;
   const rawSummary =
     tool.status === 'error'
-      ? (tool.presentation?.command ??
+      ? (command ??
         (targetPaths.length > 0
           ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
           : displayName))
       : (tool.presentation?.summary ??
-        tool.presentation?.command ??
+        command ??
         (targetPaths.length > 0
           ? targetPaths.map((path) => path.split(/[\\/]/).pop() || path).join(', ')
           : displayName));
@@ -688,28 +388,40 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   //  - Read/Edited/Git path tools → file pill (single or "a and N other files")
   //  - Searched/Explored/Fetched/shell → mono query/command preview
   const singleBasename = targetPaths[0]?.split(/[\\/]/).pop() || targetPaths[0] || '';
-  const showFilePill = isPathLike && (targetPaths.length >= 1 || Boolean(summary));
+  const summaryLooksLikeToolName = summary === displayName || summary === tool.toolName;
+  const showFilePill =
+    isPathLike &&
+    (targetPaths.length >= 1 || (Boolean(summary) && !summaryLooksLikeToolName));
   const pillLabel = multiPath || (isPathLike && !targetPaths[0]) ? summary : singleBasename;
   const primaryTargetPath = targetPaths[0];
-  const canOpenPrimaryFile = Boolean(props.onOpenFile) && Boolean(primaryTargetPath) && !multiPath;
   const primaryOpenPath = primaryTargetPath
     ? resolveToolOpenPath(primaryTargetPath, props.projectPath)
     : null;
-  const hasDetailInBody = Boolean(tool.presentation?.command || inputPreview);
+  const canOpenPath = Boolean(primaryTargetPath && (props.onOpenFile || props.onOpenDiff));
+  const diffStats = useToolEditDiffStats({
+    enabled:
+      isEditTool &&
+      Boolean(primaryOpenPath) &&
+      Boolean(props.projectPath) &&
+      Boolean(props.request),
+    projectPath: props.projectPath,
+    path: primaryOpenPath?.relativePath,
+    request: props.request,
+    fallback: isEditTool ? recoveredArgs.diffStats : undefined,
+  });
+  const hasDetailInBody = Boolean(command || inputPreview);
   const isArgsDumpSummary =
     !recoveredSummary &&
     (Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary));
   const isMcpBehavior = baseBehaviorId === 'mcp.call' || baseBehaviorId === 'mcp.discovery';
   const isFetchStyle =
     baseBehaviorId === 'web.fetch' ||
-    (baseBehaviorId === 'shell' && isFetchLikeShellCommand(tool.presentation?.command));
+    (baseBehaviorId === 'shell' && isFetchLikeShellCommand(command));
   const fetchRequestPreview = isFetchStyle
-    ? (tool.presentation?.command ?? resolveFetchRequestPreview(inputPreview, summary))
+    ? (command ?? resolveFetchRequestPreview(inputPreview, summary))
     : undefined;
   const shellHeaderSummary =
-    baseBehaviorId === 'shell'
-      ? (extractCommandDescription(tool.presentation?.command) ?? summary)
-      : summary;
+    baseBehaviorId === 'shell' ? (extractCommandDescription(command) ?? summary) : summary;
   const headerSummary =
     isMcpBehavior && displayName !== 'MCP gateway' && displayName !== tool.toolName
       ? displayName
@@ -741,13 +453,39 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       : behaviorTextClass(baseBehaviorId, tool.status === 'running');
 
   const hasBody =
-    Boolean(displayOutput) ||
+    Boolean(bodyOutput) ||
     citations.kind !== 'none' ||
-    Boolean(tool.presentation?.command) ||
+    Boolean(command) ||
     Boolean(inputPreview) ||
     targetPaths.length > 0 ||
     hasChangedPaths ||
     Boolean(tool.presentation?.error);
+
+  function activateSummary(): void {
+    const path = primaryTargetPath;
+    if (isEditTool && path) {
+      if (props.onOpenDiff) {
+        const resolved = resolveToolOpenPath(path, props.projectPath);
+        props.onOpenDiff(resolved.absolutePath, resolved.relativePath);
+        return;
+      }
+      if (props.onOpenFile) {
+        openResolvedToolPath(path, props.projectPath, props.onOpenFile);
+        return;
+      }
+      if (canRenderDiffCard) {
+        toggleExpanded();
+        return;
+      }
+    }
+    if (isPathLike && path && props.onOpenFile) {
+      openResolvedToolPath(path, props.projectPath, props.onOpenFile);
+      return;
+    }
+    if (hasBody) {
+      toggleExpanded();
+    }
+  }
 
   // CM-13: tool-card surface menu. relatedPath prefers the first changed path.
   const toolTarget: ContextMenuTarget | null = contextMenu
@@ -783,11 +521,11 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       */}
       <div
         className="tool-call-summary"
-        onClick={toggleExpanded}
+        onClick={activateSummary}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            toggleExpanded();
+            activateSummary();
           }
         }}
         role="button"
@@ -795,45 +533,29 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         aria-label={`${displayActionVerb} ${headerSummary || displayName} ${tool.status}`}
         tabIndex={0}
       >
-        {kindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
+        {toolCallKindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
         <span className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</span>
         {showFilePill && pillLabel ? (
-          canOpenPrimaryFile && primaryOpenPath && primaryTargetPath ? (
-            <button
-              type="button"
-              className="tool-call-file-pill is-openable"
-              title={primaryOpenPath.absolutePath}
-              data-testid="tool-call-file-pill"
-              data-full-path={primaryOpenPath.absolutePath}
-              onClick={(event) => {
-                // Open file without toggling the card body.
-                event.stopPropagation();
-                openResolvedToolPath(primaryTargetPath, props.projectPath, props.onOpenFile);
-              }}
-              onKeyDown={(event) => {
-                // Keep Space/Enter on the pill from also expanding the card.
-                event.stopPropagation();
-              }}
-            >
-              <span className="tool-call-file-name">{pillLabel}</span>
-              {tool.presentation?.lineRange ? (
-                <span className="tool-call-line-range">#{tool.presentation.lineRange}</span>
-              ) : null}
-            </button>
-          ) : (
-            <span
-              className="tool-call-file-pill"
-              data-testid="tool-call-file-pill"
-              title={primaryOpenPath?.absolutePath ?? pillLabel}
-            >
-              <span className="tool-call-file-name">{pillLabel}</span>
-              {!multiPath && tool.presentation?.lineRange ? (
-                <span className="tool-call-line-range">#{tool.presentation.lineRange}</span>
-              ) : null}
-            </span>
-          )
+          <span
+            className={`tool-call-file-pill${canOpenPath ? ' is-link' : ''}`}
+            data-testid="tool-call-file-pill"
+            title={primaryOpenPath?.absolutePath ?? pillLabel}
+          >
+            <span className="tool-call-file-name">{pillLabel}</span>
+            {!multiPath && lineRange ? (
+              <span className="tool-call-line-range" data-testid="tool-call-line-range">
+                {lineRange}
+              </span>
+            ) : null}
+          </span>
         ) : null}
-        {tool.presentation?.countTag ? (
+        {diffStats && (diffStats.added > 0 || diffStats.removed > 0) ? (
+          <span className="tool-call-diff-stats" data-testid="tool-call-diff-stats">
+            {diffStats.added > 0 ? <span className="add">+{diffStats.added}</span> : null}
+            {diffStats.removed > 0 ? <span className="del">-{diffStats.removed}</span> : null}
+          </span>
+        ) : null}
+        {tool.presentation?.countTag && !previewText ? (
           <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
         ) : null}
         {outputTruncated ? (
@@ -845,7 +567,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
             truncated
           </span>
         ) : null}
-        <span className={previewClassName}>{previewText}</span>
+        <span className={previewClassName}>
+          {previewText}
+          {/* Result counts trail the query ("搜索 foo · 15 matches"), never lead it. */}
+          {tool.presentation?.countTag && previewText ? (
+            <span className="tool-call-count-inline" data-testid="tool-call-count-inline">
+              {' · '}
+              {tool.presentation.countTag}
+            </span>
+          ) : null}
+        </span>
         {tool.status === 'done' ? (
           <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok" />
         ) : tool.status === 'error' ? (
@@ -855,12 +586,32 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         )}
         {typeof tool.presentation?.durationMs === 'number' ? (
           <span className="tool-call-duration" data-testid="tool-call-duration">
-            {formatDuration(tool.presentation.durationMs)}
+            {formatToolDuration(tool.presentation.durationMs)}
           </span>
         ) : tool.status === 'running' ? (
           <span className="tool-call-duration tool-call-duration-live">…</span>
         ) : null}
-        <IconChevronDown className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'} />
+        {hasBody ? (
+          <span
+            className="tool-call-chevron-hit"
+            role="button"
+            tabIndex={0}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleExpanded();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleExpanded();
+              }
+            }}
+          >
+            <IconChevronDown className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'} />
+          </span>
+        ) : null}
       </div>
       {expanded && hasBody ? (
         <div className="tool-call-body">
@@ -930,56 +681,51 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           ) : null}
           <CitationCards parsed={citations} />
           {!isFetchStyle &&
-          (tool.presentation?.command ||
+          (command ||
             inputPreview ||
-            (displayOutput && citations.kind === 'none' && !canRenderDiffCard)) ? (
+            (bodyOutput && citations.kind === 'none' && !canRenderDiffCard)) ? (
             <CollapsibleContentBlock maxCollapsedHeight={130} defaultCollapsed>
-              {tool.presentation?.command ? (
+              {command ? (
                 <div className="tool-call-command" data-testid="tool-call-command">
-                  <code>{tool.presentation.command}</code>
-                  {typeof tool.presentation.exitCode === 'number' ? (
+                  <code>{command}</code>
+                  {typeof tool.presentation?.exitCode === 'number' ? (
                     <span className="dim"> exit {tool.presentation.exitCode}</span>
                   ) : null}
                 </div>
               ) : null}
-              {!tool.presentation?.command && inputPreview ? (
+              {!command && inputPreview ? (
                 <div className="tool-call-command" data-testid="tool-call-input-preview">
                   <code>{inputPreview}</code>
                 </div>
               ) : null}
-              {displayOutput && citations.kind === 'none' && !canRenderDiffCard ? (
+              {bodyOutput && citations.kind === 'none' && !canRenderDiffCard ? (
                 <pre className="tool-call-output">
-                  {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
+                  {(bodyOutput ?? '').slice(0, density === 'compact' ? 2000 : 8000)}
                 </pre>
               ) : null}
             </CollapsibleContentBlock>
           ) : null}
-          {isFetchStyle && displayOutput && citations.kind === 'none' && !canRenderDiffCard ? (
+          {isFetchStyle && bodyOutput && citations.kind === 'none' && !canRenderDiffCard ? (
             <CollapsibleContentBlock maxCollapsedHeight={130} defaultCollapsed>
               <pre className="tool-call-output">
-                {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
+                {(bodyOutput ?? '').slice(0, density === 'compact' ? 2000 : 8000)}
               </pre>
             </CollapsibleContentBlock>
           ) : null}
-          {displayOutput && citations.kind === 'none' && canRenderDiffCard ? (
+          {bodyOutput && citations.kind === 'none' && canRenderDiffCard ? (
             <details className="tool-call-raw-fold">
               <summary>raw output</summary>
               <pre className="tool-call-output">
-                {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
+                {(bodyOutput ?? '').slice(0, density === 'compact' ? 2000 : 8000)}
               </pre>
             </details>
           ) : null}
-          {displayOutput && citations.kind !== 'none' ? (
+          {bodyOutput && citations.kind !== 'none' ? (
             <details open={density === 'detailed'} className="tool-call-raw-fold">
               <summary className="dim">raw tool output</summary>
-              <pre className="tool-call-output">{displayOutput.slice(0, 4000)}</pre>
+              <pre className="tool-call-output">{(bodyOutput ?? '').slice(0, 4000)}</pre>
             </details>
           ) : null}
-        </div>
-      ) : null}
-      {expanded && !hasBody ? (
-        <div className="tool-call-body tool-call-empty">
-          <span className="dim">{tool.status === 'running' ? 'Running…' : 'No output'}</span>
         </div>
       ) : null}
     </div>

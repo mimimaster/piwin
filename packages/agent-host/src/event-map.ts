@@ -165,6 +165,8 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   const responseMessageIdsByToolId = new Map<string, string>();
   const rawToolOutputById = new Map<string, string>();
   const citationUrlsByMessageId = new Map<string, Set<string>>();
+  /** Dedupe identical upstream provider errors across message_end + agent_end. */
+  const surfacedProviderErrorMessages = new Set<string>();
   const envelopeGenerator = createEventEnvelopeGenerator();
 
   const reset = (): void => {
@@ -176,6 +178,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
     responseMessageIdsByToolId.clear();
     rawToolOutputById.clear();
     citationUrlsByMessageId.clear();
+    surfacedProviderErrorMessages.clear();
   };
 
   return {
@@ -201,11 +204,25 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         activeMessageRole,
       )
         .flatMap((event) => filterDuplicateSearchEvidence(event, citationUrlsByMessageId))
+        .filter((event) => {
+          if (event.type !== 'error') {
+            return true;
+          }
+          const key = event.message.trim();
+          if (key.length === 0) {
+            return true;
+          }
+          if (surfacedProviderErrorMessages.has(key)) {
+            return false;
+          }
+          surfacedProviderErrorMessages.add(key);
+          return true;
+        })
         .map((event): AgentEvent => {
           if (event.type === 'tool/start') {
             toolNamesById.set(event.toolCallId, event.toolName);
             const rawEvent = raw as Record<string, unknown>;
-            const args = rawEvent.args ?? rawEvent.arguments ?? rawEvent.input;
+            const args = readToolCallArgs(rawEvent);
             const invocation = resolvePresentedToolInvocation(event.toolName, args);
             const startPresentation = buildToolPresentation({
               toolName: invocation.effectiveToolName,
@@ -336,6 +353,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         presentationSeedsByToolId.clear();
         responseMessageIdsByToolId.clear();
         rawToolOutputById.clear();
+        surfacedProviderErrorMessages.clear();
       }
       if (type === 'message_end') {
         const endedMessage = mappedEvents.find((event) => event.type === 'message/end');
@@ -467,12 +485,29 @@ export function mapPiSessionEvent(
         mapped.push({ type: 'message/search_evidence', messageId, evidence });
       }
       mapped.push({ type: 'message/end', messageId });
+      // Pi records provider failures as stopReason:'error' on the assistant
+      // message instead of a standalone error event. Without this mapping an
+      // instant provider 400 ends the run with zero visible output. Also keep
+      // aborted-with-detail so upstream abort reasons are not lost.
+      if (endedMessageRole === 'assistant') {
+        const endedMessage = asRecord(messagePayload);
+        const stopReason = endedMessage ? readString(endedMessage.stopReason) : undefined;
+        const errorMessage = readUpstreamErrorMessage(endedMessage, event);
+        if (stopReason === 'error') {
+          mapped.push({
+            type: 'error',
+            message: errorMessage ?? 'Model request failed',
+          });
+        } else if (stopReason === 'aborted' && errorMessage) {
+          mapped.push({ type: 'error', message: errorMessage });
+        }
+      }
       return mapped;
     }
     case 'tool_execution_start': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
       const toolName = readString(event.toolName) ?? readString(event.name) ?? 'unknown';
-      const args = event.args ?? event.arguments ?? event.input;
+      const args = readToolCallArgs(event);
       const invocation = resolvePresentedToolInvocation(toolName, args);
       const presentation = buildToolPresentation({
         toolName: invocation.effectiveToolName,
@@ -547,7 +582,7 @@ export function mapPiSessionEvent(
             : undefined;
       // Prefer args when Pi includes them on end so image/video keep prompt
       // summaries; Desktop merge also preserves start-time summary as a backstop.
-      const args = event.args ?? event.arguments ?? event.input;
+      const args = readToolCallArgs(event);
       const invocation = resolvePresentedToolInvocation(toolName, args);
       const presentation = buildToolPresentation({
         toolName: invocation.effectiveToolName,
@@ -584,7 +619,11 @@ export function mapPiSessionEvent(
       return [mapCompactionEndEvent(event)];
     }
     case 'error': {
-      const message = readString(event.message) ?? readString(event.error) ?? 'unknown error';
+      const message =
+        readUpstreamErrorMessage(event) ??
+        readString(event.message) ??
+        readString(event.error) ??
+        'unknown error';
       return [{ type: 'error', message, retriable: Boolean(event.retriable) }];
     }
     case 'context_usage':
@@ -603,6 +642,7 @@ export function mapPiSessionEvent(
       // collapse cache reads and writes into one lossy snapshot.
       const sessionId = readString(event.sessionId) ?? 'unknown';
       const assistantUsageEvents: AgentEvent[] = [];
+      const providerErrorEvents: AgentEvent[] = [];
       if (Array.isArray(event.messages)) {
         for (const message of event.messages) {
           const assistantMessage = asRecord(message);
@@ -613,10 +653,23 @@ export function mapPiSessionEvent(
           if (snapshot) {
             assistantUsageEvents.push({ type: 'usage/update', sessionId, usage: snapshot });
           }
+          // Backup path: some Pi builds only leave stopReason:'error' on the
+          // final messages array. Prefer message_end mapping when present; this
+          // still recovers upstream text if message_end was empty/skipped.
+          const stopReason = readString(assistantMessage.stopReason);
+          const errorMessage = readUpstreamErrorMessage(assistantMessage);
+          if (stopReason === 'error') {
+            providerErrorEvents.push({
+              type: 'error',
+              message: errorMessage ?? 'Model request failed',
+            });
+          } else if (stopReason === 'aborted' && errorMessage) {
+            providerErrorEvents.push({ type: 'error', message: errorMessage });
+          }
         }
       }
-      if (assistantUsageEvents.length > 0) {
-        return assistantUsageEvents;
+      if (assistantUsageEvents.length > 0 || providerErrorEvents.length > 0) {
+        return [...assistantUsageEvents, ...providerErrorEvents];
       }
       // Preserve compatibility with Pi adapters that expose a direct usage
       // object on agent_end instead of the messages array.
@@ -706,6 +759,23 @@ export function mapCompactionEndEvent(
   return endEvent;
 }
 
+function readToolCallArgs(event: Record<string, unknown>): unknown {
+  const nested = asRecord(event.toolCall) ?? asRecord(event.tool) ?? asRecord(event.call);
+  const details = asRecord(event.details) ?? asRecord(asRecord(event.result)?.details);
+  return (
+    event.args ??
+    event.arguments ??
+    event.input ??
+    event.parameters ??
+    nested?.args ??
+    nested?.arguments ??
+    nested?.input ??
+    nested?.parameters ??
+    details?.args ??
+    details?.arguments
+  );
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -715,6 +785,42 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Pull a human-readable upstream provider/Pi error string from common shapes:
+ * plain strings, `{ errorMessage }`, `{ error: string | { message } }`, etc.
+ * Returns undefined when nothing usable is present (caller chooses fallback).
+ */
+function readUpstreamErrorMessage(...sources: unknown[]): string | undefined {
+  for (const source of sources) {
+    if (typeof source === 'string') {
+      const trimmed = source.trim();
+      if (trimmed.length > 0) return trimmed;
+      continue;
+    }
+    const record = asRecord(source);
+    if (!record) continue;
+    for (const key of ['errorMessage', 'message', 'error', 'detail', 'details'] as const) {
+      const value = record[key];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed.length > 0) return trimmed;
+        continue;
+      }
+      const nested = asRecord(value);
+      if (!nested) continue;
+      const nestedMessage =
+        readString(nested.message) ??
+        readString(nested.errorMessage) ??
+        readString(nested.error) ??
+        readString(nested.detail);
+      if (nestedMessage && nestedMessage.trim().length > 0) {
+        return nestedMessage.trim();
+      }
+    }
+  }
+  return undefined;
 }
 
 type AssistantMessageSnapshot = {

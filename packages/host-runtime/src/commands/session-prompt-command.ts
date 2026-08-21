@@ -97,6 +97,7 @@ import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
 import { rejectUnavailableSessionBody } from '../session-body-guard.js';
+import { sessionBusyResponse } from '../session-body-gate.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinProjectsPath,
@@ -119,6 +120,7 @@ import {
 import { repairLegacySessionNames } from '../session-name-repair.js';
 import { findEnabledModel } from '../provider-helpers.js';
 import type { SessionLiveContext } from './session-live-context.js';
+import { scheduleReplyWriterAfterRun } from './reply-writer-live.js';
 import { compactLiveSessionForTarget } from './compaction-live.js';
 import {
   injectProductHistoryOnce,
@@ -127,7 +129,7 @@ import {
   type PromptCommand,
   throwIfPromptPreparationAborted,
 } from './prompt-preparation.js';
-import { finalizeAbortedRun, finalizeCancelledRun, finalizeSupersededTurn } from './run-control-commands.js';
+import { finalizeAbortedRun, finalizeSupersededTurn } from './run-control-commands.js';
 import {
   createForegroundRunMismatch,
   evaluatePromptForegroundAdmission,
@@ -157,6 +159,9 @@ export async function handleSessionPromptCommand(
         if (rejectedPrompt) {
           return rejectedPrompt;
         }
+      }
+      if (context.isSessionBodyReserved(command.sessionId)) {
+        return sessionBusyResponse(requestId, 'session/prompt', command.sessionId, 'body-job');
       }
       // CHT-301: durable, Host-owned conversation classification. The client
       // cannot opt a pure-chat Conversation into agent semantics by sending
@@ -260,16 +265,9 @@ export async function handleSessionPromptCommand(
           return fail(requestId, 'session/prompt', message);
         }
       }
-      // CHT-303: conversations never prepare a Subagent runtime; their
-      // effective delegation is disabled for every turn.
-      if (!conversationChat) {
-        const delegationMode = command.input.delegationMode === 'disabled' ? 'disabled' : 'auto';
-        try {
-          await context.prepareDelegationRuntime?.(command.sessionId, delegationMode);
-        } catch (error) {
-          return fail(requestId, 'session/prompt', formatError(error));
-        }
-      }
+      // CHT-303: conversations never prepare a Subagent runtime. Agent
+      // rebuilds stay on the detached Run path below so this ack cannot
+      // wait on disposeLiveSession.
       // A live SDK/RPC generation owns the Provider envelope compiled at its
       // creation. If the next turn selects another Provider, the old
       // generation cannot resolve that model even though the durable config
@@ -328,6 +326,10 @@ export async function handleSessionPromptCommand(
             supersededRun = liveRun;
           }
         } else if (liveRun) {
+          // Same as replace-run: admit the new Run first, terminalize the old
+          // turn after the ack. Awaiting finalizeCancelledRun here blocks the
+          // prompt ACK on provider abort / process teardown and paints
+          // "Host 还没确认" while the socket is fine.
           const supersedeReason = createSupersededByNewPromptAbortReason();
           context.updateRunPhase(
             liveRun.runId,
@@ -337,13 +339,7 @@ export async function handleSessionPromptCommand(
           context.requestCancelRun(command.sessionId, liveRun.runId, supersedeReason);
           context.settlePendingPermissionsForSession(command.sessionId);
           context.settlePendingExtensionUiForSession(command.sessionId);
-          await finalizeCancelledRun(
-            context,
-            command.sessionId,
-            liveRun.runId,
-            formatRunAbortReason(supersedeReason),
-            'superseded-by-new-prompt',
-          );
+          supersededRun = liveRun;
         }
         const resumeCheckpointId =
           command.input.source === 'resume' ? command.input.resumeCheckpointId : undefined;
@@ -395,6 +391,15 @@ export async function handleSessionPromptCommand(
       // callback owns the run's single terminal transition.
       context.runWithContext(run.runId, async () => {
         try {
+          if (!conversationChat) {
+            const delegationMode =
+              command.input.delegationMode === 'disabled' ? 'disabled' : 'auto';
+            await context.prepareDelegationRuntime?.(command.sessionId, delegationMode);
+            if (context.getRunSignal(run.runId)?.aborted) {
+              await finalizeAbortedRun(context, command.sessionId, run.runId);
+              return;
+            }
+          }
           if (command.input.model) {
             await compactLiveSessionForTarget(
               context,
@@ -506,31 +511,47 @@ export async function handleSessionPromptCommand(
             return;
           }
 
-          // Detect silent completion: prompt() resolved without throwing but
-          // the model produced no assistant output (no text/thinking deltas).
-          // This happens when the model is unavailable, the API key is
-          // invalid, or the provider returned an empty response without
-          // surfacing an error through the event stream. Without this check
-          // the host emits a failed terminal Run and the user sees
-          // nothing — no output, no error.
+          // Detect silent / failed completion: prompt() resolved without a
+          // streamed answer. Prefer the upstream provider error when Pi already
+          // emitted one (often via stopReason:'error'); only invent the generic
+          // empty-response copy when nothing upstream arrived.
           const currentRun = context.getForegroundRun(command.sessionId);
           if (currentRun && !context.hasRunReceivedFirstToken(run.runId)) {
-            const emptyMessage =
-              'The model produced no response. This may indicate an unavailable ' +
-              'model, invalid API key, or provider error. Check your provider ' +
-              'configuration and try again.';
+            const upstreamError = context.getRunLastAgentError(run.runId)?.trim();
+            const failureMessage =
+              upstreamError && upstreamError.length > 0
+                ? upstreamError
+                : 'The model produced no response. This may indicate an unavailable ' +
+                  'model, invalid API key, or provider error. Check your provider ' +
+                  'configuration and try again.';
+            const alreadySurfaced = Boolean(upstreamError && upstreamError.length > 0);
+            if (!alreadySurfaced) {
+              const errorEvent = {
+                type: 'error' as const,
+                message: failureMessage,
+                retriable: true,
+                runId: run.runId,
+              };
+              // Persist before terminalizing: push alone fans out to shells and
+              // does not write the transcript recorder.
+              const recorder = context.transcriptRecorders.get(command.sessionId);
+              if (recorder) {
+                await recorder.recordEvent(errorEvent).catch(() => undefined);
+                await recorder.flush().catch(() => undefined);
+              }
+              context.push({
+                type: 'event',
+                sessionId: command.sessionId,
+                event: errorEvent,
+              });
+            }
             await context.terminateRun(
               command.sessionId,
               run.runId,
               'failed',
               undefined,
-              emptyMessage,
+              failureMessage,
             );
-            context.push({
-              type: 'event',
-              sessionId: command.sessionId,
-              event: { type: 'error', message: emptyMessage, retriable: true, runId: run.runId },
-            });
             return;
           }
 
@@ -564,6 +585,10 @@ export async function handleSessionPromptCommand(
             }
           }
           await context.terminateRun(command.sessionId, run.runId, 'completed');
+          void scheduleReplyWriterAfterRun(context, {
+            sessionId: command.sessionId,
+            runId: run.runId,
+          });
         } catch (error) {
           if (context.getRunSignal(run.runId)?.aborted) {
             await finalizeAbortedRun(context, command.sessionId, run.runId);
@@ -577,12 +602,25 @@ export async function handleSessionPromptCommand(
             (error as { code?: string } | null)?.code === 'runtime-memory-pressure'
               ? ('runtime-memory-pressure' as const)
               : undefined;
-          await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, message);
+          const errorEvent = {
+            type: 'error' as const,
+            message,
+            retriable: true,
+            runId: run.runId,
+          };
+          const recorder = context.transcriptRecorders.get(command.sessionId);
+          if (recorder) {
+            await recorder.recordEvent(errorEvent).catch(() => undefined);
+            await recorder.flush().catch(() => undefined);
+          }
+          // Emit the agent error while the run is still foreground so Desktop
+          // can stamp the assistant bubble before run/terminal marks the id stale.
           context.push({
             type: 'event',
             sessionId: command.sessionId,
-            event: { type: 'error', message, retriable: true, runId: run.runId },
+            event: errorEvent,
           });
+          await context.terminateRun(command.sessionId, run.runId, 'failed', terminalCode, message);
         }
       });
 

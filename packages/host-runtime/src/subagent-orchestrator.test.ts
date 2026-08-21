@@ -269,6 +269,50 @@ describe('SubagentOrchestrator', () => {
     }
   });
 
+  it('copies role and resolved model onto the first invocation projection', async () => {
+    const backend = makeFakeBackend({});
+    const { push, pushes } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+    await orchestrator.runBatch(
+      makeBatch([
+        makeTask({
+          id: 'scout',
+          invocationId: 'inv-scout',
+          parentToolCallId: 'parent-tool-scout',
+          role: 'scout',
+          profileId: 'explorer',
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'custom-openai',
+            modelId: 'deepseek-v4-flash',
+          },
+        }),
+      ]),
+    );
+    const first = pushes.find(
+      (candidate) =>
+        candidate.type === 'subagent/invocation-updated' &&
+        candidate.invocation.id === 'inv-scout',
+    );
+    expect(first?.type).toBe('subagent/invocation-updated');
+    if (first?.type !== 'subagent/invocation-updated') return;
+    expect(first.invocation.role).toBe('scout');
+    expect(first.invocation.profileId).toBe('explorer');
+    expect(first.invocation.model).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'custom-openai',
+      modelId: 'deepseek-v4-flash',
+    });
+  });
+
   it('preflights credentials before allocating a workspace or child identity', async () => {
     const backend = makeFakeBackend({});
     let workspaceAcquired = false;

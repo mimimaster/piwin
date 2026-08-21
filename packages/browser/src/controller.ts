@@ -3,7 +3,8 @@
  *
  * Agent write tools acquire `agent` only from `idle`. The human takes the page
  * with `takeOver()`; agent acquire while `user` owns the page always fails.
- * No Playwright, timers, or I/O — unit-test the transition table here.
+ * The first writer run owns the lock (`holderRunId`); later writes do not steal
+ * it. No Playwright, timers, or I/O — unit-test the transition table here.
  */
 import {
   BROWSER_USER_HAS_CONTROL,
@@ -25,11 +26,13 @@ export type AcquireResult =
 
 export type BrowserControllerHandle = {
   snapshot(): BrowserControllerState;
-  acquire(owner: 'agent' | 'user'): AcquireResult;
+  holderRunId(): string | undefined;
+  acquire(owner: 'agent' | 'user', runId?: string): AcquireResult;
   release(owner: 'agent' | 'user'): BrowserControllerState;
   takeOver(): BrowserControllerState;
   giveBack(): BrowserControllerState;
   releaseAgentControl(): BrowserControllerState;
+  releaseAgentControlIfHeldBy(runId: string): BrowserControllerState;
 };
 
 function copy(state: BrowserControllerState): BrowserControllerState {
@@ -38,11 +41,26 @@ function copy(state: BrowserControllerState): BrowserControllerState {
 
 export function createBrowserController(): BrowserControllerHandle {
   const state: BrowserControllerState = { owner: 'idle', agentWantsLock: false };
+  let holderRunId: string | undefined;
+
+  function clearHolder(): void {
+    holderRunId = undefined;
+  }
+
+  function releaseAgent(): BrowserControllerState {
+    if (state.owner === 'agent') {
+      state.owner = 'idle';
+    }
+    state.agentWantsLock = false;
+    clearHolder();
+    return copy(state);
+  }
 
   return {
     snapshot: () => copy(state),
+    holderRunId: () => holderRunId,
 
-    acquire(owner) {
+    acquire(owner, runId) {
       if (owner === 'user') {
         if (state.owner === 'agent') {
           return { ok: false, code: 'browser-agent-has-control', state: copy(state) };
@@ -55,6 +73,9 @@ export function createBrowserController(): BrowserControllerHandle {
         return { ok: false, code: BROWSER_USER_HAS_CONTROL, state: copy(state) };
       }
       const changed = state.owner !== 'agent' || !state.agentWantsLock;
+      if (state.owner !== 'agent' && typeof runId === 'string' && runId.length > 0) {
+        holderRunId = runId;
+      }
       state.owner = 'agent';
       state.agentWantsLock = true;
       return { ok: true, state: copy(state), changed };
@@ -62,7 +83,7 @@ export function createBrowserController(): BrowserControllerHandle {
 
     release(owner) {
       if (owner === 'agent') {
-        return this.releaseAgentControl();
+        return releaseAgent();
       }
       if (state.owner === 'user') {
         state.owner = state.agentWantsLock ? 'agent' : 'idle';
@@ -81,12 +102,11 @@ export function createBrowserController(): BrowserControllerHandle {
       return copy(state);
     },
 
-    releaseAgentControl() {
-      if (state.owner === 'agent') {
-        state.owner = 'idle';
-      }
-      state.agentWantsLock = false;
-      return copy(state);
+    releaseAgentControl: releaseAgent,
+
+    releaseAgentControlIfHeldBy(runId) {
+      if (holderRunId !== runId) return copy(state);
+      return releaseAgent();
     },
   };
 }

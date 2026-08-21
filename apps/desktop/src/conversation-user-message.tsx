@@ -29,7 +29,8 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
   const [isTextOverflow, setIsTextOverflow] = useState(false);
   const textRef = useRef<HTMLDivElement | null>(null);
   const formattedTime = formatMessageTime(message.createdAt);
-  const hasAttachments = message.attachments.length > 0;
+  const hasMediaAttachments = message.attachments.length > 0;
+  const hasContextRefs = Boolean(message.contextRefs && message.contextRefs.length > 0);
   const interventionStatus = message.instructionDelivery?.status;
   const isChinese = props.locale !== 'en';
 
@@ -95,114 +96,136 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
     }
   }
 
-  // Attachments always start in the compact state so a history prompt cannot
-  // occupy most of the transcript viewport while browsing older turns.
-  const isCollapsible = hasAttachments || isTextOverflow;
+  // Attachments in Agent mode start compact to avoid crowding.
+  // In Conversation Chat mode, messages always display naturally without collapsing.
+  const isCollapsible = !isConversationSession && (hasMediaAttachments || isTextOverflow);
   const collapsed = isCollapsible && isCollapsed;
 
-  const handleToggle = isCollapsible ? () => setIsCollapsed((previous) => !previous) : undefined;
+  const handleToggle = isCollapsible
+    ? () => {
+        const selection = typeof window !== 'undefined' ? window.getSelection() : null;
+        if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+          return;
+        }
+        setIsCollapsed((previous) => !previous);
+      }
+    : undefined;
 
-  return (
-    <div
-      className={`user-message-wrapper${isConversationSession ? ' is-conversation' : ''}`}
-      data-testid="user-message-wrapper"
-    >
-      <div className="user-message-main">
-        <div
-          className={`user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasAttachments ? 'has-attachments' : ''}`}
-          data-testid="user-message-collapsible-body"
-          onClick={handleToggle}
-          role={isCollapsible ? 'button' : undefined}
-          tabIndex={isCollapsible ? 0 : undefined}
-          aria-expanded={isCollapsible ? !collapsed : undefined}
-          onKeyDown={
-            isCollapsible
-              ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsCollapsed((previous) => !previous);
+  if (isConversationSession) {
+    return (
+      <div
+        className="user-message-wrapper is-conversation"
+        data-testid="user-message-wrapper"
+      >
+        <div className="user-message-main">
+          <div
+            className={`user-message-bubble user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
+            data-testid="user-message-collapsible-body"
+            onClick={handleToggle}
+            role={isCollapsible ? 'button' : undefined}
+            aria-expanded={isCollapsible ? !collapsed : undefined}
+            onKeyDown={
+              isCollapsible
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIsCollapsed((previous) => !previous);
+                    }
                   }
-                }
-              : undefined
-          }
-        >
-          <MessageAttachments
-            attachments={message.attachments}
-            role="user"
-            {...(props.locale !== undefined ? { locale: props.locale } : {})}
-          />
-          <div ref={textRef} className="message-text">
-            {message.text}
+                : undefined
+            }
+          >
+            {hasContextRefs && message.contextRefs ? (
+              <div className="user-message-quote-box" data-testid="user-message-quote-box">
+                <MessageAttachments
+                  attachments={[]}
+                  contextRefs={message.contextRefs}
+                  role="user"
+                  {...(props.locale !== undefined ? { locale: props.locale } : {})}
+                />
+              </div>
+            ) : null}
+            <MessageAttachments
+              attachments={message.attachments}
+              role="user"
+              {...(props.locale !== undefined ? { locale: props.locale } : {})}
+            />
+            {message.text ? (
+              <div ref={textRef} className="user-message-text message-text">
+                {message.text}
+              </div>
+            ) : null}
+
+            <div
+              className="user-message-footer user-message-actions"
+              data-testid="user-message-actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {interventionLabel ? (
+                <span className="user-message-time" data-testid="intervention-delivery-status">
+                  {interventionLabel}
+                </span>
+              ) : null}
+              <div className="user-message-action-buttons">
+                <button
+                  type="button"
+                  className="user-msg-btn"
+                  onClick={() => void handleCopy()}
+                  title="Copy"
+                  aria-label="Copy message"
+                  data-testid="message-copy-btn"
+                >
+                  {copied ? <IconCheck /> : <IconCopy />}
+                </button>
+                {interventionStatus === 'pending' && props.onInterventionCancel ? (
+                  <button
+                    type="button"
+                    className="user-msg-btn"
+                    onClick={() => void props.onInterventionCancel?.(message.id)}
+                    title={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
+                    aria-label={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
+                    data-testid="intervention-cancel-btn"
+                  >
+                    <IconClose />
+                  </button>
+                ) : null}
+                {interventionStatus === 'pending' && props.onInterventionEdit ? (
+                  <button
+                    type="button"
+                    className="user-msg-btn"
+                    onClick={() => props.onInterventionEdit?.(message.id)}
+                    title={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
+                    aria-label={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
+                    data-testid="intervention-edit-btn"
+                  >
+                    <IconEdit />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="user-msg-btn"
+                  onClick={() => props.onRetry(message.id)}
+                  disabled={
+                    props.streaming ||
+                    interventionStatus === 'pending' ||
+                    interventionStatus === 'applying'
+                  }
+                  title="Revert"
+                  aria-label="Revert message"
+                  data-testid="message-revert-btn"
+                >
+                  <IconRevert />
+                </button>
+              </div>
+              {formattedTime ? (
+                <span className="user-message-time" data-testid="user-message-time">
+                  {formattedTime}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
-        <div
-          className="user-message-actions"
-          data-testid="user-message-actions"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {interventionLabel ? (
-            <span className="user-message-time" data-testid="intervention-delivery-status">
-              {interventionLabel}
-            </span>
-          ) : null}
-          {formattedTime ? (
-            <span className="user-message-time" data-testid="user-message-time">
-              {formattedTime}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="user-msg-btn"
-            onClick={() => void handleCopy()}
-            title="Copy"
-            aria-label="Copy message"
-            data-testid="message-copy-btn"
-          >
-            {copied ? <IconCheck /> : <IconCopy />}
-          </button>
-          {interventionStatus === 'pending' && props.onInterventionCancel ? (
-            <button
-              type="button"
-              className="user-msg-btn"
-              onClick={() => void props.onInterventionCancel?.(message.id)}
-              title={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
-              aria-label={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
-              data-testid="intervention-cancel-btn"
-            >
-              <IconClose />
-            </button>
-          ) : null}
-          {interventionStatus === 'pending' && props.onInterventionEdit ? (
-            <button
-              type="button"
-              className="user-msg-btn"
-              onClick={() => props.onInterventionEdit?.(message.id)}
-              title={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
-              aria-label={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
-              data-testid="intervention-edit-btn"
-            >
-              <IconEdit />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="user-msg-btn"
-            onClick={() => props.onRetry(message.id)}
-            disabled={
-              props.streaming ||
-              interventionStatus === 'pending' ||
-              interventionStatus === 'applying'
-            }
-            title="Revert"
-            aria-label="Revert message"
-            data-testid="message-revert-btn"
-          >
-            <IconRevert />
-          </button>
-        </div>
-      </div>
 
-      {isConversationSession ? (
         <div
           className="user-message-avatar"
           data-testid="user-message-avatar"
@@ -210,7 +233,111 @@ export function UserMessageContent(props: UserMessageContentProps): ReactElement
         >
           {isChinese ? '我' : 'You'}
         </div>
-      ) : null}
+      </div>
+    );
+  }
+
+  // Classic Project / Agent Mode layout: full-width bar, no avatar, trailing actions
+  return (
+    <div
+      className="user-message-wrapper"
+      data-testid="user-message-wrapper"
+    >
+      <div
+        className={`user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasMediaAttachments ? 'has-attachments' : ''}`}
+        data-testid="user-message-collapsible-body"
+        onClick={handleToggle}
+        role={isCollapsible ? 'button' : undefined}
+        aria-expanded={isCollapsible ? !collapsed : undefined}
+        onKeyDown={
+          isCollapsible
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setIsCollapsed((previous) => !previous);
+                }
+              }
+            : undefined
+        }
+      >
+        <MessageAttachments
+          attachments={message.attachments}
+          {...(message.contextRefs ? { contextRefs: message.contextRefs } : {})}
+          role="user"
+          {...(props.locale !== undefined ? { locale: props.locale } : {})}
+        />
+        {message.text ? (
+          <div ref={textRef} className="message-text">
+            {message.text}
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        className="user-message-actions"
+        data-testid="user-message-actions"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {interventionLabel ? (
+          <span className="user-message-time" data-testid="intervention-delivery-status">
+            {interventionLabel}
+          </span>
+        ) : null}
+        {formattedTime ? (
+          <span className="user-message-time" data-testid="user-message-time">
+            {formattedTime}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className="user-msg-btn"
+          onClick={() => void handleCopy()}
+          title="Copy"
+          aria-label="Copy message"
+          data-testid="message-copy-btn"
+        >
+          {copied ? <IconCheck /> : <IconCopy />}
+        </button>
+        {interventionStatus === 'pending' && props.onInterventionCancel ? (
+          <button
+            type="button"
+            className="user-msg-btn"
+            onClick={() => void props.onInterventionCancel?.(message.id)}
+            title={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
+            aria-label={isChinese ? '取消这条调整' : 'Cancel this adjustment'}
+            data-testid="intervention-cancel-btn"
+          >
+            <IconClose />
+          </button>
+        ) : null}
+        {interventionStatus === 'pending' && props.onInterventionEdit ? (
+          <button
+            type="button"
+            className="user-msg-btn"
+            onClick={() => props.onInterventionEdit?.(message.id)}
+            title={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
+            aria-label={isChinese ? '编辑这条调整' : 'Edit this adjustment'}
+            data-testid="intervention-edit-btn"
+          >
+            <IconEdit />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="user-msg-btn"
+          onClick={() => props.onRetry(message.id)}
+          disabled={
+            props.streaming ||
+            interventionStatus === 'pending' ||
+            interventionStatus === 'applying'
+          }
+          title="Revert"
+          aria-label="Revert message"
+          data-testid="message-revert-btn"
+        >
+          <IconRevert />
+        </button>
+      </div>
     </div>
   );
 }

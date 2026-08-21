@@ -15,8 +15,9 @@ import {
   isModelEnabled,
   isProviderEnabled,
   modelSupportsCapability,
-  modeToPreset,
   readContextOccupiedTokens,
+  resolvePermissionPreset,
+  remoteCommandRequiresIdempotencyKey,
   resolveModelContextBudget,
   resolvePreset,
 } from '@piwin/contracts';
@@ -35,24 +36,39 @@ import type {
   ThemeManifest,
   WalkthroughArtifact,
 } from '@piwin/contracts';
-import { listOrchestrationSchemes, ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
+import {
+  listOrchestrationSchemes,
+  ORCHESTRATION_SCHEME_OFF_ID,
+  resolveUnpinnedOrchestrationDefaultRole,
+} from '@piwin/contracts';
 import {
   chatUiReducer,
   createInitialChatUiState,
   type PermissionPromptUi,
   type SessionListItemUi,
 } from './chat-reducer';
-import { HostClient } from './host-client';
+import {
+  resolveDesktopHostResolution,
+  saveDesktopHostLaunchMode,
+  subscribeDesktopHostLaunchModeChange,
+} from './desktop-host-launch';
+import { HostConnectWall, HostLaunchChooser } from './host-connect-wall';
+import { isDesktopShellOnlyBuild } from './desktop-shell-build';
 import {
   clearDesktopRemoteHostTarget,
-  loadDesktopRemoteHostTarget,
+  saveDesktopRemoteHostTarget,
   subscribeDesktopRemoteHostTargetChange,
 } from './remote-host-session';
-import { useHostRequestAdapters } from './host-request-adapters';
-import { NotificationRegion } from './NotificationRegion';
-import { MainErrorBanner } from './main-error-banner';
+import { useWorkbenchHostClient } from './use-workbench-host-client';
+import { MediaPreviewReadProvider } from './media-preview-read-context';
+import { readMediaPreviewViaHost } from './transcript-media-preview';
+import {
+  composerProfileSettingsMutations,
+  settingsMutationsForHostApply,
+  useHostRequestAdapters,
+} from './host-request-adapters';
 import { ProjectSessionSidebar } from './project-session-sidebar';
-import { projectDisplayName } from './project-display-name';
+import { projectLabel } from './project-display-name';
 import { ChatThread } from './chat-thread';
 import { reviewCardsForItemIds } from './resolve-conversation-flashcards';
 import type { FlashcardItem } from '@piwin/contracts';
@@ -65,7 +81,14 @@ import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { PermissionBar } from './permission-bar';
 import { ExtensionUiPrompt } from './extension-ui-prompt';
 import { AppDialogs } from './app-dialogs';
-import { createEmptyNotificationState, notificationReducer } from './notification-queue';
+import {
+  createEmptyNotificationState,
+  dismissDesktopNotification,
+  emitDesktopNotification,
+  notificationReducer,
+  pushError,
+  type NotificationAction,
+} from './notification-queue';
 import type { HostLogEntry } from './HostLogPanel';
 import {
   activeDocumentContent,
@@ -85,6 +108,9 @@ import type { LineCommentItem } from './EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from './doc-comments';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { collectSessionTools } from './tool-call-card';
+import type { DocumentOpenInput } from './tool-call-card';
+import { FileDiffInspector } from './file-diff-inspector';
+import { useInspectorFileDiff } from './use-inspector-file-diff';
 import { type AgentModeId } from './agent-mode';
 import {
   DEFAULT_DARK_THEME_SETTINGS,
@@ -114,11 +140,26 @@ import { getDirectForkCountsByMessageId } from './session-lineage-tree';
 import { SessionLineageHeaderPopover } from './session-lineage-popover';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
+import {
+  SubagentInspectorProvider,
+  type SubagentInspectorPanelData,
+  type SubagentInspectorToggle,
+} from './subagent-inspector-context';
 import { useJobs } from './hooks/use-jobs';
 import { Button, Dialog, Notice } from '@piwin/ui-kit';
 import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
 import { useConfirmDialog } from './use-confirm-dialog';
-import { isRemoteDesktopTransport } from './remote-session-hydrate';
+import { createGestureIdempotencyKey } from './gesture-idempotency.js';
+import { settingsApplyInputFromSnapshot } from './settings-apply-input.js';
+import { hostFailureNotice } from './host-problem-copy.js';
+import { HostReconnectBanner } from './host-reconnect-banner';
+import { shouldShowHostReconnectBanner } from './host-reconnect-gate.js';
+import {
+  isRemoteDesktopTransport,
+  mapListedProjects,
+  mergeRecentProjects,
+} from './remote-session-hydrate';
+import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
 import { useDesktopShortcuts } from './use-desktop-shortcuts';
@@ -139,7 +180,13 @@ import { useSidebarResize } from './hooks/use-sidebar-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { resolveThinkingLevelForModel } from './model-thinking-policy';
-import { buildEnabledModelOptions } from './model-options';
+import {
+  findComposerModelByKey,
+  findComposerModelByRef,
+  formatComposerModelKey,
+  resolveComposerModelSelection,
+} from './composer-model-selection-policy';
+import { buildEnabledModelOptions, modelOptionsFromConfiguredModels } from './model-options';
 
 import {
   DeferredBrowserSessionPanel,
@@ -154,7 +201,6 @@ import {
   DeferredReviewPanel,
   DeferredSettingsPanel,
   DeferredSideChatPanel,
-  DeferredSubagentSessionDialog,
   DeferredSurfaceBoundary,
   DeferredTerminalDock,
 } from './deferred-desktop-surfaces';
@@ -177,32 +223,8 @@ function mergeSessionsForLookup(
   return [...primary, ...secondary.filter((session) => !seen.has(session.id))];
 }
 
-function createAppHostClient(): HostClient {
-  const remoteTarget = loadDesktopRemoteHostTarget();
-  if (remoteTarget !== undefined) {
-    return new HostClient({
-      transport: 'remote',
-      remoteTarget,
-      hostMock: false,
-    });
-  }
-  return new HostClient({ transport: 'auto', hostMock: false });
-}
-
-export function App({ activeTheme, onThemeApplied }: AppProps) {
-  const [hostClient, setHostClient] = useState(createAppHostClient);
-  const hostClientRef = useRef(hostClient);
-  hostClientRef.current = hostClient;
-
-  useEffect(() => {
-    return subscribeDesktopRemoteHostTargetChange(() => {
-      const previous = hostClientRef.current;
-      const next = createAppHostClient();
-      hostClientRef.current = next;
-      setHostClient(next);
-      void previous.dispose();
-    });
-  }, []);
+function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
+  const hostClient = useWorkbenchHostClient();
   const {
     requestConfig,
     requestSubAgent,
@@ -224,10 +246,22 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     () => getDirectForkCountsByMessageId(sessionLineage),
     [sessionLineage],
   );
-  const [notificationState, dispatchNotification] = useReducer(
+  const [, rawDispatchNotification] = useReducer(
     notificationReducer,
     undefined,
     createEmptyNotificationState,
+  );
+
+  const dispatchNotification = useCallback(
+    (action: NotificationAction): void => {
+      rawDispatchNotification(action);
+      if (action.type === 'notify/push') {
+        emitDesktopNotification(action.notification);
+      } else if (action.type === 'notify/dismiss') {
+        dismissDesktopNotification(action.id);
+      }
+    },
+    [],
   );
 
   // Shell UI state (panels / search / chrome) — not host business logic.
@@ -413,18 +447,31 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   );
   const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
   const foregroundReplaceConfirm = useConfirmDialog();
-  const confirmForegroundReplace = useCallback(
-    async (_problem: ForegroundRunMismatchProblem): Promise<boolean> => {
+  const confirmBusyRun = useCallback(
+    async (problem: ForegroundRunMismatchProblem) => {
       const copy = getDesktopCopy(desktopLocale).composer;
-      return foregroundReplaceConfirm.confirm({
-        title: copy.foregroundReplaceTitle,
-        description: copy.foregroundReplaceDescription,
-        confirmLabel: copy.foregroundReplaceConfirm,
-        cancelLabel: copy.foregroundReplaceCancel,
+      if (problem.data.reason !== 'active') {
+        return 'dismiss' as const;
+      }
+      const choice = await foregroundReplaceConfirm.choose({
+        title: copy.busyOtherClientTitle,
+        description: copy.busyOtherClient,
+        confirmLabel: copy.busyReplace,
+        alternateLabel: copy.busyQueue,
+        cancelLabel: copy.busyDismiss,
         tone: 'danger',
       });
+      if (choice === 'confirm') return 'replace' as const;
+      if (choice === 'alternate') return 'queue' as const;
+      return 'dismiss' as const;
     },
     [desktopLocale, foregroundReplaceConfirm],
+  );
+  const confirmForegroundReplace = useCallback(
+    async (problem: ForegroundRunMismatchProblem): Promise<boolean> => {
+      return (await confirmBusyRun(problem)) === 'replace';
+    },
+    [confirmBusyRun],
   );
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
@@ -454,11 +501,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [runClock, setRunClock] = useState(() => Date.now());
   const hasHydratedInitialGeneralSessions = useRef(false);
   const hasRestoredDesktopSession = useRef(false);
+  const hydratedProjectKeyRef = useRef('');
   const configSaveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     hasHydratedInitialGeneralSessions.current = false;
     hasRestoredDesktopSession.current = false;
+    hydratedProjectKeyRef.current = '';
   }, [hostClient]);
 
   useEffect(() => {
@@ -486,20 +535,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         console.warn('project/list failed; sidebar projects stay empty', response.error);
         return;
       }
-      const data = response.data as { projects?: ProjectRecord[] };
-      setRecentProjects((prev) => {
-        const fetched = data.projects ?? [];
-        if (prev.length === 0) {
-          return fetched;
-        }
-        // Preserve stable order of existing projects in sidebar so clicking a project doesn't jump it to top
-        const prevMap = new Map(prev.map((p) => [p.path, p]));
-        const newProjects = fetched.filter((p) => !prevMap.has(p.path));
-        const updatedExisting = prev
-          .map((p) => fetched.find((f) => f.path === p.path) ?? p)
-          .filter((p) => fetched.some((f) => f.path === p.path));
-        return [...newProjects, ...updatedExisting];
-      });
+      const fetched = mapListedProjects(response.data);
+      setRecentProjects((prev) =>
+        mergeRecentProjects(prev, fetched, state.projectPath ? [state.projectPath] : []),
+      );
     }
     void loadRecentProjects();
     return () => {
@@ -513,7 +552,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     stopJob,
     appendJobLog: appendJobLogBase,
   } = useJobs(hostClient, {
-    refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'terminal',
+    refreshWhenVisible:
+      hostClient.supportsCommand('job/list') &&
+      rightPanelOpen &&
+      shell.inspectorTab === 'terminal',
   });
   // AJB: active jobs owned by the current session drive the composer strip.
   const activeJobsForComposer = useMemo(() => {
@@ -552,6 +594,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setExtensionUiInput,
     clearExtensionUiRequest,
     assemblySummariesByRunId,
+    configuredChatModels,
+    remoteCatchUpEpoch,
   } = useHostBootstrap({
     hostClient,
     activeSessionId: state.activeSessionId,
@@ -565,7 +609,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onThemeResolved: onThemeApplied,
   });
 
-  const { activeDocument, openDocument: handleOpenDocument } = useActiveDocument({
+  const inspectorFileDiff = useInspectorFileDiff();
+  const { activeDocument, openDocument: openDocumentBase } = useActiveDocument({
     hostClient,
     revealPreview: revealDocPreview,
     activeSessionId: state.activeSessionId,
@@ -573,6 +618,36 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     ...(hostStatus?.piwinRoot ? { piwinRoot: hostStatus.piwinRoot } : {}),
     messages: state.messages,
   });
+  const handleOpenDocument = useCallback(
+    (doc: DocumentOpenInput, target?: 'stage' | 'inspector') => {
+      inspectorFileDiff.clear();
+      openDocumentBase(doc, target);
+    },
+    [inspectorFileDiff, openDocumentBase],
+  );
+  const handleOpenDiff = useCallback(
+    (absolutePath: string, relativePath?: string) => {
+      if (!state.projectPath || !hostClient.supportsCommand('git/diff-file')) {
+        handleOpenDocument(
+          {
+            title: (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
+            path: absolutePath,
+          },
+          'inspector',
+        );
+        return;
+      }
+      inspectorFileDiff.open(absolutePath, relativePath);
+      revealDocPreview();
+    },
+    [
+      handleOpenDocument,
+      hostClient,
+      inspectorFileDiff,
+      revealDocPreview,
+      state.projectPath,
+    ],
+  );
 
   useRunReconcile({
     hostClient,
@@ -580,6 +655,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     activeSessionId: state.activeSessionId,
     activeRunId: state.activeRunId,
     runLive: state.runPhase === 'streaming' || state.runPhase === 'aborting',
+    hostReady: state.hostReady,
+    catchUpEpoch: remoteCatchUpEpoch,
   });
 
   const orchestrationSchemeOptions = useMemo(() => {
@@ -596,12 +673,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     });
     return [
       offOption,
-      ...schemes.map((scheme) => ({
-        id: scheme.id,
-        name: scheme.name,
-        description: scheme.description,
-        source: scheme.source,
-      })),
+      ...schemes.map((scheme) => {
+        const unpinnedDefaultRole = resolveUnpinnedOrchestrationDefaultRole(scheme);
+        return {
+          id: scheme.id,
+          name: scheme.name,
+          description: scheme.description,
+          source: scheme.source,
+          ...(unpinnedDefaultRole ? { unpinnedDefaultRole } : {}),
+        };
+      }),
     ];
   }, [
     config?.subagents?.schemes,
@@ -648,7 +729,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // avoid remounting on every parent re-render of the same theme identity.
   const artifactThemeKey = `${activeTheme.mode}:${activeTheme.id}`;
 
-  const modelOptions = useMemo(() => buildEnabledModelOptions(config?.providers ?? []), [config]);
+  const modelOptions = useMemo(() => {
+    if (config !== null && config.providers.length > 0) {
+      return buildEnabledModelOptions(config.providers);
+    }
+    return modelOptionsFromConfiguredModels(configuredChatModels.models);
+  }, [config, configuredChatModels]);
+  const defaultProviderId = config?.defaultProviderId ?? configuredChatModels.defaultProviderId;
+  const defaultModelId = config?.defaultModelId ?? configuredChatModels.defaultModelId;
 
   const speechConfigured = useMemo(() => {
     const modelRef = config?.speech?.asr?.defaultModel;
@@ -684,7 +772,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           })
           .then((response) => {
             if (!response.success) {
-              console.warn(`[piwin] flashcard rate failed: ${response.error}`);
+              dispatchNotification(pushError(`Flashcard rating failed: ${response.error}`));
             }
           });
         return;
@@ -697,7 +785,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           })
           .then((response) => {
             if (!response.success) {
-              console.warn(`[piwin] flashcard open-source failed: ${response.error}`);
+              dispatchNotification(pushError(`Could not resolve source: ${response.error}`));
               return;
             }
             const result = response.data as { path?: string } | undefined;
@@ -706,13 +794,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               void import('@tauri-apps/plugin-shell')
                 .then(({ open }) => open(result.path as string))
                 .catch((error: unknown) => {
-                  console.warn(`[piwin] open-source shell open failed: ${formatError(error)}`);
+                  dispatchNotification(pushError(`Failed to open source file: ${formatError(error)}`));
                 });
             }
           });
       }
     },
-    [hostClient],
+    [hostClient, dispatchNotification],
   );
 
   // Walkthrough generation (spec §5.2): request the host generate/cancel a
@@ -730,11 +818,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         })
         .then((response) => {
           if (!response.success) {
-            console.warn(`[piwin] walkthrough generate failed: ${response.error}`);
+            dispatchNotification(pushError(`Walkthrough generation failed: ${response.error}`));
           }
         });
     },
-    [hostClient, state.activeSessionId],
+    [hostClient, state.activeSessionId, dispatchNotification],
   );
 
   const handleCancelWalkthrough = useCallback(
@@ -749,11 +837,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         })
         .then((response) => {
           if (!response.success) {
-            console.warn(`[piwin] walkthrough cancel failed: ${response.error}`);
+            dispatchNotification(pushError(`Walkthrough cancel failed: ${response.error}`));
           }
         });
     },
-    [hostClient, state.activeSessionId],
+    [hostClient, state.activeSessionId, dispatchNotification],
   );
 
   // Hydrate walkthrough artifacts whenever the active session changes.
@@ -767,6 +855,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     // Wait until transcript hydrate finishes so walkthrough chips attach to the
     // real rows (session switch keeps previous rows painted while awaiting).
     if (state.awaitingTranscript) return;
+    if (hostClient.supportsCommand?.('walkthrough/list') === false) return;
     const sessionId = state.activeSessionId;
     const knownMessageIds = state.messages.map((message) => message.id);
     void hostClient
@@ -786,7 +875,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // closure per render would re-fire full loads on every App render.
   const requestNotesPanel = useCallback(
     (command: Parameters<import('./NotesPanel').NotesPanelProps['request']>[0]) =>
-      hostClient.request(command),
+      remoteCommandRequiresIdempotencyKey(command.type)
+        ? hostClient.request(command, { idempotencyKey: createGestureIdempotencyKey() })
+        : hostClient.request(command),
     [hostClient],
   );
   const requestCardsPanel = useCallback(
@@ -796,6 +887,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   );
   const resolveConversationFlashcards = useCallback(
     async (itemIds: string[]) => {
+      if (hostClient.supportsCommand('flashcards/list') === false) return [];
       const response = await hostClient.request({ type: 'flashcards/list' });
       if (!response.success) return [];
       const items = ((response.data as { cards?: FlashcardItem[] } | undefined)?.cards ?? []).filter(
@@ -964,7 +1056,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     (next: PiwinConfig): void => {
       setConfig(next);
       if (next.defaultProviderId && next.defaultModelId) {
-        setSelectedModelKey(`${next.defaultProviderId}::${next.defaultModelId}`);
+        setSelectedModelKey(formatComposerModelKey(next.defaultProviderId, next.defaultModelId));
       }
     },
     [setConfig],
@@ -992,12 +1084,46 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, hostClient, state.hostReady, state.projectPath]);
 
+  // Remote snapshot / journal-gap recovery: re-list sessions even when the
+  // shell was already ready (cold-start guard would otherwise skip).
+  useEffect(() => {
+    if (remoteCatchUpEpoch === 0 || !state.hostReady) {
+      return;
+    }
+    hasHydratedInitialGeneralSessions.current = false;
+    hydratedProjectKeyRef.current = '';
+    const remote = isRemoteDesktopTransport(hostClient.getTransport());
+    if (!remote) {
+      return;
+    }
+    hasHydratedInitialGeneralSessions.current = true;
+    if (state.projectPath) {
+      void hydrateSessions(
+        { kind: 'project', projectPath: state.projectPath },
+        { includeArchived: showArchivedSessions },
+      );
+    } else {
+      void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteCatchUpEpoch, state.hostReady]);
+
   // Hydrate every recent project's session list so the sidebar folder tree can
   // show each open folder's conversations without forcing the user to click
   // into it. The reducer keeps these per-project lists independent from the
   // active scope, so multiple folders can stay open with their own sessions.
   useEffect(() => {
-    if (recentProjects.length === 0 || !state.hostReady) return;
+    if (!state.hostReady) return;
+    dispatch({
+      type: 'session/retain-project-paths',
+      projectPaths: recentProjects.map((project) => project.path),
+    });
+    if (recentProjects.length === 0) return;
+    const projectKey = recentProjects.map((project) => project.path).join('\0');
+    if (projectKey === hydratedProjectKeyRef.current) {
+      return;
+    }
+    hydratedProjectKeyRef.current = projectKey;
     let cancelled = false;
     void (async () => {
       for (const project of recentProjects) {
@@ -1063,10 +1189,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       modelKey: string,
       requestedThinking: import('@piwin/contracts').ThinkingLevel | undefined,
     ): void => {
-      const selected = modelOptions.find(
-        (model) => `${model.providerId}::${model.modelId}` === modelKey,
-      );
-      const resolvedKey = selected ? `${selected.providerId}::${selected.modelId}` : modelKey;
+      const selected = findComposerModelByKey(modelOptions, modelKey);
+      const resolvedKey = selected
+        ? formatComposerModelKey(selected.providerId, selected.modelId)
+        : modelKey;
       setSelectedModelKey(resolvedKey);
       const resolvedThinking = resolveThinkingLevelForModel(
         selected,
@@ -1082,8 +1208,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   //   1. active session last-used model (session index / resume)
   //   2. composerProfile.model (desktop default for new sessions)
   //   3. config.defaultProviderId / defaultModelId (product default)
-  // When none resolve to a live model option, clear the selection so the
-  // composer falls back to host defaults instead of holding a stale key.
   useEffect(() => {
     const activeSessionId = state.activeSessionId;
     const sessionChanged = lastAppliedSessionModelIdRef.current !== activeSessionId;
@@ -1092,67 +1216,37 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         ? undefined
         : (state.sessions.find((session) => session.id === activeSessionId) ??
           state.generalSessions.find((session) => session.id === activeSessionId));
-    // Prefer the session's last-used model only when switching into the
-    // session (or first apply). Do not re-stomp the picker while the user
-    // is mid-edit on the same session before the next prompt persists.
-    if (sessionChanged && activeSession?.model) {
-      const sessionModel = modelOptions.find(
-        (model) =>
-          model.providerId === activeSession.model?.providerId &&
-          model.modelId === activeSession.model?.modelId &&
-          model.protocol === activeSession.model?.protocol,
-      );
-      if (sessionModel) {
-        lastAppliedSessionModelIdRef.current = activeSessionId;
-        applyComposerModelSelection(
-          `${sessionModel.providerId}::${sessionModel.modelId}`,
-          activeSession.thinkingLevel,
-        );
-        return;
-      }
-    }
-    if (!sessionChanged && activeSessionId) {
-      // Stay on the user/session selection; only re-resolve defaults when
-      // providers/catalog change and the current key disappeared.
-      const stillValid = modelOptions.some(
-        (model) => `${model.providerId}::${model.modelId}` === selectedModelKey,
-      );
-      if (stillValid || !selectedModelKey) {
-        return;
-      }
-    }
-
     const composerProfile = config?.desktop?.composerProfile;
-    const desired = composerProfile?.model
-      ? modelOptions.find(
-          (model) =>
-            model.providerId === composerProfile.model?.providerId &&
-            model.modelId === composerProfile.model?.modelId &&
-            model.protocol === composerProfile.model?.protocol,
-        )
-      : undefined;
-    const fallback =
-      config?.defaultProviderId && config?.defaultModelId
-        ? modelOptions.find(
-            (model) =>
-              model.providerId === config.defaultProviderId &&
-              model.modelId === config.defaultModelId,
-          )
-        : undefined;
-    const resolved = desired ?? fallback;
-    const resolvedKey = resolved ? `${resolved.providerId}::${resolved.modelId}` : '';
-    lastAppliedSessionModelIdRef.current = activeSessionId;
-    applyComposerModelSelection(
-      resolvedKey,
-      composerProfile?.thinkingLevel ?? resolved?.thinkingLevel ?? 'off',
-    );
+    const resolution = resolveComposerModelSelection({
+      sessionChanged,
+      activeSessionId,
+      selectedModelKey,
+      modelOptions,
+      ...(activeSession?.model ? { activeSessionModel: activeSession.model } : {}),
+      ...(activeSession?.thinkingLevel !== undefined
+        ? { activeSessionThinkingLevel: activeSession.thinkingLevel }
+        : {}),
+      ...(composerProfile?.model ? { composerProfileModel: composerProfile.model } : {}),
+      ...(composerProfile?.thinkingLevel !== undefined
+        ? { composerProfileThinkingLevel: composerProfile.thinkingLevel }
+        : {}),
+      ...(defaultProviderId ? { defaultProviderId } : {}),
+      ...(defaultModelId ? { defaultModelId } : {}),
+    });
+    if (resolution.kind === 'preserve') {
+      return;
+    }
+    lastAppliedSessionModelIdRef.current = resolution.markSessionId;
+    applyComposerModelSelection(resolution.modelKey, resolution.thinkingLevel);
+    // User picker updates (`handleSelectModel`) own selectedModelKey; this
+    // effect only reacts to session/config/catalog changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedModelKey read intentionally omitted
   }, [
     applyComposerModelSelection,
     config?.desktop?.composerProfile,
-    config?.defaultProviderId,
-    config?.defaultModelId,
+    defaultProviderId,
+    defaultModelId,
     modelOptions,
-    selectedModelKey,
     state.activeSessionId,
     state.generalSessions,
     state.sessions,
@@ -1162,25 +1256,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   useEffect(() => {
     sessionComposerProfileRestoredRef.current = (profile) => {
       if (profile.model) {
-        const match = modelOptions.find(
-          (model) =>
-            model.providerId === profile.model?.providerId &&
-            model.modelId === profile.model?.modelId &&
-            model.protocol === profile.model?.protocol,
-        );
+        const match = findComposerModelByRef(modelOptions, profile.model);
         if (match) {
           lastAppliedSessionModelIdRef.current = state.activeSessionId;
           applyComposerModelSelection(
-            `${match.providerId}::${match.modelId}`,
+            formatComposerModelKey(match.providerId, match.modelId),
             profile.thinkingLevel,
           );
           return;
         }
       }
       if (profile.thinkingLevel) {
-        const selected = modelOptions.find(
-          (model) => `${model.providerId}::${model.modelId}` === selectedModelKey,
-        );
+        const selected = findComposerModelByKey(modelOptions, selectedModelKey);
         const resolvedThinking = resolveThinkingLevelForModel(
           selected,
           profile.thinkingLevel,
@@ -1204,34 +1291,58 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         .then(async () => {
           const currentResponse = await hostClient.request({ type: 'settings/get' });
           if (!currentResponse.success) {
-            dispatch({ type: 'error', message: `Settings read failed: ${currentResponse.error}` });
+            dispatchNotification(
+              pushError(`Settings read failed: ${currentResponse.error}`),
+            );
             return;
           }
           const data = currentResponse.data as {
-            snapshot?: { config: PiwinConfig; revision: string };
+            snapshot?: {
+              config: PiwinConfig;
+              revision: string;
+              domainRevisions?: import('@piwin/contracts').SettingsSnapshot['domainRevisions'];
+            };
           };
           if (!data.snapshot) {
-            dispatch({ type: 'error', message: 'Settings read returned no snapshot' });
+            dispatchNotification(pushError('Settings read returned no snapshot'));
             return;
           }
-          const applyResponse = await hostClient.request({
-            type: 'settings/apply',
-            input: {
-              expectedRevision: data.snapshot.revision,
-              mutations: buildMutations(data.snapshot.config),
+          const mutations = settingsMutationsForHostApply(
+            buildMutations(data.snapshot.config),
+            hostClient.getTransport(),
+          );
+          if (mutations.length === 0) {
+            return;
+          }
+          const applyResponse = await hostClient.request(
+            {
+              type: 'settings/apply',
+              input: settingsApplyInputFromSnapshot(
+                {
+                  revision: data.snapshot.revision,
+                  domainRevisions: data.snapshot.domainRevisions ?? {},
+                },
+                mutations,
+              ),
             },
-          });
+            { idempotencyKey: createGestureIdempotencyKey() },
+          );
           if (!applyResponse.success) {
-            dispatch({ type: 'error', message: `Settings save failed: ${applyResponse.error}` });
+            const notice = hostFailureNotice(applyResponse, desktopLocale);
+            if (notice.length > 0) {
+              dispatchNotification(pushError(notice));
+            }
           }
         })
         .catch((error: unknown) => {
-          dispatch({ type: 'error', message: `Settings save failed: ${formatError(error)}` });
+          dispatchNotification(
+            pushError(`Settings save failed: ${formatError(error)}`),
+          );
         });
       configSaveQueue.current = saveOperation;
       return saveOperation;
     },
-    [dispatch, hostClient],
+    [desktopLocale, dispatchNotification, hostClient],
   );
 
   const handleRemoveProjectFromSidebar = useCallback(
@@ -1241,7 +1352,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         path: projectPath,
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
 
@@ -1294,10 +1405,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         return;
       }
       const selectedModel = modelOptions.find(
-        (model) => `${model.providerId}::${model.modelId}` === nextModelKey,
+        (model) => formatComposerModelKey(model.providerId, model.modelId) === nextModelKey,
       );
       const nextConfig: PiwinConfig = {
         ...config,
+        ...(selectedModel
+          ? {
+              defaultProviderId: selectedModel.providerId,
+              defaultModelId: selectedModel.modelId,
+            }
+          : {}),
+        thinking: {
+          ultraEnabled: config.thinking?.ultraEnabled === true,
+          defaultLevel: nextThinkingLevel,
+        },
         desktop: {
           ...config.desktop,
           composerProfile: {
@@ -1315,24 +1436,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         },
       };
       setConfig(nextConfig);
-      void saveSettingsInOrder((currentConfig) => [
-        {
-          kind: 'replace-domain',
-          domain: 'desktop',
-          value: {
-            ...currentConfig.desktop,
-            composerProfile: nextConfig.desktop?.composerProfile,
-          } as NonNullable<PiwinConfig['desktop']>,
-        },
-      ]);
+      void saveSettingsInOrder((currentConfig) =>
+        composerProfileSettingsMutations({
+          transport: hostClient.getTransport(),
+          currentDesktop: currentConfig.desktop,
+          composerProfile: nextConfig.desktop?.composerProfile,
+          currentThinking: currentConfig.thinking,
+          selectedModel: selectedModel
+            ? { providerId: selectedModel.providerId, modelId: selectedModel.modelId }
+            : undefined,
+        }),
+      );
     },
-    [config, modelOptions, saveSettingsInOrder, setConfig],
+    [config, hostClient, modelOptions, saveSettingsInOrder, setConfig],
   );
 
   const handleSelectModel = useCallback(
     async (nextModelKey: string): Promise<void> => {
       const nextModel = modelOptions.find(
-        (model) => `${model.providerId}::${model.modelId}` === nextModelKey,
+        (model) => formatComposerModelKey(model.providerId, model.modelId) === nextModelKey,
       );
       if (!nextModel || nextModelKey === selectedModelKey || modelSwitchInFlightRef.current) {
         return;
@@ -1371,14 +1493,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             },
           });
           if (!response.success) {
-            dispatch({ type: 'error', message: response.error });
+            dispatchNotification(pushError(response.error));
             return;
           }
           if (activeSessionIdRef.current !== preparedSessionId) {
             return;
           }
         } catch (error) {
-          dispatch({ type: 'error', message: formatError(error) });
+          dispatchNotification(pushError(formatError(error)));
           return;
         } finally {
           modelSwitchInFlightRef.current = false;
@@ -1421,9 +1543,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // default" persists to config.permissions.preset. Derived from config when
   // no session override is set.
   const [runModeOverride, setRunModeOverride] = useState<PermissionPreset | null>(null);
-  const configPreset: PermissionPreset =
-    config?.permissions?.preset ??
-    (config?.permissions?.mode ? modeToPreset(config.permissions.mode) : 'auto');
+  const configPreset: PermissionPreset = resolvePermissionPreset(config?.permissions);
   const effectiveRunMode: PermissionPreset = runModeOverride ?? configPreset;
 
   const handleRunModeChange = useCallback((nextPreset: PermissionPreset): void => {
@@ -1522,6 +1642,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     hostClient,
     state,
     dispatch,
+    dispatchNotification,
     agentMode,
     orchestrationSchemeId,
     onOrchestrationSchemeChange: setOrchestrationSchemeId,
@@ -1539,6 +1660,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     thinkingLevel,
     delegationDisabled,
     visionDelegationEnabled: config?.visionDelegation?.enabled === true,
+    confirmBusyRun,
     confirmForegroundReplace,
     confirmTextOnlyImageSend: async (message) => {
       // Lightweight confirm; host still path-injects if user continues.
@@ -1672,9 +1794,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       caps: {
         hasProject: Boolean(state.projectPath),
         canReveal: false,
-        sideChatAvailable: Boolean(state.activeSessionId && state.hostReady),
-        applyAvailable: true,
-        openChangedFilesAvailable: Boolean(state.projectPath),
+        sideChatAvailable: Boolean(
+          state.activeSessionId &&
+            state.hostReady &&
+            hostClient.supportsCommand('side-chat/open'),
+        ),
+        applyAvailable: hostClient.supportsCommand('project/read-file'),
+        openChangedFilesAvailable: Boolean(
+          state.projectPath && hostClient.supportsCommand('project/read-file'),
+        ),
         locale: desktopLocale,
       },
       dispatchers: {
@@ -1916,7 +2044,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const refreshComposerMenus = useCallback(async (): Promise<void> => {
     const skillsResponse = await hostClient.request({
       type: 'skills/list',
-      ...(state.projectPath ? { projectPath: state.projectPath } : {}),
+      ...(hostClient.getTransport() !== 'remote' && state.projectPath
+        ? { projectPath: state.projectPath }
+        : {}),
     } as never);
     if (skillsResponse.success && skillsResponse.data) {
       const data = skillsResponse.data as {
@@ -1930,8 +2060,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         })),
       );
     }
-    const mcpResponse = await hostClient.request({ type: 'mcp/get' } as never);
-    if (mcpResponse.success && mcpResponse.data) {
+    const mcpResponse = hostClient.supportsCommand('mcp/get')
+      ? await hostClient.request({ type: 'mcp/get' } as never)
+      : null;
+    if (mcpResponse?.success && mcpResponse.data) {
       const data = mcpResponse.data as {
         document?: { mcpServers?: Record<string, { command?: string }> };
       };
@@ -2069,15 +2201,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     if (!selectedModelKey) {
       const defaultModel = modelOptions.find(
         (option) =>
-          option.providerId === config?.defaultProviderId &&
-          option.modelId === config?.defaultModelId,
+          option.providerId === defaultProviderId &&
+          option.modelId === defaultModelId,
       );
       return defaultModel?.contextWindow;
     }
     return modelOptions.find(
       (option) => `${option.providerId}::${option.modelId}` === selectedModelKey,
     )?.contextWindow;
-  }, [modelOptions, selectedModelKey, config?.defaultProviderId, config?.defaultModelId]);
+  }, [modelOptions, selectedModelKey, defaultProviderId, defaultModelId]);
 
   const currentPromptModelRef = useMemo<ModelRef | null>(() => {
     const matched = selectedModelKey
@@ -2086,8 +2218,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         )
       : modelOptions.find(
           (option) =>
-            option.providerId === config?.defaultProviderId &&
-            option.modelId === config?.defaultModelId,
+            option.providerId === defaultProviderId &&
+            option.modelId === defaultModelId,
         );
     if (!matched) return null;
     return {
@@ -2095,7 +2227,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       providerId: matched.providerId,
       modelId: matched.modelId,
     };
-  }, [modelOptions, selectedModelKey, config?.defaultProviderId, config?.defaultModelId]);
+  }, [modelOptions, selectedModelKey, defaultProviderId, defaultModelId]);
 
   /**
    * Status-bar percent must match ContextUsageRing (shared used/limit math).
@@ -2154,6 +2286,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     openSettingsSection('general');
   }, [openSettingsSection]);
   const handleSelectLocalRuntime = useCallback((): void => {
+    saveDesktopHostLaunchMode('sidecar');
+    clearDesktopRemoteHostTarget();
+  }, []);
+  const handleSelectAttachRuntime = useCallback((): void => {
+    saveDesktopHostLaunchMode('attach');
     clearDesktopRemoteHostTarget();
   }, []);
   const handleOpenPermissionsSettings = useCallback((): void => {
@@ -2350,13 +2487,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
       isConversationSession: state.activeScope.kind === 'general',
-      branchRequest: requestGit as ComposerDockProps['branchRequest'],
+      ...(hostClient.supportsCommand('git/status')
+        ? { branchRequest: requestGit as ComposerDockProps['branchRequest'] }
+        : {}),
       recentProjects,
       onOpenProject: (path) => {
         void handleOpenProject(path);
       },
       runtimeRemoteConnected: hostClient.getTransport() === 'remote',
       onSelectLocalRuntime: handleSelectLocalRuntime,
+      onSelectAttachRuntime: handleSelectAttachRuntime,
     }),
     [
       agentMode,
@@ -2388,6 +2528,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       handleSteerQueueSendNow,
       handleOpenHostSettings,
       handleSelectLocalRuntime,
+      handleSelectAttachRuntime,
       handleOpenMcpPanel,
       handleOpenModelSettings,
       handleOpenPermissionsSettings,
@@ -2465,11 +2606,27 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     ),
     onOpenFullSession: handleEnterSubagentSession,
   });
+  const inspectorInvocation = inspector.selection
+    ? Object.values(state.subagentInvocations).find(
+        (item) => item.childSessionId === inspector.selection?.childSessionId,
+      )
+    : undefined;
+  // Anchor toggle: clicking the anchor that owns the expanded panel collapses
+  // it; clicking any other anchor moves the single inline panel there.
   const handleInspectSubagent = useCallback(
     (selection: SubagentInspectorSelection): void => {
+      const current = inspector.selection;
+      if (
+        current !== null &&
+        current.childSessionId === selection.childSessionId &&
+        current.anchorId === selection.anchorId
+      ) {
+        inspector.closeInspector();
+        return;
+      }
       inspector.openInspector(selection);
     },
-    [inspector.openInspector],
+    [inspector.selection, inspector.openInspector, inspector.closeInspector],
   );
   const handleSubagentPermission = useCallback(
     async (
@@ -2477,31 +2634,23 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       decision: PermissionDecision,
       rememberScope?: PermissionRememberScope,
     ): Promise<void> => {
-      const response = await hostClient.request({
-        type: 'permission/resolve',
-        requestId: prompt.requestId,
-        decision,
-        ...(decision === 'allow' && rememberScope ? { rememberScope } : {}),
-      });
+      const response = await hostClient.request(
+        {
+          type: 'permission/resolve',
+          requestId: prompt.requestId,
+          decision,
+          ...(decision === 'allow' && rememberScope ? { rememberScope } : {}),
+        },
+        { idempotencyKey: createGestureIdempotencyKey() },
+      );
       if (state.permissionPrompt?.requestId === prompt.requestId) {
         dispatch({ type: 'permission/clear', requestId: prompt.requestId });
       }
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(hostFailureNotice(response, desktopLocale)));
       }
     },
-    [dispatch, hostClient, state.permissionPrompt?.requestId],
-  );
-  const handleContinueSubagent = useCallback(
-    async (childSessionId: string, text: string): Promise<void> => {
-      const response = await hostClient.request({
-        type: 'subagent/continue',
-        childSessionId,
-        text,
-      });
-      if (!response.success) throw new Error(response.error);
-    },
-    [hostClient],
+    [desktopLocale, dispatch, dispatchNotification, hostClient, state.permissionPrompt?.requestId],
   );
   const handleSubagentWorktreeAction = useCallback(
     async (
@@ -2517,6 +2666,85 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
     [hostClient],
   );
+  const subagentInspectorToggle = useMemo<SubagentInspectorToggle>(
+    () => ({ selection: inspector.selection, toggle: handleInspectSubagent }),
+    [inspector.selection, handleInspectSubagent],
+  );
+  const subagentInspectorChild = inspector.selection
+    ? state.subagentChildren[inspector.selection.childSessionId]
+    : undefined;
+  const subagentInspectorPanel = useMemo<SubagentInspectorPanelData>(
+    () => ({
+      status: inspector.status,
+      messages: inspector.messages,
+      liveTail: inspector.liveTail,
+      loading: inspector.loading,
+      error: inspector.error,
+      ...(subagentInspectorChild ? { child: subagentInspectorChild } : {}),
+      ...(inspectorInvocation ? { invocation: inspectorInvocation } : {}),
+      ...(modelOptions.length > 0 ? { modelOptions } : {}),
+      showThinking: preferences.verboseAgentChat,
+      projectPath: subagentInspectorChild?.projectPath ?? null,
+      ...(hostClient.supportsCommand('git/diff-file')
+        ? { request: requestGit as never }
+        : {}),
+      ...(hostClient.supportsCommand('git/diff-summary')
+        ? { filesChangedRequest: requestGit as never }
+        : {}),
+      ...(hostClient.supportsCommand('project/read-file')
+        ? {
+            onOpenFile: (absolutePath: string, relativePath?: string) => {
+              handleOpenDocument(
+                {
+                  title: (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
+                  path: absolutePath,
+                },
+                'inspector',
+              );
+            },
+            onOpenDocument: handleOpenDocument,
+          }
+        : {}),
+      onOpenDiff: handleOpenDiff,
+      onArtifactAction: handleArtifactAction,
+      onOpenArtifactCanvas: handleOpenArtifactCanvas,
+      artifactPreviewEnabled: config?.artifact?.enabled ?? true,
+      ...(config?.artifact?.maxBytes !== undefined
+        ? { artifactMaxBytes: config.artifact.maxBytes }
+        : {}),
+      onPermission: (prompt, decision, rememberScope) => {
+        void handleSubagentPermission(prompt, decision, rememberScope);
+      },
+      onOpenFullSession: inspector.openFullSession,
+      onRetry: inspector.retryLoad,
+      onClose: inspector.closeInspector,
+      onWorktreeAction: handleSubagentWorktreeAction,
+    }),
+    [
+      inspector.status,
+      inspector.messages,
+      inspector.liveTail,
+      inspector.loading,
+      inspector.error,
+      inspector.openFullSession,
+      inspector.retryLoad,
+      inspector.closeInspector,
+      subagentInspectorChild,
+      inspectorInvocation,
+      modelOptions,
+      preferences.verboseAgentChat,
+      hostClient,
+      requestGit,
+      handleOpenDocument,
+      handleOpenDiff,
+      handleArtifactAction,
+      handleOpenArtifactCanvas,
+      config?.artifact?.enabled,
+      config?.artifact?.maxBytes,
+      handleSubagentPermission,
+      handleSubagentWorktreeAction,
+    ],
+  );
   const handleCancelMessageEdit = useCallback((): void => {
     setEditingMessageId(null);
   }, []);
@@ -2530,7 +2758,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         delivery.status !== 'pending' ||
         !delivery.targetRunId
       ) {
-        dispatch({ type: 'error', message: '这条调整已不能编辑，请重新发送。' });
+        dispatchNotification(pushError('这条调整已不能编辑，请重新发送。'));
         return;
       }
       const response = await hostClient.request({
@@ -2542,7 +2770,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         input: { text },
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
@@ -2554,7 +2782,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       }
       setEditingMessageId(null);
     },
-    [hostClient, state.activeSessionId, state.messages],
+    [dispatch, dispatchNotification, hostClient, state.activeSessionId, state.messages],
   );
   const handleInterventionCancel = useCallback(
     async (messageId: string): Promise<void> => {
@@ -2576,7 +2804,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         expectedRevision: delivery.revision,
       });
       if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
         return;
       }
       const responseData = response.data as { intervention?: RunInterventionRecord } | undefined;
@@ -2605,12 +2833,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         type: 'notify/push',
         notification: { level, message },
       });
-    },
-    [dispatchNotification],
-  );
-  const handleDismissNotification = useCallback(
-    (id: string): void => {
-      dispatchNotification({ type: 'notify/dismiss', id });
     },
     [dispatchNotification],
   );
@@ -2664,10 +2886,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   // Media documents render through the media viewer; text through DocPreviewPanel.
   const activeMedia = activeDocumentMedia(activeDocument);
+  const readTranscriptMedia = useCallback(
+    (input: { sessionId: string; assetId: string }) => readMediaPreviewViaHost(hostClient, input),
+    [hostClient],
+  );
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
+      <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
       <DesktopContextMenuProvider value={desktopContextMenuValue}>
+      <SubagentInspectorProvider toggle={subagentInspectorToggle} panel={subagentInspectorPanel}>
         <div
           className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
           style={appShellStyle}
@@ -2677,11 +2905,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           data-settings-open={settingsOpen ? 'true' : 'false'}
           data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
         >
-          <NotificationRegion
-            items={notificationState.items}
-            onDismiss={handleDismissNotification}
-          />
-
           <WorkspaceShell
             workspaceClassName={settingsOpen ? 'settings-workspace-suspended' : undefined}
             sidebar={
@@ -2724,9 +2947,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   }
                 }}
                 settingsOpen={settingsOpen}
-                onOpenWorkspace={() => void handleOpenWorkspaceClick()}
+                {...(hostClient.supportsCommand('project/open')
+                  ? { onOpenWorkspace: () => void handleOpenWorkspaceClick() }
+                  : {})}
                 onOpenProject={(path) => void handleOpenProject(path)}
-                onRemoveProject={(path) => void handleRemoveProjectFromSidebar(path)}
+                {...(hostClient.supportsCommand('project/remove')
+                  ? {
+                      onRemoveProject: (path: string) =>
+                        void handleRemoveProjectFromSidebar(path),
+                    }
+                  : {})}
                 onNewSession={() => void handleStartNewSession()}
                 onNewGeneralSession={() => {
                   void (async () => {
@@ -2746,6 +2976,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onResumeDraft={handleResumeDraft}
                 draftSessions={draftSessions}
                 activeDraftId={activeDraftId}
+                sessionMenu={sessionMenu}
                 onOpenSessionMenu={openSessionMenu}
                 onTogglePin={(sessionId, currentlyPinned) =>
                   void handleSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
@@ -2765,7 +2996,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 }}
                 onOpenSettings={() => openSettingsSection('general')}
                 knowledgeOpen={knowledgeOpen}
-                onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
+                {...(hostClient.supportsCommand('doccards/scan-folder')
+                  ? { onToggleKnowledge: () => setKnowledgeOpen((current) => !current) }
+                  : {})}
                 generalActive={state.activeScope.kind === 'general'}
                 onSelectGeneral={() => {
                   dispatch({ type: 'project/clear' });
@@ -2805,7 +3038,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               <ContextBar
                 session={{
                   title: state.projectPath
-                    ? `${projectDisplayName(state.projectPath)} / ${activeSessionName}`
+                    ? `${projectLabel(state.projectPath, recentProjects)} / ${activeSessionName}`
                     : activeSessionName,
                   scopeLabel:
                     state.activeScope.kind === 'general'
@@ -2849,12 +3082,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       },
                     }
                   : {})}
-                {...(state.activeScope.kind === 'general'
-                  ? {}
-                  : {
-                      permissionMode: config?.permissions?.preset ?? configPreset,
-                      onOpenPermissions: () => openSettingsSection('permissions'),
-                    })}
+                permissionMode={effectiveRunMode}
+                onOpenPermissions={() => openSettingsSection('permissions')}
                 locale={desktopLocale}
                 appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
                 sessionsExpanded={navDrawerOpen}
@@ -2927,30 +3156,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             }
             transcript={
               <>
-                <MainErrorBanner
-                  message={state.error}
-                  onDismiss={() => dispatch({ type: 'error/clear' })}
-                />
-                {state.projectPath && !state.projectTrusted ? (
-                  <div className="chat-inline-notice">
-                    <ProjectTrustNotice
-                      projectPath={state.projectPath}
-                      onTrust={() => void handleTrustProject(true)}
-                    />
-                  </div>
-                ) : null}
-                {state.activeSessionArchived ? (
-                  <div className="chat-inline-notice">
-                    <SessionArchivedBanner
-                      sessionName={activeSessionName}
-                      onRestore={() => {
-                        if (state.activeSessionId) {
-                          void handleSessionMenuAction(state.activeSessionId, 'unarchive');
-                        }
-                      }}
-                      onNewAgent={() => void handleStartNewSession()}
-                    />
-                  </div>
+                {shouldShowHostReconnectBanner({
+                  transport: hostClient.getTransport(),
+                  wireReady: hostClient.isReady(),
+                }) ? (
+                  <HostReconnectBanner locale={desktopLocale} />
                 ) : null}
                 {state.awaitingTranscript ? (
                   <div
@@ -3000,7 +3210,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         docCardRequest={requestKnowledgeCenter as never}
                         isConversationSession={state.activeScope.kind === 'general'}
                         onResolveFlashcards={resolveConversationFlashcards}
-                        livePromptModel={state.streaming ? currentPromptModelRef : null}
+                        livePromptModel={currentPromptModelRef}
                         modelOptions={modelOptions}
                         {...(config?.providers !== undefined ? { configProviders: config.providers } : {})}
                         contextUsage={state.contextUsage}
@@ -3016,8 +3226,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                           : {})}
                         permissionPrompt={state.permissionPrompt}
                         projectPath={state.projectPath}
-                        toolDiffRequest={requestGit as never}
-                        filesChangedRequest={requestGit as never}
+                        {...(hostClient.supportsCommand('git/diff-file')
+                          ? { toolDiffRequest: requestGit as never }
+                          : {})}
+                        {...(hostClient.supportsCommand('git/diff-summary')
+                          ? { filesChangedRequest: requestGit as never }
+                          : {})}
                         onReviewChanges={() => openRightTab('review')}
                         onPermission={(decision, scope) => {
                           void handlePermission(decision, scope);
@@ -3046,17 +3260,23 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         onFeedback={handleMessageFeedback}
                         onArtifactAction={handleArtifactAction}
                         onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                        onOpenFile={(absolutePath, relativePath) => {
-                          handleOpenDocument(
-                            {
-                              title:
-                                (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
-                              path: absolutePath,
-                            },
-                            'inspector',
-                          );
-                        }}
-                        onOpenDocument={handleOpenDocument}
+                        {...(hostClient.supportsCommand('project/read-file')
+                          ? {
+                              onOpenFile: (absolutePath: string, relativePath?: string) => {
+                                handleOpenDocument(
+                                  {
+                                    title:
+                                      (relativePath || absolutePath).split(/[\\/]/).pop() ||
+                                      absolutePath,
+                                    path: absolutePath,
+                                  },
+                                  'inspector',
+                                );
+                              },
+                              onOpenDocument: handleOpenDocument,
+                            }
+                          : {})}
+                        onOpenDiff={handleOpenDiff}
                         onPlanExecute={handlePlanExecute}
                         onPlanAbort={handlePlanAbort}
                         composerCard={composerCard}
@@ -3154,6 +3374,27 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             }
             composerDock={
               <>
+                {state.projectPath && !state.projectTrusted ? (
+                  <div className="composer-sticky-banner chat-inline-notice">
+                    <ProjectTrustNotice
+                      projectPath={state.projectPath}
+                      onTrust={() => void handleTrustProject(true)}
+                    />
+                  </div>
+                ) : null}
+                {state.activeSessionArchived ? (
+                  <div className="composer-sticky-banner chat-inline-notice">
+                    <SessionArchivedBanner
+                      sessionName={activeSessionName}
+                      onRestore={() => {
+                        if (state.activeSessionId) {
+                          void handleSessionMenuAction(state.activeSessionId, 'unarchive');
+                        }
+                      }}
+                      onNewAgent={() => void handleStartNewSession()}
+                    />
+                  </div>
+                ) : null}
                 {state.messages.length === 0 && !state.awaitingTranscript ? (
                   <InkWashEmptyVignette theme={activeTheme} />
                 ) : null}
@@ -3231,40 +3472,59 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   onOpenMcp={() => openSettingsSection('tools')}
                   onOpenSettings={() => openSettingsSection('general')}
                   onToggleSessions={() => shell.toggleSessions()}
-                  notesContent={<DeferredNotesPanel request={requestNotesPanel} />}
-                  cardsContent={<DeferredFlashcardsPanel request={requestCardsPanel} />}
+                  notesContent={
+                    hostClient.supportsCommand('notes/list') ? (
+                      <DeferredNotesPanel
+                        request={requestNotesPanel}
+                        readOnly={!hostClient.supportsCommand('notes/write')}
+                      />
+                    ) : (
+                      <RemoteUnavailableSurface feature="notes" locale={desktopLocale} />
+                    )
+                  }
+                  cardsContent={
+                    hostClient.supportsCommand('flashcards/list') ? (
+                      <DeferredFlashcardsPanel request={requestCardsPanel} />
+                    ) : (
+                      <RemoteUnavailableSurface feature="flashcards" locale={desktopLocale} />
+                    )
+                  }
                   filesContent={
-                    <DeferredFileTreePanel
-                      projectPath={state.projectPath}
-                      request={requestFileTree}
-                      onAddContextRef={(ref) => {
-                        const result = addContextRef(ref);
-                        if (!result.ok) {
-                          dispatchNotification({
-                            type: 'notify/push',
-                            notification: {
-                              level: 'warning',
-                              message: 'Context chip limit reached (12). Remove one first.',
-                            },
-                          });
-                          return;
-                        }
-                      }}
-                      onSendPreset={(text, refs) => {
-                        for (const ref of refs) {
-                          addContextRef(ref);
-                        }
-                        void handleSend(text);
-                      }}
-                      onInsertPath={(absolutePath) => {
-                        setComposer((current) =>
-                          current.trim().length > 0
-                            ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
-                            : absolutePath,
-                        );
-                      }}
-                      locale={desktopLocale}
-                    />
+                    hostClient.supportsCommand('project/list-dir') ? (
+                      <DeferredFileTreePanel
+                        projectPath={state.projectPath}
+                        request={requestFileTree}
+                        onAddContextRef={(ref) => {
+                          const result = addContextRef(ref);
+                          if (!result.ok) {
+                            dispatchNotification({
+                              type: 'notify/push',
+                              notification: {
+                                level: 'warning',
+                                message: 'Context chip limit reached (12). Remove one first.',
+                              },
+                            });
+                            return;
+                          }
+                        }}
+                        onSendPreset={(text, refs) => {
+                          for (const ref of refs) {
+                            addContextRef(ref);
+                          }
+                          void handleSend(text);
+                        }}
+                        onInsertPath={(absolutePath) => {
+                          setComposer((current) =>
+                            current.trim().length > 0
+                              ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
+                              : absolutePath,
+                          );
+                        }}
+                        locale={desktopLocale}
+                      />
+                    ) : (
+                      <RemoteUnavailableSurface feature="files" locale={desktopLocale} />
+                    )
                   }
                   canvasContent={
                     <ArtifactCanvasPanel
@@ -3280,10 +3540,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     />
                   }
                   browserContent={
-                    <DeferredBrowserSessionPanel
-                      hostClient={hostClient}
-                      onAddWebElement={addWebElement}
-                    />
+                    hostClient.supportsCommand('browser/start') ? (
+                      <DeferredBrowserSessionPanel
+                        hostClient={hostClient}
+                        onAddWebElement={addWebElement}
+                      />
+                    ) : (
+                      <RemoteUnavailableSurface feature="browser" locale={desktopLocale} />
+                    )
                   }
                   sideChatContent={
                     <DeferredSideChatPanel
@@ -3292,7 +3556,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     />
                   }
                   docPreviewContent={
-                    activeMedia ? (
+                    inspectorFileDiff.diff && state.projectPath ? (
+                      <FileDiffInspector
+                        projectPath={state.projectPath}
+                        path={inspectorFileDiff.diff.relativePath}
+                        request={requestGit as never}
+                      />
+                    ) : activeMedia ? (
                       <DeferredMediaDocPreview
                         title={activeDocument?.title}
                         displayRef={activeDocument?.displayRef}
@@ -3366,43 +3636,51 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     )
                   }
                   terminalContent={
-                    <DeferredTerminalDock
-                      projectPath={state.projectPath}
-                      projectTrusted={state.projectTrusted}
-                      ptyOutput={ptyOutput}
-                      onClearPtyOutput={() => setPtyOutput([])}
-                      currentCwd={terminalCwd}
-                      onCwdChange={handleTerminalCwdChange}
-                      recentDirs={terminalRecentDirs}
-                      request={requestPty}
-                    />
+                    hostClient.supportsCommand('pty/open') ? (
+                      <DeferredTerminalDock
+                        projectPath={state.projectPath}
+                        projectTrusted={state.projectTrusted}
+                        ptyOutput={ptyOutput}
+                        onClearPtyOutput={() => setPtyOutput([])}
+                        currentCwd={terminalCwd}
+                        onCwdChange={handleTerminalCwdChange}
+                        recentDirs={terminalRecentDirs}
+                        request={requestPty}
+                      />
+                    ) : (
+                      <RemoteUnavailableSurface feature="terminal" locale={desktopLocale} />
+                    )
                   }
                   reviewContent={
-                    <DeferredReviewPanel
-                      changesContent={
-                        <DeferredChangesPanel
-                          projectPath={state.projectPath}
-                          request={requestGit as never}
-                          onOpenFile={(absolutePath, relativePath) => {
-                            // Workspace files open beside the file rail only — never the chat stage.
-                            handleOpenDocument(
-                              {
-                                title: relativePath.split(/[\\/]/).pop() || relativePath,
-                                path: absolutePath,
-                              },
-                              'inspector',
-                            );
-                          }}
-                        />
-                      }
-                      gitContent={
-                        <DeferredGitPanel
-                          projectPath={state.projectPath}
-                          request={requestGit as never}
-                          variant="embedded"
-                        />
-                      }
-                    />
+                    hostClient.supportsCommand('git/status') ? (
+                      <DeferredReviewPanel
+                        changesContent={
+                          <DeferredChangesPanel
+                            projectPath={state.projectPath}
+                            request={requestGit as never}
+                            onOpenFile={(absolutePath, relativePath) => {
+                              // Workspace files open beside the file rail only — never the chat stage.
+                              handleOpenDocument(
+                                {
+                                  title: relativePath.split(/[\\/]/).pop() || relativePath,
+                                  path: absolutePath,
+                                },
+                                'inspector',
+                              );
+                            }}
+                          />
+                        }
+                        gitContent={
+                          <DeferredGitPanel
+                            projectPath={state.projectPath}
+                            request={requestGit as never}
+                            variant="embedded"
+                          />
+                        }
+                      />
+                    ) : (
+                      <RemoteUnavailableSurface feature="review" locale={desktopLocale} />
+                    )
                   }
                 />
               </>
@@ -3442,6 +3720,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 },
               });
             }}
+            {...(hostClient.supportsCommand('session/export') ? {} : { sessionMenuCanExport: false })}
+            {...(hostClient.supportsCommand('session/duplicate')
+              ? {}
+              : { sessionMenuCanDuplicate: false })}
+            {...(hostClient.supportsCommand('session/duplicate')
+              ? {}
+              : { sessionMenuCanContinueInProject: false })}
             renameDraft={renameDraft}
             onRenameDraftChange={setRenameDraft}
             onRenameSession={(sessionId, name) => {
@@ -3565,58 +3850,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             </Dialog>
           ) : null}
 
-          {inspector.selection !== null ? (
-            <DeferredSurfaceBoundary
-              label={desktopLocale === 'zh-CN' ? '正在加载子代理会话' : 'Loading subagent session'}
-            >
-              <DeferredSubagentSessionDialog
-                open
-                selection={inspector.selection}
-                {...(state.subagentChildren[inspector.selection.childSessionId]
-                  ? { child: state.subagentChildren[inspector.selection.childSessionId] }
-                  : {})}
-                status={inspector.status}
-                messages={inspector.messages}
-                liveTail={inspector.liveTail}
-                loading={inspector.loading}
-                error={inspector.error}
-                showThinking={preferences.verboseAgentChat}
-                projectPath={
-                  state.subagentChildren[inspector.selection.childSessionId]?.projectPath ?? null
-                }
-                request={requestGit as never}
-                filesChangedRequest={requestGit as never}
-                onOpenFile={(absolutePath, relativePath) => {
-                  handleOpenDocument(
-                    {
-                      title: (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
-                      path: absolutePath,
-                    },
-                    'inspector',
-                  );
-                }}
-                onOpenDocument={handleOpenDocument}
-                onArtifactAction={handleArtifactAction}
-                onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                artifactPreviewEnabled={config?.artifact?.enabled ?? true}
-                {...(config?.artifact?.maxBytes !== undefined
-                  ? { artifactMaxBytes: config.artifact.maxBytes }
-                  : {})}
-                onPermission={(prompt, decision, rememberScope) => {
-                  void handleSubagentPermission(prompt, decision, rememberScope);
-                }}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    inspector.closeInspector();
-                  }
-                }}
-                onOpenFullSession={inspector.openFullSession}
-                onRetry={inspector.retryLoad}
-                onContinue={handleContinueSubagent}
-                onWorktreeAction={handleSubagentWorktreeAction}
-              />
-            </DeferredSurfaceBoundary>
-          ) : null}
         </div>
         {settingsOpen ? (
           <DeferredSurfaceBoundary
@@ -3649,10 +3882,87 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onPetActiveChanged={setActivePet}
               onClose={shell.closeSettings}
               onSaved={handleSettingsSaved}
+              {...(config ? { seedConfig: config } : {})}
             />
           </DeferredSurfaceBoundary>
         ) : null}
+      </SubagentInspectorProvider>
       </DesktopContextMenuProvider>
+      </MediaPreviewReadProvider>
     </DesktopLocaleProvider>
   );
+}
+
+/**
+ * Boot gate: choose sidecar vs attach before any host_start. Attach without a
+ * saved target stays on the connect wall (zero local Host processes).
+ */
+export function App(props: AppProps) {
+  const [locale, setLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
+  const [, setGateEpoch] = useState(0);
+
+  useEffect(() => {
+    const refresh = (): void => {
+      setGateEpoch((current) => current + 1);
+    };
+    const unsubscribeTarget = subscribeDesktopRemoteHostTargetChange(refresh);
+    const unsubscribeLaunch = subscribeDesktopHostLaunchModeChange(refresh);
+    return () => {
+      unsubscribeTarget();
+      unsubscribeLaunch();
+    };
+  }, []);
+
+  const resolution = resolveDesktopHostResolution();
+
+  if (resolution.kind === 'undecided') {
+    return (
+      <DesktopLocaleProvider
+        locale={locale}
+        onLocaleChange={(next) => {
+          saveDesktopLocale(next);
+          setLocale(next);
+        }}
+      >
+        <HostLaunchChooser
+          onChooseSidecar={() => {
+            saveDesktopHostLaunchMode('sidecar');
+          }}
+          onChooseAttach={() => {
+            saveDesktopHostLaunchMode('attach');
+          }}
+        />
+      </DesktopLocaleProvider>
+    );
+  }
+
+  if (resolution.kind === 'attach-wall') {
+    return (
+      <DesktopLocaleProvider
+        locale={locale}
+        onLocaleChange={(next) => {
+          saveDesktopLocale(next);
+          setLocale(next);
+        }}
+      >
+        <HostConnectWall
+          allowLocal={!isDesktopShellOnlyBuild()}
+          onConnected={(target) => {
+            saveDesktopHostLaunchMode('attach');
+            saveDesktopRemoteHostTarget(target);
+          }}
+          {...(isDesktopShellOnlyBuild()
+            ? {}
+            : {
+                onUseLocal: () => {
+                  clearDesktopRemoteHostTarget();
+                  saveDesktopHostLaunchMode('sidecar');
+                },
+              })}
+        />
+      </DesktopLocaleProvider>
+    );
+  }
+
+  return <AppWorkbench key={resolution.kind} {...props} />;
 }

@@ -13,9 +13,8 @@ export type SubagentSpawnOptions = {
   allowedOutputPaths?: string[];
   retainWorktree?: boolean;
   /**
-   * Display-only compatibility label. Profile selection is the canonical way
-   * to express child behavior; `role` is preserved for legacy callers only.
-   * @deprecated Use `profileId` via the spawn command instead.
+   * Product call name from an orchestration scheme roster (e.g. scout).
+   * Distinct from `profileId`, which is the capability recipe.
    */
   role?: string;
   /**

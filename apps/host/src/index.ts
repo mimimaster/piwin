@@ -7,23 +7,32 @@ import {
   HostDevicePairingFileStore,
   HostServer,
   assertPairingBindIsAdvertisable,
+  type HostConnectionEvent,
 } from '@piwin/host-server';
 import { createHostPairingAnnouncement, resolveAdvertisedEndpoint } from './pairing-print.js';
+import { resolveAgentWorkerScript } from './resolve-agent-worker-script.js';
 
 const mode = process.env.PIWIN_HOST_MODE === 'rpc' ? 'rpc' : 'sdk';
 const mock = process.env.PIWIN_MOCK === '1';
 const host = process.env.PIWIN_HOST_BIND ?? '127.0.0.1';
 const port = parsePort(process.env.PIWIN_HOST_PORT) ?? 8787;
-const authToken = process.env.PIWIN_HOST_TOKEN;
+const authTokenRaw = process.env.PIWIN_HOST_TOKEN?.trim();
+// Empty PIWIN_HOST_TOKEN= must not enable a token that nothing can satisfy.
+const authToken =
+  authTokenRaw === undefined || authTokenRaw.length === 0 ? undefined : authTokenRaw;
 const pairingEnabled = process.env.PIWIN_HOST_PAIRING === '1';
-// ADR 0047 §12: remote extension activation executes code on this Host and
-// stays denied unless the operator opts in explicitly.
+// Admitted clients are the operator. This flag is accepted for compatibility.
 const allowRemoteExtensionActivation = process.env.PIWIN_HOST_ALLOW_EXTENSION_ACTIVATION === '1';
+const hostBuildId = process.env.PIWIN_HOST_BUILD_ID?.trim() || '0.0.0-dev';
+const minClientVersion = process.env.PIWIN_HOST_MIN_CLIENT_VERSION?.trim() || undefined;
+const allowCleartext = process.env.PIWIN_HOST_ALLOW_CLEARTEXT === '1';
 
+const agentWorkerScript = resolveAgentWorkerScript();
 const runtime = new HostRuntime({
   mode,
   mock,
   ...(process.env.PIWIN_ROOT === undefined ? {} : { piwinRoot: process.env.PIWIN_ROOT }),
+  ...(agentWorkerScript === undefined ? {} : { agentWorkerScript }),
 });
 
 let devicePairing: HostDevicePairing | undefined;
@@ -51,21 +60,32 @@ if (pairingEnabled) {
   devicePairingStore = store;
 }
 
+if (authToken !== undefined && !isLoopbackBind(host) && !allowCleartext) {
+  console.warn(
+    '[piwin-host] warning: door token will ride a cleartext WebSocket on a non-loopback bind. Prefer Tailscale Serve / TLS reverse proxy, or set PIWIN_HOST_ALLOW_CLEARTEXT=1 for a trusted private network.',
+  );
+}
+
 const server = new HostServer({
   runtime,
   mode,
   host,
   port,
+  hostBuildId,
+  ...(minClientVersion === undefined ? {} : { minClientVersion }),
   ...(authToken === undefined ? {} : { authToken }),
   ...(devicePairing === undefined ? {} : { devicePairing }),
   ...(devicePairingStore === undefined ? {} : { devicePairingStore }),
   allowRemoteExtensionActivation,
   onError: (error) => console.error(`[piwin-host] ${error.message}`),
+  onConnectionEvent: (event) => logConnectionEvent(event),
 });
 
 try {
   const address = await server.start();
-  console.log(`[piwin-host] listening at ${address.url} (${mode}${mock ? ', mock' : ''})`);
+  console.log(
+    `[piwin-host] listening at ${address.url} (${mode}${mock ? ', mock' : ''}; build=${hostBuildId})`,
+  );
   if (devicePairing !== undefined && devicePairingStore !== undefined) {
     const minted = devicePairing.mintToken();
     await devicePairingStore.save(devicePairing);
@@ -82,6 +102,7 @@ try {
     console.log(announcement.text);
   }
 } catch (error) {
+  await server.stop().catch(() => undefined);
   await runtime.dispose();
   console.error(`[piwin-host] failed to start: ${toError(error).message}`);
   process.exitCode = 1;
@@ -109,6 +130,23 @@ process.once('SIGTERM', () => {
     process.exitCode = 1;
   });
 });
+
+function logConnectionEvent(event: HostConnectionEvent): void {
+  const parts = [
+    `phase=${event.phase}`,
+    `conn=${event.connectionId}`,
+    ...(event.clientId === undefined ? [] : [`client=${event.clientId}`]),
+    ...(event.deviceId === undefined ? [] : [`device=${event.deviceId}`]),
+    ...(event.code === undefined ? [] : [`code=${event.code}`]),
+    ...(event.reason === undefined || event.reason.length === 0 ? [] : [`reason=${event.reason}`]),
+    ...(event.seq === undefined ? [] : [`seq=${event.seq}`]),
+  ];
+  console.log(`[piwin-host] connection ${parts.join(' ')}`);
+}
+
+function isLoopbackBind(bindHost: string): boolean {
+  return bindHost === '127.0.0.1' || bindHost === 'localhost' || bindHost === '::1';
+}
 
 function resolvePiwinRoot(): string {
   const override = process.env.PIWIN_ROOT?.trim();

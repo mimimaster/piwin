@@ -2,7 +2,7 @@
 
 | Field | Value |
 | ----- | ----- |
-| Status | Active |
+| Status | Active（壳子/Host 分开打包见 [2026-08-19-shell-host-split-packaging.md](./2026-08-19-shell-host-split-packaging.md)） |
 | Date | 2026-08-17 |
 
 ## 0. 产品切线（v1 是什么）
@@ -25,8 +25,8 @@ v1 **不是**：iOS pairing / APNs / 公网 Web / 多租户登录 / 把所有实
 
 | 残留 | 状态 | 为何不能 `git merge` |
 | ---- | ---- | ------------------- |
-| `feat/standalone-host-multi-client-continuity` | 15 提交 + 大量未提交 pairing/APNs；落后 main **81** 提交 | 会冲掉 Knowledge Center / 设置改版 / queued-turn；`host-runtime.ts` 两边都在改 |
-| `feat/browser-host-token-admission` | **0** 独立提交，全是未提交 `apps/web` | 底是旧 main；应移植，不是 merge |
+| `feat/standalone-host-multi-client-continuity` | **已删 worktree + 本地分支**（2026-08-19） | 连接能力已在 main |
+| `feat/browser-host-token-admission` | **已删 worktree + 本地分支**（2026-08-19） | 连接墙已在 main |
 | `feat/doccards-rag-v2` | 仅未跟踪 `fixtures/`，落后 29 提交 | Knowledge Center **已经在 main** |
 | `feat/artifact-dual-renderer` | 2 提交未进 main | ArtifactFrame 在 main 已演进；要对照再移植 |
 | `rescue/session-cold-storage-r1` | 7 提交，+7909 行 | ADR 0040 管的是 runtime 驻留，不是 pack 冷存；独立功能，不挡 v1 |

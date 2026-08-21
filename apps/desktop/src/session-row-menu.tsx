@@ -1,7 +1,19 @@
 /**
  * Context menu for agent session rows (Cursor-style: pin/rename/archive/delete).
  */
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement, type ReactNode } from 'react';
+import {
+  IconArchive,
+  IconArrowFork,
+  IconCopy,
+  IconDownload,
+  IconEdit,
+  IconFolderOpen,
+  IconPin,
+  IconRefresh,
+  IconTrash,
+  IconUnarchive,
+} from '@piwin/ui-kit';
 import { sessionActionItems } from './session-actions-menu';
 
 export type SessionRowMenuAction =
@@ -22,11 +34,42 @@ export type SessionRowMenuProps = {
   isPinned: boolean;
   isArchived: boolean;
   storageState?: 'local' | 'offloaded' | 'missing-pack';
+  canExport?: boolean;
+  canDuplicate?: boolean;
+  canContinueInProject?: boolean;
   /** Screen position for fixed menu (from contextmenu / button). */
   position: { x: number; y: number };
   onAction: (action: SessionRowMenuAction) => void;
   onClose: () => void;
 };
+
+function renderSessionActionIcon(action: SessionRowMenuAction): ReactNode {
+  switch (action) {
+    case 'pin':
+    case 'unpin':
+      return <IconPin width={14} height={14} />;
+    case 'rename':
+      return <IconEdit width={14} height={14} />;
+    case 'copy-id':
+      return <IconCopy width={14} height={14} />;
+    case 'duplicate':
+      return <IconArrowFork width={14} height={14} />;
+    case 'continue-in-project':
+      return <IconFolderOpen width={14} height={14} />;
+    case 'export':
+      return <IconDownload width={14} height={14} />;
+    case 'archive':
+      return <IconArchive width={14} height={14} />;
+    case 'unarchive':
+      return <IconUnarchive width={14} height={14} />;
+    case 'restore-pack':
+      return <IconRefresh width={14} height={14} />;
+    case 'delete':
+      return <IconTrash width={14} height={14} />;
+    default:
+      return null;
+  }
+}
 
 export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -85,12 +128,15 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
     isPinned: props.isPinned,
     isArchived: props.isArchived,
     ...(props.storageState ? { storageState: props.storageState } : {}),
+    ...(props.canExport === false ? { canExport: false } : {}),
+    ...(props.canDuplicate === false ? { canDuplicate: false } : {}),
+    ...(props.canContinueInProject === false ? { canContinueInProject: false } : {}),
   });
 
   return (
     <div
       ref={rootRef}
-      className="session-row-menu"
+      className="ui-menu-content session-row-menu"
       role="menu"
       data-testid="session-row-menu"
       data-session-id={props.sessionId}
@@ -104,14 +150,21 @@ export function SessionRowMenu(props: SessionRowMenuProps): ReactElement {
           ref={index === 0 ? firstItemRef : undefined}
           type="button"
           role="menuitem"
-          className={item.danger ? 'session-row-menu-item danger' : 'session-row-menu-item'}
+          className={
+            item.danger
+              ? 'ui-menu-item session-row-menu-item danger'
+              : 'ui-menu-item session-row-menu-item'
+          }
           data-testid={item.testId}
           onClick={() => {
             props.onAction(item.action);
             props.onClose();
           }}
         >
-          {item.label}
+          <span className="ui-menu-item-icon" aria-hidden="true">
+            {renderSessionActionIcon(item.action)}
+          </span>
+          <span className="ui-menu-item-label">{item.label}</span>
         </button>
       ))}
     </div>

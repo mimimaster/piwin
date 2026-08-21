@@ -54,6 +54,34 @@ describe('note-store', () => {
     expect(await store.list()).toHaveLength(3);
   });
 
+  it('rejects a stale update and leaves the other note untouched', async () => {
+    const first = await store.write({ title: 'one', content: 'alpha' });
+    const second = await store.write({ title: 'two', content: 'beta' });
+    await store.update({
+      id: first.id,
+      content: 'alpha-2',
+      expectedContentHash: first.contentHash,
+    });
+    const stale = store.update({
+      id: first.id,
+      content: 'lost',
+      expectedContentHash: first.contentHash,
+    });
+    await expect(stale).rejects.toMatchObject({ name: 'NoteRevisionConflictError' });
+    const latestFirst = await store.read(first.id);
+    const latestSecond = await store.read(second.id);
+    expect(latestFirst.content).toBe('alpha-2');
+    expect(latestSecond.content).toBe('beta');
+  });
+
+  it('rejects a stale delete', async () => {
+    const written = await store.write({ title: 'keep', content: 'body' });
+    await expect(store.delete(written.id, 'not-the-hash')).rejects.toMatchObject({
+      name: 'NoteRevisionConflictError',
+    });
+    await expect(store.read(written.id)).resolves.toMatchObject({ id: written.id });
+  });
+
   it('rejects traversal in collection names', async () => {
     await expect(store.write({ title: 'x', content: 'y', collection: '../evil' })).rejects.toThrow(
       'path traversal',

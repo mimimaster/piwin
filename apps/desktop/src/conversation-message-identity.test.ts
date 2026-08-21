@@ -142,20 +142,20 @@ describe('conversation-message-identity', () => {
       expect(resolved).toEqual(liveModel);
     });
 
-    it('returns undefined for done historic messages without snapshot, ignoring live model', () => {
+    it('uses livePromptModel when snapshot is not yet hydrated even after streaming finishes', () => {
       const resolved = resolveConversationMessageModel({
         message: { ...baseMessage, status: 'done' },
         livePromptModel: liveModel,
         isStreaming: false,
       });
-      expect(resolved).toBeUndefined();
+      expect(resolved).toEqual(liveModel);
     });
 
     it('returns undefined when neither snapshot nor live model is available', () => {
       const resolved = resolveConversationMessageModel({
-        message: { ...baseMessage, status: 'streaming' },
+        message: { ...baseMessage, status: 'done' },
         livePromptModel: null,
-        isStreaming: true,
+        isStreaming: false,
       });
       expect(resolved).toBeUndefined();
     });

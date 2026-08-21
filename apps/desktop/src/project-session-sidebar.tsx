@@ -112,9 +112,9 @@ export type ProjectSessionSidebarProps = {
   showArchivedSessions: boolean;
   onToggleShowArchived: () => void;
   settingsOpen: boolean;
-  onOpenWorkspace: () => void;
+  onOpenWorkspace?: () => void;
   onOpenProject: (path: string) => void;
-  onRemoveProject: (path: string) => void;
+  onRemoveProject?: (path: string) => void;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
   }) => void;
@@ -138,6 +138,7 @@ export type ProjectSessionSidebarProps = {
   onGoBack?: (() => void) | undefined;
   onGoForward?: (() => void) | undefined;
   locale?: DesktopLocale;
+  sessionMenu?: { sessionId: string; x: number; y: number } | null | undefined;
   /** Desktop: live sidebar width for aria + resize handle. */
   sidebarWidthPx?: number;
   isResizing?: boolean;
@@ -488,7 +489,10 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                 </IconButton>
               }
             >
-              <DropdownMenuItem onSelect={() => props.onOpenWorkspace()}>
+              <DropdownMenuItem
+                onSelect={() => props.onOpenWorkspace?.()}
+                disabled={props.onOpenWorkspace === undefined}
+              >
                 <IconFolder width={14} height={14} /> {sidebarCopy.openWorkspaceFolderAction}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => props.onSelectGeneral?.()}>
@@ -561,7 +565,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           content={
             <ContextMenuItem
               testId="project-remove-from-sidebar"
-              onSelect={() => props.onRemoveProject(row.projectPath)}
+              onSelect={() => props.onRemoveProject?.(row.projectPath)}
+              disabled={props.onRemoveProject === undefined}
             >
               <IconTrash width={14} height={14} />
               {sidebarCopy.removeProjectFromSidebar}
@@ -632,6 +637,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             activeSessionId={props.activeSessionId}
             onResumeSession={props.onResumeSession}
             onOpenSessionMenu={props.onOpenSessionMenu}
+            isContextActive={props.sessionMenu?.sessionId === row.session.id}
             workingSessionIds={props.workingSessionIds}
             backendServiceSessionIds={props.backendServiceSessionIds}
             completedAttentionSessionIds={props.completedAttentionSessionIds}
@@ -868,6 +874,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           aria-pressed={props.knowledgeOpen}
           data-testid="sidebar-knowledge-btn"
           onClick={props.onToggleKnowledge}
+          disabled={props.onToggleKnowledge === undefined}
         >
           <IconBook />
           <span className="sidebar-footer-label">{copy.knowledgeCenter}</span>

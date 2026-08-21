@@ -27,6 +27,7 @@ import {
   cloneTranscriptMessage,
   createSessionRecord,
   getSessionRecord,
+  isPrimarySessionRecord,
   listSessionsForProject,
   loadSessionIndex,
   createSessionIndexPage,
@@ -47,6 +48,8 @@ import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@p
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
 import { listProjects } from '@piwin/project';
 import { fail, ok } from '../response-helpers.js';
+import { sessionBusyResponse } from '../session-body-gate.js';
+import { sessionIndexUpdatedPush } from '../session-index-push.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinMediaDir,
@@ -100,6 +103,10 @@ export type SessionProductCommandContext = {
   /** Publish one-time legacy name repairs to every attached client. */
   push?: (message: HostPush) => void;
   pushStatus: () => void;
+  tryReserveSessionBody?: (sessionId: string) => boolean;
+  releaseSessionBody?: (sessionId: string) => void;
+  isSessionBodyReserved?: (sessionId: string) => boolean;
+  getForegroundRun?: (sessionId: string) => { runId: string } | undefined;
 };
 
 const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
@@ -180,7 +187,7 @@ export async function handleSessionProductCommand(
       }
       if (listAllScopes) {
         const all = await listAllSessionRecords(indexPath);
-        indexed = all.filter((record) => record.kind !== 'side-chat');
+        indexed = all.filter(isPrimarySessionRecord);
       } else {
         const filter = resolveListFilter({
           ...(scopeFilter ? { scope: scopeFilter } : {}),
@@ -238,11 +245,15 @@ export async function handleSessionProductCommand(
       if (!record) {
         return fail(requestId, 'session/pin', `Unknown session: ${command.sessionId}`);
       }
+      const session = indexRecordToSummary(record);
+      context.push?.(
+        sessionIndexUpdatedPush({ op: 'pinned', sessionId: record.id, session }),
+      );
       return ok(requestId, 'session/pin', {
         sessionId: record.id,
         isPinned: true,
         pinnedAt: record.pinnedAt,
-        session: indexRecordToSummary(record),
+        session,
       });
     }
     case 'session/unpin': {
@@ -250,10 +261,14 @@ export async function handleSessionProductCommand(
       if (!record) {
         return fail(requestId, 'session/unpin', `Unknown session: ${command.sessionId}`);
       }
+      const session = indexRecordToSummary(record);
+      context.push?.(
+        sessionIndexUpdatedPush({ op: 'unpinned', sessionId: record.id, session }),
+      );
       return ok(requestId, 'session/unpin', {
         sessionId: record.id,
         isPinned: false,
-        session: indexRecordToSummary(record),
+        session,
       });
     }
     case 'session/rename': {
@@ -264,6 +279,14 @@ export async function handleSessionProductCommand(
       const record = await renameSessionRecord(indexPath, command.sessionId, command.name);
       if (!record) {
         return fail(requestId, 'session/rename', 'Session name must not be empty');
+      }
+      if (record.name) {
+        context.push?.({
+          type: 'session/name-updated',
+          sessionId: record.id,
+          name: record.name,
+          nameSource: 'user',
+        });
       }
       return ok(requestId, 'session/rename', {
         sessionId: record.id,
@@ -297,11 +320,15 @@ export async function handleSessionProductCommand(
       if (!record) {
         return fail(requestId, 'session/archive', `Unknown session: ${command.sessionId}`);
       }
+      const session = indexRecordToSummary(record);
+      context.push?.(
+        sessionIndexUpdatedPush({ op: 'archived', sessionId: record.id, session }),
+      );
       return ok(requestId, 'session/archive', {
         sessionId: record.id,
         isArchived: true,
         archivedAt: record.archivedAt,
-        session: indexRecordToSummary(record),
+        session,
       });
     }
     case 'session/lifecycle-plan': {
@@ -359,10 +386,14 @@ export async function handleSessionProductCommand(
       if (!record) {
         return fail(requestId, 'session/unarchive', `Unknown session: ${command.sessionId}`);
       }
+      const session = indexRecordToSummary(record);
+      context.push?.(
+        sessionIndexUpdatedPush({ op: 'unarchived', sessionId: record.id, session }),
+      );
       return ok(requestId, 'session/unarchive', {
         sessionId: record.id,
         isArchived: false,
-        session: indexRecordToSummary(record),
+        session,
       });
     }
     case 'session/delete': {
@@ -379,6 +410,22 @@ export async function handleSessionProductCommand(
       if (rejectedDelete) {
         return rejectedDelete;
       }
+      if (context.isSessionBodyReserved?.(command.sessionId) === true) {
+        return sessionBusyResponse(requestId, 'session/delete', command.sessionId, 'body-job');
+      }
+      const liveRun = context.getForegroundRun?.(command.sessionId);
+      if (liveRun !== undefined && command.force !== true) {
+        return sessionBusyResponse(
+          requestId,
+          'session/delete',
+          command.sessionId,
+          'foreground-run',
+        );
+      }
+      if (context.tryReserveSessionBody?.(command.sessionId) === false) {
+        return sessionBusyResponse(requestId, 'session/delete', command.sessionId, 'body-job');
+      }
+      try {
       if (existing.isArchived !== true && command.force !== true) {
         return fail(
           requestId,
@@ -386,15 +433,24 @@ export async function handleSessionProductCommand(
           'Session must be archived before permanent delete (or pass force: true)',
         );
       }
+      if (liveRun !== undefined && command.force === true) {
+        await context.abortLiveSession(command.sessionId);
+      }
       const deletion = await context.deleteSession(command.sessionId);
       if (!deletion) {
         return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
       }
+      context.push?.(
+        sessionIndexUpdatedPush({ op: 'deleted', sessionId: command.sessionId }),
+      );
       return ok(requestId, 'session/delete', {
         sessionId: command.sessionId,
         deleted: true,
         ...(deletion.cleanupWarning ? { cleanupWarning: deletion.cleanupWarning } : {}),
       });
+      } finally {
+        context.releaseSessionBody?.(command.sessionId);
+      }
     }
     case 'session/duplicate': {
       const source = await getSessionRecord(indexPath, command.sessionId);
@@ -510,10 +566,18 @@ export async function handleSessionProductCommand(
         await upsertSessionRecord(indexPath, record);
         const messages = await targetStore.listTail(50);
         context.pushStatus();
+        const duplicated = indexRecordToSummary(record);
+        context.push?.(
+          sessionIndexUpdatedPush({
+            op: 'created',
+            sessionId: created.id,
+            session: duplicated,
+          }),
+        );
         return ok(requestId, 'session/duplicate', {
           sessionId: created.id,
           sourceSessionId: command.sessionId,
-          session: indexRecordToSummary(record),
+          session: duplicated,
           ...createSessionMessageResponse(created.id, messages, command.messageProjection),
         });
       } catch (error) {
@@ -655,10 +719,18 @@ export async function handleSessionProductCommand(
         await upsertSessionRecord(indexPath, record);
         const messages = await targetStore.listTail(50);
         context.pushStatus();
+        const forked = indexRecordToSummary(record);
+        context.push?.(
+          sessionIndexUpdatedPush({
+            op: 'created',
+            sessionId: created.id,
+            session: forked,
+          }),
+        );
         return ok(requestId, 'session/fork', {
           sessionId: created.id,
           sourceSessionId: command.sessionId,
-          session: indexRecordToSummary(record),
+          session: forked,
           ...createSessionMessageResponse(created.id, messages, command.messageProjection),
           origin,
         });

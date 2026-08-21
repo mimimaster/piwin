@@ -32,42 +32,8 @@ import { isMathFenceLanguage, isMermaidFenceLanguage, renderKatex } from './mark
 import { parseUnifiedDiff } from './diff-view';
 import { computeDiffLineNumbers } from './diff-line-numbers';
 import { CollapsibleContentBlock } from './collapsible-content-block';
-import {
-  ContextMenuFromCatalog,
-  useDesktopContextMenu,
-  type ContextMenuTarget,
-} from './context-menu';
+import { CodeBlockContextMenu } from './code-block-context-menu.js';
 import { isLocalFilesystemMarkdownMediaSrc } from './media-path';
-
-/** CM-11: code-block surface menu wrapper around a rendered fence. */
-function CodeBlockContextMenu(props: {
-  source: string;
-  language: string;
-  children: ReactNode;
-}): ReactElement {
-  const contextMenu = useDesktopContextMenu();
-  const target: ContextMenuTarget | null =
-    contextMenu && props.source.trim().length > 0
-      ? {
-          surface: 'code-block',
-          selectedText: props.source,
-          label: props.language || 'code',
-        }
-      : null;
-  if (!target || !contextMenu) {
-    return <>{props.children}</>;
-  }
-  return (
-    <ContextMenuFromCatalog
-      testId="code-block-context-menu"
-      target={target}
-      caps={contextMenu.caps}
-      dispatchers={contextMenu.dispatchers}
-    >
-      {props.children}
-    </ContextMenuFromCatalog>
-  );
-}
 
 /** C5: explicit rendering phases for coding-agent transcript policy. */
 export type MarkdownRenderingPhase = 'streaming' | 'completed' | 'explicit-artifact-review';

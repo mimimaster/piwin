@@ -98,6 +98,7 @@ function cloneMember(member: OrchestrationSchemeMember): OrchestrationSchemeMemb
     ...(member.thinkingLevel ? { thinkingLevel: member.thinkingLevel } : {}),
     ...(member.isolation ? { isolation: member.isolation } : {}),
     ...(member.fallback ? { fallback: member.fallback } : { fallback: 'main' }),
+    ...(member.reportContract?.trim() ? { reportContract: member.reportContract.trim() } : {}),
   };
 }
 
@@ -130,7 +131,7 @@ export function createEmptyUserScheme(existingIds: ReadonlySet<string>): Orchest
     suffix += 1;
     id = `my-scheme-${suffix}`;
   }
-  const searcher = cloneMember(DEFAULT_ORCHESTRATION_ROLE_TEMPLATES[0]!);
+  const scout = cloneMember(DEFAULT_ORCHESTRATION_ROLE_TEMPLATES[0]!);
   return {
     id,
     name: 'My scheme',
@@ -139,9 +140,9 @@ export function createEmptyUserScheme(existingIds: ReadonlySet<string>): Orchest
       'This orchestration scheme is active. Delegate work that would pollute this context to roster roles via piwin_subagent_run with role set. Wait for tool results before continuing. Do not nest subagents. Trivial single-file work need not force a subagent.',
     exposeSpawnMetadata: false,
     waitPolicy: 'await-all',
-    defaultRole: searcher.role,
-    defaultProfileId: searcher.profileId ?? 'explorer',
-    members: [searcher],
+    defaultRole: scout.role,
+    defaultProfileId: scout.profileId ?? 'explorer',
+    members: [scout],
     maxConcurrency: 4,
     maxTasksPerRun: 8,
     maxSubagentThinkingLevel: 'low',
@@ -283,6 +284,9 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
               : member.isolation;
         if (nextIsolation) merged.isolation = nextIsolation;
         merged.fallback = patch.fallback ?? member.fallback ?? 'main';
+        if (member.reportContract?.trim()) {
+          merged.reportContract = member.reportContract.trim();
+        }
         return merged;
       });
       return { ...prev, members: rebuilt };

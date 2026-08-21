@@ -45,6 +45,7 @@ import {
   AgentWorkerSupervisor,
   WorkerTaskRunner,
 } from '@piwin/agent-host';
+import { FetchCache } from '@piwin/tools-web';
 import {
   contentKindForMimeType,
   deriveMemoryHighWaterMiB,
@@ -190,6 +191,7 @@ import type {
 } from '@piwin/contracts';
 import type { TranscriptRecorder } from './transcript-recorder.js';
 import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
+import { transcriptAppendPush } from './transcript-append-push.js';
 import {
   createSessionTranscriptStoreRegistry,
   type SessionTranscriptStoreRegistry,
@@ -289,7 +291,10 @@ import type {
   PreparedSubagentTask,
   SubagentTaskPreflightContext,
 } from './subagent-orchestrator.js';
-import { planSubagentSpawn } from './subagent-lifecycle-service.js';
+import {
+  planSubagentSpawn,
+  resolveSubagentChildPrompt,
+} from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
 import { resolveSubagentParentLocation } from './subagent-parent-scope.js';
 import { reconcileSubagentBatchStatusAfterWorktreeAction } from './subagent-batch-status.js';
@@ -312,6 +317,7 @@ import {
   type RuntimeResourceCoordinator,
 } from './runtime-resource-coordinator.js';
 import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
+import { SessionBodyGate } from './session-body-gate.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import {
   acquirePiwinRootLease,
@@ -539,6 +545,7 @@ export class HostRuntime {
    */
   private readonly schemeAdmissionGate = new TurnScopedSchemeAdmissionGate();
   private readonly promptAdmissionGate = new PromptAdmissionGate();
+  private readonly sessionBodyGate = new SessionBodyGate();
   /** Deduplicates concurrent cleanup callbacks for one crashed Run tree. */
   private readonly workerCrashCleanupRoots = new Set<string>();
   /** CE-OBS: last known usage snapshot per session. */
@@ -623,6 +630,8 @@ export class HostRuntime {
   private hostClosing = false;
   private disposePromise: Promise<void> | null = null;
   private jobController: JobController | null = null;
+  /** Extracted web_fetch pages. Hits skip the network; admission still runs. */
+  private readonly fetchCache = new FetchCache();
   private cardStore: import('@piwin/flashcards').CardStore | null = null;
   /** Host-owned browser session (ADR 0020); lazily created on first access. */
   private browserSession: import('@piwin/browser').BrowserSession | null = null;
@@ -771,7 +780,7 @@ export class HostRuntime {
         onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
         onRunTerminal: (run) => {
           this.sessionHostToolPort?.releaseRun(run.sessionId, run.runId);
-          void this.browserSession?.releaseAgentControl();
+          void this.browserSession?.releaseAgentControlIfHeldBy(run.runId);
           this.push({ type: 'run/terminal', run });
           this.queuedTurnController.notifyRunTerminal(run);
         },
@@ -1414,8 +1423,13 @@ export class HostRuntime {
   private async handleCommandWithTranscriptLease(command: HostCommand): Promise<HostResponse> {
     const requestId = typeof command.id === 'string' ? command.id : undefined;
     try {
-      await this.ensureRuntimeRetentionLoaded();
-      await this.ensureColdStorageRecovered();
+      // Heartbeat and status must not wait on journal recovery. A 3s remote
+      // host/status or 10s ping timeout otherwise paints the shell as offline
+      // while Host is still walking ~/.piwin on first boot.
+      if (command.type !== 'host/ping' && command.type !== 'host/status') {
+        await this.ensureRuntimeRetentionLoaded();
+        await this.ensureColdStorageRecovered();
+      }
       // §8.1: walkthrough/cancel is a control-channel request that must bypass
       // the normal long-task dispatch chain and abort the in-flight generation
       // immediately. Handle it before buildDomainCommands so it is never queued
@@ -2815,7 +2829,7 @@ export class HostRuntime {
         const recorder = this.transcriptRecorders.get(childSessionId);
         if (!recorder) return;
         await recorder.recordUserPrompt({
-          text: task.task,
+          text: resolveSubagentChildPrompt(task),
           ...(task.model ? { model: task.model } : {}),
           ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
         });
@@ -3056,6 +3070,7 @@ export class HostRuntime {
           ? { subagentAllowedOutputPaths: [...input.task.allowedOutputPaths] }
           : {}),
         subagentRetainWorktree: input.task.retainWorktree === true,
+        ...(input.task.role ? { subagentRole: input.task.role } : {}),
         ...(input.workspaceLease.mode === 'worktree'
           ? {
               worktreePath: input.workspaceLease.worktreePath,
@@ -3087,6 +3102,7 @@ export class HostRuntime {
         current.subagentAllowedOutputPaths = [...input.task.allowedOutputPaths];
       }
       current.subagentRetainWorktree = input.task.retainWorktree === true;
+      if (input.task.role) current.subagentRole = input.task.role;
       if (input.workspaceLease.mode === 'worktree') {
         current.worktreePath = input.workspaceLease.worktreePath;
         current.worktreeBranch = input.workspaceLease.worktreeBranch;
@@ -3419,9 +3435,10 @@ export class HostRuntime {
       );
     }
 
-    // Build the prepared prompt from the task text.
+    // Build the prepared prompt from the task text (isolation prefix + optional
+    // scheme report contract). Continuations skip the contract wrap.
     const preparedPrompt: BackendPreparedPrompt = {
-      text: input.task.task,
+      text: resolveSubagentChildPrompt(input.task),
       runId: input.taskRunId,
       ...(effectiveModel ? { model: effectiveModel } : {}),
       ...(input.task.thinkingLevel ? { thinkingLevel: input.task.thinkingLevel } : {}),
@@ -3565,7 +3582,11 @@ export class HostRuntime {
                 ...(mode ? { isolationOverride: mode } : {}),
                 ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
                 ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+                ...(schemeSpawn.role ? { role: schemeSpawn.role } : {}),
                 ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
+                ...(schemeSpawn.reportContract
+                  ? { reportContract: schemeSpawn.reportContract }
+                  : {}),
                 ...(resolvedModel
                   ? { model: resolvedModel }
                   : allowInputModel && input.model
@@ -3765,6 +3786,7 @@ export class HostRuntime {
       piwinRoot: rootDir,
       ...(projectPath !== undefined ? { projectPath } : {}),
       jobController: this.jobController,
+      fetchCache: this.fetchCache,
       ...(this.mcpManager ? { mcpManager: this.mcpManager } : {}),
       mcpConfig: mcpSnapshot.config,
       mcpSnapshot,
@@ -3979,6 +4001,7 @@ export class HostRuntime {
             ...(task.model ? { model: task.model } : {}),
             ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
           },
+          ...(task.role ? { role: task.role } : {}),
           ...(task.isolationOverride ? { mode: task.isolationOverride } : {}),
           ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
           ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
@@ -3995,6 +4018,7 @@ export class HostRuntime {
       const model = planned.snapshot.model ?? parentModel;
       return {
         ...task,
+        ...(task.role ? { role: task.role } : {}),
         ...(planned.snapshot.profileId ? { profileId: planned.snapshot.profileId } : {}),
         ...(model ? { model } : {}),
         ...(planned.snapshot.thinkingLevel
@@ -4443,6 +4467,9 @@ export class HostRuntime {
         );
       },
       tryReservePromptAdmission: (sessionId) => this.promptAdmissionGate.tryReserve(sessionId),
+      tryReserveSessionBody: (sessionId) => this.sessionBodyGate.tryReserve(sessionId),
+      releaseSessionBody: (sessionId) => this.sessionBodyGate.release(sessionId),
+      isSessionBodyReserved: (sessionId) => this.sessionBodyGate.isReserved(sessionId),
       releasePromptAdmission: (sessionId) => {
         this.promptAdmissionGate.release(sessionId);
       },
@@ -4450,6 +4477,7 @@ export class HostRuntime {
       joinRun: (runId) => this.runRegistry.join(runId),
       getRunSignal: (runId) => this.runRegistry.getSignal(runId),
       hasRunReceivedFirstToken: (runId) => this.runRegistry.hasFirstToken(runId),
+      getRunLastAgentError: (runId) => this.runRegistry.getLastAgentError(runId),
       /** ADR 0040 §5: explicit protection lease (compaction / backend op). */
       protectRuntime: (sessionId) => {
         const generationId = this.runtimeController.getStatus(sessionId).generationId;
@@ -4741,6 +4769,7 @@ export class HostRuntime {
       getMcpManager: () => this.getMcpManager(),
       getJobController: () => this.getJobController(),
       getBrowserSession: () => this.browserSession ?? undefined,
+      ensureBrowserSession: () => this.ensureBrowserSession(),
       todoStore: this.todoStore,
       petStateStore: await this.ensurePetStateStore(),
       runCronJob: (job) => this.runCronJob(job),
@@ -4904,6 +4933,10 @@ export class HostRuntime {
           this.bindSession(session, projectPath, sessionName, lineage),
         push: (message) => this.push(message),
         pushStatus: () => this.pushStatus(),
+        tryReserveSessionBody: (sessionId) => this.sessionBodyGate.tryReserve(sessionId),
+        releaseSessionBody: (sessionId) => this.sessionBodyGate.release(sessionId),
+        isSessionBodyReserved: (sessionId) => this.sessionBodyGate.isReserved(sessionId),
+        getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
       },
       sessionPack: {
         ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
@@ -5192,20 +5225,33 @@ export class HostRuntime {
         activeRun?.runId,
         this.runExecutionContext.getStore(),
       );
+      let correlatedEvent = correlation.event;
       if (!correlation.accepted) {
         if (hasExplicitRunId(event)) {
           // Stale explicit events are dropped at the host boundary. In
           // particular, do not let them reach hooks, usage, or transcript.
           return;
         }
-        this.push({
-          type: 'host/log',
-          level: 'warn',
-          message: `discarded uncorrelated session event: ${event.type}`,
-        });
-        return;
+        // Provider HTTP failures (404/401/…) often arrive from Pi stream
+        // callbacks that broke AsyncLocalStorage. Reclaim identity-less `error`
+        // events onto the live foreground run so upstream text is never dropped.
+        if (
+          event.type === 'error' &&
+          activeRun?.runId !== undefined &&
+          (activeRun.status === 'running' ||
+            activeRun.status === 'queued' ||
+            activeRun.status === 'cancelling')
+        ) {
+          correlatedEvent = { ...event, runId: activeRun.runId };
+        } else {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `discarded uncorrelated session event: ${event.type}`,
+          });
+          return;
+        }
       }
-      const correlatedEvent = correlation.event;
       const correlatedRunId = readEventRunId(correlatedEvent);
       const activeRunId = activeRun?.runId;
       const correlatedRun = correlatedRunId ? this.runRegistry.get(correlatedRunId) : undefined;
@@ -5595,17 +5641,18 @@ export class HostRuntime {
   private async recordUserPrompt(sessionId: string, input: PromptInput): Promise<void> {
     const projectPath = this.sessionProjects.get(sessionId) ?? 'unknown';
     const runtimeGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+    const clientMessageId = input.clientMessageId?.trim();
+    const userId =
+      clientMessageId && clientMessageId.length > 0
+        ? clientMessageId
+        : `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const createdAt = new Date().toISOString();
+    const attachments = input.attachments?.filter(
+      (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+    );
     if (runtimeGenerationId === undefined) {
       // A cold prompt is durably accepted before runtime admission. User rows
       // own Host provenance and therefore do not require a Pi generation.
-      const clientMessageId = input.clientMessageId?.trim();
-      const userId =
-        clientMessageId && clientMessageId.length > 0
-          ? clientMessageId
-          : `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const attachments = input.attachments?.filter(
-        (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
-      );
       const result = await this.withTranscriptStore(
         sessionId,
         (store) =>
@@ -5616,7 +5663,7 @@ export class HostRuntime {
             role: 'user',
             text: input.text,
             status: 'done',
-            createdAt: new Date().toISOString(),
+            createdAt,
             ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
           }),
         projectPath,
@@ -5628,9 +5675,22 @@ export class HostRuntime {
       await this.ensureTranscriptRecorder(sessionId, projectPath, runtimeGenerationId);
       const recorder = this.transcriptRecorders.get(sessionId);
       if (recorder) {
-        await recorder.recordUserPrompt(input);
+        await recorder.recordUserPrompt({ ...input, clientMessageId: userId });
       }
     }
+    const message: SessionTranscriptMessage = {
+      id: userId,
+      role: 'user',
+      text: input.text,
+      status: 'done',
+      createdAt,
+      runtimeGenerationId: USER_AUTHORED_GENERATION,
+      ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
+      ...(input.contextRefs !== undefined && input.contextRefs.length > 0
+        ? { contextRefs: input.contextRefs.map((ref) => ({ ...ref })) }
+        : {}),
+    };
+    this.push(transcriptAppendPush(sessionId, message));
     // Await text naming so name-updated is ordered with the user turn and the
     // session becomes listable before the model stream starts.
     try {

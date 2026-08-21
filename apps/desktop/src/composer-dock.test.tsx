@@ -518,6 +518,138 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="composer-text-only-image-warning"]')).toBeNull();
   });
 
+  it('hides the attachment shelf when composer has no diverted cards', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} pendingAttachments={[]} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-attachment-shelf"]')).toBeNull();
+  });
+
+  it('pops the last diverted card with Backspace when the textarea is empty', () => {
+    const onRemoveAttachment = vi.fn();
+    const onRemoveContextRef = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer=""
+        onRemoveAttachment={onRemoveAttachment}
+        onRemoveContextRef={onRemoveContextRef}
+        pendingContextRefs={[
+          {
+            token: 'tok-1',
+            key: 'file:/p:src/a.ts::',
+            ref: { kind: 'file', projectPath: '/p', relativePath: 'src/a.ts', label: 'src/a.ts' },
+            label: 'src/a.ts',
+          },
+        ]}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-attachment-shelf"]')).not.toBeNull();
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onRemoveAttachment).toHaveBeenCalledWith('local-1');
+    expect(onRemoveContextRef).not.toHaveBeenCalled();
+  });
+
+  it('does not pop a shelf card when Backspace deletes composer text', () => {
+    const onRemoveAttachment = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="hello"
+        onRemoveAttachment={onRemoveAttachment}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onRemoveAttachment).not.toHaveBeenCalled();
+  });
+
+  it('moves focus from the textarea to the last shelf card with Shift+Tab', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="hello"
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    const chip = container.querySelector<HTMLElement>('[data-shelf-chip]');
+    expect(chip).not.toBeNull();
+    act(() => {
+      input?.focus();
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Tab',
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(chip);
+  });
+
   it('keeps send enabled while a media attachment is preparing (send will wait)', () => {
     const handleSend = vi.fn();
     const rendered = renderDock(
@@ -788,6 +920,47 @@ describe('ComposerDock host status', () => {
     expect(activeTrigger).not.toBeNull();
     expect(activeTrigger?.getAttribute('data-scheme')).toBe('ultra-code');
     expect(activeTrigger?.textContent).toContain('Ultra Code');
+    expect(
+      active.container.querySelector('[data-testid="orchestration-scheme-unpinned-hint"]'),
+    ).toBeNull();
+  });
+
+  it('shows an unpinned-model hint only for a selected scheme without a pinned default role', () => {
+    const options = [
+      { id: 'off', name: 'Freehand', description: 'Freehand' },
+      {
+        id: 'ultra-code',
+        name: 'Ultra Code',
+        description: 'Scout pack',
+        unpinnedDefaultRole: 'scout',
+      },
+    ];
+    const off = renderDock(
+      <ComposerDock
+        {...baseProps}
+        orchestrationSchemeId="off"
+        orchestrationSchemeOptions={options}
+        onOrchestrationSchemeChange={vi.fn()}
+      />,
+    );
+    expect(
+      off.container.querySelector('[data-testid="orchestration-scheme-unpinned-hint"]'),
+    ).toBeNull();
+
+    const active = renderDock(
+      <ComposerDock
+        {...baseProps}
+        orchestrationSchemeId="ultra-code"
+        orchestrationSchemeOptions={options}
+        onOrchestrationSchemeChange={vi.fn()}
+        onOpenOrchestrationSchemeSettings={vi.fn()}
+      />,
+    );
+    const hint = active.container.querySelector(
+      '[data-testid="orchestration-scheme-unpinned-hint"]',
+    );
+    expect(hint?.textContent).toContain('scout');
+    expect(hint?.textContent).toMatch(/composer model|主模型/);
   });
 
   it('hides Agent Mode, Run Mode, and Orchestration in Conversation', () => {

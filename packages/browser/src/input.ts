@@ -3,7 +3,22 @@
  * IME/paste must use insertText — never keyboard.type.
  */
 import type { Page } from 'playwright-core';
-import type { BrowserInputEvent } from '@piwin/contracts';
+import { MAX_BROWSER_INSERT_TEXT_BYTES, type BrowserInputEvent } from '@piwin/contracts';
+
+function truncateInsertText(text: string): string {
+  if (new TextEncoder().encode(text).byteLength <= MAX_BROWSER_INSERT_TEXT_BYTES) return text;
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if (new TextEncoder().encode(text.slice(0, mid)).byteLength <= MAX_BROWSER_INSERT_TEXT_BYTES) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return text.slice(0, low);
+}
 
 function mouseButton(value: 'left' | 'middle' | 'right' | undefined): 'left' | 'middle' | 'right' {
   if (value === 'middle' || value === 'right') return value;
@@ -16,7 +31,7 @@ export async function dispatchBrowserInput(
 ): Promise<void> {
   for (const event of events) {
     if (event.type === 'insertText') {
-      await page.keyboard.insertText(event.text);
+      await page.keyboard.insertText(truncateInsertText(event.text));
       continue;
     }
     if (event.type === 'key') {

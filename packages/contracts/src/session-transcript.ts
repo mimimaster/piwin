@@ -12,6 +12,7 @@ import type { SearchEvidence } from './web.js';
 import type { PromptContextRef } from './side-chat.js';
 import type { QueuedTurnStatus } from './queued-turn.js';
 import type { RunInterventionStatus } from './run-intervention.js';
+import type { ReplyWriterAttribution } from './reply-writer.js';
 
 /**
  * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
@@ -92,6 +93,11 @@ export type SessionTranscriptMessage = {
    * Only set for Assistant messages; legacy transcripts may omit it.
    */
   model?: ModelRef;
+  /**
+   * Present when Host rewrote the visible text through Reply Writer.
+   * `text` is the writer output; `replyWriter.sourceText` is the worker draft.
+   */
+  replyWriter?: ReplyWriterAttribution;
   /**
    * Runtime generation that created this row (ADR 0040 §7). Present on
    * Assistant rows persisted after cold activation. Replay idempotency

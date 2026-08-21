@@ -106,7 +106,7 @@ Cursor / Claude Code / Copilot 的公开行为都把「Add to Chat + 选区引�
 | **L11** | 新增 `kind: 'selection'` 与 `kind: 'folder'` | 无 path 选区与文件夹引用有一等公民表示 |
 | **L12** | **Add to Chat 不自动改 composer 文本**；只加 chip | 避免与 `@` 文本双通道重复 |
 | **L13** | Folder Host resolve = **单层 list-dir**（bounded），不递归读内容 | Agent 深读走工具 |
-| **L14** | P0 选区范围 = **code preview 划词 + 整 code block 右键**；跨消息自由划词 P1 | 降低编辑器复杂度 |
+| **L14** | 单气泡正文划词走 `selection` 胶囊（不写 textarea）；code preview 划词 + 整 code block 右键仍有效；**跨消息**自由划词仍 P1 | 指哪问哪；跨消息选区复杂度另做 |
 | **L15** | Explain/Fix **不静默切换** `agentMode` | 使用当前 composer 模式；高级选项以后再做 |
 | **L16** | Session row 菜单保持 `session-actions-menu.ts`，**不**并入 CM surface enum | 避免与 PD-SESS 纠缠 |
 
@@ -681,7 +681,8 @@ text insertion remains the fallback when no project / no relative path / cap rea
 
 1. Code preview (`CodePreviewView` / Files split): on `contextmenu`, read selection inside preview; compute lineStart/lineEnd when possible
 2. Fenced code block: whole-block target as `code-block` surface
-3. Free transcript multi-message selection: **P1** (L14)
+3. Single-bubble transcript prose: on `contextmenu`, if the selection is non-empty and inside that bubble (and not inside a fence / tool card), use `selection`; otherwise keep the message menu
+4. Free transcript **multi-message** selection: **P1** (L14)
 
 ### 9.6 Dispatchers
 
@@ -855,7 +856,7 @@ Zh strings live in `desktop-locale.ts` at implementation time.
 |------|-----|
 | Full IDE file ops | Non-goal |
 | Skill-configurable presets | L5 -> P2 |
-| Free-form multi-message selection | L14 -> P1 |
+| Free-form **multi-message** selection | L14 -> P1（单气泡划词已落地） |
 | Apply silent write | P1b |
 | Multi-select batch add | P2 (`addMany` later) |
 | Subagent from context menu | orchestration complexity |

@@ -454,7 +454,7 @@
    Subagent activity surfaces (compact transcript card + ticker + dock).
    Owns all `.subagent-activity-*`, `.subagent-ticker-*`, and
    `.subagent-working-*` classes; region-transcript.css keeps only the slot
-   geometry. The read-only session inspector dialog is styled in
+   geometry. The inline session panel and accordion embed are styled in
    subagent-session-inspector.css.
    ========================================================================== */
 

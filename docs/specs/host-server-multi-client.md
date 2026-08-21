@@ -5,7 +5,7 @@
 | Status | **Accepted target — initial implementation in progress** |
 | Date | 2026-08-08 |
 | Authority | ADR 0036; this document is the implementation spec |
-| Related | [`architecture.md`](../architecture.md), [`adr/0027-personal-remote-gateway-seams.md`](../adr/0027-personal-remote-gateway-seams.md), [`w4-remote-gateway.md`](./w4-remote-gateway.md) |
+| Related | [`architecture.md`](../architecture.md), [`adr/0027-personal-remote-gateway-seams.md`](../adr/0027-personal-remote-gateway-seams.md), [`w4-remote-gateway.md`](./w4-remote-gateway.md), [`multi-client-concurrency.md`](./multi-client-concurrency.md) |
 
 ## 1. Intent
 

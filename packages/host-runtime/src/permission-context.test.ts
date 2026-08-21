@@ -29,6 +29,17 @@ describe('buildPermissionRequestContext', () => {
     expect(context.destructive).toBe(true);
   });
 
+  it('does not label browser:lock as navigation', () => {
+    const context = buildPermissionRequestContext('browser:lock', 'lock');
+    expect(context.kind).toBe('network');
+    expect(context.reason).toBe('Browser interaction requires review');
+  });
+
+  it('keeps navigate copy for browser:navigate', () => {
+    const context = buildPermissionRequestContext('browser:navigate', 'https://example.com');
+    expect(context.reason).toBe('Browser navigation requires review');
+  });
+
   it('classifies explicit file-write: action kind as file-write', () => {
     const context = buildPermissionRequestContext('file-write:edit', 'write /repo/.env');
     expect(context.kind).toBe('file-write');

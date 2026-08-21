@@ -27,6 +27,7 @@ import type {
   ThinkingConfig,
   ThinkingLevel,
   VisionDelegationConfig,
+  ReplyWriterConfig,
   VideoGenerationConfig,
   WebConfig,
   PermissionPreset,
@@ -56,6 +57,7 @@ import {
   resolvePreset,
   SUBAGENT_CAPABILITIES,
   isValidOrchestrationSchemeId,
+  canonicalizeUltraCodeSchemeSettings,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
 import { normalizeKnowledgeConfig } from './config-store-knowledge.js';
@@ -253,6 +255,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   const visionDelegation = normalizeVisionDelegationConfig(record.visionDelegation);
   if (visionDelegation) {
     normalized.visionDelegation = visionDelegation;
+  }
+  const replyWriter = normalizeReplyWriterConfig(record.replyWriter);
+  if (replyWriter) {
+    normalized.replyWriter = replyWriter;
   }
   return normalized;
 }
@@ -460,6 +466,31 @@ function normalizeSpeechConfig(value: unknown): SpeechConfig | undefined {
  * Vision delegation (text-only primary → describe images). Default off when
  * missing; when present, always surface `enabled` so UI/host agree with disk.
  */
+function normalizeReplyWriterConfig(value: unknown): ReplyWriterConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const normalized: ReplyWriterConfig = {
+    enabled: record.enabled === true,
+  };
+  const model = normalizeModelRef(record.model);
+  if (model) {
+    normalized.model = model;
+  }
+  if (record.language === 'zh-CN' || record.language === 'en' || record.language === 'follow-user') {
+    normalized.language = record.language;
+  }
+  if (typeof record.systemPrompt === 'string' && record.systemPrompt.trim()) {
+    normalized.systemPrompt = record.systemPrompt;
+  }
+  const timeoutMs = asPositiveNumber(record.timeoutMs);
+  if (timeoutMs !== undefined) {
+    normalized.timeoutMs = timeoutMs;
+  }
+  return normalized;
+}
+
 function normalizeVisionDelegationConfig(value: unknown): VisionDelegationConfig | undefined {
   const record = asRecord(value);
   if (!record) {
@@ -596,6 +627,9 @@ function normalizeThinkingConfig(value: unknown): ThinkingConfig | undefined {
   const normalized: ThinkingConfig = {
     ultraEnabled: record.ultraEnabled === true,
   };
+  if (isThinkingLevel(record.defaultLevel)) {
+    normalized.defaultLevel = record.defaultLevel;
+  }
   return normalized;
 }
 
@@ -742,10 +776,42 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
   if (searchDelegateModel) {
     normalized.searchDelegateModel = searchDelegateModel;
   }
+  const fetchDelegateModel = normalizeModelRef(record.fetchDelegateModel);
+  if (fetchDelegateModel) {
+    normalized.fetchDelegateModel = fetchDelegateModel;
+  }
   if (typeof record.fetchApiKeyRef === 'string' && record.fetchApiKeyRef.trim()) {
     normalized.fetchApiKeyRef = record.fetchApiKeyRef.trim();
   }
+  const fetchReturnMaxChars =
+    asPositiveInteger(record.fetchReturnMaxChars) ?? defaults.fetchReturnMaxChars;
+  if (fetchReturnMaxChars !== undefined) {
+    normalized.fetchReturnMaxChars = fetchReturnMaxChars;
+  }
+  const fetchStoreMaxChars =
+    asPositiveInteger(record.fetchStoreMaxChars) ?? defaults.fetchStoreMaxChars;
+  if (fetchStoreMaxChars !== undefined) {
+    normalized.fetchStoreMaxChars = fetchStoreMaxChars;
+  }
+  const fetchCacheTtlMs = asPositiveInteger(record.fetchCacheTtlMs) ?? defaults.fetchCacheTtlMs;
+  if (fetchCacheTtlMs !== undefined) {
+    normalized.fetchCacheTtlMs = fetchCacheTtlMs;
+  }
+  const fetchFallback = normalizeFetchFallback(record.fetchFallback, defaults.fetchFallback);
+  if (fetchFallback !== undefined) {
+    normalized.fetchFallback = fetchFallback;
+  }
   return normalized;
+}
+
+function normalizeFetchFallback(
+  value: unknown,
+  defaults: WebConfig['fetchFallback'],
+): WebConfig['fetchFallback'] {
+  if (value === 'none' || value === 'jina' || value === 'browser') {
+    return value;
+  }
+  return defaults;
 }
 
 function normalizeSearchRoutePolicy(
@@ -1080,6 +1146,9 @@ function normalizeOrchestrationSchemeMember(
   if (record.fallback === 'none' || record.fallback === 'main') {
     member.fallback = record.fallback;
   }
+  if (typeof record.reportContract === 'string' && record.reportContract.trim()) {
+    member.reportContract = record.reportContract.trim();
+  }
   return member;
 }
 
@@ -1143,7 +1212,7 @@ function normalizeOrchestrationScheme(value: unknown): OrchestrationSchemeSettin
   if (isThinkingLevel(record.maxSubagentThinkingLevel)) {
     scheme.maxSubagentThinkingLevel = record.maxSubagentThinkingLevel;
   }
-  return scheme;
+  return canonicalizeUltraCodeSchemeSettings(scheme);
 }
 
 function normalizeSubagentProfile(value: unknown): SubagentProfileSettings | undefined {

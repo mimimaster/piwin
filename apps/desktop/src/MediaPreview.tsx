@@ -9,11 +9,12 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { contentKindForMimeType, type MediaAttachmentRef } from '@piwin/contracts';
+import { useMediaPreviewRead } from './media-preview-read-context';
 import {
-  createLimitedPreviewUrlFromHref,
-  TRANSCRIPT_THUMB_MAX_EDGE_PX,
-} from './media-preview-bitmap';
-import { resolveMediaPreviewUrl } from './media-utils';
+  mediaPreviewAssetId,
+  resolveTranscriptPreviewUrls,
+  type MediaPreviewReader,
+} from './transcript-media-preview';
 import {
   IconCheck,
   IconClose,
@@ -188,7 +189,13 @@ export function MediaPreview(props: {
   hero?: boolean | undefined;
   role?: 'user' | 'assistant' | 'system' | 'tool' | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
+  /** Test override; production bubbles read session identity from context. */
+  sessionId?: string | undefined;
+  readMedia?: MediaPreviewReader | undefined;
 }): ReactElement {
+  const previewRead = useMediaPreviewRead();
+  const sessionId = props.sessionId ?? previewRead.sessionId;
+  const readMedia = props.readMedia ?? previewRead.readMedia;
   const [thumbUrl, setThumbUrl] = useState<string | null>(props.previewUrl ?? null);
   const [fullUrl, setFullUrl] = useState<string | null>(
     props.lightboxUrl ?? props.previewUrl ?? null,
@@ -232,35 +239,24 @@ export function MediaPreview(props: {
     }
     let cancelled = false;
     let ownedThumb: string | null = null;
+    const assetId = mediaPreviewAssetId(props.attachment.path, props.attachment.id);
     void (async () => {
-      const resolved = await resolveMediaPreviewUrl(props.attachment.path);
+      const resolved = await resolveTranscriptPreviewUrls({
+        path: props.attachment.path,
+        assetId,
+        sessionId,
+        isVideo,
+        readMedia,
+      });
       if (cancelled) {
-        return;
-      }
-      if (!resolved) {
-        setThumbUrl(null);
-        setFullUrl(null);
-        return;
-      }
-      setFullUrl(resolved);
-      if (isVideo) {
-        setThumbUrl(resolved);
-        return;
-      }
-      const limited = await createLimitedPreviewUrlFromHref(
-        resolved,
-        TRANSCRIPT_THUMB_MAX_EDGE_PX,
-      );
-      if (cancelled) {
-        if (limited.owned) {
-          URL.revokeObjectURL(limited.url);
+        if (resolved.ownedThumb) {
+          URL.revokeObjectURL(resolved.ownedThumb);
         }
         return;
       }
-      setThumbUrl(limited.url);
-      if (limited.owned) {
-        ownedThumb = limited.url;
-      }
+      setFullUrl(resolved.fullUrl);
+      setThumbUrl(resolved.thumbUrl);
+      ownedThumb = resolved.ownedThumb;
     })();
     return () => {
       cancelled = true;
@@ -268,7 +264,16 @@ export function MediaPreview(props: {
         URL.revokeObjectURL(ownedThumb);
       }
     };
-  }, [isFileCard, isVideo, props.attachment.path, props.lightboxUrl, props.previewUrl]);
+  }, [
+    isFileCard,
+    isVideo,
+    props.attachment.id,
+    props.attachment.path,
+    props.lightboxUrl,
+    props.previewUrl,
+    readMedia,
+    sessionId,
+  ]);
 
   function openLightbox(event: MouseEvent | KeyboardEvent): void {
     if (!canOpenLightbox) {

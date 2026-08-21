@@ -40,6 +40,40 @@ describe('buildSubagentMergeSummary', () => {
     expect(result.summaryText).toContain('…[truncated]');
   });
 
+  it('prefers the last contract-shaped assistant message', () => {
+    const result = buildSubagentMergeSummary({
+      task: 'map paths',
+      name: 'scout',
+      status: 'done',
+      messages: [
+        { role: 'assistant', text: 'Working through DESIGN.md…', status: 'done' },
+        {
+          role: 'assistant',
+          text: 'complete\n- display_path is in src/paths.rs:16',
+          status: 'done',
+        },
+      ],
+    });
+    expect(result.summaryText).toContain('complete\n- display_path is in src/paths.rs:16');
+    expect(result.summaryText).not.toContain('Working through DESIGN.md');
+  });
+
+  it('keeps the status line when truncating a contract report', () => {
+    const result = buildSubagentMergeSummary({
+      messages: [
+        {
+          role: 'assistant',
+          text: `complete\n${'x'.repeat(200)}`,
+          status: 'done',
+        },
+      ],
+      maxChars: 40,
+    });
+    expect(result.truncated).toBe(true);
+    expect(result.summaryText).toMatch(/Summary:\ncomplete\n/);
+    expect(result.summaryText).toContain('…[truncated]');
+  });
+
   it('formats merge card with child id', () => {
     const card = formatSubagentMergeCard({
       summaryText: 'hello',

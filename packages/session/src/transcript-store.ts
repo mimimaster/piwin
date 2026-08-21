@@ -87,6 +87,7 @@ export type TranscriptStoreMessageInput = {
     searchEvidence?: SessionTranscriptMessage['searchEvidence'];
     instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
     docCardSequence?: SessionTranscriptMessage['docCardSequence'];
+    replyWriter?: SessionTranscriptMessage['replyWriter'];
   };
 };
 

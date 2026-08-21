@@ -13,13 +13,14 @@ import { AutomationPanel } from '../../AutomationPanel';
 import { SubAgentPanel } from '../../SubAgentPanel';
 import { ArtifactPage } from './artifact-page';
 import { ArtifactPlaygroundPage } from './artifact-playground-page';
-import { useSettings } from '../settings-context';
+import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
 type AgentSubTab = 'subagents' | 'automation' | 'artifact' | 'playground';
 
 export function AgentPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
+  const settings = useSettings();
   const {
     projectPath,
     requestAutomation,
@@ -28,7 +29,8 @@ export function AgentPage(): ReactElement {
     subagentChildren,
     subagentBatches,
     onOpenSubagentSession,
-  } = useSettings();
+  } = settings;
+  const automationAvailable = settingsHostSupportsCommand(settings, 'cron/list');
 
   const [activeTab, setActiveTab] = useState<AgentSubTab>('subagents');
 
@@ -45,7 +47,11 @@ export function AgentPage(): ReactElement {
           onChange={(val) => setActiveTab(val as AgentSubTab)}
           data={[
             { value: 'subagents', label: isChinese ? '子代理编排 (Schemes)' : 'Orchestration' },
-            { value: 'automation', label: isChinese ? '自动化与任务 (Automation)' : 'Automation' },
+            {
+              value: 'automation',
+              label: isChinese ? '自动化与任务 (Automation)' : 'Automation',
+              disabled: !automationAvailable,
+            },
             { value: 'artifact', label: isChinese ? '渲染 (Artifact)' : 'Artifact' },
             { value: 'playground', label: isChinese ? 'Artifact 实验场' : 'Playground' },
           ]}

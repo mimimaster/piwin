@@ -77,6 +77,42 @@ describe('searchSessions', () => {
     expect(archivedResult.hits.map((hit) => hit.sessionId)).toEqual(['archived']);
   });
 
+  it('excludes side-chat and subagent children from main search', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-search-kind-'));
+    const indexPath = join(dir, 'index.json');
+    await upsertSessionRecord(
+      indexPath,
+      createSessionRecord({
+        id: 'main',
+        projectPath: '/tmp/proj',
+        name: 'widget chat',
+        kind: 'main',
+      }),
+    );
+    await upsertSessionRecord(
+      indexPath,
+      createSessionRecord({
+        id: 'child',
+        projectPath: '/tmp/proj',
+        name: 'widget subagent-task-1',
+        kind: 'subagent',
+        parentSessionId: 'main',
+      }),
+    );
+    await upsertSessionRecord(
+      indexPath,
+      createSessionRecord({
+        id: 'side',
+        projectPath: '/tmp/proj',
+        name: 'widget side chat',
+        kind: 'side-chat',
+      }),
+    );
+
+    const result = await searchSessions({ indexPath }, { query: 'widget', projectPath: '/tmp/proj' });
+    expect(result.hits.map((hit) => hit.sessionId)).toEqual(['main']);
+  });
+
   it('searches offloaded stubs by index fields and never opens their body', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-search-storage-'));
     const indexPath = join(dir, 'index.json');

@@ -31,6 +31,10 @@ export async function handleResolveCommand(
           requestId,
           'permission/resolve',
           `Unknown permission request: ${command.requestId}`,
+          {
+            code: 'ticket-consumed',
+            data: { requestId: command.requestId },
+          },
         );
       }
       if (command.decision === 'allow' && command.rememberScope === 'project') {
@@ -97,6 +101,10 @@ export async function handleResolveCommand(
           requestId,
           'extension/ui_resolve',
           `Unknown extension UI request: ${command.requestId}`,
+          {
+            code: 'ticket-consumed',
+            data: { requestId: command.requestId },
+          },
         );
       }
       context.pendingExtensionUi.delete(command.requestId);

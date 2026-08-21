@@ -1,19 +1,20 @@
 /**
  * Settings → Permissions page (ADR 0019 §3, ADR 0024 Run Modes).
  *
- * Preset switcher bound to `config.permissions?.preset ?? 'yolo'`, saved via
+ * Preset switcher bound to {@link resolvePermissionPreset}, saved via
  * `saveConfig`. Trust-aware notices explain what each Run Mode does and how the
  * open project's trust state interacts with YOLO + project allow rules.
  * Rule files and preset both take effect on the next session (no hot-reload).
  */
 import { useState, type ReactElement } from 'react';
 import type { PermissionPreset } from '@piwin/contracts';
-import { resolvePreset } from '@piwin/contracts';
+import { resolvePermissionPreset, resolvePreset } from '@piwin/contracts';
 import { Notice, Select } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
+import { PermissionRulesEditor } from './permission-rules-editor';
 
 const PRESET_ORDER: readonly PermissionPreset[] = ['auto', 'ask', 'yolo'];
 
@@ -23,7 +24,8 @@ export function PermissionsPage(): ReactElement {
   const { config, projectPath, projectTrusted, saveConfig, saving } = useSettings();
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const currentPreset: PermissionPreset = config?.permissions?.preset ?? 'yolo';
+  const currentPreset: PermissionPreset = resolvePermissionPreset(config?.permissions);
+  const canEditPreset = !saving && config !== null;
   const hasProject = projectPath !== null;
   const yoloRefused = currentPreset === 'yolo' && hasProject && !projectTrusted;
 
@@ -72,7 +74,7 @@ export function PermissionsPage(): ReactElement {
               onChange={(event) => {
                 void handlePresetChange(event.currentTarget.value as PermissionPreset);
               }}
-              disabled={saving || config === null}
+              disabled={!canEditPreset}
               style={{ display: 'none' }}
             />
             <div className="permission-mode-pills">
@@ -84,7 +86,7 @@ export function PermissionsPage(): ReactElement {
                     type="button"
                     className={`permission-mode-pill ${isActive ? 'is-active' : ''} mode-${preset}`}
                     onClick={() => void handlePresetChange(preset)}
-                    disabled={saving || config === null}
+                    disabled={!canEditPreset}
                   >
                     <span className="mode-pill-dot" />
                     <span className="mode-pill-label">{presetLabel(preset, isChinese)}</span>
@@ -250,6 +252,8 @@ export function PermissionsPage(): ReactElement {
           </Notice>
         </div>
       ) : null}
+
+      <PermissionRulesEditor />
 
       {saveError ? (
         <div className="settings-section">

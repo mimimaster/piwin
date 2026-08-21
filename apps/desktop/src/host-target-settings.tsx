@@ -1,18 +1,16 @@
 import { useState, type ReactElement } from 'react';
-import { formatError } from '@piwin/contracts';
 import { Button, Field, Notice, PasswordInput, TextInput } from '@piwin/ui-kit';
-import { getDesktopCopy } from './desktop-locale';
-import { useDesktopLocale } from './desktop-locale-context';
-import { PageTitle } from './settings/page-title';
+import { saveDesktopHostLaunchMode } from './desktop-host-launch.js';
+import { isDesktopShellOnlyBuild } from './desktop-shell-build.js';
+import { getDesktopCopy } from './desktop-locale.js';
+import { useDesktopLocale } from './desktop-locale-context.js';
+import { probeDesktopRemoteHost } from './probe-desktop-remote-host.js';
+import { PageTitle } from './settings/page-title.js';
 import {
   clearDesktopRemoteHostTarget,
-  createDesktopRemoteHostClient,
-  isDesktopRemoteHostEndpoint,
   loadDesktopRemoteHostTarget,
-  readRemoteHostInstanceId,
   saveDesktopRemoteHostTarget,
-  type DesktopRemoteHostTarget,
-} from './remote-host-session';
+} from './remote-host-session.js';
 
 export function HostTargetSettings(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -25,49 +23,27 @@ export function HostTargetSettings(): ReactElement {
   const [hostInstanceId, setHostInstanceId] = useState<string | undefined>();
 
   async function handleConnect(): Promise<void> {
-    const normalizedEndpoint = endpoint.trim();
-    if (!isDesktopRemoteHostEndpoint(normalizedEndpoint)) {
-      setHostInstanceId(undefined);
-      setError(copy.invalidEndpoint);
-      return;
-    }
-
-    const trimmedToken = authToken.trim();
-    const target: DesktopRemoteHostTarget =
-      trimmedToken.length === 0
-        ? { endpoint: normalizedEndpoint }
-        : { endpoint: normalizedEndpoint, authToken: trimmedToken };
-
     setBusy(true);
     setError(undefined);
-    const probe = createDesktopRemoteHostClient(target);
-    try {
-      await probe.connect();
-      const status = await probe.request({ type: 'host/status' });
-      if (!status.success) {
-        setHostInstanceId(undefined);
-        setError(status.error);
-        return;
-      }
-      const instanceId =
-        readRemoteHostInstanceId(status.data) ?? probe.getHostHello()?.hostInstanceId;
-      saveDesktopRemoteHostTarget(target);
-      setHostInstanceId(instanceId);
-    } catch (connectError) {
+    const result = await probeDesktopRemoteHost({
+      endpoint,
+      authToken,
+      invalidEndpointMessage: copy.invalidEndpoint,
+    });
+    setBusy(false);
+    if (!result.ok) {
       setHostInstanceId(undefined);
-      setError(formatError(connectError));
-    } finally {
-      try {
-        await probe.close();
-      } catch {
-        // Probe is only used to validate host/status; App owns the live client.
-      }
-      setBusy(false);
+      setError(result.error);
+      return;
     }
+    saveDesktopHostLaunchMode('attach');
+    saveDesktopRemoteHostTarget(result.target);
+    setHostInstanceId(result.hostInstanceId);
   }
 
   function handleUseThisMac(): void {
     clearDesktopRemoteHostTarget();
+    saveDesktopHostLaunchMode('sidecar');
     setHostInstanceId(undefined);
     setError(undefined);
   }
@@ -107,6 +83,7 @@ export function HostTargetSettings(): ReactElement {
         >
           {busy ? copy.connecting : copy.connect}
         </Button>
+        {isDesktopShellOnlyBuild() ? null : (
         <Button
           variant="secondary"
           disabled={busy}
@@ -115,6 +92,7 @@ export function HostTargetSettings(): ReactElement {
         >
           {copy.useThisMac}
         </Button>
+        )}
       </div>
       {hostInstanceId !== undefined ? (
         <Notice tone="success" testId="host-target-instance">

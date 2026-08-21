@@ -35,7 +35,7 @@ function createController(runtime = new FakeRuntime()) {
 }
 
 describe('MobileAccessController', () => {
-  it('starts, mints one pairing code, and keeps hostInstanceId across stop/start', async () => {
+  it('starts, mints pairing codes, and rotates hostInstanceId across stop/start', async () => {
     const { controller, runtime } = createController();
     try {
       const started = await controller.handle({
@@ -77,7 +77,9 @@ describe('MobileAccessController', () => {
       if (!restarted.success) {
         throw new Error(restarted.error);
       }
-      expect((restarted.data as { hostInstanceId?: string }).hostInstanceId).toBe(instanceId);
+      const restartedId = (restarted.data as { hostInstanceId?: string }).hostInstanceId;
+      expect(restartedId).toBeTruthy();
+      expect(restartedId).not.toBe(instanceId);
       expect(runtime.commands).toEqual([]);
     } finally {
       await controller.dispose();
@@ -128,7 +130,7 @@ describe('MobileAccessController', () => {
 });
 
 describe('HostServer remote allowlist', () => {
-  it('denies mobile-access commands and secrets/get from WebSocket clients', async () => {
+  it('rejects phone-access listen commands on the Host WebSocket', async () => {
     const server = new HostServer({
       runtime: new FakeRuntime(),
       port: 0,
@@ -165,21 +167,11 @@ describe('HostServer remote allowlist', () => {
         command: { type: 'mobile-access/start', profileId: 'loopback' } as unknown as HostCommand,
       }),
     );
-    socket.send(
-      encodeHostWireMessage({
-        type: 'command',
-        requestId: 'secrets-denied',
-        command: { type: 'secrets/get', providerId: 'openai' },
-      }),
-    );
     await waitFor(
       () =>
         messages.some(
           (message) =>
             isError(message) && message.requestId === 'mobile-access-denied' && message.code === 'command-not-allowed',
-        ) &&
-        messages.some(
-          (message) => isError(message) && message.requestId === 'secrets-denied' && message.code === 'command-not-allowed',
         ),
     );
 

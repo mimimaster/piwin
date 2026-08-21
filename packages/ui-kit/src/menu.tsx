@@ -1,6 +1,8 @@
 import * as ContextMenuPrimitive from '@radix-ui/react-context-menu';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import type { ReactElement, ReactNode } from 'react';
+import { useRef, type ReactElement, type ReactNode } from 'react';
+import { IconChevronRight } from './icons/shell-icons.js';
+import { restoreSelectionRanges, snapshotSelectionRanges } from './selection-ranges.js';
 
 export type DropdownMenuProps = {
   open?: boolean;
@@ -58,10 +60,12 @@ export function DropdownMenu(props: DropdownMenuProps): ReactElement {
 
 export type DropdownMenuItemProps = {
   children: ReactNode;
-  onSelect?: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  testId?: string;
+  onSelect?: (() => void) | undefined;
+  disabled?: boolean | undefined;
+  danger?: boolean | undefined;
+  testId?: string | undefined;
+  icon?: ReactNode | undefined;
+  shortcut?: string | undefined;
 };
 
 export function DropdownMenuItem(props: DropdownMenuItemProps): ReactElement {
@@ -85,7 +89,13 @@ export function DropdownMenuItem(props: DropdownMenuItemProps): ReactElement {
 
   return (
     <DropdownMenuPrimitive.Item {...itemProps}>
-      {props.children}
+      {props.icon ? (
+        <span className="ui-menu-item-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-item-label">{props.children}</span>
+      {props.shortcut ? <span className="ui-menu-item-shortcut">{props.shortcut}</span> : null}
     </DropdownMenuPrimitive.Item>
   );
 }
@@ -96,7 +106,8 @@ export function DropdownMenuSeparator(): ReactElement {
 
 export type DropdownMenuLabelProps = {
   children: ReactNode;
-  className?: string;
+  className?: string | undefined;
+  icon?: ReactNode | undefined;
 };
 
 /** Non-interactive caption row; skipped by Radix roving focus. */
@@ -105,15 +116,20 @@ export function DropdownMenuLabel(props: DropdownMenuLabelProps): ReactElement {
     <DropdownMenuPrimitive.Label
       className={props.className ? `ui-menu-label ${props.className}` : 'ui-menu-label'}
     >
-      {props.children}
+      {props.icon ? (
+        <span className="ui-menu-label-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-label-text">{props.children}</span>
     </DropdownMenuPrimitive.Label>
   );
 }
 
 export type DropdownMenuSubProps = {
   children: ReactNode;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  open?: boolean | undefined;
+  onOpenChange?: ((open: boolean) => void) | undefined;
 };
 
 /** Nested menu branch. Radix owns hover intent, arrow traversal, and Escape. */
@@ -127,8 +143,9 @@ export function DropdownMenuSub(props: DropdownMenuSubProps): ReactElement {
 
 export type DropdownMenuSubTriggerProps = {
   children: ReactNode;
-  disabled?: boolean;
-  testId?: string;
+  disabled?: boolean | undefined;
+  testId?: string | undefined;
+  icon?: ReactNode | undefined;
 };
 
 export function DropdownMenuSubTrigger(props: DropdownMenuSubTriggerProps): ReactElement {
@@ -136,22 +153,30 @@ export function DropdownMenuSubTrigger(props: DropdownMenuSubTriggerProps): Reac
     className: string;
     disabled?: boolean;
     'data-testid'?: string;
-  } = { className: 'ui-menu-item' };
+  } = { className: 'ui-menu-item ui-menu-sub-trigger' };
   if (props.disabled !== undefined) triggerProps.disabled = props.disabled;
   if (props.testId !== undefined) triggerProps['data-testid'] = props.testId;
 
   return (
     <DropdownMenuPrimitive.SubTrigger {...triggerProps}>
-      {props.children}
+      {props.icon ? (
+        <span className="ui-menu-item-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-item-label">{props.children}</span>
+      <span className="ui-menu-item-chevron" aria-hidden="true">
+        <IconChevronRight width={12} height={12} />
+      </span>
     </DropdownMenuPrimitive.SubTrigger>
   );
 }
 
 export type DropdownMenuSubContentProps = {
   children: ReactNode;
-  className?: string;
-  testId?: string;
-  label?: string;
+  className?: string | undefined;
+  testId?: string | undefined;
+  label?: string | undefined;
 };
 
 export function DropdownMenuSubContent(props: DropdownMenuSubContentProps): ReactElement {
@@ -170,20 +195,44 @@ export function DropdownMenuSubContent(props: DropdownMenuSubContentProps): Reac
 }
 
 export type ContextMenuProps = {
-  children: ReactNode;
   content: ReactNode;
-  contentClassName?: string;
-  testId?: string;
-  label?: string;
+  children: ReactNode;
+  contentClassName?: string | undefined;
+  testId?: string | undefined;
+  label?: string | undefined;
+  modal?: boolean | undefined;
+  onOpenChange?: ((open: boolean) => void) | undefined;
+  onOpenAutoFocus?: ((event: Event) => void) | undefined;
+  onCloseAutoFocus?: ((event: Event) => void) | undefined;
 };
 
 /**
  * Right-click / long-press context menu with full keyboard semantics.
+ * Defaults to modal={false} and blocks auto-focus so the page stays usable.
+ * Radix still clears the live selection on open — snapshot on contextmenu
+ * and put the ranges back so the highlight does not vanish.
  */
 export function ContextMenu(props: ContextMenuProps): ReactElement {
+  const savedRangesRef = useRef<Range[]>([]);
   return (
-    <ContextMenuPrimitive.Root>
-      <ContextMenuPrimitive.Trigger asChild>{props.children}</ContextMenuPrimitive.Trigger>
+    <ContextMenuPrimitive.Root
+      modal={props.modal ?? false}
+      onOpenChange={(open) => {
+        if (open) {
+          restoreSelectionRanges(savedRangesRef.current);
+          requestAnimationFrame(() => restoreSelectionRanges(savedRangesRef.current));
+        }
+        props.onOpenChange?.(open);
+      }}
+    >
+      <ContextMenuPrimitive.Trigger
+        asChild
+        onContextMenu={() => {
+          savedRangesRef.current = snapshotSelectionRanges();
+        }}
+      >
+        {props.children}
+      </ContextMenuPrimitive.Trigger>
       <ContextMenuPrimitive.Portal>
         <ContextMenuPrimitive.Content
           className={
@@ -191,6 +240,20 @@ export function ContextMenu(props: ContextMenuProps): ReactElement {
               ? `ui-menu-content ${props.contentClassName}`
               : 'ui-menu-content'
           }
+          {...({
+            onOpenAutoFocus: (event: Event) => {
+              props.onOpenAutoFocus?.(event);
+              if (!props.onOpenAutoFocus) {
+                event.preventDefault();
+              }
+            },
+          } as Record<string, unknown>)}
+          onCloseAutoFocus={(event) => {
+            props.onCloseAutoFocus?.(event);
+            if (!props.onCloseAutoFocus) {
+              event.preventDefault();
+            }
+          }}
           {...(props.testId ? { 'data-testid': props.testId } : {})}
           {...(props.label ? { 'aria-label': props.label } : {})}
         >
@@ -203,10 +266,12 @@ export function ContextMenu(props: ContextMenuProps): ReactElement {
 
 export type ContextMenuItemProps = {
   children: ReactNode;
-  onSelect?: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  testId?: string;
+  onSelect?: (() => void) | undefined;
+  disabled?: boolean | undefined;
+  danger?: boolean | undefined;
+  testId?: string | undefined;
+  icon?: ReactNode | undefined;
+  shortcut?: string | undefined;
 };
 
 export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
@@ -230,7 +295,13 @@ export function ContextMenuItem(props: ContextMenuItemProps): ReactElement {
 
   return (
     <ContextMenuPrimitive.Item {...itemProps}>
-      {props.children}
+      {props.icon ? (
+        <span className="ui-menu-item-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-item-label">{props.children}</span>
+      {props.shortcut ? <span className="ui-menu-item-shortcut">{props.shortcut}</span> : null}
     </ContextMenuPrimitive.Item>
   );
 }
@@ -239,10 +310,32 @@ export function ContextMenuSeparator(): ReactElement {
   return <ContextMenuPrimitive.Separator className="ui-menu-separator" />;
 }
 
+export type ContextMenuLabelProps = {
+  children: ReactNode;
+  className?: string | undefined;
+  icon?: ReactNode | undefined;
+};
+
+/** Non-interactive caption row in context menu. */
+export function ContextMenuLabel(props: ContextMenuLabelProps): ReactElement {
+  return (
+    <ContextMenuPrimitive.Label
+      className={props.className ? `ui-menu-label ${props.className}` : 'ui-menu-label'}
+    >
+      {props.icon ? (
+        <span className="ui-menu-label-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-label-text">{props.children}</span>
+    </ContextMenuPrimitive.Label>
+  );
+}
+
 export type ContextMenuSubProps = {
   children: ReactNode;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  open?: boolean | undefined;
+  onOpenChange?: ((open: boolean) => void) | undefined;
 };
 
 /** Nested context-menu branch (CM-16 More…). Radix owns hover intent and Escape. */
@@ -256,8 +349,9 @@ export function ContextMenuSub(props: ContextMenuSubProps): ReactElement {
 
 export type ContextMenuSubTriggerProps = {
   children: ReactNode;
-  disabled?: boolean;
-  testId?: string;
+  disabled?: boolean | undefined;
+  testId?: string | undefined;
+  icon?: ReactNode | undefined;
 };
 
 export function ContextMenuSubTrigger(props: ContextMenuSubTriggerProps): ReactElement {
@@ -265,22 +359,30 @@ export function ContextMenuSubTrigger(props: ContextMenuSubTriggerProps): ReactE
     className: string;
     disabled?: boolean;
     'data-testid'?: string;
-  } = { className: 'ui-menu-item' };
+  } = { className: 'ui-menu-item ui-menu-sub-trigger' };
   if (props.disabled !== undefined) triggerProps.disabled = props.disabled;
   if (props.testId !== undefined) triggerProps['data-testid'] = props.testId;
 
   return (
     <ContextMenuPrimitive.SubTrigger {...triggerProps}>
-      {props.children}
+      {props.icon ? (
+        <span className="ui-menu-item-icon" aria-hidden="true">
+          {props.icon}
+        </span>
+      ) : null}
+      <span className="ui-menu-item-label">{props.children}</span>
+      <span className="ui-menu-item-chevron" aria-hidden="true">
+        <IconChevronRight width={12} height={12} />
+      </span>
     </ContextMenuPrimitive.SubTrigger>
   );
 }
 
 export type ContextMenuSubContentProps = {
   children: ReactNode;
-  className?: string;
-  testId?: string;
-  label?: string;
+  className?: string | undefined;
+  testId?: string | undefined;
+  label?: string | undefined;
 };
 
 export function ContextMenuSubContent(props: ContextMenuSubContentProps): ReactElement {

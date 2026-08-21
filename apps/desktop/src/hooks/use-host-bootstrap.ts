@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type {
+  ConfiguredChatModelsData,
   ExtensionDeploymentRecord,
   ExtensionUiKind,
   HostPush,
@@ -21,8 +22,10 @@ import type {
   ThemeManifest,
 } from '@piwin/contracts';
 import type { PetRuntimeSnapshot } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import { formatError } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
+import { isRemoteCommandGapError } from '../remote-command-gap.js';
+import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
 import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
@@ -31,7 +34,22 @@ import { PIWIN_APPEARANCE_DARK, resolveDesktopAppearance } from '../appearance-t
 import { getDesktopCopy, type DesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { createStreamEventBuffer } from '../stream-event-buffer';
-import { mapListedSessionItems } from '../remote-session-hydrate';
+import {
+  hydrationSessionApplyActions,
+  mapListedSessionItem,
+  mapListedSessionItems,
+} from '../remote-session-hydrate';
+import { readConfiguredChatModelsData } from '../model-options';
+import { resolveBootstrapSelectedModelKey } from '../composer-model-selection-policy.js';
+import { readProjectedHostConfig } from '../remote-settings-hydrate.js';
+import { mergeSettingsViewConfig } from '../settings/settings-view-config.js';
+import {
+  appendBoundedPtyOutput,
+  capSeenKeys,
+  MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS,
+  MAX_SESSION_PLAN_CACHE,
+  putRecordLru,
+} from '../record-budget';
 
 export type ExtensionUiRequestState = {
   sessionId: string;
@@ -65,8 +83,15 @@ export function cacheSessionPlan(
   current: SessionPlanCache,
   sessionId: string,
   plan: SessionPlan | null,
+  protectSessionId?: string | null,
 ): SessionPlanCache {
-  return { ...current, [sessionId]: plan };
+  return putRecordLru(
+    current,
+    sessionId,
+    plan,
+    MAX_SESSION_PLAN_CACHE,
+    protectSessionId ? [protectSessionId] : [],
+  );
 }
 
 export function selectSessionPlan(
@@ -152,6 +177,7 @@ export function shouldAnnounceExtensionDeploymentFailure(
     return false;
   }
   seenKeys.add(key);
+  capSeenKeys(seenKeys, MAX_EXTENSION_DEPLOYMENT_ANNOUNCEMENTS);
   return true;
 }
 
@@ -162,6 +188,19 @@ export function shouldAnnounceExtensionDeploymentFailure(
  * fall back to built-in dark. Pure so the bootstrap theme path is testable
  * without a HostClient stream.
  */
+/** Remote shells admit on hello; local sidecar admits on host/status. */
+export function resolveShellHostReady(input: {
+  transport: ReturnType<HostClient['getTransport']>;
+  wireReady: boolean;
+  statusSuccess: boolean;
+  statusReady?: boolean;
+}): boolean {
+  if (input.transport === 'remote') {
+    return input.wireReady || (input.statusSuccess && input.statusReady === true);
+  }
+  return input.statusSuccess && input.statusReady === true;
+}
+
 export function resolveThemeBootstrapResponse(response: HostResponse): ThemeManifest {
   if (!response.success) {
     return PIWIN_APPEARANCE_DARK;
@@ -184,8 +223,13 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const announcedExtensionDeploymentsRef = useRef(new Set<string>());
   const [hostStatus, setHostStatus] = useState<HostStatusData | null>(null);
   const [hostReadyEpoch, setHostReadyEpoch] = useState(0);
+  /** Bumps on every Host snapshot so App can re-list sessions / reload transcript. */
+  const [remoteCatchUpEpoch, setRemoteCatchUpEpoch] = useState(0);
   const lastPushedHostReadyRef = useRef<boolean | null>(null);
   const [config, setConfig] = useState<PiwinConfig | null>(null);
+  const [configuredChatModels, setConfiguredChatModels] = useState<ConfiguredChatModelsData>({
+    models: [],
+  });
   const [activePet, setActivePet] = useState<PetRuntimeSnapshot | null>(null);
   const [plansBySessionId, setPlansBySessionId] = useState<
     Record<string, SessionPlan | null>
@@ -223,17 +267,44 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       if (message.type === 'hydration') {
         streamEventBuffer.reset();
         const listed = mapListedSessionItems({ sessions: message.snapshot.sessions });
-        for (const session of listed.sessions) {
-          dispatch({ type: 'session/update', session });
+        for (const action of hydrationSessionApplyActions(listed.sessions)) {
+          dispatch(action);
         }
         return;
       }
+      if (message.type === 'snapshot') {
+        // Stale-cursor recovery without full hello hydration. Force catch-up
+        // even when the shell was already "ready" (false→true epoch alone
+        // would no-op).
+        streamEventBuffer.reset();
+        const ready = resolveShellHostReady({
+          transport: args.hostClient.getTransport(),
+          wireReady: args.hostClient.isReady(),
+          statusSuccess: true,
+          statusReady: message.status.ready,
+        });
+        dispatch({
+          type: 'host/status',
+          ready,
+          mock: message.status.mock,
+        });
+        lastPushedHostReadyRef.current = ready;
+        setHostReadyEpoch((current) => current + 1);
+        setRemoteCatchUpEpoch((current) => current + 1);
+        return;
+      }
       if (message.type === 'host/status') {
-        dispatch({ type: 'host/status', ready: message.ready, mock: message.mock });
-        if (message.ready && lastPushedHostReadyRef.current !== true) {
+        const ready = resolveShellHostReady({
+          transport: args.hostClient.getTransport(),
+          wireReady: args.hostClient.isReady(),
+          statusSuccess: true,
+          statusReady: message.ready,
+        });
+        dispatch({ type: 'host/status', ready, mock: message.mock });
+        if (ready && lastPushedHostReadyRef.current !== true) {
           setHostReadyEpoch((current) => current + 1);
         }
-        lastPushedHostReadyRef.current = message.ready;
+        lastPushedHostReadyRef.current = ready;
         return;
       }
       if (message.type === 'event') {
@@ -287,7 +358,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         message.type === 'job/ready' ||
         message.type === 'job/exited'
       ) {
-        void args.refreshJobs();
+        if (hostClient.supportsCommand('job/list')) {
+          void args.refreshJobs();
+        }
         return;
       }
       if (message.type === 'job/log') {
@@ -296,20 +369,18 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'pty/output') {
-        args.setPtyOutput((current) => [
-          ...current.slice(-999),
-          {
+        args.setPtyOutput((current) =>
+          appendBoundedPtyOutput(current, {
             id: `${message.ptyId}:${message.at}:${current.length}`,
             data: message.data,
             at: message.at,
-          },
-        ]);
+          }),
+        );
         return;
       }
       if (message.type === 'pty/exit') {
-        args.setPtyOutput((current) => [
-          ...current.slice(-999),
-          {
+        args.setPtyOutput((current) =>
+          appendBoundedPtyOutput(current, {
             id: `${message.ptyId}:exit:${current.length}`,
             data: `\n[Shell exited${
               message.exitCode === null || message.exitCode === undefined
@@ -317,8 +388,8 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
                 : ` with code ${message.exitCode}`
             }]\n`,
             at: new Date().toISOString(),
-          },
-        ]);
+          }),
+        );
         return;
       }
       if (message.type === 'transcript/append') {
@@ -326,6 +397,17 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           type: 'transcript/append',
           sessionId: message.sessionId,
           message: message.message,
+        });
+        return;
+      }
+      if (message.type === 'reply-writer/updated') {
+        dispatch({
+          type: 'reply-writer/updated',
+          sessionId: message.sessionId,
+          messageId: message.messageId,
+          status: message.status,
+          ...(message.model ? { model: message.model } : {}),
+          ...(message.language ? { language: message.language } : {}),
         });
         return;
       }
@@ -338,6 +420,35 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
       if (message.type === 'session/queued-turn-updated') {
         dispatch({ type: 'session/queued-turn-updated', queuedTurn: message.queuedTurn });
+        return;
+      }
+      if (message.type === 'session/index-updated') {
+        if (message.op === 'deleted') {
+          dispatch({ type: 'session/remove', sessionId: message.sessionId });
+          if (args.activeSessionId === message.sessionId) {
+            dispatch({ type: 'session/clear-active' });
+          }
+          return;
+        }
+        const listed =
+          message.session === undefined ? undefined : mapListedSessionItem(message.session);
+        if (listed) {
+          dispatch({ type: 'session/update', session: listed });
+        }
+        return;
+      }
+      if (message.type === 'settings/updated') {
+        void (async () => {
+          const response = await hostClient.request({ type: 'settings/get' });
+          if (!response.success) {
+            return;
+          }
+          const snapshot = (response.data as { snapshot?: { config?: PiwinConfig } } | undefined)
+            ?.snapshot;
+          if (snapshot?.config) {
+            setConfig(mergeSettingsViewConfig(snapshot.config));
+          }
+        })();
         return;
       }
       if (message.type === 'session/name-updated') {
@@ -452,7 +563,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'plan/updated') {
-        setPlansBySessionId((current) => cacheSessionPlan(current, message.sessionId, message.plan));
+        setPlansBySessionId((current) =>
+          cacheSessionPlan(current, message.sessionId, message.plan, args.activeSessionId),
+        );
         return;
       }
       if (message.type === 'plan/execution-updated') {
@@ -494,7 +607,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         if (
           message.command === 'models/discover' ||
           message.command === 'config/get' ||
-          message.command === 'settings/apply'
+          message.command === 'settings/get' ||
+          message.command === 'settings/apply' ||
+          isRemoteCommandGapError(message.error)
         ) {
           return;
         }
@@ -502,28 +617,58 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
     });
 
+    let cancelled = false;
     void (async () => {
       try {
         await hostClient.connect();
+        if (cancelled) {
+          return;
+        }
         const statusResponse = await hostClient.request({ type: 'host/status' });
+        if (cancelled) {
+          return;
+        }
+        const ready = resolveShellHostReady({
+          transport: hostClient.getTransport(),
+          wireReady: hostClient.isReady(),
+          statusSuccess: statusResponse.success,
+          ...(statusResponse.success === true
+            ? { statusReady: (statusResponse.data as HostStatusData).ready === true }
+            : {}),
+        });
         if (statusResponse.success) {
           const statusData = statusResponse.data as HostStatusData;
           setHostStatus(statusData);
-          // Request path must update the shell pill; push-only left UI stuck offline after HMR.
-          dispatch({
-            type: 'host/status',
-            ready: statusData.ready === true,
-            mock: statusData.mock === true,
-          });
-        } else {
-          dispatch({ type: 'host/status', ready: false, mock: false });
         }
+        // Request path must update the shell pill; push-only left UI stuck offline after HMR.
+        dispatch({
+          type: 'host/status',
+          ready,
+          mock:
+            statusResponse.success === true
+              ? (statusResponse.data as HostStatusData).mock === true
+              : false,
+        });
       } catch (error) {
-        dispatch({ type: 'host/status', ready: false, mock: false });
+        if (cancelled || isWorkbenchHostTeardownError(formatError(error))) {
+          return;
+        }
+        dispatch({
+          type: 'host/status',
+          ready: resolveShellHostReady({
+            transport: hostClient.getTransport(),
+            wireReady: hostClient.isReady(),
+            statusSuccess: false,
+          }),
+          mock: false,
+        });
         dispatch({
           type: 'error',
           message: formatError(error),
         });
+      }
+      if (cancelled) {
+        return;
       }
       try {
         // Remote Hosts do not allow config/get (secrets). Skip it so General
@@ -535,38 +680,54 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
             const nextConfig = data?.config;
             if (nextConfig !== undefined) {
               setConfig(nextConfig);
-              if (nextConfig.defaultProviderId && nextConfig.defaultModelId) {
-                args.setSelectedModelKey(
-                  `${nextConfig.defaultProviderId}::${nextConfig.defaultModelId}`,
-                );
-              }
+              applyBootstrapSelectedModelKey(
+                args.setSelectedModelKey,
+                nextConfig.defaultProviderId,
+                nextConfig.defaultModelId,
+              );
             }
+          }
+        } else {
+          await applyRemoteConfiguredModels(hostClient, setConfiguredChatModels, args.setSelectedModelKey);
+          const projected = await readProjectedHostConfig(hostClient);
+          if (projected !== undefined) {
+            setConfig(projected);
+            applyBootstrapSelectedModelKey(
+              args.setSelectedModelKey,
+              projected.defaultProviderId,
+              projected.defaultModelId,
+            );
           }
         }
       } catch {
         // Retry on hostReadyEpoch below; do not take down the shell.
       }
-      const themeResponse = await hostClient.request({ type: 'theme/get-active' });
-      // DesktopThemeRoot already applied Appearance prefs at mount. Only push
-      // custom installed theme packages from the host; built-in dark/light/橙白
-      // must not stomp the user's Appearance mode (causes a second theme flash).
-      const bootstrappedTheme = resolveThemeBootstrapResponse(themeResponse);
-      const isBuiltinAppearance =
-        bootstrappedTheme.id === 'piwin-dark' ||
-        bootstrappedTheme.id === 'piwin-light' ||
-        bootstrappedTheme.id === 'piwin-orange-white' ||
-        bootstrappedTheme.id.endsWith('-appearance');
-      if (!isBuiltinAppearance) {
-        args.onThemeResolved(bootstrappedTheme);
+      if (hostClient.supportsCommand('theme/get-active')) {
+        const themeResponse = await hostClient.request({ type: 'theme/get-active' });
+        // DesktopThemeRoot already applied Appearance prefs at mount. Only push
+        // custom installed theme packages from the host; built-in dark/light/橙白
+        // must not stomp the user's Appearance mode (causes a second theme flash).
+        const bootstrappedTheme = resolveThemeBootstrapResponse(themeResponse);
+        const isBuiltinAppearance =
+          bootstrappedTheme.id === 'piwin-dark' ||
+          bootstrappedTheme.id === 'piwin-light' ||
+          bootstrappedTheme.id === 'piwin-orange-white' ||
+          bootstrappedTheme.id.endsWith('-appearance');
+        if (!isBuiltinAppearance) {
+          args.onThemeResolved(bootstrappedTheme);
+        }
       }
-      const petResponse = await hostClient.request({ type: 'pet/get-active' });
-      if (petResponse.success) {
-        const petData = petResponse.data as { pet: PetRuntimeSnapshot };
-        setActivePet(petData.pet);
+      if (hostClient.supportsCommand('pet/get-active')) {
+        const petResponse = await hostClient.request({ type: 'pet/get-active' });
+        if (petResponse.success) {
+          const petData = petResponse.data as { pet: PetRuntimeSnapshot };
+          setActivePet(petData.pet);
+        }
       }
     })();
 
     return () => {
+      cancelled = true;
       unsubscribe();
       streamEventBuffer.dispose();
       // Do not dispose the host on React effect re-runs / HMR remounts.
@@ -584,12 +745,26 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     if (hostReadyEpoch === 0) {
       return;
     }
-    if (args.hostClient.getTransport() === 'remote') {
-      return;
-    }
     let cancelled = false;
     void (async () => {
       try {
+        if (args.hostClient.getTransport() === 'remote') {
+          await applyRemoteConfiguredModels(
+            args.hostClient,
+            setConfiguredChatModels,
+            args.setSelectedModelKey,
+          );
+          const projected = await readProjectedHostConfig(args.hostClient);
+          if (!cancelled && projected !== undefined) {
+            setConfig(projected);
+            applyBootstrapSelectedModelKey(
+              args.setSelectedModelKey,
+              projected.defaultProviderId,
+              projected.defaultModelId,
+            );
+          }
+          return;
+        }
         const configResponse = await args.hostClient.request({ type: 'config/get' });
         if (cancelled || !configResponse.success) {
           return;
@@ -600,9 +775,11 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           return;
         }
         setConfig(nextConfig);
-        if (nextConfig.defaultProviderId && nextConfig.defaultModelId) {
-          args.setSelectedModelKey(`${nextConfig.defaultProviderId}::${nextConfig.defaultModelId}`);
-        }
+        applyBootstrapSelectedModelKey(
+          args.setSelectedModelKey,
+          nextConfig.defaultProviderId,
+          nextConfig.defaultModelId,
+        );
       } catch {
         // Keep the shell up; the next ready epoch retries.
       }
@@ -649,13 +826,18 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     if (!sessionId || hostStatus?.ready !== true) return;
     let cancelled = false;
     void (async () => {
+      if (args.hostClient.supportsCommand?.('plan/get') === false) {
+        return;
+      }
       try {
         const response = await args.hostClient.request({ type: 'plan/get', sessionId });
         if (cancelled || !response.success) return;
         const data = response.data as { sessionId: string; plan: SessionPlan | null };
-        setPlansBySessionId((current) => cacheSessionPlan(current, data.sessionId, data.plan));
+        setPlansBySessionId((current) =>
+          cacheSessionPlan(current, data.sessionId, data.plan, args.activeSessionId),
+        );
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && !isRemoteCommandGapError(formatError(error))) {
           args.dispatch({
             type: 'error',
             message: `Failed to restore session plan: ${formatError(error)}`,
@@ -682,5 +864,38 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     setExtensionUiInput,
     clearExtensionUiRequest,
     assemblySummariesByRunId,
+    configuredChatModels,
+    remoteCatchUpEpoch,
   };
+}
+
+async function applyRemoteConfiguredModels(
+  hostClient: HostClient,
+  setConfiguredChatModels: Dispatch<SetStateAction<ConfiguredChatModelsData>>,
+  setSelectedModelKey: Dispatch<SetStateAction<string>>,
+): Promise<void> {
+  const response = await hostClient.request({ type: 'models/configured' });
+  if (!response.success) {
+    return;
+  }
+  const next = readConfiguredChatModelsData(response.data);
+  setConfiguredChatModels(next);
+  applyBootstrapSelectedModelKey(
+    setSelectedModelKey,
+    next.defaultProviderId,
+    next.defaultModelId,
+  );
+}
+
+function applyBootstrapSelectedModelKey(
+  setSelectedModelKey: Dispatch<SetStateAction<string>>,
+  defaultProviderId: string | undefined,
+  defaultModelId: string | undefined,
+): void {
+  if (!defaultProviderId || !defaultModelId) {
+    return;
+  }
+  setSelectedModelKey((current) =>
+    resolveBootstrapSelectedModelKey(current, defaultProviderId, defaultModelId),
+  );
 }

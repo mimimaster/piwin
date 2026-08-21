@@ -22,10 +22,24 @@ export type FilesChangedBarRequest = (command: {
 
 /** Session-open can mount many FilesChangedBar rows; share one in-flight/result per project. */
 const GIT_DIFF_SUMMARY_CACHE_TTL_MS = 15_000;
+export const MAX_GIT_DIFF_SUMMARY_CACHE_ENTRIES = 24;
 const gitDiffSummaryCache = new Map<
   string,
   { expiresAt: number; promise: Promise<HostResponse> }
 >();
+
+function pruneGitDiffSummaryCache(now: number): void {
+  for (const [path, entry] of gitDiffSummaryCache) {
+    if (entry.expiresAt <= now) {
+      gitDiffSummaryCache.delete(path);
+    }
+  }
+  while (gitDiffSummaryCache.size >= MAX_GIT_DIFF_SUMMARY_CACHE_ENTRIES) {
+    const oldestPath = gitDiffSummaryCache.keys().next().value;
+    if (oldestPath === undefined) break;
+    gitDiffSummaryCache.delete(oldestPath);
+  }
+}
 
 const DEFAULT_MAX_VISIBLE_ROWS = 5;
 
@@ -38,6 +52,8 @@ function requestGitDiffSummaryCached(
   if (cached && cached.expiresAt > now) {
     return cached.promise;
   }
+  gitDiffSummaryCache.delete(projectPath);
+  pruneGitDiffSummaryCache(now);
   const promise = request({ type: 'git/diff-summary', projectPath }).then(
     (response) => {
       // Keep successful summaries briefly; do not cache hard failures forever.
@@ -56,6 +72,14 @@ function requestGitDiffSummaryCached(
     promise,
   });
   return promise;
+}
+
+export function clearGitDiffSummaryCacheForTests(): void {
+  gitDiffSummaryCache.clear();
+}
+
+export function gitDiffSummaryCacheSizeForTests(): number {
+  return gitDiffSummaryCache.size;
 }
 
 export type FilesChangedBarProps = {

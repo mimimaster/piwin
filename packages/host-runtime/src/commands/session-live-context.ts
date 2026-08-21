@@ -268,9 +268,14 @@ export type SessionLiveContext = {
   tryReservePromptAdmission: (sessionId: string) => boolean;
   releasePromptAdmission: (sessionId: string) => void;
   isPromptAdmissionReserved: (sessionId: string) => boolean;
+  tryReserveSessionBody: (sessionId: string) => boolean;
+  releaseSessionBody: (sessionId: string) => void;
+  isSessionBodyReserved: (sessionId: string) => boolean;
   joinRun: (runId: string) => Promise<ExecutionRunRecord | undefined>;
   getRunSignal: (runId: string) => AbortSignal | undefined;
   hasRunReceivedFirstToken: (runId: string) => boolean;
+  /** Upstream provider error text observed on this run, when available. */
+  getRunLastAgentError: (runId: string) => string | undefined;
   requestCancelRun: (
     sessionId: string,
     runId?: string,

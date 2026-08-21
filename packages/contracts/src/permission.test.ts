@@ -6,6 +6,7 @@ import {
   createEmptyRuleSet,
   mergeRuleSets,
   modeToPreset,
+  resolvePermissionPreset,
   resolvePreset,
   mergeAgentModeIntoPrompt,
   type AgentModeId,
@@ -100,6 +101,16 @@ describe('modeToPreset', () => {
       const resolved = resolvePreset(preset, 'agent');
       expect(modeToPreset(resolved.mode)).toBe(preset);
     }
+  });
+});
+
+describe('resolvePermissionPreset', () => {
+  it('prefers preset, then mode, then the Host YOLO default', () => {
+    expect(resolvePermissionPreset({ mode: 'auto', preset: 'ask' })).toBe('ask');
+    expect(resolvePermissionPreset({ mode: 'bypass' })).toBe('yolo');
+    expect(resolvePermissionPreset({ mode: 'auto' })).toBe('auto');
+    expect(resolvePermissionPreset(undefined)).toBe('yolo');
+    expect(resolvePermissionPreset(null)).toBe('yolo');
   });
 });
 

@@ -16,13 +16,17 @@ export type NotesPanelProps = {
     | { type: 'notes/read'; noteId: string }
     | { type: 'notes/search'; query: { query: string; limit?: number; mode?: NoteSearchMode } }
     | { type: 'notes/write'; input: { title: string; content: string; collection?: string; tags?: string[] } }
-    | { type: 'notes/update'; input: { id: string; title?: string; content?: string } }
-    | { type: 'notes/delete'; noteId: string }
+    | {
+        type: 'notes/update';
+        input: { id: string; title?: string; content?: string; expectedContentHash?: string };
+      }
+    | { type: 'notes/delete'; noteId: string; expectedContentHash?: string }
     | { type: 'notes/reindex' }
     | { type: 'notes/eval-run'; k?: number }
     | { type: 'notes/eval-history' }
   ) => Promise<HostResponse>;
   onSendToChat?: (text: string) => void;
+  readOnly?: boolean;
 };
 
 /**
@@ -106,10 +110,21 @@ export function NotesPanel(props: NotesPanelProps) {
       ? await props.request({ type: 'notes/write', input })
       : await props.request({
           type: 'notes/update',
-          input: { id: selected?.id ?? '', ...input },
+          input: {
+            id: selected?.id ?? '',
+            ...input,
+            ...(selected?.contentHash === undefined
+              ? {}
+              : { expectedContentHash: selected.contentHash }),
+          },
         });
     setBusy(false);
     if (!response.success) {
+      if (response.problem?.code === 'notes-revision-conflict' && selected) {
+        setError(t('Another client changed this note.', '这条笔记已被另一端改过'));
+        await handleOpen(selected.id);
+        return;
+      }
       setError(response.error);
       return;
     }
@@ -124,9 +139,20 @@ export function NotesPanel(props: NotesPanelProps) {
   async function handleDelete(noteId: string): Promise<void> {
     setBusy(true);
     setError(null);
-    const response = await props.request({ type: 'notes/delete', noteId });
+    const response = await props.request({
+      type: 'notes/delete',
+      noteId,
+      ...(selected?.id === noteId && selected.contentHash
+        ? { expectedContentHash: selected.contentHash }
+        : {}),
+    });
     setBusy(false);
     if (!response.success) {
+      if (response.problem?.code === 'notes-revision-conflict') {
+        setError(t('Another client changed this note.', '这条笔记已被另一端改过'));
+        await handleOpen(noteId);
+        return;
+      }
       setError(response.error);
       return;
     }
@@ -248,6 +274,7 @@ export function NotesPanel(props: NotesPanelProps) {
           <Button
             variant="primary"
             data-testid="notes-new"
+            disabled={props.readOnly}
             onClick={() => {
               setSelected(null);
               setCreating(true);
@@ -256,7 +283,11 @@ export function NotesPanel(props: NotesPanelProps) {
           >
             📝 {t('New Note', '新建笔记')}
           </Button>
-          <Button disabled={busy} variant="secondary" onClick={() => void handleReindex()}>
+          <Button
+            disabled={busy || props.readOnly}
+            variant="secondary"
+            onClick={() => void handleReindex()}
+          >
             ⚡ {t('Rebuild Index', '重建索引')}
           </Button>
           <Button
@@ -272,10 +303,19 @@ export function NotesPanel(props: NotesPanelProps) {
       {showAdvanced && (
         <div className="notes-advanced-card">
           <div className="notes-eval-buttons">
-            <Button size="compact" disabled={busy} onClick={() => void handleEvalRun()}>
+            <Button
+              size="compact"
+              disabled={busy || props.readOnly}
+              onClick={() => void handleEvalRun()}
+            >
               ▶️ {t('Run Recall Benchmark (k=5)', '运行召回质量评测')}
             </Button>
-            <Button size="compact" variant="ghost" onClick={() => void handleEvalHistory()}>
+            <Button
+              size="compact"
+              variant="ghost"
+              disabled={props.readOnly}
+              onClick={() => void handleEvalHistory()}
+            >
               📊 {evalHistory !== null ? t('Hide History', '隐藏历史') : t('Eval History', '评测历史记录')}
             </Button>
           </div>
@@ -360,10 +400,20 @@ export function NotesPanel(props: NotesPanelProps) {
               <Button size="compact" variant="secondary" onClick={handleDownloadNote} title={t('Export as Markdown', '导出为 Markdown')}>
                 📄 {t('Export .MD', '导出 MD')}
               </Button>
-              <Button size="compact" variant="secondary" onClick={() => setEditing(true)}>
+              <Button
+                size="compact"
+                variant="secondary"
+                disabled={props.readOnly}
+                onClick={() => setEditing(true)}
+              >
                 ✏️ {t('Edit', '编辑')}
               </Button>
-              <Button size="compact" variant="ghost" disabled={busy} onClick={() => void handleDelete(selected.id)}>
+              <Button
+                size="compact"
+                variant="ghost"
+                disabled={busy || props.readOnly}
+                onClick={() => void handleDelete(selected.id)}
+              >
                 🗑️ {t('Delete', '删除')}
               </Button>
               <Button size="compact" variant="ghost" onClick={() => setSelected(null)}>

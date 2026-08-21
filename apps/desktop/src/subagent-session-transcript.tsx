@@ -15,6 +15,7 @@ import { IconChevronDown } from './shell-icons';
 import { TurnWorkDetails } from './turn-work-details';
 import { CitationCards } from './CitationCards';
 import { MessageAttachments } from './message-attachments';
+import { MediaPreviewReadProvider, useMediaPreviewRead } from './media-preview-read-context';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
@@ -43,6 +44,7 @@ export type SubagentSessionTranscriptProps = {
   request?: DiffCardRequest;
   filesChangedRequest?: FilesChangedBarRequest;
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
   onOpenDocument?: (input: DocumentOpenInput) => void;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
@@ -68,6 +70,7 @@ function SubagentInspectorAssistant({
   request,
   filesChangedRequest,
   onOpenFile,
+  onOpenDiff,
   onOpenDocument,
   onArtifactAction,
   onOpenArtifactCanvas,
@@ -84,6 +87,7 @@ function SubagentInspectorAssistant({
   request?: DiffCardRequest;
   filesChangedRequest?: FilesChangedBarRequest;
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
+  onOpenDiff?: (absolutePath: string, relativePath?: string) => void;
   onOpenDocument?: (input: DocumentOpenInput) => void;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
@@ -106,6 +110,7 @@ function SubagentInspectorAssistant({
         {...(projectPath !== undefined ? { projectPath } : {})}
         {...(request ? { request } : {})}
         {...(onOpenFile ? { onOpenFile } : {})}
+        {...(onOpenDiff ? { onOpenDiff } : {})}
         {...(onOpenDocument ? { onOpenDocument } : {})}
       >
         {message.text.length > 0 ? (
@@ -185,6 +190,7 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [followLatest, setFollowLatest] = useState(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const previewRead = useMediaPreviewRead();
 
   const handleScroll = (): void => {
     const element = scrollRef.current;
@@ -248,8 +254,10 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
 
   const isEmpty = props.historicalMessages.length === 0 && !hasLiveContent;
   const livePermissionPrompt = props.stream?.permissionPrompt ?? null;
+  const previewSessionId = props.childSessionId ?? previewRead.sessionId;
 
   return (
+    <MediaPreviewReadProvider sessionId={previewSessionId} readMedia={previewRead.readMedia}>
     <div className="subagent-inspector-scroll" ref={scrollRef} onScroll={handleScroll}>
       {props.historicalMessages.map((message) => {
         if (message.role === 'assistant') {
@@ -331,6 +339,7 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
         </button>
       ) : null}
     </div>
+    </MediaPreviewReadProvider>
   );
 }
 
@@ -341,6 +350,7 @@ function sharedAssistantProps(props: SubagentSessionTranscriptProps) {
     ...(props.request ? { request: props.request } : {}),
     ...(props.filesChangedRequest ? { filesChangedRequest: props.filesChangedRequest } : {}),
     ...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {}),
+    ...(props.onOpenDiff ? { onOpenDiff: props.onOpenDiff } : {}),
     ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
     ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
     ...(props.onOpenArtifactCanvas ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas } : {}),

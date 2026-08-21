@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HostHello, HostWireMessage } from '@piwin/contracts';
 import { encodeHostWireMessage } from './protocol-codec.js';
 import { WebSocketHostTransport, type WebSocketLike } from './websocket-host-transport.js';
@@ -105,6 +105,7 @@ describe('WebSocketHostTransport', () => {
       },
     });
     transport.subscribeState((state) => states.push(state.kind));
+    transport.setLastSeq(42);
 
     const connection = transport.connect();
     const firstSocket = sockets[0];
@@ -122,11 +123,242 @@ describe('WebSocketHostTransport', () => {
       throw new Error('Expected a reconnecting fake socket');
     }
     secondSocket.emitOpen();
-    expect(JSON.parse(secondSocket.sent[0] ?? '{}')).toMatchObject({ lastSeq: 0 });
+    expect(JSON.parse(secondSocket.sent[0] ?? '{}')).toMatchObject({ lastSeq: 42 });
     secondSocket.emitMessage(createHostHello('host-1'));
     await waitFor(() => states.includes('connecting') && states.at(-1) === 'open');
 
     await transport.close();
+  });
+
+  it('resolves the original connect() after Host comes up on a later attempt', async () => {
+    const sockets: FakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      reconnectMinDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-cold-start',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    const connection = transport.connect();
+    const firstSocket = sockets[0];
+    if (firstSocket === undefined) {
+      throw new Error('Expected the first fake socket');
+    }
+    firstSocket.emitClose(1006, 'connection refused');
+    await waitFor(() => sockets.length === 2);
+    const secondSocket = sockets[1];
+    if (secondSocket === undefined) {
+      throw new Error('Expected a retry socket after Host was down');
+    }
+    secondSocket.emitOpen();
+    secondSocket.emitMessage(createHostHello('host-late'));
+    await expect(connection).resolves.toMatchObject({ hostInstanceId: 'host-late' });
+
+    await transport.close();
+  });
+
+  it('retries after a connect timeout until hello arrives when autoReconnect is on', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      connectTimeoutMs: 100,
+      reconnectMinDelayMs: 20,
+      reconnectMaxDelayMs: 20,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-timeout-retry',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    try {
+      const connection = transport.connect();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(sockets).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(sockets).toHaveLength(2);
+      const secondSocket = sockets[1];
+      if (secondSocket === undefined) {
+        throw new Error('Expected a retry socket after connect timeout');
+      }
+      secondSocket.emitOpen();
+      secondSocket.emitMessage(createHostHello('host-after-timeout'));
+      await expect(connection).resolves.toMatchObject({ hostInstanceId: 'host-after-timeout' });
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not auto-reconnect after a fatal auth close code', async () => {
+    const sockets: FakeSocket[] = [];
+    const states: Array<{ kind: string; reason?: string }> = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      autoReconnect: true,
+      reconnectMinDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-fatal',
+        lastSeq,
+      }),
+      webSocketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    transport.subscribeState((state) => states.push(state));
+
+    const connection = transport.connect();
+    const socket = sockets[0];
+    if (socket === undefined) {
+      throw new Error('Expected a socket');
+    }
+    socket.emitOpen();
+    socket.emitClose(4004, 'Authentication failed');
+    await expect(connection).rejects.toThrow(/4004/);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(sockets).toHaveLength(1);
+    expect(states.at(-1)?.kind).toBe('error');
+    await transport.close();
+  });
+
+  it('closes CONNECTING sockets on connect timeout', async () => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    let closed = false;
+    socket.close = () => {
+      closed = true;
+      socket.readyState = 3;
+    };
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      connectTimeoutMs: 100,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-timeout',
+        lastSeq,
+      }),
+      webSocketFactory: () => socket,
+    });
+    try {
+      const connection = transport.connect();
+      const rejected = expect(connection).rejects.toThrow(/Timed out/);
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(closed).toBe(true);
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the socket open when Host pushes arrive without answering ping', async () => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    const states: string[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      heartbeatIntervalMs: 1_000,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-heartbeat',
+        lastSeq,
+      }),
+      webSocketFactory: () => socket,
+    });
+    transport.subscribeState((state) => states.push(state.kind));
+    try {
+      const connection = transport.connect();
+      socket.emitOpen();
+      socket.emitMessage(createHostHello('host-1'));
+      await connection;
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(socket.sent.some((frame) => frame.includes('host/ping'))).toBe(true);
+
+      socket.emitMessage({
+        type: 'push',
+        seq: 1,
+        eventId: 'event-1',
+        push: { type: 'host/log', level: 'info', message: 'agent still running' },
+      });
+      // A live agent turn keeps pushing. Five seconds of silence after a
+      // push is still inside HEARTBEAT_TIMEOUT; fifteen would send a new
+      // ping and then legitimately die.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(socket.readyState).toBe(1);
+      expect(states).not.toContain('error');
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not treat a delayed heartbeat interval as a dead Host', async () => {
+    vi.useFakeTimers();
+    const socket = new FakeSocket();
+    const states: string[] = [];
+    const transport = new WebSocketHostTransport({
+      endpoint: 'ws://test-host',
+      heartbeatIntervalMs: 1_000,
+      createHello: (lastSeq) => ({
+        type: 'client/hello',
+        protocolVersion: 1,
+        clientType: 'desktop',
+        clientVersion: 'test',
+        clientId: 'client-overlap',
+        lastSeq,
+      }),
+      webSocketFactory: () => socket,
+    });
+    transport.subscribeState((state) => states.push(state.kind));
+    try {
+      const connection = transport.connect();
+      socket.emitOpen();
+      socket.emitMessage(createHostHello('host-1'));
+      await connection;
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(states).not.toContain('error');
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(states).toContain('error');
+    } finally {
+      await transport.close();
+      vi.useRealTimers();
+    }
   });
 });
 

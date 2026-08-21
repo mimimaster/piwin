@@ -36,6 +36,13 @@ static REQUEST_SEQ: AtomicU64 = AtomicU64::new(1);
 const HOST_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
+pub(crate) const SHELL_ONLY_HOST_START_ERROR: &str =
+    "this Desktop build cannot start a local Host; attach to a running Host";
+
+pub(crate) fn is_shell_only_build() -> bool {
+    cfg!(feature = "shell-only")
+}
+
 /// Auto-restart backoff schedule (ADR: host death must not require app restart).
 /// Each entry is the delay before that retry attempt. After the schedule is
 /// exhausted, the supervisor gives up and surfaces a fatal log to the UI.
@@ -378,6 +385,9 @@ fn host_start_blocking(
     mock_flag: Arc<AtomicBool>,
     mock: bool,
 ) -> Result<Value, String> {
+    if is_shell_only_build() {
+        return Err(SHELL_ONLY_HOST_START_ERROR.to_string());
+    }
     let _lifecycle_guard = lifecycle.lock().map_err(|error| error.to_string())?;
 
     // If a previous process is still tracked but dead, clean it up so we can restart.
@@ -1105,5 +1115,22 @@ mod tests {
 
         assert_eq!(tier, HostCommandTier::Dev);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn shell_only_start_error_is_stable() {
+        assert!(SHELL_ONLY_HOST_START_ERROR.contains("cannot start a local Host"));
+    }
+
+    #[cfg(not(feature = "shell-only"))]
+    #[test]
+    fn default_build_is_not_shell_only() {
+        assert!(!is_shell_only_build());
+    }
+
+    #[cfg(feature = "shell-only")]
+    #[test]
+    fn shell_only_feature_refuses_local_host() {
+        assert!(is_shell_only_build());
     }
 }

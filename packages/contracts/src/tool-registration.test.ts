@@ -12,6 +12,7 @@ describe('HOST_TOOL_PERMISSION_ACTIONS', () => {
     expect(isHostToolPermissionAction('mcp:trusted')).toBe(true);
     expect(isHostToolPermissionAction('planning:write')).toBe(false);
     expect(isHostToolPermissionAction('notes:mutate')).toBe(false);
+    expect(isHostToolPermissionAction('browser:lock')).toBe(true);
     expect(isHostToolPermissionAction('browser:interact')).toBe(false);
     expect(new Set(HOST_TOOL_PERMISSION_ACTIONS).size).toBe(HOST_TOOL_PERMISSION_ACTIONS.length);
   });

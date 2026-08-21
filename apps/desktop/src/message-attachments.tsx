@@ -1,17 +1,22 @@
 import type { ReactElement } from 'react';
+import type { PromptContextRef } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
+import { ContextRefChip } from './context-ref-chip';
 import { MediaPreview } from './MediaPreview';
 import { WebElementChip } from './WebElementChip';
 
 export function MessageAttachments(props: {
   attachments: ChatMessageUi['attachments'];
+  contextRefs?: readonly PromptContextRef[] | undefined;
   role?: ChatMessageUi['role'] | undefined;
   locale?: 'zh-CN' | 'en' | undefined;
 }): ReactElement | null {
-  if (props.attachments.length === 0) return null;
+  const contextRefs = props.contextRefs ?? [];
+  const attachments = props.attachments ?? [];
+  if (attachments.length === 0 && contextRefs.length === 0) return null;
   const isUser = props.role === 'user';
   const isAssistant = props.role === 'assistant' || !props.role;
-  const count = props.attachments.length;
+  const count = attachments.length;
 
   const layoutClass = isUser
     ? 'is-user-attachments'
@@ -28,7 +33,17 @@ export function MessageAttachments(props: {
       data-attachment-count={count}
       data-attachment-role={props.role ?? 'assistant'}
     >
-      {props.attachments.map((attachment) =>
+      {contextRefs.length > 0 ? (
+        <div className="message-context-refs" data-testid="message-context-refs">
+          {contextRefs.map((ref, index) => (
+            <ContextRefChip
+              key={`ctx-ref-${index}-${ref.kind}`}
+              item={{ ref, label: 'label' in ref && typeof ref.label === 'string' ? ref.label : '' }}
+            />
+          ))}
+        </div>
+      ) : null}
+      {attachments.map((attachment) =>
         attachment.kind === 'web-element' ? (
           <WebElementChip key={attachment.id} attachment={attachment} />
         ) : (

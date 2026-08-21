@@ -101,7 +101,7 @@ describe('clusterToolCalls', () => {
       makeTool('run_command'),
     ];
     const clustered = clusterToolCalls(tools);
-    expect(clustered).toHaveLength(3);
+    expect(clustered).toHaveLength(4);
 
     // First batch: 3 exploratory tools (grep + grep + view)
     expect(clustered[0]?.kind).toBe('batch');
@@ -116,12 +116,21 @@ describe('clusterToolCalls', () => {
       expect(clustered[1].tool.toolName).toBe('replace_file_content');
     }
 
-    // Third batch: 2 command tools
-    expect(clustered[2]?.kind).toBe('batch');
-    if (clustered[2]?.kind === 'batch') {
-      expect(clustered[2].clusterKind).toBe('command');
-      expect(clustered[2].tools).toHaveLength(2);
+    // Commands stay as individual rows, not a command capsule
+    expect(clustered[2]?.kind).toBe('single');
+    if (clustered[2]?.kind === 'single') {
+      expect(clustered[2].tool.toolName).toBe('run_command');
     }
+    expect(clustered[3]?.kind).toBe('single');
+    if (clustered[3]?.kind === 'single') {
+      expect(clustered[3].tool.toolName).toBe('run_command');
+    }
+  });
+
+  it('keeps consecutive commands as individual singles', () => {
+    const clustered = clusterToolCalls([makeTool('bash'), makeTool('bash'), makeTool('run_command')]);
+    expect(clustered).toHaveLength(3);
+    expect(clustered.every((item) => item.kind === 'single')).toBe(true);
   });
 
   it('detects running and error states in batch summary', () => {

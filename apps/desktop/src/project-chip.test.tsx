@@ -112,4 +112,30 @@ describe('ProjectChip', () => {
     expect(onOpenProject).toHaveBeenCalledOnce();
     expect(onOpenProject).toHaveBeenCalledWith('/Users/test/openwebui');
   });
+
+  it('shows Host displayName on the chip when path is an opaque remote id', () => {
+    const remoteId = 'project-3f3cd6fe3b1082e864080402';
+    const rendered = renderChip(
+      <ProjectChip
+        projectPath={remoteId}
+        recentProjects={[
+          {
+            path: remoteId,
+            displayName: 'piwin',
+            trust: 'trusted',
+            createdAt: '2026-08-08T00:00:00.000Z',
+            lastOpenedAt: '2026-08-09T00:00:00.000Z',
+          },
+        ]}
+        onOpenProject={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector('[data-testid="composer-project-chip"]');
+    expect(trigger?.textContent).toContain('piwin');
+    expect(trigger?.textContent).not.toContain(remoteId);
+    expect(trigger?.getAttribute('title')).toBe(remoteId);
+  });
 });

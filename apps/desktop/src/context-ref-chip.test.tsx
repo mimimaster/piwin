@@ -53,8 +53,98 @@ describe('ContextRefChip', () => {
     const chip = container.querySelector('[data-testid="composer-context-chip"]');
     expect(chip).not.toBeNull();
     expect(chip?.getAttribute('data-context-kind')).toBe('file');
-    expect(chip?.textContent).toContain('src/a.ts');
+    expect(chip?.textContent).toContain('a.ts');
     expect(chip?.textContent).toContain('file');
+  });
+
+  it('formats a file range as a code-selection capsule', () => {
+    const ranged: PendingContextRefItem = {
+      ...fileItem,
+      key: 'file:/p:src/a.ts:20:55',
+      ref: {
+        kind: 'file',
+        projectPath: '/p',
+        relativePath: 'src/a.ts',
+        lineStart: 20,
+        lineEnd: 55,
+        label: 'src/a.ts',
+      },
+    };
+    const rendered = renderChip(<ContextRefChip item={ranged} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.textContent).toContain('a.ts:20-55');
+    expect(container.textContent).toContain('36 lines');
+  });
+
+  it('formats a text selection as a capsule', () => {
+    const selection: PendingContextRefItem = {
+      token: 'sel-1',
+      key: 'selection:App.tsx:10:12:abc',
+      ref: {
+        kind: 'selection',
+        relativePath: 'src/App.tsx',
+        lineStart: 10,
+        lineEnd: 12,
+        snapshotText: 'const x = 1',
+        label: 'Selected component',
+      },
+      label: 'Selected component',
+    };
+    const rendered = renderChip(<ContextRefChip item={selection} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector('[data-testid="composer-context-chip"]');
+    expect(chip?.getAttribute('data-context-kind')).toBe('selection');
+    expect(chip?.textContent).toContain('App.tsx:10-12');
+    expect(chip?.textContent).toContain('selection');
+  });
+
+  it('formats a terminal snapshot as a terminal capsule', () => {
+    const terminal: PendingContextRefItem = {
+      token: 'term-1',
+      key: 'terminal:abc',
+      ref: {
+        kind: 'terminal-output',
+        snapshotText: 'error TS2304',
+        label: 'tsc',
+      },
+      label: 'tsc',
+    };
+    const rendered = renderChip(<ContextRefChip item={terminal} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector('[data-testid="composer-context-chip"]');
+    expect(chip?.getAttribute('data-context-kind')).toBe('terminal-output');
+    expect(chip?.textContent).toContain('tsc');
+    expect(chip?.textContent).toContain('terminal');
+  });
+
+  it('formats an error ref as a danger capsule', () => {
+    const errorItem: PendingContextRefItem = {
+      token: 'err-1',
+      key: 'error:abc',
+      ref: {
+        kind: 'error',
+        title: 'eslint',
+        detail: 'Unexpected any',
+        label: 'eslint',
+      },
+      label: 'eslint',
+    };
+    const rendered = renderChip(<ContextRefChip item={errorItem} />);
+    root = rendered.root;
+    container = rendered.container;
+
+    const chip = container.querySelector('[data-testid="composer-context-chip"]');
+    expect(chip?.getAttribute('data-context-kind')).toBe('error');
+    expect(chip?.classList.contains('is-error')).toBe(true);
+    expect(chip?.textContent).toContain('eslint');
+    expect(chip?.textContent).toContain('error');
+    expect(chip?.getAttribute('title')).toContain('Unexpected any');
   });
 
   it('shows no remove button without an onRemove handler', () => {

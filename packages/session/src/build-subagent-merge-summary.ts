@@ -2,7 +2,11 @@
  * Deterministic extractive summary of a child sub-agent transcript for parent merge.
  * No second LLM call (cost / latency / privacy).
  */
-import type { AgentMessageView, SessionTranscriptMessage } from '@piwin/contracts';
+import {
+  isSubagentReportContractMessage,
+  type AgentMessageView,
+  type SessionTranscriptMessage,
+} from '@piwin/contracts';
 
 export const MAX_SUBAGENT_SUMMARY_CHARS = 4000;
 
@@ -55,12 +59,12 @@ export function buildSubagentMergeSummary(
 
   let body =
     assistantParts.length > 0
-      ? assistantParts.join('\n\n')
+      ? selectAssistantBody(assistantParts)
       : 'Sub-agent produced no assistant text.';
 
   let truncated = false;
   if (body.length > maxChars) {
-    body = `${body.slice(0, maxChars)}…[truncated]`;
+    body = truncateSummaryBody(body, maxChars);
     truncated = true;
   }
 
@@ -88,6 +92,28 @@ export function formatSubagentMergeCard(input: {
   childSessionId: string;
 }): string {
   return `${input.summaryText}\n\nchildSessionId=${input.childSessionId}\n(Open child session to inspect full transcript.)`;
+}
+
+/**
+ * Prefer the last assistant message when it follows the scout report contract
+ * (first line complete|partial|blocked). Otherwise concatenate as before.
+ */
+function selectAssistantBody(parts: string[]): string {
+  const last = parts[parts.length - 1];
+  if (last && isSubagentReportContractMessage(last)) return last;
+  return parts.join('\n\n');
+}
+
+function truncateSummaryBody(body: string, maxChars: number): string {
+  const marker = '…[truncated]';
+  if (maxChars <= marker.length) return body.slice(0, maxChars) + marker;
+  const firstLine = body.split('\n', 1)[0] ?? '';
+  if (isSubagentReportContractMessage(firstLine) && firstLine.length + 1 + marker.length < maxChars) {
+    const rest = body.slice(firstLine.length).replace(/^\n/, '');
+    const budget = maxChars - firstLine.length - 1 - marker.length;
+    return `${firstLine}\n${rest.slice(0, Math.max(0, budget))}${marker}`;
+  }
+  return `${body.slice(0, maxChars)}${marker}`;
 }
 
 function looksLikeToolDump(text: string): boolean {

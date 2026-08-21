@@ -1,4 +1,13 @@
-/** Pure notification queue for desktop feedback (PD-UX-01). */
+/**
+ * Pure notification queue and dispatcher for desktop feedback (PD-UX-01).
+ * Bridges desktop actions directly to `@piwin/ui-kit` (Mantine Notifications)
+ * while maintaining a pure reducer for headless/testing state tracking.
+ */
+import {
+  hideUiNotification,
+  showUiNotification,
+  type UiNotificationTone,
+} from '@piwin/ui-kit';
 
 export type NotificationLevel = 'info' | 'success' | 'warning' | 'error';
 
@@ -33,14 +42,41 @@ const DEFAULT_TTL: Record<NotificationLevel, number> = {
   success: 2200,
   warning: 5000,
   // Errors are important, but should not permanently cover the workspace.
-  // The dismiss button remains available for messages that need more time.
-  error: 5000,
+  error: 6000,
 };
 
 const MAX_ITEMS = 5;
 
 export function createEmptyNotificationState(): NotificationState {
   return { items: [] };
+}
+
+/**
+ * Emit a toast notification through `@piwin/ui-kit` (Mantine Notifications).
+ * Safely guards against non-DOM environments (e.g. tests without DOM).
+ */
+export function emitDesktopNotification(input: NotificationPushInput): string {
+  const level = input.level;
+  const ttlMs =
+    typeof input.ttlMs === 'number' ? input.ttlMs : DEFAULT_TTL[level];
+
+  try {
+    return showUiNotification({
+      tone: level as UiNotificationTone,
+      message: input.message,
+      autoClose: ttlMs > 0 ? ttlMs : false,
+    });
+  } catch {
+    return input.id ?? `n-${Date.now()}`;
+  }
+}
+
+export function dismissDesktopNotification(id: string): void {
+  try {
+    hideUiNotification(id);
+  } catch {
+    // Ignore if not in DOM or already dismissed
+  }
 }
 
 export function notificationReducer(
@@ -83,4 +119,8 @@ export function pushSuccess(message: string): NotificationAction {
 
 export function pushInfo(message: string): NotificationAction {
   return { type: 'notify/push', notification: { level: 'info', message } };
+}
+
+export function pushWarning(message: string): NotificationAction {
+  return { type: 'notify/push', notification: { level: 'warning', message } };
 }

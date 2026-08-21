@@ -14,6 +14,7 @@ import { isSessionBodyAvailable } from '@piwin/contracts';
 import { listAllSessionRecords } from './session-index-store.js';
 import { listTranscriptMessages } from './message-store.js';
 import { filterListableSessions } from './session-display-name.js';
+import { isPrimarySessionRecord } from './session-list-visibility.js';
 
 export type SessionSearchOptions = {
   indexPath: string;
@@ -37,11 +38,8 @@ export async function searchSessions(
   const limit = clampLimit(query.limit);
   const scopeFilter: string | SessionScope | undefined = query.scope ?? query.projectPath;
   const records = await listAllSessionRecords(options.indexPath, scopeFilter);
-  // SIDE-D9: side chats are reachable through side-chat/list, never through
-  // the main session search surface.
-  const mainSessions = filterListableSessions(
-    records.filter((record) => record.kind !== 'side-chat'),
-  );
+  // Side chats (SIDE-D9) and subagent children stay off the main search surface.
+  const mainSessions = filterListableSessions(records.filter(isPrimarySessionRecord));
   const lifecycleSessions =
     query.lifecycle === undefined
       ? mainSessions

@@ -136,8 +136,16 @@ export function createStoreTranscriptRecorder(options: {
     for (const messageId of messageIds) {
       if (!pendingEmptyMessageIds.has(messageId)) continue;
       const message = activeMessages.get(messageId) ?? (await options.store.getMessage(messageId));
+      // Failed generations must stay visible: the empty bubble is the only
+      // durable place TurnErrorCard / resume can attach the provider error.
+      const keepFailed =
+        message !== undefined &&
+        (message.status === 'error' ||
+          (message.terminalMessage ?? '').trim().length > 0 ||
+          message.outcome === 'failed');
       if (
         message !== undefined &&
+        !keepFailed &&
         message.text.trim().length === 0 &&
         (message.thinking ?? '').trim().length === 0 &&
         (message.tools?.length ?? 0) === 0 &&
@@ -145,14 +153,103 @@ export function createStoreTranscriptRecorder(options: {
       ) {
         dirtyMessageIds.delete(messageId);
         await options.store.deleteMessage(messageId);
+        pendingEmptyMessageIds.delete(messageId);
+        activeMessages.delete(messageId);
+        for (const [runId, assistantId] of assistantIdsByRunId) {
+          if (assistantId === messageId) assistantIdsByRunId.delete(runId);
+        }
+        if (lastAssistantId === messageId) lastAssistantId = null;
+        continue;
       }
       pendingEmptyMessageIds.delete(messageId);
-      activeMessages.delete(messageId);
-      for (const [runId, assistantId] of assistantIdsByRunId) {
-        if (assistantId === messageId) assistantIdsByRunId.delete(runId);
+      if (!keepFailed) {
+        activeMessages.delete(messageId);
       }
-      if (lastAssistantId === messageId) lastAssistantId = null;
     }
+  }
+
+  async function persistAssistantFailure(input: {
+    messageId: string | null;
+    runId?: string;
+    errorMessage: string;
+  }): Promise<void> {
+    const eventAt = new Date().toISOString();
+    const existingId =
+      input.messageId ??
+      (input.runId !== undefined ? (assistantIdsByRunId.get(input.runId) ?? null) : null) ??
+      lastAssistantId;
+    if (existingId !== null) {
+      pendingEmptyMessageIds.delete(existingId);
+      const updated = await mutateActive(
+        existingId,
+        (message) => ({
+          ...finishTranscriptThinking(message, eventAt),
+          status: 'error',
+          outcome: 'failed',
+          terminalMessage: input.errorMessage,
+          endedAt: eventAt,
+        }),
+        'error',
+        true,
+      );
+      if (updated !== undefined) {
+        await flushNow();
+        return;
+      }
+    }
+
+    // Provider failed before any assistant lifecycle (or the empty row was
+    // already pruned). Synthesize a durable error bubble so resume/UI still
+    // show the failure instead of a blank transcript.
+    const failureId =
+      existingId ??
+      `piw-m-error-${input.runId ?? Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const model = options.resolveModel?.();
+    const message: SessionTranscriptMessage = {
+      id: failureId,
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      status: 'error',
+      createdAt: eventAt,
+      endedAt: eventAt,
+      outcome: 'failed',
+      terminalMessage: input.errorMessage,
+      runtimeGenerationId: options.runtimeGenerationId,
+      ...(input.runId !== undefined ? { runId: input.runId } : {}),
+      ...(model !== undefined ? { model } : {}),
+    };
+    const result = await options.store.appendMessage({
+      id: message.id,
+      runtimeGenerationId: options.runtimeGenerationId,
+      backendMessageId: message.id,
+      role: message.role,
+      text: message.text,
+      thinking: '',
+      status: message.status,
+      createdAt: message.createdAt,
+      ...(message.runId !== undefined ? { runId: message.runId } : {}),
+      ...(message.model !== undefined ? { model: message.model } : {}),
+      tools: [],
+      metadata: {
+        endedAt: eventAt,
+        outcome: 'failed',
+        terminalMessage: input.errorMessage,
+      },
+    });
+    if (!result.ok) {
+      options.onDiagnostic?.(
+        `error transcript identity collision: messageId=${failureId} generation=${options.runtimeGenerationId}`,
+      );
+      return;
+    }
+    activeMessages.set(failureId, message);
+    lastAssistantId = failureId;
+    if (input.runId !== undefined) {
+      assistantIdsByRunId.set(input.runId, failureId);
+    }
+    await flushNow();
   }
 
   function nextNativeOrdinal(messageId: string): number {
@@ -500,15 +597,11 @@ export function createStoreTranscriptRecorder(options: {
             break;
           }
           case 'error': {
-            if (lastAssistantId !== null) {
-              const eventAt = new Date().toISOString();
-              await mutateActive(
-                lastAssistantId,
-                (message) => ({ ...finishTranscriptThinking(message, eventAt), status: 'error' }),
-                'error',
-              );
-              await flushNow();
-            }
+            await persistAssistantFailure({
+              messageId: null,
+              ...(event.runId !== undefined ? { runId: event.runId } : {}),
+              errorMessage: event.message.trim() || 'Model request failed',
+            });
             break;
           }
           default:

@@ -31,6 +31,10 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return classifyAgentEvent(deliveryKey('session', push.sessionId), push.event);
     case 'session/name-updated':
       return projection(deliveryKey('session', push.sessionId, 'name'));
+    case 'session/index-updated':
+      return projection(deliveryKey('session', push.sessionId, 'index'));
+    case 'settings/updated':
+      return projection(deliveryKey('settings', 'document'));
     case 'plan/updated':
       return projection(deliveryKey('session', push.sessionId, 'plan'));
     case 'plan/execution-updated':
@@ -63,6 +67,8 @@ export function classifyHostPush(push: HostPushVariant): HostPushPolicy {
       return projection(deliveryKey('session', push.status.sessionId, 'runtime'));
     case 'transcript/append':
       return append(deliveryKey('session', push.sessionId, 'transcript', push.message.id));
+    case 'reply-writer/updated':
+      return projection(deliveryKey('session', push.sessionId, 'reply-writer', push.messageId));
     case 'permission/request':
       return control([], push.runId);
     case 'permission/resolved':

@@ -1,15 +1,15 @@
 /**
  * Compact parent-transcript subagent launcher (PSR D5).
  *
- * Observation only — the card opens the read-only session inspector; it never
- * spawns, merges, or navigates the workspace. Status reflects the persisted
- * transcript card (`activity.state`); live work is surfaced by the Working
- * dock / ticker driven by the shared activity model.
+ * Observation only — the card expands the inline read-only session panel in
+ * place; it never spawns, merges, or navigates the workspace. Status reflects
+ * the persisted transcript card (`activity.state`); live work is surfaced by
+ * the Working dock / ticker driven by the shared activity model.
  */
 import type { ReactElement } from 'react';
 import type { SubagentActivityView } from '@piwin/contracts';
 import type { ActiveSubagentStatus, SubagentInspectorSelection } from './subagent-activity-model';
-import { subagentStatusToRunKind } from './subagent-activity-model';
+import { subagentCardAnchorId, subagentStatusToRunKind } from './subagent-activity-model';
 import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
 import { IconChevronRight } from './shell-icons.js';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -18,11 +18,15 @@ import {
   getBehaviorActivitySpec,
   resolveSubagentBatchBehaviorId,
 } from './behavior-activity.js';
+import { useSubagentInspectorToggle } from './subagent-inspector-context';
+import { SubagentInlineSession } from './subagent-inline-session';
 
 export type SubagentActivityCardProps = {
   activity: SubagentActivityView;
-  /** Opens the read-only child-session inspector for this child. */
+  /** Toggles the inline child-session panel anchored to this card. */
   onInspect?: (selection: SubagentInspectorSelection) => void;
+  /** Whether the inline session panel is currently expanded below the card. */
+  expanded?: boolean;
 };
 
 const STATE_LABEL: Record<SubagentActivityView['state'], string> = {
@@ -49,6 +53,7 @@ function toInspectorSelection(activity: SubagentActivityView): SubagentInspector
     childSessionId: activity.childSessionId,
     displayName: activity.displayName,
     taskSummary: activity.taskSummary,
+    anchorId: subagentCardAnchorId(activity.childSessionId),
   };
 }
 
@@ -72,8 +77,10 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
       data-activity-animation={activitySpec.animation}
       data-tool-status={isRunning ? 'running' : 'done'}
       data-child-session-id={activity.childSessionId}
+      data-expanded={props.expanded === true}
       onClick={() => onInspect?.(toInspectorSelection(activity))}
       disabled={onInspect === undefined}
+      aria-expanded={props.expanded === true}
       title={activity.taskSummary}
     >
       <span className="subagent-activity-header">
@@ -106,5 +113,23 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
       </span>
       <IconChevronRight className="subagent-activity-inspect-hint" width={14} height={14} />
     </button>
+  );
+}
+
+/**
+ * Transcript slot for one persisted subagent card: the card is the accordion
+ * header and the inline session panel expands directly beneath it when this
+ * card's anchor owns the current inspector selection.
+ */
+export function SubagentActivitySlot(props: SubagentActivityCardProps): ReactElement {
+  const toggle = useSubagentInspectorToggle();
+  const expanded =
+    props.onInspect !== undefined &&
+    toggle?.selection?.anchorId === subagentCardAnchorId(props.activity.childSessionId);
+  return (
+    <div className="subagent-embed subagent-embed-card" data-expanded={expanded}>
+      <SubagentActivityCard {...props} expanded={expanded} />
+      {expanded ? <SubagentInlineSession /> : null}
+    </div>
   );
 }

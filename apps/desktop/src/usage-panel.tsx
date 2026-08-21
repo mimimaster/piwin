@@ -13,6 +13,7 @@ import {
   type HostResponse,
   type UsageRollup,
 } from '@piwin/contracts';
+import { isRemoteCommandGapError } from './remote-command-gap.js';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
   EMPTY_USAGE_ROLLUP,
@@ -69,7 +70,9 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
         ...(window ? { window } : {}),
       });
       if (!response.success) {
-        setError(response.error);
+        if (!isRemoteCommandGapError(response.error)) {
+          setError(response.error);
+        }
         return;
       }
       const data = response.data as { rollup?: UsageRollup };

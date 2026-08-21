@@ -7,10 +7,13 @@
 import { useCallback, useRef, useState, type ReactElement } from 'react';
 import { ConfirmDialog } from '@piwin/ui-kit';
 
+export type ConfirmChoice = 'confirm' | 'alternate' | 'cancel';
+
 export type ConfirmRequest = {
   title: string;
   description: string;
   confirmLabel?: string;
+  alternateLabel?: string;
   cancelLabel?: string;
   affectedObject?: string;
   tone?: 'danger' | 'default';
@@ -26,17 +29,16 @@ export type ConfirmRequest = {
 
 export function useConfirmDialog() {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
-  const [resolver, setResolver] = useState<((value: boolean) => void) | null>(null);
+  const [resolver, setResolver] = useState<((value: ConfirmChoice) => void) | null>(null);
   const [busy, setBusy] = useState(false);
   /** Track which skipKeys the user opted to suppress. */
   const suppressedKeys = useRef<Set<string>>(new Set());
   /** Whether the current dialog has "don't ask again" checked. */
   const dontAskCheckedRef = useRef(false);
 
-  const confirm = useCallback((next: ConfirmRequest): Promise<boolean> => {
-    // Skip the dialog if the user already opted out for this key.
+  const choose = useCallback((next: ConfirmRequest): Promise<ConfirmChoice> => {
     if (next.skipKey && suppressedKeys.current.has(next.skipKey)) {
-      return Promise.resolve(true);
+      return Promise.resolve('confirm');
     }
     dontAskCheckedRef.current = false;
     return new Promise((resolve) => {
@@ -45,13 +47,19 @@ export function useConfirmDialog() {
     });
   }, []);
 
+  const confirm = useCallback(
+    async (next: ConfirmRequest): Promise<boolean> => {
+      return (await choose(next)) === 'confirm';
+    },
+    [choose],
+  );
+
   const close = useCallback(
-    (value: boolean) => {
+    (value: ConfirmChoice) => {
       if (busy) {
         return;
       }
-      // If confirmed with "don't ask again" checked, suppress future dialogs.
-      if (value && dontAskCheckedRef.current && request?.skipKey) {
+      if (value === 'confirm' && dontAskCheckedRef.current && request?.skipKey) {
         suppressedKeys.current.add(request.skipKey);
       }
       setRequest(null);
@@ -72,7 +80,7 @@ export function useConfirmDialog() {
       open
       onOpenChange={(open) => {
         if (!open) {
-          close(false);
+          close('cancel');
         }
       }}
       title={request.title}
@@ -80,18 +88,22 @@ export function useConfirmDialog() {
       confirmLabel={request.confirmLabel ?? 'Confirm'}
       tone={request.tone ?? 'danger'}
       busy={busy}
-      onConfirm={() => close(true)}
+      onConfirm={() => close('confirm')}
       onDontAskAgainChange={(checked) => {
         dontAskCheckedRef.current = checked;
       }}
       {...(request.affectedObject ? { affectedObject: request.affectedObject } : {})}
       {...(request.cancelLabel ? { cancelLabel: request.cancelLabel } : {})}
+      {...(request.alternateLabel
+        ? { alternateLabel: request.alternateLabel, onAlternate: () => close('alternate') }
+        : {})}
       {...(request.dontAskAgainLabel ? { dontAskAgainLabel: request.dontAskAgainLabel } : {})}
     />
   ) : null;
 
   return {
     confirm,
+    choose,
     dialog,
     setBusy,
     resetSuppressed,

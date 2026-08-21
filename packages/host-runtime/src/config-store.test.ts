@@ -99,6 +99,8 @@ describe('config-store', () => {
     const loaded = await loadPiwinConfig(rootDir);
     expect(loaded.web?.searchStrategy.mode).toBe('parallel');
     expect(loaded.web?.searchStrategy.perSourceTimeoutMs).toBe(9000);
+    expect(loaded.web?.fetchReturnMaxChars).toBe(18_000);
+    expect(loaded.web?.fetchStoreMaxChars).toBe(200_000);
   });
 
   it('preserves empty disabledIds and extraPaths arrays', async () => {
@@ -235,6 +237,15 @@ describe('config-store', () => {
       timeoutMs: 15_000,
       cacheEnabled: false,
     };
+    config.replyWriter = {
+      enabled: true,
+      language: 'zh-CN',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'custom-openai',
+        modelId: 'glm-4.7-flash',
+      },
+    };
     config.imageGeneration = {
       defaultModel: {
         protocol: 'openai-compatible',
@@ -286,6 +297,7 @@ describe('config-store', () => {
     const loaded = await loadPiwinConfig(rootDir);
 
     expect(loaded.visionDelegation).toEqual(config.visionDelegation);
+    expect(loaded.replyWriter).toEqual(config.replyWriter);
     expect(loaded.imageGeneration).toEqual(config.imageGeneration);
     expect(loaded.videoGeneration).toEqual(config.videoGeneration);
     expect(loaded.speech).toEqual({
@@ -329,6 +341,35 @@ describe('config-store', () => {
 
     expect(loaded.web?.searchDelegateModel).toEqual(config.web.searchDelegateModel);
     expect(JSON.stringify(loaded.web)).not.toContain('apiKey');
+  });
+
+  it('round-trips the web_fetch extract model without storing credentials in Web config', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-web-fetch-delegate-'));
+    const config = createDefaultPiwinConfig();
+    if (!config.web) throw new Error('default Web config missing');
+    config.web.fetchDelegateModel = {
+      protocol: 'openai-compatible',
+      providerId: 'local',
+      modelId: 'small-extract',
+    };
+
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+
+    expect(loaded.web?.fetchDelegateModel).toEqual(config.web.fetchDelegateModel);
+    expect(JSON.stringify(loaded.web)).not.toContain('apiKey');
+  });
+
+  it('round-trips fetchFallback', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-web-fetch-fallback-'));
+    const config = createDefaultPiwinConfig();
+    if (!config.web) throw new Error('default Web config missing');
+    config.web.fetchFallback = 'jina';
+
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+
+    expect(loaded.web?.fetchFallback).toBe('jina');
   });
 
   it('round-trips desktop model, effort, and session restoration preferences', async () => {
@@ -546,6 +587,45 @@ describe('config-store', () => {
     );
     const reloaded = await loadPiwinConfig(rootDir);
     expect(reloaded.subagents?.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
+  });
+
+  it('round-trips scheme member reportContract', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-contract-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      schemes: [
+        {
+          id: 'ultra-code',
+          name: 'Ultra Code',
+          description: 'overlay',
+          defaultRole: 'searcher',
+          defaultProfileId: 'explorer',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'overlay preamble',
+          members: [
+            {
+              role: 'searcher',
+              description: 'scout',
+              profileId: 'explorer',
+              fallback: 'main',
+              reportContract: 'Return JSON only.',
+            },
+          ],
+        },
+      ],
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.role).toBe('scout');
+    expect(loaded.subagents?.schemes?.[0]?.defaultRole).toBe('scout');
+    expect(loaded.subagents?.schemes?.[0]?.members?.[0]?.reportContract).toBe('Return JSON only.');
   });
 
   it('drops invalid profile entries (missing id or description)', async () => {

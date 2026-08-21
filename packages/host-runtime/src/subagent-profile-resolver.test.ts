@@ -219,13 +219,28 @@ describe('resolveSubagentIsolation', () => {
 
 describe('resolveSubagentCapabilities', () => {
   it('uses profile capabilities when caller omits', () => {
-    const profile = BUILTIN_SUBAGENT_PROFILES.find((p) => p.id === 'implementer');
+    const profile: SubagentProfileSettings = {
+      id: 'capped',
+      description: 'Capped',
+      capabilities: ['read', 'write', 'execute'],
+      isolation: 'worktree',
+    };
     const caps = resolveSubagentCapabilities(profile, undefined);
     expect(caps).toEqual(['read', 'write', 'execute']);
   });
 
-  it('intersects caller capabilities with profile (caller cannot widen)', () => {
+  it('builtin explorer has no capability ceiling (same tools as parent)', () => {
     const profile = BUILTIN_SUBAGENT_PROFILES.find((p) => p.id === 'explorer');
+    expect(resolveSubagentCapabilities(profile, undefined)).toBeUndefined();
+  });
+
+  it('intersects caller capabilities with profile (caller cannot widen)', () => {
+    const profile: SubagentProfileSettings = {
+      id: 'capped',
+      description: 'Capped',
+      capabilities: ['read'],
+      isolation: 'readonly',
+    };
     const caps = resolveSubagentCapabilities(profile, ['read', 'write']);
     expect(caps).toEqual(['read']);
   });
@@ -274,7 +289,8 @@ describe('buildSubagentRuntimeSnapshot', () => {
     expect(snapshot.model?.modelId).toBe('fast-coder');
     expect(snapshot.thinkingLevel).toBe('medium');
     expect(snapshot.isolation).toBe('worktree');
-    expect(snapshot.capabilities).toEqual(['read', 'write', 'execute']);
+    expect(snapshot.capabilities).toBeUndefined();
+    expect(snapshot.skillIds).toBeUndefined();
     expect(snapshot.workingDirectory).toBe('/tmp/project');
   });
 

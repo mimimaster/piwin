@@ -30,6 +30,15 @@ export type DesktopCopy = {
     instanceId: (id: string) => string;
     invalidEndpoint: string;
   };
+  hostGate: {
+    chooserTitle: string;
+    chooserDescription: string;
+    chooseSidecar: string;
+    chooseAttach: string;
+    connectTitle: string;
+    connectDescription: string;
+    rootLockNote: string;
+  };
   mobileAccess: {
     title: string;
     description: string;
@@ -211,13 +220,22 @@ export type DesktopCopy = {
     runtimeCloudLabel: string;
     runtimeCloudDisconnectedTooltip: string;
     runtimeCloudConnectedTooltip: string;
+    runtimeAttachAction: string;
     foregroundReplaceTitle: string;
     foregroundReplaceDescription: string;
     foregroundReplaceConfirm: string;
     foregroundReplaceCancel: string;
+    busyOtherClientTitle: string;
+    busyOtherClient: string;
+    busyQueue: string;
+    busyReplace: string;
+    busyDismiss: string;
     foregroundMismatchFinished: string;
     foregroundMismatchChanged: string;
     supersededByNewPrompt: string;
+    sessionBodyBusy: string;
+    permissionAlreadyResolved: string;
+    requestDuplicateKey: string;
   };
   interruption: {
     agentWaiting: string;
@@ -331,6 +349,13 @@ export type DesktopTranslator = {
     personalization: string;
     backToWorkspace: string;
     configuredLocally: string;
+    remoteHostViewOnly: string;
+    remoteSavedOnHost: string;
+    remoteSettingsViewOnly: string;
+    remoteSettingsSaveBlocked: string;
+    domainConflict: string;
+    notesConflict: string;
+    todoConflict: string;
     nav: {
       general: string;
       models: string;
@@ -549,12 +574,21 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       endpointLabel: 'WebSocket 地址',
       endpointPlaceholder: 'ws://127.0.0.1:8787',
       tokenLabel: 'Token',
-      tokenPlaceholder: '仅当 Host 开启认证时填写',
+      tokenPlaceholder: '本机未设门令可留空',
       connect: '连接',
       connecting: '正在连接…',
       useThisMac: '使用本机',
       instanceId: (id) => `hostInstanceId：${id}`,
       invalidEndpoint: '请输入 ws:// 或 wss:// 地址',
+    },
+    hostGate: {
+      chooserTitle: '选择 Host',
+      chooserDescription: '本机自带一份，或连接已经在跑的 Host。同一时间只能有一份。',
+      chooseSidecar: '使用本机',
+      chooseAttach: '连接已有 Host',
+      connectTitle: '连接 Host',
+      connectDescription: '先起好 Host，再填地址。连上之前不会在本机再起一份。',
+      rootLockNote: '同一份数据根一次只能有一个 Host。本机 sidecar 和独立 Host 不能同时开。第二个进程会启动失败。',
     },
     mobileAccess: {
       title: '手机接入',
@@ -742,13 +776,22 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       runtimeCloudLabel: '远程 Host',
       runtimeCloudDisconnectedTooltip: '未连接到远程 Host',
       runtimeCloudConnectedTooltip: '在远程 Host 运行',
+      runtimeAttachAction: '连接已有 Host',
       foregroundReplaceTitle: '会话正在处理',
       foregroundReplaceDescription: '另一端正在处理这个会话，发送会中断当前任务',
       foregroundReplaceConfirm: '中断并发送',
       foregroundReplaceCancel: '取消',
+      busyOtherClientTitle: '另一端正在处理',
+      busyOtherClient: '这个会话已经有任务在跑。可以排队、中断后发送，或取消。',
+      busyQueue: '排队',
+      busyReplace: '中断并发送',
+      busyDismiss: '取消',
       foregroundMismatchFinished: '当前任务已经结束，请再发送一次',
       foregroundMismatchChanged: '会话任务已切换，请再发送一次',
       supersededByNewPrompt: '任务被另一台设备发送的新消息中断',
+      sessionBodyBusy: '这个会话正在整理或删除，请稍后再发',
+      permissionAlreadyResolved: '这条权限已经在另一端处理过了',
+      requestDuplicateKey: '这次操作的幂等键和内容对不上，不要盲目重试',
     },
     interruption: {
       agentWaiting: 'Agent 正等待你的回答',
@@ -834,12 +877,24 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       endpointLabel: 'WebSocket URL',
       endpointPlaceholder: 'ws://127.0.0.1:8787',
       tokenLabel: 'Token',
-      tokenPlaceholder: 'Required only when the Host enables auth',
+      tokenPlaceholder: 'Leave empty if the Host has no door token',
       connect: 'Connect',
       connecting: 'Connecting…',
       useThisMac: 'Use this Mac',
       instanceId: (id) => `hostInstanceId: ${id}`,
       invalidEndpoint: 'Enter a ws:// or wss:// URL',
+    },
+    hostGate: {
+      chooserTitle: 'Choose a Host',
+      chooserDescription:
+        'Use this Mac’s built-in Host, or attach to one that is already running. Only one Host may own this data root.',
+      chooseSidecar: 'Use this Mac',
+      chooseAttach: 'Attach to existing Host',
+      connectTitle: 'Connect to Host',
+      connectDescription:
+        'Start the Host first, then enter its address. Desktop will not spawn another local Host.',
+      rootLockNote:
+        'One data root can have only one live Host. The bundled sidecar and a standalone Host cannot share it. The second process fails to start.',
     },
     mobileAccess: {
       title: 'Phone access',
@@ -1035,14 +1090,24 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       runtimeCloudLabel: 'Remote Host',
       runtimeCloudDisconnectedTooltip: 'Not connected to a remote Host',
       runtimeCloudConnectedTooltip: 'Run on a remote Host',
+      runtimeAttachAction: 'Attach to existing Host',
       foregroundReplaceTitle: 'Session is busy',
       foregroundReplaceDescription:
         'Another client is working on this session. Sending will interrupt the current task.',
       foregroundReplaceConfirm: 'Interrupt and send',
       foregroundReplaceCancel: 'Cancel',
+      busyOtherClientTitle: 'Another client is working',
+      busyOtherClient:
+        'This session already has a run. Queue your message, interrupt and send, or dismiss.',
+      busyQueue: 'Queue',
+      busyReplace: 'Interrupt and send',
+      busyDismiss: 'Dismiss',
       foregroundMismatchFinished: 'That run already finished. Send again to start a new one.',
       foregroundMismatchChanged: 'The session run changed. Send again to start a new one.',
       supersededByNewPrompt: 'This run was interrupted by a new message from another device',
+      sessionBodyBusy: 'This session is compacting or deleting. Wait, then send again.',
+      permissionAlreadyResolved: 'That permission was already resolved on another client',
+      requestDuplicateKey: 'This idempotency key does not match the command. Do not retry blindly.',
     },
     interruption: {
       agentWaiting: 'Agent is waiting for your answer',
@@ -1166,6 +1231,19 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       personalization: isChinese ? '个性化' : 'Personalization',
       backToWorkspace: isChinese ? '返回工作区' : 'Back to workspace',
       configuredLocally: isChinese ? '已保存在本地' : 'Saved locally',
+      remoteHostViewOnly: isChinese ? '远程 Host · 只能看' : 'Remote Host · View only',
+      remoteSavedOnHost: isChinese ? '已保存到 Host' : 'Saved on Host',
+      remoteSettingsViewOnly: isChinese
+        ? '这个 Host 没有开放远程改设置。连上能写的 Host 后再改。'
+        : 'This Host is not accepting remote settings writes. Connect to a Host that does.',
+      remoteSettingsSaveBlocked: isChinese
+        ? '这个 Host 没有开放远程改设置。'
+        : 'This Host is not accepting remote settings writes.',
+      domainConflict: isChinese
+        ? '这部分设置已被另一端改过，请先重新加载再保存'
+        : 'Another client changed this settings page. Reload it before saving again.',
+      notesConflict: isChinese ? '这条笔记已被另一端改过' : 'Another client changed this note.',
+      todoConflict: isChinese ? '待办已被另一端改过' : 'Another client changed these todos.',
       nav: {
         general: isChinese ? '通用与外观' : 'General & Appearance',
         models: isChinese ? '模型与服务商' : 'Models & Providers',
@@ -1229,8 +1307,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           ? '从左侧选择提供商，或点击添加。'
           : 'Select a provider on the left, or add one.',
         connectionHint: isChinese
-          ? '密钥通过环境变量或钥匙串管理，绝不写入配置文件。'
-          : 'Keys stay in env / keychain — never store raw secrets in config.',
+          ? '密钥保存在 Host（钥匙串或 Host 密钥库），绝不写入配置文件。'
+          : 'Keys stay on the Host — never store raw secrets in config.',
         setDefault: isChinese ? '设为默认' : 'Set default',
         providerId: isChinese ? '提供商 ID' : 'Provider ID',
         displayName: isChinese ? '显示名称' : 'Display name',
@@ -1247,8 +1325,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           ? '••••••••  已保存 — 留空则不变'
           : '••••••••  saved — leave blank to keep',
         apiKeyStoredKeychain: isChinese
-          ? '密钥已存入本机钥匙串，不会写入配置文件。'
-          : 'Key is stored in the local keychain — not written to config.',
+          ? '密钥已保存在 Host，不会写入配置文件。新填的 Key 会更新到 Host。'
+          : 'Key is stored on the Host — not written to config. Paste a new key to update it.',
         apiKeyStoredEnv: (envName) =>
           isChinese
             ? `当前使用环境变量 ${envName}（需在进程内导出）。`

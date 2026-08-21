@@ -24,7 +24,9 @@ import { hideUiNotification, showUiNotification } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { DesktopPreferences } from './ui-preferences';
 import { type SettingsSectionId } from './settings/section-registry';
-import { webToDraft, draftToWeb, type DraftWeb } from './settings/web-draft';
+import { webToDraft, draftToWeb, preserveWebCliLaunchers, type DraftWeb } from './settings/web-draft';
+import { isRemoteCommandGapError } from './remote-command-gap.js';
+import { interpretSettingsLoadResponse } from './settings/settings-view-config';
 import { SettingsShell } from './settings/settings-shell';
 import type { SettingsConfigRequest, SettingsContextValue } from './settings/settings-context';
 import './styles/settings.css';
@@ -56,6 +58,8 @@ type SettingsPanelProps = {
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   initialSection?: SettingsSectionId;
   hostStatus?: HostStatusData | null;
+  /** Workbench copy of Host settings; used if this panel's own load fails. */
+  seedConfig?: PiwinConfig;
   /** Callback to leave the settings route. */
   onClose?: (() => void) | undefined;
   /** Keep the shell route in sync when a settings nav item is selected. */
@@ -87,6 +91,7 @@ export const SettingsPanel = memo(function SettingsPanel({
   onPetActiveChanged,
   initialSection,
   hostStatus = null,
+  seedConfig,
   onClose,
   onSectionChange,
 }: SettingsPanelProps) {
@@ -109,6 +114,9 @@ export const SettingsPanel = memo(function SettingsPanel({
   );
 
   const setError = useCallback((message: string | null): void => {
+    if (message !== null && isRemoteCommandGapError(message)) {
+      return;
+    }
     setErrorState(message);
     if (message) {
       setInfoMessage(null);
@@ -118,17 +126,48 @@ export const SettingsPanel = memo(function SettingsPanel({
   // Escape is owned by useShellLayout so focus returns to the opener.
   useEffect(() => {
     void (async () => {
-      const response = await request({ type: 'config/get' });
-      if (!response.success) {
-        setError(response.error);
-        return;
+      const remote = hostClient?.getTransport?.() === 'remote';
+      const canReadSettings = hostClient?.supportsCommand?.('settings/get') !== false;
+      try {
+        const response =
+          remote && !canReadSettings ? undefined : await request({ type: 'config/get' });
+        const loaded = interpretSettingsLoadResponse({
+          remote,
+          canReadSettings,
+          ...(response === undefined ? {} : { response }),
+        });
+        if (loaded.kind === 'error') {
+          setError(loaded.error);
+          if (seedConfig) {
+            setConfig(seedConfig);
+            setWebDraft(webToDraft(seedConfig.web ?? createDefaultWebConfig()));
+          }
+          return;
+        }
+        setConfig(loaded.config);
+        setRoot(loaded.root);
+        setWebDraft(webToDraft(loaded.config.web ?? createDefaultWebConfig()));
+      } catch (loadError) {
+        if (seedConfig) {
+          setConfig(seedConfig);
+          setWebDraft(webToDraft(seedConfig.web ?? createDefaultWebConfig()));
+        } else {
+          const loaded = interpretSettingsLoadResponse({
+            remote,
+            canReadSettings: false,
+          });
+          if (loaded.kind === 'error') {
+            setError(loaded.error);
+            return;
+          }
+          setConfig(loaded.config);
+          setRoot(loaded.root);
+          setWebDraft(webToDraft(loaded.config.web ?? createDefaultWebConfig()));
+        }
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
       }
-      const data = response.data as { config: PiwinConfig; root: string };
-      setConfig(data.config);
-      setRoot(data.root);
-      setWebDraft(webToDraft(data.config.web ?? createDefaultWebConfig()));
     })();
-  }, [request, setError]);
+  }, [hostClient, request, seedConfig, setError]);
 
   useEffect(() => {
     if (initialSection) {
@@ -175,22 +214,29 @@ export const SettingsPanel = memo(function SettingsPanel({
     [],
   );
 
+  const remoteSettingsReadOnly =
+    hostClient?.getTransport?.() === 'remote' &&
+    hostClient.supportsCommand?.('settings/apply') === false;
+
   const saveConfig = useCallback(
     async (next: PiwinConfig): Promise<boolean> => {
       setSaving(true);
       setError(null);
       setInfo(null);
-      const response = await request({ type: 'config/set', config: next });
-      setSaving(false);
-      if (!response.success) {
-        setError(response.error);
-        return false;
+      try {
+        const response = await request({ type: 'config/set', config: next });
+        if (!response.success) {
+          setError(response.error);
+          return false;
+        }
+        setConfig(next);
+        onSaved?.(next);
+        return true;
+      } finally {
+        setSaving(false);
       }
-      setConfig(next);
-      onSaved?.(next);
-      return true;
     },
-    [request, onSaved, setError, setInfo],
+    [onSaved, request, setError, setInfo],
   );
 
   const discoverProviderModels = useCallback(
@@ -299,6 +345,9 @@ export const SettingsPanel = memo(function SettingsPanel({
     async (providerId: string): Promise<string | null> => {
       const response = await request({ type: 'secrets/get', providerId });
       if (!response.success) {
+        if (isRemoteCommandGapError(response.error)) {
+          return null;
+        }
         throw new Error(response.error);
       }
       const data = response.data as { secret?: string };
@@ -326,7 +375,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       const draftToSave = draftOverride ?? webDraft;
       const next: PiwinConfig = {
         ...config,
-        web: draftToWeb(draftToSave),
+        web: preserveWebCliLaunchers(draftToWeb(draftToSave), config.web),
       };
       if (await saveConfig(next)) {
         setWebDraft(draftToSave);
@@ -350,6 +399,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       config,
       root,
       saving,
+      remoteSettingsReadOnly,
       setError,
       setInfo,
       saveConfig,
@@ -392,6 +442,7 @@ export const SettingsPanel = memo(function SettingsPanel({
       config,
       root,
       saving,
+      remoteSettingsReadOnly,
       setError,
       setInfo,
       saveConfig,

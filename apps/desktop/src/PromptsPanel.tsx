@@ -14,6 +14,7 @@ export type PromptsPanelProps = {
   }) => Promise<HostResponse>;
   onClose?: () => void;
   variant?: 'inline' | 'modal';
+  readOnly?: boolean;
 };
 
 export function PromptsPanel(props: PromptsPanelProps) {
@@ -133,6 +134,7 @@ export function PromptsPanel(props: PromptsPanelProps) {
                 </div>
                 <Switch
                   checked={prompt.enabled}
+                  disabled={props.readOnly}
                   onCheckedChange={() => void handleToggle(prompt)}
                   aria-label={isChinese ? `启用 ${prompt.name}` : `Enable ${prompt.name}`}
                 />

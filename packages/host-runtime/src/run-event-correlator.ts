@@ -44,14 +44,16 @@ export class RunEventCorrelator {
     // execution context is lost (e.g. Pi SDK emits events from internal async stream
     // callbacks that break the async hook chain), executionRunId is undefined. For
     // events with a stable identity (message/tool/permission), fall back to the
-    // active run — there is no other run they could belong to. Events without
-    // identity (error, session/aborted) keep the stricter behaviour so a late
-    // background error is not mis-attributed to the current foreground run.
+    // active run — there is no other run they could belong to. Provider `error`
+    // events are the same: Pi surfaces stopReason failures from stream callbacks
+    // without ALS, and dropping them replaces upstream text with a generic
+    // empty-response fallback. Explicit runIds from replaced/terminal runs are
+    // still rejected by isStaleExplicitRun above.
     const inferredRunId =
       explicitRunId ??
       ownedRunId ??
       executionRunId ??
-      (identity !== undefined ? activeRunId : undefined);
+      (identity !== undefined || event.type === 'error' ? activeRunId : undefined);
 
     if (inferredRunId === undefined) {
       return {

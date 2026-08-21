@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   planSubagentSpawn,
   buildSubagentSeedPrompt,
+  resolveSubagentChildPrompt,
   transitionExecutionStatus,
   transitionSummaryStatus,
   transitionIntegrationStatus,
 } from './subagent-lifecycle-service.js';
 import type { PiwinConfig } from '@piwin/contracts';
+import { PIWIN_REPORT_CONTRACT_MARKER } from '@piwin/contracts';
 
 function makeConfig(overrides: Partial<PiwinConfig> = {}): PiwinConfig {
   return {
@@ -139,7 +141,7 @@ describe('planSubagentSpawn', () => {
     if (!('error' in result)) {
       expect(result.snapshot.profileId).toBe('explorer');
       expect(result.snapshot.isolation).toBe('readonly');
-      expect(result.snapshot.capabilities).toEqual(['read']);
+      expect(result.snapshot.capabilities).toBeUndefined();
       expect(result.lifecycle.executionStatus).toBe('queued');
       expect(result.lifecycle.summaryStatus).toBe('not-requested');
       expect(result.lifecycle.integrationStatus).toBe('not-requested');
@@ -162,7 +164,7 @@ describe('planSubagentSpawn', () => {
     expect('error' in result).toBe(false);
     if (!('error' in result)) {
       expect(result.snapshot.isolation).toBe('worktree');
-      expect(result.snapshot.capabilities).toEqual(['read', 'write', 'execute']);
+      expect(result.snapshot.capabilities).toBeUndefined();
     }
   });
 
@@ -258,7 +260,6 @@ describe('buildSubagentSeedPrompt', () => {
   it('prefixes readonly tasks with readonly warning', () => {
     const prompt = buildSubagentSeedPrompt('explore the code', {
       isolation: 'readonly',
-      workingDirectory: '/tmp/project',
     });
     expect(prompt).toContain('READONLY');
     expect(prompt).toContain('explore the code');
@@ -267,10 +268,43 @@ describe('buildSubagentSeedPrompt', () => {
   it('prefixes worktree tasks with worktree warning', () => {
     const prompt = buildSubagentSeedPrompt('implement feature', {
       isolation: 'worktree',
-      workingDirectory: '/tmp/worktree',
     });
     expect(prompt).toContain('WORKTREE');
     expect(prompt).toContain('implement feature');
+  });
+
+  it('prepends a report contract block when provided', () => {
+    const prompt = buildSubagentSeedPrompt(
+      'find auth middleware',
+      { isolation: 'readonly' },
+      { reportContract: 'First line: complete | partial | blocked.' },
+    );
+    expect(prompt).toContain(PIWIN_REPORT_CONTRACT_MARKER);
+    expect(prompt).toContain('First line: complete | partial | blocked.');
+    expect(prompt).toContain('find auth middleware');
+    expect(prompt.indexOf(PIWIN_REPORT_CONTRACT_MARKER)).toBeLessThan(
+      prompt.indexOf('find auth middleware'),
+    );
+  });
+});
+
+describe('resolveSubagentChildPrompt', () => {
+  it('wraps initial tasks and leaves continuations raw', () => {
+    const initial = resolveSubagentChildPrompt({
+      task: 'scout the repo',
+      isolationOverride: 'readonly',
+      reportContract: 'Return citations only.',
+    });
+    expect(initial).toContain(PIWIN_REPORT_CONTRACT_MARKER);
+    expect(initial).toContain('scout the repo');
+
+    const continuation = resolveSubagentChildPrompt({
+      task: 'look at the follow-up file',
+      isolationOverride: 'readonly',
+      reportContract: 'Return citations only.',
+      continuationSessionId: 'child-1',
+    });
+    expect(continuation).toBe('look at the follow-up file');
   });
 });
 

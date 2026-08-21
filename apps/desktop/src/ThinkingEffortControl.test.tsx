@@ -111,6 +111,17 @@ function typeIntoSearch(value: string): void {
   });
 }
 
+function activateModelOption(option: HTMLButtonElement): void {
+  act(() => {
+    const pointerDown = new window.PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    option.dispatchEvent(pointerDown);
+  });
+}
+
 function queryModelOptions(): Array<HTMLButtonElement> {
   return Array.from(
     document.querySelectorAll<HTMLButtonElement>(
@@ -265,8 +276,29 @@ describe('ThinkingEffortControl', () => {
     expect(options[0]?.getAttribute('aria-selected')).toBe('true');
 
     act(() => {
-      options[1]?.click();
+      activateModelOption(options[1]!);
     });
+    expect(onSelectModel).toHaveBeenCalledWith('acme:gpt-mini');
+    expect(queryPopover()).toBeNull();
+  });
+
+  it('selects a model on pointerdown before search-blur can dismiss the popover', () => {
+    const onSelectModel = vi.fn();
+    render(createBaseProps({ onSelectModel }), root);
+    activateTrigger();
+
+    const option = queryModelOptions()[1];
+    expect(option).toBeDefined();
+    const pointerDown = new window.PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    act(() => {
+      option?.dispatchEvent(pointerDown);
+    });
+
+    expect(pointerDown.defaultPrevented).toBe(true);
     expect(onSelectModel).toHaveBeenCalledWith('acme:gpt-mini');
   });
 
@@ -336,6 +368,7 @@ describe('ThinkingEffortControl', () => {
     pressKey(queryModelSearchInput(), 'Enter');
 
     expect(onSelectModel).toHaveBeenCalledWith('acme:gpt-test');
+    expect(queryPopover()).toBeNull();
   });
 
   it('closes on Escape and returns focus to the trigger', async () => {

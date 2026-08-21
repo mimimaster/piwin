@@ -10,9 +10,8 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { existsSync } from 'node:fs';
 import { Writable } from 'node:stream';
-import { fileURLToPath } from 'node:url';
+import { resolveWorkerLaunch } from './resolve-worker-script.js';
 import {
   parseWorkerFrame,
   serializeWorkerRequest,
@@ -168,8 +167,13 @@ export class RpcSdkWorkerClient extends EventEmitter {
   }
 
   private async startWorker(): Promise<void> {
-    const script = this.options.workerScript ?? resolveDefaultWorkerScript();
-    const args = [...(this.options.nodeArgs ?? []), script];
+    const launch = resolveWorkerLaunch({
+      ...(this.options.workerScript === undefined
+        ? {}
+        : { workerScript: this.options.workerScript }),
+      ...(this.options.nodeArgs === undefined ? {} : { nodeArgs: this.options.nodeArgs }),
+    });
+    const args = [...launch.nodeArgs, launch.workerScript];
     const workerEnvironment: Record<string, string> = {};
     if (process.env.PATH) workerEnvironment.PATH = process.env.PATH;
     if (process.env.NODE_ENV) workerEnvironment.NODE_ENV = process.env.NODE_ENV;
@@ -853,12 +857,3 @@ function writeWorkerSecretBootstrap(stream: Writable, frame: Buffer): Promise<vo
   });
 }
 
-function resolveDefaultWorkerScript(): string {
-  const packagedWorker = fileURLToPath(new URL('./agent-worker.mjs', import.meta.url));
-  if (existsSync(packagedWorker)) return packagedWorker;
-  const compiledWorker = fileURLToPath(new URL('./rpc-sdk-worker-entry.js', import.meta.url));
-  if (existsSync(compiledWorker)) return compiledWorker;
-  throw new Error(
-    'packaged agent worker artifact is missing; run bundle:host or provide a test workerScript',
-  );
-}

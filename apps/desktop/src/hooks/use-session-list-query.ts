@@ -68,6 +68,12 @@ export function useSessionListQuery(input: UseSessionListQueryInput): UseSession
       setRemoteSearchHitsByScope(null);
       return;
     }
+    if (!hostClient.supportsCommand('session/search')) {
+      // Keep filtering the bounded resident list. Treating an unsupported
+      // remote search as an empty authoritative result hides every match.
+      setRemoteSearchHitsByScope(null);
+      return;
+    }
     setRemoteSearchHitsByScope(null);
     let cancelled = false;
     const timer = window.setTimeout(() => {

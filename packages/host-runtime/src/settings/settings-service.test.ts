@@ -24,7 +24,10 @@ afterEach(async () => {
   await rm(piwinRoot, { recursive: true, force: true });
 });
 
-function mutation(domain: 'automation' | 'permissions' | 'web', value: unknown): SettingsMutation {
+function mutation(
+  domain: 'automation' | 'permissions' | 'web' | 'providers',
+  value: unknown,
+): SettingsMutation {
   return { kind: 'replace-domain', domain, value } as SettingsMutation;
 }
 
@@ -150,6 +153,185 @@ describe('applySettingsMutations', () => {
     const next = applySettingsMutations(base, [mutation('automation', { enabled: true })]);
     expect(next.automation?.enabled).toBe(true);
     expect(next.web).toEqual(base.web);
+  });
+
+  it('keeps a CLI search command when the shell apply omitted it in another source order', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
+    const currentWeb = base.web;
+    if (currentWeb === undefined) {
+      throw new Error('default web config missing');
+    }
+    const withCli = {
+      ...currentWeb,
+      searchSources: [
+        { id: 'duckduckgo', kind: 'duckduckgo' as const, enabled: false },
+        {
+          id: 'cli',
+          kind: 'cli' as const,
+          enabled: true,
+          command: '/usr/bin/node',
+          args: ['/tmp/search.mjs', '{{query}}'],
+        },
+      ],
+    };
+    const next = applySettingsMutations(
+      { ...base, web: withCli },
+      [
+        mutation('web', {
+          ...currentWeb,
+          fetchReturnMaxChars: 12_000,
+          searchSources: [
+            { id: 'cli', kind: 'cli', enabled: true },
+            { id: 'duckduckgo', kind: 'duckduckgo', enabled: false },
+          ],
+        }),
+      ],
+    );
+    expect(next.web?.fetchReturnMaxChars).toBe(12_000);
+    expect(next.web?.searchSources).toEqual([
+      {
+        id: 'cli',
+        kind: 'cli',
+        enabled: true,
+        command: '/usr/bin/node',
+        args: ['/tmp/search.mjs', '{{query}}'],
+      },
+      { id: 'duckduckgo', kind: 'duckduckgo', enabled: false },
+    ]);
+  });
+
+  it('keeps a Host CLI source when a projected apply only sent the default DuckDuckGo row', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
+    const currentWeb = base.web;
+    if (currentWeb === undefined) {
+      throw new Error('default web config missing');
+    }
+    const withCli = {
+      ...currentWeb,
+      searchSources: [
+        { id: 'duckduckgo', kind: 'duckduckgo' as const, enabled: false },
+        {
+          id: 'cli',
+          kind: 'cli' as const,
+          enabled: true,
+          command: '/usr/bin/node',
+          args: ['/Users/private/.piwin/bin/search.mjs', '{{query}}'],
+        },
+      ],
+    };
+    const next = applySettingsMutations(
+      { ...base, web: withCli },
+      [
+        mutation('web', {
+          ...currentWeb,
+          fetchReturnMaxChars: 18_000,
+          searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
+        }),
+      ],
+    );
+    expect(next.web?.searchSources).toEqual([
+      { id: 'duckduckgo', kind: 'duckduckgo', enabled: true },
+      {
+        id: 'cli',
+        kind: 'cli',
+        enabled: true,
+        command: '/usr/bin/node',
+        args: ['/Users/private/.piwin/bin/search.mjs', '{{query}}'],
+      },
+    ]);
+  });
+
+  it('does not persist a redacted Host path sent back by a remote shell', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
+    const currentWeb = base.web;
+    if (currentWeb === undefined) {
+      throw new Error('default web config missing');
+    }
+    const withCli = {
+      ...currentWeb,
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli' as const,
+          enabled: true,
+          command: '/usr/bin/node',
+          args: ['/Users/private/.piwin/bin/search.mjs', '{{query}}'],
+        },
+      ],
+    };
+    const next = applySettingsMutations(
+      { ...base, web: withCli },
+      [
+        mutation('web', {
+          ...currentWeb,
+          searchSources: [
+            {
+              id: 'cli',
+              kind: 'cli',
+              enabled: true,
+              args: ['[host-path]', '{{query}}'],
+            },
+          ],
+        }),
+      ],
+    );
+    expect(next.web?.searchSources).toEqual([
+      {
+        id: 'cli',
+        kind: 'cli',
+        enabled: true,
+        command: '/usr/bin/node',
+        args: ['/Users/private/.piwin/bin/search.mjs', '{{query}}'],
+      },
+    ]);
+  });
+
+  it('keeps Host provider secret refs when the remote shell sends a redacted placeholder', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
+    const currentProviders = [
+      {
+        id: 'custom-openai',
+        protocol: 'openai-compatible' as const,
+        name: 'Cpa',
+        baseUrl: 'http://127.0.0.1:8317/v1',
+        apiKeyRef: 'keychain:piwin-custom-openai',
+        models: [{ id: 'win/glm5.2' }],
+      },
+    ];
+    const next = applySettingsMutations(
+      { ...base, providers: currentProviders },
+      [
+        mutation('providers', [
+          {
+            id: 'custom-openai',
+            protocol: 'openai-compatible',
+            name: 'Cpa',
+            baseUrl: 'http://127.0.0.1:8317/v1',
+            apiKeyRef: '[stored-secret]',
+            models: [{ id: 'win/glm5.2' }, { id: 'muse-spark-1.2' }],
+          },
+        ]),
+      ],
+    );
+    expect(next.providers[0]?.apiKeyRef).toBe('keychain:piwin-custom-openai');
+    expect(next.providers[0]?.models.map((model) => model.id)).toEqual([
+      'win/glm5.2',
+      'muse-spark-1.2',
+    ]);
+  });
+
+  it('keeps omitted secret fields when replacing a projected web domain', () => {
+    const base = createSettingsSnapshot(undefined as unknown as PiwinConfig).config;
+    const currentWeb = base.web;
+    if (currentWeb === undefined) {
+      throw new Error('default web config missing');
+    }
+    const { searchApiKeyEnv: _searchApiKeyEnv, ...projected } = currentWeb;
+    const next = applySettingsMutations(base, [
+      mutation('web', { ...projected, searchMaxResults: currentWeb.searchMaxResults + 2 }),
+    ]);
+    expect(next.web?.searchMaxResults).toBe(currentWeb.searchMaxResults + 2);
+    expect(next.web?.searchApiKeyEnv).toBe(currentWeb.searchApiKeyEnv);
   });
 
   it('rejects unknown mutation kinds at the type level and ignores unknown domains', () => {
@@ -392,38 +574,95 @@ describe('SettingsService', () => {
     await expect(staleApply).rejects.toBeInstanceOf(SettingsRevisionConflictError);
   });
 
-  it('rejects a concurrent stale write instead of silently overwriting (true concurrency)', async () => {
+  it('rebases non-overlapping writes across SettingsService instances on one root', async () => {
+    const firstService = new SettingsService({ piwinRoot });
+    const secondService = new SettingsService({ piwinRoot });
+    const first = await firstService.getSnapshot();
+    const thinkingHash = first.domainRevisions.thinking;
+    const webHash = first.domainRevisions.web;
+    const currentWeb = first.config.web;
+    if (thinkingHash === undefined || webHash === undefined || currentWeb === undefined) {
+      throw new Error('expected thinking/web hashes');
+    }
+    const results = await Promise.allSettled([
+      firstService.apply({
+        expectedRevision: first.revision,
+        expectedDomainRevisions: { thinking: thinkingHash },
+        mutations: [{ kind: 'replace-domain', domain: 'thinking', value: { ultraEnabled: true } }],
+      }),
+      secondService.apply({
+        expectedRevision: first.revision,
+        expectedDomainRevisions: { web: webHash },
+        mutations: [
+          {
+            kind: 'replace-domain',
+            domain: 'web',
+            value: { ...currentWeb, searchMaxResults: currentWeb.searchMaxResults + 1 },
+          },
+        ],
+      }),
+    ]);
+    expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
+    const finalConfig = (await firstService.getSnapshot()).config;
+    expect(finalConfig.thinking?.ultraEnabled).toBe(true);
+    expect(finalConfig.web?.searchMaxResults).toBe(currentWeb.searchMaxResults + 1);
+  });
+
+  it('rebases non-overlapping domain writes from the same document revision', async () => {
     const service = new SettingsService({ piwinRoot });
     const first = await service.getSnapshot();
-    const webBefore = first.config.web?.searchProvider;
-
-    // Both writers fire from the same base revision WITHOUT awaiting the
-    // first. The in-process mutation chain serializes them; the loser must
-    // conflict instead of silently overwriting the winner's domain.
+    const permissionsHash = first.domainRevisions.permissions;
+    const webHash = first.domainRevisions.web;
+    expect(permissionsHash).toBeTruthy();
+    expect(webHash).toBeTruthy();
+    if (permissionsHash === undefined || webHash === undefined) {
+      throw new Error('expected domain hashes');
+    }
     const firstWrite = service.apply({
       expectedRevision: first.revision,
+      expectedDomainRevisions: { permissions: permissionsHash },
       mutations: [mutation('permissions', { mode: 'auto', preset: 'auto' })],
     });
     const secondWrite = service.apply({
       expectedRevision: first.revision,
+      expectedDomainRevisions: { web: webHash },
       mutations: [mutation('web', { searchProvider: 'duckduckgo', searchSources: [] })],
     });
     const results = await Promise.allSettled([firstWrite, secondWrite]);
-
-    const fulfilled = results.filter(
-      (result): result is PromiseFulfilledResult<Awaited<ReturnType<SettingsService['apply']>>> =>
-        result.status === 'fulfilled',
-    );
-    const rejected = results.filter(
-      (result): result is PromiseRejectedResult => result.status === 'rejected',
-    );
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    expect(rejected[0]?.reason).toBeInstanceOf(SettingsRevisionConflictError);
+    expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
 
     const finalConfig = (await service.getSnapshot()).config;
     expect(finalConfig.permissions?.mode).toBe('auto');
-    expect(finalConfig.web?.searchProvider).toBe(webBefore);
+    expect(finalConfig.web?.searchProvider).toBe('duckduckgo');
+  });
+
+  it('rejects overlapping domain writes from the same document revision', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const first = await service.getSnapshot();
+    const permissionsHash = first.domainRevisions.permissions;
+    expect(permissionsHash).toBeTruthy();
+    if (permissionsHash === undefined) {
+      throw new Error('expected permissions hash');
+    }
+    const firstWrite = service.apply({
+      expectedRevision: first.revision,
+      expectedDomainRevisions: { permissions: permissionsHash },
+      mutations: [mutation('permissions', { mode: 'auto', preset: 'auto' })],
+    });
+    const secondWrite = service.apply({
+      expectedRevision: first.revision,
+      expectedDomainRevisions: { permissions: permissionsHash },
+      mutations: [mutation('permissions', { mode: 'ask-all', preset: 'ask-all' })],
+    });
+    const results = await Promise.allSettled([firstWrite, secondWrite]);
+    const rejected = results.filter(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(SettingsRevisionConflictError);
+    expect((rejected[0]?.reason as SettingsRevisionConflictError).conflictingDomains).toEqual([
+      'permissions',
+    ]);
   });
 
   it('no-op when mutations do not change the normalized config', async () => {

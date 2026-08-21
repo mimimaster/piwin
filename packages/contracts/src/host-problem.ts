@@ -32,3 +32,41 @@ export type ForegroundRunMismatchProblem = {
     };
   };
 };
+
+export type SettingsRevisionConflictProblem = {
+  code: 'settings-revision-conflict';
+  data: {
+    expectedRevision: string;
+    actualRevision: string;
+    conflictingDomains: string[];
+    snapshot?: unknown;
+  };
+};
+
+export type TicketConsumedProblem = {
+  code: 'ticket-consumed';
+  data: { requestId: string };
+};
+
+export type NotesRevisionConflictProblem = {
+  code: 'notes-revision-conflict';
+  data: { noteId: string; actualContentHash?: string };
+};
+
+export type TodoRevisionConflictProblem = {
+  code: 'todo-revision-conflict';
+  data: { sessionId: string; actualRevision: string };
+};
+
+export type SessionBusyProblem = {
+  code: 'session-busy';
+  data: { sessionId: string; reason: 'body-job' | 'foreground-run' };
+};
+
+export type IdempotencyKeyRequiredProblem = {
+  code: 'idempotency-key-required';
+};
+
+export type IdempotencyConflictProblem = {
+  code: 'idempotency-conflict';
+};

@@ -71,11 +71,6 @@ export const DeferredGitPanel = lazy(async () => {
   return { default: module.GitPanel };
 });
 
-export const DeferredSubagentSessionDialog = lazy(async () => {
-  const module = await import('./subagent-session-dialog');
-  return { default: module.SubagentSessionDialog };
-});
-
 export type DeferredSurfaceBoundaryProps = {
   children: ReactNode;
   label: string;

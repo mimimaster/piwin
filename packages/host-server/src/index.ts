@@ -9,3 +9,4 @@ export * from './device-pairing-store.js';
 export * from './host-hello-auth.js';
 export * from './pairing-qr.js';
 export * from './mobile-access-controller.js';
+export * from './host-connection-lifecycle.js';

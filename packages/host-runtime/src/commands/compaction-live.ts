@@ -96,6 +96,7 @@ import { createModelPromptAssembly, type ModelPromptAssembly } from '../model-co
 import { persistAndPushAssembly } from '../model-context-record.js';
 import { resolvePromptContextRefs } from '../prompt/resolve-prompt-context-refs.js';
 import { fail, ok } from '../response-helpers.js';
+import { sessionBusyResponse } from '../session-body-gate.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
   getPiwinProjectsPath,
@@ -415,16 +416,37 @@ export async function handleCompactionCommand(
 ): Promise<HostResponse | null> {
   switch (command.type) {
     case 'session/compact': {
-      const result = command.targetModel
-        ? await compactLiveSessionForTarget(
-            context,
-            command.sessionId,
-            command.targetModel,
-            0,
-            command.customInstructions,
-          )
-        : await compactLiveSession(context, command.sessionId, command.customInstructions);
-      return ok(requestId, 'session/compact', toSessionCompactData(result));
+      const liveRun = context.getForegroundRun(command.sessionId);
+      const runLive =
+        liveRun !== undefined &&
+        (liveRun.status === 'queued' ||
+          liveRun.status === 'running' ||
+          liveRun.status === 'cancelling');
+      if (runLive && command.targetModel === undefined) {
+        return sessionBusyResponse(
+          requestId,
+          'session/compact',
+          command.sessionId,
+          'foreground-run',
+        );
+      }
+      if (!context.tryReserveSessionBody(command.sessionId)) {
+        return sessionBusyResponse(requestId, 'session/compact', command.sessionId, 'body-job');
+      }
+      try {
+        const result = command.targetModel
+          ? await compactLiveSessionForTarget(
+              context,
+              command.sessionId,
+              command.targetModel,
+              0,
+              command.customInstructions,
+            )
+          : await compactLiveSession(context, command.sessionId, command.customInstructions);
+        return ok(requestId, 'session/compact', toSessionCompactData(result));
+      } finally {
+        context.releaseSessionBody(command.sessionId);
+      }
     }
     case 'session/compact-export': {
       const rootDir = getPiwinRoot(context.piwinRoot);

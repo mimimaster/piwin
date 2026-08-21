@@ -370,8 +370,15 @@ export function createTranscriptRecorder(options: {
               messageIndex >= 0 ? currentDocument?.messages[messageIndex] : undefined;
             // The Pi SDK may emit empty assistant lifecycle entries while
             // scheduling internal work. Keep actual thinking/tool activity,
-            // but do not persist a visible assistant turn with no content.
+            // but do not persist a visible assistant turn with no content —
+            // unless the row already carries a failure (error status / terminal).
+            const keepFailed =
+              completedMessage !== undefined &&
+              (completedMessage.status === 'error' ||
+                (completedMessage.terminalMessage ?? '').trim().length > 0 ||
+                completedMessage.outcome === 'failed');
             if (
+              !keepFailed &&
               completedMessage?.role === 'assistant' &&
               completedMessage.text.trim().length === 0 &&
               (completedMessage.thinking ?? '').trim().length === 0 &&
@@ -380,6 +387,12 @@ export function createTranscriptRecorder(options: {
             ) {
               currentDocument?.messages.splice(messageIndex, 1);
               documentRevision += 1;
+              if (lastAssistantId === event.messageId) {
+                lastAssistantId = null;
+              }
+              if (event.runId !== undefined) {
+                assistantIdsByRunId.delete(event.runId);
+              }
             }
             await persistDocument();
             break;
@@ -538,14 +551,50 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'error': {
-            if (lastAssistantId) {
-              const eventAt = new Date().toISOString();
-              updateMessage(lastAssistantId, (message) => ({
+            const eventAt = new Date().toISOString();
+            const errorMessage = event.message.trim() || 'Model request failed';
+            const targetId =
+              (event.runId !== undefined ? assistantIdsByRunId.get(event.runId) : undefined) ??
+              lastAssistantId;
+            if (targetId) {
+              updateMessage(targetId, (message) => ({
                 ...finishTranscriptThinking(message, eventAt),
                 status: 'error',
+                outcome: 'failed',
+                terminalMessage: errorMessage,
+                endedAt: eventAt,
               }));
               await persistDocument();
+              break;
             }
+            const doc = await ensureDocument();
+            const failureId = `piw-m-error-${event.runId ?? Date.now().toString(36)}-${Math.random()
+              .toString(36)
+              .slice(2, 8)}`;
+            const model = options.resolveModel?.();
+            doc.messages.push({
+              id: failureId,
+              role: 'assistant',
+              text: '',
+              thinking: '',
+              tools: [],
+              status: 'error',
+              createdAt: eventAt,
+              endedAt: eventAt,
+              outcome: 'failed',
+              terminalMessage: errorMessage,
+              ...(options.runtimeGenerationId !== undefined
+                ? { runtimeGenerationId: options.runtimeGenerationId }
+                : {}),
+              ...(event.runId !== undefined ? { runId: event.runId } : {}),
+              ...(model !== undefined ? { model } : {}),
+            });
+            documentRevision += 1;
+            lastAssistantId = failureId;
+            if (event.runId !== undefined) {
+              assistantIdsByRunId.set(event.runId, failureId);
+            }
+            await persistDocument();
             break;
           }
           default:

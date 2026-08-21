@@ -52,7 +52,12 @@ export class HostReplayJournal {
   public isCompleteSince(sequence: number): boolean {
     this.prune(this.now());
     const oldest = this.entries[0]?.record.seq;
-    return oldest === undefined || sequence >= oldest - 1;
+    // An empty journal cannot prove continuity for any gap. Callers that know
+    // the live head (egress hub) treat `sinceSeq >= currentSeq` as complete.
+    if (oldest === undefined) {
+      return false;
+    }
+    return sequence >= oldest - 1;
   }
 
   public getOldestSeq(): number | undefined {

@@ -525,4 +525,39 @@ describe('ConversationResponseContent', () => {
     expect(cards).toHaveLength(1);
     expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
   });
+
+  it('omits the identity header for a continuation completion', () => {
+    const message: ChatMessageUi = {
+      id: 'm-cont',
+      role: 'assistant',
+      text: 'Here is the result.',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'cpa',
+        modelId: 'glm5.2',
+      },
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={1}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        showHeader={false}
+      />,
+    );
+    expect(container.querySelector('[data-testid="conversation-message-header"]')).toBeNull();
+    expect(container.querySelector('[data-testid="conversation-response"]')?.classList.contains('is-continuation')).toBe(
+      true,
+    );
+    expect(container.textContent).toContain('Here is the result.');
+  });
 });

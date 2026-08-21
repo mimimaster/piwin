@@ -64,6 +64,34 @@ const ZH_SUBMENU_LABELS = { more: '更多…' } as const;
 
 type SubmenuLabelTable = { more: string };
 
+const ACTION_ICONS: Record<ContextMenuActionId, string> = {
+  'add-to-chat': 'chat',
+  'ask-about': 'spark',
+  'copy-as-ref': 'link',
+  explain: 'spark',
+  fix: 'spark',
+  review: 'check-circle',
+  tests: 'code',
+  'explain-failure': 'alert-circle',
+  'fix-error': 'spark',
+  open: 'file',
+  reveal: 'folder',
+  copy: 'copy',
+  'copy-relative-path': 'copy',
+  'copy-absolute-path': 'copy',
+  'quote-in-composer': 'comment-plus',
+  retry: 'refresh',
+  fork: 'arrow-fork',
+  'side-chat': 'side-chat',
+  'open-changed-files': 'file-diff',
+  'apply-to-file': 'file',
+  'rerun-tool': 'refresh',
+};
+
+const ACTION_SHORTCUTS: Partial<Record<ContextMenuActionId, string>> = {
+  copy: '⌘C',
+};
+
 function labelsFor(locale: ContextMenuCapabilities['locale']): LabelTable {
   return locale === 'zh-CN' ? ZH_LABELS : EN_LABELS;
 }
@@ -75,14 +103,17 @@ function submenuLabelsFor(locale: ContextMenuCapabilities['locale']): SubmenuLab
 function item(
   id: ContextMenuActionId,
   labels: LabelTable,
-  options?: { disabled?: boolean; danger?: boolean },
+  options?: { disabled?: boolean; danger?: boolean; icon?: string; shortcut?: string },
 ): ContextMenuItemSpec {
   const spec: Extract<ContextMenuItemSpec, { type: 'item' }> = {
     type: 'item',
     id,
     label: labels[id],
     testId: `context-menu-${id}`,
+    icon: options?.icon ?? ACTION_ICONS[id],
   };
+  const shortcut = options?.shortcut ?? ACTION_SHORTCUTS[id];
+  if (shortcut) spec.shortcut = shortcut;
   if (options?.disabled) spec.disabled = true;
   if (options?.danger) spec.danger = true;
   return spec;
@@ -122,7 +153,7 @@ export function buildContextMenuItems(
         item('add-to-chat', labels, { disabled: noProject }),
         item('ask-about', labels, { disabled: noProject }),
         sep(),
-        item('open', labels, { disabled: noProject }),
+        item('open', labels, { disabled: noProject || !caps.applyAvailable }),
         ...(caps.canReveal && !noProject ? [item('reveal', labels)] : []),
         sep(),
         item('copy-relative-path', labels, { disabled: noProject }),
@@ -134,6 +165,7 @@ export function buildContextMenuItems(
                 type: 'submenu' as const,
                 id: 'more',
                 label: submenuLabelsFor(caps.locale).more,
+                icon: 'more',
                 children: [
                   item('explain', labels),
                   item('review', labels),
@@ -162,11 +194,10 @@ export function buildContextMenuItems(
       ]);
     case 'selection':
       return compact([
+        item('add-to-chat', labels),
         item('ask-about', labels),
         item('explain', labels),
         item('fix', labels),
-        sep(),
-        item('add-to-chat', labels),
         ...(caps.sideChatAvailable ? [item('side-chat', labels)] : []),
         sep(),
         item('copy-as-ref', labels),
@@ -178,7 +209,7 @@ export function buildContextMenuItems(
         item('add-to-chat', labels),
         item('ask-about', labels),
         item('apply-to-file', labels, { disabled: !caps.applyAvailable }),
-        item('open', labels, { disabled: !target.relativePath }),
+        item('open', labels, { disabled: !target.relativePath || !caps.applyAvailable }),
       ]);
     case 'message-user':
     case 'message-assistant': {
@@ -197,7 +228,7 @@ export function buildContextMenuItems(
     }
     case 'diff-row':
       return compact([
-        item('open', labels),
+        item('open', labels, { disabled: !caps.applyAvailable }),
         item('add-to-chat', labels),
         item('explain', labels),
         item('review', labels),
@@ -209,7 +240,7 @@ export function buildContextMenuItems(
         item('add-to-chat', labels),
         item('explain-failure', labels),
         item('fix-error', labels),
-        item('open', labels, { disabled: !target.relatedPath }),
+        item('open', labels, { disabled: !target.relatedPath || !caps.applyAvailable }),
         ...(target.canRerun ? [item('rerun-tool', labels)] : []),
       ]);
     case 'terminal-selection':

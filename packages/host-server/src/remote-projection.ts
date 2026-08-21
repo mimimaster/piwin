@@ -19,13 +19,16 @@ import type {
   RemoteSessionTranscriptPageData,
   RemoteSessionTranscriptPageInfo,
   RemoteTranscriptMessage,
-  RemoteTranscriptTool,
   QueuedTurnRecord,
 } from '@piwin/contracts';
-import { readActivitySummaryData } from '@piwin/contracts';
+import { readActivitySummaryData, REDACTED_STORED_SECRET } from '@piwin/contracts';
 import { parseSessionStorageInfo, projectRemoteSessionStorage } from '@piwin/contracts';
 import { createRemoteProjectId } from '@piwin/host-runtime';
 import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
+import { redactRemoteHostPaths } from './remote-redact.js';
+import { projectRemoteTranscriptTools } from './remote-transcript-tool-projection.js';
+
+export { redactRemoteHostPaths };
 
 export type RemoteProjectionContext = {
   hostInstanceId: string;
@@ -70,6 +73,20 @@ export function projectRemoteResponse(
     return {
       ...response,
       data: projectConfiguredChatModelsResponse(response.data),
+    };
+  }
+
+  if (command.type === 'settings/get') {
+    return {
+      ...response,
+      data: projectRemoteSettingsData(response.data),
+    };
+  }
+
+  if (command.type === 'settings/apply') {
+    return {
+      ...response,
+      data: projectRemoteSettingsApplyData(response.data),
     };
   }
 
@@ -161,7 +178,18 @@ export function projectRemoteResponse(
   if (
     command.type.startsWith('session/') ||
     command.type.startsWith('run/') ||
-    command.type === 'permission/resolve'
+    command.type.startsWith('plan/') ||
+    command.type.startsWith('walkthrough/') ||
+    command.type.startsWith('extension/') ||
+    command.type.startsWith('extensions/') ||
+    command.type.startsWith('notes/') ||
+    command.type.startsWith('flashcards/') ||
+    command.type.startsWith('usage/') ||
+    command.type.startsWith('skills/') ||
+    command.type.startsWith('prompts/') ||
+    command.type === 'host/runtime-resources' ||
+    command.type === 'permission/resolve' ||
+    command.type === 'permission/pending-list'
   ) {
     return {
       ...response,
@@ -172,8 +200,13 @@ export function projectRemoteResponse(
   return response;
 }
 
-export function createRemoteCapabilities(): RemoteCapabilitySummary {
+export function createRemoteCapabilities(
+  allowedCommands?: Iterable<HostCommand['type']>,
+): RemoteCapabilitySummary {
   return {
+    ...(allowedCommands === undefined
+      ? {}
+      : { allowedCommands: [...new Set(allowedCommands)].sort() }),
     pushSequencing: true,
     replay: true,
     snapshot: true,
@@ -605,39 +638,6 @@ function projectTranscriptMessages(messagesValue: unknown): RemoteTranscriptMess
   return projected;
 }
 
-const MAX_REMOTE_TRANSCRIPT_TOOLS = 24;
-const MAX_REMOTE_TOOL_OUTPUT_BYTES = 16_384;
-
-function projectRemoteTranscriptTools(value: unknown): RemoteTranscriptTool[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const projected: RemoteTranscriptTool[] = [];
-  for (const item of value) {
-    if (projected.length >= MAX_REMOTE_TRANSCRIPT_TOOLS) {
-      break;
-    }
-    const record = asRecord(item);
-    if (
-      record === undefined ||
-      typeof record.toolCallId !== 'string' ||
-      typeof record.toolName !== 'string' ||
-      (record.status !== 'running' && record.status !== 'done' && record.status !== 'error')
-    ) {
-      continue;
-    }
-    const tool: RemoteTranscriptTool = {
-      toolCallId: boundedString(record.toolCallId, 256),
-      toolName: boundedString(record.toolName, 256),
-      status: record.status,
-      output: redactHostError(boundedString(record.output, MAX_REMOTE_TOOL_OUTPUT_BYTES)),
-    };
-    copyBoundedString(record, 'runId', tool, 'runId', 256);
-    projected.push(tool);
-  }
-  return projected;
-}
-
 function projectSessionScope(value: unknown): RemoteSessionScopeKind {
   const scope = asRecord(value);
   if (scope?.kind === 'project') {
@@ -730,10 +730,6 @@ function isTranscriptOutcome(
   return value === 'completed' || value === 'cancelled' || value === 'failed';
 }
 
-export function redactRemoteHostPaths(value: string): string {
-  return value.replace(/(?:\/Users\/|\/home\/|[A-Za-z]:[\\/])[^\s'"`]+/g, '[host-path]');
-}
-
 function redactHostError(error: string): string {
   return redactRemoteHostPaths(error);
 }
@@ -742,9 +738,15 @@ const REMOTE_PATH_KEYS = new Set([
   'absolutePath',
   'changedPaths',
   'cwd',
+  'directory',
+  'entryPath',
+  'extraPaths',
+  'outputPath',
+  'packPath',
   'path',
   'piwinRoot',
   'projectPath',
+  'root',
   'sourcePath',
   'targetPaths',
   'worktreePath',
@@ -758,6 +760,121 @@ const REMOTE_SECRET_KEYS = new Set([
   'secret',
   'token',
 ]);
+
+const REMOTE_SETTINGS_OMITTED_KEYS = new Set([
+  ...REMOTE_SECRET_KEYS,
+  ...REMOTE_PATH_KEYS,
+  'args',
+  'authToken',
+  'command',
+  'deviceSecret',
+  'directory',
+  'entryPath',
+  'extraPaths',
+  'fetchApiKeyEnv',
+  'headers',
+  'outputPath',
+  'packPath',
+  'remote',
+  'root',
+  'searchApiKeyEnv',
+  'secretRef',
+  'tokenRef',
+]);
+
+/**
+ * Remote Settings is a read-only projection: enough product configuration to
+ * render Desktop pages, without Host paths, secret refs, headers, or client
+ * restore credentials.
+ */
+export function projectRemoteSettingsData(data: unknown): unknown {
+  const record = asRecord(data);
+  const snapshot = asRecord(record?.snapshot);
+  if (snapshot === undefined) {
+    return {};
+  }
+  return {
+    snapshot: {
+      schemaVersion: snapshot.schemaVersion,
+      revision:
+        typeof snapshot.revision === 'string' ? boundedString(snapshot.revision, 256) : '',
+      runtimeRevision:
+        typeof snapshot.runtimeRevision === 'string'
+          ? boundedString(snapshot.runtimeRevision, 256)
+          : '',
+      domainRevisions: projectDomainRevisions(snapshot.domainRevisions),
+      config: projectRemoteSettingsValue(snapshot.config, undefined),
+    },
+  };
+}
+
+function projectRemoteSettingsApplyData(data: unknown): unknown {
+  const record = asRecord(data);
+  if (record === undefined) {
+    return {};
+  }
+  const projected = projectRemoteSettingsData({ snapshot: record.snapshot });
+  const snapshot = asRecord(projected)?.snapshot;
+  return {
+    ...(snapshot === undefined ? {} : { snapshot }),
+    changedDomains: Array.isArray(record.changedDomains)
+      ? record.changedDomains.slice(0, 32)
+      : [],
+  };
+}
+
+function projectDomainRevisions(value: unknown): Record<string, string> {
+  const record = asRecord(value);
+  if (record === undefined) {
+    return {};
+  }
+  const projected: Record<string, string> = {};
+  for (const [domain, hash] of Object.entries(record)) {
+    if (typeof hash === 'string' && hash.length > 0 && hash.length <= 256) {
+      projected[domain] = hash;
+    }
+  }
+  return projected;
+}
+
+function projectRemoteSettingsValue(
+  value: unknown,
+  key: string | undefined,
+  depth = 0,
+): unknown {
+  if (depth > 12) {
+    return undefined;
+  }
+  if (key === 'apiKeyRef' || key === 'apiKeyEnv') {
+    return typeof value === 'string' && value.trim().length > 0
+      ? REDACTED_STORED_SECRET
+      : undefined;
+  }
+  if (key !== undefined && REMOTE_SETTINGS_OMITTED_KEYS.has(key)) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    return boundedString(redactRemoteHostPaths(value), 32_000);
+  }
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 128)
+      .map((item) => projectRemoteSettingsValue(item, undefined, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+  const record = asRecord(value);
+  if (record === undefined) {
+    return value;
+  }
+  const projected: Record<string, unknown> = {};
+  for (const [childKey, childValue] of Object.entries(record)) {
+    const child = projectRemoteSettingsValue(childValue, childKey, depth + 1);
+    if (child !== undefined) {
+      projected[childKey] = child;
+    }
+  }
+  return projected;
+}
 
 
 function projectSessionUserMessageIndex(data: unknown): unknown {
@@ -819,7 +936,7 @@ function sanitizeRemoteValue(value: unknown, key: string | undefined): unknown {
     return Array.isArray(value) ? [] : '[host-path]';
   }
   if (typeof value === 'string') {
-    return boundedString(value, 256_000);
+    return boundedString(redactRemoteHostPaths(value), 256_000);
   }
   if (Array.isArray(value)) {
     return value.slice(0, 100).map((item) => sanitizeRemoteValue(item, undefined));

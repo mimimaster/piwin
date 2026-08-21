@@ -53,7 +53,7 @@ export type ProviderSettingsProps = {
     modelId: string,
     options?: DiscoverModelsOptions,
   ) => Promise<{ durationMs: number }>;
-  /** Persist secret to host keychain; returns apiKeyRef. */
+  /** Persist secret on the Host; returns apiKeyRef. */
   onStoreSecret: (providerId: string, secret: string) => Promise<string>;
   searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
 };

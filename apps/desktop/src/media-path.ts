@@ -6,8 +6,9 @@
  * renderer inside the media viewer (ADR 0052).
  */
 
-/** Prefix the host-server remote projection substitutes for vault paths. */
-export const REMOTE_MEDIA_ASSET_PREFIX = 'remote-asset:';
+import { REMOTE_MEDIA_ASSET_PREFIX } from '@piwin/contracts';
+
+export { REMOTE_MEDIA_ASSET_PREFIX };
 
 /**
  * True for paths that live in a piwin media store (`~/.piwin/media/<sessionId>/…`

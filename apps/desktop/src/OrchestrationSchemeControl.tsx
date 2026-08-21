@@ -17,6 +17,8 @@ export type OrchestrationSchemeOption = {
   name: string;
   description: string;
   source?: 'builtin' | 'settings' | 'off';
+  /** Default role inherits the composer model (no pinned member.model). */
+  unpinnedDefaultRole?: string;
 };
 
 export type OrchestrationSchemeControlProps = {
@@ -65,6 +67,15 @@ export function OrchestrationSchemeControl({
     return option.description;
   };
   const selectedLabel = displayName(selected);
+  const unpinnedDefaultRole =
+    isActive && selected && selected.id !== 'off' && selected.source !== 'off'
+      ? selected.unpinnedDefaultRole
+      : undefined;
+  const unpinnedHint = unpinnedDefaultRole
+    ? isZh
+      ? `${unpinnedDefaultRole} 未指定模型，将使用当前主模型价位`
+      : `${unpinnedDefaultRole} has no pinned model — it will use the composer model`
+    : undefined;
 
   return (
     <div
@@ -170,6 +181,18 @@ export function OrchestrationSchemeControl({
           </div>
         ) : null}
       </Popover>
+      {unpinnedHint ? (
+        <button
+          type="button"
+          className="orchestration-scheme-unpinned-hint"
+          data-testid="orchestration-scheme-unpinned-hint"
+          onClick={() => onOpenSettings?.()}
+          disabled={!onOpenSettings}
+          title={unpinnedHint}
+        >
+          {unpinnedHint}
+        </button>
+      ) : null}
     </div>
   );
 }

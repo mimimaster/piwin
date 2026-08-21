@@ -22,6 +22,7 @@ export type { SpinnerProps } from './spinner.js';
 export {
   ContextMenu,
   ContextMenuItem,
+  ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
@@ -36,6 +37,7 @@ export {
 } from './menu.js';
 export type {
   ContextMenuItemProps,
+  ContextMenuLabelProps,
   ContextMenuProps,
   ContextMenuSubContentProps,
   ContextMenuSubProps,
@@ -57,7 +59,14 @@ export type { ConfirmDialogProps, ConfirmDialogTone } from './confirm-dialog.js'
 export { Notice } from './notice.js';
 export type { NoticeProps, NoticeTone } from './notice.js';
 
-export { hideUiNotification, showUiNotification } from './notifications.js';
+export {
+  hideUiNotification,
+  showErrorNotification,
+  showInfoNotification,
+  showSuccessNotification,
+  showUiNotification,
+  showWarningNotification,
+} from './notifications.js';
 export type { UiNotificationInput, UiNotificationTone } from './notifications.js';
 
 export { StatusBadge } from './status-badge.js';

@@ -1,4 +1,4 @@
-export { createNoteStore } from './note-store.js';
+export { createNoteStore, NoteRevisionConflictError } from './note-store.js';
 export type { NoteStore, NoteStoreOptions, ScannedNote } from './note-store.js';
 export { openNoteIndex } from './note-index.js';
 export type { NoteIndex } from './note-index.js';

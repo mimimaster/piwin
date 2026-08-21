@@ -18,7 +18,11 @@ import {
 } from '@piwin/contracts';
 import { Button, Notice, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { buildEnabledModelOptions } from '../../model-options';
+import {
+  buildEnabledModelOptions,
+  modelOptionsFromConfiguredModels,
+  readConfiguredChatModelsData,
+} from '../../model-options';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
@@ -27,8 +31,11 @@ import { OrchestrationSchemeEditor } from '../orchestration-scheme-editor';
 export function SubagentProfilesPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
-  const { config, saving, saveConfig, setError, setInfo } = useSettings();
+  const { config, saving, saveConfig, setError, setInfo, request } = useSettings();
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [configuredPickerOptions, setConfiguredPickerOptions] = useState<
+    Array<{ value: string; label: string; ref: ModelRef }>
+  >([]);
 
   const copy = isChinese
     ? {
@@ -192,6 +199,35 @@ export function SubagentProfilesPage(): ReactElement {
       return { value: JSON.stringify(ref), label: option.label, ref };
     });
   }, [config]);
+
+  useEffect(() => {
+    if (modelOptions.length > 0) {
+      setConfiguredPickerOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const response = await request({ type: 'models/configured' });
+      if (cancelled || !response.success) return;
+      const models = readConfiguredChatModelsData(response.data).models;
+      if (cancelled) return;
+      setConfiguredPickerOptions(
+        modelOptionsFromConfiguredModels(models).map((option) => {
+          const ref: ModelRef = {
+            protocol: option.protocol,
+            providerId: option.providerId,
+            modelId: option.modelId,
+          };
+          return { value: JSON.stringify(ref), label: option.label, ref };
+        }),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modelOptions.length, request]);
+
+  const pickerModelOptions = modelOptions.length > 0 ? modelOptions : configuredPickerOptions;
 
   function buildUniqueSchemeCloneId(baseId: string, existingIds: ReadonlySet<string>): string {
     const sanitizedBase =
@@ -369,7 +405,7 @@ export function SubagentProfilesPage(): ReactElement {
     <div className="settings-card" data-testid="settings-subagents">
       <PageTitle title={copy.title} description={copy.pageDescription} />
 
-      {modelOptions.length === 0 ? (
+      {pickerModelOptions.length === 0 ? (
         <div style={{ marginBottom: 16 }}>
           <Notice tone="warning">{copy.noModels}</Notice>
         </div>
@@ -378,7 +414,7 @@ export function SubagentProfilesPage(): ReactElement {
       <OrchestrationSchemeEditor
         schemes={orchestrationSchemes}
         schemeDrafts={schemeDrafts}
-        modelOptions={modelOptions}
+        modelOptions={pickerModelOptions}
         saving={saving}
         notice={schemeNotice}
         onNotice={setSchemeNotice}

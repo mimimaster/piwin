@@ -8,6 +8,7 @@ import {
   archiveSessionRecordIfUnchanged,
   createSessionRecord,
   deleteSessionRecord,
+  listChildSessions,
   listSessionsForProject,
   loadSessionIndex,
   pinSessionRecord,
@@ -249,6 +250,46 @@ describe('session-index-store', () => {
       (await loadSessionIndex(filePath)).sessions.find((record) => record.id === sideChat.id)
         ?.sideChatRelation?.sourceState,
     ).toBe('missing');
+  });
+
+  it('keeps side-chat and subagent children off the main list', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-primary-list-'));
+    const filePath = join(dir, 'index.json');
+    await upsertSessionRecord(
+      filePath,
+      createSessionRecord({
+        id: 'main',
+        projectPath: '/tmp/proj',
+        name: 'Main chat',
+        kind: 'main',
+      }),
+    );
+    await upsertSessionRecord(
+      filePath,
+      createSessionRecord({
+        id: 'child',
+        projectPath: '/tmp/proj',
+        name: 'subagent-task-1',
+        kind: 'subagent',
+        parentSessionId: 'main',
+      }),
+    );
+    await upsertSessionRecord(
+      filePath,
+      createSessionRecord({
+        id: 'side',
+        projectPath: '/tmp/proj',
+        name: 'Side chat',
+        kind: 'side-chat',
+        parentSessionId: 'main',
+      }),
+    );
+
+    const listed = await listSessionsForProject(filePath, '/tmp/proj');
+    expect(listed.map((item) => item.id)).toEqual(['main']);
+
+    const children = await listChildSessions(filePath, 'main');
+    expect(children.map((item) => item.id).sort()).toEqual(['child', 'side']);
   });
 
   it('legacy string project filter excludes general-scope sessions', async () => {

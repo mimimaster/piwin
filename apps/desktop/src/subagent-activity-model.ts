@@ -26,12 +26,23 @@ export type ActiveSubagentView = {
   updatedAt: string;
 };
 
-/** Minimal identity needed to open the read-only session inspector. */
+/** Minimal identity needed to expand the inline session inspector. */
 export type SubagentInspectorSelection = {
   childSessionId: string;
   displayName: string;
   taskSummary: string;
+  /**
+   * Transcript anchor that owns the expanded inline panel (parent tool call id
+   * or `card:<childSessionId>` for the activity card). Keeps two anchors for
+   * the same child from both claiming the expansion.
+   */
+  anchorId?: string;
 };
+
+/** Anchor id used by the persisted activity card for one child session. */
+export function subagentCardAnchorId(childSessionId: string): string {
+  return `card:${childSessionId}`;
+}
 
 export type SelectActiveSubagentsInput = {
   parentSessionId: string;
@@ -93,7 +104,7 @@ export function subagentStatusToRunKind(status: ActiveSubagentStatus): 'preparin
  * Unknown children default to running (a just-launched child may not have a
  * summary yet).
  */
-export function deriveSubagentDialogStatus(input: {
+export function deriveSubagentInspectorStatus(input: {
   child: SessionSummary | undefined;
   stream: SubagentStreamState | undefined;
 }): ActiveSubagentStatus {
@@ -171,5 +182,6 @@ export function toInspectorSelection(view: ActiveSubagentView): SubagentInspecto
     childSessionId: view.childSessionId,
     displayName: view.displayName,
     taskSummary: view.taskSummary,
+    anchorId: subagentCardAnchorId(view.childSessionId),
   };
 }

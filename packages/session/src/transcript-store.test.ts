@@ -660,6 +660,34 @@ describe('SessionTranscriptStore', () => {
     store.close();
   });
 
+  it('round-trips reply writer attribution through metadata_json', async () => {
+    const { store } = await openStore('reply-writer');
+    const replyWriter = {
+      language: 'zh-CN' as const,
+      sourceText: '登录 路径 已改',
+      model: {
+        protocol: 'openai-compatible' as const,
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+      },
+    };
+    await store.appendMessage({
+      ...messageInput({
+        id: 'piw-m-writer',
+        runtimeGenerationId: 'gen-writer',
+        backendMessageId: 'backend-writer',
+        role: 'assistant',
+        text: '登录路径已经改好了。',
+      }),
+      metadata: { replyWriter },
+    });
+    await expect(store.getMessage('piw-m-writer')).resolves.toMatchObject({
+      text: '登录路径已经改好了。',
+      replyWriter,
+    });
+    store.close();
+  });
+
   it('round-trips assistant reasoning boundaries through metadata_json', async () => {
     const { store } = await openStore('thinking-boundaries');
     await store.appendMessage({

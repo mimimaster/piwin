@@ -4,9 +4,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ReactElement } from 'react';
 import {
+  MAX_GIT_DIFF_SUMMARY_CACHE_ENTRIES,
+  clearGitDiffSummaryCacheForTests,
   FilesChangedBar,
   formatDisplayPathParts,
   getRelativeFilePath,
+  gitDiffSummaryCacheSizeForTests,
 } from './files-changed-bar';
 import type { ToolCardUi } from './chat-reducer';
 
@@ -104,5 +107,36 @@ describe('FilesChangedBar DOM rendering', () => {
     });
     root = undefined;
     container.remove();
+  });
+
+  it('bounds cached git summaries across many projects', async () => {
+    clearGitDiffSummaryCacheForTests();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const request = vi.fn(async () => ({
+      type: 'response' as const,
+      command: 'git/diff-summary' as const,
+      success: true as const,
+      data: { summary: { files: [] } },
+    }));
+
+    for (let index = 0; index < MAX_GIT_DIFF_SUMMARY_CACHE_ENTRIES + 5; index += 1) {
+      await act(async () => {
+        root.render(
+          <FilesChangedBar
+            tools={tools}
+            projectPath={`/workspace-${index}`}
+            request={request}
+          />,
+        );
+        await Promise.resolve();
+      });
+    }
+
+    expect(gitDiffSummaryCacheSizeForTests()).toBe(MAX_GIT_DIFF_SUMMARY_CACHE_ENTRIES);
+    act(() => root.unmount());
+    container.remove();
+    clearGitDiffSummaryCacheForTests();
   });
 });

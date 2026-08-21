@@ -168,9 +168,9 @@ docs/specs/side-chat-session.md。实现完成后将本 ADR 状态改为 Accepte
   `listSideChatSessions`, `updateSideChatContext`, `markSideChatSourceState`.
 - `side-chat-context.ts`: `buildSideChatContextSnapshot` (24k chars / 40 msgs
   bounds), `formatSideChatContextBlock`, `mergeSideChatContextIntoPrompt`.
-- `session-index-store.ts`: `listSessionsForProject` filters
-  `kind === 'side-chat'` (SIDE-D9).
-- `session-search.ts`: search excludes `kind === 'side-chat'`.
+- `session-index-store.ts`: `listSessionsForProject` uses
+  `isPrimarySessionRecord` so side chats (SIDE-D9) stay off the main list.
+- `session-search.ts`: search uses the same primary-session predicate.
 - 9 unit tests pass (`side-chat-store.test.ts`); 128 total session tests pass.
 
 ### Host runtime (@piwin/host-runtime)

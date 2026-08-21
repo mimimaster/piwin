@@ -1,8 +1,48 @@
-import { lookup as dnsLookup } from 'node:dns/promises';
-import type { WebConfig, WebFetchResult } from '@piwin/contracts';
+import type {
+  WebConfig,
+  WebDocumentExtractor,
+  WebFetchResult,
+  WebFetchSpillStore,
+  WebFetchTruncationReason,
+  WebPageRenderer,
+} from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
-import { isPrivateOrLocalHostname, isPrivateOrLocalIpAddress } from './private-address.js';
 import { resolveWebConfig } from './search-provider.js';
+import { resolveFetchCaps, type ResolvedFetchCaps } from './fetch-caps.js';
+import { detectThinContent } from './fetch-thin.js';
+import { applyFetchFallback } from './fetch-fallback.js';
+import {
+  anySignal,
+  fetchHttpDocument,
+  looksLikeHtml,
+  readResponseBodyWithCap,
+  validateFetchUrl,
+  FETCH_USER_AGENT,
+  type FetchHostResolver,
+} from './fetch-transport.js';
+import { fetchViaBrowserRenderer } from './fetch-browser.js';
+import { tryExtractPdfStore } from './fetch-document.js';
+import { attachFetchSpill } from './fetch-spill.js';
+import {
+  extractMarkdownTitle,
+  extractOutlineFromMarkdown,
+  extractReadableText,
+} from './readable-extract.js';
+import { normalizeFetchCacheKey, type FetchCache, type FetchStoreRecord } from './fetch-cache.js';
+import { selectFetchView, type WebFetchViewInput } from './fetch-view.js';
+import {
+  applyFetchExtractView,
+  shouldUseFetchExtract,
+} from './fetch-extract-delegate.js';
+import type { WebFetchExtractDelegate } from './fetch-extract-delegate.js';
+
+export type { WebFetchViewInput } from './fetch-view.js';
+export { FetchCache, normalizeFetchCacheKey } from './fetch-cache.js';
+export type { FetchStoreRecord } from './fetch-cache.js';
+export { validateFetchUrl, assertSafeFetchUrl } from './fetch-transport.js';
+export type { FetchHostResolver } from './fetch-transport.js';
+export { formatWebFetchOutput } from './web-fetch-output.js';
+export { resolveFetchCaps } from './fetch-caps.js';
 
 export type WebFetchOptions = {
   config?: Partial<WebConfig>;
@@ -12,15 +52,25 @@ export type WebFetchOptions = {
   /** Injected for tests */
   fetchImpl?: typeof fetch;
   /** Injected DNS resolver for tests */
-  resolveHostAddresses?: (hostname: string) => Promise<string[]>;
+  resolveHostAddresses?: FetchHostResolver;
   /** Max redirect hops (each revalidated). Default 5. */
   maxRedirects?: number;
+  /** Shared Host cache. A hit skips the network, not permission. */
+  cache?: FetchCache;
+  /** Progressive-disclosure view over the cached extraction. */
+  view?: WebFetchViewInput;
+  /** Host-injected focused-extract model. Missing/failed extract falls back to head. */
+  extractDelegate?: WebFetchExtractDelegate;
+  /** Host-injected one-shot HTML renderer (ADR 0058). */
+  pageRenderer?: WebPageRenderer;
+  /** Host-injected PDF / document extract (Phase D). */
+  documentExtractor?: WebDocumentExtractor;
+  /** Host-injected full-text spill for grep / read_file. */
+  spillStore?: WebFetchSpillStore;
 };
 
-const DEFAULT_MAX_REDIRECTS = 5;
-
 /**
- * Fetch URL and extract readable text.
+ * Fetch URL and extract readable text, then return a bounded view.
  * SSRF defenses: scheme/host policy, DNS private-IP reject, redirect revalidate, stream byte cap.
  */
 export async function webFetch(
@@ -28,296 +78,184 @@ export async function webFetch(
   options: WebFetchOptions = {},
 ): Promise<WebFetchResult> {
   const config = resolveWebConfig(options.config);
+  const caps = resolveFetchCaps(config);
+  const cacheKey = normalizeFetchCacheKey(url, config.fetchProvider);
+  let stored: FetchStoreRecord | undefined;
+  let fromCache = false;
+  if (options.cache) {
+    stored = options.cache.get(cacheKey, caps.cacheTtlMs);
+    fromCache = stored !== undefined;
+  }
+  if (!stored) {
+    stored = await fetchAndStore(url, config, caps, options);
+  }
+  const resolved = await applyFetchFallback(
+    stored,
+    config,
+    () => retryThinFallback(url, config, caps, options),
+    options.signal,
+  );
+  if (!fromCache || resolved !== stored) {
+    options.cache?.set(cacheKey, resolved);
+  }
+  stored = resolved;
+  const view = options.view ?? {};
+  let result: WebFetchResult;
+  if (stored.skipView !== true && shouldUseFetchExtract(view, options.extractDelegate)) {
+    try {
+      result = await applyFetchExtractView(
+        stored,
+        view,
+        caps,
+        fromCache,
+        options.extractDelegate,
+        options.signal,
+      );
+      return attachFetchSpill(result, stored, options.spillStore, options.signal);
+    } catch (error) {
+      if (options.signal?.aborted) {
+        throw error;
+      }
+    }
+  }
+  result = selectFetchView(stored, view, caps, fromCache);
+  return attachFetchSpill(result, stored, options.spillStore, options.signal);
+}
+
+async function fetchAndStore(
+  url: string,
+  config: WebConfig,
+  caps: ResolvedFetchCaps,
+  options: WebFetchOptions,
+): Promise<FetchStoreRecord> {
   if (config.fetchProvider === 'jina') {
-    return fetchViaJina(url, config, options);
+    return fetchViaJina(url, config, caps, options);
   }
   if (config.fetchProvider === 'firecrawl') {
-    return fetchViaFirecrawl(url, config, options);
+    return fetchViaFirecrawl(url, config, caps, options);
   }
-  // Default: built-in local HTML→readable text ("supermarkdown").
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
-  const resolveHost = options.resolveHostAddresses ?? defaultResolveHostAddresses;
+  return fetchViaSupermarkdown(url, config, caps, options);
+}
 
+async function retryThinFallback(
+  url: string,
+  config: WebConfig,
+  caps: ResolvedFetchCaps,
+  options: WebFetchOptions,
+): Promise<FetchStoreRecord> {
+  if (config.fetchFallback === 'jina') {
+    return fetchViaJina(url, { ...config, fetchProvider: 'jina' }, caps, options);
+  }
+  if (config.fetchFallback === 'browser') {
+    return fetchViaBrowserRenderer(url, config, caps, options);
+  }
+  throw new Error('web_fetch fallback is not configured');
+}
+
+async function fetchViaSupermarkdown(
+  url: string,
+  config: WebConfig,
+  caps: ResolvedFetchCaps,
+  options: WebFetchOptions,
+): Promise<FetchStoreRecord> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
   const signal = options.signal
     ? anySignal([options.signal, controller.signal])
     : controller.signal;
-
   try {
-    let currentUrl = await assertSafeFetchUrl(url, config.fetchBlockedUrlPrefixes, resolveHost);
-    let response: Response | null = null;
+    const document = await fetchHttpDocument({
+      url,
+      blockedPrefixes: config.fetchBlockedUrlPrefixes,
+      bodyMaxBytes: caps.bodyMaxBytes,
+      signal,
+      ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      ...(options.resolveHostAddresses ? { resolveHostAddresses: options.resolveHostAddresses } : {}),
+      ...(options.maxRedirects !== undefined ? { maxRedirects: options.maxRedirects } : {}),
+    });
 
-    for (let hop = 0; hop <= maxRedirects; hop += 1) {
-      response = await fetchImpl(currentUrl, {
-        redirect: 'manual',
-        signal,
-        headers: { 'User-Agent': 'piwin-web-fetch/0.1' },
-      });
-
-      if (isRedirectStatus(response.status)) {
-        const location = response.headers.get('location');
-        if (!location) {
-          throw new Error(`redirect missing location from ${currentUrl}`);
-        }
-        if (hop === maxRedirects) {
-          throw new Error(`too many redirects (>${maxRedirects})`);
-        }
-        const nextUrl = new URL(location, currentUrl).toString();
-        currentUrl = await assertSafeFetchUrl(nextUrl, config.fetchBlockedUrlPrefixes, resolveHost);
-        continue;
-      }
-
-      break;
+    const pdfStore = await tryExtractPdfStore({
+      requestUrl: url,
+      document,
+      blockedPrefixes: config.fetchBlockedUrlPrefixes,
+      caps,
+      ...(options.documentExtractor ? { extractor: options.documentExtractor } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    if (pdfStore) {
+      return pdfStore;
     }
 
-    if (!response) {
-      throw new Error('fetch produced no response');
-    }
-    if (!response.ok) {
-      throw new Error(`fetch failed: HTTP ${response.status} for ${currentUrl}`);
-    }
-
-    const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
-    const hardCap = config.fetchMaxBytes * 4;
-    const boundedBody = await readResponseBodyWithCap(response, hardCap, signal);
-    const byteSize = boundedBody.buffer.byteLength;
-    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(boundedBody.buffer);
-    const finalUrl = response.url || currentUrl;
-
-    if (contentType.includes('text/html') || looksLikeHtml(rawText)) {
+    if (document.contentType.includes('text/html') || looksLikeHtml(document.rawText)) {
       if (signal.aborted) {
         throw new Error('fetch timed out before page parsing');
       }
-      // Parse-bomb defense: cap the HTML handed to the DOM parser (linkedom +
-      // readability) well below the raw body cap so a giant page cannot stall
-      // the turn inside synchronous parsing.
-      const parseCap = config.fetchMaxBytes * 2;
-      const parseTruncated = rawText.length > parseCap;
-      const htmlToParse = parseTruncated ? rawText.slice(0, parseCap) : rawText;
-      const extracted = await extractReadableText(htmlToParse, finalUrl, signal);
-      const textTruncated = extracted.text.length > config.fetchMaxBytes;
-      const truncated = boundedBody.truncated || parseTruncated || textTruncated;
-      const truncationReason = boundedBody.truncated
-        ? 'response-limit'
-        : parseTruncated
-          ? 'parse-limit'
-          : textTruncated
-            ? 'text-limit'
-            : undefined;
+      const parseTruncated = document.rawText.length > caps.parseMaxChars;
+      const htmlToParse = parseTruncated
+        ? document.rawText.slice(0, caps.parseMaxChars)
+        : document.rawText;
+      const extracted = await extractReadableText(htmlToParse, document.finalUrl, signal);
+      const storeSlice = sliceStoredText(extracted.text, caps.storeMaxChars);
+      const truncated = document.bodyTruncated || parseTruncated || storeSlice.truncated;
+      const truncationReason = resolveTruncationReason({
+        bodyTruncated: document.bodyTruncated,
+        parseTruncated,
+        textTruncated: storeSlice.truncated,
+      });
+      const thinContent = detectThinContent(extracted.text, htmlToParse);
       return {
         url: validateFetchUrl(url, config.fetchBlockedUrlPrefixes),
-        finalUrl,
+        finalUrl: document.finalUrl,
         title: extracted.title,
-        text: textTruncated ? extracted.text.slice(0, config.fetchMaxBytes) : extracted.text,
-        contentType,
-        byteSize,
+        text: storeSlice.text,
+        contentType: document.contentType,
+        byteSize: document.byteSize,
         truncated,
+        outline: extracted.outline,
+        provider: 'supermarkdown',
         ...(truncationReason ? { truncationReason } : {}),
+        ...(thinContent ? { thinContent: true } : {}),
       };
     }
 
     if (
-      contentType.startsWith('text/') ||
-      contentType.includes('json') ||
-      contentType.includes('xml')
+      document.contentType.startsWith('text/') ||
+      document.contentType.includes('json') ||
+      document.contentType.includes('xml')
     ) {
-      const textTruncated = rawText.length > config.fetchMaxBytes;
-      const truncated = boundedBody.truncated || textTruncated;
-      const truncationReason = boundedBody.truncated
-        ? 'response-limit'
-        : textTruncated
-          ? 'text-limit'
-          : undefined;
+      const storeSlice = sliceStoredText(document.rawText, caps.storeMaxChars);
+      const truncated = document.bodyTruncated || storeSlice.truncated;
+      const truncationReason = resolveTruncationReason({
+        bodyTruncated: document.bodyTruncated,
+        parseTruncated: false,
+        textTruncated: storeSlice.truncated,
+      });
       return {
         url: validateFetchUrl(url, config.fetchBlockedUrlPrefixes),
-        finalUrl,
+        finalUrl: document.finalUrl,
         title: null,
-        text: textTruncated ? rawText.slice(0, config.fetchMaxBytes) : rawText,
-        contentType,
-        byteSize,
+        text: storeSlice.text,
+        contentType: document.contentType,
+        byteSize: document.byteSize,
         truncated,
+        outline: [],
+        provider: 'supermarkdown',
         ...(truncationReason ? { truncationReason } : {}),
       };
     }
 
-    throw new Error(`unsupported content-type for fetch: ${contentType}`);
+    throw new Error(`unsupported content-type for fetch: ${document.contentType}`);
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export function validateFetchUrl(url: string, blockedPrefixes: string[]): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error(`invalid url: ${url}`);
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error(`only http/https allowed: ${url}`);
-  }
-  const lower = url.toLowerCase();
-  const host = parsed.hostname.toLowerCase();
-  for (const prefix of blockedPrefixes) {
-    const blocked = prefix.toLowerCase();
-    if (lower.startsWith(blocked) || host === blocked || host.endsWith(`.${blocked}`)) {
-      throw new Error(`url blocked by policy: ${url}`);
-    }
-  }
-  if (isPrivateOrLocalHostname(host)) {
-    throw new Error(`private or local fetch blocked: ${url}`);
-  }
-  return parsed.toString();
-}
-
-export async function assertSafeFetchUrl(
-  url: string,
-  blockedPrefixes: string[],
-  resolveHostAddresses: (hostname: string) => Promise<string[]> = defaultResolveHostAddresses,
-): Promise<string> {
-  const validated = validateFetchUrl(url, blockedPrefixes);
-  const hostname = new URL(validated).hostname;
-  // Literal IPs already covered by validateFetchUrl; still resolve hostnames.
-  if (!isPrivateOrLocalIpAddress(hostname)) {
-    const addresses = await resolveHostAddresses(hostname);
-    for (const address of addresses) {
-      if (isPrivateOrLocalIpAddress(address)) {
-        throw new Error(`SSRF blocked: ${hostname} resolves to private address ${address}`);
-      }
-    }
-  }
-  return validated;
-}
-
-async function defaultResolveHostAddresses(hostname: string): Promise<string[]> {
-  if (isPrivateOrLocalIpAddress(hostname)) {
-    return [hostname];
-  }
-  try {
-    const results = await dnsLookup(hostname, { all: true, verbatim: true });
-    return results.map((entry) => entry.address);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`DNS lookup failed for ${hostname}: ${message}`);
-  }
-}
-
-function isRedirectStatus(status: number): boolean {
-  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
-}
-
-type BoundedResponseBody = {
-  buffer: Uint8Array;
-  truncated: boolean;
-};
-
-async function readResponseBodyWithCap(
-  response: Response,
-  maxBytes: number,
-  signal: AbortSignal,
-): Promise<BoundedResponseBody> {
-  if (!response.body) {
-    const buffer = new Uint8Array(await response.arrayBuffer());
-    if (buffer.byteLength <= maxBytes) {
-      return { buffer, truncated: false };
-    }
-    return { buffer: buffer.slice(0, maxBytes), truncated: true };
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  let truncated = false;
-  try {
-    while (true) {
-      if (signal.aborted) {
-        throw new Error('fetch aborted');
-      }
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      const remaining = maxBytes - total;
-      if (value.byteLength > remaining) {
-        if (remaining > 0) {
-          chunks.push(value.slice(0, remaining));
-          total += remaining;
-        }
-        truncated = true;
-        try {
-          await reader.cancel('byte-cap');
-        } catch {
-          // The bounded prefix is already safe to return; cancellation is best effort.
-        }
-        break;
-      }
-      chunks.push(value);
-      total += value.byteLength;
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return { buffer: merged, truncated };
-}
-
-function looksLikeHtml(text: string): boolean {
-  const head = text.slice(0, 256).toLowerCase();
-  return head.includes('<html') || head.includes('<!doctype html') || head.includes('<body');
-}
-
-async function extractReadableText(
-  html: string,
-  baseUrl: string,
-  signal?: AbortSignal,
-): Promise<{ title: string | null; text: string }> {
-  try {
-    if (signal?.aborted) {
-      throw new Error('fetch timed out before page parsing');
-    }
-    const linkedom = await import('linkedom');
-    if (signal?.aborted) {
-      throw new Error('fetch timed out before page parsing');
-    }
-    const readability = await import('@mozilla/readability');
-    const dom = linkedom.parseHTML(html);
-    const document = dom.document;
-    const base = document.createElement('base');
-    base.setAttribute('href', baseUrl);
-    document.head?.appendChild(base);
-    const reader = new readability.Readability(document as never);
-    const article = reader.parse();
-    if (article?.textContent?.trim()) {
-      return {
-        title: article.title ?? null,
-        text: article.textContent.trim(),
-      };
-    }
-  } catch {
-    // optional deps missing or parse failed
-  }
-  return {
-    title: extractTitleFallback(html),
-    text: stripHtml(html),
-  };
-}
-
-/**
- * Jina Reader proxy: `https://r.jina.ai/<url>` returns markdown/plain without local parsing.
- * Optional JINA_API_KEY improves rate limits.
- */
 async function fetchViaJina(
   url: string,
   config: WebConfig,
+  caps: ResolvedFetchCaps,
   options: WebFetchOptions,
-): Promise<WebFetchResult> {
+): Promise<FetchStoreRecord> {
   const validated = validateFetchUrl(url, config.fetchBlockedUrlPrefixes);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
@@ -327,7 +265,7 @@ async function fetchViaJina(
   try {
     const headers: Record<string, string> = {
       Accept: 'text/plain',
-      'User-Agent': 'piwin-web-fetch/0.1',
+      'User-Agent': FETCH_USER_AGENT,
       'X-Return-Format': 'markdown',
     };
     const apiKey =
@@ -345,23 +283,25 @@ async function fetchViaJina(
     if (!response.ok) {
       throw new Error(`Jina Reader failed: HTTP ${response.status} for ${validated}`);
     }
-    const boundedBody = await readResponseBodyWithCap(response, config.fetchMaxBytes * 4, signal);
+    const boundedBody = await readResponseBodyWithCap(response, caps.bodyMaxBytes, signal);
     const rawText = new TextDecoder('utf-8', { fatal: false }).decode(boundedBody.buffer);
-    const textTruncated = rawText.length > config.fetchMaxBytes;
-    const truncated = boundedBody.truncated || textTruncated;
-    const truncationReason = boundedBody.truncated
-      ? 'response-limit'
-      : textTruncated
-        ? 'text-limit'
-        : undefined;
+    const storeSlice = sliceStoredText(rawText, caps.storeMaxChars);
+    const truncated = boundedBody.truncated || storeSlice.truncated;
+    const truncationReason = resolveTruncationReason({
+      bodyTruncated: boundedBody.truncated,
+      parseTruncated: false,
+      textTruncated: storeSlice.truncated,
+    });
     return {
       url: validated,
       finalUrl: validated,
       title: extractMarkdownTitle(rawText),
-      text: textTruncated ? rawText.slice(0, config.fetchMaxBytes) : rawText,
+      text: storeSlice.text,
       contentType: response.headers.get('content-type') ?? 'text/markdown',
       byteSize: boundedBody.buffer.byteLength,
       truncated,
+      outline: extractOutlineFromMarkdown(rawText),
+      provider: 'jina',
       ...(truncationReason ? { truncationReason } : {}),
     };
   } finally {
@@ -369,14 +309,12 @@ async function fetchViaJina(
   }
 }
 
-/**
- * Firecrawl scrape API — requires API key in env (fetchApiKeyEnv / FIRECRAWL_API_KEY).
- */
 async function fetchViaFirecrawl(
   url: string,
   config: WebConfig,
+  caps: ResolvedFetchCaps,
   options: WebFetchOptions,
-): Promise<WebFetchResult> {
+): Promise<FetchStoreRecord> {
   const validated = validateFetchUrl(url, config.fetchBlockedUrlPrefixes);
   const apiKey =
     options.apiKey ?? process.env[config.fetchApiKeyEnv] ?? process.env.FIRECRAWL_API_KEY;
@@ -406,18 +344,21 @@ async function fetchViaFirecrawl(
     if (!response.ok) {
       throw new Error(`Firecrawl scrape failed: HTTP ${response.status} for ${validated}`);
     }
-    const boundedBody = await readResponseBodyWithCap(response, config.fetchMaxBytes * 4, signal);
+    const boundedBody = await readResponseBodyWithCap(response, caps.bodyMaxBytes, signal);
     const contentType = response.headers.get('content-type') ?? 'application/json';
     if (boundedBody.truncated) {
       return {
         url: validated,
         finalUrl: validated,
         title: null,
-        text: `Firecrawl response exceeded the ${config.fetchMaxBytes * 4}-byte provider envelope limit; retry with the supermarkdown or jina fetch provider.`,
+        text: `Firecrawl response exceeded the ${caps.bodyMaxBytes}-byte provider envelope limit; retry with the supermarkdown or jina fetch provider.`,
         contentType,
         byteSize: boundedBody.buffer.byteLength,
         truncated: true,
         truncationReason: 'response-limit',
+        outline: [],
+        provider: 'firecrawl',
+        skipView: true,
       };
     }
     const payload = JSON.parse(
@@ -433,51 +374,46 @@ async function fetchViaFirecrawl(
     if (!markdown.trim()) {
       throw new Error(`Firecrawl returned empty markdown for ${validated}`);
     }
-    const truncated = markdown.length > config.fetchMaxBytes;
+    const storeSlice = sliceStoredText(markdown, caps.storeMaxChars);
     return {
       url: validated,
       finalUrl: payload.data?.metadata?.sourceURL ?? validated,
       title: payload.data?.metadata?.title ?? extractMarkdownTitle(markdown),
-      text: truncated ? markdown.slice(0, config.fetchMaxBytes) : markdown,
+      text: storeSlice.text,
       contentType: 'text/markdown',
       byteSize: new TextEncoder().encode(markdown).byteLength,
-      truncated,
-      ...(truncated ? { truncationReason: 'text-limit' as const } : {}),
+      truncated: storeSlice.truncated,
+      outline: extractOutlineFromMarkdown(markdown),
+      provider: 'firecrawl',
+      ...(storeSlice.truncated ? { truncationReason: 'text-limit' as const } : {}),
     };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function extractMarkdownTitle(markdown: string): string | null {
-  const match = markdown.match(/^#\s+(.+)$/m);
-  return match?.[1]?.trim() || null;
-}
-
-function extractTitleFallback(html: string): string | null {
-  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  return match?.[1]?.replace(/\s+/g, ' ').trim() || null;
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function anySignal(signals: AbortSignal[]): AbortSignal {
-  const controller = new AbortController();
-  for (const signal of signals) {
-    if (signal.aborted) {
-      controller.abort();
-      return controller.signal;
-    }
-    signal.addEventListener('abort', () => controller.abort(), { once: true });
+function sliceStoredText(text: string, storeMaxChars: number): { text: string; truncated: boolean } {
+  if (text.length <= storeMaxChars) {
+    return { text, truncated: false };
   }
-  return controller.signal;
+  return { text: text.slice(0, storeMaxChars), truncated: true };
+}
+
+function resolveTruncationReason(flags: {
+  bodyTruncated: boolean;
+  parseTruncated: boolean;
+  textTruncated: boolean;
+}): WebFetchTruncationReason | undefined {
+  if (flags.bodyTruncated) {
+    return 'response-limit';
+  }
+  if (flags.parseTruncated) {
+    return 'parse-limit';
+  }
+  if (flags.textTruncated) {
+    return 'text-limit';
+  }
+  return undefined;
 }
 
 export function createDefaultFetchConfig(): WebConfig {

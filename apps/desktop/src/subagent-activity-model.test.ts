@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionSummary } from '@piwin/contracts';
 import type { SubagentStreamState } from './chat-reducer';
 import {
-  deriveSubagentDialogStatus,
+  deriveSubagentInspectorStatus,
   normalizeExecutionStatus,
   selectActiveSubagents,
   subagentStatusToRunKind,
@@ -66,10 +66,10 @@ describe('normalizeExecutionStatus', () => {
   });
 });
 
-describe('deriveSubagentDialogStatus', () => {
+describe('deriveSubagentInspectorStatus', () => {
   it('reports running while the live stream emits', () => {
     const child = makeChild({ id: 'child-1', subagentStatus: 'done' });
-    const status = deriveSubagentDialogStatus({
+    const status = deriveSubagentInspectorStatus({
       child,
       stream: makeStream({ streaming: true }),
     });
@@ -79,12 +79,12 @@ describe('deriveSubagentDialogStatus', () => {
   it('falls back to the child summary when the stream is silent', () => {
     const child = makeChild({ id: 'child-1', subagentStatus: 'done' });
     expect(
-      deriveSubagentDialogStatus({ child, stream: makeStream({ streaming: false }) }),
+      deriveSubagentInspectorStatus({ child, stream: makeStream({ streaming: false }) }),
     ).toBe('completed');
   });
 
   it('defaults to running when neither child nor stream is known', () => {
-    expect(deriveSubagentDialogStatus({ child: undefined, stream: undefined })).toBe('running');
+    expect(deriveSubagentInspectorStatus({ child: undefined, stream: undefined })).toBe('running');
   });
 });
 
@@ -222,6 +222,7 @@ describe('toInspectorSelection', () => {
       childSessionId: 'child-1',
       displayName: 'Explorer',
       taskSummary: 'Inspect the codebase',
+      anchorId: 'card:child-1',
     });
   });
 });

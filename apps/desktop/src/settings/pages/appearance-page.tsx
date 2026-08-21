@@ -16,7 +16,7 @@ import {
 } from '../../ui-preferences';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
-import { useSettings } from '../settings-context';
+import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
 type ThemeMode = 'light' | 'dark';
 type ThemeColorKey = keyof Pick<AppearanceThemeSettings, 'background' | 'foreground' | 'accent'>;
@@ -252,7 +252,9 @@ function ThemeLibraryCard(): ReactElement {
 export function AppearancePage(): ReactElement {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).appearance;
-  const { preferences, onPreferencesChange, onThemeApplied, activeTheme } = useSettings();
+  const settings = useSettings();
+  const { preferences, onPreferencesChange, onThemeApplied, activeTheme } = settings;
+  const themeLibraryAvailable = settingsHostSupportsCommand(settings, 'theme/list');
   const themePackageActive = activeTheme.visualStyle !== undefined;
 
   function handleAppearanceModeChange(mode: AppearanceMode): void {
@@ -305,7 +307,7 @@ export function AppearancePage(): ReactElement {
 
   return (
     <div className="settings-card appearance-page" data-testid="settings-appearance">
-      <ThemeLibraryCard />
+      {themeLibraryAvailable ? <ThemeLibraryCard /> : null}
       <section className="settings-section settings-section-card">
         <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />
         <FieldRow label={copy.verboseAgentChat} description={copy.verboseAgentChatDescription}>

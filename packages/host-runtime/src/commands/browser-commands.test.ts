@@ -37,6 +37,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     lock: async (owner) => ({ owner, agentWantsLock: owner === 'agent' }),
     unlock: async () => ({ owner: 'idle' as const, agentWantsLock: false }),
     releaseAgentControl: async () => {},
+    releaseAgentControlIfHeldBy: async () => {},
     controllerState: () => ({ owner: 'idle' as const, agentWantsLock: false }),
     runExclusive: queue.runExclusive,
     subscribe: () => () => {},
@@ -62,6 +63,7 @@ function createExclusiveQueue() {
 function createContext(
   session: BrowserSession | undefined,
   pushes: HostPush[] = [],
+  extras: Partial<HostCommandContext> = {},
 ): HostCommandContext {
   return {
     push: (message) => pushes.push(message),
@@ -75,6 +77,7 @@ function createContext(
       throw new Error('not used');
     },
     ...(session !== undefined ? { getBrowserSession: () => session } : {}),
+    ...extras,
     todoStore: { list: () => [], update: () => {}, clear: () => {} } as never,
     petStateStore: {} as never,
     runCronJob: async () => ({ ok: true }),
@@ -124,6 +127,18 @@ describe('handleBrowserCommand', () => {
       createContext(undefined),
     );
     expect(result).toMatchObject({ type: 'response', success: false });
+  });
+
+  it('browser/start creates the session via ensureBrowserSession', async () => {
+    const start = vi.fn().mockResolvedValue({ url: 'about:blank', title: '' });
+    const session = createMockSession({ start });
+    const result = await handleBrowserCommand(
+      { type: 'browser/start', leaseId: 'panel-1' },
+      'req-1',
+      createContext(undefined, [], { ensureBrowserSession: async () => session }),
+    );
+    expect(result).toMatchObject({ success: true, command: 'browser/start' });
+    expect(start).toHaveBeenCalledWith('panel-1');
   });
 
   it('browser/start acquires the mirror lease and returns its state', async () => {

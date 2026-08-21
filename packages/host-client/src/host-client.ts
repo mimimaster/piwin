@@ -14,7 +14,12 @@ import type {
   HostWireMessage,
   TrustedDeviceCredential,
 } from '@piwin/contracts';
-import { HOST_PROTOCOL_VERSION, isTrustedDeviceCredential } from '@piwin/contracts';
+import {
+  HOST_PROTOCOL_VERSION,
+  isTrustedDeviceCredential,
+  remoteCommandRequiresIdempotencyKey,
+  remoteHostSupportsCommand,
+} from '@piwin/contracts';
 import type { HostTransport, HostTransportState } from '@piwin/host-transport';
 
 export type HostClientState =
@@ -79,14 +84,8 @@ type PendingRequest = {
   timer: ReturnType<typeof setTimeout>;
 };
 
-const READ_ONLY_COMMANDS = new Set([
-  'host/ping',
-  'host/status',
-  'activity/summary',
-  'project/list',
-  'session/list',
-  'models/configured',
-]);
+/** Out-of-order push frames held until the missing seq arrives. Unbounded this retained whole journals. */
+export const MAX_PENDING_PUSH_FRAMES = 256;
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -131,6 +130,7 @@ export class HostClient {
   private lastSeq: number;
   private hostInstanceId: string | undefined;
   private replayInFlight = false;
+  private replayRequestId: string | undefined;
   private disposed = false;
 
   public constructor(options: HostClientOptions) {
@@ -170,7 +170,10 @@ export class HostClient {
     };
     this.subscriptions = normalizeSubscriptions(options.subscriptions);
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-    this.transport.setHelloFactory((lastSeq) => this.createHello(lastSeq));
+    // Hello must always use HostClient's cursor — Transport's copy is a cache
+    // updated via persistCursor, not an independent authority.
+    this.transport.setHelloFactory(() => this.createHello(this.lastSeq));
+    this.transport.setLastSeq(this.lastSeq);
     this.unsubscribeTransport = this.transport.subscribe((message) => this.handleMessage(message));
     this.unsubscribeTransportState = this.transport.subscribeState((state) =>
       this.handleTransportState(state),
@@ -183,6 +186,11 @@ export class HostClient {
 
   public getHostHello(): HostHello | undefined {
     return this.hostHello;
+  }
+
+  /** Omitted hello ceiling means operator: every command. A present list is a ceiling. */
+  public supportsCommand(type: HostCommand['type']): boolean {
+    return remoteHostSupportsCommand(this.hostHello?.capabilities.allowedCommands, type);
   }
 
   public getLastSeq(): number {
@@ -229,11 +237,17 @@ export class HostClient {
       const hello = await this.transport.connect();
       this.hostHello = hello;
       await this.adoptIssuedDeviceCredential(hello);
-      this.publishState({ kind: 'ready' });
+      // Wire admission is hello. Journal catch-up must not block connect() or
+      // shells paint "connecting" for the whole replay/snapshot window and
+      // refuse gestures that the socket can already carry.
+      this.armCatchUpWatch();
       return hello;
     } catch (error) {
       const connectionError = toError(error, 'Unable to connect to Host');
       this.publishState({ kind: 'error', reason: connectionError.message });
+      // Hello failure must not leave an open socket that neither serves
+      // requests nor auto-reconnects under `error` state.
+      await this.transport.close().catch(() => undefined);
       throw connectionError;
     }
   }
@@ -257,13 +271,30 @@ export class HostClient {
 
   public request(command: HostCommand, options: HostRequestOptions = {}): Promise<HostResponse> {
     this.assertNotDisposed();
+    if (!this.supportsCommand(command.type)) {
+      return Promise.resolve({
+        ...(command.id === undefined ? {} : { id: command.id }),
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: `This Host does not expose ${command.type} to remote clients`,
+      });
+    }
     const requestId = createRequestId('request');
     const commandWithId = addCommandId(command, requestId);
-    const idempotencyKey =
-      options.idempotencyKey ??
-      (READ_ONLY_COMMANDS.has(commandWithId.type) ? undefined : createRequestId('idempotency'));
+    const idempotencyKey = options.idempotencyKey?.trim();
+    if (remoteCommandRequiresIdempotencyKey(commandWithId.type) && !idempotencyKey) {
+      return Promise.resolve({
+        ...(command.id === undefined ? {} : { id: command.id }),
+        type: 'response',
+        command: commandWithId.type,
+        success: false,
+        error: 'idempotency-key-required',
+        problem: { code: 'idempotency-key-required' },
+      });
+    }
     const frame =
-      idempotencyKey === undefined
+      idempotencyKey === undefined || idempotencyKey.length === 0
         ? { type: 'command' as const, requestId, command: commandWithId }
         : { type: 'command' as const, requestId, command: commandWithId, idempotencyKey };
     const timeoutMs = options.timeoutMs ?? this.requestTimeoutMs;
@@ -289,20 +320,70 @@ export class HostClient {
     this.sendReplayRequest();
   }
 
+  /**
+   * Catch-up is best-effort after hello. Never close a live socket here —
+   * that painted "connecting" on a workbench that was already listing sessions.
+   */
+  private armCatchUpWatch(): void {
+    void this.waitUntilCatchUp().catch(() => {
+      if (this.disposed || this.state.kind === 'ready' || this.state.kind === 'error') {
+        return;
+      }
+      this.sendReplayRequest();
+    });
+  }
+
+  private waitUntilCatchUp(): Promise<void> {
+    if (this.state.kind === 'ready') {
+      return Promise.resolve();
+    }
+    if (this.state.kind === 'error') {
+      return Promise.reject(new Error(this.state.reason));
+    }
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        unsubscribe();
+        reject(new Error('Timed out waiting for Host catch-up after hello'));
+      }, this.requestTimeoutMs);
+      const unsubscribe = this.subscribeState((state) => {
+        if (state.kind === 'ready') {
+          clearTimeout(timer);
+          unsubscribe();
+          resolve();
+          return;
+        }
+        if (state.kind === 'error') {
+          clearTimeout(timer);
+          unsubscribe();
+          reject(new Error(state.reason));
+          return;
+        }
+        if (state.kind === 'disconnected') {
+          clearTimeout(timer);
+          unsubscribe();
+          reject(new Error(state.reason ?? 'Host disconnected during catch-up'));
+        }
+      });
+    });
+  }
+
   private sendReplayRequest(): void {
     if (this.replayInFlight) {
       return;
     }
+    const requestId = createRequestId('replay');
     const frame = {
       type: 'replay' as const,
-      requestId: createRequestId('replay'),
+      requestId,
       sinceSeq: this.lastSeq,
     };
     this.replayInFlight = true;
+    this.replayRequestId = requestId;
     try {
       this.transport.send(frame);
     } catch (error) {
       this.replayInFlight = false;
+      this.replayRequestId = undefined;
       this.publishState({
         kind: 'error',
         reason: toError(error, 'Unable to request Host replay').message,
@@ -319,10 +400,22 @@ export class HostClient {
         this.lastSeq = 0;
         this.pendingPushes.clear();
         this.replayInFlight = false;
+        this.replayRequestId = undefined;
+      }
+      // Future cursor vs a restarted Host with the same advertised id: clamp so
+      // we do not filter every new push as already-seen.
+      if (message.currentSeq < this.lastSeq) {
+        this.lastSeq = message.currentSeq;
+        this.pendingPushes.clear();
+        this.replayInFlight = false;
+        this.replayRequestId = undefined;
       }
       this.hostInstanceId = message.hostInstanceId;
       this.persistCursor();
-      this.publishState({ kind: 'ready' });
+      // Stay connecting until replay/done | snapshot | hydration marks catch-up.
+      if (this.state.kind !== 'ready') {
+        this.publishState({ kind: 'connecting' });
+      }
       if (hostChanged && message.capabilities.boundedReplay !== true) {
         this.sendReplayRequest();
       }
@@ -341,8 +434,20 @@ export class HostClient {
     }
 
     if (message.type === 'error') {
+      if (
+        this.replayRequestId !== undefined &&
+        (message.requestId === undefined || message.requestId === this.replayRequestId)
+      ) {
+        this.replayInFlight = false;
+        this.replayRequestId = undefined;
+      }
       if (message.requestId === undefined) {
-        this.publishState({ kind: 'error', reason: message.message });
+        // Handshake / decode faults before hello may take the client down.
+        // After hello the socket is admitted; an uncorrelated error must not
+        // paint the shell "connecting" while commands are still in flight.
+        if (this.hostHello === undefined) {
+          this.publishState({ kind: 'error', reason: message.message });
+        }
         return;
       }
       const pending = this.pendingRequests.get(message.requestId);
@@ -367,6 +472,7 @@ export class HostClient {
 
     if (message.type === 'replay/done') {
       this.replayInFlight = false;
+      this.replayRequestId = undefined;
       if (this.pendingPushes.size === 0) {
         this.publishState({ kind: 'ready' });
       } else {
@@ -398,6 +504,7 @@ export class HostClient {
       this.lastSeq = message.currentSeq;
       this.pendingPushes.clear();
       this.replayInFlight = false;
+      this.replayRequestId = undefined;
       this.persistCursor();
       this.publishState({ kind: 'ready' });
       return;
@@ -423,6 +530,7 @@ export class HostClient {
       this.lastSeq = message.snapshot.snapshotSeq;
       this.pendingPushes.clear();
       this.replayInFlight = false;
+      this.replayRequestId = undefined;
       this.persistCursor();
       this.publishState({ kind: 'ready' });
     }
@@ -475,6 +583,16 @@ export class HostClient {
     }
 
     if (frame.seq > this.lastSeq + 1) {
+      if (this.pendingPushes.size >= MAX_PENDING_PUSH_FRAMES) {
+        this.pendingPushes.clear();
+        this.publishState({
+          kind: 'resync-required',
+          expectedSeq: this.lastSeq + 1,
+          receivedSeq: frame.seq,
+        });
+        this.sendReplayRequest();
+        return;
+      }
       this.pendingPushes.set(frame.seq, frame);
       const expectedSeq = this.lastSeq + 1;
       this.publishState({ kind: 'resync-required', expectedSeq, receivedSeq: frame.seq });
@@ -569,15 +687,27 @@ export class HostClient {
   }
 
   private persistCursor(): void {
-    this.lastSeqStore.write(this.lastSeq);
-    this.cursorStore?.write(this.getCursor());
+    // Always keep Transport's reconnect hello in sync with the in-memory cursor,
+    // even when durable stores fail (quota / private mode).
+    this.transport.setLastSeq(this.lastSeq);
+    try {
+      this.lastSeqStore.write(this.lastSeq);
+      this.cursorStore?.write(this.getCursor());
+    } catch {
+      // Soft-fail: do not publish `error` or the shell goes sticky-dead while
+      // the socket is still open and Desktop refuses non-ready requests.
+    }
   }
 
   private handleTransportState(state: HostTransportState): void {
     if (state.kind === 'connecting') {
+      // Drop the previous hello so shells do not treat dial-in-progress as
+      // admitted on a stale credential from the last socket.
+      this.hostHello = undefined;
       this.publishState({ kind: 'connecting' });
     } else if (state.kind === 'closed') {
       if (!this.disposed) {
+        this.hostHello = undefined;
         this.rejectPendingRequests(state.reason ?? 'Host connection closed');
         const nextState =
           state.reason === undefined
@@ -586,6 +716,7 @@ export class HostClient {
         this.publishState(nextState);
       }
     } else if (state.kind === 'error') {
+      this.hostHello = undefined;
       this.rejectPendingRequests(state.reason);
       this.publishState({ kind: 'error', reason: state.reason });
     }

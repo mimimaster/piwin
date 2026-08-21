@@ -212,8 +212,8 @@ export function computeBatchSummary(
 
 /**
  * Cluster consecutive exploratory tool calls (read, search, web) into an 'explore' capsule.
- * Other tools like commands form their own consecutive batches.
- * Edits, subagents, and custom tools remain standalone single items.
+ * Commands, edits, subagents, and custom tools remain standalone single items
+ * so each shell row stays a collapsed "Ran …" line and edits stay clickable.
  */
 export function clusterToolCalls(tools: ToolCardUi[]): ClusteredToolItem[] {
   if (!tools || tools.length === 0) {
@@ -252,16 +252,8 @@ export function clusterToolCalls(tools: ToolCardUi[]): ClusteredToolItem[] {
         flushBatch();
         currentBatch = { kind: 'explore', tools: [tool] };
       }
-    } else if (rawKind === 'command') {
-      // Group consecutive commands together
-      if (currentBatch && currentBatch.kind === 'command') {
-        currentBatch.tools.push(tool);
-      } else {
-        flushBatch();
-        currentBatch = { kind: 'command', tools: [tool] };
-      }
     } else {
-      // Edits, subagents, and other side-effect tools are standalone
+      // Commands, edits, subagents, and other side-effect tools are standalone
       flushBatch();
       clustered.push({ kind: 'single', tool });
     }

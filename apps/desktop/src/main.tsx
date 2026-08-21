@@ -1,4 +1,3 @@
-import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DesktopThemeRoot } from './desktop-theme-root';
 import { applyAppearanceToDocument } from './appearance-tokens';
@@ -38,8 +37,6 @@ if (!rootElement) {
   throw new Error('root element missing');
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <DesktopThemeRoot />
-  </StrictMode>,
-);
+// No StrictMode: it remounts the workbench and dispose() kills the Host socket
+// mid-hello (`Host transport closed`). Sidecar / remote Host are process-owned.
+createRoot(rootElement).render(<DesktopThemeRoot />);

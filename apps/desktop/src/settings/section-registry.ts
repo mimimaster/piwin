@@ -17,6 +17,7 @@ export type SettingsSectionId =
   | 'models'
   | 'agent'
   | 'extensions'
+  | 'web'
   | 'knowledge'
   | 'session'
   | 'cold-storage'
@@ -51,9 +52,6 @@ export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionI
   artifact: 'agent',
   'artifact-playground': 'agent',
 
-  // Consolidated sections into Knowledge
-  web: 'knowledge',
-
   // Consolidated sections into Session
   runtime: 'session',
 } as const;
@@ -77,6 +75,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'agent', group: 'agent', labelKey: 'agent' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions' },
+  { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'knowledge', group: 'integrations', labelKey: 'knowledge' },
   { id: 'session', group: 'system', labelKey: 'session' },
   { id: 'cold-storage', group: 'system', labelKey: 'coldStorage' },

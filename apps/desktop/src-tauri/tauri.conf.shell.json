@@ -1,0 +1,15 @@
+{
+  "productName": "piwinwin Shell",
+  "identifier": "app.piwinwin.desktop.shell",
+  "build": {
+    "features": ["shell-only"],
+    "beforeDevCommand": {
+      "script": "VITE_PIWIN_SHELL_ONLY=1 pnpm exec vite --port 1420 --strictPort",
+      "cwd": ".."
+    },
+    "beforeBuildCommand": {
+      "script": "VITE_PIWIN_SHELL_ONLY=1 pnpm exec tsc -b && VITE_PIWIN_SHELL_ONLY=1 pnpm exec vite build",
+      "cwd": ".."
+    }
+  }
+}
