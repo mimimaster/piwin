@@ -7,6 +7,10 @@ import type { MediaAttachmentRef } from './host.js';
  * can be projected to Pi's text content, while `details` carries structured
  * facts such as a Job or Run identity. Executors must not return a bare
  * string once their tool family has migrated to this contract.
+ *
+ * `images` are ephemeral model-facing pixels. Adapters project them to Pi
+ * `ImageContent`. Product transcript/UI must use `details.attachments` paths,
+ * never this base64.
  */
 
 export type ToolResultDetails = Record<string, unknown> & {
@@ -14,6 +18,12 @@ export type ToolResultDetails = Record<string, unknown> & {
   runId?: string;
   /** Durable media outputs that the product UI may render as attachments. */
   attachments?: MediaAttachmentRef[];
+};
+
+/** One raster image the next model turn may see. Raw base64, no data: prefix. */
+export type ToolResultImage = {
+  mimeType: string;
+  dataBase64: string;
 };
 
 /** Stable error codes shared by Host, SDK and RPC tool projections. */
@@ -39,6 +49,7 @@ export type ToolResult =
       ok: true;
       output: string;
       details?: ToolResultDetails;
+      images?: ToolResultImage[];
     }
   | {
       ok: false;

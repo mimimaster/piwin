@@ -1,7 +1,17 @@
 /** Pi custom-tool translation for exact backend Host tool descriptors. */
 
-import type { HostToolDescriptor, HostToolExecutionPort } from '@piwin/contracts';
+import type {
+  HostToolDescriptor,
+  HostToolExecutionPort,
+  ToolResult,
+  ToolResultImage,
+} from '@piwin/contracts';
 import { normalizeGenerationToolCallId } from '../generation-identity.js';
+
+/** Pi `AgentToolResult.content` part. Image `data` is raw base64. */
+export type PiBackendToolContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image'; mimeType: string; data: string };
 
 export type PiBackendCustomToolDefinition = {
   name: string;
@@ -15,10 +25,47 @@ export type PiBackendCustomToolDefinition = {
     onUpdate: unknown,
     context: unknown,
   ) => Promise<{
-    content: Array<{ type: 'text'; text: string }>;
+    content: PiBackendToolContentPart[];
     details: Record<string, unknown>;
   }>;
 };
+
+const TEXT_TRUNCATE_CHARS = 120_000;
+/** Skip oversized frames so JSONL/SDK adapters cannot blow a turn. */
+const MAX_TOOL_RESULT_IMAGE_BASE64_CHARS = 2_000_000;
+
+export function projectHostToolResultToPiContent(
+  result: Extract<ToolResult, { ok: true }>,
+  extraDetails: Record<string, unknown> = {},
+): { content: PiBackendToolContentPart[]; details: Record<string, unknown> } {
+  const output = result.output;
+  const truncated =
+    output.length > TEXT_TRUNCATE_CHARS
+      ? `${output.slice(0, TEXT_TRUNCATE_CHARS)}\n…[truncated]`
+      : output;
+  const content: PiBackendToolContentPart[] = [{ type: 'text', text: truncated }];
+  for (const image of result.images ?? []) {
+    const part = toPiImagePart(image);
+    if (part) content.push(part);
+  }
+  return {
+    content,
+    details: {
+      byteSize: truncated.length,
+      ...extraDetails,
+      ...(result.details ?? {}),
+    },
+  };
+}
+
+function toPiImagePart(image: ToolResultImage): PiBackendToolContentPart | undefined {
+  const mimeType = image.mimeType.trim().toLowerCase();
+  const data = image.dataBase64.trim();
+  if (!mimeType.startsWith('image/') || data.length === 0) return undefined;
+  if (data.length > MAX_TOOL_RESULT_IMAGE_BASE64_CHARS) return undefined;
+  if (data.includes(',')) return undefined;
+  return { type: 'image', mimeType, data };
+}
 
 export type BackendToolExecutionContext = {
   sessionId: string;
@@ -76,18 +123,10 @@ export function toPiBackendCustomTool(
       if (!executionResult.ok) {
         throw new PiBackendToolExecutionError(executionResult.code, executionResult.message);
       }
-      const output = executionResult.output;
-      const truncated =
-        output.length > 120_000 ? `${output.slice(0, 120_000)}\n…[truncated]` : output;
-      return {
-        content: [{ type: 'text', text: truncated }],
-        details: {
-          toolName: descriptor.name,
-          toolCallId,
-          byteSize: truncated.length,
-          ...(executionResult.details ?? {}),
-        },
-      };
+      return projectHostToolResultToPiContent(executionResult, {
+        toolName: descriptor.name,
+        toolCallId,
+      });
     },
   };
 }

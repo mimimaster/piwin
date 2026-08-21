@@ -19,6 +19,8 @@ import { formatError } from '@piwin/contracts';
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
+import { persistAndInspectBrowserScreenshot } from '../browser-screenshot-inspect.js';
+import { primaryModelSupportsImage } from '../vision-delegation.js';
 import { buildNotesTools } from '../notes-tools.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
@@ -207,8 +209,26 @@ export async function buildSessionHostTools(
   // --- Browser tools ---
   const browserSession = options.getBrowserSession?.();
   if (browserSession) {
+    const mediaRoot = getPiwinMediaDir(rootDir);
+    const primarySupportsImage = options.config
+      ? primaryModelSupportsImage(
+          findConfiguredModel(options.config, options.model)?.model.input,
+        )
+      : false;
     const browserTools = createBrowserToolDefinitions(browserSession, {
       projectRoot: options.projectPath ?? rootDir ?? process.cwd(),
+      inspectScreenshot: async ({ jpegBytes, width, height, signal }) =>
+        persistAndInspectBrowserScreenshot({
+          jpegBytes,
+          width,
+          height,
+          sessionId: options.sessionId,
+          mediaRoot,
+          primarySupportsImage,
+          signal,
+          ...(options.config ? { config: options.config } : {}),
+          ...(options.secretResolver ? { secretResolver: options.secretResolver } : {}),
+        }),
     });
     tools.push(...browserTools);
   }

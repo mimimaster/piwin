@@ -48,7 +48,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     screenshot: async (path, options) => {
       calls.push({ method: 'screenshot', args: [path, options] });
       return {
-        dataUrl: 'data:image/jpeg;base64,AAA=',
+        dataUrl: `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64')}`,
         width: 1280,
         height: 800,
         ...(path !== undefined ? { path } : {}),
@@ -321,6 +321,111 @@ describe('createBrowserToolDefinitions — execute paths', () => {
   it('browser_screenshot returns dimensions', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
+    const ss = tools.find((t) => t.descriptor.name === 'browser_screenshot');
+    if (!ss) throw new Error('browser_screenshot missing');
+    const raw = outputOf(await executeTool(ss, {}));
+    const result = JSON.parse(raw) as { width: number; height: number };
+    expect(result.width).toBe(1280);
+    expect(result.height).toBe(800);
+  });
+
+  it('browser_screenshot inspect attaches media and omits filesystem paths from output', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session, {
+      inspectScreenshot: async ({ jpegBytes, width, height }) => {
+        expect(jpegBytes.byteLength).toBeGreaterThan(0);
+        return {
+          output: {
+            status: 'success',
+            width,
+            height,
+            mediaId: 'shot-1',
+            mimeType: 'image/jpeg',
+            inspect: { status: 'skipped', reason: 'vision-delegation-disabled' },
+            notice: 'The client UI already rendered this screenshot as an attachment.',
+          },
+          details: {
+            width,
+            height,
+            attachments: [
+              {
+                id: 'shot-1',
+                kind: 'media',
+                path: '/tmp/media/shot-1.jpg',
+                mimeType: 'image/jpeg',
+                byteSize: jpegBytes.byteLength,
+                source: 'generated',
+              },
+            ],
+          },
+        };
+      },
+    });
+    const ss = tools.find((t) => t.descriptor.name === 'browser_screenshot');
+    if (!ss) throw new Error('browser_screenshot missing');
+    const result = await executeTool(ss, {});
+    if (!result.ok) throw new Error(result.message);
+    const parsed = JSON.parse(result.output) as {
+      status: string;
+      mediaId: string;
+      inspect: { status: string };
+    };
+    expect(parsed.status).toBe('success');
+    expect(parsed.mediaId).toBe('shot-1');
+    expect(parsed.inspect.status).toBe('skipped');
+    expect(result.output).not.toContain('/tmp/media');
+    expect(result.details?.attachments).toEqual([
+      expect.objectContaining({ id: 'shot-1', kind: 'media', mimeType: 'image/jpeg' }),
+    ]);
+  });
+
+  it('browser_screenshot puts native images on ToolResult for vision models', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session, {
+      inspectScreenshot: async ({ jpegBytes, width, height }) => ({
+        output: {
+          status: 'success',
+          width,
+          height,
+          mediaId: 'shot-2',
+          mimeType: 'image/jpeg',
+          inspect: { status: 'native' },
+          notice: 'A screenshot image is attached to this tool result.',
+        },
+        details: {
+          width,
+          height,
+          attachments: [
+            {
+              id: 'shot-2',
+              kind: 'media',
+              path: '/tmp/media/shot-2.jpg',
+              mimeType: 'image/jpeg',
+              byteSize: jpegBytes.byteLength,
+              source: 'generated',
+            },
+          ],
+        },
+        images: [{ mimeType: 'image/jpeg', dataBase64: Buffer.from(jpegBytes).toString('base64') }],
+      }),
+    });
+    const ss = tools.find((t) => t.descriptor.name === 'browser_screenshot');
+    if (!ss) throw new Error('browser_screenshot missing');
+    const result = await executeTool(ss, {});
+    if (!result.ok) throw new Error(result.message);
+    expect(result.images).toEqual([
+      expect.objectContaining({ mimeType: 'image/jpeg', dataBase64: expect.any(String) }),
+    ]);
+    expect(result.output).not.toContain('dataBase64');
+  });
+
+  it('browser_screenshot still returns dimensions when inspect throws', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session, {
+      inspectScreenshot: async () => {
+        throw new Error('disk full');
+      },
+    });
     const ss = tools.find((t) => t.descriptor.name === 'browser_screenshot');
     if (!ss) throw new Error('browser_screenshot missing');
     const raw = outputOf(await executeTool(ss, {}));
