@@ -5,8 +5,6 @@ import {
   useReducer,
   useRef,
   useState,
-  type ClipboardEvent,
-  type DragEvent,
   type SetStateAction,
 } from 'react';
 import {
@@ -65,14 +63,10 @@ import {
 } from './host-request-adapters';
 import { ProjectSessionSidebar } from './project-session-sidebar';
 import { projectLabel } from './project-display-name';
-import { ChatThread } from './chat-thread';
 import { reviewCardsForItemIds } from './resolve-conversation-flashcards';
 import type { FlashcardItem } from '@piwin/contracts';
 import { type ArtifactCanvasTarget } from './artifact-canvas-model';
 import { useArtifactCanvas } from './hooks/use-artifact-canvas';
-import { ComposerDock, type ComposerDockProps } from './composer-dock';
-import { PermissionBar } from './permission-bar';
-import { ExtensionUiPrompt } from './extension-ui-prompt';
 import { AppDialogs } from './app-dialogs';
 import {
   createEmptyNotificationState,
@@ -124,6 +118,7 @@ import { useBranchActions } from './hooks/use-branch-actions';
 import { useDocComments } from './hooks/use-doc-comments';
 import { useComposerPlusMenu } from './hooks/use-composer-plus-menu';
 import { useComposerModelController } from './hooks/use-composer-model';
+import { useComposerDockProps } from './hooks/use-composer-dock-props';
 import { TruncateAfterDialog } from './truncate-after-dialog';
 import { BranchSwitchConfirmDialog } from './branch-switch-confirm-dialog';
 import { useSessionLineage } from './hooks/use-session-lineage';
@@ -137,14 +132,11 @@ import {
   type SubagentInspectorToggle,
 } from './subagent-inspector-context';
 import { useJobs } from './hooks/use-jobs';
-import { Button, Notice } from '@piwin/ui-kit';
 import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
 import { useConfirmDialog } from './use-confirm-dialog';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { settingsApplyInputFromSnapshot } from './settings-apply-input.js';
 import { hostFailureNotice } from './host-problem-copy.js';
-import { HostReconnectBanner } from './host-reconnect-banner';
-import { shouldShowHostReconnectBanner } from './host-reconnect-gate.js';
 import {
   isRemoteDesktopTransport,
   mapListedProjects,
@@ -158,10 +150,11 @@ import { deriveRunStatus } from './run-status';
 import { ContextBar } from './context-bar';
 import { WorkspaceShell } from './workspace-shell';
 import { WorkbenchInspector } from './workbench-inspector';
-import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
-import { TranscriptViewport } from './transcript-viewport';
-import { ProjectTrustNotice } from './project-trust-notice';
-import { SessionArchivedBanner } from './session-archived-banner';
+import {
+  WorkbenchComposerColumn,
+  WorkbenchPermissionBar,
+  WorkbenchTranscript,
+} from './workbench-conversation';
 import { SessionColdRestoreDialog } from './session-cold-restore-dialog';
 import { StatusBar } from './status-bar';
 import { computeContextUsagePercent } from './context-usage-ring';
@@ -1873,13 +1866,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     [state.contextUsage, selectedModelContextWindow],
   );
 
-  // While resuming a session, keep docked layout even if paint is still
-  // previous/warm rows or briefly empty — never treat that as a brand-new chat.
-  const composerLayoutMode =
-    state.messages.length === 0 && !state.awaitingTranscript
-      ? ('centered' as const)
-      : ('docked' as const);
-
   const lastUserMessage = useMemo(() => {
     for (let index = state.messages.length - 1; index >= 0; index -= 1) {
       const message = state.messages[index];
@@ -1899,323 +1885,80 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const activeSessionOrigin = activeSessionListItem?.origin ?? null;
   const desktopCopy = getDesktopCopy(desktopLocale);
 
-  // Stable callback identities so composerCard useMemo does not thrash on every App render.
-  const handleRefreshComposerMenus = useCallback((): void => {
-    void refreshComposerMenus();
-  }, [refreshComposerMenus]);
-  const handleOpenSkillsPanel = useCallback((): void => {
-    openSettingsSection('skills');
-  }, [openSettingsSection]);
-  const handleOpenMcpPanel = useCallback((): void => {
-    openSettingsSection('tools');
-  }, [openSettingsSection]);
-  const handleOpenModelSettings = useCallback((): void => {
-    openSettingsSection('models');
-  }, [openSettingsSection]);
-  const handleOpenHostSettings = useCallback((): void => {
-    openSettingsSection('general');
-  }, [openSettingsSection]);
-  const handleSelectLocalRuntime = useCallback((): void => {
-    saveDesktopHostLaunchMode('sidecar');
-    clearDesktopRemoteHostTarget();
-  }, []);
-  const handleSelectAttachRuntime = useCallback((): void => {
-    saveDesktopHostLaunchMode('attach');
-    clearDesktopRemoteHostTarget();
-  }, []);
-  const handleOpenPermissionsSettings = useCallback((): void => {
-    openSettingsSection('permissions');
-  }, [openSettingsSection]);
-  const handleOpenOrchestrationSchemeSettings = useCallback((): void => {
-    openSettingsSection('subagents');
-  }, [openSettingsSection]);
-  const handleComposerAttachImage = useCallback((): void => {
-    void handlePickImageFiles();
-  }, [handlePickImageFiles]);
-  const handleComposerAttachFile = useCallback((): void => {
-    void handlePickFiles();
-  }, [handlePickFiles]);
-  const handleComposerPasteEvent = useCallback(
-    (event: ClipboardEvent<HTMLTextAreaElement>): void => {
-      void handleComposerPaste(event);
-    },
-    [handleComposerPaste],
-  );
-  const handleComposerDropEvent = useCallback(
-    (event: DragEvent<HTMLElement>): void => {
-      void handleComposerDrop(event);
-    },
-    [handleComposerDrop],
-  );
-  const handleComposerSend = useCallback((): void => {
-    void handleSendWithComments();
-  }, [handleSendWithComments]);
-  const handleComposerSteer = useCallback((): void => {
-    void handleSteer();
-  }, [handleSteer]);
-  const handleComposerFollowUp = useCallback((): void => {
-    void handleFollowUp();
-  }, [handleFollowUp]);
-  const handleComposerExtensionUiResolve = useCallback(
-    (payload: { confirmed?: boolean; value?: string; cancelled?: boolean }): void => {
-      void handleExtensionUiResolve(payload);
-    },
-    // handleExtensionUiResolve closes over request state; rebind when request changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [extensionUiRequest],
-  );
-  const handleComposerExtensionUiAbort = useCallback((): void => {
-    void handleExtensionUiAbort();
-  }, [extensionUiRequest]);
-  const handleComposerAbort = useCallback((): void => {
-    void handleAbort();
-  }, [handleAbort]);
-  const handleComposerCompact = useCallback((): void => {
-    void handleCompact();
-  }, [handleCompact]);
-
-  const docCommentsAttachment = useMemo(
-    () =>
-      activeComments.length > 0
-        ? {
-            docTitle: activeDocument?.title || 'Document',
-            commentCount: activeComments.length,
-          }
-        : null,
-    [activeComments.length, activeDocument?.title],
-  );
-
-  // Newest-first user prompts for Composer ↑ history list (max 10).
-  const sessionUserPrompts = useMemo(() => {
-    const prompts: string[] = [];
-    for (let index = state.messages.length - 1; index >= 0; index -= 1) {
-      const message = state.messages[index];
-      if (message?.role !== 'user') {
-        continue;
-      }
-      const text = message.text.trim();
-      if (!text || prompts.includes(text)) {
-        continue;
-      }
-      prompts.push(text);
-      if (prompts.length >= 10) {
-        break;
-      }
-    }
-    return prompts;
-  }, [state.messages]);
-
-  const isGoalExtensionEnabled = useMemo(() => {
-    const disabledIds = config?.extensions?.disabledIds ?? [];
-    return !disabledIds.some((id) => id.toLowerCase() === 'goal');
-  }, [config?.extensions?.disabledIds]);
-
-  useEffect(() => {
-    if (agentMode === 'goal' && !isGoalExtensionEnabled) {
-      setAgentMode('agent');
-    }
-  }, [agentMode, isGoalExtensionEnabled]);
-
-  // Shared composer card props for the bottom dock and in-place message editing.
-  // Local state fields (composer text, attachments, plus menu, etc.) are overridden
-  // by the bottom dock or the edit card; this bundle carries the global config.
-  const composerCard: ComposerDockProps = useMemo(
-    () => ({
-      layoutMode: composerLayoutMode,
-      projectPath: state.projectPath,
-      projectTrusted: state.projectTrusted,
-      activeSessionId: state.activeSessionId,
-      streaming: state.streaming,
-      runPhase: state.runPhase,
-      compacting: state.compacting,
-      composer,
-      onComposerChange: setComposer,
-      sessionUserPrompts,
-      activeJobs: activeJobsForComposer,
-      onStopJob: (jobId) => {
-        void stopJob(jobId);
-      },
-      onViewJobLogs: () => {
-        shell.openInspector('terminal');
-      },
-      agentMode,
-      onAgentModeChange: setAgentMode,
-      goalExtensionEnabled: isGoalExtensionEnabled,
-      pendingAttachments,
-      onRemoveAttachment: revokePending,
-      onRetryAttachment: retryPendingAttachment,
-      onRetryFailedAttachments: retryFailedAttachments,
-      onDiscardFailedAttachments: discardFailedAttachments,
-      pendingContextRefs,
-      onRemoveContextRef: removeContextRef,
-      onAddContextRef: (ref) => {
-        addContextRef(ref);
-      },
-      docCommentsAttachment,
-      onRemoveDocComments: handleRemoveDocComments,
-      dropActive,
-      onDropActiveChange: setDropActive,
-      plusMenuOpen,
-      onPlusMenuOpenChange: setPlusMenuOpen,
-      plusSubmenu,
-      onPlusSubmenuChange: setPlusSubmenu,
-      modelOptions,
-      selectedModelKey,
-      selectedModelLabel,
-      onSelectModel: handleSelectModel,
-      visionDelegationEnabled: config?.visionDelegation?.enabled === true,
-      menuSkills,
-      menuMcp,
-      onRefreshComposerMenus: handleRefreshComposerMenus,
-      onOpenSkillsPanel: handleOpenSkillsPanel,
-      onOpenMcpPanel: handleOpenMcpPanel,
-      onOpenKnowledge: handleOpenKnowledge,
-      onOpenCardsPanel: handleOpenCardsPanel,
-      onAttachFile: handleComposerAttachFile,
-      onAttachImage: handleComposerAttachImage,
-      onPaste: handleComposerPasteEvent,
-      onDrop: handleComposerDropEvent,
-      onSend: handleComposerSend,
-      onSteer: handleComposerSteer,
-      onFollowUp: handleComposerFollowUp,
-      steerQueueMessages,
-      onSteerQueueSendNow: handleSteerQueueSendNow,
-      onSteerQueueEdit: handleSteerQueueEdit,
-      onSteerQueueRemove: handleSteerQueueRemove,
-      extensionUiRequest,
-      extensionUiInput,
-      onExtensionUiInputChange: setExtensionUiInput,
-      onExtensionUiResolve: handleComposerExtensionUiResolve,
-      onExtensionUiAbort: handleComposerExtensionUiAbort,
-      thinkingLevel,
-      onThinkingLevelChange: handleThinkingLevelChange,
-      ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
-      onAbort: handleComposerAbort,
-      onCompact: handleComposerCompact,
-      compactionSupported: hostStatus?.capabilities?.compaction !== false,
-      contextUsage: state.contextUsage,
-      ...(typeof selectedModelContextWindow === 'number'
-        ? { modelContextWindow: selectedModelContextWindow }
-        : {}),
-      onOpenModelSettings: handleOpenModelSettings,
-      speechConfigured,
-      speechRequest,
-      hostStatus,
-      hostReady: state.hostReady,
-      hostMock: state.hostMock,
-      transportLabel: hostClient.getTransport(),
-      onOpenHostSettings: handleOpenHostSettings,
-      runModePreset: effectiveRunMode,
-      onRunModeChange: handleRunModeChange,
-      onRunModeSetDefault: handleRunModeSetDefault,
-      onOpenPermissionsSettings: handleOpenPermissionsSettings,
-      runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
-      orchestrationSchemeId,
-      orchestrationSchemeOptions,
-      delegationDisabled,
-      onDelegationDisabledChange: setDelegationDisabled,
-      onOrchestrationSchemeChange: setOrchestrationSchemeId,
-      onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
-      isConversationSession: state.activeScope.kind === 'general',
-      ...(hostClient.supportsCommand('git/status')
-        ? { branchRequest: requestGit as ComposerDockProps['branchRequest'] }
-        : {}),
-      recentProjects,
-      onOpenProject: (path) => {
-        void handleOpenProject(path);
-      },
-      runtimeRemoteConnected: hostClient.getTransport() === 'remote',
-      onSelectLocalRuntime: handleSelectLocalRuntime,
-      onSelectAttachRuntime: handleSelectAttachRuntime,
-    }),
-    [
-      agentMode,
-      orchestrationSchemeId,
-      delegationDisabled,
-      orchestrationSchemeOptions,
-      composer,
-      composerLayoutMode,
-      config?.thinking?.ultraEnabled,
-      config?.visionDelegation?.enabled,
-      docCommentsAttachment,
-      dropActive,
-      effectiveRunMode,
-      extensionUiInput,
-      extensionUiRequest,
-      handleComposerAbort,
-      handleComposerAttachImage,
-      handleComposerAttachFile,
-      handleComposerCompact,
-      handleComposerDropEvent,
-      handleComposerExtensionUiAbort,
-      handleComposerExtensionUiResolve,
-      handleComposerFollowUp,
-      handleComposerPasteEvent,
-      handleComposerSend,
-      handleComposerSteer,
-      handleSteerQueueEdit,
-      handleSteerQueueRemove,
-      handleSteerQueueSendNow,
-      handleOpenHostSettings,
-      handleSelectLocalRuntime,
-      handleSelectAttachRuntime,
-      handleOpenMcpPanel,
-      handleOpenModelSettings,
-      handleOpenPermissionsSettings,
-      handleOpenProject,
-      handleOpenSkillsPanel,
-      handlePickFiles,
-      handleRefreshComposerMenus,
-      handleRemoveDocComments,
-      handleRunModeChange,
-      handleRunModeSetDefault,
-      handleSelectModel,
-      handleThinkingLevelChange,
-      hostClient,
-      hostStatus,
-      menuMcp,
-      menuSkills,
-      modelOptions,
-      pendingAttachments,
-      pendingContextRefs,
-      removeContextRef,
-      plusMenuOpen,
-      plusSubmenu,
-      requestGit,
-      recentProjects,
-      retryPendingAttachment,
-      retryFailedAttachments,
-      discardFailedAttachments,
-      revokePending,
-      sessionUserPrompts,
-      activeJobsForComposer,
-      stopJob,
-      shell.openInspector,
-      selectedModelContextWindow,
-      selectedModelKey,
-      selectedModelLabel,
-      setAgentMode,
-      setComposer,
-      setDropActive,
-      setExtensionUiInput,
-      setPlusMenuOpen,
-      setPlusSubmenu,
-      speechConfigured,
-      speechRequest,
-      steerQueueMessages,
-      state.activeSessionId,
-      state.compacting,
-      state.contextUsage,
-      state.hostMock,
-      state.hostReady,
-      state.projectPath,
-      state.projectTrusted,
-      state.runPhase,
-      state.streaming,
-      state.activeScope.kind,
-      thinkingLevel,
-    ],
-  );
+  const { composerCard, composerLayoutMode } = useComposerDockProps({
+    hostClient,
+    hostStatus,
+    config,
+    state,
+    composer,
+    setComposer,
+    agentMode,
+    setAgentMode,
+    pendingAttachments,
+    revokePending,
+    retryPendingAttachment,
+    retryFailedAttachments,
+    discardFailedAttachments,
+    pendingContextRefs,
+    removeContextRef,
+    addContextRef,
+    activeCommentsCount: activeComments.length,
+    activeDocumentTitle: activeDocument?.title,
+    onRemoveDocComments: handleRemoveDocComments,
+    dropActive,
+    setDropActive,
+    plusMenuOpen,
+    setPlusMenuOpen,
+    plusSubmenu,
+    setPlusSubmenu,
+    modelOptions,
+    selectedModelKey,
+    selectedModelLabel,
+    selectedModelContextWindow,
+    onSelectModel: handleSelectModel,
+    menuSkills,
+    menuMcp,
+    refreshComposerMenus,
+    openSettingsSection,
+    onOpenKnowledge: handleOpenKnowledge,
+    onOpenCardsPanel: handleOpenCardsPanel,
+    onPickFiles: handlePickFiles,
+    onPickImageFiles: handlePickImageFiles,
+    onComposerPaste: handleComposerPaste,
+    onComposerDrop: handleComposerDrop,
+    onSendWithComments: handleSendWithComments,
+    onSteer: handleSteer,
+    onFollowUp: handleFollowUp,
+    onAbort: handleAbort,
+    onCompact: handleCompact,
+    onOpenProject: handleOpenProject,
+    onExtensionUiResolve: handleExtensionUiResolve,
+    onExtensionUiAbort: handleExtensionUiAbort,
+    extensionUiRequest,
+    extensionUiInput,
+    setExtensionUiInput,
+    thinkingLevel,
+    onThinkingLevelChange: handleThinkingLevelChange,
+    speechConfigured,
+    speechRequest,
+    runModePreset: effectiveRunMode,
+    onRunModeChange: handleRunModeChange,
+    onRunModeSetDefault: handleRunModeSetDefault,
+    orchestrationSchemeId,
+    orchestrationSchemeOptions,
+    delegationDisabled,
+    setDelegationDisabled,
+    setOrchestrationSchemeId,
+    requestGit,
+    recentProjects,
+    activeJobs: activeJobsForComposer,
+    stopJob,
+    openInspector: shell.openInspector,
+    steerQueueMessages,
+    onSteerQueueSendNow: handleSteerQueueSendNow,
+    onSteerQueueEdit: handleSteerQueueEdit,
+    onSteerQueueRemove: handleSteerQueueRemove,
+  });
 
   // Subagent session inspector: preview stays in-place, promotion navigates.
   const handleEnterSubagentSession = useCallback(
@@ -2781,254 +2524,82 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               ) : undefined
             }
             transcript={
-              <>
-                {shouldShowHostReconnectBanner({
-                  transport: hostClient.getTransport(),
-                  wireReady: hostClient.isReady(),
-                }) ? (
-                  <HostReconnectBanner locale={desktopLocale} />
-                ) : null}
-                {state.awaitingTranscript ? (
-                  <div
-                    className="transcript-awaiting-banner"
-                    data-testid="transcript-awaiting-banner"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {desktopLocale === 'zh-CN' ? '正在加载会话…' : 'Loading session…'}
-                  </div>
-                ) : null}
-                <TranscriptViewport
-                  key={state.activeSessionId ?? 'no-session'}
-                  messageCount={visibleTranscriptMessages.length}
-                  activitySignal={historyViewActive ? 'history-view' : activitySignal}
-                  messages={visibleTranscriptMessages}
-                  historyIndex={state.userMessageIndex}
-                  onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
-                  historyViewActive={historyViewActive}
-                  onReturnToLatest={handleReturnToLiveTranscript}
-                  canLoadOlder={
-                    !historyViewActive &&
-                    state.transcriptWindow?.olderCursor !== undefined &&
-                    state.transcriptWindow.cacheLimitReached !== true
-                  }
-                  historyLoading={transcriptHistoryLoading}
-                  onLoadOlder={handleLoadOlderTranscript}
-                  locale={desktopLocale}
-                  liveTurnId={
-                    !historyViewActive && state.streaming ? lastUserMessageId : null
-                  }
-                  {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
-                >
-                  {/*
-                     * Keep the thread mounted during the pre-ACK window. The
-                     * optimistic send marks the run as streaming before the
-                     * Host returns a run id, and ChatThread owns the waiting
-                     * activity locator for that state.
-                     */}
-                    {visibleTranscriptMessages.length > 0 ||
-                    (!historyViewActive && state.streaming) ? (
-                      <ChatThread
-                        messages={visibleTranscriptMessages}
-                        {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
-                        streaming={!historyViewActive && state.streaming}
-                        activeSessionId={state.activeSessionId}
-                        docCardRequest={requestKnowledgeCenter as never}
-                        isConversationSession={state.activeScope.kind === 'general'}
-                        onResolveFlashcards={resolveConversationFlashcards}
-                        livePromptModel={currentPromptModelRef}
-                        modelOptions={modelOptions}
-                        {...(config?.providers !== undefined ? { configProviders: config.providers } : {})}
-                        contextUsage={state.contextUsage}
-                        editingMessageId={editingMessageId}
-                        lastUserMessageId={lastUserMessageId}
-                        activeTheme={activeTheme}
-                        artifactThemeKey={artifactThemeKey}
-                        runRecordsById={visibleRunRecordsById}
-                        activeRunId={historyViewActive ? null : state.activeRunId}
-                        activeSkill={historyViewActive ? null : state.activeSkill}
-                        {...(preferences.agentLocatorAnimation
-                          ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
-                          : {})}
-                        permissionPrompt={state.permissionPrompt}
-                        projectPath={state.projectPath}
-                        {...(hostClient.supportsCommand('git/diff-file')
-                          ? { toolDiffRequest: requestGit as never }
-                          : {})}
-                        {...(hostClient.supportsCommand('git/diff-summary')
-                          ? { filesChangedRequest: requestGit as never }
-                          : {})}
-                        onReviewChanges={() => openRightTab('review')}
-                        onPermission={(decision, scope) => {
-                          void handlePermission(decision, scope);
-                        }}
-                        workDetailsExpanded={preferences.workDetailsExpanded}
-                        toolDensity={preferences.toolDensity}
-                        showThinking={preferences.verboseAgentChat}
-                        artifactPreviewEnabled={config?.artifact?.enabled ?? true}
-                        artifactCodeFirst={preferences.artifactCodeFirst}
-                        plan={sessionPlan}
-                        {...(config?.artifact?.maxBytes !== undefined
-                          ? { artifactMaxBytes: config.artifact.maxBytes }
-                          : {})}
-                        locale={desktopLocale}
-                        assemblySummariesByRunId={assemblySummariesByRunId}
-                        onInspectSubagent={handleInspectSubagent}
-                        subagentChildren={state.subagentChildren}
-                        subagentInvocations={state.subagentInvocations}
-                        subagentStreams={state.subagentStreams}
-                        onEdit={setEditingMessageId}
-                        onCancelEdit={handleCancelMessageEdit}
-                        onEditResend={handleEditAndResendMessage}
-                        onRetry={handleRetryMessage}
-                        onBranchResend={branchResend}
-                        branchPoints={branchPoints}
-                        onSwitchBranch={switchBranch}
-                        onInterventionEdit={handleInterventionEdit}
-                        onInterventionCancel={handleInterventionCancel}
-                        onFeedback={handleMessageFeedback}
-                        onArtifactAction={handleArtifactAction}
-                        onOpenArtifactCanvas={handleOpenArtifactCanvas}
-                        {...(hostClient.supportsCommand('project/read-file')
-                          ? {
-                              onOpenFile: (absolutePath: string, relativePath?: string) => {
-                                handleOpenDocument(
-                                  {
-                                    title:
-                                      (relativePath || absolutePath).split(/[\\/]/).pop() ||
-                                      absolutePath,
-                                    path: absolutePath,
-                                  },
-                                  'inspector',
-                                );
-                              },
-                              onOpenDocument: handleOpenDocument,
-                            }
-                          : {})}
-                        onOpenDiff={handleOpenDiff}
-                        onPlanExecute={handlePlanExecute}
-                        onPlanAbort={handlePlanAbort}
-                        composerCard={composerCard}
-                        walkthroughsByMessageId={state.walkthroughsByMessageId}
-                        walkthroughEnabled={config?.walkthrough?.enabled !== false}
-                        walkthroughAutoGenerate={false}
-                        onGenerateWalkthrough={handleGenerateWalkthrough}
-                        onCancelWalkthrough={handleCancelWalkthrough}
-                        {...(state.activeSessionId
-                          ? {
-                              onDuplicateSession: () =>
-                                void handleDuplicateSession(state.activeSessionId!),
-                              onForkFromMessage: (messageId: string) =>
-                                void handleForkSession(state.activeSessionId!, messageId),
-                            }
-                          : {})}
-                        {...(sessionLineage ? { sessionLineage } : {})}
-                        forkCountsByMessageId={forkCountsByMessageId}
-                        onOpenSession={(sessionId: string) => void handleResumeSession(sessionId)}
-                        derivedActionsDisabled={!state.activeSessionId || state.streaming || state.awaitingTranscript}
-                      />
-                    ) : null}
-                </TranscriptViewport>
-                {state.compacting ? (
-                  <Notice
-                    tone="info"
-                    testId="compaction-progress-notice"
-                    title="Compacting context…"
-                    action={
-                      <Button size="compact" onClick={() => void handleCompactAbort()}>
-                        Cancel
-                      </Button>
-                    }
-                  />
-                ) : null}
-                {!state.compacting && state.lastCompactionMessage ? (
-                  <Notice
-                    tone="success"
-                    testId="compaction-result-notice"
-                    title={state.lastCompactionMessage}
-                    action={
-                      <Button
-                        size="compact"
-                        onClick={() => dispatch({ type: 'compaction/dismiss' })}
-                      >
-                        Dismiss
-                      </Button>
-                    }
-                    details={
-                      <>
-                        {typeof state.lastCompactionDurationMs === 'number' ? (
-                          <span className="muted">Duration {state.lastCompactionDurationMs}ms</span>
-                        ) : null}
-                        {typeof state.lastCompactionTokensBefore === 'number' ||
-                        typeof state.lastCompactionTokensAfter === 'number' ? (
-                          <div className="muted banner-meta">
-                            Tokens
-                            {typeof state.lastCompactionTokensBefore === 'number'
-                              ? ` before: ${state.lastCompactionTokensBefore}`
-                              : ''}
-                            {typeof state.lastCompactionTokensAfter === 'number'
-                              ? ` → after: ${state.lastCompactionTokensAfter}`
-                              : ''}
-                          </div>
-                        ) : null}
-                        {state.lastCompactionSummary ? (
-                          <details className="banner-details">
-                            <summary>Summary</summary>
-                            <pre className="banner-summary-pre">
-                              {state.lastCompactionSummary.slice(0, 500)}
-                            </pre>
-                          </details>
-                        ) : null}
-                      </>
-                    }
-                  />
-                ) : null}
-              </>
+              <WorkbenchTranscript
+                locale={desktopLocale}
+                hostClient={hostClient}
+                state={state}
+                dispatch={dispatch}
+                visibleMessages={visibleTranscriptMessages}
+                visibleRunRecordsById={visibleRunRecordsById}
+                historyViewActive={historyViewActive}
+                activitySignal={activitySignal}
+                transcriptHistoryLoading={transcriptHistoryLoading}
+                lastUserMessageId={lastUserMessageId}
+                composerCard={composerCard}
+                config={config}
+                preferences={preferences}
+                sessionPlan={sessionPlan}
+                currentPromptModel={currentPromptModelRef}
+                modelOptions={modelOptions}
+                requestKnowledgeCenter={requestKnowledgeCenter}
+                resolveFlashcards={resolveConversationFlashcards}
+                requestGit={requestGit}
+                editingMessageId={editingMessageId}
+                activeTheme={activeTheme}
+                artifactThemeKey={artifactThemeKey}
+                assemblySummariesByRunId={assemblySummariesByRunId}
+                sessionLineage={sessionLineage}
+                forkCountsByMessageId={forkCountsByMessageId}
+                branchPoints={branchPoints}
+                onJumpToHistoryAnchor={handleJumpToHistoryAnchor}
+                onReturnToLatest={handleReturnToLiveTranscript}
+                onLoadOlder={handleLoadOlderTranscript}
+                onOpenReview={() => openRightTab('review')}
+                onPermission={handlePermission}
+                onInspectSubagent={handleInspectSubagent}
+                onEdit={setEditingMessageId}
+                onCancelEdit={handleCancelMessageEdit}
+                onEditResend={handleEditAndResendMessage}
+                onRetry={handleRetryMessage}
+                onBranchResend={branchResend}
+                onSwitchBranch={switchBranch}
+                onInterventionEdit={handleInterventionEdit}
+                onInterventionCancel={handleInterventionCancel}
+                onFeedback={handleMessageFeedback}
+                onArtifactAction={handleArtifactAction}
+                onOpenArtifactCanvas={handleOpenArtifactCanvas}
+                onOpenDocument={handleOpenDocument}
+                onOpenDiff={handleOpenDiff}
+                onPlanExecute={handlePlanExecute}
+                onPlanAbort={handlePlanAbort}
+                onGenerateWalkthrough={handleGenerateWalkthrough}
+                onCancelWalkthrough={handleCancelWalkthrough}
+                onDuplicateSession={handleDuplicateSession}
+                onForkFromMessage={handleForkSession}
+                onOpenSession={handleResumeSession}
+                onCompactAbort={handleCompactAbort}
+              />
             }
             permissionBar={
-              state.activeScope.kind !== 'general' && state.permissionPrompt ? (
-                <PermissionBar
-                  prompt={state.permissionPrompt}
-                  projectPath={state.projectPath}
-                  onPermission={(decision, scope) => {
-                    void handlePermission(decision, scope);
-                  }}
-                />
-              ) : state.activeScope.kind !== 'general' && extensionUiRequest ? (
-                <ExtensionUiPrompt
-                  request={extensionUiRequest}
-                  onResolve={(payload) => void handleExtensionUiResolve(payload)}
-                />
-              ) : null
+              <WorkbenchPermissionBar
+                state={state}
+                extensionUiRequest={extensionUiRequest}
+                onPermission={handlePermission}
+                onExtensionUiResolve={handleExtensionUiResolve}
+              />
             }
             composerDock={
-              <>
-                {state.projectPath && !state.projectTrusted ? (
-                  <div className="composer-sticky-banner chat-inline-notice">
-                    <ProjectTrustNotice
-                      projectPath={state.projectPath}
-                      onTrust={() => void handleTrustProject(true)}
-                    />
-                  </div>
-                ) : null}
-                {state.activeSessionArchived ? (
-                  <div className="composer-sticky-banner chat-inline-notice">
-                    <SessionArchivedBanner
-                      sessionName={activeSessionName}
-                      onRestore={() => {
-                        if (state.activeSessionId) {
-                          void handleSessionMenuAction(state.activeSessionId, 'unarchive');
-                        }
-                      }}
-                      onNewAgent={() => void handleStartNewSession()}
-                    />
-                  </div>
-                ) : null}
-                {state.messages.length === 0 && !state.awaitingTranscript ? (
-                  <InkWashEmptyVignette theme={activeTheme} />
-                ) : null}
-                <ComposerDock {...composerCard} />
-              </>
+              <WorkbenchComposerColumn
+                state={state}
+                activeTheme={activeTheme}
+                activeSessionName={activeSessionName}
+                composerCard={composerCard}
+                onTrustProject={handleTrustProject}
+                onUnarchiveSession={(sessionId) =>
+                  void handleSessionMenuAction(sessionId, 'unarchive')
+                }
+                onNewSession={handleStartNewSession}
+              />
             }
             statusBar={
               <StatusBar
