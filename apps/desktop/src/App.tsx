@@ -15,14 +15,11 @@ import {
   isModelEnabled,
   isProviderEnabled,
   modelSupportsCapability,
-  readContextOccupiedTokens,
   resolvePermissionPreset,
   remoteCommandRequiresIdempotencyKey,
-  resolveModelContextBudget,
   resolvePreset,
 } from '@piwin/contracts';
 import type {
-  ModelRef,
   PermissionDecision,
   PermissionRememberScope,
   PermissionPreset,
@@ -63,7 +60,6 @@ import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
 import { readMediaPreviewViaHost } from './transcript-media-preview';
 import {
-  composerProfileSettingsMutations,
   settingsMutationsForHostApply,
   useHostRequestAdapters,
 } from './host-request-adapters';
@@ -72,11 +68,8 @@ import { projectLabel } from './project-display-name';
 import { ChatThread } from './chat-thread';
 import { reviewCardsForItemIds } from './resolve-conversation-flashcards';
 import type { FlashcardItem } from '@piwin/contracts';
-import { formatPlanMarkdown } from './plan-card';
-import { ArtifactCanvasPanel } from './artifact-canvas-panel';
-import { appendComposerProposal, type ArtifactCanvasTarget } from './artifact-canvas-model';
+import { type ArtifactCanvasTarget } from './artifact-canvas-model';
 import { useArtifactCanvas } from './hooks/use-artifact-canvas';
-import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { PermissionBar } from './permission-bar';
 import { ExtensionUiPrompt } from './extension-ui-prompt';
@@ -90,11 +83,7 @@ import {
   type NotificationAction,
 } from './notification-queue';
 import type { HostLogEntry } from './HostLogPanel';
-import {
-  activeDocumentContent,
-  activeDocumentFilePath,
-  activeDocumentMedia,
-} from './active-document';
+import { activeDocumentMedia } from './active-document';
 import { useActiveDocument } from './hooks/use-active-document';
 import { useTerminalPanelState } from './hooks/use-terminal-panel-state';
 import { useSessionListQuery } from './hooks/use-session-list-query';
@@ -104,12 +93,9 @@ import {
   useSessionListChrome,
 } from './hooks/use-session-list-chrome';
 import { collectSessionDocuments } from './session-documents';
-import type { LineCommentItem } from './EnhancedMarkdownView';
-import { mergeComposerWithDocComments } from './doc-comments';
-import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
+import { type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { collectSessionTools } from './tool-call-card';
 import type { DocumentOpenInput } from './tool-call-card';
-import { FileDiffInspector } from './file-diff-inspector';
 import { useInspectorFileDiff } from './use-inspector-file-diff';
 import { type AgentModeId } from './agent-mode';
 import {
@@ -128,7 +114,6 @@ import {
   type DesktopLocale,
 } from './desktop-locale';
 import { DesktopLocaleProvider } from './desktop-locale-context';
-import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useRunReconcile } from './hooks/use-run-reconcile';
 import { useComposerMedia } from './hooks/use-composer-media';
@@ -136,6 +121,9 @@ import { useComposerContextRefs } from './hooks/use-composer-context-refs';
 import { DesktopContextMenuProvider, type DesktopContextMenuValue } from './context-menu';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useBranchActions } from './hooks/use-branch-actions';
+import { useDocComments } from './hooks/use-doc-comments';
+import { useComposerPlusMenu } from './hooks/use-composer-plus-menu';
+import { useComposerModelController } from './hooks/use-composer-model';
 import { TruncateAfterDialog } from './truncate-after-dialog';
 import { BranchSwitchConfirmDialog } from './branch-switch-confirm-dialog';
 import { useSessionLineage } from './hooks/use-session-lineage';
@@ -162,7 +150,6 @@ import {
   mapListedProjects,
   mergeRecentProjects,
 } from './remote-session-hydrate';
-import { RemoteUnavailableSurface } from './remote-unavailable-surface';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
 import { useDesktopShortcuts } from './use-desktop-shortcuts';
@@ -170,6 +157,7 @@ import type { DesktopCommandId } from './desktop-commands';
 import { deriveRunStatus } from './run-status';
 import { ContextBar } from './context-bar';
 import { WorkspaceShell } from './workspace-shell';
+import { WorkbenchInspector } from './workbench-inspector';
 import { InkWashEmptyVignette } from './ink-wash-empty-vignette';
 import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
@@ -183,30 +171,13 @@ import { useRightPanelResize } from './hooks/use-right-panel-resize';
 import { useSidebarResize } from './hooks/use-sidebar-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
-import { resolveThinkingLevelForModel } from './model-thinking-policy';
-import {
-  findComposerModelByKey,
-  findComposerModelByRef,
-  formatComposerModelKey,
-  resolveComposerModelSelection,
-} from './composer-model-selection-policy';
+import { formatComposerModelKey } from './composer-model-selection-policy';
 import { buildEnabledModelOptions, modelOptionsFromConfiguredModels } from './model-options';
 
 import {
-  DeferredBrowserSessionPanel,
-  DeferredChangesPanel,
-  DeferredDocPreviewPanel,
-  DeferredFileTreePanel,
-  DeferredFlashcardsPanel,
-  DeferredGitPanel,
   DeferredKnowledgeCenterPanel,
-  DeferredMediaDocPreview,
-  DeferredNotesPanel,
-  DeferredReviewPanel,
   DeferredSettingsPanel,
-  DeferredSideChatPanel,
   DeferredSurfaceBoundary,
-  DeferredTerminalDock,
 } from './deferred-desktop-surfaces';
 
 export type AppProps = {
@@ -479,18 +450,21 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     },
     [confirmBusyRun],
   );
-  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-  const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
-  const [menuSkills, setMenuSkills] = useState<
-    Array<{ id: string; name: string; enabled: boolean }>
-  >([]);
-  const [menuMcp, setMenuMcp] = useState<Array<{ id: string; name: string; running: boolean }>>([]);
+  const {
+    plusMenuOpen,
+    setPlusMenuOpen,
+    plusSubmenu,
+    setPlusSubmenu,
+    menuSkills,
+    menuMcp,
+    refreshComposerMenus,
+  } = useComposerPlusMenu({
+    hostClient,
+    projectPath: state.projectPath,
+    projectTrusted: state.projectTrusted,
+    activeSessionId: state.activeSessionId,
+  });
   const [selectedModelKey, setSelectedModelKey] = useState('');
-  const modelSwitchInFlightRef = useRef(false);
-  const activeSessionIdRef = useRef<string | null>(state.activeSessionId);
-  useEffect(() => {
-    activeSessionIdRef.current = state.activeSessionId;
-  }, [state.activeSessionId]);
   const [thinkingLevel, setThinkingLevel] =
     useState<import('@piwin/contracts').ThinkingLevel>('off');
   /**
@@ -1208,109 +1182,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     state.hostReady,
   ]);
 
-  /** Only re-apply session model when the active session id changes. */
-  const lastAppliedSessionModelIdRef = useRef<string | null>(null);
-
-  const applyComposerModelSelection = useCallback(
-    (
-      modelKey: string,
-      requestedThinking: import('@piwin/contracts').ThinkingLevel | undefined,
-    ): void => {
-      const selected = findComposerModelByKey(modelOptions, modelKey);
-      const resolvedKey = selected
-        ? formatComposerModelKey(selected.providerId, selected.modelId)
-        : modelKey;
-      setSelectedModelKey(resolvedKey);
-      const resolvedThinking = resolveThinkingLevelForModel(
-        selected,
-        requestedThinking ?? selected?.thinkingLevel ?? 'off',
-        config?.thinking?.ultraEnabled === true,
-      );
-      setThinkingLevel(resolvedThinking ?? 'off');
-    },
-    [config?.thinking?.ultraEnabled, modelOptions],
-  );
-
-  // Resolve the effective model selection. Priority:
-  //   1. active session last-used model (session index / resume)
-  //   2. composerProfile.model (desktop default for new sessions)
-  //   3. config.defaultProviderId / defaultModelId (product default)
-  useEffect(() => {
-    const activeSessionId = state.activeSessionId;
-    const sessionChanged = lastAppliedSessionModelIdRef.current !== activeSessionId;
-    const activeSession =
-      activeSessionId == null
-        ? undefined
-        : (state.sessions.find((session) => session.id === activeSessionId) ??
-          state.generalSessions.find((session) => session.id === activeSessionId));
-    const composerProfile = config?.desktop?.composerProfile;
-    const resolution = resolveComposerModelSelection({
-      sessionChanged,
-      activeSessionId,
-      selectedModelKey,
-      modelOptions,
-      ...(activeSession?.model ? { activeSessionModel: activeSession.model } : {}),
-      ...(activeSession?.thinkingLevel !== undefined
-        ? { activeSessionThinkingLevel: activeSession.thinkingLevel }
-        : {}),
-      ...(composerProfile?.model ? { composerProfileModel: composerProfile.model } : {}),
-      ...(composerProfile?.thinkingLevel !== undefined
-        ? { composerProfileThinkingLevel: composerProfile.thinkingLevel }
-        : {}),
-      ...(defaultProviderId ? { defaultProviderId } : {}),
-      ...(defaultModelId ? { defaultModelId } : {}),
-    });
-    if (resolution.kind === 'preserve') {
-      return;
-    }
-    lastAppliedSessionModelIdRef.current = resolution.markSessionId;
-    applyComposerModelSelection(resolution.modelKey, resolution.thinkingLevel);
-    // User picker updates (`handleSelectModel`) own selectedModelKey; this
-    // effect only reacts to session/config/catalog changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedModelKey read intentionally omitted
-  }, [
-    applyComposerModelSelection,
-    config?.desktop?.composerProfile,
-    defaultProviderId,
-    defaultModelId,
-    modelOptions,
-    state.activeSessionId,
-    state.generalSessions,
-    state.sessions,
-  ]);
-
-  // Resume payload may carry model before the session list row is updated.
-  useEffect(() => {
-    sessionComposerProfileRestoredRef.current = (profile) => {
-      if (profile.model) {
-        const match = findComposerModelByRef(modelOptions, profile.model);
-        if (match) {
-          lastAppliedSessionModelIdRef.current = state.activeSessionId;
-          applyComposerModelSelection(
-            formatComposerModelKey(match.providerId, match.modelId),
-            profile.thinkingLevel,
-          );
-          return;
-        }
-      }
-      if (profile.thinkingLevel) {
-        const selected = findComposerModelByKey(modelOptions, selectedModelKey);
-        const resolvedThinking = resolveThinkingLevelForModel(
-          selected,
-          profile.thinkingLevel,
-          config?.thinking?.ultraEnabled === true,
-        );
-        setThinkingLevel(resolvedThinking ?? profile.thinkingLevel);
-      }
-    };
-  }, [
-    applyComposerModelSelection,
-    config?.thinking?.ultraEnabled,
-    modelOptions,
-    selectedModelKey,
-    state.activeSessionId,
-  ]);
-
   const saveSettingsInOrder = useCallback(
     (buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[]): Promise<void> => {
       const saveOperation = configSaveQueue.current
@@ -1372,6 +1243,35 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     [desktopLocale, dispatchNotification, hostClient],
   );
 
+  const {
+    handleSelectModel,
+    handleThinkingLevelChange,
+    selectedModelLabel,
+    selectedModelContextWindow,
+    currentPromptModelRef,
+  } = useComposerModelController({
+    hostClient,
+    config,
+    setConfig,
+    modelOptions,
+    defaultProviderId,
+    defaultModelId,
+    selectedModelKey,
+    setSelectedModelKey,
+    thinkingLevel,
+    setThinkingLevel,
+    sessions: state.sessions,
+    generalSessions: state.generalSessions,
+    activeSessionId: state.activeSessionId,
+    contextUsage: state.contextUsage,
+    streaming: state.streaming,
+    compacting: state.compacting,
+    dispatch,
+    dispatchNotification,
+    saveSettingsInOrder,
+    sessionComposerProfileRestoredRef,
+  });
+
   const handleRemoveProjectFromSidebar = useCallback(
     async (projectPath: string): Promise<void> => {
       const response = await hostClient.request({
@@ -1424,146 +1324,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       showArchivedSessions,
       state.projectPath,
     ],
-  );
-
-  const persistComposerProfile = useCallback(
-    (nextModelKey: string, nextThinkingLevel: import('@piwin/contracts').ThinkingLevel): void => {
-      if (!config) {
-        return;
-      }
-      const selectedModel = modelOptions.find(
-        (model) => formatComposerModelKey(model.providerId, model.modelId) === nextModelKey,
-      );
-      const nextConfig: PiwinConfig = {
-        ...config,
-        ...(selectedModel
-          ? {
-              defaultProviderId: selectedModel.providerId,
-              defaultModelId: selectedModel.modelId,
-            }
-          : {}),
-        thinking: {
-          ultraEnabled: config.thinking?.ultraEnabled === true,
-          defaultLevel: nextThinkingLevel,
-        },
-        desktop: {
-          ...config.desktop,
-          composerProfile: {
-            ...(selectedModel
-              ? {
-                  model: {
-                    protocol: selectedModel.protocol,
-                    providerId: selectedModel.providerId,
-                    modelId: selectedModel.modelId,
-                  },
-                }
-              : {}),
-            thinkingLevel: nextThinkingLevel,
-          },
-        },
-      };
-      setConfig(nextConfig);
-      void saveSettingsInOrder((currentConfig) =>
-        composerProfileSettingsMutations({
-          transport: hostClient.getTransport(),
-          currentDesktop: currentConfig.desktop,
-          composerProfile: nextConfig.desktop?.composerProfile,
-          currentThinking: currentConfig.thinking,
-          selectedModel: selectedModel
-            ? { providerId: selectedModel.providerId, modelId: selectedModel.modelId }
-            : undefined,
-        }),
-      );
-    },
-    [config, hostClient, modelOptions, saveSettingsInOrder, setConfig],
-  );
-
-  const handleSelectModel = useCallback(
-    async (nextModelKey: string): Promise<void> => {
-      const nextModel = modelOptions.find(
-        (model) => formatComposerModelKey(model.providerId, model.modelId) === nextModelKey,
-      );
-      if (!nextModel || nextModelKey === selectedModelKey || modelSwitchInFlightRef.current) {
-        return;
-      }
-      const occupiedTokens = readContextOccupiedTokens(state.contextUsage);
-      const targetBudget = resolveModelContextBudget({
-        ...(nextModel.contextWindow !== undefined
-          ? { contextWindow: nextModel.contextWindow }
-          : {}),
-        ...(nextModel.maxOutputTokens !== undefined
-          ? { maxOutputTokens: nextModel.maxOutputTokens }
-          : {}),
-      });
-      if (
-        state.activeSessionId &&
-        occupiedTokens !== undefined &&
-        occupiedTokens > targetBudget.inputBudget
-      ) {
-        if (state.streaming || state.compacting) {
-          dispatch({
-            type: 'error',
-            message: 'Wait for the current operation to finish before switching models.',
-          });
-          return;
-        }
-        modelSwitchInFlightRef.current = true;
-        const preparedSessionId = state.activeSessionId;
-        try {
-          const response = await hostClient.request({
-            type: 'session/compact',
-            sessionId: preparedSessionId,
-            targetModel: {
-              protocol: nextModel.protocol,
-              providerId: nextModel.providerId,
-              modelId: nextModel.modelId,
-            },
-          });
-          if (!response.success) {
-            dispatchNotification(pushError(response.error));
-            return;
-          }
-          if (activeSessionIdRef.current !== preparedSessionId) {
-            return;
-          }
-        } catch (error) {
-          dispatchNotification(pushError(formatError(error)));
-          return;
-        } finally {
-          modelSwitchInFlightRef.current = false;
-        }
-      }
-      const nextThinkingLevel =
-        resolveThinkingLevelForModel(
-          nextModel,
-          thinkingLevel,
-          config?.thinking?.ultraEnabled === true,
-        ) ?? 'off';
-      setSelectedModelKey(nextModelKey);
-      setThinkingLevel(nextThinkingLevel);
-      persistComposerProfile(nextModelKey, nextThinkingLevel);
-    },
-    [
-      config?.thinking?.ultraEnabled,
-      dispatch,
-      hostClient,
-      modelOptions,
-      persistComposerProfile,
-      selectedModelKey,
-      state.activeSessionId,
-      state.compacting,
-      state.contextUsage,
-      state.streaming,
-      thinkingLevel,
-    ],
-  );
-
-  const handleThinkingLevelChange = useCallback(
-    (nextThinkingLevel: import('@piwin/contracts').ThinkingLevel): void => {
-      setThinkingLevel(nextThinkingLevel);
-      persistComposerProfile(selectedModelKey, nextThinkingLevel);
-    },
-    [persistComposerProfile, selectedModelKey],
   );
 
   // ADR 0024: Run Mode preset. Session-level override (in memory); "Set as
@@ -1930,70 +1690,14 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     }, 50);
   }, []);
 
-  const [docComments, setDocComments] = useState<Record<string, LineCommentItem[]>>({});
-
-  const activeDocKey = activeDocument?.filePath || activeDocument?.title || 'default';
-  const activeComments = docComments[activeDocKey] || [];
-
-  const handleAddDocComment = useCallback(
-    (comment: { lineId: string; lineText: string; commentText: string }) => {
-      const newCommentItem: LineCommentItem = {
-        id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        lineId: comment.lineId,
-        lineText: comment.lineText,
-        commentText: comment.commentText,
-      };
-
-      setDocComments((prev) => ({
-        ...prev,
-        [activeDocKey]: [...(prev[activeDocKey] || []), newCommentItem],
-      }));
-
-      // Automatically focus composer after creating a comment
-      setTimeout(() => {
-        const textarea = document.querySelector<HTMLTextAreaElement>(
-          '[data-testid="composer-input"]',
-        );
-        if (textarea) {
-          textarea.focus();
-        }
-      }, 50);
-    },
-    [activeDocKey],
-  );
-
-  const handleEditDocComment = useCallback(
-    (id: string, newText: string) => {
-      setDocComments((prev) => ({
-        ...prev,
-        [activeDocKey]: (prev[activeDocKey] || []).map((c) =>
-          c.id === id ? { ...c, commentText: newText } : c,
-        ),
-      }));
-    },
-    [activeDocKey],
-  );
-
-  const handleDeleteDocComment = useCallback(
-    (id: string) => {
-      setDocComments((prev) => ({
-        ...prev,
-        [activeDocKey]: (prev[activeDocKey] || []).filter((c) => c.id !== id),
-      }));
-    },
-    [activeDocKey],
-  );
-
-  const handleSendWithComments = useCallback(async () => {
-    const docTitle = activeDocument?.title || 'Document';
-    const comments = activeComments;
-    const text =
-      comments.length > 0 ? mergeComposerWithDocComments(composer, docTitle, comments) : composer;
-    if (comments.length > 0) {
-      setDocComments((prev) => ({ ...prev, [activeDocKey]: [] }));
-    }
-    await handleSend(text);
-  }, [activeDocument?.title, activeComments, composer, activeDocKey, handleSend]);
+  const {
+    activeComments,
+    addDocComment: handleAddDocComment,
+    editDocComment: handleEditDocComment,
+    deleteDocComment: handleDeleteDocComment,
+    clearDocComments: handleRemoveDocComments,
+    sendWithComments: handleSendWithComments,
+  } = useDocComments({ activeDocument, composer, send: handleSend });
 
   async function handleExtensionUiResolve(payload: {
     confirmed?: boolean;
@@ -2056,49 +1760,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     saveDesktopPreferences(nextPreferences);
     onThemeApplied(buildAppearanceTheme(nextMode, nextThemeSettings));
   }
-
-  const refreshComposerMenus = useCallback(async (): Promise<void> => {
-    const skillsResponse = await hostClient.request({
-      type: 'skills/list',
-      ...(hostClient.getTransport() !== 'remote' && state.projectPath
-        ? { projectPath: state.projectPath }
-        : {}),
-    } as never);
-    if (skillsResponse.success && skillsResponse.data) {
-      const data = skillsResponse.data as {
-        skills?: Array<{ id: string; name?: string; enabled?: boolean }>;
-      };
-      setMenuSkills(
-        (data.skills ?? []).map((skill) => ({
-          id: skill.id,
-          name: skill.name ?? skill.id,
-          enabled: skill.enabled !== false,
-        })),
-      );
-    }
-    const mcpResponse = hostClient.supportsCommand('mcp/get')
-      ? await hostClient.request({ type: 'mcp/get' } as never)
-      : null;
-    if (mcpResponse?.success && mcpResponse.data) {
-      const data = mcpResponse.data as {
-        document?: { mcpServers?: Record<string, { command?: string }> };
-      };
-      const servers = Object.entries(data.document?.mcpServers ?? {});
-      setMenuMcp(
-        servers.map(([serverId]) => ({
-          id: serverId,
-          name: serverId,
-          running: false,
-        })),
-      );
-    }
-  }, [hostClient, state.projectPath]);
-
-  useEffect(() => {
-    if (state.activeSessionId && state.projectTrusted) {
-      void refreshComposerMenus();
-    }
-  }, [state.activeSessionId, state.projectTrusted, state.projectPath]);
 
   function openRightTab(tab: RightPanelTab): void {
     shell.openInspector(tab);
@@ -2203,48 +1864,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const visibleTranscriptMessages = state.historyView?.messages ?? state.messages;
   const visibleRunRecordsById = state.historyView?.runRecordsById ?? state.runRecordsById;
 
-  const selectedModelLabel = useMemo(() => {
-    if (!selectedModelKey) {
-      return 'Default model';
-    }
-    return (
-      modelOptions.find((option) => `${option.providerId}::${option.modelId}` === selectedModelKey)
-        ?.label ?? 'Default model'
-    );
-  }, [modelOptions, selectedModelKey]);
-
-  const selectedModelContextWindow = useMemo(() => {
-    if (!selectedModelKey) {
-      const defaultModel = modelOptions.find(
-        (option) =>
-          option.providerId === defaultProviderId &&
-          option.modelId === defaultModelId,
-      );
-      return defaultModel?.contextWindow;
-    }
-    return modelOptions.find(
-      (option) => `${option.providerId}::${option.modelId}` === selectedModelKey,
-    )?.contextWindow;
-  }, [modelOptions, selectedModelKey, defaultProviderId, defaultModelId]);
-
-  const currentPromptModelRef = useMemo<ModelRef | null>(() => {
-    const matched = selectedModelKey
-      ? modelOptions.find(
-          (option) => `${option.providerId}::${option.modelId}` === selectedModelKey,
-        )
-      : modelOptions.find(
-          (option) =>
-            option.providerId === defaultProviderId &&
-            option.modelId === defaultModelId,
-        );
-    if (!matched) return null;
-    return {
-      protocol: matched.protocol,
-      providerId: matched.providerId,
-      modelId: matched.modelId,
-    };
-  }, [modelOptions, selectedModelKey, defaultProviderId, defaultModelId]);
-
   /**
    * Status-bar percent must match ContextUsageRing (shared used/limit math).
    * Undefined until the first usage sample so chrome does not show a fake 0%.
@@ -2281,12 +1900,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const desktopCopy = getDesktopCopy(desktopLocale);
 
   // Stable callback identities so composerCard useMemo does not thrash on every App render.
-  const handleRemoveDocComments = useCallback((): void => {
-    setDocComments((prev) => ({
-      ...prev,
-      [activeDocKey]: [],
-    }));
-  }, [activeDocKey]);
   const handleRefreshComposerMenus = useCallback((): void => {
     void refreshComposerMenus();
   }, [refreshComposerMenus]);
@@ -3444,262 +3057,58 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               />
             }
             rightPanel={
-              <>
-                {showOverlayScrim ? (
-                  <button
-                    type="button"
-                    className="shell-overlay-scrim"
-                    data-testid="shell-overlay-scrim"
-                    aria-label="Close panel"
-                    onClick={() => shell.closeOverlay()}
-                  />
-                ) : null}
-
-                <RightPanel
-                  open={rightPanelOpen}
-                  onOpen={() => shell.openInspector(rightPanelTab)}
-                  onClose={() => shell.closeOverlay()}
-                  activeTab={rightPanelTab}
-                  onTabChange={(tab) => {
-                    shell.setInspectorTab(tab);
-                    if (!rightPanelOpen) {
-                      shell.openInspector(tab);
-                    }
-                  }}
-                  panelWidthPx={rightPanelResize.widthPx}
-                  isResizing={rightPanelResize.isResizing}
-                  onResizePointerDown={rightPanelResize.onResizePointerDown}
-                  onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
-                  isExpanded={rightPanelResize.widthPx > 450}
-                  onToggleExpand={() =>
-                    rightPanelResize.setWidthPx(
-                      rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
-                    )
-                  }
-                  isOverlayPresentation={isOverlayPresentation}
-                  runningJobCount={jobs.length}
-                  terminalAttention={terminalAttention}
-                  onTerminalAttentionClear={() => setTerminalAttention(false)}
-                  onViewChange={setRightPanelView}
-                  locale={desktopLocale}
-                  appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-                  onToggleAppearance={handleToggleAppearance}
-                  onOpenSkills={() => openSettingsSection('skills')}
-                  onOpenMcp={() => openSettingsSection('tools')}
-                  onOpenSettings={() => openSettingsSection('general')}
-                  onToggleSessions={() => shell.toggleSessions()}
-                  notesContent={
-                    hostClient.supportsCommand('notes/list') ? (
-                      <DeferredNotesPanel
-                        request={requestNotesPanel}
-                        readOnly={!hostClient.supportsCommand('notes/write')}
-                      />
-                    ) : (
-                      <RemoteUnavailableSurface feature="notes" locale={desktopLocale} />
-                    )
-                  }
-                  cardsContent={
-                    hostClient.supportsCommand('flashcards/list') ? (
-                      <DeferredFlashcardsPanel request={requestCardsPanel} />
-                    ) : (
-                      <RemoteUnavailableSurface feature="flashcards" locale={desktopLocale} />
-                    )
-                  }
-                  filesContent={
-                    hostClient.supportsCommand('project/list-dir') ? (
-                      <DeferredFileTreePanel
-                        projectPath={state.projectPath}
-                        request={requestFileTree}
-                        onAddContextRef={(ref) => {
-                          const result = addContextRef(ref);
-                          if (!result.ok) {
-                            dispatchNotification({
-                              type: 'notify/push',
-                              notification: {
-                                level: 'warning',
-                                message: 'Context chip limit reached (12). Remove one first.',
-                              },
-                            });
-                            return;
-                          }
-                        }}
-                        onSendPreset={(text, refs) => {
-                          for (const ref of refs) {
-                            addContextRef(ref);
-                          }
-                          void handleSend(text);
-                        }}
-                        onInsertPath={(absolutePath) => {
-                          setComposer((current) =>
-                            current.trim().length > 0
-                              ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
-                              : absolutePath,
-                          );
-                        }}
-                        locale={desktopLocale}
-                      />
-                    ) : (
-                      <RemoteUnavailableSurface feature="files" locale={desktopLocale} />
-                    )
-                  }
-                  canvasContent={
-                    <ArtifactCanvasPanel
-                      activeTarget={artifactCanvas.activeTarget}
-                      artifactTheme={mapThemeToArtifactVariables(activeTheme)}
-                      artifactThemeKey={artifactThemeKey}
-                      {...(config?.artifact?.maxBytes !== undefined
-                        ? { artifactMaxBytes: config.artifact.maxBytes }
-                        : {})}
-                      onInsertProposal={(proposal) =>
-                        setComposer((current) => appendComposerProposal(current, proposal.text))
-                      }
-                    />
-                  }
-                  browserContent={
-                    hostClient.supportsCommand('browser/start') ? (
-                      <DeferredBrowserSessionPanel
-                        hostClient={hostClient}
-                        onAddWebElement={addWebElement}
-                      />
-                    ) : (
-                      <RemoteUnavailableSurface feature="browser" locale={desktopLocale} />
-                    )
-                  }
-                  sideChatContent={
-                    <DeferredSideChatPanel
-                      sessionId={state.activeSessionId}
-                      hostClient={hostClient}
-                    />
-                  }
-                  docPreviewContent={
-                    inspectorFileDiff.diff && state.projectPath ? (
-                      <FileDiffInspector
-                        projectPath={state.projectPath}
-                        path={inspectorFileDiff.diff.relativePath}
-                        request={requestGit as never}
-                      />
-                    ) : activeMedia ? (
-                      <DeferredMediaDocPreview
-                        title={activeDocument?.title}
-                        displayRef={activeDocument?.displayRef}
-                        media={activeMedia}
-                        locale={desktopLocale}
-                      />
-                    ) : (
-                    <DeferredDocPreviewPanel
-                      title={activeDocument?.title}
-                      content={activeDocumentContent(activeDocument)}
-                      filePath={activeDocumentFilePath(activeDocument)}
-                      status={activeDocument?.status}
-                      displayRef={activeDocument?.displayRef}
-                      provenance={
-                        activeDocument?.status === 'ready' ? activeDocument.provenance : undefined
-                      }
-                      warning={
-                        activeDocument?.status === 'ready' ? activeDocument.warning : undefined
-                      }
-                      skillId={
-                        activeDocument?.status === 'ready' ? activeDocument.skillId : undefined
-                      }
-                      skillSource={
-                        activeDocument?.status === 'ready' ? activeDocument.skillSource : undefined
-                      }
-                      readOnly={
-                        activeDocument?.status === 'ready' ? activeDocument.readOnly : undefined
-                      }
-                      unavailableReason={
-                        activeDocument?.status === 'unavailable' ? activeDocument.reason : undefined
-                      }
-                      suggestion={
-                        activeDocument?.status === 'unavailable'
-                          ? activeDocument.suggestion
-                          : undefined
-                      }
-                      sessionDocuments={sessionDocuments}
-                      onOpenFile={(filePath) => {
-                        handleOpenDocument({
-                          title: filePath.split(/[\\/]/).pop() || filePath,
-                          path: filePath,
-                        });
-                      }}
-                      onCommentLine={handleCommentLine}
-                      comments={activeComments}
-                      onAddComment={handleAddDocComment}
-                      onEditComment={handleEditDocComment}
-                      onDeleteComment={handleDeleteDocComment}
-                      onSelectDocument={(doc) => {
-                        const planDocument =
-                          doc.path === `plans/${state.activeSessionId ?? ''}.md`
-                            ? sessionPlan
-                            : null;
-                        // Walkthrough virtual docs: resolve markdown content from the
-                        // in-memory artifact map (path: walkthroughs/<message-id>.md).
-                        const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
-                        const walkthroughArtifact = walkthroughMatch
-                          ? state.walkthroughsByMessageId[walkthroughMatch[1] as string]
-                          : undefined;
-                        handleOpenDocument({
-                          title: doc.title,
-                          ...(doc.path ? { path: doc.path } : {}),
-                          ...(planDocument ? { content: formatPlanMarkdown(planDocument) } : {}),
-                          ...(walkthroughArtifact?.status === 'ready'
-                            ? { content: walkthroughArtifact.markdown }
-                            : {}),
-                        });
-                      }}
-                      locale={desktopLocale}
-                    />
-                    )
-                  }
-                  terminalContent={
-                    hostClient.supportsCommand('pty/open') ? (
-                      <DeferredTerminalDock
-                        projectPath={state.projectPath}
-                        projectTrusted={state.projectTrusted}
-                        ptyOutput={ptyOutput}
-                        onClearPtyOutput={() => setPtyOutput([])}
-                        currentCwd={terminalCwd}
-                        onCwdChange={handleTerminalCwdChange}
-                        recentDirs={terminalRecentDirs}
-                        request={requestPty}
-                      />
-                    ) : (
-                      <RemoteUnavailableSurface feature="terminal" locale={desktopLocale} />
-                    )
-                  }
-                  reviewContent={
-                    hostClient.supportsCommand('git/status') ? (
-                      <DeferredReviewPanel
-                        changesContent={
-                          <DeferredChangesPanel
-                            projectPath={state.projectPath}
-                            request={requestGit as never}
-                            onOpenFile={(absolutePath, relativePath) => {
-                              // Workspace files open beside the file rail only — never the chat stage.
-                              handleOpenDocument(
-                                {
-                                  title: relativePath.split(/[\\/]/).pop() || relativePath,
-                                  path: absolutePath,
-                                },
-                                'inspector',
-                              );
-                            }}
-                          />
-                        }
-                        gitContent={
-                          <DeferredGitPanel
-                            projectPath={state.projectPath}
-                            request={requestGit as never}
-                            variant="embedded"
-                          />
-                        }
-                      />
-                    ) : (
-                      <RemoteUnavailableSurface feature="review" locale={desktopLocale} />
-                    )
-                  }
-                />
-              </>
+              <WorkbenchInspector
+                showOverlayScrim={showOverlayScrim}
+                shell={shell}
+                rightPanelOpen={rightPanelOpen}
+                rightPanelTab={rightPanelTab}
+                rightPanelResize={rightPanelResize}
+                isOverlayPresentation={isOverlayPresentation}
+                runningJobCount={jobs.length}
+                terminalAttention={terminalAttention}
+                onTerminalAttentionClear={() => setTerminalAttention(false)}
+                onViewChange={setRightPanelView}
+                locale={desktopLocale}
+                activeTheme={activeTheme}
+                onToggleAppearance={handleToggleAppearance}
+                openSettingsSection={openSettingsSection}
+                hostClient={hostClient}
+                requestNotesPanel={requestNotesPanel}
+                requestCardsPanel={requestCardsPanel}
+                requestFileTree={requestFileTree}
+                requestGit={requestGit}
+                requestPty={requestPty}
+                projectPath={state.projectPath}
+                projectTrusted={state.projectTrusted}
+                activeSessionId={state.activeSessionId}
+                walkthroughsByMessageId={state.walkthroughsByMessageId}
+                addContextRef={addContextRef}
+                dispatchNotification={dispatchNotification}
+                handleSend={handleSend}
+                setComposer={setComposer}
+                artifactTarget={artifactCanvas.activeTarget}
+                artifactThemeKey={artifactThemeKey}
+                {...(config?.artifact?.maxBytes !== undefined
+                  ? { artifactMaxBytes: config.artifact.maxBytes }
+                  : {})}
+                addWebElement={addWebElement}
+                inspectorDiff={inspectorFileDiff.diff}
+                activeMedia={activeMedia}
+                activeDocument={activeDocument}
+                sessionDocuments={sessionDocuments}
+                handleOpenDocument={handleOpenDocument}
+                handleCommentLine={handleCommentLine}
+                activeComments={activeComments}
+                handleAddDocComment={handleAddDocComment}
+                handleEditDocComment={handleEditDocComment}
+                handleDeleteDocComment={handleDeleteDocComment}
+                sessionPlan={sessionPlan}
+                ptyOutput={ptyOutput}
+                setPtyOutput={setPtyOutput}
+                terminalCwd={terminalCwd}
+                handleTerminalCwdChange={handleTerminalCwdChange}
+                terminalRecentDirs={terminalRecentDirs}
+              />
             }
           />
 
