@@ -18,6 +18,7 @@ import type {
   PermissionMode,
   PermissionRuleSet,
   ToolResult,
+  ToolResultImage,
 } from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
 import { BrowserUserHasControlError } from '@piwin/browser';
@@ -25,6 +26,10 @@ import { isPrivateOrLocalHostname, mappedIpv4FromIpv6 } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
 import { applyModeToMatchedRule, type PermissionEvaluation } from './permission-policy.js';
 import { passThroughPrepareArgs } from './tools/pass-through-prepare-args.js';
+import {
+  jpegBytesFromDataUrl,
+  type PersistBrowserScreenshotResult,
+} from './browser-screenshot-inspect.js';
 
 // ---------------------------------------------------------------------------
 // Permission classification (ADR 0020 §5)
@@ -137,11 +142,16 @@ function createBrowserRegistration(
   };
 }
 
-function success(output: unknown, details?: Record<string, unknown>): ToolResult {
+function success(
+  output: unknown,
+  details?: Record<string, unknown>,
+  images?: ToolResultImage[],
+): ToolResult {
   return {
     ok: true,
     output: typeof output === 'string' ? output : JSON.stringify(output),
     ...(details ? { details } : {}),
+    ...(images && images.length > 0 ? { images } : {}),
   };
 }
 
@@ -201,6 +211,16 @@ function normalizeScreenshotPath(value: unknown, projectRoot: string): string | 
 export type BrowserToolDefinitionOptions = {
   /** Root used to resolve relative screenshot output paths. */
   projectRoot?: string;
+  /**
+   * Persist the JPEG under the session media root and optionally describe it.
+   * When omitted, the tool returns dimensions only (tests / no media).
+   */
+  inspectScreenshot?: (input: {
+    jpegBytes: Uint8Array;
+    width: number;
+    height: number;
+    signal: AbortSignal;
+  }) => Promise<PersistBrowserScreenshotResult>;
 };
 
 export function createBrowserToolDefinitions(
@@ -434,13 +454,16 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_screenshot',
       description:
-        'Capture a screenshot of the current page. Returns a JPEG data URL and dimensions. Optionally save to a path.',
+        'Capture a screenshot of the current page for visual QA after UI changes. ' +
+        'Vision models receive the JPEG in this tool result — look at the image and keep editing. ' +
+        'Text-only models receive a vision description when vision delegation is configured. ' +
+        'Optionally also save a JPEG copy to a path.',
       parameters: {
         type: 'object',
         properties: {
           path: {
             type: 'string',
-            description: 'Optional absolute path to save the screenshot JPEG',
+            description: 'Optional absolute path to save a JPEG copy',
           },
         },
       },
@@ -449,6 +472,23 @@ export function createBrowserToolDefinitions(
     async (args, signal) => {
       const path = normalizeScreenshotPath(args.path, projectRoot);
       const result = await session.screenshot(path, { signal });
+      const inspect = options.inspectScreenshot;
+      if (inspect) {
+        const jpegBytes = jpegBytesFromDataUrl(result.dataUrl);
+        if (jpegBytes) {
+          try {
+            const inspected = await inspect({
+              jpegBytes,
+              width: result.width,
+              height: result.height,
+              signal,
+            });
+            return success(inspected.output, inspected.details, inspected.images);
+          } catch {
+            // ponytail: capture still counts if media/inspect fails
+          }
+        }
+      }
       return success(
         {
           width: result.width,

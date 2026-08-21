@@ -13,6 +13,7 @@
 import type { HostToolDescriptor, ToolResult } from '@piwin/contracts';
 import {
   PiBackendToolExecutionError,
+  projectHostToolResultToPiContent,
   type PiBackendCustomToolDefinition,
 } from '../backends/pi-backend-tool-adapter.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
@@ -70,15 +71,11 @@ export function buildSingleProxyTool(
         signal,
       );
       if (result.ok) {
-        return {
-          content: [{ type: 'text', text: result.output }],
-          details: {
-            toolName: descriptor.name,
-            toolCallId,
-            proxied: true,
-            ...(result.details ?? {}),
-          },
-        };
+        return projectHostToolResultToPiContent(result, {
+          toolName: descriptor.name,
+          toolCallId,
+          proxied: true,
+        });
       }
       // Map parent error codes to model-facing text.
       throw new PiBackendToolExecutionError(result.code, result.message);

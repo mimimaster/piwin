@@ -67,6 +67,26 @@ describe('buildWorkerProxyTools', () => {
     expect(result.details).toMatchObject({ toolName: 'web_search', proxied: true });
   });
 
+  it('forwards tool-result images into Pi content for vision closed-loop', async () => {
+    const proxyCall: ToolProxyCall = vi.fn(async () => ({
+      ok: true as true,
+      output: '{"inspect":{"status":"native"}}',
+      details: { attachments: [] },
+      images: [{ mimeType: 'image/jpeg', dataBase64: '/9j/QQ==' }],
+    }));
+    const tools = buildWorkerProxyTools(
+      blueprintWithTools(['browser_screenshot']),
+      proxyCall,
+      'sess-1',
+    );
+    const result = await tools[0]!.execute('tc-shot', {}, undefined, undefined, undefined);
+    expect(result.content).toEqual([
+      { type: 'text', text: '{"inspect":{"status":"native"}}' },
+      { type: 'image', mimeType: 'image/jpeg', data: '/9j/QQ==' },
+    ]);
+    expect(JSON.stringify(result.details)).not.toContain('/9j/QQ==');
+  });
+
   it('proxy executor throws permission-denied so Pi marks the tool as failed', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
