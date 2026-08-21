@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ARTIFACT_BRIDGE_READY_TYPE, ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE } from './constants.js';
+import {
+  ARTIFACT_BRIDGE_READY_TYPE,
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  ARTIFACT_VIEWPORT_FILL_HEIGHT,
+} from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import {
   buildArtifactBridgeBootstrapScript,
@@ -49,9 +53,12 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('nativeHandler.postMessage(JSON.stringify(message))');
     expect(srcdoc).toContain('post(actionType, { action: action, payload: payload || {} })');
     expect(srcdoc).toContain("parent.postMessage(message, '*')");
-    expect(srcdoc).toContain("'ResizeObserver' in window");
+    expect(srcdoc).toContain('window.ResizeObserver');
     expect(srcdoc).toContain('observer.observe(root)');
+    expect(srcdoc).toContain("window.addEventListener('resize', scheduleHeight)");
     expect(srcdoc).toContain('height === lastReportedHeight');
+    expect(srcdoc).toContain("root.querySelector('canvas, video')");
+    expect(srcdoc).toContain('fillsViewport(scene, viewport)');
     expect(srcdoc).not.toContain('MutationObserver');
     expect(srcdoc).not.toContain('scheduleMeasureLadder');
     expect(srcdoc).not.toContain("addEventListener('click'");
@@ -321,6 +328,67 @@ describe('buildHtmlArtifactSrcdoc', () => {
       }),
     ).toBe(240);
   });
+
+  it('stops a canvas innerHeight feedback loop at a stable scene height', () => {
+    const canvas = createFakeElement({
+      top: 0,
+      height: 80,
+      scrollHeight: 80,
+      overflowY: 'visible',
+    });
+    const root = createFakeElement({
+      top: 0,
+      height: 88,
+      scrollHeight: 88,
+      overflowY: 'visible',
+    });
+    root.querySelector = (selector) => (selector === 'canvas, video' ? canvas : null);
+    const body = createFakeElement({
+      top: 0,
+      height: 88,
+      scrollHeight: 88,
+      overflowY: 'visible',
+    });
+    const documentElement = createFakeElement({
+      top: 0,
+      height: 88,
+      scrollHeight: 88,
+      overflowY: 'visible',
+    });
+    root.parentElement = body;
+    body.parentElement = documentElement;
+
+    const session = runBridgeSession({
+      root,
+      body,
+      documentElement,
+      innerHeight: 80,
+    });
+    // Scene budget 400 + root padding 8 (the viewport-independent remainder).
+    const pinnedHeight = ARTIFACT_VIEWPORT_FILL_HEIGHT + 8;
+    expect(session.heights).toEqual([pinnedHeight]);
+
+    // Iframe resized to the pinned height; the canvas followed innerHeight.
+    canvas.getBoundingClientRect = () => ({
+      top: 0,
+      bottom: pinnedHeight,
+      height: pinnedHeight,
+      width: 100,
+    });
+    canvas.offsetHeight = pinnedHeight;
+    canvas.scrollHeight = pinnedHeight;
+    root.getBoundingClientRect = () => ({
+      top: 0,
+      bottom: pinnedHeight + 8,
+      height: pinnedHeight + 8,
+      width: 100,
+    });
+    root.offsetHeight = pinnedHeight + 8;
+    root.scrollHeight = pinnedHeight + 8;
+    session.setInnerHeight(pinnedHeight);
+    session.remeasure();
+    expect(session.heights).toEqual([pinnedHeight]);
+  });
 });
 
 type FakeRect = {
@@ -341,6 +409,7 @@ type FakeElement = {
   offsetHeight: number;
   scrollHeight: number;
   overflowY: string;
+  querySelector?: (selector: string) => FakeElement | null;
   querySelectorAll: () => FakeElement[];
   getBoundingClientRect: () => FakeRect;
 };
@@ -356,8 +425,15 @@ type FakeDocument = {
 type FakeWindow = {
   [key: string]: unknown;
   scrollY: number;
+  innerHeight?: number;
   addEventListener: () => void;
   getComputedStyle: (element: FakeElement) => FakeStyle;
+};
+
+type BridgeSession = {
+  heights: number[];
+  setInnerHeight: (height: number) => void;
+  remeasure: () => void;
 };
 
 type BridgeMessage = {
@@ -403,8 +479,11 @@ function createFakeElement(input: {
   return element;
 }
 
-function runBridgeMeasurement(fixture: BridgeFixture): number {
+function runBridgeSession(
+  fixture: BridgeFixture & { innerHeight?: number },
+): BridgeSession {
   const messages: BridgeMessage[] = [];
+  const resizeObservers: Array<() => void> = [];
   const documentObject: FakeDocument = {
     readyState: 'complete',
     body: fixture.body,
@@ -414,12 +493,24 @@ function runBridgeMeasurement(fixture: BridgeFixture): number {
   };
   const windowObject: FakeWindow = {
     scrollY: 0,
+    ...(fixture.innerHeight !== undefined ? { innerHeight: fixture.innerHeight } : {}),
     addEventListener: () => undefined,
     getComputedStyle: (element): FakeStyle => ({
       display: 'block',
       visibility: 'visible',
       overflowY: element.overflowY,
     }),
+    ResizeObserver: class {
+      constructor(callback: () => void) {
+        resizeObservers.push(callback);
+      }
+      observe(): void {
+        return undefined;
+      }
+      disconnect(): void {
+        return undefined;
+      }
+    },
   };
   const parentObject = {
     postMessage: (data: unknown): void => {
@@ -456,11 +547,28 @@ function runBridgeMeasurement(fixture: BridgeFixture): number {
       return 0;
     },
   );
-  const readyMessage = messages.find((message) => message.type === 'piwin-artifact:ready');
-  if (!readyMessage) {
+  return {
+    get heights() {
+      return messages.map((message) => message.height);
+    },
+    setInnerHeight(height: number): void {
+      windowObject.innerHeight = height;
+    },
+    remeasure(): void {
+      for (const observer of resizeObservers) {
+        observer();
+      }
+    },
+  };
+}
+
+function runBridgeMeasurement(fixture: BridgeFixture): number {
+  const session = runBridgeSession(fixture);
+  const readyHeight = session.heights[0];
+  if (readyHeight === undefined) {
     throw new Error('ready message missing');
   }
-  return readyMessage.height;
+  return readyHeight;
 }
 
 function isBridgeMessage(value: unknown): value is BridgeMessage {

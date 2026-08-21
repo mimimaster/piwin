@@ -75,3 +75,35 @@
 - 手动：Web Inspector 执行
   `window.dispatchEvent(new CustomEvent('desktop:memory-pressure', { detail: { bytes: 900 * 1024 * 1024 } }))`
   → 毛玻璃消失、`footprint` 观察 graphics 类目回落；`{ bytes: 0 }` 恢复。
+
+## 修正（2026-08-21）：CSS 降级救不了被钉死的 IOSurface —— 渲染器自愈层
+
+当日实测（dev shell-only 实例，运行 60 分钟，agent 流式 + HMR 高频重绘后）：
+
+| 阶段 | footprint | graphics (unmapped) |
+|---|---|---|
+| 稳态 | 1416 MB（峰值 1933） | 1074–1088 MB |
+| `org.WebKit.lowMemory` 模拟压力 | −86 MB（全是 malloc） | **不动** |
+| 整个 DOM `display:none` + 再次压力 | 1320 MB | **1065 MB 不动** |
+| 整页 reload（两次） | ≈1339 MB | **1079 MB 不动** |
+| `kill -9` WebContent（WebKit 自动重拉 + 页面重载） | **185 MB** | **35 MB** |
+
+结论：高强度重绘期积累的层后备 IOSurface 会滞留在 WebContent **进程级**
+机制里，DOM 清空、内存压力、GC、document 导航都无法回收；壳（UI 进程）
+未接盘（杀渲染器后壳仍 46 MB），只有渲染器死亡能释放。毛玻璃降级只能
+延缓，不能回收。heap 检视排除了 JS 侧持有（canvas ×1、CGImage ×4、
+ImageBitmap 正确 close）；CSS HMR 与小组件 TSX HMR 单独测试均不泄漏。
+
+新增第 4 层执行器 **渲染器自愈**：
+
+1. Rust `relaunch_webview_renderer`（memory_pressure.rs）：读取监控线程
+   落到 `MAIN_WEBVIEW_PID` 的 pid，经 `proc_pidpath` 验证确为
+   `com.apple.WebKit.WebContent` 后 SIGKILL；WKWebView 自动重载页面，
+   会话按 ADR 0038 从 Host 重水合。
+2. TS 策略 `renderer-self-heal.ts`（App 装配）：critical 连续保持
+   ≥5 分钟 且 无 streaming/compacting 且 `document.hidden` 时触发，
+   30 分钟冷却；决策纯函数单测覆盖。
+3. 非 Tauri 环境与非 macOS 平台自动 no-op。
+
+后续（未做）：泄漏的 WebKit 内部归属需 Instruments IOSurface 模板定位；
+若 release 包长跑复现同一钉死模式，考虑把自愈条件放宽到可见但空闲。
