@@ -1,0 +1,435 @@
+/**
+ * Desktop conversation-tree actions (ADR 0055): list ‹n/m› points, switch
+ * the active branch, and resend a user turn as a sibling instead of truncating.
+ */
+import { useCallback, useEffect, useState, type Dispatch } from 'react';
+import type {
+  HostCommand,
+  HostResponse,
+  HostServerMessage,
+  PromptInput,
+  SessionBranchListData,
+  SessionBranchSwitchData,
+  SessionTranscriptMessage,
+  SessionTranscriptPageInfo,
+  ThinkingLevel,
+  WorkspaceWrites,
+} from '@piwin/contracts';
+import type { TranscriptBranchPoint } from '@piwin/contracts';
+import type { HostClient } from '../host-client';
+import type { ChatMessageUi, ChatUiAction } from '../chat-reducer';
+import type { NotificationAction } from '../notification-queue';
+import { pushError, pushInfo } from '../notification-queue';
+import { canUseThinkingLevel } from '../model-thinking-policy';
+import {
+  foregroundMismatchNotice,
+  readForegroundProblem,
+  requestPromptWithForeground,
+} from '../prompt-foreground';
+import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
+import { clipMessagesBeforeId } from '../conversation-branch.js';
+import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
+import type { AgentModeId } from '../agent-mode';
+import type { ModelOption } from './use-session-actions';
+import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
+import type { DesktopLocale } from '../desktop-locale.js';
+
+export type UseBranchActionsArgs = {
+  hostClient: Pick<HostClient, 'request' | 'subscribe'> & {
+    supportsCommand?: HostClient['supportsCommand'];
+    supportsForegroundAdmission?: HostClient['supportsForegroundAdmission'];
+  };
+  activeSessionId: string | null;
+  streaming: boolean;
+  projectTrusted: boolean;
+  isGeneralScope: boolean;
+  transcriptOwnerSessionId: string | null;
+  visibleMessages: ChatMessageUi[];
+  dispatch: Dispatch<ChatUiAction>;
+  dispatchNotification: Dispatch<NotificationAction>;
+  setEditingMessageId: Dispatch<string | null>;
+  locale: DesktopLocale;
+  selectedModelKey: string;
+  modelOptions: ModelOption[];
+  thinkingLevel?: ThinkingLevel;
+  agentMode: AgentModeId;
+  orchestrationSchemeId?: string;
+  delegationDisabled?: boolean;
+  confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
+};
+
+export function useBranchActions(args: UseBranchActionsArgs) {
+  const {
+    hostClient,
+    activeSessionId,
+    streaming,
+    projectTrusted,
+    isGeneralScope,
+    transcriptOwnerSessionId,
+    visibleMessages,
+    dispatch,
+    dispatchNotification,
+    setEditingMessageId,
+    locale,
+    selectedModelKey,
+    modelOptions,
+    thinkingLevel,
+    agentMode,
+    orchestrationSchemeId,
+    delegationDisabled,
+    confirmForegroundReplace,
+  } = args;
+
+  const [branchPoints, setBranchPoints] = useState<TranscriptBranchPoint[]>([]);
+  const [pendingTruncate, setPendingTruncate] = useState<{
+    messageId: string;
+  } | null>(null);
+  const [pendingSwitchConfirm, setPendingSwitchConfirm] = useState<{
+    targetMessageId: string;
+    offPathWrites: WorkspaceWrites;
+  } | null>(null);
+
+  const refreshBranchPoints = useCallback(
+    async (sessionId: string): Promise<void> => {
+      if (hostClient.supportsCommand?.('session/branch-list') === false) {
+        return;
+      }
+      const response = await hostClient.request({ type: 'session/branch-list', sessionId });
+      if (!response.success) {
+        return;
+      }
+      const data = response.data as SessionBranchListData | undefined;
+      if (data?.sessionId === sessionId && Array.isArray(data.branchPoints)) {
+        setBranchPoints(data.branchPoints);
+      }
+    },
+    [hostClient],
+  );
+
+  useEffect(() => {
+    setBranchPoints([]);
+    // Pending confirmations name a message id in the session we just left.
+    setPendingSwitchConfirm(null);
+    setPendingTruncate(null);
+    if (!activeSessionId) {
+      return;
+    }
+    void refreshBranchPoints(activeSessionId);
+  }, [activeSessionId, refreshBranchPoints]);
+
+  useEffect(() => {
+    return hostClient.subscribe((message: HostServerMessage) => {
+      if (message.type !== 'session/branch-updated') {
+        return;
+      }
+      if (message.sessionId !== activeSessionId) {
+        return;
+      }
+      void refreshBranchPoints(message.sessionId);
+    });
+  }, [activeSessionId, hostClient, refreshBranchPoints]);
+
+  const applyHostTranscript = useCallback(
+    (
+      sessionId: string,
+      data: { messages?: SessionTranscriptMessage[]; transcriptPage?: SessionTranscriptPageInfo },
+    ): void => {
+      dispatch({
+        type: 'session/branch-switched',
+        sessionId,
+        messages: data.messages ?? [],
+        ...(data.transcriptPage ? { transcriptPage: data.transcriptPage } : {}),
+      });
+    },
+    [dispatch],
+  );
+
+  const reloadTranscript = useCallback(
+    async (sessionId: string): Promise<void> => {
+      const response = await hostClient.request({ type: 'session/messages', sessionId });
+      if (!response.success) {
+        return;
+      }
+      const data = response.data as { messages?: SessionTranscriptMessage[] } | undefined;
+      applyHostTranscript(sessionId, { messages: data?.messages ?? [] });
+    },
+    [applyHostTranscript, hostClient],
+  );
+
+  const switchBranch = useCallback(
+    async (targetMessageId: string, confirm = false): Promise<void> => {
+      if (!activeSessionId) {
+        dispatchNotification(pushError('No active session to switch.'));
+        return;
+      }
+      if (streaming) {
+        dispatchNotification(
+          pushInfo('Wait for the current run to finish (or stop it) before switching branches.'),
+        );
+        return;
+      }
+      const response = await hostClient.request({
+        type: 'session/branch-switch',
+        sessionId: activeSessionId,
+        targetMessageId,
+        messageProjection: 'tail',
+        ...(confirm ? { confirm: true } : {}),
+      });
+      if (!response.success) {
+        dispatchNotification(pushError(response.error));
+        return;
+      }
+      const data = response.data as SessionBranchSwitchData;
+      if (data.status === 'run-active') {
+        dispatchNotification(pushInfo('A run is still active — stop it before switching branches.'));
+        return;
+      }
+      if (data.status === 'needs-confirmation') {
+        setPendingSwitchConfirm({
+          targetMessageId,
+          offPathWrites: data.offPathWrites,
+        });
+        return;
+      }
+      setPendingSwitchConfirm(null);
+      applyHostTranscript(activeSessionId, data);
+      void refreshBranchPoints(activeSessionId);
+    },
+    [activeSessionId, applyHostTranscript, dispatchNotification, hostClient, refreshBranchPoints, streaming],
+  );
+
+  const branchResend = useCallback(
+    async (messageId: string, nextText: string): Promise<void> => {
+      if (!activeSessionId) {
+        dispatchNotification(pushError('No active session to branch.'));
+        return;
+      }
+      if (streaming) {
+        dispatchNotification(
+          pushInfo('Wait for the current run to finish (or stop it) before branching.'),
+        );
+        return;
+      }
+      const text = nextText.trim();
+      if (!text) {
+        return;
+      }
+      if (!isGeneralScope && !projectTrusted) {
+        dispatch({ type: 'project/trust-dialog', open: true });
+        return;
+      }
+      const visible = visibleMessages;
+      const target = visible.find((message) => message.id === messageId);
+      if (!target || target.role !== 'user') {
+        dispatchNotification(pushError(`Cannot branch: message not found in chat (${messageId})`));
+        return;
+      }
+
+      const clipped = clipMessagesBeforeId(visible, messageId);
+      if (clipped) {
+        dispatch({
+          type: 'session/branch-switched',
+          sessionId: activeSessionId,
+          clipBeforeMessageId: messageId,
+        });
+      }
+      setEditingMessageId(null);
+      const resendClientMessageId = crypto.randomUUID();
+      dispatch({ type: 'user/send', text, clientMessageId: resendClientMessageId });
+      const input = buildBranchPromptInput({
+        text,
+        branchFromMessageId: messageId,
+        clientMessageId: resendClientMessageId,
+        agentMode,
+        selectedModelKey,
+        modelOptions,
+        ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+        ...(orchestrationSchemeId !== undefined ? { orchestrationSchemeId } : {}),
+        ...(delegationDisabled !== undefined ? { delegationDisabled } : {}),
+      });
+      const response = await requestPromptWithForeground({
+        request: (command, options) => hostClient.request(command, options),
+        sessionId: activeSessionId,
+        input,
+        createIdempotencyKey: createGestureIdempotencyKey,
+        ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
+        ...(typeof hostClient.supportsForegroundAdmission === 'function'
+          ? { remoteForegroundAdmission: hostClient.supportsForegroundAdmission() }
+          : {}),
+      });
+      if (!response.success) {
+        dispatch({ type: 'user/send-rollback', clientMessageId: resendClientMessageId });
+        await reloadTranscript(activeSessionId);
+        const problem = readForegroundProblem(response);
+        if (problem) {
+          dispatchNotification(pushError(foregroundMismatchNotice(problem, locale)));
+        } else {
+          dispatchNotification(pushError(response.error));
+        }
+        return;
+      }
+      const accepted = response.data as { runId?: string; acceptedAt?: string };
+      if (typeof accepted.runId === 'string') {
+        dispatch({
+          type: 'run/accepted',
+          runId: accepted.runId,
+          ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+        });
+      }
+      void refreshBranchPoints(activeSessionId);
+    },
+    [
+      activeSessionId,
+      agentMode,
+      confirmForegroundReplace,
+      delegationDisabled,
+      dispatch,
+      dispatchNotification,
+      hostClient,
+      isGeneralScope,
+      locale,
+      modelOptions,
+      orchestrationSchemeId,
+      projectTrusted,
+      refreshBranchPoints,
+      reloadTranscript,
+      selectedModelKey,
+      setEditingMessageId,
+      streaming,
+      thinkingLevel,
+      visibleMessages,
+    ],
+  );
+
+  const requestTruncateAfter = useCallback(
+    (messageId: string): void => {
+      if (!activeSessionId) {
+        return;
+      }
+      if (streaming) {
+        dispatchNotification(
+          pushInfo('Wait for the current run to finish (or stop it) before deleting.'),
+        );
+        return;
+      }
+      if (
+        transcriptOwnerBlocksDangerousAction({
+          transcriptOwnerSessionId,
+          activeSessionId,
+        })
+      ) {
+        dispatchNotification(
+          pushError('Transcript is still loading for this session — try again in a moment.'),
+        );
+        return;
+      }
+      setPendingTruncate({ messageId });
+    },
+    [activeSessionId, dispatchNotification, streaming, transcriptOwnerSessionId],
+  );
+
+  const confirmTruncateAfter = useCallback(async (): Promise<void> => {
+    if (!activeSessionId || !pendingTruncate) {
+      return;
+    }
+    const messageId = pendingTruncate.messageId;
+    setPendingTruncate(null);
+    const response = await hostClient.request({
+      type: 'session/truncate-from',
+      sessionId: activeSessionId,
+      messageId,
+      messageProjection: 'tail',
+    });
+    if (!response.success) {
+      dispatchNotification(pushError(response.error));
+      return;
+    }
+    const data = response.data as {
+      messages?: SessionTranscriptMessage[];
+      transcriptPage?: SessionTranscriptPageInfo;
+    };
+    applyHostTranscript(activeSessionId, data);
+    void refreshBranchPoints(activeSessionId);
+  }, [
+    activeSessionId,
+    applyHostTranscript,
+    dispatchNotification,
+    hostClient,
+    pendingTruncate,
+    refreshBranchPoints,
+  ]);
+
+  return {
+    branchPoints,
+    switchBranch,
+    branchResend,
+    requestTruncateAfter,
+    pendingTruncate,
+    confirmTruncateAfter,
+    cancelTruncateAfter: () => setPendingTruncate(null),
+    pendingSwitchConfirm,
+    confirmSwitchBranch: () => {
+      if (pendingSwitchConfirm) {
+        void switchBranch(pendingSwitchConfirm.targetMessageId, true);
+      }
+    },
+    cancelSwitchBranch: () => setPendingSwitchConfirm(null),
+  };
+}
+
+export function buildBranchPromptInput(input: {
+  text: string;
+  branchFromMessageId: string;
+  clientMessageId: string;
+  agentMode: AgentModeId;
+  selectedModelKey: string;
+  modelOptions: ModelOption[];
+  thinkingLevel?: ThinkingLevel;
+  orchestrationSchemeId?: string;
+  delegationDisabled?: boolean;
+}): PromptInput {
+  const prompt: PromptInput = {
+    text: input.text,
+    agentMode: input.agentMode,
+    clientMessageId: input.clientMessageId,
+    branchFromMessageId: input.branchFromMessageId,
+  };
+  if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off') {
+    prompt.orchestrationSchemeId = input.orchestrationSchemeId;
+  }
+  if (input.delegationDisabled) {
+    prompt.delegationMode = 'disabled';
+  }
+  const option = input.modelOptions.find(
+    (item) => `${item.providerId}::${item.modelId}` === input.selectedModelKey,
+  );
+  if (option) {
+    prompt.model = {
+      protocol: option.protocol,
+      providerId: option.providerId,
+      modelId: option.modelId,
+    };
+    if (
+      input.thinkingLevel &&
+      canUseThinkingLevel(option, input.thinkingLevel, true)
+    ) {
+      prompt.thinkingLevel = input.thinkingLevel;
+    }
+  }
+  return prompt;
+}
+
+/** Narrow Host request used by tests — keep the command shape explicit. */
+export function isBranchPromptCommand(
+  command: HostCommand,
+): command is Extract<HostCommand, { type: 'session/prompt' }> {
+  return command.type === 'session/prompt';
+}
+
+export function readBranchListPoints(response: HostResponse): TranscriptBranchPoint[] {
+  if (!response.success) {
+    return [];
+  }
+  const data = response.data as SessionBranchListData | undefined;
+  return data?.branchPoints ?? [];
+}

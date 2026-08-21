@@ -21,7 +21,14 @@ export type SessionRuntimeResidency =
 
 /** Stable reasons a runtime was suspended (ADR 0040 §2/§4). */
 export type SessionRuntimeEvictionReason =
-  'idle-ttl' | 'max-idle' | 'max-resident' | 'memory-pressure' | 'manual' | 'host-dispose';
+  | 'idle-ttl'
+  | 'max-idle'
+  | 'max-resident'
+  | 'memory-pressure'
+  | 'manual'
+  | 'host-dispose'
+  /** ADR 0055: the active branch changed; the replayed context is stale. */
+  | 'branch-switch';
 
 export type SessionRuntimeStatus = {
   sessionId: string;

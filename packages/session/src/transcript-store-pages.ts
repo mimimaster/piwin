@@ -34,12 +34,12 @@ import {
   validatePositiveBoundedInteger,
 } from './transcript-store-bounds.js';
 import {
-  countIndexedUserMessages,
-  countRows,
-  countRowsBeforeSequence,
-  rowToMessage,
-  type MessageRow,
-} from './transcript-store-rows.js';
+  countPathIndexedUserMessages,
+  countPathRows,
+  countPathRowsBeforeSequence,
+  withActivePath,
+} from './transcript-store-path.js';
+import { rowToMessage, type MessageRow } from './transcript-store-rows.js';
 
 const TRANSCRIPT_CURSOR_VERSION = 1;
 const TRUNCATION_MARKER = '\n[message truncated in UI history; full content remains on Host]';
@@ -52,16 +52,19 @@ type TranscriptCursorPayload = {
   maximumBytes: number;
 };
 
-function readExactUserMessageIndexRows(db: DatabaseSync): UserMessageIndexRow[] {
+function readExactUserMessageIndexRows(db: DatabaseSync, sessionId: string): UserMessageIndexRow[] {
   const rows = db
     .prepare(
-      `SELECT id, created_at, substr(text, 1, ?) AS preview,
-              ROW_NUMBER() OVER (ORDER BY sequence) - 1 AS ordinal
-       FROM transcript_message
-       WHERE role = 'user' AND length(trim(text)) > 0
-       ORDER BY sequence ASC`,
+      withActivePath(
+        `SELECT transcript_message.id, created_at, substr(text, 1, ?) AS preview,
+                ROW_NUMBER() OVER (ORDER BY sequence) - 1 AS ordinal
+         FROM transcript_message
+         JOIN active_path ON transcript_message.id = active_path.id
+         WHERE role = 'user' AND length(trim(text)) > 0
+         ORDER BY sequence ASC`,
+      ),
     )
-    .all(SESSION_USER_MESSAGE_PREVIEW_CHARS + 1) as unknown as Array<{
+    .all(sessionId, SESSION_USER_MESSAGE_PREVIEW_CHARS + 1) as unknown as Array<{
     id: string;
     created_at: string;
     preview: string;
@@ -79,15 +82,18 @@ function readExactUserMessageIndexRows(db: DatabaseSync): UserMessageIndexRow[] 
 
 function readSampledUserMessageIndexRows(
   db: DatabaseSync,
+  sessionId: string,
   maximumTicks: number,
 ): UserMessageIndexRow[] {
   const rows = db
     .prepare(
-      `WITH user_rows AS (
-         SELECT sequence, id,
+      withActivePath(
+        `, user_rows AS (
+         SELECT sequence, transcript_message.id AS id,
                 ROW_NUMBER() OVER (ORDER BY sequence) - 1 AS ordinal,
                 COUNT(*) OVER () AS total
          FROM transcript_message
+         JOIN active_path ON transcript_message.id = active_path.id
          WHERE role = 'user' AND length(trim(text)) > 0
        ), bucketed AS (
          SELECT *, CAST(ordinal * ? / total AS INTEGER) AS bucket
@@ -112,8 +118,14 @@ function readSampledUserMessageIndexRows(
        JOIN transcript_message AS message
          ON message.sequence = source.sequence
        ORDER BY source.ordinal ASC`,
+      ),
     )
-    .all(maximumTicks, maximumTicks, SESSION_USER_MESSAGE_PREVIEW_CHARS + 1) as unknown as Array<{
+    .all(
+      sessionId,
+      maximumTicks,
+      maximumTicks,
+      SESSION_USER_MESSAGE_PREVIEW_CHARS + 1,
+    ) as unknown as Array<{
     id: string;
     created_at: string;
     preview: string;
@@ -243,7 +255,12 @@ function validateTranscriptWindowQuery(
   }
 }
 
-function revisionToken(sessionId: string, revision: number): string {
+/**
+ * One token algorithm for every transcript-revision surface (pages, windows,
+ * branch lists): clients compare tokens across responses, so a second
+ * algorithm would make identical revisions look different.
+ */
+export function transcriptRevisionToken(sessionId: string, revision: number): string {
   return createHash('sha256').update(`${sessionId}\u0000${revision}`).digest('hex');
 }
 
@@ -356,13 +373,13 @@ export function createTranscriptPagesOps(
         ensureOpen();
         validateTranscriptPageQuery(query, options.sessionId);
         const revision = currentRevision();
-        const totalCount = countRows(db);
+        const totalCount = countPathRows(db, options.sessionId);
         const cursor =
           query.beforeCursor === undefined ? null : decodeTranscriptCursor(query.beforeCursor);
         if (cursor !== null && cursor.revision !== revision) {
           return {
             status: 'stale-cursor',
-            currentRevision: revisionToken(options.sessionId, revision),
+            currentRevision: transcriptRevisionToken(options.sessionId, revision),
           };
         }
         if (
@@ -371,16 +388,20 @@ export function createTranscriptPagesOps(
         ) {
           return {
             status: 'stale-cursor',
-            currentRevision: revisionToken(options.sessionId, revision),
+            currentRevision: transcriptRevisionToken(options.sessionId, revision),
           };
         }
         const endSequence = cursor?.endSequence ?? Number.MAX_SAFE_INTEGER;
         const rows = db
           .prepare(
-            `SELECT * FROM transcript_message
-             WHERE sequence < ? ORDER BY sequence DESC LIMIT ?`,
+            withActivePath(
+              `SELECT transcript_message.* FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE transcript_message.sequence < ?
+               ORDER BY transcript_message.sequence DESC LIMIT ?`,
+            ),
           )
-          .all(endSequence, query.limit) as unknown as MessageRow[];
+          .all(options.sessionId, endSequence, query.limit) as unknown as MessageRow[];
         const chronologicalRows = rows.reverse();
         const selectedMessages: SessionTranscriptMessage[] = [];
         const selectedSequences: number[] = [];
@@ -414,13 +435,21 @@ export function createTranscriptPagesOps(
         const hasOlder =
           oldestSelectedSequence !== undefined &&
           db
-            .prepare('SELECT 1 FROM transcript_message WHERE sequence < ? LIMIT 1')
-            .get(oldestSelectedSequence) !== undefined;
+            .prepare(
+              withActivePath(
+                `SELECT 1 FROM transcript_message
+                 JOIN active_path ON transcript_message.id = active_path.id
+                 WHERE transcript_message.sequence < ? LIMIT 1`,
+              ),
+            )
+            .get(options.sessionId, oldestSelectedSequence) !== undefined;
         const endIndex =
-          cursor === null ? totalCount : countRowsBeforeSequence(db, cursor.endSequence);
+          cursor === null
+            ? totalCount
+            : countPathRowsBeforeSequence(db, options.sessionId, cursor.endSequence);
         const startIndex = Math.max(0, endIndex - selectedMessages.length);
         const page = {
-          revision: revisionToken(options.sessionId, revision),
+          revision: transcriptRevisionToken(options.sessionId, revision),
           totalCount,
           startIndex,
           endIndex,
@@ -446,14 +475,14 @@ export function createTranscriptPagesOps(
       async userMessageIndex(query) {
         ensureOpen();
         validateUserMessageIndexQuery(query, options.sessionId);
-        const totalUserMessages = countIndexedUserMessages(db);
+        const totalUserMessages = countPathIndexedUserMessages(db, options.sessionId);
         const rows =
           totalUserMessages <= query.maximumTicks
-            ? readExactUserMessageIndexRows(db)
-            : readSampledUserMessageIndexRows(db, query.maximumTicks);
+            ? readExactUserMessageIndexRows(db, options.sessionId)
+            : readSampledUserMessageIndexRows(db, options.sessionId, query.maximumTicks);
         return createUserMessageIndexData({
           sessionId: options.sessionId,
-          revision: revisionToken(options.sessionId, currentUserMessageRevision()),
+          revision: transcriptRevisionToken(options.sessionId, currentUserMessageRevision()),
           totalUserMessages,
           maximumTicks: query.maximumTicks,
           rows,
@@ -463,26 +492,42 @@ export function createTranscriptPagesOps(
       async transcriptWindow(query) {
         ensureOpen();
         validateTranscriptWindowQuery(query, options.sessionId);
+        // Off-path anchors report not-found: a window can only open on the
+        // active branch (callers re-anchor after a branch switch).
         const anchorRow = db
-          .prepare('SELECT * FROM transcript_message WHERE id = ?')
-          .get(query.anchorMessageId) as unknown as MessageRow | undefined;
+          .prepare(
+            withActivePath(
+              `SELECT transcript_message.* FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE transcript_message.id = ?`,
+            ),
+          )
+          .get(options.sessionId, query.anchorMessageId) as unknown as MessageRow | undefined;
         if (anchorRow === undefined) {
           return { status: 'not-found' };
         }
 
         const beforeRows = db
           .prepare(
-            `SELECT * FROM transcript_message
-             WHERE sequence < ? ORDER BY sequence DESC LIMIT ?`,
+            withActivePath(
+              `SELECT transcript_message.* FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE transcript_message.sequence < ?
+               ORDER BY transcript_message.sequence DESC LIMIT ?`,
+            ),
           )
-          .all(anchorRow.sequence, query.beforeItems) as unknown as MessageRow[];
+          .all(options.sessionId, anchorRow.sequence, query.beforeItems) as unknown as MessageRow[];
         beforeRows.reverse();
         const afterRows = db
           .prepare(
-            `SELECT * FROM transcript_message
-             WHERE sequence > ? ORDER BY sequence ASC LIMIT ?`,
+            withActivePath(
+              `SELECT transcript_message.* FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE transcript_message.sequence > ?
+               ORDER BY transcript_message.sequence ASC LIMIT ?`,
+            ),
           )
-          .all(anchorRow.sequence, query.afterItems) as unknown as MessageRow[];
+          .all(options.sessionId, anchorRow.sequence, query.afterItems) as unknown as MessageRow[];
         const entries = [...beforeRows, anchorRow, ...afterRows].map((row) => ({
           sequence: row.sequence,
           message: projectTranscriptMessagesForUi([rowToMessage(row)])[0] ?? rowToMessage(row),
@@ -495,12 +540,12 @@ export function createTranscriptPagesOps(
         const selectedSequences = selected.entries.map((entry) => entry.sequence);
         const firstSequence = selectedSequences[0] ?? anchorRow.sequence;
         const lastSequence = selectedSequences[selectedSequences.length - 1] ?? anchorRow.sequence;
-        const totalCount = countRows(db);
+        const totalCount = countPathRows(db, options.sessionId);
         const page: SessionTranscriptWindowInfo = {
-          revision: revisionToken(options.sessionId, currentRevision()),
+          revision: transcriptRevisionToken(options.sessionId, currentRevision()),
           totalCount,
-          startIndex: countRowsBeforeSequence(db, firstSequence),
-          endIndex: countRowsBeforeSequence(db, lastSequence) + 1,
+          startIndex: countPathRowsBeforeSequence(db, options.sessionId, firstSequence),
+          endIndex: countPathRowsBeforeSequence(db, options.sessionId, lastSequence) + 1,
           messageBytes: selected.messageBytes,
           anchorMessageId: query.anchorMessageId,
           anchorOffset: selected.anchorOffset,

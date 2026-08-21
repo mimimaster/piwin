@@ -354,6 +354,8 @@ const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
   'session/replace-run',
   'session/export',
   'session/truncate-from',
+  'session/branch-list',
+  'session/branch-switch',
   'session/duplicate',
   'session/fork',
   'walkthrough/list',
@@ -567,6 +569,10 @@ export class HostRuntime {
   private readonly sessionFilesTouched = new Map<string, string>();
   /** SIDE: last injected side-chat context version per session (§7.5(5)). */
   private readonly sideChatSnapshotInjectedVersions = new Map<string, number>();
+  private readonly pendingBranchCalibrationBySession = new Map<
+    string,
+    import('@piwin/contracts').WorkspaceWrites
+  >();
   private readonly compactExportOperations = new Map<
     string,
     {
@@ -4378,6 +4384,7 @@ export class HostRuntime {
       sessionFilesTouched: this.sessionFilesTouched,
       sessionLastPromptText: this.sessionLastPromptText,
       sideChatSnapshotInjectedVersions: this.sideChatSnapshotInjectedVersions,
+      pendingBranchCalibrationBySession: this.pendingBranchCalibrationBySession,
       compactExportOperations: this.compactExportOperations,
       sessionModels: this.sessionModels,
       loadSessionUsage: (sessionId) => this.loadSessionUsage(sessionId),

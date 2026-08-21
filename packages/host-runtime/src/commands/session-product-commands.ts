@@ -510,7 +510,7 @@ export async function handleSessionProductCommand(
         let messageCount = 0;
         let lastMessage: SessionTranscriptMessage | undefined;
         const messageIdMap = new Map<string, string>();
-        for await (const message of sourceStore.iterateAll(100)) {
+        for await (const message of sourceStore.iterateActivePath(100)) {
           const cloned = cloneTranscriptMessage(message);
           messageIdMap.set(message.id, cloned.id);
           await appendDerivedMessage(targetStore, cloned);
@@ -631,7 +631,7 @@ export async function handleSessionProductCommand(
         const messageIdMap = new Map<string, string>();
         const retainedRunIds = new Set<string>();
         let lastSourceUserMessageId: string | undefined;
-        for await (const message of sourceStore.iterateAll(100)) {
+        for await (const message of sourceStore.iterateActivePath(100)) {
           const cloned = cloneTranscriptMessage(message);
           messageIdMap.set(message.id, cloned.id);
           if (message.role === 'user') lastSourceUserMessageId = message.id;

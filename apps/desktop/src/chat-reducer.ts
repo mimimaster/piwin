@@ -521,9 +521,11 @@ export type ChatUiAction =
   | { type: 'session/hide-from-list'; sessionId: string }
   | { type: 'session/clear-active' }
   | {
-      type: 'session/truncate';
+      type: 'session/branch-switched';
       sessionId: string;
-      messages: SessionTranscriptMessage[];
+      messages?: SessionTranscriptMessage[];
+      /** Optimistic clip: drop this id and everything after it, keep prefix UI rows. */
+      clipBeforeMessageId?: string;
       transcriptPage?: SessionTranscriptPageInfo;
     }
   | {
@@ -1837,11 +1839,19 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         walkthroughsByMessageId: {},
         ...CLEARED_SUBAGENT_UI,
       };
-    case 'session/truncate': {
+    case 'session/branch-switched': {
       if (state.activeSessionId !== action.sessionId) {
         return state;
       }
-      const messages = mapTranscriptMessagesToUi(action.messages);
+      const messages =
+        action.clipBeforeMessageId !== undefined
+          ? (() => {
+              const cut = state.messages.findIndex(
+                (message) => message.id === action.clipBeforeMessageId,
+              );
+              return cut === -1 ? state.messages : state.messages.slice(0, cut);
+            })()
+          : mapTranscriptMessagesToUi(action.messages ?? []);
       return enforceBoundedTranscriptWindow({
         ...state,
         messages,
@@ -1868,7 +1878,10 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         streaming: false,
         error: null,
         activeSkill: null,
-        runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
+        runRecordsById:
+          action.clipBeforeMessageId !== undefined
+            ? state.runRecordsById
+            : buildRunRecordsFromTranscriptMessages(action.messages ?? []),
       });
     }
     case 'user/send': {

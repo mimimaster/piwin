@@ -50,6 +50,10 @@ import {
   type QueuedTurnStatus,
   type QueuedTurnTerminalReason,
 } from '@piwin/contracts';
+import {
+  createTranscriptBranchesOps,
+  type TranscriptBranchPoint,
+} from './transcript-store-branches.js';
 import { createTranscriptHistoryOps } from './transcript-store-history.js';
 import { createTranscriptInterventionsOps } from './transcript-store-interventions.js';
 import { createTranscriptLegacyOps } from './transcript-store-legacy.js';
@@ -88,6 +92,7 @@ export type TranscriptStoreMessageInput = {
     instructionDelivery?: SessionTranscriptMessage['instructionDelivery'];
     docCardSequence?: SessionTranscriptMessage['docCardSequence'];
     replyWriter?: SessionTranscriptMessage['replyWriter'];
+    workspaceWrites?: SessionTranscriptMessage['workspaceWrites'];
   };
 };
 
@@ -326,10 +331,44 @@ export type SessionTranscriptStore = {
   recentModel(): Promise<ModelRef | undefined>;
   /** Bounded outline page without loading message bodies. */
   outlinePage(query: SessionOutlinePageQuery): Promise<SessionOutlinePageData>;
-  /** Delete from (and including) the row with the given id. */
+  /** Active leaf id of the conversation tree (null in an empty store). */
+  getActiveLeaf(): Promise<string | null>;
+  /**
+   * Parent id of one row: null for roots, undefined when the row is absent.
+   * Host-side branch prompts resolve the rebase target with this — clients
+   * never see parent ids (`SessionTranscriptMessage` carries none).
+   */
+  getParentMessageId(messageId: string): Promise<string | null | undefined>;
+  /**
+   * Move the leaf exactly to `messageId` (null = start a new root). Used by
+   * branch prompts: the next append becomes a sibling of the abandoned turn.
+   */
+  rebaseActiveLeaf(messageId: string | null): Promise<void>;
+  /** Move the leaf to the deepest node of the target's subtree. */
+  switchActiveBranch(targetMessageId: string): Promise<{ activeLeafMessageId: string }>;
+  /**
+   * Assistant rows a switch to `targetMessageId` would leave behind: the
+   * active path after its fork with the target. Empty when the target is
+   * already on the path, `undefined` when the target does not exist (the
+   * caller lets `switchActiveBranch` raise the real error). Feeds the
+   * write-boundary check (ADR 0055) without loading the whole path.
+   */
+  listAbandonedAssistantRows(
+    targetMessageId: string,
+  ): Promise<SessionTranscriptMessage[] | undefined>;
+  /** ‹n/m› switcher data: one point per fork along the active path. */
+  listBranchPoints(options: { previewChars: number }): Promise<TranscriptBranchPoint[]>;
+  /**
+   * Delete the message and its entire subtree (explicit destructive gesture,
+   * ADR 0055). When the subtree contains the active path, the leaf falls back
+   * to the target's parent.
+   */
   truncateFrom(messageId: string): Promise<TranscriptStoreTruncateResult>;
-  /** Stream the full transcript in bounded batches (export/duplicate). */
-  iterateAll(batchSize?: number): AsyncIterable<SessionTranscriptMessage>;
+  /**
+   * Stream the active path in bounded batches (export/duplicate/fork). Never
+   * the whole tree: abandoned branches stay private to this store (ADR 0055).
+   */
+  iterateActivePath(batchSize?: number): AsyncIterable<SessionTranscriptMessage>;
   /**
    * Transactionally import a legacy `transcript.json` document under the
    * reserved `legacy-import-v1` namespace. Idempotent: a second import of the
@@ -386,7 +425,8 @@ export async function openSessionTranscriptStore(
       working_directory TEXT,
       updated_at TEXT NOT NULL,
       import_digest TEXT,
-      authority_state TEXT NOT NULL DEFAULT 'pending'
+      authority_state TEXT NOT NULL DEFAULT 'pending',
+      active_leaf_message_id TEXT
     );
     CREATE TABLE IF NOT EXISTS transcript_message(
       sequence INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -404,6 +444,7 @@ export async function openSessionTranscriptStore(
       context_refs_json TEXT,
       tools_json TEXT,
       metadata_json TEXT,
+      parent_message_id TEXT,
       UNIQUE(runtime_generation_id, backend_message_id)
     );
     CREATE INDEX IF NOT EXISTS idx_message_generation
@@ -509,6 +550,45 @@ export async function openSessionTranscriptStore(
   if (!messageColumns.some((column) => column.name === 'context_refs_json')) {
     db.exec('ALTER TABLE transcript_message ADD COLUMN context_refs_json TEXT');
   }
+  // Conversation tree v3 (ADR 0055): every row points at its parent and the
+  // meta row tracks the active leaf. Pre-tree databases get the columns lazily.
+  const parentColumnAdded = !messageColumns.some(
+    (column) => column.name === 'parent_message_id',
+  );
+  if (parentColumnAdded) {
+    db.exec('ALTER TABLE transcript_message ADD COLUMN parent_message_id TEXT');
+  }
+  if (!metaColumns.some((column) => column.name === 'active_leaf_message_id')) {
+    db.exec('ALTER TABLE transcript_meta ADD COLUMN active_leaf_message_id TEXT');
+  }
+  // Created here (not in the main batch) so an old database gains the column
+  // via ALTER before the index references it.
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_message_parent ON transcript_message(parent_message_id)',
+  );
+  if (parentColumnAdded) {
+    // One-time chain backfill: linear history becomes a single path. Runs only
+    // when the column was just added — NULL parents on an already-migrated
+    // database are genuine additional roots and must never be rewritten.
+    db.exec('BEGIN');
+    try {
+      db.exec(
+        `UPDATE transcript_message SET parent_message_id =
+           (SELECT t2.id FROM transcript_message t2
+            WHERE t2.sequence < transcript_message.sequence
+            ORDER BY t2.sequence DESC LIMIT 1)`,
+      );
+      db.prepare(
+        `UPDATE transcript_meta SET active_leaf_message_id =
+           (SELECT id FROM transcript_message ORDER BY sequence DESC LIMIT 1)
+         WHERE session_id = ?`,
+      ).run(options.sessionId);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
   db.prepare(
     `INSERT OR IGNORE INTO transcript_meta(
       session_id, revision, project_path, updated_at
@@ -566,12 +646,19 @@ export async function openSessionTranscriptStore(
   }
 
   function insertMessageRow(input: TranscriptStoreMessageInput): void {
+    // Tree chaining happens here — the single choke point every insert path
+    // (append, queued turn, intervention, legacy import) already goes through.
+    // Provenance replays early-return in appendMessage and never reach this,
+    // so a replay can never move the leaf. Callers hold the transaction.
+    const leafRow = db
+      .prepare('SELECT active_leaf_message_id FROM transcript_meta WHERE session_id = ?')
+      .get(options.sessionId) as { active_leaf_message_id: string | null } | undefined;
     db.prepare(
       `INSERT INTO transcript_message(
         id, runtime_generation_id, backend_message_id, role, text, thinking,
         status, created_at, run_id, model_json, attachments_json, context_refs_json,
-        tools_json, metadata_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tools_json, metadata_json, parent_message_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.id,
       input.runtimeGenerationId,
@@ -587,7 +674,11 @@ export async function openSessionTranscriptStore(
       input.contextRefs === undefined ? null : JSON.stringify(input.contextRefs),
       input.tools === undefined ? null : JSON.stringify(input.tools),
       input.metadata === undefined ? null : JSON.stringify(input.metadata),
+      leafRow?.active_leaf_message_id ?? null,
     );
+    db.prepare(
+      'UPDATE transcript_meta SET active_leaf_message_id = ? WHERE session_id = ?',
+    ).run(input.id, options.sessionId);
   }
   const core: TranscriptStoreCore = {
     db,
@@ -603,6 +694,7 @@ export async function openSessionTranscriptStore(
 
   return {
     ...createTranscriptMessagesOps(core),
+    ...createTranscriptBranchesOps(core),
     ...createTranscriptPagesOps(core),
     ...createTranscriptPauseOps(core),
     ...createTranscriptInterventionsOps(core),

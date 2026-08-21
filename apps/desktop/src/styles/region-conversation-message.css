@@ -388,4 +388,27 @@ html[data-theme-visual-style='ink-wash'] .user-message-avatar {
   }
 }
 
+.message-branch-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  user-select: none;
+}
+
+.message-branch-switcher-label {
+  min-width: 2.2em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.message-branch-switcher-btn {
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+}
+
 

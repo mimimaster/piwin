@@ -1,6 +1,7 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptDocument, SessionTranscriptMessage } from '@piwin/contracts';
 import {
@@ -918,7 +919,7 @@ describe('SessionTranscriptStore', () => {
     await expect(store.listTail(-1)).rejects.toThrow(/between 1 and/);
     await expect(store.listTail(101)).rejects.toThrow(/between 1 and/);
     await expect(store.buildHistoryWindow({ maxMessages: -1 })).rejects.toThrow(/between 1 and/);
-    const iterate = store.iterateAll(-1);
+    const iterate = store.iterateActivePath(-1);
     await expect(iterate[Symbol.asyncIterator]().next()).rejects.toThrow(/between 1 and/);
     store.close();
   });
@@ -1067,7 +1068,7 @@ describe('SessionTranscriptStore', () => {
       );
     }
     const collected: string[] = [];
-    for await (const message of store.iterateAll(5)) {
+    for await (const message of store.iterateActivePath(5)) {
       collected.push(message.id);
     }
     expect(collected).toHaveLength(12);
@@ -1088,7 +1089,7 @@ describe('SessionTranscriptStore', () => {
         }),
       );
     }
-    const iterator = store.iterateAll(1)[Symbol.asyncIterator]();
+    const iterator = store.iterateActivePath(1)[Symbol.asyncIterator]();
     expect((await iterator.next()).value?.id).toBe('piw-m-0');
     await store.updateMessage('piw-m-0', { text: 'changed during copy' });
     await expect(iterator.next()).rejects.toBeInstanceOf(TranscriptIterationStaleError);
@@ -1405,4 +1406,163 @@ describe('SessionTranscriptStore', () => {
     reopened.close();
   });
 
+});
+
+/** Raw column peek for tree assertions; the read API arrives in later tasks. */
+function readTreeState(dbPath: string): {
+  parents: Array<{ id: string; parent: string | null }>;
+  activeLeaf: string | null;
+} {
+  const db = new DatabaseSync(dbPath);
+  try {
+    const parents = (
+      db
+        .prepare('SELECT id, parent_message_id FROM transcript_message ORDER BY sequence ASC')
+        .all() as unknown as Array<{ id: string; parent_message_id: string | null }>
+    ).map((row) => ({ id: row.id, parent: row.parent_message_id }));
+    const meta = db.prepare('SELECT active_leaf_message_id FROM transcript_meta').get() as
+      | { active_leaf_message_id: string | null }
+      | undefined;
+    return { parents, activeLeaf: meta?.active_leaf_message_id ?? null };
+  } finally {
+    db.close();
+  }
+}
+
+describe('SessionTranscriptStore conversation tree chaining (S2 Task 1)', () => {
+  it('chains appended messages parent → child and moves the active leaf', async () => {
+    const { store, dbPath } = await openStore('tree-chain');
+    await store.appendMessage(
+      messageInput({ id: 'u1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-u1', role: 'user' }),
+    );
+    await store.appendMessage(
+      messageInput({ id: 'a1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-a1' }),
+    );
+    await store.appendMessage(
+      messageInput({ id: 'u2', runtimeGenerationId: 'gen-a', backendMessageId: 'b-u2', role: 'user' }),
+    );
+    store.close();
+    const state = readTreeState(dbPath);
+    expect(state.parents).toEqual([
+      { id: 'u1', parent: null },
+      { id: 'a1', parent: 'u1' },
+      { id: 'u2', parent: 'a1' },
+    ]);
+    expect(state.activeLeaf).toBe('u2');
+  });
+
+  it('same-provenance replay neither inserts nor moves the leaf', async () => {
+    const { store, dbPath } = await openStore('tree-replay');
+    await store.appendMessage(
+      messageInput({ id: 'u1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-u1', role: 'user' }),
+    );
+    await store.appendMessage(
+      messageInput({ id: 'a1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-a1' }),
+    );
+    const replay = await store.appendMessage(
+      messageInput({ id: 'u1', runtimeGenerationId: 'gen-a', backendMessageId: 'b-u1', role: 'user' }),
+    );
+    expect(replay).toEqual({ ok: true, replayed: true });
+    store.close();
+    const state = readTreeState(dbPath);
+    expect(state.activeLeaf).toBe('a1');
+    expect(state.parents).toHaveLength(2);
+  });
+
+  it('backfills a linear chain exactly once when the columns are first added', async () => {
+    // Build a pre-tree database by hand: same tables minus the new columns.
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-tree-migrate-'));
+    const dbPath = join(rootDir, 'transcript.sqlite3');
+    const raw = new DatabaseSync(dbPath);
+    raw.exec(`
+      CREATE TABLE transcript_meta(
+        session_id TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL,
+        user_message_revision INTEGER NOT NULL DEFAULT 0,
+        queued_turn_revision INTEGER NOT NULL DEFAULT 0,
+        project_path TEXT NOT NULL,
+        scope_json TEXT,
+        working_directory TEXT,
+        updated_at TEXT NOT NULL,
+        import_digest TEXT,
+        authority_state TEXT NOT NULL DEFAULT 'pending'
+      );
+      CREATE TABLE transcript_message(
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE,
+        runtime_generation_id TEXT NOT NULL,
+        backend_message_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        thinking TEXT,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        run_id TEXT,
+        model_json TEXT,
+        attachments_json TEXT,
+        context_refs_json TEXT,
+        tools_json TEXT,
+        metadata_json TEXT,
+        UNIQUE(runtime_generation_id, backend_message_id)
+      );
+    `);
+    raw
+      .prepare(
+        `INSERT INTO transcript_meta(session_id, revision, project_path, updated_at)
+         VALUES ('session-tree-migrate', 0, '/tmp/project', '2026-08-21T00:00:00.000Z')`,
+      )
+      .run();
+    const insert = raw.prepare(
+      `INSERT INTO transcript_message(
+         id, runtime_generation_id, backend_message_id, role, text, status, created_at
+       ) VALUES (?, 'gen-legacy', ?, ?, ?, 'done', '2026-08-21T00:00:00.000Z')`,
+    );
+    insert.run('u1', 'b-u1', 'user', 'first');
+    insert.run('a1', 'b-a1', 'assistant', 'second');
+    insert.run('u2', 'b-u2', 'user', 'third');
+    raw.close();
+
+    const store = await openSessionTranscriptStore({
+      dbPath,
+      sessionId: 'session-tree-migrate',
+      projectPath: '/tmp/project',
+    });
+    store.close();
+    const migrated = readTreeState(dbPath);
+    expect(migrated.parents).toEqual([
+      { id: 'u1', parent: null },
+      { id: 'a1', parent: 'u1' },
+      { id: 'u2', parent: 'a1' },
+    ]);
+    expect(migrated.activeLeaf).toBe('u2');
+
+    // A second open must never re-backfill: a deliberate NULL-parent sibling
+    // root inserted after migration stays a root.
+    const sideRoot = new DatabaseSync(dbPath);
+    sideRoot
+      .prepare(
+        `INSERT INTO transcript_message(
+           id, runtime_generation_id, backend_message_id, role, text, status,
+           created_at, parent_message_id
+         ) VALUES ('u1-alt', 'gen-alt', 'b-u1-alt', 'user', 'alt root', 'done',
+                   '2026-08-21T00:00:01.000Z', NULL)`,
+      )
+      .run();
+    sideRoot.close();
+    const reopened = await openSessionTranscriptStore({
+      dbPath,
+      sessionId: 'session-tree-migrate',
+      projectPath: '/tmp/project',
+    });
+    reopened.close();
+    const afterReopen = readTreeState(dbPath);
+    expect(afterReopen.parents.find((row) => row.id === 'u1-alt')?.parent).toBeNull();
+    expect(afterReopen.parents.find((row) => row.id === 'a1')?.parent).toBe('u1');
+  });
+
+  it('keeps the leaf NULL for an empty store', async () => {
+    const { store, dbPath } = await openStore('tree-empty');
+    store.close();
+    expect(readTreeState(dbPath).activeLeaf).toBeNull();
+  });
 });

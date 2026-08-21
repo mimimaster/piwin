@@ -1362,6 +1362,17 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         isSafeRemoteId(command.messageId) &&
         (command.messageProjection === 'tail' || command.messageProjection === 'none')
       );
+    case 'session/branch-list':
+      return isSafeRemoteId(command.sessionId);
+    case 'session/branch-switch':
+      return (
+        isSafeRemoteId(command.sessionId) &&
+        isSafeRemoteId(command.targetMessageId) &&
+        (command.confirm === undefined || typeof command.confirm === 'boolean') &&
+        (command.messageProjection === undefined ||
+          command.messageProjection === 'tail' ||
+          command.messageProjection === 'none')
+      );
     case 'session/compact':
       return (
         isSafeRemoteId(command.sessionId) &&
@@ -1443,7 +1454,9 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
           (command.input.attachments.length <= 8 &&
             command.input.attachments.every(isSafeRemoteAttachment))) &&
         areSafeRemoteContextRefs(command.input.contextRefs) &&
-        command.input.text.length <= 512_000
+        command.input.text.length <= 512_000 &&
+        (command.input.branchFromMessageId === undefined ||
+          isSafeRemoteId(command.input.branchFromMessageId))
       );
     case 'settings/apply':
       return isSafeRemoteSettingsApply(command);

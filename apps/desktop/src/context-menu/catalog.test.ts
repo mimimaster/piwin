@@ -76,6 +76,7 @@ describe('buildContextMenuItems', () => {
     };
     expect(actionIds(target)).toContain('fork');
     expect(actionIds(target)).not.toContain('retry');
+    expect(actionIds(target)).toContain('truncate-after');
   });
 
   it('hides reveal when unsupported and shows it when available', () => {

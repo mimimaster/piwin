@@ -255,6 +255,56 @@ describe('createStoreTranscriptRecorder', () => {
     store.close();
   });
 
+  it('merges workspaceWrites into the assistant row on write-like tool/end', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-writes-'));
+    const store = await openSessionTranscriptStore({
+      dbPath: join(rootDir, 'transcript.sqlite3'),
+      sessionId: 'session-writes',
+      projectPath: '/project',
+    });
+    await store.markAuthoritative();
+    const recorder = createStoreTranscriptRecorder({
+      store,
+      runtimeGenerationId: 'generation-writes',
+    });
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-write',
+      role: 'assistant',
+      runId: 'run-write',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'edit-1',
+      toolName: 'edit',
+      runId: 'run-write',
+    });
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'edit-1',
+      isError: false,
+      runId: 'run-write',
+      presentation: {
+        kind: 'filesystem',
+        title: 'Edit file',
+        actionVerb: 'Edited',
+        targetPaths: ['src/app.ts'],
+      },
+    });
+    await recorder.recordEvent({
+      type: 'message/end',
+      messageId: 'assistant-write',
+      runId: 'run-write',
+    });
+    await recorder.flush();
+    expect((await store.getMessage('assistant-write'))?.workspaceWrites).toEqual({
+      files: ['src/app.ts'],
+      hasUnknownWrites: false,
+    });
+    recorder.dispose();
+    store.close();
+  });
+
   it('persists and merges native search evidence before assistant finalization', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-store-recorder-search-evidence-'));
     const store = await openSessionTranscriptStore({

@@ -26,7 +26,9 @@ from the same transcript.
    **not** a multi-leaf Pi branch graph.
 4. Do **not** wire `piSessionFile` into create/resume until a later spike proves
    stable dual-mode semantics (SDK + RPC) without silent wrong model state.
-5. Residual: keep **D-M2-01b** / **D-M2-02-full** for true Pi JSONL multi-leaf tree.
+5. Residual: keep **D-M2-01b** / **D-M2-02-full** as “do not resume Pi JSONL”.
+   In-session branching is a product-store tree (ADR 0055), not a Pi JSONL
+   multi-leaf projection.
 
 ## Consequences
 
@@ -34,12 +36,11 @@ from the same transcript.
 - Live tool/MCP process state is recreated on next live session, not restored
   from Pi JSONL.
 - No half-broken “looks resumed but wrong model state”.
-- `session/truncate-from` (revert) drops the adapter's cached Product Shell /
-  live Pi handle (`AgentHost.dropSession`) and rebuilds a fresh shell from the
-  truncated product transcript. The next prompt passes `requireSession` and
-  injects the truncated history via `needsProductHistoryInjection`, so an
-  edited-and-resent message replaces the pre-truncation turns instead of
-  duplicating them.
+- `session/truncate-from` is the explicit subtree delete (“delete this and
+  after”). It still drops the adapter's cached Product Shell / live Pi handle
+  (`AgentHost.dropSession`) and rebuilds a fresh shell from the remaining
+  active path. Daily edit/resend no longer truncates — it branches via
+  `PromptInput.branchFromMessageId` (ADR 0055).
 
 ## 2026-08-04 extension: product-level Session Fork
 

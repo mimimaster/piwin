@@ -204,6 +204,14 @@ export type SessionLiveContext = {
    */
   sideChatSnapshotInjectedVersions: Map<string, number>;
   /**
+   * Abandoned-branch writes to inject on the next prompt after a confirmed
+   * switch. Survives runtime dispose; consumed exactly once by calibration.
+   */
+  pendingBranchCalibrationBySession: Map<
+    string,
+    import('@piwin/contracts').WorkspaceWrites
+  >;
+  /**
    * Active compact-export operations keyed by the source product session id.
    * Abort targets the temporary runtime registered here, not the source session.
    */

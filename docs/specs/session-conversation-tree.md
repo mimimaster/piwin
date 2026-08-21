@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Status | S1 Implemented（2026-08-13，见 §4 实现注记与 `docs/plans/2026-08-13-conversation-tree-s1-native-context.md`）；S2/S3 Draft — 待评审 |
+| Status | S1 Implemented（2026-08-13）；S2 Stages 1–5 Implemented（2026-08-21，ADR 0055；含 warn-only 写边界）；S3 worktree 升级按钮仍随 SF-06 |
 | Date | 2026-08-13 |
-| Related | ADR 0009（session resume / SF fork）、ADR 0040（runtime residency / transcript store）、ADR 0032（side chat）、ADR 0019（permission rule engine）、ADR 0038（egress 流控） |
+| Related | ADR 0009、ADR 0040、ADR 0032、ADR 0019、ADR 0038、**ADR 0055**（产品 store 内树） |
 | Supersedes | ADR 0009 残留项 D-M2-01b / D-M2-02-full 的"真 Pi JSONL 多叶树 spike"（以产品 store 内树替代，不接 piSessionFile） |
 
 ## 1. 背景与动机
@@ -206,8 +206,10 @@ CREATE INDEX IF NOT EXISTS idx_message_parent
 
 - 常规追加：新行 `parent = active_leaf`，随后 leaf 前移（与现状等价）。
 - **编辑重发改为分支**：`PromptInput` 增加可选 `branchFromMessageId`。
-  Desktop 编辑重发不再调用 `session/truncate-from`，改为直接 prompt 并携带
-  `branchFromMessageId =` 被编辑消息的 parent。旧后续链完整保留为兄弟分支。
+  字段命名的是被替代的 **user 消息**（不是 parent）。Host 解析 parent（含
+  根分叉 `NULL`）后 rebase 再追加。Desktop 编辑重发不再调用
+  `session/truncate-from`。旧后续链完整保留为兄弟分支。
+  （与早期 §5 草稿的偏差见 ADR 0055。）
 - `session/truncate-from` 保留为显式破坏性操作（"删除此处之后"），实现改为
   删除以目标为根的**子树**（含各分支）并级联 `native_entry`。
 - 助手响应重试（现另一处 truncate 调用）同样改分支语义。
@@ -283,18 +285,26 @@ type SessionBranchSwitchCommand = {
 
 - 产品行 metadata 增加
   `workspaceWrites?: { files: string[]; hasUnknownWrites: boolean }`。
-- 来源：现有 permission/security classifier 的工具分类（edit/write 工具取
-  目标路径；写型 bash 命令解析不出目标时置 `hasUnknownWrites`）。在
-  recorder 落库时随 tool card 终态一并写入，无新采集通道。
+- 来源：tool presentation 分类（`collectWorkspaceWrites`，contracts 纯函数）。
+  Host 报的 `changedPaths` 优先；其次 filesystem edit 族取目标路径；写型 bash
+  命令解析不出目标时置 `hasUnknownWrites`。在 recorder 落库时随 tool card
+  终态一并写入，无新采集通道。
+- **shell 必须白名单判定，不得"凡 shell 皆写"**：`ls` / `pnpm test` /
+  `git status` 若也算写，几乎每轮都会弹确认卡，用户会习惯性点穿，警告随即
+  失效。只认可识别的改写命令（`rm`/`mv`/`cp`/`mkdir`/`sed -i`/输出重定向/
+  `git` 写子命令/包管理器安装等）。漏判的代价有限：校准注入里的 git 快照仍
+  会暴露真实磁盘改动。
 
 ### 6.2 切换检查（警告）
 
 - `branch-switch` 计算"分叉点之后、目标路径之外"的写集合（含
   `hasUnknownWrites` 聚合）。非空且未 `confirm` → 返回
   `needs-confirmation + offPathWrites { files, hasUnknownWrites, branchPreview }`。
-- 客户端确认卡三选项：**继续切换** / **转为独立会话（worktree）**（调用
-  既有 `session/fork` `workspaceStrategy:'worktree'`，锚点为分叉点消息）/
-  **取消**。真正要并行写代码的用户在此被引导到正确通道。
+- 读取有界（§7）：`store.listAbandonedAssistantRows(target)` 用一条 SQL 只取
+  "分叉点之后的 active-path assistant 行"，不加载整条路径；目标不存在时返回
+  `undefined`，交给 `switchActiveBranch` 抛原本的错误，而不是误报确认卡。
+- 客户端确认卡 v1 两选项：**继续切换** / **取消**（偏差 #2；worktree 按钮
+  随 SF-06）。文案必须说明磁盘不会跟随切换。
 
 ### 6.3 继续时校准（注入）
 

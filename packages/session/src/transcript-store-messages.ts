@@ -6,6 +6,7 @@ import type { SessionTranscriptMessage } from '@piwin/contracts';
 import type { TranscriptStoreCore, SessionTranscriptStore } from './transcript-store.js';
 import { isSqliteUniqueConstraint, rollback } from './sqlite-errors.js';
 import { isIndexedUserMessage, validatePositiveBoundedInteger } from './transcript-store-bounds.js';
+import { countPathRows, withActivePath } from './transcript-store-path.js';
 import { rowToMessage, type MessageRow } from './transcript-store-rows.js';
 
 const MAX_TAIL_MESSAGES = 100;
@@ -27,7 +28,6 @@ export function createTranscriptMessagesOps(
   | 'readNativeEntries'
   | 'count'
   | 'getRevision'
-  | 'truncateFrom'
 > {
   const { db, options, ensureOpen, bumpRevision, currentRevision, insertMessageRow } = core;
 
@@ -41,12 +41,25 @@ export function createTranscriptMessagesOps(
       }
       const rows =
         beforeSequence === undefined
-          ? db.prepare(`SELECT * FROM transcript_message ORDER BY sequence DESC LIMIT ?`).all(limit)
+          ? db
+              .prepare(
+                withActivePath(
+                  `SELECT transcript_message.* FROM transcript_message
+                   JOIN active_path ON transcript_message.id = active_path.id
+                   ORDER BY transcript_message.sequence DESC LIMIT ?`,
+                ),
+              )
+              .all(options.sessionId, limit)
           : db
               .prepare(
-                `SELECT * FROM transcript_message WHERE sequence < ? ORDER BY sequence DESC LIMIT ?`,
+                withActivePath(
+                  `SELECT transcript_message.* FROM transcript_message
+                   JOIN active_path ON transcript_message.id = active_path.id
+                   WHERE transcript_message.sequence < ?
+                   ORDER BY transcript_message.sequence DESC LIMIT ?`,
+                ),
               )
-              .all(beforeSequence, limit);
+              .all(options.sessionId, beforeSequence, limit);
       return (rows as unknown as MessageRow[]).reverse().map(rowToMessage);
     }
 
@@ -166,16 +179,30 @@ export function createTranscriptMessagesOps(
       async firstMessageByRole(role) {
         ensureOpen();
         const row = db
-          .prepare('SELECT * FROM transcript_message WHERE role = ? ORDER BY sequence ASC LIMIT 1')
-          .get(role) as unknown as MessageRow | undefined;
+          .prepare(
+            withActivePath(
+              `SELECT transcript_message.* FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE transcript_message.role = ?
+               ORDER BY transcript_message.sequence ASC LIMIT 1`,
+            ),
+          )
+          .get(options.sessionId, role) as unknown as MessageRow | undefined;
         return row === undefined ? undefined : rowToMessage(row);
       },
 
       async lastMessageByRole(role) {
         ensureOpen();
         const row = db
-          .prepare('SELECT * FROM transcript_message WHERE role = ? ORDER BY sequence DESC LIMIT 1')
-          .get(role) as unknown as MessageRow | undefined;
+          .prepare(
+            withActivePath(
+              `SELECT transcript_message.* FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE transcript_message.role = ?
+               ORDER BY transcript_message.sequence DESC LIMIT 1`,
+            ),
+          )
+          .get(options.sessionId, role) as unknown as MessageRow | undefined;
         return row === undefined ? undefined : rowToMessage(row);
       },
 
@@ -187,20 +214,27 @@ export function createTranscriptMessagesOps(
         }
         const row = db
           .prepare(
-            `SELECT sequence, id, runtime_generation_id, backend_message_id, role,
-                    substr(text, 1, 8000) AS text, thinking, status, created_at,
-                    run_id, model_json, attachments_json, tools_json, metadata_json
-             FROM transcript_message
-             WHERE role IN ('user', 'assistant') AND instr(lower(text), ?) > 0
-             ORDER BY CASE role WHEN 'user' THEN 0 ELSE 1 END, sequence DESC
-             LIMIT 1`,
+            withActivePath(
+              `SELECT sequence, transcript_message.id AS id, runtime_generation_id,
+                      backend_message_id, role,
+                      substr(text, 1, 8000) AS text, thinking, status, created_at,
+                      run_id, model_json, attachments_json, context_refs_json,
+                      tools_json, metadata_json
+               FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE role IN ('user', 'assistant') AND instr(lower(text), ?) > 0
+               ORDER BY CASE role WHEN 'user' THEN 0 ELSE 1 END, sequence DESC
+               LIMIT 1`,
+            ),
           )
-          .get(normalized) as unknown as MessageRow | undefined;
+          .get(options.sessionId, normalized) as unknown as MessageRow | undefined;
         return row === undefined ? undefined : rowToMessage(row);
       },
 
       async hasLaterAssistant(messageId, runId) {
         ensureOpen();
+        // Target lookup is global on purpose: an off-path anchor still has a
+        // comparable sequence; only the "later assistant" must be on-path.
         const target = db
           .prepare('SELECT sequence FROM transcript_message WHERE id = ?')
           .get(messageId) as { sequence: number } | undefined;
@@ -209,16 +243,25 @@ export function createTranscriptMessagesOps(
           runId === undefined
             ? db
                 .prepare(
-                  `SELECT 1 FROM transcript_message
-                 WHERE sequence > ? AND role = 'assistant' LIMIT 1`,
+                  withActivePath(
+                    `SELECT 1 FROM transcript_message
+                     JOIN active_path ON transcript_message.id = active_path.id
+                     WHERE transcript_message.sequence > ?
+                       AND transcript_message.role = 'assistant' LIMIT 1`,
+                  ),
                 )
-                .get(target.sequence)
+                .get(options.sessionId, target.sequence)
             : db
                 .prepare(
-                  `SELECT 1 FROM transcript_message
-                 WHERE sequence > ? AND role = 'assistant' AND run_id = ? LIMIT 1`,
+                  withActivePath(
+                    `SELECT 1 FROM transcript_message
+                     JOIN active_path ON transcript_message.id = active_path.id
+                     WHERE transcript_message.sequence > ?
+                       AND transcript_message.role = 'assistant'
+                       AND transcript_message.run_id = ? LIMIT 1`,
+                  ),
                 )
-                .get(target.sequence, runId);
+                .get(options.sessionId, target.sequence, runId);
         return later !== undefined;
       },
 
@@ -227,15 +270,23 @@ export function createTranscriptMessagesOps(
         db.exec('BEGIN');
         try {
           const previous = db
-            .prepare('SELECT role, text FROM transcript_message WHERE id = ?')
-            .get(id) as { role: string; text: string } | undefined;
+            .prepare('SELECT role, text, parent_message_id FROM transcript_message WHERE id = ?')
+            .get(id) as
+            | { role: string; text: string; parent_message_id: string | null }
+            | undefined;
           const result = db.prepare('DELETE FROM transcript_message WHERE id = ?').run(id);
-          if (result.changes > 0) {
+          if (result.changes > 0 && previous !== undefined) {
+            // Keep the tree connected: children (across every branch) reattach
+            // to the deleted row's parent, and a deleted leaf falls back to it.
+            db.prepare(
+              'UPDATE transcript_message SET parent_message_id = ? WHERE parent_message_id = ?',
+            ).run(previous.parent_message_id, id);
+            db.prepare(
+              `UPDATE transcript_meta SET active_leaf_message_id = ?
+               WHERE session_id = ? AND active_leaf_message_id = ?`,
+            ).run(previous.parent_message_id, options.sessionId, id);
             db.prepare('DELETE FROM native_entry WHERE message_id = ?').run(id);
-            bumpRevision(
-              1,
-              previous !== undefined && isIndexedUserMessage(previous.role, previous.text) ? 1 : 0,
-            );
+            bumpRevision(1, isIndexedUserMessage(previous.role, previous.text) ? 1 : 0);
           }
           db.exec('COMMIT');
           return result.changes > 0;
@@ -293,58 +344,13 @@ export function createTranscriptMessagesOps(
       },
       async count() {
         ensureOpen();
-        const row = db.prepare('SELECT COUNT(*) AS count FROM transcript_message').get() as {
-          count: number;
-        };
-        return row.count;
+        // Path length, not table size: sibling branches don't inflate counts.
+        return countPathRows(db, options.sessionId);
       },
 
       async getRevision() {
         ensureOpen();
         return currentRevision();
-      },
-      async truncateFrom(messageId) {
-        ensureOpen();
-        const target = db
-          .prepare('SELECT sequence FROM transcript_message WHERE id = ?')
-          .get(messageId) as { sequence: number } | undefined;
-        if (target === undefined) {
-          const remaining = db.prepare('SELECT COUNT(*) AS count FROM transcript_message').get() as {
-            count: number;
-          };
-          return { found: false, removedCount: 0, remainingCount: remaining.count };
-        }
-        db.exec('BEGIN');
-        try {
-          const removedUser = db
-            .prepare(
-              `SELECT COUNT(*) AS count FROM transcript_message
-               WHERE sequence >= ? AND role = 'user' AND length(trim(text)) > 0`,
-            )
-            .get(target.sequence) as { count: number };
-          db.prepare(
-            `DELETE FROM native_entry WHERE message_id IN (
-               SELECT id FROM transcript_message WHERE sequence >= ?
-             )`,
-          ).run(target.sequence);
-          const removed = db
-            .prepare('DELETE FROM transcript_message WHERE sequence >= ?')
-            .run(target.sequence);
-          const removedCount = Number(removed.changes);
-          bumpRevision(removedCount, removedUser.count);
-          db.exec('COMMIT');
-          const remaining = db.prepare('SELECT COUNT(*) AS count FROM transcript_message').get() as {
-            count: number;
-          };
-          return {
-            found: true,
-            removedCount,
-            remainingCount: remaining.count,
-          };
-        } catch (error) {
-          db.exec('ROLLBACK');
-          throw error;
-        }
       }
   };
 }

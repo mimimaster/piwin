@@ -10,7 +10,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { memo, Profiler, act, useEffect, useReducer, useRef, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { AgentEvent, ExecutionRunRecord } from '@piwin/contracts';
+import type { AgentEvent, ExecutionRunRecord, TranscriptBranchPoint } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { ChatThread, shouldCollapseTurnToolHistory } from './chat-thread';
@@ -1268,6 +1268,69 @@ describe('ChatThread render isolation (E1)', () => {
     expect(onRetrySpy).toHaveBeenCalledWith('msg-u1');
   });
 
+  it('renders the branch switcher on the active sibling head and switches on click', () => {
+    const onSwitchBranch = vi.fn();
+    const point: TranscriptBranchPoint = {
+      anchorMessageId: 'a1',
+      activeIndex: 0,
+      siblings: [
+        {
+          headMessageId: 'msg-u1',
+          preview: 'first',
+          leafPreview: 'first',
+          messageCount: 1,
+          updatedAt: '2026-07-31T13:53:00.000Z',
+        },
+        {
+          headMessageId: 'msg-u1-b',
+          preview: 'second',
+          leafPreview: 'second',
+          messageCount: 1,
+          updatedAt: '2026-07-31T13:54:00.000Z',
+        },
+      ],
+    };
+    const userMsg: ChatMessageUi = {
+      id: 'msg-u1',
+      role: 'user',
+      text: 'first',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMsg]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId="msg-u1"
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            branchPoints={[point]}
+            onSwitchBranch={onSwitchBranch}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="message-branch-label"]')?.textContent).toBe(
+      '1/2',
+    );
+    act(() => {
+      (container.querySelector('[data-testid="message-branch-next"]') as HTMLButtonElement).click();
+    });
+    expect(onSwitchBranch).toHaveBeenCalledWith('msg-u1-b');
+  });
+
   it('shows edit and cancel controls for a pending run adjustment', () => {
     const onEdit = vi.fn();
     const onInterventionCancel = vi.fn();
@@ -2361,8 +2424,8 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     expect(avatar?.textContent).toBe('我');
   });
 
-  it('provides regenerate button on latest assistant response that retries preceding user message', () => {
-    const onRetry = vi.fn();
+  it('provides regenerate button on latest assistant response that branches the preceding user message', () => {
+    const onBranchResend = vi.fn();
     const u1 = createUserMessage('u-1', 'hello to retry');
     const a1: ChatMessageUi = {
       id: 'a-1',
@@ -2374,7 +2437,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       status: 'done',
     };
 
-    renderConversation([u1, a1], { onRetry });
+    renderConversation([u1, a1], { onBranchResend });
 
     const regenerateBtn = container.querySelector('[data-testid="response-regenerate-btn"]') as HTMLButtonElement | null;
     expect(regenerateBtn).not.toBeNull();
@@ -2383,7 +2446,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
       regenerateBtn?.click();
     });
 
-    expect(onRetry).toHaveBeenCalledWith('u-1');
+    expect(onBranchResend).toHaveBeenCalledWith('u-1', 'hello to retry');
   });
 
   it('does NOT render conversation header in project mode and keeps TurnWorkDetails', () => {

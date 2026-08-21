@@ -29,13 +29,11 @@ import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reduc
 import type { NotificationAction } from '../notification-queue';
 import { pushError, pushInfo, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
-import { type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
 import { summaryToListItem } from './session-list-item';
 import { sessionHasListName } from '../title-display';
 import { resolveSessionOutline } from '../transcript-outline';
-import { canUseThinkingLevel } from '../model-thinking-policy';
 import { chooseSessionExportPath } from '../session-export-dialog';
 import { chooseSessionPackPath } from '../session-pack-dialog';
 import { isSessionBodyOffloaded } from '../session-storage-ui';
@@ -55,14 +53,8 @@ import {
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
 import { hostReconnectNotice } from '../host-problem-copy.js';
-import {
-  foregroundMismatchNotice,
-  readForegroundProblem,
-  requestPromptWithForeground,
-} from '../prompt-foreground';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
-import type { ForegroundRunMismatchProblem } from '@piwin/contracts';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 
 export type ModelOption = {
@@ -106,14 +98,8 @@ export type UseSessionActionsArgs = {
   selectedModelKey: string;
   modelOptions: ModelOption[];
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-  agentMode: AgentModeId;
-  orchestrationSchemeId?: string;
-  delegationDisabled?: boolean;
-  setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   setRenameDraft: Dispatch<SetStateAction<{ sessionId: string; name: string } | null>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
-  /** Restore truncated user text into the composer after Revert (no auto-resend). */
-  setComposer: Dispatch<SetStateAction<string>>;
   /**
    * Restore the composer model/thinking when a session is opened or resumed.
    * Host returns the last-used profile from the session index (or transcript).
@@ -122,7 +108,6 @@ export type UseSessionActionsArgs = {
     model?: ModelRef;
     thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   }) => void;
-  confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
 };
 
 export function useSessionActions(args: UseSessionActionsArgs) {
@@ -139,15 +124,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     selectedModelKey,
     modelOptions,
     thinkingLevel,
-    agentMode,
-    orchestrationSchemeId,
-    delegationDisabled,
-    setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
-    setComposer,
     onSessionComposerProfileRestored,
-    confirmForegroundReplace,
   } = args;
   const { locale } = useDesktopLocale();
   // Multiple event handlers can ask for the first session before React has
@@ -273,10 +252,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       providerId: option.providerId,
       modelId: option.modelId,
     };
-  }, [modelOptions, selectedModelKey]);
-
-  const selectedModelOption = useCallback(() => {
-    return modelOptions.find((item) => `${item.providerId}::${item.modelId}` === selectedModelKey);
   }, [modelOptions, selectedModelKey]);
 
   const hydrateSessions = useCallback(
@@ -1435,241 +1410,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-  /** UI pages and optimistic sends both retain the Host-persisted message id. */
-  const resolveHostUserMessageId = useCallback(
-    (uiMessageId: string): string | null => {
-      const visibleMessages = state.historyView?.messages ?? state.messages;
-      const uiMessage = visibleMessages.find((message) => message.id === uiMessageId);
-      if (!uiMessage || uiMessage.role !== 'user') {
-        const errorMessage = `Cannot restore: message not found in chat (${uiMessageId})`;
-        dispatchNotification(pushError(errorMessage));
-        return null;
-      }
-      return uiMessage.id;
-    },
-    [dispatchNotification, state.historyView, state.messages],
-  );
-
-  const handleEditAndResend = useCallback(
-    async (messageId: string, nextText: string): Promise<void> => {
-      if (!state.activeSessionId) {
-        dispatchNotification(pushError('No active session to restore.'));
-        return;
-      }
-      if (state.streaming) {
-        dispatchNotification(
-          pushInfo('Wait for the current run to finish (or stop it) before restoring.'),
-        );
-        return;
-      }
-      const text = nextText.trim();
-      if (!text) {
-        return;
-      }
-      const isGeneral = state.activeScope.kind === 'general' || !state.projectPath;
-      if (!isGeneral && !state.projectTrusted) {
-        dispatch({ type: 'project/trust-dialog', open: true });
-        return;
-      }
-
-      const resolvedMessageId = resolveHostUserMessageId(messageId);
-      if (!resolvedMessageId) {
-        return;
-      }
-
-      const truncate = await hostClient.request({
-        type: 'session/truncate-from',
-        sessionId: state.activeSessionId,
-        messageId: resolvedMessageId,
-        messageProjection: 'tail',
-      });
-      if (!truncate.success) {
-        dispatchNotification(pushError(truncate.error));
-        return;
-      }
-      const truncData = truncate.data as {
-        messages?: SessionTranscriptMessage[];
-        transcriptPage?: SessionTranscriptPageInfo;
-      };
-      dispatch({
-        type: 'session/truncate',
-        sessionId: state.activeSessionId,
-        messages: truncData.messages ?? [],
-        ...(truncData.transcriptPage ? { transcriptPage: truncData.transcriptPage } : {}),
-      });
-      setEditingMessageId(null);
-      // Keep the same client id for the resend bubble so a later Revert can
-      // still match the host transcript without a resume. Host injects mode.
-      const resendClientMessageId = crypto.randomUUID();
-      dispatch({ type: 'user/send', text, clientMessageId: resendClientMessageId });
-      const editInput: {
-        text: string;
-        model?: import('@piwin/contracts').ModelRef;
-        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-        agentMode?: import('@piwin/contracts').AgentModeId;
-        orchestrationSchemeId?: string;
-        delegationMode?: 'auto' | 'disabled';
-        clientMessageId?: string;
-      } = {
-        text,
-        agentMode: agentMode,
-        clientMessageId: resendClientMessageId,
-      };
-      if (orchestrationSchemeId && orchestrationSchemeId !== 'off') {
-        editInput.orchestrationSchemeId = orchestrationSchemeId;
-      }
-      if (delegationDisabled) {
-        editInput.delegationMode = 'disabled';
-      }
-      const editModel = selectedModelRef();
-      if (editModel) {
-        editInput.model = editModel;
-      }
-      const option = selectedModelOption();
-      if (thinkingLevel && option && canUseThinkingLevel(option, thinkingLevel, true)) {
-        editInput.thinkingLevel = thinkingLevel;
-      }
-      const response = await requestPromptWithForeground({
-        request: (command, options) => hostClient.request(command, options),
-        sessionId: state.activeSessionId,
-        input: editInput,
-        createIdempotencyKey: createGestureIdempotencyKey,
-        ...(confirmForegroundReplace ? { confirmReplace: confirmForegroundReplace } : {}),
-        ...(typeof hostClient.supportsForegroundAdmission === 'function'
-          ? { remoteForegroundAdmission: hostClient.supportsForegroundAdmission() }
-          : {}),
-      });
-      if (!response.success) {
-        dispatch({ type: 'user/send-rollback', clientMessageId: resendClientMessageId });
-        const problem = readForegroundProblem(response);
-        if (problem) {
-          dispatchNotification(pushError(foregroundMismatchNotice(problem, locale)));
-        } else {
-          dispatchNotification(pushError(response.error));
-        }
-      } else {
-        const accepted = response.data as { runId?: string; acceptedAt?: string };
-        if (typeof accepted.runId === 'string') {
-          dispatch({
-            type: 'run/accepted',
-            runId: accepted.runId,
-            ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
-          });
-        }
-      }
-    },
-    [
-      agentMode,
-      confirmForegroundReplace,
-      dispatch,
-      dispatchNotification,
-      hostClient,
-      locale,
-      orchestrationSchemeId,
-      delegationDisabled,
-      resolveHostUserMessageId,
-      selectedModelRef,
-      setEditingMessageId,
-      state.activeScope.kind,
-      state.activeSessionId,
-      state.projectPath,
-      state.projectTrusted,
-      state.streaming,
-      thinkingLevel,
-      selectedModelOption,
-    ],
-  );
-
-  const handleRetryFromMessage = useCallback(
-    async (messageId: string): Promise<void> => {
-      if (!state.activeSessionId) {
-        dispatchNotification(pushError('No active session to restore.'));
-        return;
-      }
-      if (state.streaming) {
-        dispatchNotification(
-          pushInfo('Wait for the current run to finish (or stop it) before restoring.'),
-        );
-        return;
-      }
-      if (
-        transcriptOwnerBlocksDangerousAction({
-          transcriptOwnerSessionId: state.transcriptOwnerSessionId,
-          activeSessionId: state.activeSessionId,
-        })
-      ) {
-        dispatchNotification(
-          pushError('Transcript is still loading for this session — try again in a moment.'),
-        );
-        return;
-      }
-      const visibleMessages = state.historyView?.messages ?? state.messages;
-      const message = visibleMessages.find((item) => item.id === messageId);
-      if (!message || message.role !== 'user') {
-        dispatchNotification(pushError('Can only restore from a user message.'));
-        return;
-      }
-      const text = message.text.trim();
-      if (!text && message.attachments.length === 0) {
-        dispatchNotification(pushError('Nothing to restore from this message.'));
-        return;
-      }
-      const isGeneral = state.activeScope.kind === 'general' || !state.projectPath;
-      if (!isGeneral && !state.projectTrusted) {
-        dispatch({ type: 'project/trust-dialog', open: true });
-        return;
-      }
-
-      // Cursor-style Restore chat: truncate the transcript at this user turn,
-      // put the text back into the composer, and wait for the user to resend.
-      // Map UI bubble id → host transcript id first (optimistic id mismatch).
-      const resolvedMessageId = resolveHostUserMessageId(messageId);
-      if (!resolvedMessageId) {
-        return;
-      }
-
-      const truncate = await hostClient.request({
-        type: 'session/truncate-from',
-        sessionId: state.activeSessionId,
-        messageId: resolvedMessageId,
-        messageProjection: 'tail',
-      });
-      if (!truncate.success) {
-        dispatchNotification(pushError(truncate.error));
-        return;
-      }
-      const truncData = truncate.data as {
-        messages?: SessionTranscriptMessage[];
-        transcriptPage?: SessionTranscriptPageInfo;
-      };
-      dispatch({
-        type: 'session/truncate',
-        sessionId: state.activeSessionId,
-        messages: truncData.messages ?? [],
-        ...(truncData.transcriptPage ? { transcriptPage: truncData.transcriptPage } : {}),
-      });
-      setComposer(text);
-      dispatchNotification(
-        pushInfo('Conversation restored to this checkpoint. Edit and send when ready.'),
-      );
-    },
-    [
-      dispatch,
-      dispatchNotification,
-      hostClient,
-      resolveHostUserMessageId,
-      setComposer,
-      state.activeScope.kind,
-      state.activeSessionId,
-      state.historyView,
-      state.messages,
-      state.projectPath,
-      state.projectTrusted,
-      state.streaming,
-      state.transcriptOwnerSessionId,
-    ],
-  );
-
   const handleAbort = useCallback(async (): Promise<void> => {
     if (!state.activeSessionId || state.runPhase === 'aborting') {
       return;
@@ -1859,8 +1599,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleContinueSessionInProject,
     handleForkSession,
     handleSessionMenuAction,
-    handleEditAndResend,
-    handleRetryFromMessage,
     handleAbort,
     handlePause,
     handleResumeRun,

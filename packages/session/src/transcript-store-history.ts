@@ -14,6 +14,7 @@ import {
   MAX_CURSOR_CHARS,
   validatePositiveBoundedInteger,
 } from './transcript-store-bounds.js';
+import { withActivePath } from './transcript-store-path.js';
 import { rowToMessage, type MessageRow } from './transcript-store-rows.js';
 
 /** A streamed full-transcript read observed a concurrent transcript mutation. */
@@ -80,9 +81,11 @@ export function createTranscriptHistoryOps(
   core: TranscriptStoreCore,
 ): Pick<
   SessionTranscriptStore,
-  'buildHistoryWindow' | 'recentModel' | 'outlinePage' | 'iterateAll'
+  'buildHistoryWindow' | 'recentModel' | 'outlinePage' | 'iterateActivePath'
 > {
-  const { db, options, ensureOpen, currentRevision } = core;
+  // `options` would be shadowed by buildHistoryWindow's own options parameter,
+  // so the store-level options take an explicit name.
+  const { db, options: storeOptions, ensureOpen, currentRevision } = core;
 
   return {
       async buildHistoryWindow(options = {}) {
@@ -101,7 +104,9 @@ export function createTranscriptHistoryOps(
           excluded === null || excluded === undefined
             ? (db
                 .prepare(
-                  `SELECT role, text, context_refs_json FROM transcript_message
+                  withActivePath(
+                    `SELECT role, text, context_refs_json FROM transcript_message
+                 JOIN active_path ON transcript_message.id = active_path.id
                  WHERE role IN ('user', 'assistant', 'system') AND text != ''
                    AND (json_extract(metadata_json, '$.instructionDelivery.kind') IS NULL
                         OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'run-intervention'
@@ -109,15 +114,18 @@ export function createTranscriptHistoryOps(
                         OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'queued-turn'
                             AND json_extract(metadata_json, '$.instructionDelivery.status') = 'started'))
                  ORDER BY sequence DESC LIMIT ?`,
+                  ),
                 )
-                .all(maxMessages) as Array<{
+                .all(storeOptions.sessionId, maxMessages) as Array<{
                   role: string;
                   text: string;
                   context_refs_json: string | null;
                 }>)
             : (db
                 .prepare(
-                  `SELECT role, text, context_refs_json FROM transcript_message
+                  withActivePath(
+                    `SELECT role, text, context_refs_json FROM transcript_message
+                 JOIN active_path ON transcript_message.id = active_path.id
                  WHERE sequence < ? AND role IN ('user', 'assistant', 'system') AND text != ''
                    AND (json_extract(metadata_json, '$.instructionDelivery.kind') IS NULL
                         OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'run-intervention'
@@ -125,8 +133,9 @@ export function createTranscriptHistoryOps(
                         OR (json_extract(metadata_json, '$.instructionDelivery.kind') = 'queued-turn'
                             AND json_extract(metadata_json, '$.instructionDelivery.status') = 'started'))
                  ORDER BY sequence DESC LIMIT ?`,
+                  ),
                 )
-                .all(excluded.sequence, maxMessages) as Array<{
+                .all(storeOptions.sessionId, excluded.sequence, maxMessages) as Array<{
                   role: string;
                   text: string;
                   context_refs_json: string | null;
@@ -166,17 +175,20 @@ export function createTranscriptHistoryOps(
         ensureOpen();
         const row = db
           .prepare(
-            `SELECT model_json FROM transcript_message
-             WHERE role = 'assistant' AND model_json IS NOT NULL
-             ORDER BY sequence DESC LIMIT 1`,
+            withActivePath(
+              `SELECT model_json FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE role = 'assistant' AND model_json IS NOT NULL
+               ORDER BY sequence DESC LIMIT 1`,
+            ),
           )
-          .get() as { model_json: string } | undefined;
+          .get(storeOptions.sessionId) as { model_json: string } | undefined;
         return row === undefined ? undefined : (JSON.parse(row.model_json) as ModelRef);
       },
 
       async outlinePage(query) {
         ensureOpen();
-        validateOutlineQuery(query, options.sessionId);
+        validateOutlineQuery(query, storeOptions.sessionId);
         const revision = currentRevision();
         const cursor =
           query.beforeCursor === undefined ? null : decodeOutlineCursor(query.beforeCursor);
@@ -187,12 +199,21 @@ export function createTranscriptHistoryOps(
         const endSequence = cursor?.endSequence ?? Number.MAX_SAFE_INTEGER;
         const rows = db
           .prepare(
-            `SELECT sequence, id, role, created_at, substr(text, 1, ?) AS preview
-             FROM transcript_message
-             WHERE sequence < ?
-             ORDER BY sequence DESC LIMIT ?`,
+            withActivePath(
+              `SELECT sequence, transcript_message.id AS id, role, created_at,
+                      substr(text, 1, ?) AS preview
+               FROM transcript_message
+               JOIN active_path ON transcript_message.id = active_path.id
+               WHERE sequence < ?
+               ORDER BY sequence DESC LIMIT ?`,
+            ),
           )
-          .all(OUTLINE_PREVIEW_CHARS + 1, endSequence, query.limit) as unknown as Array<{
+          .all(
+            storeOptions.sessionId,
+            OUTLINE_PREVIEW_CHARS + 1,
+            endSequence,
+            query.limit,
+          ) as unknown as Array<{
           sequence: number;
           id: string;
           role: string;
@@ -212,8 +233,14 @@ export function createTranscriptHistoryOps(
         const hasOlder =
           oldestSequence !== undefined &&
           db
-            .prepare('SELECT 1 FROM transcript_message WHERE sequence < ? LIMIT 1')
-            .get(oldestSequence) !== undefined;
+            .prepare(
+              withActivePath(
+                `SELECT 1 FROM transcript_message
+                 JOIN active_path ON transcript_message.id = active_path.id
+                 WHERE transcript_message.sequence < ? LIMIT 1`,
+              ),
+            )
+            .get(storeOptions.sessionId, oldestSequence) !== undefined;
         const data: SessionOutlinePageData = {
           sessionId: query.sessionId,
           nodes,
@@ -229,7 +256,7 @@ export function createTranscriptHistoryOps(
         }
         return data;
       },
-      async *iterateAll(batchSize = 500) {
+      async *iterateActivePath(batchSize = 500) {
         ensureOpen();
         validatePositiveBoundedInteger(batchSize, 'Transcript iteration batch', MAX_ITERATION_BATCH);
         // Full iteration is used to derive durable copies/exports. Keep memory
@@ -239,7 +266,7 @@ export function createTranscriptHistoryOps(
         const assertSnapshotCurrent = (): void => {
           if (currentRevision() !== snapshotRevision) {
             throw new TranscriptIterationStaleError(
-              `Transcript changed during streamed iteration for session ${options.sessionId}`,
+              `Transcript changed during streamed iteration for session ${storeOptions.sessionId}`,
             );
           }
         };
@@ -248,9 +275,14 @@ export function createTranscriptHistoryOps(
           assertSnapshotCurrent();
           const rows = db
             .prepare(
-              `SELECT * FROM transcript_message WHERE sequence > ? ORDER BY sequence ASC LIMIT ?`,
+              withActivePath(
+                `SELECT transcript_message.* FROM transcript_message
+                 JOIN active_path ON transcript_message.id = active_path.id
+                 WHERE transcript_message.sequence > ?
+                 ORDER BY transcript_message.sequence ASC LIMIT ?`,
+              ),
             )
-            .all(lastSequence, batchSize) as unknown as MessageRow[];
+            .all(storeOptions.sessionId, lastSequence, batchSize) as unknown as MessageRow[];
           if (rows.length === 0) {
             return;
           }

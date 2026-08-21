@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Proposed |
+| Status | Implemented (Stages 1–5, 2026-08-21) |
 | Date | 2026-08-18 |
 | Spec | `docs/specs/session-conversation-tree.md` §5（S2）+ §6 最小化（S3 warn-only） |
 | Implementation | `docs/plans/2026-08-18-conversation-tree-s2-implementation.md` |

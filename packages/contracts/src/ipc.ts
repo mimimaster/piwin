@@ -764,6 +764,23 @@ export type HostCommand =
       sessionId: string;
     }
   | { id?: string; type: 'session/search'; query: SessionSearchQuery }
+  /** ADR 0055: ‹n/m› switcher data for every fork along the active path. */
+  | { id?: string; type: 'session/branch-list'; sessionId: string }
+  /** ADR 0055: move the active leaf into the target message's branch. */
+  | {
+      id?: string;
+      type: 'session/branch-switch';
+      sessionId: string;
+      targetMessageId: string;
+      /** Acknowledge a `needs-confirmation` write-boundary response. */
+      confirm?: boolean;
+      /** Defaults to `tail`. */
+      messageProjection?: SessionMessageProjection;
+    }
+  /**
+   * Delete the message and its entire subtree (ADR 0055 explicit gesture —
+   * the daily edit/regenerate path branches via prompt instead).
+   */
   | {
       id?: string;
       type: 'session/truncate-from';
@@ -1028,6 +1045,13 @@ export type HostPushVariant =
       envelope?: AgentEventEnvelope;
     }
   | { type: 'session/runtime-updated'; status: SessionRuntimeStatus }
+  /** ADR 0055: the active leaf moved (branch prompt/switch/subtree delete). */
+  | {
+      type: 'session/branch-updated';
+      sessionId: string;
+      activeLeafMessageId: string | null;
+      branchPointCount: number;
+    }
   | {
       type: 'transcript/append';
       sessionId: string;

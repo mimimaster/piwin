@@ -42,7 +42,11 @@ export type SessionSearchResult = {
 /** Product-layer truncate for edit/resend (does not require Pi JSONL rewind). */
 export type SessionTruncateFromInput = {
   sessionId: string;
-  /** Keep messages before this id; drop this message and the tail. */
+  /**
+   * Delete this message and its entire subtree (every descendant branch,
+   * ADR 0055). When the subtree contains the active path, the session falls
+   * back to the target's parent.
+   */
   messageId: string;
 };
 

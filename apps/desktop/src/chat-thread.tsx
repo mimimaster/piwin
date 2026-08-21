@@ -15,6 +15,7 @@ import type {
   ProductSessionLineageView,
   SessionPlan,
   SessionSummary,
+  TranscriptBranchPoint,
   SubagentInvocation,
   ThemeManifest,
   WalkthroughArtifact,
@@ -109,6 +110,10 @@ export type ChatThreadProps = {
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
+  /** Resend a user turn as a sibling branch (regenerate / context-bar retry). */
+  onBranchResend?: (messageId: string, text: string) => void;
+  branchPoints?: TranscriptBranchPoint[];
+  onSwitchBranch?: (headMessageId: string) => void;
   /** Edit a still-pending instruction without rewinding conversation history. */
   onInterventionEdit?: (messageId: string, text: string) => void | Promise<void>;
   /** Cancel a still-pending instruction without cancelling its target Run. */
@@ -265,11 +270,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         : buildExploreFlowRoles(chatMessages, { streamActive: props.streaming === true }),
     [chatMessages, props.isConversationSession, props.streaming],
   );
-  const precedingUserMessageId = useMemo(() => {
+  const precedingUser = useMemo(() => {
     for (let i = chatMessages.length - 1; i >= 0; i--) {
       const msg = chatMessages[i];
       if (msg?.role === 'user') {
-        return msg.id;
+        return msg;
       }
     }
     return undefined;
@@ -449,8 +454,11 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     : undefined;
                 const isLatestAssistant = latestAssistantMessageId === message.id;
                 const onRegenerate =
-                  conversationSession && isLatestAssistant && precedingUserMessageId
-                    ? () => props.onRetry(precedingUserMessageId)
+                  conversationSession &&
+                  isLatestAssistant &&
+                  precedingUser &&
+                  props.onBranchResend
+                    ? () => props.onBranchResend?.(precedingUser.id, precedingUser.text)
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
                 return (
@@ -527,6 +535,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     onCancelEdit={props.onCancelEdit}
                     onEditResend={props.onEditResend}
                     onRetry={props.onRetry}
+                    branchPoints={props.branchPoints ?? []}
+                    {...(props.onSwitchBranch !== undefined
+                      ? { onSwitchBranch: props.onSwitchBranch }
+                      : {})}
                     {...(props.onInterventionEdit
                       ? { onInterventionEdit: props.onInterventionEdit }
                       : {})}

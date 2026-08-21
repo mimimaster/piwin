@@ -15,6 +15,7 @@ export type ContextMenuDispatchers = {
   copyText: (text: string) => void;
   quoteInComposer: (text: string) => void;
   retryMessage: (messageId: string) => void;
+  truncateAfterMessage?: (messageId: string) => void;
   forkMessage: (messageId: string) => void;
   openSideChat: (input: {
     sourceMessageId?: string;
@@ -172,6 +173,11 @@ export function dispatchContextMenuAction(
     case 'retry':
       if (target.surface === 'message-user' || target.surface === 'message-assistant') {
         dispatchers.retryMessage(target.messageId);
+      }
+      return;
+    case 'truncate-after':
+      if (target.surface === 'message-user' || target.surface === 'message-assistant') {
+        dispatchers.truncateAfterMessage?.(target.messageId);
       }
       return;
     case 'fork':

@@ -129,7 +129,9 @@ import {
   type PromptCommand,
   throwIfPromptPreparationAborted,
 } from './prompt-preparation.js';
+import { injectBranchCalibrationOnce } from './branch-calibration.js';
 import { finalizeAbortedRun, finalizeSupersededTurn } from './run-control-commands.js';
+import { pushBranchUpdated } from './session-branch-commands.js';
 import {
   createForegroundRunMismatch,
   evaluatePromptForegroundAdmission,
@@ -137,6 +139,48 @@ import {
   isForegroundRunActiveError,
 } from './session-prompt-admission.js';
 import { listKnownChatModelKeys } from './prompt-preparation.js';
+
+/**
+ * ADR 0055 branch prompt: move the active leaf to the target user row's
+ * parent so the recorded prompt becomes its sibling branch. Returns a
+ * failure response when branching is impossible; null continues the prompt.
+ */
+async function rebaseForBranchPrompt(
+  context: SessionLiveContext,
+  command: PromptCommand,
+  requestId: string | undefined,
+): Promise<HostResponse | null> {
+  const targetId = command.input.branchFromMessageId;
+  if (targetId === undefined) return null;
+  if (context.getForegroundRun(command.sessionId)) {
+    return fail(
+      requestId,
+      'session/prompt',
+      `run-active: cannot branch from ${targetId} while a run is active`,
+    );
+  }
+  // session/prompt is not a transcript-leased command, and disposeLiveSession
+  // below closes the cached store — validate on one handle, then re-acquire.
+  const probe = await context.getTranscriptStore(command.sessionId);
+  const target = await probe.getMessage(targetId);
+  if (target === undefined) {
+    return fail(requestId, 'session/prompt', `branch-target-not-found: ${targetId}`);
+  }
+  if (target.role !== 'user') {
+    return fail(requestId, 'session/prompt', `branch-target-not-user: ${targetId}`);
+  }
+  const parentId = await probe.getParentMessageId(targetId);
+  if (parentId === undefined) {
+    return fail(requestId, 'session/prompt', `branch-target-not-found: ${targetId}`);
+  }
+  // The live generation replayed the abandoned branch's context; dispose so
+  // the cold prompt path reseeds along the new branch (ADR 0040 §7).
+  await context.disposeLiveSession(command.sessionId, 'branch-switch');
+  const store = await context.getTranscriptStore(command.sessionId);
+  await store.rebaseActiveLeaf(parentId);
+  await pushBranchUpdated(context, command.sessionId, store);
+  return null;
+}
 
 export async function handleSessionPromptCommand(
   command: HostCommand,
@@ -198,6 +242,16 @@ export async function handleSessionPromptCommand(
             'session/prompt',
             'resume-checkpoint-mismatch: continuation does not own the active checkpoint',
           );
+        }
+      }
+      // ADR 0055: a branch prompt replaces an existing user turn as a sibling
+      // branch. Validate and rebase before any run registration — a bad
+      // target or an active run fails the request, never a silent fallback
+      // to the current path.
+      if (command.input.branchFromMessageId !== undefined) {
+        const branchRefusal = await rebaseForBranchPrompt(context, command, requestId);
+        if (branchRefusal !== null) {
+          return branchRefusal;
         }
       }
       // Product: a newer user message supersedes an in-flight run (Stop is
@@ -485,6 +539,21 @@ export async function handleSessionPromptCommand(
               text: promptInput.text.slice(
                 0,
                 Math.max(0, promptInput.text.length - historyBefore.length),
+              ),
+            });
+          }
+          // Disk truth after a confirmed branch switch: its own ledger entry,
+          // never accounted as product history.
+          const calibrationBefore = promptInput.text;
+          await injectBranchCalibrationOnce(context, command.sessionId, promptInput);
+          if (promptInput.text !== calibrationBefore) {
+            assembly.add({
+              kind: 'runtime-observed',
+              label: 'Branch calibration',
+              trustOrigin: 'piwin',
+              text: promptInput.text.slice(
+                0,
+                Math.max(0, promptInput.text.length - calibrationBefore.length),
               ),
             });
           }

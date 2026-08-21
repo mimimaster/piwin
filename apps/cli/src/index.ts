@@ -98,6 +98,7 @@ import {
   runSessionColdStorageStatus,
   formatDoctorColdStorageLines,
 } from './session-cold-storage-command.js';
+import { runSessionBranches, runSessionSwitch } from './session-branch-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -119,6 +120,8 @@ Usage:
   piwin session replace <sessionId> <runId> <text> [--queued-id id] [--user-message-id id] [--mock]
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
+  piwin session branches <sessionId> [--mock]
+  piwin session switch <sessionId> <messageId> [--confirm] [--mock]
   piwin session lifecycle plan [--mock]
   piwin session pack create <sessionId> --out <host-dir> [--pack-id <id>] [--mock]
   piwin session pack verify <packPath> [--mock]
@@ -1073,9 +1076,44 @@ async function commandSession(argv: string[]): Promise<void> {
       return;
     }
 
+    if (sub === 'branches') {
+      const sessionId = argv[2];
+      if (!sessionId) {
+        console.error('Usage: piwin session branches <sessionId> [--mock]');
+        process.exitCode = 1;
+        return;
+      }
+      try {
+        await runSessionBranches(runtime, sessionId, console.log);
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+      }
+      return;
+    }
+
+    if (sub === 'switch') {
+      const sessionId = argv[2];
+      const messageId = argv[3];
+      if (!sessionId || !messageId) {
+        console.error('Usage: piwin session switch <sessionId> <messageId> [--confirm] [--mock]');
+        process.exitCode = 1;
+        return;
+      }
+      try {
+        await runSessionSwitch(runtime, sessionId, messageId, console.log, {
+          confirm: argv.includes('--confirm'),
+        });
+      } catch (error) {
+        console.error(formatError(error));
+        process.exitCode = 1;
+      }
+      return;
+    }
+
     console.error(`Unknown session subcommand: ${sub}`);
     console.error(
-      'Usage: piwin session list|pin|unpin|pause|resume-run|queue|replace|search|export|lifecycle|pack|cold',
+      'Usage: piwin session list|pin|unpin|pause|resume-run|queue|replace|search|export|branches|switch|lifecycle|pack|cold',
     );
     process.exitCode = 1;
   } finally {

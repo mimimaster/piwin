@@ -123,6 +123,10 @@ import {
 import { resolveSessionOutputPath } from './compaction-live.js';
 import { handleRunControlCommand } from './run-control-commands.js';
 import { handleRunInterventionCommand } from './run-intervention-commands.js';
+import {
+  handleSessionBranchCommand,
+  pushBranchUpdated,
+} from './session-branch-commands.js';
 import { handleSessionPromptCommand } from './session-prompt-command.js';
 
 export type { SessionLiveContext } from './session-live-context.js';
@@ -130,6 +134,8 @@ export type { SessionLiveContext } from './session-live-context.js';
 const TYPES = new Set<HostCommand['type']>([
   'session/create',
   'session/list-children',
+  'session/branch-list',
+  'session/branch-switch',
   'session/truncate-from',
   'session/resume',
   'session/outline-page',
@@ -180,6 +186,7 @@ export async function handleSessionLiveCommand(
     (await handleRunInterventionCommand(command, requestId, context)) ??
     (await handleCompactionCommand(command, requestId, context)) ??
     (await handleRunControlCommand(command, requestId, context)) ??
+    (await handleSessionBranchCommand(command, requestId, context)) ??
     (await handleSessionPromptCommand(command, requestId, context));
   if (delegated !== null) return delegated;
   switch (command.type) {
@@ -322,18 +329,25 @@ export async function handleSessionLiveCommand(
           `Message not found in transcript: ${command.messageId}`,
         );
       }
+      // Ledger boundaries only exist on the active path (ADR 0055 R3): a
+      // side-branch subtree deletion must not cut the linear model-context
+      // ledger, so record whether the anchor is on-path while scanning.
+      let anchorOnActivePath = false;
       let ledgerBoundaryMessageId: string | undefined;
       let ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
-      if (truncationAnchor.role === 'user') {
-        ledgerBoundaryMessageId = truncationAnchor.id;
-      } else {
-        for await (const message of store.iterateAll(100)) {
-          if (message.id === truncationAnchor.id) break;
-          if (message.role === 'user') {
-            ledgerBoundaryMessageId = message.id;
-            ledgerBoundaryCreatedAt = message.createdAt;
-          }
+      for await (const message of store.iterateActivePath(100)) {
+        if (message.id === truncationAnchor.id) {
+          anchorOnActivePath = true;
+          break;
         }
+        if (message.role === 'user') {
+          ledgerBoundaryMessageId = message.id;
+          ledgerBoundaryCreatedAt = message.createdAt;
+        }
+      }
+      if (truncationAnchor.role === 'user' && anchorOnActivePath) {
+        ledgerBoundaryMessageId = truncationAnchor.id;
+        ledgerBoundaryCreatedAt = truncationAnchor.createdAt;
       }
       // Runtime reset is a Host lifecycle transaction: it cancels replacement
       // and active work, flushes/detaches the generation, releases residency,
@@ -343,43 +357,45 @@ export async function handleSessionLiveCommand(
       if (!truncated.found) {
         throw new Error(`Transcript changed before truncate: ${command.messageId}`);
       }
-      const modelContextStore = await openModelContextStore({
-        dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
-        sessionId: command.sessionId,
-      });
-      try {
-        const events = await modelContextStore.listEvents();
-        const matchingUserEvent =
-          ledgerBoundaryMessageId !== undefined
-            ? events
-                .filter((event) => {
-                  if (event.type !== 'turn/input') return false;
-                  if (
-                    event.payload === null ||
-                    typeof event.payload !== 'object' ||
-                    Array.isArray(event.payload)
-                  ) {
-                    return false;
-                  }
-                  return (
-                    (event.payload as { userMessageId?: unknown }).userMessageId ===
-                    ledgerBoundaryMessageId
-                  );
-                })
-                .at(-1)
-            : undefined;
-        const boundarySeq =
-          matchingUserEvent?.seq ??
-          events.find((event) =>
+      if (anchorOnActivePath) {
+        const modelContextStore = await openModelContextStore({
+          dbPath: getPiwinSessionModelContextDatabasePath(rootDir, command.sessionId),
+          sessionId: command.sessionId,
+        });
+        try {
+          const events = await modelContextStore.listEvents();
+          const matchingUserEvent =
             ledgerBoundaryMessageId !== undefined
-              ? event.createdAt >= ledgerBoundaryCreatedAt
-              : event.createdAt > truncationAnchor.createdAt,
-          )?.seq;
-        if (boundarySeq !== undefined) {
-          await modelContextStore.truncateEventsFrom(boundarySeq);
+              ? events
+                  .filter((event) => {
+                    if (event.type !== 'turn/input') return false;
+                    if (
+                      event.payload === null ||
+                      typeof event.payload !== 'object' ||
+                      Array.isArray(event.payload)
+                    ) {
+                      return false;
+                    }
+                    return (
+                      (event.payload as { userMessageId?: unknown }).userMessageId ===
+                      ledgerBoundaryMessageId
+                    );
+                  })
+                  .at(-1)
+              : undefined;
+          const boundarySeq =
+            matchingUserEvent?.seq ??
+            events.find((event) =>
+              ledgerBoundaryMessageId !== undefined
+                ? event.createdAt >= ledgerBoundaryCreatedAt
+                : event.createdAt > truncationAnchor.createdAt,
+            )?.seq;
+          if (boundarySeq !== undefined) {
+            await modelContextStore.truncateEventsFrom(boundarySeq);
+          }
+        } finally {
+          modelContextStore.close();
         }
-      } finally {
-        modelContextStore.close();
       }
       // ADR 0040 §7: no eager rebuild. The next session/prompt activates a
       // fresh runtime generation for the stable product session id and
@@ -396,6 +412,8 @@ export async function handleSessionLiveCommand(
       }
       record.updatedAt = new Date().toISOString();
       await upsertSessionRecord(indexPath, record);
+      // Subtree deletion can move the leaf and dissolve branch points.
+      await pushBranchUpdated(context, command.sessionId, store);
       return ok(requestId, 'session/truncate-from', {
         sessionId: command.sessionId,
         removedCount: truncated.removedCount,
@@ -774,7 +792,7 @@ export async function handleSessionLiveCommand(
       const output = await open(outputPath, 'w');
       let byteLength = 0;
       try {
-        for await (const chunk of streamTranscriptExport(store.iterateAll(100), exportOptions)) {
+        for await (const chunk of streamTranscriptExport(store.iterateActivePath(100), exportOptions)) {
           await output.write(chunk, undefined, 'utf8');
           byteLength += Buffer.byteLength(chunk, 'utf8');
         }

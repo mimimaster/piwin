@@ -103,27 +103,19 @@
   margin-top: 0;
 }
 
-.revert-dont-ask {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-  user-select: none;
-  transition: color 140ms ease;
-}
-
-.revert-dont-ask:hover {
+.branch-switch-write-list {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  list-style: none;
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2, rgb(0 0 0 / 12%));
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
   color: var(--text);
-}
-
-.revert-dont-ask input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  accent-color: var(--accent);
 }
 
 .revert-continue-btn {

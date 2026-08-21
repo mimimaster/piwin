@@ -34,6 +34,7 @@ export type ContextMenuActionId =
   | 'copy-absolute-path'
   | 'quote-in-composer'
   | 'retry'
+  | 'truncate-after'
   | 'fork'
   | 'side-chat'
   | 'open-changed-files'
