@@ -9,6 +9,8 @@ import {
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  ARTIFACT_VIEWPORT_FILL_HEIGHT,
+  ARTIFACT_VIEWPORT_FILL_SLACK_PX,
 } from './constants.js';
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
@@ -409,17 +411,37 @@ export function buildArtifactBridgeBootstrapScript(
     var rect = element.getBoundingClientRect();
     return Math.max(rect.height || 0, element.offsetHeight || 0, element.scrollHeight || 0);
   };
-  var readContentHeight = function () {
-    var root = document.querySelector('.piwin-artifact-root');
+  var readContentHeight = function (root) {
     if (root) return readBoxHeight(root);
     return Math.max(readBoxHeight(document.body), readBoxHeight(document.documentElement));
+  };
+  var readSceneHeight = function (root) {
+    if (!root || !root.querySelector) return 0;
+    var scene = root.querySelector('canvas, video');
+    return scene ? readBoxHeight(scene) : 0;
+  };
+  var fillsViewport = function (size, viewport) {
+    return viewport > 0 && size >= viewport - 1 && size <= viewport + ${ARTIFACT_VIEWPORT_FILL_SLACK_PX};
   };
   var readyPosted = false;
   var lastReportedHeight = -1;
   var heightFrame = null;
   var reportHeight = function () {
     heightFrame = null;
-    var height = readHeight(readContentHeight());
+    var root = document.querySelector('.piwin-artifact-root');
+    var measured = readHeight(readContentHeight(root));
+    var viewport = readHeight(window.innerHeight);
+    var scene = readSceneHeight(root);
+    var height = measured;
+    // Canvas/video sized to innerHeight (pelican-style scenes) would otherwise
+    // ratchet the iframe: measure → grow stage → resize event → canvas grows.
+    // Grant such scenes a fixed budget; siblings keep their natural height.
+    // The non-scene remainder is viewport-independent, so this converges.
+    if (fillsViewport(scene, viewport)) {
+      height = readHeight(Math.max(0, measured - scene) + ${ARTIFACT_VIEWPORT_FILL_HEIGHT});
+    } else if (lastReportedHeight >= 0 && fillsViewport(measured, viewport)) {
+      return;
+    }
     if (height === lastReportedHeight) return;
     lastReportedHeight = height;
     post(readyPosted ? resizeType : readyType, {
@@ -433,11 +455,14 @@ export function buildArtifactBridgeBootstrapScript(
   };
   var startHeightObserver = function () {
     var root = document.querySelector('.piwin-artifact-root');
-    if ('ResizeObserver' in window) {
-      var observer = new ResizeObserver(scheduleHeight);
+    if (window.ResizeObserver) {
+      var observer = new window.ResizeObserver(scheduleHeight);
       if (root) observer.observe(root);
       else if (document.body) observer.observe(document.body);
     }
+    // Viewport changes do not move the root box when only a scene tracks
+    // innerHeight; re-measure so a mis-pinned scene budget can self-correct.
+    window.addEventListener('resize', scheduleHeight);
     scheduleHeight();
   };
 ${streamUpdateBootstrap}

@@ -23,6 +23,11 @@ use std::sync::Arc;
 /// multi-second granularity is sufficient and keeps the poll cost invisible.
 const POLL_INTERVAL_MS: u64 = 5_000;
 
+/// Latest sampled main-window WebContent pid, shared with
+/// `relaunch_webview_renderer`. 0 = unknown. Written by the monitor thread
+/// every poll tick, so a relaunched renderer is re-learned within seconds.
+static MAIN_WEBVIEW_PID: AtomicI32 = AtomicI32::new(0);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MemoryPressureLevel {
@@ -71,6 +76,7 @@ pub fn spawn_memory_pressure_monitor(app_handle: tauri::AppHandle) {
             let ratio = sample_available_ratio();
             let footprint = {
                 let pid = webview_pid.load(Ordering::Relaxed);
+                MAIN_WEBVIEW_PID.store(pid, Ordering::Relaxed);
                 if pid > 0 {
                     process_phys_footprint_bytes(pid)
                 } else {
@@ -158,6 +164,55 @@ pub fn purge_webview_memory(app_handle: tauri::AppHandle) {
     }
     #[cfg(not(target_os = "macos"))]
     let _ = app_handle;
+}
+
+/// Kill the main window's WebContent renderer so WebKit relaunches it fresh.
+///
+/// Forensics 2026-08-21: after sustained streaming/HMR repaint the renderer
+/// pins 1 GB+ of IOSurface backing ("Owned physical footprint (unmapped)
+/// (graphics)") that survives DOM teardown, simulated memory pressure, GC,
+/// and full document navigation. Only renderer death releases it (measured
+/// 1365 MB → 185 MB). WKWebView reloads the page on web-process termination
+/// and the shell reconnects to the Host (ADR 0038: renderer death is a client
+/// disconnect, not a Host restart). Frontend policy decides *when*
+/// (renderer-self-heal.ts); this command is the mechanism only.
+#[tauri::command]
+pub fn relaunch_webview_renderer() -> bool {
+    let pid = MAIN_WEBVIEW_PID.load(Ordering::Relaxed);
+    if pid <= 1 {
+        return false;
+    }
+    if !is_webcontent_process(pid) {
+        return false;
+    }
+    // Forget the pid so a second call cannot target a recycled pid before the
+    // monitor re-samples the replacement renderer.
+    MAIN_WEBVIEW_PID.store(0, Ordering::Relaxed);
+    unsafe { libc::kill(pid, libc::SIGKILL) == 0 }
+}
+
+/// A pid may be recycled between sampling and kill; only accept processes
+/// whose executable path is WebKit's WebContent XPC service.
+#[cfg(target_os = "macos")]
+fn is_webcontent_process(pid: i32) -> bool {
+    let mut buffer = [0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+    let written = unsafe {
+        libc::proc_pidpath(
+            pid,
+            buffer.as_mut_ptr() as *mut libc::c_void,
+            buffer.len() as u32,
+        )
+    };
+    if written <= 0 {
+        return false;
+    }
+    let path = String::from_utf8_lossy(&buffer[..written as usize]);
+    path.contains("com.apple.WebKit.WebContent")
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_webcontent_process(_pid: i32) -> bool {
+    false
 }
 
 /// Store the main window's WebContent pid into `slot`, asynchronously on the
@@ -371,6 +426,22 @@ mod tests {
         let pid = std::process::id() as i32;
         let footprint = process_phys_footprint_bytes(pid).expect("self rusage should work");
         assert!(footprint > 0);
+    }
+
+    #[test]
+    fn relaunch_refuses_non_webcontent_processes() {
+        // Own test binary is not WebContent; the identity guard must refuse it.
+        let pid = std::process::id() as i32;
+        assert!(!is_webcontent_process(pid));
+        MAIN_WEBVIEW_PID.store(pid, Ordering::Relaxed);
+        assert!(!relaunch_webview_renderer());
+        MAIN_WEBVIEW_PID.store(0, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn relaunch_refuses_unknown_pid() {
+        MAIN_WEBVIEW_PID.store(0, Ordering::Relaxed);
+        assert!(!relaunch_webview_renderer());
     }
 
     #[test]

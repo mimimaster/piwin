@@ -9,6 +9,8 @@ export {
   MIN_ARTIFACT_IFRAME_HEIGHT,
   ARTIFACT_BOOTSTRAP_HEIGHT,
   ARTIFACT_FALLBACK_HEIGHT,
+  ARTIFACT_VIEWPORT_FILL_HEIGHT,
+  ARTIFACT_VIEWPORT_FILL_SLACK_PX,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   ARTIFACT_READY_TIMEOUT_MS,
   MAX_CONCURRENT_ARTIFACT_INITS,
@@ -97,7 +99,12 @@ export {
   parseArtifactActionMessage,
 } from './bridge-protocol.js';
 
-export { normalizeArtifactHeight, clampArtifactHeight } from './height-policy.js';
+export {
+  normalizeArtifactHeight,
+  clampArtifactHeight,
+  stabilizeInlineArtifactHeight,
+} from './height-policy.js';
+export type { StabilizeInlineArtifactHeightInput } from './height-policy.js';
 
 export { resolveArtifactRenderTarget } from './render-route.js';
 export type {

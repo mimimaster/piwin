@@ -23,6 +23,15 @@ export const ARTIFACT_BOOTSTRAP_HEIGHT = 80;
 /** Visible bounded degradation when an Inline iframe cannot report height. */
 export const ARTIFACT_FALLBACK_HEIGHT = 640;
 /**
+ * Height budget granted to a canvas/video that sizes itself to the iframe
+ * viewport (`innerHeight` / `100%`). Reporting its measured height would
+ * grow the iframe, which grows the scene, which reports again; sibling
+ * content is still added on top of this budget at natural height.
+ */
+export const ARTIFACT_VIEWPORT_FILL_HEIGHT = 400;
+/** Padding / ceil slack when deciding that content is only filling the frame. */
+export const ARTIFACT_VIEWPORT_FILL_SLACK_PX = 16;
+/**
  * Defensive ceiling for an Inline Artifact that flows with the transcript.
  * Inline no longer owns a 900px scrollport, but model HTML is untrusted and
  * must not be able to request an effectively unbounded iframe height.

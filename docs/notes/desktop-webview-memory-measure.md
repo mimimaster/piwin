@@ -57,6 +57,16 @@ Fixed conditions for comparable samples: **Noir**, desktop layout, pet
 | Date | Build | Sample | pid | Footprint | graphics | WebKit malloc | Notes |
 |---|---|---|---|---|---|---|---|
 | 2026-08-17 16:48 | `tauri dev` debug, ~73 min uptime, after S1 CSS HMR | cold-ish idle | 66316 | 395 MB | 53 MB | 311 MB | Pet 66318 = 25 MB / 160 KB graphics. Unclassified 95404 ignored. **Not a release baseline.** |
+| 2026-08-21 16:57 | `tauri dev` shell-only debug, ~54 min uptime, heavy agent streaming + HMR | post-use idle | 85506 | 1416 MB (peak 1933) | 1074 MB | 294 MB | Pinned graphics: survives `org.WebKit.lowMemory`, full-DOM `display:none`, and two document reloads. JS Gigacage 2.6 MB. |
+| 2026-08-21 17:09 | same shell, renderer killed (`SIGKILL` WebContent) | fresh renderer | 26426 | 185 MB | 35 MB | 122 MB | WKWebView auto-relaunched + reloaded; shell stayed 46 MB → leak was WebContent-process-internal. Motivates renderer self-heal tier. |
 
 S0 does not invent a release number. Fill the release row when a packaged
 build is next launched for a 10-minute idle.
+
+Forensic recipe for pinned graphics (2026-08-21): sample `footprint <pid>`;
+`notifyutil -p org.WebKit.lowMemory` flushes WebKit caches/IOSurface pool —
+if the graphics category refuses to drop, hide the whole DOM via a temporary
+`body > * { display: none !important; }` in `styles/memory-degradation.css`
+(HMR applies live) and pressure again. Still-pinned graphics after that plus
+a full reload means process-level retention: only a renderer relaunch
+(`relaunch_webview_renderer`) recovers it.

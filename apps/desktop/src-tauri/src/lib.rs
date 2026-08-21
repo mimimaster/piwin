@@ -173,7 +173,8 @@ pub fn run() {
             pet_overlay_hide,
             pet_overlay_toggle,
             show_main_window,
-            memory_pressure::purge_webview_memory
+            memory_pressure::purge_webview_memory,
+            memory_pressure::relaunch_webview_renderer
         ])
         .setup(|application| {
             install_artifact_bridge(application.handle())?;
