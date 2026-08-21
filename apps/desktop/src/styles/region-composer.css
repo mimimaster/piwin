@@ -3113,7 +3113,7 @@ html[data-theme-visual-style='ink-wash'] .composer-card-v2 {
 }
 
 /*
- * Soft xuan-paper wash on top of the card fill (does not steal lion ::after).
+ * Soft xuan-paper wash on top of the card fill.
  * Clip to the card radius so texture stays inside the frame.
  */
 html[data-theme-visual-style='ink-wash'] .composer-card-v2::before {
@@ -3143,27 +3143,6 @@ html[data-theme-visual-style='ink-wash'] .composer-v2-action-slot {
   position: relative !important;
   z-index: 10 !important;
   pointer-events: auto !important;
-}
-
-/* 右侧瑞兽石狮 (kept; target mock still has the pedestal ornament) */
-html[data-theme-visual-style='ink-wash'] .composer-card-v2::after {
-  content: '' !important;
-  position: absolute !important;
-  bottom: -14px !important;
-  right: -34px !important;
-  width: 64px !important;
-  height: 90px !important;
-  background-image: url('/ui/ink-wash/lion-seal-v2.png') !important;
-  background-size: contain !important;
-  background-repeat: no-repeat !important;
-  background-position: center bottom !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.75)) !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
-  opacity: 0.96 !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .composer-card-v2:focus-within {
