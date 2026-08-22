@@ -212,9 +212,11 @@ describe('ComposerDock host status', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
     const stopBtn = container.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
     expect(stopBtn).not.toBeNull();
     expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="stop-btn"]').length).toBe(1);
 
     act(() => {
       stopBtn.click();
@@ -222,7 +224,7 @@ describe('ComposerDock host status', () => {
     expect(handleAbort).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps a single Stop control while streaming even if pause handlers exist elsewhere', () => {
+  it('keeps a single Stop control while streaming (no Pause button beside it)', () => {
     const handleAbort = vi.fn();
     const rendered = renderDock(
       <ComposerDock
@@ -239,11 +241,83 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="resume-run-btn"]')).toBeNull();
     const stopBtn = container.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
     expect(stopBtn).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="stop-btn"]').length).toBe(1);
 
     act(() => {
       stopBtn.click();
     });
     expect(handleAbort).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders a Steer control while streaming with text', () => {
+    const handleSteer = vi.fn();
+    const handleFollowUp = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        composer="change direction"
+        onSteer={handleSteer}
+        onFollowUp={handleFollowUp}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const steerBtn = container.querySelector('[data-testid="steer-btn"]') as HTMLButtonElement;
+    expect(steerBtn).not.toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+
+    act(() => {
+      steerBtn.click();
+    });
+    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleFollowUp).not.toHaveBeenCalled();
+  });
+
+  it('keeps Stop available while drafting a follow-up during a live run', () => {
+    const handleFollowUp = vi.fn();
+    const handleAbort = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        composer="keep going"
+        onFollowUp={handleFollowUp}
+        onAbort={handleAbort}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-testid="stop-btn"]').length).toBe(1);
+  });
+
+  it('renders continue action for a paused run', () => {
+    const handleResume = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} paused={true} onResume={handleResume} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const resumeBtn = container.querySelector(
+      '[data-testid="resume-run-btn"]',
+    ) as HTMLButtonElement;
+    expect(resumeBtn).not.toBeNull();
+    expect(container.querySelector('[data-testid="discard-pause-btn"]')).not.toBeNull();
+
+    act(() => {
+      resumeBtn.click();
+    });
+    expect(handleResume).toHaveBeenCalledTimes(1);
   });
 
   it('reuses the Composer textarea for Other input and keeps Stop instead of Steer', () => {
@@ -332,8 +406,8 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="steer-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
 
     const sendBtn = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
     expect(sendBtn).not.toBeNull();

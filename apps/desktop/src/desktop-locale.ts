@@ -177,6 +177,8 @@ export type DesktopCopy = {
     sendShortcut: string;
     sendSteerMessage: string;
     sendSteerHint: string;
+    steer: string;
+    steerUnavailable: string;
     queueFollowUp: string;
     queueFollowUpHint: string;
     queuedMessagesLabel: string;
@@ -194,6 +196,8 @@ export type DesktopCopy = {
     viewJobLogsTitle: (label: string) => string;
     pause: string;
     pausing: string;
+    /** Tooltip unused for live interrupt; kept for paused-state / CLI copy. */
+    pauseHint: string;
     continueRun: string;
     hostConnecting: string;
     hostStatus: (mode: string, isMock: boolean) => string;
@@ -731,6 +735,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       sendShortcut: '发送 (Enter)',
       sendSteerMessage: '调整当前任务',
       sendSteerHint: '当前步骤完成后调整方向 (⌘↵)',
+      steer: '调整',
+      steerUnavailable: '当前没有可调整的运行。等生成开始后再试。',
       queueFollowUp: '加入后续队列',
       queueFollowUpHint: '加入下一轮 (Enter) · 当前步骤后调整方向 (⌘↵)',
       queuedMessagesLabel: '后续消息队列',
@@ -748,12 +754,13 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       viewJobLogsTitle: (label) => `查看「${label}」日志`,
       pause: '暂停',
       pausing: '正在暂停…',
+      pauseHint: '暂停并保存检查点（CLI / Host）',
       continueRun: '继续运行',
       hostConnecting: 'Host：正在连接…',
       hostStatus: (mode, isMock) => `Host：${mode}${isMock ? '（模拟）' : ''}`,
       hostTooltip: (mode, isMock, ready, transport) =>
         `Host 模式：${mode}${isMock ? '（模拟）' : '（实时）'}｜状态：${ready ? '就绪' : '正在连接'}${transport ? `｜传输：${transport}` : ''}`,
-      shortcutHint: '↵ 发送 · ⇧↵ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断',
+      shortcutHint: '↵ 发送 · ⇧↵ 换行 · / 命令 · @ 提及 · ↑/↓ 历史 · Esc 停止',
       promptHistoryTitle: '最近 10 条发送记录',
       promptHistoryEmpty: '暂无历史发送记录',
       branchUnknown: '分支',
@@ -1045,6 +1052,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       sendShortcut: 'Send (Enter)',
       sendSteerMessage: 'Adjust current run',
       sendSteerHint: 'Adjust direction after the current step (⌘↵)',
+      steer: 'Steer',
+      steerUnavailable: 'No active run to adjust. Wait until generation starts.',
       queueFollowUp: 'Queue follow-up',
       queueFollowUpHint: 'Queue next turn (Enter) · Adjust after this step (⌘↵)',
       queuedMessagesLabel: 'Queued follow-up messages',
@@ -1062,6 +1071,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       viewJobLogsTitle: (label) => `View logs for ${label}`,
       pause: 'Pause',
       pausing: 'Pausing…',
+      pauseHint: 'Pause and save a checkpoint (CLI / Host)',
       continueRun: 'Continue run',
       hostConnecting: 'Host: Connecting…',
       hostStatus: (mode, isMock) => `Host: ${mode}${isMock ? ' (mock)' : ''}`,

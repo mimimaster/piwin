@@ -1,4 +1,3 @@
-import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PetOverlayApp } from './pet-overlay-app';
 import { installDevelopmentPerformanceTimelineGuard } from './development-performance-timeline';
@@ -16,8 +15,6 @@ if (!rootElement) {
   throw new Error('pet overlay root element missing');
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <PetOverlayApp />
-  </StrictMode>,
-);
+// Do not remount this tree in development: a second boot effect used to
+// recreate a pet the user just hid. Main window follows the same rule.
+createRoot(rootElement).render(<PetOverlayApp />);

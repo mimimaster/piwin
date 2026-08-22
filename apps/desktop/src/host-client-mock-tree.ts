@@ -10,7 +10,7 @@ import type {
   TranscriptBranchSibling,
   WorkspaceWrites,
 } from '@piwin/contracts';
-import { collectOffPathWorkspaceWrites } from '@piwin/contracts';
+import { collectOffPathWorkspaceWrites, workspaceWritesFromMessage } from '@piwin/contracts';
 
 export type MockTranscriptTreeHost = {
   transcript: SessionTranscriptMessage[];
@@ -208,6 +208,7 @@ function siblingStats(
     preview: sibling.text.slice(0, previewChars),
     leafPreview: (leaf?.text ?? '').slice(0, previewChars),
     messageCount: rows.length,
+    writesWorkspace: rows.some((row) => workspaceWritesFromMessage(row) !== null),
     updatedAt,
   };
 }

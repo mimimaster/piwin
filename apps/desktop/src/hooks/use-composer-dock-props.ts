@@ -90,6 +90,7 @@ export type UseComposerDockPropsArgs = {
   onSteer: () => void | Promise<unknown>;
   onFollowUp: () => void | Promise<unknown>;
   onAbort: () => void | Promise<unknown>;
+  onResume: () => void | Promise<unknown>;
   onCompact: () => void | Promise<unknown>;
   onOpenProject: (path: string) => void | Promise<void>;
   onExtensionUiResolve: (payload: {
@@ -173,6 +174,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onSteer,
     onFollowUp,
     onAbort,
+    onResume,
     onCompact,
     onOpenProject,
     onExtensionUiResolve,
@@ -276,6 +278,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const handleComposerAbort = useCallback((): void => {
     void onAbort();
   }, [onAbort]);
+  const handleComposerResume = useCallback((): void => {
+    void onResume();
+  }, [onResume]);
   const handleComposerCompact = useCallback((): void => {
     void onCompact();
   }, [onCompact]);
@@ -315,6 +320,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       activeSessionId: state.activeSessionId,
       streaming: state.streaming,
       runPhase: state.runPhase,
+      paused: state.runTerminal.kind === 'paused',
       compacting: state.compacting,
       composer,
       onComposerChange: setComposer,
@@ -379,6 +385,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onThinkingLevelChange,
       ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
       onAbort: handleComposerAbort,
+      onResume: handleComposerResume,
       onCompact: handleComposerCompact,
       compactionSupported: hostStatus?.capabilities?.compaction !== false,
       contextUsage: state.contextUsage,
@@ -431,6 +438,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       extensionUiRequest,
       goalExtensionEnabled,
       handleComposerAbort,
+      handleComposerResume,
       handleComposerAttachFile,
       handleComposerAttachImage,
       handleComposerCompact,
@@ -503,6 +511,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       state.projectPath,
       state.projectTrusted,
       state.runPhase,
+      state.runTerminal.kind,
       state.streaming,
       steerQueueMessages,
       stopJob,

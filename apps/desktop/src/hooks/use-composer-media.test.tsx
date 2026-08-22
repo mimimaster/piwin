@@ -633,6 +633,76 @@ describe('useComposerMedia session transitions', () => {
     expect(input?.contextRefs).not.toEqual([expect.objectContaining({ title: 'Changed' })]);
   });
 
+  it('paints the same context refs on a remote transport that actually reach the Host', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const hostClient = {
+      request: vi.fn().mockResolvedValue({
+        type: 'response',
+        command: 'session/prompt',
+        success: true,
+        data: { runId: 'run-1', acceptedAt: '2026-08-12T00:00:00.000Z' },
+      }),
+      getTransport: () => 'remote',
+      isReady: () => true,
+    } as unknown as HostClient;
+    const dispatch = vi.fn();
+    // A raw local file path is not a Host-safe remote ref (only opaque
+    // `project-<hex>` ids are); it must be flattened out of contextRefs on a
+    // remote transport, same as it would be before persisting.
+    const pendingRefs: PromptContextRef[] = [
+      { kind: 'selection', snapshotText: 'safe body', label: 'safe body' },
+      {
+        kind: 'file',
+        projectPath: '/Users/test/project-a',
+        relativePath: 'src/index.ts',
+        label: 'index.ts',
+      },
+    ];
+    let captured: ComposerMediaResult | undefined;
+
+    function Harness(props: { state: ChatUiState }): null {
+      captured = useComposerMedia({
+        hostClient,
+        state: props.state,
+        dispatch,
+        agentMode: 'agent',
+        getPendingContextRefs: () => pendingRefs,
+      });
+      return null;
+    }
+
+    const state = { ...createInitialChatUiState(), activeSessionId: 'session-1' };
+    act(() => root?.render(<Harness state={state} />));
+    act(() => {
+      captured?.setComposer('quoting a local file');
+    });
+    await act(async () => {
+      await captured?.handleSend();
+    });
+
+    const sendCall = dispatch.mock.calls.find((call) => call[0]?.type === 'user/send')?.[0];
+    const paintedRefs = sendCall?.contextRefs as PromptContextRef[] | undefined;
+    const paintedText = sendCall?.text as string | undefined;
+    const requestMock = vi.mocked(hostClient.request);
+    const promptCall = requestMock.mock.calls.find((call) => call[0]?.type === 'session/prompt');
+    const promptInput = (
+      promptCall?.[0] as Extract<Parameters<typeof requestMock>[0], { type: 'session/prompt' }>
+    )?.input;
+
+    // The optimistic bubble must show exactly what was sent/persisted, never
+    // a superset that then vanishes once this message round-trips through
+    // the Host and gets re-hydrated from the stored transcript.
+    expect(paintedRefs).toEqual(promptInput?.contextRefs);
+    expect(paintedRefs?.some((ref) => ref.kind === 'file')).toBe(false);
+    expect(paintedRefs?.some((ref) => ref.kind === 'selection')).toBe(true);
+    // The dropped file ref's label gets appended as plain text (same as what
+    // the Host actually receives), so the bubble never silently loses it.
+    expect(paintedText).toBe(promptInput?.text);
+    expect(paintedText).toBe('quoting a local file\n\nindex.ts');
+  });
+
   it('runs media/save only at Send, after the session is resolved', async () => {
     container = document.createElement('div');
     document.body.append(container);

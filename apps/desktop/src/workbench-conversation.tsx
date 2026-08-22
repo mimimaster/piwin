@@ -97,7 +97,6 @@ export type WorkbenchTranscriptProps = {
   onPlanAbort: () => void | Promise<void>;
   onGenerateWalkthrough: (messageId: string, force?: boolean) => void | Promise<void>;
   onCancelWalkthrough: (messageId: string, generationId?: string) => void | Promise<void>;
-  onDuplicateSession: (sessionId: string) => void | Promise<void>;
   onForkFromMessage: (sessionId: string, messageId: string) => void | Promise<void>;
   onOpenSession: (sessionId: string) => void | Promise<void>;
   onCompactAbort: () => void | Promise<void>;
@@ -154,7 +153,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
     onPlanAbort,
     onGenerateWalkthrough,
     onCancelWalkthrough,
-    onDuplicateSession,
     onForkFromMessage,
     onOpenSession,
     onCompactAbort,
@@ -294,7 +292,6 @@ export function WorkbenchTranscript(props: WorkbenchTranscriptProps): ReactEleme
             onCancelWalkthrough={onCancelWalkthrough}
             {...(activeSessionId
               ? {
-                  onDuplicateSession: () => void onDuplicateSession(activeSessionId),
                   onForkFromMessage: (messageId: string) =>
                     void onForkFromMessage(activeSessionId, messageId),
                 }

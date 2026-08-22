@@ -2,7 +2,9 @@ import { globalMemoryGovernor, type MemoryPressureLevel } from './memory-governo
 
 const MIB = 1024 * 1024;
 
-// S9 2026-08-17: no release all-day sample. Do not change 768 / 1536 without it.
+// Visual degradation only (glass at 768, highlighting/textures at 1536).
+// Renderer reclaim is SELF_HEAL_RECLAIM_BYTES — 2026-08-22 packaged sample
+// sat at 650–1000 MB with gfx pinned, so waiting for 1536 never fired.
 export const MEMORY_PRESSURE_MODERATE_BYTES = 768 * MIB;
 export const MEMORY_PRESSURE_CRITICAL_BYTES = 1536 * MIB;
 export const MEMORY_PRESSURE_HYSTERESIS_BYTES = 64 * MIB;
@@ -60,6 +62,7 @@ export function classifyMemoryPressure(
 }
 
 export function applyMemoryPressureSample(sample: MemoryPressureSample): MemoryPressureLevel {
+  lastSampledBytes = sample.bytes;
   const currentLevel = globalMemoryGovernor.getLevel();
   const nextLevel = classifyMemoryPressure(sample, currentLevel);
   globalMemoryGovernor.setLevel(nextLevel);
@@ -104,6 +107,17 @@ export function resetMemoryPressureRecoveryDwell(): void {
   lastEscalationAtMs = Number.NEGATIVE_INFINITY;
 }
 
+let lastSampledBytes: number | null = null;
+
+/** Latest main-window WebContent footprint, or null before the first sample. */
+export function getLastMemoryPressureBytes(): number | null {
+  return lastSampledBytes;
+}
+
+export function resetLastMemoryPressureBytes(): void {
+  lastSampledBytes = null;
+}
+
 function isMemoryPressureLevel(value: unknown): value is MemoryPressureLevel {
   return value === 'normal' || value === 'moderate' || value === 'critical';
 }
@@ -128,6 +142,7 @@ export function applyMemoryPressureEvent(
   let nextLevel = previousLevel;
 
   if (detail !== undefined && isFiniteByteCount(detail.bytes)) {
+    lastSampledBytes = detail.bytes;
     const sample: MemoryPressureSample = { bytes: detail.bytes };
     if (isFiniteByteCount(detail.availableBytes)) {
       sample.availableBytes = detail.availableBytes;

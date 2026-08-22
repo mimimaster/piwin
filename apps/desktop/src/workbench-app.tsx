@@ -37,7 +37,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const hostClient = useWorkbenchHostClient();
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
   const selfHealBusyRef = useRef(false);
-  selfHealBusyRef.current = state.streaming || state.compacting;
   useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
   const [, setHostLogEntries] = useState<HostLogEntry[]>([]);
   const chrome = useWorkbenchShellChrome({ hostClient, state });
@@ -163,7 +162,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     clearColdRestorePrompt,
     handleLoadOlderTranscript,
     handleRenameSession,
-    handleDuplicateSession,
     handleContinueSessionInProject,
     handleForkSession,
     handleSessionMenuAction,
@@ -190,7 +188,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     selectedModelLabel,
     selectedModelContextWindow,
     currentPromptModelRef,
+    composer,
     setComposer,
+    pendingAttachments,
     draftSessions,
     activeDraftId,
     addWebElement,
@@ -243,6 +243,11 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     dispatchNotification,
     artifactCanvas,
   } = model;
+  selfHealBusyRef.current =
+    state.streaming ||
+    state.compacting ||
+    composer.trim().length > 0 ||
+    pendingAttachments.length > 0;
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
@@ -400,7 +405,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 onPlanAbort={handlePlanAbort}
                 onGenerateWalkthrough={handleGenerateWalkthrough}
                 onCancelWalkthrough={handleCancelWalkthrough}
-                onDuplicateSession={handleDuplicateSession}
                 onForkFromMessage={handleForkSession}
                 onOpenSession={handleResumeSession}
                 onCompactAbort={handleCompactAbort}
@@ -495,6 +499,9 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 terminalCwd={terminalCwd}
                 handleTerminalCwdChange={handleTerminalCwdChange}
                 terminalRecentDirs={terminalRecentDirs}
+                branchPoints={branchPoints}
+                onSwitchBranch={switchBranch}
+                streaming={state.streaming}
               />
             }
           />

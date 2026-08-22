@@ -247,6 +247,9 @@ describe('transcript store branches', () => {
       files: ['src/old.ts'],
       hasUnknownWrites: false,
     });
+    // The panel marks only the branch that wrote.
+    const points = await store.listBranchPoints({ previewChars: 40 });
+    expect(points[0]?.siblings.map((sibling) => sibling.writesWorkspace)).toEqual([true, false]);
     store.close();
   });
 

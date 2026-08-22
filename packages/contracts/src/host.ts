@@ -459,6 +459,12 @@ export type AgentEvent =
       backendMessageId?: string;
       role: AgentMessageRole;
       runId?: string;
+      /**
+       * Model that owns this assistant turn. Host attaches the session's
+       * in-memory ModelRef before client push so the shell can pin identity
+       * without reading the current composer selection.
+       */
+      model?: ModelRef;
     }
   | { type: 'message/text_delta'; messageId: string; delta: string; runId?: string }
   /** C1: complete snapshot emitted when host detects cumulative text (replaces, does not append). */

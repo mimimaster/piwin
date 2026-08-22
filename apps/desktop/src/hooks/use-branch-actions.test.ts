@@ -2,7 +2,8 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostResponse, PromptContextRef } from '@piwin/contracts';
+import type { ChatMessageUi } from '../chat-reducer.js';
 import {
   buildBranchPromptInput,
   isBranchPromptCommand,
@@ -40,6 +41,84 @@ describe('buildBranchPromptInput', () => {
     expect(isBranchPromptCommand({ type: 'session/truncate-from', sessionId: 's1', messageId: 'u2' })).toBe(
       false,
     );
+  });
+
+  it('carries contextRefs through when the edited turn had any', () => {
+    const contextRefs: PromptContextRef[] = [
+      { kind: 'selection', snapshotText: 'quoted body', label: 'quoted body' },
+    ];
+    const input = buildBranchPromptInput({
+      text: 'try again',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+      contextRefs,
+    });
+    expect(input.contextRefs).toEqual(contextRefs);
+  });
+
+  it('omits contextRefs when the edited turn had none', () => {
+    const input = buildBranchPromptInput({
+      text: 'try again',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+    });
+    expect(input.contextRefs).toBeUndefined();
+  });
+});
+
+describe('branchResend (Edit this turn / revert)', () => {
+  it('keeps the original context refs on both the optimistic bubble and the Host prompt', async () => {
+    const contextRefs: PromptContextRef[] = [
+      { kind: 'selection', snapshotText: 'quoted body', label: 'quoted body' },
+    ];
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: 'original text',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      contextRefs,
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-1' });
+        }
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.branchResend('u1', 'edited text');
+    });
+
+    // Optimistic bubble: the resend must not silently drop the quote/pin.
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send', text: 'edited text', contextRefs }),
+    );
+
+    // Host-persisted prompt: what gets stored in the transcript must match.
+    const promptCommand = sent.find(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    );
+    expect(promptCommand?.input.contextRefs).toEqual(contextRefs);
   });
 });
 
@@ -90,6 +169,7 @@ function response(data: unknown): HostResponse {
 /** Renders the hook in a throwaway probe so the state machine can be driven. */
 function renderBranchActions(
   hostClient: UseBranchActionsArgs['hostClient'],
+  overrides: Partial<UseBranchActionsArgs> = {},
 ): { current: ReturnType<typeof useBranchActions> | null } {
   const actions: { current: ReturnType<typeof useBranchActions> | null } = { current: null };
   function Probe(): null {
@@ -108,6 +188,7 @@ function renderBranchActions(
       selectedModelKey: 'openai::gpt',
       modelOptions: [],
       agentMode: 'agent',
+      ...overrides,
     });
     return null;
   }

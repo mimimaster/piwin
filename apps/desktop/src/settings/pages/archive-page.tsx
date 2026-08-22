@@ -18,24 +18,7 @@ import {
 } from '../../shell-icons';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
-
-function formatTimestamp(isoString: string | undefined, isZh: boolean): string {
-  if (!isoString) return '';
-  try {
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) return isoString;
-    return date.toLocaleString(isZh ? 'zh-CN' : 'en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  } catch {
-    return isoString;
-  }
-}
+import { formatTimestamp } from '../../format-timestamp';
 
 function getProjectDisplayName(projectPath: string | undefined): string {
   if (!projectPath) return '';

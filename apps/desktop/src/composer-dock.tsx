@@ -48,7 +48,6 @@ import {
   IconPlus,
   IconRefresh,
   IconSend,
-  IconStop,
 } from './shell-icons';
 import {
   buildSlashCatalog,
@@ -80,6 +79,7 @@ import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 import { ActiveJobsStrip } from './active-jobs-strip';
 import { useSpeechInput } from './hooks/use-speech-input.js';
 import { PromptHistoryMenu } from './prompt-history-menu';
+import { ComposerPausedActions, ComposerStreamingInterrupt } from './composer-run-actions';
 import {
   loadPromptHistoryFromStorage,
   mergePromptHistory,
@@ -161,8 +161,12 @@ export type ComposerDockProps = {
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
   onSend: () => void;
-  /** Interrupt the active run (Cursor/Claude-style single stop intent). */
+  /** Interrupt the active run (irreversible cancel). Same path as Esc / stop-run. */
   onAbort: () => void;
+  /** Resume from a Host pause checkpoint (CLI/advanced path), not a live interrupt. */
+  onResume?: () => void;
+  /** True when the Host run terminal is a resumable pause checkpoint. */
+  paused?: boolean;
   /** Model-originated question rendered inline above the composer input. */
   extensionUiRequest?: ExtensionUiRequestState | null;
   extensionUiInput?: string;
@@ -263,6 +267,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const copy = getDesktopCopy(locale).composer;
   const interruptionCopy = translator.interruption;
   const agentModeDefinition = getAgentMode(props.agentMode);
+  const isPaused = props.paused === true;
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
   const extensionUiRequest = props.extensionUiRequest ?? null;
@@ -853,9 +858,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     // 4. ⌘Enter submits a run intervention (bypasses IME protection).
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
+      if (isPaused) {
+        return;
+      }
       if (hasContent) {
         if (isStreamingRun) {
-          if (canQueueStreamingText) {
+          if (props.composer.trim().length > 0) {
             triggerSteer();
           }
         } else {
@@ -876,6 +884,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
+      if (isPaused) {
+        return;
+      }
       if (hasContent) {
         if (isStreamingRun) {
           if (canQueueStreamingText) {
@@ -904,24 +915,22 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     autoResize();
   }, [composerValue, props.layoutMode, autoResize]);
 
-  // Single interrupt control while a run is live — matches Cursor/Claude Code
-  // (Stop/Esc). Checkpoint pause remains Host/CLI capability, not a second
-  // composer affordance.
-  const renderStreamingActions = (): ReactElement => (
-    <div className="composer-v2-action-group">
-      <button
-        type="button"
-        className="composer-v2-stop-btn is-running"
-        data-testid="stop-btn"
-        data-action="stop"
-        disabled={!props.activeSessionId || props.runPhase === 'aborting'}
-        onClick={props.onAbort}
-        aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-        title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-      >
-        <IconStop />
-      </button>
-    </div>
+  const renderPausedActions = (): ReactElement => (
+    <ComposerPausedActions
+      copy={copy}
+      activeSessionId={props.activeSessionId}
+      onAbort={props.onAbort}
+      {...(props.onResume ? { onResume: props.onResume } : {})}
+    />
+  );
+
+  const renderStreamingInterrupt = (): ReactElement => (
+    <ComposerStreamingInterrupt
+      copy={copy}
+      activeSessionId={props.activeSessionId}
+      runPhase={props.runPhase}
+      onAbort={props.onAbort}
+    />
   );
 
   return (
@@ -1212,26 +1221,42 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             locale={locale === 'en' ? 'en' : 'zh-CN'}
           />
 
-          {/* Send / Stop Action Button */}
+          {/* Send / Pause / Stop */}
           <div className="composer-v2-action-slot">
-            {isStreamingRun ? (
-              isExtensionUiActive ? (
-                renderStreamingActions()
-              ) : hasContent ? (
-                <button
-                  type="button"
-                  className="composer-v2-send-btn is-queue"
-                  data-testid="send-btn"
-                  disabled={!props.onFollowUp || !canQueueStreamingText}
-                  onClick={triggerFollowUp}
-                  aria-label={copy.queueFollowUp}
-                  title={copy.queueFollowUpHint}
-                >
-                  <IconSend />
-                </button>
-              ) : (
-                renderStreamingActions()
-              )
+            {isPaused ? (
+              renderPausedActions()
+            ) : isStreamingRun ? (
+              <div className="composer-v2-action-group">
+                {!isExtensionUiActive && hasContent ? (
+                  <>
+                    {props.onSteer && props.composer.trim().length > 0 ? (
+                      <button
+                        type="button"
+                        className="composer-v2-text-btn"
+                        data-testid="steer-btn"
+                        disabled={props.runPhase === 'aborting'}
+                        onClick={triggerSteer}
+                        aria-label={copy.sendSteerMessage}
+                        title={copy.sendSteerHint}
+                      >
+                        {copy.steer}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="composer-v2-send-btn is-queue"
+                      data-testid="send-btn"
+                      disabled={!props.onFollowUp || !canQueueStreamingText}
+                      onClick={triggerFollowUp}
+                      aria-label={copy.queueFollowUp}
+                      title={copy.queueFollowUpHint}
+                    >
+                      <IconSend />
+                    </button>
+                  </>
+                ) : null}
+                {renderStreamingInterrupt()}
+              </div>
             ) : onlyFailedAttachments ? (
               <button
                 type="button"

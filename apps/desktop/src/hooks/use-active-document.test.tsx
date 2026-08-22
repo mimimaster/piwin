@@ -11,7 +11,10 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-type HostRequestCall = { type: string; input?: { sessionId?: string; assetId?: string } };
+type HostRequestCall = {
+  type: string;
+  input?: { sessionId?: string; assetId?: string; absolutePath?: string };
+};
 
 function createHostClientFake(): { client: HostClient; request: ReturnType<typeof vi.fn> } {
   const request = vi.fn(async (command: HostRequestCall) => {
@@ -35,6 +38,50 @@ function createHostClientFake(): { client: HostClient; request: ReturnType<typeo
           mimeType: 'image/png',
           byteSize: 4,
           base64Data: 'AQIDBA==',
+        },
+      };
+    }
+    if (command.type === 'preview/read-local-file') {
+      const absolutePath = command.input?.absolutePath ?? '';
+      if (absolutePath.includes('missing')) {
+        return {
+          type: 'response' as const,
+          command,
+          success: true,
+          data: { status: 'unavailable', reason: 'not-found' },
+        };
+      }
+      if (/\.(png|jpe?g|gif|webp)$/i.test(absolutePath)) {
+        return {
+          type: 'response' as const,
+          command,
+          success: true,
+          data: {
+            status: 'ready',
+            kind: 'media',
+            asset: {
+              id: 'ingested-1',
+              sessionId: command.input?.sessionId ?? 'session-1',
+              absolutePath: `/Users/t/.piwin/media/${command.input?.sessionId ?? 'session-1'}/ingested-1.png`,
+              mimeType: 'image/png',
+              byteSize: 12,
+              createdAt: '2026-08-22T00:00:00.000Z',
+              name: 'ncg-boot2.png',
+            },
+          },
+        };
+      }
+      return {
+        type: 'response' as const,
+        command,
+        success: true,
+        data: {
+          status: 'ready',
+          kind: 'text',
+          content: '# local file\n',
+          byteSize: 13,
+          truncated: false,
+          readOnly: true,
         },
       };
     }
@@ -179,7 +226,7 @@ describe('useActiveDocument', () => {
     }
   });
 
-  it('keeps outside-project text as an explicit unavailable state', async () => {
+  it('previews /tmp text on the local Host instead of outside-project', async () => {
     reveal = vi.fn();
     const { client, request } = createHostClientFake();
     renderHarness(client);
@@ -188,10 +235,53 @@ describe('useActiveDocument', () => {
       latest.openDocument({ title: 'outside.md', path: '/tmp/outside.md' });
     });
 
-    expect(request).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      type: 'preview/read-local-file',
+      input: { sessionId: 'session-1', absolutePath: '/tmp/outside.md' },
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.content).toBe('# local file\n');
+      expect(latest.activeDocument.readOnly).toBe(true);
+    }
+  });
+
+  it('previews a clicked /tmp image as session media on the local Host', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake();
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'ncg-boot2.png', path: '/tmp/ncg-boot2.png' });
+    });
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.[0]).toMatchObject({
+      type: 'preview/read-local-file',
+      input: { sessionId: 'session-1', absolutePath: '/tmp/ncg-boot2.png' },
+    });
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.provenance).toBe('session-media');
+      expect(latest.activeDocument.media?.path).toBe(
+        '/Users/t/.piwin/media/session-1/ingested-1.png',
+      );
+    }
+  });
+
+  it('keeps a missing /tmp image as unavailable after ingest fails', async () => {
+    reveal = vi.fn();
+    const { client } = createHostClientFake();
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'missing.png', path: '/tmp/missing.png' });
+    });
+
     expect(latest.activeDocument?.status).toBe('unavailable');
     if (latest.activeDocument?.status === 'unavailable') {
-      expect(latest.activeDocument.reason).toBe('outside-project');
+      expect(latest.activeDocument.reason).toBe('not-found');
     }
   });
 

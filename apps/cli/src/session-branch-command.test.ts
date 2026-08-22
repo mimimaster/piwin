@@ -21,6 +21,7 @@ describe('session branch CLI', () => {
               preview: 'original',
               leafPreview: 'original end',
               messageCount: 2,
+              writesWorkspace: true,
               updatedAt: '2026-08-21T00:00:00.000Z',
             },
             {
@@ -28,6 +29,7 @@ describe('session branch CLI', () => {
               preview: 'alternative',
               leafPreview: 'alternative end',
               messageCount: 2,
+              writesWorkspace: false,
               updatedAt: '2026-08-21T00:01:00.000Z',
             },
           ],
@@ -39,8 +41,8 @@ describe('session branch CLI', () => {
     await runSessionBranches({ handleCommand }, 's1', (line) => lines.push(line));
     expect(handleCommand).toHaveBeenCalledWith({ type: 'session/branch-list', sessionId: 's1' });
     expect(lines[0]).toContain('fork 1 at a1');
-    expect(lines[1]).toContain('[1] u2a');
-    expect(lines[2]).toMatch(/^\s+\*\s+\[2\] u2b/);
+    expect(lines[1]).toContain('[1] u2a (write)');
+    expect(lines[2]).toMatch(/^\s+\*\s+\[2\] u2b {2}alternative/);
   });
 
   it('prints run-active and switched outcomes', async () => {

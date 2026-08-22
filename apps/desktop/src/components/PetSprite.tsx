@@ -103,6 +103,7 @@ export function PetSprite(props: PetSpriteProps) {
   useEffect(() => {
     if (!props.pet.spritesheetAbsolutePath) return;
     const src = convertPetAssetPath(props.pet.spritesheetAbsolutePath);
+    if (!src) return;
     const cached = imageCacheMap.get(src);
     if (cached && (cached.naturalWidth > 0 || cached.complete)) {
       imageRef.current = cached;
@@ -124,8 +125,10 @@ export function PetSprite(props: PetSpriteProps) {
     setContentBounds(defaultPetContentBounds(props.pet.cellWidth, props.pet.cellHeight));
 
     const img = new Image();
-    img.src = src;
-    img.onload = () => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
       imageCacheMap.set(src, img);
       imageRef.current = img;
       const detected = detectPetContentBounds(
@@ -138,7 +141,15 @@ export function PetSprite(props: PetSpriteProps) {
       setContentBounds(detected);
       startLoopRef.current();
     };
+    // Attach onload before src. A cached WKWebView asset can complete
+    // synchronously; assigning onload after src misses the pet entirely and
+    // leaves a floating speech bubble with no sprite.
+    img.onload = finish;
     img.onerror = () => {};
+    img.src = src;
+    if (img.complete && (img.naturalWidth > 0 || img.naturalHeight > 0 || img.width > 0)) {
+      finish();
+    }
     return () => {
       img.onload = null;
       img.onerror = null;

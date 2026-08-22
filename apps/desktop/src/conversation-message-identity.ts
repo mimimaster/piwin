@@ -107,9 +107,13 @@ export type ResolveConversationMessageModelInput = {
  *
  * Rules:
  * 1. If the message has a persisted `model` snapshot, always use it.
- * 2. If no snapshot exists AND the message is actively streaming, fallback to `livePromptModel`.
- * 3. In all other cases (e.g. completed historic row without snapshot), return `undefined`.
- *    NEVER backfill from current composer model selection!
+ * 2. If no snapshot exists AND this row is actively streaming, fallback to `livePromptModel`.
+ * 3. Completed historic rows without a snapshot stay unlabeled.
+ *    NEVER backfill from the current composer model selection.
+ *
+ * `isStreaming` on ConversationResponseContent is the session-level run flag
+ * (true for every row while a turn is live). Historic identity uses the row's
+ * own `status`, not that session flag.
  */
 export function resolveConversationMessageModel(
   input: ResolveConversationMessageModelInput,
@@ -118,7 +122,7 @@ export function resolveConversationMessageModel(
     return input.message.model;
   }
 
-  if (input.livePromptModel) {
+  if (input.message.status === 'streaming' && input.livePromptModel) {
     return input.livePromptModel;
   }
 

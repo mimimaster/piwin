@@ -7,7 +7,8 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { access } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const hostServe = join(root, 'dist-host/host-serve.mjs');
@@ -21,22 +22,24 @@ async function main() {
     process.exit(2);
   }
 
+  const isolatedRoot = await mkdtemp(join(tmpdir(), 'piwin-bundled-host-'));
   const child = spawn(process.execPath, [hostServe, 'host', 'serve', '--mode', 'sdk', '--mock'], {
     cwd: join(root, 'dist-host'),
     env: {
       ...process.env,
       PIWIN_MOCK: '1',
+      PIWIN_ROOT: isolatedRoot,
       PIWIN_BUNDLED_ASSETS_ROOT: assetsRoot,
       NODE_PATH: join(root, 'dist-host/node_modules'),
     },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
-  let sawStatus = false;
+  let sawStatusPush = false;
+  let sawStatusResponse = false;
   const timeout = setTimeout(() => {
     console.error('timeout waiting for host/status');
     child.kill('SIGKILL');
-    process.exit(1);
   }, 20_000);
 
   const rl = createInterface({ input: child.stdout });
@@ -54,8 +57,12 @@ async function main() {
           msg.items.some((item) => item?.push?.type === 'host/status')) ||
         msg.ready === true;
       if (containsStatus || (typeof msg.ready === 'boolean' && msg.mock === true)) {
-        sawStatus = true;
+        sawStatusPush = true;
         console.log('[smoke-bundled-host] ok status-like:', line.slice(0, 200));
+      }
+      if (msg.type === 'response' && msg.command === 'host/status' && msg.success === true) {
+        sawStatusResponse = true;
+        console.log('[smoke-bundled-host] ok host/status response:', line.slice(0, 200));
         clearTimeout(timeout);
         child.kill('SIGTERM');
       }
@@ -68,15 +75,14 @@ async function main() {
     process.stderr.write(chunk);
   });
 
-  // Send a status request if the host is request/response oriented
+  // Host JSONL accepts a HostCommand directly, not a nested transport frame.
   setTimeout(() => {
     try {
       child.stdin.write(
-        `${JSON.stringify({
-          type: 'command',
-          requestId: 'smoke-1',
-          command: { type: 'host/status' },
-        })}\n`,
+        JSON.stringify({
+          type: 'host/status',
+          id: 'smoke-1',
+        }) + '\n',
       );
     } catch {
       // ignore
@@ -85,11 +91,22 @@ async function main() {
 
   child.on('exit', (code) => {
     clearTimeout(timeout);
-    if (sawStatus) {
-      process.exit(0);
-    }
-    console.error(`host exited code=${code} without host/status`);
-    process.exit(1);
+    void rm(isolatedRoot, { recursive: true, force: true })
+      .then(() => {
+        if (sawStatusPush && sawStatusResponse) {
+          process.exit(0);
+        }
+        console.error(
+          'host exited code=' + code +
+            ' without a valid host/status exchange (push=' + sawStatusPush +
+            ', response=' + sawStatusResponse + ')',
+        );
+        process.exit(1);
+      })
+      .catch((error) => {
+        console.error('failed to clean bundled-host smoke root', error);
+        process.exit(1);
+      });
   });
 }
 
