@@ -84,6 +84,29 @@ describe('ipc types', () => {
     expect(command.type).toBe('media/save');
   });
 
+  it('accepts chunked media/save command shapes', () => {
+    const begin: HostCommand = {
+      type: 'media/save-begin',
+      input: {
+        sessionId: 's1',
+        mimeType: 'image/png',
+        source: 'paste',
+        byteSize: 2048,
+      },
+    };
+    const chunk: HostCommand = {
+      type: 'media/save-chunk',
+      input: { uploadId: 'u1', chunkIndex: 0, base64Data: 'aaaa' },
+    };
+    const finish: HostCommand = {
+      type: 'media/save-finish',
+      input: { uploadId: 'u1' },
+    };
+    expect(begin.type).toBe('media/save-begin');
+    expect(chunk.type).toBe('media/save-chunk');
+    expect(finish.type).toBe('media/save-finish');
+  });
+
   it('accepts preview/read-trusted-text command shape', () => {
     const command: HostCommand = {
       type: 'preview/read-trusted-text',

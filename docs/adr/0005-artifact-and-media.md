@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19)
+Accepted (2026-07-19; amended 2026-08-22)
 
 ## Context
 
@@ -152,3 +152,43 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
 - Canvas owns a fixed panel scrollport and therefore does not depend on the
   Inline height measurement. CSP, sandboxing, channel binding, message parsing,
   and action whitelisting remain unchanged.
+
+## Amendment (2026-08-22): Source declaration and stable height contract
+
+This amendment supersedes earlier clauses that treated native `html`/`htm`/`svg`
+fences as if the model had explicitly declared an Artifact, and it narrows the
+2026-08-13 height observer contract.
+
+- Parsed descriptors record both `declaration: explicit | native` and
+  `documentKind: fragment | document`. An `artifact-html`/Artifact marker is an
+  explicit product declaration; an ordinary language fence is native source.
+- Native HTML/SVG is source-first even when Artifact capability is enabled.
+  Compatible fragments may be previewed Inline after user action. Full HTML
+  documents and viewport-coupled source are offered only as a user-triggered
+  Canvas preview. Merely writing ` ```html ` never auto-mounts an application in
+  the conversation.
+- Explicit Inline Artifacts may materialize automatically only when they satisfy
+  the component contract. Full documents, viewport-height units/scripts, and
+  fixed-position page shells are incompatible with parent-driven Inline sizing.
+  Runtime reports the incompatibility and leaves source visible; it does not
+  rewrite model CSS or silently change the declared surface.
+- Full documents retain their `html`/`head`/`body` structure in Canvas. Host CSP,
+  theme policy, and action bootstrap are injected into the existing document;
+  the document is not stripped and nested under an Inline root wrapper.
+- Sandboxed Inline uses one message shape only:
+  `piwin-artifact:size { channelId, height, viewportHeight, revision }`. One
+  `ResizeObserver` watches `.piwin-artifact-root` and reports its root rectangle
+  when the distinct height changes. There are no ready/resize phases, viewport
+  resize listener, canvas/video budgets, scene detection, or CSS layout repair.
+- Browser messages must come from the current iframe `contentWindow`; the native
+  frame handler remains bounded and the UI still requires the exact channel.
+  Out-of-order revisions are ignored. Timeout selects the explicit 640px
+  fallback instead of retaining a previously bad height; a later valid revision
+  may recover it.
+- Canvas owns a fixed viewport and sends no size messages. It keeps the same
+  sandbox/CSP/action transport, but is entirely outside the Inline height loop.
+- Transcript virtualization separates actual measurements from estimates:
+  mounted DOM height is never capped, while remembered/speculative height stays
+  bounded at 4000px and is distrusted when implausible. This prevents the outer
+  row from truncating a correctly measured tall Artifact without making stale
+  cache entries reserve large blank regions.

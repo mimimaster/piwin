@@ -837,7 +837,11 @@ export class HostServer {
   }
 
   private rememberRemoteMediaAsset(command: HostCommand, response: HostResponse): void {
-    if (command.type !== 'media/save' || !response.success || !isRecord(response.data)) {
+    if (
+      (command.type !== 'media/save' && command.type !== 'media/save-finish') ||
+      !response.success ||
+      !isRecord(response.data)
+    ) {
       return;
     }
     const asset = isRecord(response.data.asset) ? response.data.asset : undefined;
@@ -1637,6 +1641,28 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         command.input.base64Data.length > 0 &&
         command.input.base64Data.length <= MAX_REMOTE_MEDIA_BASE64_CHARS
       );
+    case 'media/save-begin':
+      return (
+        /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(command.input.sessionId) &&
+        (command.input.source === 'file-picker' ||
+          command.input.source === 'drop' ||
+          command.input.source === 'paste') &&
+        isSupportedAttachmentMimeType(command.input.mimeType) &&
+        Number.isSafeInteger(command.input.byteSize) &&
+        command.input.byteSize > 0 &&
+        command.input.byteSize <= 10 * 1024 * 1024
+      );
+    case 'media/save-chunk':
+      return (
+        /^[A-Za-z0-9-]{8,128}$/.test(command.input.uploadId) &&
+        Number.isSafeInteger(command.input.chunkIndex) &&
+        command.input.chunkIndex >= 0 &&
+        command.input.base64Data.length > 0 &&
+        command.input.base64Data.length <= MAX_REMOTE_MEDIA_BASE64_CHARS
+      );
+    case 'media/save-finish':
+    case 'media/save-abort':
+      return /^[A-Za-z0-9-]{8,128}$/.test(command.input.uploadId);
     case 'media/read':
       // Logical-id addressing only; charset matches the media vault's safe
       // segment domain so traversal-shaped ids never reach the runtime.

@@ -72,7 +72,7 @@ function pasteImage(latest: () => ComposerMediaResult): File {
 }
 
 function createSavedMediaResponse(commandType: string) {
-  if (commandType === 'media/save') {
+  if (commandType === 'media/save' || commandType === 'media/save-finish') {
     return {
       type: 'response' as const,
       command: commandType,
@@ -89,6 +89,30 @@ function createSavedMediaResponse(commandType: string) {
           createdAt: '2026-08-12T00:00:00.000Z',
         },
       },
+    };
+  }
+  if (commandType === 'media/save-begin') {
+    return {
+      type: 'response' as const,
+      command: commandType,
+      success: true,
+      data: { uploadId: 'upload-1', chunkMaxBytes: 384 * 1024 },
+    };
+  }
+  if (commandType === 'media/save-chunk') {
+    return {
+      type: 'response' as const,
+      command: commandType,
+      success: true,
+      data: { uploadId: 'upload-1', receivedBytes: 4 },
+    };
+  }
+  if (commandType === 'media/save-abort') {
+    return {
+      type: 'response' as const,
+      command: commandType,
+      success: true,
+      data: { uploadId: 'upload-1' },
     };
   }
   if (commandType === 'session/prompt') {
@@ -750,7 +774,12 @@ describe('useComposerMedia session transitions', () => {
 
     // Session first, then media/save, then session/prompt.
     expect(ensureSession).toHaveBeenCalledOnce();
-    expect(requestCalls).toEqual(['media/save', 'session/prompt']);
+    expect(requestCalls).toEqual([
+      'media/save-begin',
+      'media/save-chunk',
+      'media/save-finish',
+      'session/prompt',
+    ]);
     expect(latest().composer).toBe('');
     expect(latest().pendingAttachments).toEqual([]);
   });
@@ -762,10 +791,10 @@ describe('useComposerMedia session transitions', () => {
     let promptAttachments: Array<{ path?: string }> | undefined;
     const hostClient = {
       request: vi.fn(async (command: { type: string; input?: { attachments?: Array<{ path?: string }> } }) => {
-        if (command.type === 'media/save') {
+        if (command.type === 'media/save-finish' || command.type === 'media/save') {
           return {
             type: 'response' as const,
-            command: 'media/save',
+            command: command.type,
             success: true,
             data: {
               asset: {
@@ -827,9 +856,9 @@ describe('useComposerMedia session transitions', () => {
     let mediaSaveCalls = 0;
     const hostClient = {
       request: vi.fn(async (command: { type: string }) => {
-        if (command.type === 'media/save') {
+        if (command.type === 'media/save-finish' || command.type === 'media/save') {
           mediaSaveCalls += 1;
-          return createSavedMediaResponse('media/save');
+          return createSavedMediaResponse(command.type);
         }
         if (command.type === 'session/prompt') {
           if (failPrompt) {
@@ -911,10 +940,14 @@ describe('useComposerMedia session transitions', () => {
     const hostClient = {
       request: vi.fn(async (command: { type: string }) => {
         requestCalls.push(command.type);
-        if (command.type === 'media/save') {
+        if (
+          command.type === 'media/save-begin' ||
+          command.type === 'media/save' ||
+          command.type === 'media/save-finish'
+        ) {
           return {
             type: 'response',
-            command: 'media/save',
+            command: command.type,
             success: false,
             error: 'too-large',
           };
@@ -954,7 +987,8 @@ describe('useComposerMedia session transitions', () => {
     });
 
     // Save failed: no optimistic bubble, no session/prompt, chip shows Retry.
-    expect(requestCalls).toEqual(['media/save']);
+    expect(requestCalls[0]).toBe('media/save-begin');
+    expect(requestCalls).not.toContain('session/prompt');
     expect(latest().composer).toBe('keep this text');
     expect(latest().pendingAttachments).toHaveLength(1);
     expect(latest().pendingAttachments[0]?.uploadStatus).toBe('error');
@@ -1267,19 +1301,25 @@ describe('useComposerMedia failed attachment policy (Phase 0)', () => {
     const hostClient = {
       request: vi.fn(async (command: { type: string; input?: unknown }) => {
         calls.push(command.type);
-        if (command.type === 'media/save') {
+        if (
+          command.type === 'media/save-begin' ||
+          command.type === 'media/save' ||
+          command.type === 'media/save-finish' ||
+          command.type === 'media/save-chunk' ||
+          command.type === 'media/save-abort'
+        ) {
           if (mediaSaveBehavior === 'throw') {
             throw new Error('socket closed');
           }
-          if (mediaSaveBehavior === 'reject') {
+          if (mediaSaveBehavior === 'reject' && command.type === 'media/save-begin') {
             return {
               type: 'response',
-              command: 'media/save',
+              command: command.type,
               success: false,
               error: 'too-large',
             };
           }
-          return createSavedMediaResponse('media/save');
+          return createSavedMediaResponse(command.type);
         }
         if (command.type === 'session/prompt') {
           promptInputs.push(command.input as { attachments?: Array<{ kind: string }> });
@@ -1364,7 +1404,7 @@ describe('useComposerMedia failed attachment policy (Phase 0)', () => {
       await harness.latest().handleSend();
     });
 
-    expect(harness.requestCalls().filter((type) => type === 'media/save')).toHaveLength(2);
+    expect(harness.requestCalls().filter((type) => type === 'media/save-finish')).toHaveLength(1);
     expect(harness.promptInputs()).toHaveLength(1);
     expect(harness.promptInputs()[0]?.attachments).toEqual([
       expect.objectContaining({ kind: 'media' }),

@@ -13,7 +13,7 @@ describe('evaluateCodeFence', () => {
       expect(decision.mode).toBe('interactive');
       expect(decision.srcdoc).toContain('<h1>Hello</h1>');
       expect(decision.renderSource).toContain('<h1>Hello</h1>');
-      expect(decision.srcdoc).toContain('piwin-artifact:ready');
+      expect(decision.srcdoc).toContain('piwin-artifact:size');
       expect(decision.srcdoc).not.toContain('piwin-artifact:stream-update');
       expect(decision.csp).toContain("default-src 'none'");
       expect(decision.themeRepairs).toEqual([]);
@@ -67,7 +67,7 @@ describe('evaluateCodeFence', () => {
       expect(decision.srcdoc).not.toContain('<script');
       expect(decision.streamSource).toBe('<div><p>Hi</p></div>');
       expect(decision.renderSource).toBe('<div><p>Hi</p></div>');
-      expect(decision.srcdoc).toContain('piwin-artifact:ready');
+      expect(decision.srcdoc).toContain('piwin-artifact:size');
       expect(decision.srcdoc).toContain('piwin-artifact:stream-update');
       expect(decision.srcdoc).toContain('name="piwin-artifact-channel" content="stream"');
       expect(decision.srcdoc).not.toContain('content="stream-stream"');
@@ -87,7 +87,7 @@ describe('evaluateCodeFence', () => {
     expect(emptyDecision.kind).toBe('render');
     if (emptyDecision.kind === 'render') {
       expect(emptyDecision.mode).toBe('stream-preview');
-      expect(emptyDecision.srcdoc).toContain('piwin-artifact:ready');
+      expect(emptyDecision.srcdoc).toContain('piwin-artifact:size');
     }
 
     const styleOnlyDecision = evaluateCodeFence({
@@ -147,7 +147,7 @@ describe('evaluateCodeFence', () => {
       expect(decision.descriptor.source).toContain('<svg');
       expect(decision.srcdoc).toContain('<svg viewBox="0 0 100 60">');
       expect(decision.srcdoc).toContain("default-src 'none'");
-      expect(decision.srcdoc).toContain('piwin-artifact:ready');
+      expect(decision.srcdoc).toContain('piwin-artifact:size');
     }
   });
 });

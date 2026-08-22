@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest';
+import {
+  isLocalFileMarkdownHref,
+  isLocalPathChipCandidate,
+  normalizeLocalFileHref,
+  rewriteLocalFileMarkdownLinks,
+} from './markdown-local-links.js';
+
+describe('isLocalFileMarkdownHref', () => {
+  it('accepts file URLs, absolute host paths, and bare deliverables', () => {
+    expect(isLocalFileMarkdownHref('file:///Users/me/out.zip')).toBe(true);
+    expect(isLocalFileMarkdownHref('/Users/me/out.zip')).toBe(true);
+    expect(isLocalFileMarkdownHref('~/Downloads/a.png')).toBe(true);
+    expect(isLocalFileMarkdownHref('./dist/app.zip')).toBe(true);
+    expect(isLocalFileMarkdownHref('cropped-portraits-16.zip')).toBe(true);
+    expect(isLocalFileMarkdownHref('cropped-portraits/')).toBe(true);
+    expect(isLocalFileMarkdownHref('exports/faces.png')).toBe(true);
+  });
+
+  it('rejects web and special schemes', () => {
+    expect(isLocalFileMarkdownHref('https://example.com/a.zip')).toBe(false);
+    expect(isLocalFileMarkdownHref('http://example.com/a.zip')).toBe(false);
+    expect(isLocalFileMarkdownHref('mailto:a@b.com')).toBe(false);
+    expect(isLocalFileMarkdownHref('#section')).toBe(false);
+    expect(isLocalFileMarkdownHref('javascript:alert(1)')).toBe(false);
+  });
+});
+
+describe('normalizeLocalFileHref', () => {
+  it('strips file: and decodes', () => {
+    expect(normalizeLocalFileHref('file:///Users/me/a%20b.zip')).toBe('/Users/me/a b.zip');
+    expect(normalizeLocalFileHref('<./out.zip>')).toBe('./out.zip');
+  });
+});
+
+describe('rewriteLocalFileMarkdownLinks', () => {
+  it('rewrites bare relative download links to inline code (avoids [blocked])', () => {
+    const input =
+      '获取结果：\n- 压缩包: [cropped-portraits-16.zip](cropped-portraits-16.zip)\n- 目录: [cropped-portraits/](cropped-portraits/)';
+    const out = rewriteLocalFileMarkdownLinks(input);
+    expect(out).toContain('`cropped-portraits-16.zip`');
+    expect(out).toContain('`cropped-portraits/`');
+    expect(out).not.toContain('](cropped-portraits-16.zip)');
+    expect(out).not.toContain('](cropped-portraits/)');
+  });
+
+  it('keeps absolute paths as markdown links with file: stripped', () => {
+    const input = '[包](file:///Users/me/out.zip)';
+    expect(rewriteLocalFileMarkdownLinks(input)).toBe('[包](/Users/me/out.zip)');
+  });
+
+  it('leaves https links untouched', () => {
+    const input = 'see [docs](https://example.com/a.zip)';
+    expect(rewriteLocalFileMarkdownLinks(input)).toBe(input);
+  });
+
+  it('does not rewrite image markdown', () => {
+    const input = '![shot](./shot.png)';
+    expect(rewriteLocalFileMarkdownLinks(input)).toBe(input);
+  });
+});
+
+describe('isLocalPathChipCandidate', () => {
+  it('accepts inline-code style deliverable names', () => {
+    expect(isLocalPathChipCandidate('cropped-portraits-16.zip')).toBe(true);
+    expect(isLocalPathChipCandidate('/Users/me/a.md')).toBe(true);
+    expect(isLocalPathChipCandidate('https://example.com/a.zip')).toBe(false);
+  });
+});

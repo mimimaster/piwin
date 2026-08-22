@@ -90,7 +90,8 @@ describe('ConversationResponseContent', () => {
           status: 'done',
           output: JSON.stringify({
             card: { id: 'card-photo', front: '什么是光合作用？', back: '光能转化' },
-            artifactHtml: '<div class="piwin-flashcard" data-card-id="card-photo"><h1>光合作用</h1></div>',
+            artifactHtml:
+              '<div class="piwin-flashcard" data-card-id="card-photo"><h1>光合作用</h1></div>',
           }),
         },
       ],
@@ -363,7 +364,9 @@ describe('ConversationResponseContent', () => {
         artifactPreviewEnabled={true}
       />,
     );
-    expect(container.querySelector('[data-testid="conversation-extracted-flashcard"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-extracted-flashcard"]'),
+    ).not.toBeNull();
     expect(container.textContent).toContain('线粒体是');
     expect(container.textContent).toContain('[…]');
   });
@@ -406,7 +409,9 @@ describe('ConversationResponseContent', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(container.querySelector('[data-testid="conversation-extracted-flashcard"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="conversation-extracted-flashcard"]'),
+    ).not.toBeNull();
     expect(container.textContent).toContain('线粒体是[…]的能量工厂。');
   });
 
@@ -555,9 +560,40 @@ describe('ConversationResponseContent', () => {
       />,
     );
     expect(container.querySelector('[data-testid="conversation-message-header"]')).toBeNull();
-    expect(container.querySelector('[data-testid="conversation-response"]')?.classList.contains('is-continuation')).toBe(
-      true,
-    );
+    expect(
+      container
+        .querySelector('[data-testid="conversation-response"]')
+        ?.classList.contains('is-continuation'),
+    ).toBe(true);
     expect(container.textContent).toContain('Here is the result.');
+  });
+
+  it('forwards the code-first preference to conversation Markdown', () => {
+    const message: ChatMessageUi = {
+      id: 'm-code-first',
+      role: 'assistant',
+      text: '```artifact-html\n<section><h2>UI</h2></section>\n```',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled
+        artifactCodeFirst
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 });

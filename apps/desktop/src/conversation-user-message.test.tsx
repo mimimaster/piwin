@@ -96,4 +96,22 @@ describe('UserMessageContent context chips', () => {
     expect(avatar?.textContent).toBe('我');
     expect(wrapper?.classList.contains('is-conversation')).toBe(true);
   });
+
+  it('keeps copy, revert, and time in the conversation hover chip without a dedicated in-flow row', () => {
+    const timed: ChatMessageUi = {
+      ...message,
+      createdAt: '2026-08-22T10:26:00.000Z',
+    };
+    render(
+      <UserMessageContent message={timed} onRetry={vi.fn()} locale="zh-CN" isConversationSession={true} />,
+    );
+    const bubble = container?.querySelector('[data-testid="user-message-collapsible-body"]');
+    const footer = container?.querySelector('[data-testid="user-message-actions"]');
+    expect(bubble).not.toBeNull();
+    expect(footer).not.toBeNull();
+    expect(bubble?.contains(footer as Node)).toBe(true);
+    expect(footer?.querySelector('[data-testid="user-message-time"]')).not.toBeNull();
+    expect(footer?.querySelector('[data-testid="message-copy-btn"]')).not.toBeNull();
+    expect(footer?.querySelector('[data-testid="message-revert-btn"]')).not.toBeNull();
+  });
 });

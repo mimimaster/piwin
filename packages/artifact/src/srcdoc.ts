@@ -1,20 +1,22 @@
 /**
  * Build sandboxed HTML srcdoc for artifact preview.
  * Security-first: strict CSP, no external network by default (except allowlisted frames).
- * Includes height postMessage bridge (ported from openwebui_m, renamed piwin).
+ * Inline includes one revisioned root-size bridge; Canvas owns its viewport.
  */
 import {
   ARTIFACT_ACTION_NAMES,
   ARTIFACT_BRIDGE_ACTION_TYPE,
-  ARTIFACT_BRIDGE_READY_TYPE,
-  ARTIFACT_BRIDGE_RESIZE_TYPE,
+  ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
-  ARTIFACT_VIEWPORT_FILL_HEIGHT,
-  ARTIFACT_VIEWPORT_FILL_SLACK_PX,
 } from './constants.js';
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
-import type { ArtifactIframePolicy, ArtifactSurface, ArtifactThemeVariables } from './types.js';
+import type {
+  ArtifactDocumentKind,
+  ArtifactIframePolicy,
+  ArtifactSurface,
+  ArtifactThemeVariables,
+} from './types.js';
 
 export function buildStrictArtifactCsp(policy: ArtifactIframePolicy): string {
   return [
@@ -49,7 +51,43 @@ function buildResponsiveCss(theme: ArtifactThemeVariables, surface: ArtifactSurf
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
   const colorScheme = theme['--piwin-artifact-theme'] === 'dark' ? 'dark' : 'light';
-  const pageOverflow = surface === 'canvas' ? 'auto' : 'hidden';
+  if (surface === 'canvas') {
+    return `
+:root {
+${variables}
+  color-scheme: ${colorScheme};
+}
+html {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: auto;
+}
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  background: transparent;
+  color: var(--piwin-artifact-text);
+  font-family: var(--piwin-artifact-font);
+  overflow: auto;
+}
+.piwin-artifact-root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+img, svg, canvas, video { max-width: 100%; }
+a { color: var(--piwin-artifact-accent); }
+button, input, select, textarea { font: inherit; }
+`;
+  }
+  const pageOverflow = 'hidden';
   const inlineFlowCss =
     surface === 'inline'
       ? `
@@ -278,15 +316,55 @@ ${
 
 /**
  * Bootstrap script inside the sandboxed document.
- * Posts ready/resize with channelId; parent validates source + channel.
+ * Posts one revisioned content-size stream; parent validates source + channel.
  */
 export function buildArtifactBridgeBootstrapScript(
   channelId: string,
   enableStreamUpdates = false,
+  measureHeight = true,
 ): string {
   const serializedChannelId = JSON.stringify(channelId);
-  const readyType = JSON.stringify(ARTIFACT_BRIDGE_READY_TYPE);
-  const resizeType = JSON.stringify(ARTIFACT_BRIDGE_RESIZE_TYPE);
+  const sizeType = JSON.stringify(ARTIFACT_BRIDGE_SIZE_TYPE);
+  const heightBootstrap = measureHeight
+    ? `
+  var sizeType = ${sizeType};
+  var sizeRevision = 0;
+  var lastReportedHeight = -1;
+  var heightFrame = null;
+  var readHeight = function (height) {
+    return Math.max(0, Math.ceil(height || 0));
+  };
+  var reportHeight = function () {
+    heightFrame = null;
+    var root = document.querySelector('.piwin-artifact-root');
+    if (!root || !root.getBoundingClientRect) return;
+    var height = readHeight(root.getBoundingClientRect().height);
+    if (height === lastReportedHeight) return;
+    lastReportedHeight = height;
+    post(sizeType, {
+      height: height,
+      viewportHeight: readHeight(window.innerHeight),
+      revision: sizeRevision
+    });
+    sizeRevision += 1;
+  };
+  var scheduleHeight = function () {
+    if (heightFrame !== null) return;
+    heightFrame = requestAnimationFrame(reportHeight);
+  };
+  var startHeightObserver = function () {
+    var root = document.querySelector('.piwin-artifact-root');
+    if (!root) return;
+    if (window.ResizeObserver) {
+      var observer = new window.ResizeObserver(scheduleHeight);
+      observer.observe(root);
+    }
+    scheduleHeight();
+  };`
+    : `
+  // Canvas owns its viewport and scrollport; it never reports document height.
+  var scheduleHeight = function () {};
+  var startHeightObserver = function () {};`;
   const streamUpdateBootstrap = enableStreamUpdates
     ? `
   var streamUpdateType = ${JSON.stringify(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE)};
@@ -376,8 +454,6 @@ export function buildArtifactBridgeBootstrapScript(
 <script data-piwin-artifact-bridge-bootstrap>
 (function () {
   var channelId = ${serializedChannelId};
-  var readyType = ${readyType};
-  var resizeType = ${resizeType};
   var post = function (type, payload) {
     var message = Object.assign({ type: type, channelId: channelId }, payload || {});
     var nativeHandler =
@@ -403,68 +479,48 @@ export function buildArtifactBridgeBootstrapScript(
       return true;
     }
   };
-  var readHeight = function (height) {
-    return Math.max(0, Math.ceil(height || 0));
+  // Sandbox has no allow-downloads: intercept fake download buttons / <a download>
+  // and tell the parent to toast "unsupported" instead of failing silently.
+  var reportDownloadUnsupported = function (filename) {
+    var payload = {};
+    if (typeof filename === 'string' && filename.length > 0 && filename.length <= 256) {
+      payload.filename = filename;
+    }
+    post(actionType, { action: 'artifact/download-unsupported', payload: payload });
   };
-  var readBoxHeight = function (element) {
-    if (!element || !element.getBoundingClientRect) return 0;
-    var rect = element.getBoundingClientRect();
-    return Math.max(rect.height || 0, element.offsetHeight || 0, element.scrollHeight || 0);
+  var looksLikeDownloadAnchor = function (anchor) {
+    if (!anchor || anchor.tagName !== 'A') return false;
+    if (anchor.hasAttribute('download') || (anchor.download && anchor.download.length > 0)) {
+      return true;
+    }
+    var href = anchor.getAttribute('href') || '';
+    return /^(blob:|data:)/i.test(href);
   };
-  var readContentHeight = function (root) {
-    if (root) return readBoxHeight(root);
-    return Math.max(readBoxHeight(document.body), readBoxHeight(document.documentElement));
-  };
-  var readSceneHeight = function (root) {
-    if (!root || !root.querySelector) return 0;
-    var scene = root.querySelector('canvas, video');
-    return scene ? readBoxHeight(scene) : 0;
-  };
-  var fillsViewport = function (size, viewport) {
-    return viewport > 0 && size >= viewport - 1 && size <= viewport + ${ARTIFACT_VIEWPORT_FILL_SLACK_PX};
-  };
-  var readyPosted = false;
-  var lastReportedHeight = -1;
-  var heightFrame = null;
-  var reportHeight = function () {
-    heightFrame = null;
-    var root = document.querySelector('.piwin-artifact-root');
-    var measured = readHeight(readContentHeight(root));
-    var viewport = readHeight(window.innerHeight);
-    var scene = readSceneHeight(root);
-    var height = measured;
-    // Canvas/video sized to innerHeight (pelican-style scenes) would otherwise
-    // ratchet the iframe: measure → grow stage → resize event → canvas grows.
-    // Grant such scenes a fixed budget; siblings keep their natural height.
-    // The non-scene remainder is viewport-independent, so this converges.
-    if (fillsViewport(scene, viewport)) {
-      height = readHeight(Math.max(0, measured - scene) + ${ARTIFACT_VIEWPORT_FILL_HEIGHT});
-    } else if (lastReportedHeight >= 0 && fillsViewport(measured, viewport)) {
+  document.addEventListener(
+    'click',
+    function (event) {
+      var node = event.target;
+      while (node && node !== document && node !== document.documentElement) {
+        if (node.tagName === 'A' && looksLikeDownloadAnchor(node)) {
+          event.preventDefault();
+          event.stopPropagation();
+          reportDownloadUnsupported(node.getAttribute('download') || node.download || '');
+          return;
+        }
+        node = node.parentElement;
+      }
+    },
+    true,
+  );
+  var originalAnchorClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (looksLikeDownloadAnchor(this)) {
+      reportDownloadUnsupported(this.getAttribute('download') || this.download || '');
       return;
     }
-    if (height === lastReportedHeight) return;
-    lastReportedHeight = height;
-    post(readyPosted ? resizeType : readyType, {
-      height: height
-    });
-    readyPosted = true;
+    return originalAnchorClick.apply(this, arguments);
   };
-  var scheduleHeight = function () {
-    if (heightFrame !== null) return;
-    heightFrame = requestAnimationFrame(reportHeight);
-  };
-  var startHeightObserver = function () {
-    var root = document.querySelector('.piwin-artifact-root');
-    if (window.ResizeObserver) {
-      var observer = new window.ResizeObserver(scheduleHeight);
-      if (root) observer.observe(root);
-      else if (document.body) observer.observe(document.body);
-    }
-    // Viewport changes do not move the root box when only a scene tracks
-    // innerHeight; re-measure so a mis-pinned scene budget can self-correct.
-    window.addEventListener('resize', scheduleHeight);
-    scheduleHeight();
-  };
+${heightBootstrap}
 ${streamUpdateBootstrap}
   if (document.readyState === 'complete') {
     startHeightObserver();
@@ -482,11 +538,45 @@ export type BuildHtmlArtifactSrcdocInput = {
   iframePolicy?: ArtifactIframePolicy;
   /** Inline flows with the transcript; Canvas owns an internal scrollport. */
   surface?: ArtifactSurface;
-  /** When false, omit height bridge (stream-preview can still include it). Default true. */
+  /** Preserve full HTML documents instead of nesting them inside a fragment root. */
+  documentKind?: ArtifactDocumentKind;
+  /** When false, omit the parent bridge entirely. Default true. */
   includeBridge?: boolean;
   /** Accept sanitized parent snapshots without replacing the iframe document. */
   enableStreamUpdates?: boolean;
 };
+
+function injectArtifactHostIntoDocument(input: {
+  source: string;
+  headPrefix: string;
+  headSuffix: string;
+}): string {
+  const headOpenPattern = /<head\b[^>]*>/i;
+  const headClosePattern = /<\/head\s*>/i;
+  if (headOpenPattern.test(input.source)) {
+    const withPrefix = input.source.replace(
+      headOpenPattern,
+      (headOpen) => `${headOpen}\n${input.headPrefix}`,
+    );
+    return headClosePattern.test(withPrefix)
+      ? withPrefix.replace(headClosePattern, `${input.headSuffix}\n</head>`)
+      : `${withPrefix}\n${input.headSuffix}`;
+  }
+
+  const hostHead = `<head>\n${input.headPrefix}\n${input.headSuffix}\n</head>`;
+  const htmlOpenPattern = /<html\b[^>]*>/i;
+  if (htmlOpenPattern.test(input.source)) {
+    return input.source.replace(htmlOpenPattern, (htmlOpen) => `${htmlOpen}\n${hostHead}`);
+  }
+
+  const doctypePattern = /<!doctype\s+[^>]*>/i;
+  const sourceDoctype = input.source.match(doctypePattern)?.[0] ?? '<!DOCTYPE html>';
+  const documentBody = input.source.replace(doctypePattern, '').trim();
+  if (/<body\b[^>]*>/i.test(documentBody)) {
+    return `${sourceDoctype}\n<html lang="en">\n${hostHead}\n${documentBody}\n</html>`;
+  }
+  return `${sourceDoctype}\n<html lang="en">\n${hostHead}\n<body>\n${documentBody}\n</body>\n</html>`;
+}
 
 /**
  * Wrap raw model HTML in a document with CSP meta + theme CSS + optional bridge.
@@ -508,24 +598,40 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const channelId = input.channelId;
   const channelAttr = escapeHtmlAttribute(channelId);
   const bridge = includeBridge
-    ? buildArtifactBridgeBootstrapScript(channelId, input.enableStreamUpdates === true)
+    ? buildArtifactBridgeBootstrapScript(
+        channelId,
+        input.enableStreamUpdates === true,
+        surface === 'inline',
+      )
     : '';
 
-  const srcdoc = `<!DOCTYPE html>
-<html lang="en">
-<head>
+  const hostHeadPrefix = `
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}" />
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
+${bridge}`;
+  const hostHeadSuffix = `
+  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>
+  <style data-piwin-artifact-surface-policy>${surfacePolicyCss}</style>
+  <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>`;
+
+  const srcdoc =
+    input.documentKind === 'document'
+      ? injectArtifactHostIntoDocument({
+          source: input.source,
+          headPrefix: hostHeadPrefix,
+          headSuffix: hostHeadSuffix,
+        })
+      : `<!DOCTYPE html>
+<html lang="en">
+<head>
+${hostHeadPrefix}
 </head>
 <body>
   <div class="piwin-artifact-root">${input.source}</div>
-  <style data-piwin-artifact-theme-guard>${themeGuardCss}</style>
-  <style data-piwin-artifact-surface-policy>${surfacePolicyCss}</style>
-  <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>
-${bridge}
+${hostHeadSuffix}
 </body>
 </html>`;
 

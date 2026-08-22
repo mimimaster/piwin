@@ -12,13 +12,12 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import type { MediaSaveData, PromptAttachment, WebElementAttachmentRef } from '@piwin/contracts';
+import type { PromptAttachment, WebElementAttachmentRef } from '@piwin/contracts';
 import { ATTACHMENT_FILE_ACCEPT, formatError, toMediaAttachmentRef } from '@piwin/contracts';
 import type { WebElementPickResult, PromptContextRef } from '@piwin/contracts';
 import {
   applyChipPreviewUrl,
   commitLimitedChipPreview,
-  fileToBase64,
   prepareComposerAttachmentForSave,
   isFailedMediaAttachment,
   isPendingAttachmentReady,
@@ -31,6 +30,7 @@ import {
   type PendingAttachmentUploadStatus,
 } from '../media-utils.js';
 import { beginComposerImagePreview } from '../media-preview-bitmap.js';
+import { MediaSaveHostRejectedError, saveMediaOverHost } from '../media-save-over-host.js';
 import type { DesktopCopy } from '../desktop-locale.js';
 import { PIWIN_PATH_MIME } from '../workspace-path-drag';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
@@ -256,38 +256,38 @@ export function useComposerAttachments(params: UseComposerAttachmentsArgs) {
           );
         }
 
-        const base64Data = await fileToBase64(prepared.blob);
+        const bytes = new Uint8Array(await prepared.blob.arrayBuffer());
         if (cancelledAttachmentIdsRef.current.has(localId)) {
           return;
         }
 
-        // A thrown request is a transport/IPC failure (retry usually helps);
-        // success:false means the Host received and rejected the save (policy).
-        let response;
+        let asset;
         try {
-          response = await args.hostClient.request({
-            type: 'media/save',
-            input: {
-              sessionId,
-              mimeType: prepared.mimeType,
-              name: file.name,
-              contentKind: prepared.contentKind,
-              source,
-              base64Data,
-            },
+          asset = await saveMediaOverHost({
+            request: (command) => args.hostClient.request(command),
+            sessionId,
+            bytes,
+            mimeType: prepared.mimeType,
+            source,
+            name: file.name,
+            contentKind: prepared.contentKind,
+            cancelled: () => cancelledAttachmentIdsRef.current.has(localId),
           });
         } catch (error) {
-          markError(formatError(error), 'connection');
+          const message = formatError(error);
+          if (error instanceof MediaSaveHostRejectedError || /too[- ]?large/i.test(message)) {
+            markError(
+              /too[- ]?large/i.test(message) ? attachmentCopy.attachmentFailureTooLarge : message,
+              'policy',
+            );
+            return;
+          }
+          markError(message, 'connection');
           return;
         }
         if (cancelledAttachmentIdsRef.current.has(localId)) {
           return;
         }
-        if (!response.success) {
-          markError(response.error, 'policy');
-          return;
-        }
-        const asset = (response.data as MediaSaveData).asset;
         const attachment = toMediaAttachmentRef(asset, source);
         sourceFilesRef.current.delete(localId);
         mediaSaveResultsRef.current.set(localId, { ok: true, attachment });

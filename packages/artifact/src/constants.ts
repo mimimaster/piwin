@@ -23,15 +23,6 @@ export const ARTIFACT_BOOTSTRAP_HEIGHT = 80;
 /** Visible bounded degradation when an Inline iframe cannot report height. */
 export const ARTIFACT_FALLBACK_HEIGHT = 640;
 /**
- * Height budget granted to a canvas/video that sizes itself to the iframe
- * viewport (`innerHeight` / `100%`). Reporting its measured height would
- * grow the iframe, which grows the scene, which reports again; sibling
- * content is still added on top of this budget at natural height.
- */
-export const ARTIFACT_VIEWPORT_FILL_HEIGHT = 400;
-/** Padding / ceil slack when deciding that content is only filling the frame. */
-export const ARTIFACT_VIEWPORT_FILL_SLACK_PX = 16;
-/**
  * Defensive ceiling for an Inline Artifact that flows with the transcript.
  * Inline no longer owns a 900px scrollport, but model HTML is untrusted and
  * must not be able to request an effectively unbounded iframe height.
@@ -47,9 +38,8 @@ export const ARTIFACT_LIVE_PRIORITY_VISIBLE = 100;
 export const ARTIFACT_LIVE_PRIORITY_STREAM = 1_000;
 export const ARTIFACT_LIVE_PRIORITY_CANVAS = 1_000;
 
-/** postMessage types from sandboxed artifact iframe → parent. */
-export const ARTIFACT_BRIDGE_READY_TYPE = 'piwin-artifact:ready' as const;
-export const ARTIFACT_BRIDGE_RESIZE_TYPE = 'piwin-artifact:resize' as const;
+/** Single content-size message from an Inline sandbox → parent. */
+export const ARTIFACT_BRIDGE_SIZE_TYPE = 'piwin-artifact:size' as const;
 /** Sanitized body snapshots from parent → a streaming Artifact iframe. */
 export const ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE = 'piwin-artifact:stream-update' as const;
 /** User-intent actions from artifact UI → product (strict whitelist). */
@@ -60,11 +50,13 @@ export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
  * capability the sandboxed (untrusted) HTML can invoke on the product.
  */
 export const COMPOSER_PROPOSE_TEXT_ACTION = 'composer/propose-text' as const;
+export const ARTIFACT_DOWNLOAD_UNSUPPORTED_ACTION = 'artifact/download-unsupported' as const;
 
 export const ARTIFACT_ACTION_NAMES = [
   'flashcard/rate',
   'flashcard/open-source',
   'composer/propose-text',
+  'artifact/download-unsupported',
 ] as const;
 
 /** YouTube / Maps embeds allowed under default allowlist mode. */

@@ -118,7 +118,7 @@ export function projectRemoteResponse(
     };
   }
 
-  if (command.type === 'media/save') {
+  if (command.type === 'media/save' || command.type === 'media/save-finish') {
     return {
       ...response,
       data: projectRemoteMediaSaveData(response.data),

@@ -193,7 +193,7 @@ dimensions: 1280x720
 | Hard problem | Why | Mitigation |
 |--------------|-----|------------|
 | Streaming HTML partial DOM | Broken tags flash / XSS edge | Streaming preview only when balanced-enough; else preparing state |
-| Height thrash | iframe resize loops | port height policy + settle windows |
+| Height thrash | iframe resize loops | reject viewport-coupled Inline source; one root-box stream |
 | Theme clash | white boxes in dark chat | theme contract repair |
 | History perf | many iframes | init queue concurrency=1 |
 | Tauri local image | custom protocol needed | media service + asset scope |
@@ -204,7 +204,7 @@ dimensions: 1280x720
 ## 5. Acceptance for artifact/media MVP
 
 1. Markdown messages render cleanly
-2. ` ```html ` UI-like block gets sandboxed preview when security allows
+2. Native ` ```html ` stays source-first; explicit compatible Artifact may preview Inline
 3. Blocked states show reason (empty/too-large/external)
 4. Paste image → disk → chip → send → text model receives absolute path
 5. Chat shows image preview for that attachment
@@ -229,8 +229,9 @@ Module map in `@piwin/artifact` after polish:
 
 | File | Role |
 |------|------|
-| `bridge-protocol.ts` | Parent parse/validate of `piwin-artifact:ready|resize` |
-| `height-policy.ts` | Pure height settle (protected / interactive / shrink confirm) |
+| `presentation-policy.ts` | Source / Static Inline / Sandbox Inline / Canvas routing and compatibility |
+| `bridge-protocol.ts` | Parent parse/validate of the single revisioned `piwin-artifact:size` message |
+| `height-policy.ts` | Pure normalization + defensive Inline clamp only |
 | `init-queue.ts` | Serialize iframe srcdoc assignment |
 | `streaming.ts` | Open fence detect + synthetic close while streaming |
 | `streamable-preview.ts` | Script-stripped partial HTML preview |
@@ -240,3 +241,17 @@ Module map in `@piwin/artifact` after polish:
 Desktop: `ArtifactFrame` (height + init queue), `MarkdownView` (`streamComplete`), `artifact-theme-map.ts`.
 
 Residual: D-ART-05..08 in `todo-deferred.md`.
+
+## Height-chain correction landed (2026-08-22)
+
+- Native `html`/`htm`/`svg` fences and explicit Artifact declarations are now
+  distinct descriptor inputs. Native source never auto-mounts a page.
+- Full documents are preserved and previewed only in Canvas after user action.
+  Inline accepts content-sized fragments only; viewport units/scripts and fixed
+  page shells are rejected rather than regex-repaired.
+- Canvas has no height bridge. Sandboxed Inline observes one root rectangle and
+  emits one revisioned size stream. Scene heuristics, ready/resize phases,
+  viewport listeners, and settle windows were deleted.
+- Transcript mounted-row measurement is exact; only cache/estimates keep the
+  4000px anti-blank ceiling. See ADR 0005, ADR 0029, and
+  `docs/plans/2026-08-22-artifact-height-chain-v2.md`.

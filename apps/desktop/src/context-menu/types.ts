@@ -29,6 +29,7 @@ export type ContextMenuActionId =
   | 'fix-error'
   | 'open'
   | 'reveal'
+  | 'save-as'
   | 'copy'
   | 'copy-relative-path'
   | 'copy-absolute-path'
@@ -104,6 +105,8 @@ export type ContextMenuTarget =
 export type ContextMenuCapabilities = {
   hasProject: boolean;
   canReveal: boolean;
+  /** PathChip / file-tree: offer Save As when a local read channel exists. */
+  canSaveAs?: boolean;
   sideChatAvailable: boolean;
   applyAvailable: boolean;
   /** CM-15: "Open changed files" for message surfaces (turn has changed paths). */

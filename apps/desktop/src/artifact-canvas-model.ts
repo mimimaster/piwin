@@ -10,7 +10,11 @@
  * ~/.piwin is introduced for Canvas state.
  */
 
-import type { ArtifactDescriptor, ArtifactSurface } from '@piwin/artifact';
+import type {
+  ArtifactDeclaration,
+  ArtifactDescriptor,
+  ArtifactDocumentKind,
+} from '@piwin/artifact';
 
 export type ArtifactCanvasTarget = {
   /** Stable identity derived from session + message + fence index. */
@@ -23,10 +27,12 @@ export type ArtifactCanvasTarget = {
   fenceIndex: number;
   /** Channel id used by the iframe bridge (matches ArtifactFrame channelId). */
   channelId: string;
-  /** Fence-declared routing surface (always 'canvas' for a Canvas target). */
-  surface: ArtifactSurface;
+  /** Canvas targets always render in the fixed workspace viewport. */
+  surface: 'canvas';
   title: string;
   type: 'html' | 'svg';
+  declaration: ArtifactDeclaration;
+  documentKind: ArtifactDocumentKind;
   rawLanguage: string;
   /** Raw model source — never the wrapped srcdoc. */
   source: string;
@@ -47,8 +53,8 @@ export function buildArtifactCanvasTargetId(
 
 /**
  * Construct a Canvas target from a parsed artifact descriptor plus origin
- * metadata. The descriptor surface is preserved as-is; callers should only
- * route `surface === 'canvas'` descriptors through this path.
+ * metadata. Opening Canvas is an explicit user action, so native/full-document
+ * previews may enter this path even when the original fence defaulted Inline.
  */
 export function createArtifactCanvasTarget(input: {
   sessionId: string;
@@ -63,9 +69,11 @@ export function createArtifactCanvasTarget(input: {
     messageId,
     fenceIndex,
     channelId: descriptor.id,
-    surface: descriptor.surface,
+    surface: 'canvas',
     title: descriptor.title,
     type: descriptor.type,
+    declaration: descriptor.declaration,
+    documentKind: descriptor.documentKind,
     rawLanguage: descriptor.rawLanguage,
     source: descriptor.source,
   };

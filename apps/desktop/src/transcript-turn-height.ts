@@ -2,8 +2,8 @@
  * Transcript virtualizer height policy.
  *
  * Default estimates that are far above real short replies leave absolute-positioned
- * gaps of ink-wash texture between bubbles. Prefer a modest estimate, clamp cache,
- * and always prefer a fresh measure when the row is mounted.
+ * gaps of ink-wash texture between bubbles. Estimates and cache entries are
+ * bounded; a fresh mounted-row measurement must remain exact.
  */
 import type { TranscriptTurn } from './transcript-turns';
 
@@ -24,18 +24,21 @@ const CACHED_HEIGHT_DISTRUST_RATIO = 3.5;
 const CACHED_HEIGHT_DISTRUST_MIN_PX = 360;
 
 /**
- * Normalize a measured or estimated height for the virtualizer + height cache.
- * Returns null when the value is unusable (caller should fall back to estimate).
+ * Normalize an actual mounted-row measurement. Do not cap it: the virtualizer
+ * must reserve the full DOM height or later turns overlap / appear truncated.
  */
 export function normalizeTranscriptTurnHeight(height: number): number | null {
   if (!Number.isFinite(height) || height < TRANSCRIPT_TURN_MIN_HEIGHT_PX / 2) {
     return null;
   }
   const rounded = Math.ceil(height);
-  if (rounded > TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX) {
-    return TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX;
-  }
   return Math.max(TRANSCRIPT_TURN_MIN_HEIGHT_PX, rounded);
+}
+
+/** Bound speculative sizes only; mounted rows use normalizeTranscriptTurnHeight. */
+export function normalizeTranscriptTurnEstimate(height: number): number | null {
+  const normalized = normalizeTranscriptTurnHeight(height);
+  return normalized === null ? null : Math.min(TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX, normalized);
 }
 
 /**
@@ -57,9 +60,7 @@ export function estimateTranscriptTurnHeight(turn: TranscriptTurn | undefined): 
     const toolCount = item.message.tools?.length ?? 0;
     raw += 72 + Math.min(280, Math.ceil(textLength / 90) * 22) + toolCount * 36;
   }
-  return (
-    normalizeTranscriptTurnHeight(raw) ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX
-  );
+  return normalizeTranscriptTurnEstimate(raw) ?? TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX;
 }
 
 /**
@@ -75,7 +76,7 @@ export function resolveTranscriptTurnEstimate(options: {
   if (cached === null) {
     return contentEstimate;
   }
-  const normalized = normalizeTranscriptTurnHeight(cached);
+  const normalized = normalizeTranscriptTurnEstimate(cached);
   if (normalized === null) {
     return contentEstimate;
   }

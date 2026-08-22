@@ -12,6 +12,8 @@
 > 粘贴/拖入只创建本地 chip（`queued`），`media/save` 推迟到 Send 且先于
 > `session/prompt`；发送失败时文本 + ready chip 完整恢复，仅在 prompt ACK 后释放
 > File/blob URL。upload-ticket 二进制上传仍属后续工作（Phase 2）。
+> 2026-08-22：Desktop 已改走 `media/save-begin|chunk|finish`，10MB 内截图
+> 不再被 1MB JSON 帧卡住。
 > 测试覆盖：paste 不创建 session、失败恢复 + 重试复用已保存附件、保存失败不发气泡。
 > （见 `apps/desktop/src/hooks/use-composer-media.test.tsx`）
 

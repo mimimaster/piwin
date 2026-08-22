@@ -38,6 +38,33 @@ describe('parseArtifactActionMessage', () => {
     ).toBeNull();
   });
 
+  it('accepts artifact/download-unsupported with optional filename', () => {
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'artifact/download-unsupported',
+        payload: {},
+      }),
+    ).toEqual({
+      type: ARTIFACT_BRIDGE_ACTION_TYPE,
+      channelId: 'fence-1',
+      action: 'artifact/download-unsupported',
+      payload: {},
+    });
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'artifact/download-unsupported',
+        payload: { filename: '水墨笺.html' },
+      }),
+    ).toMatchObject({
+      action: 'artifact/download-unsupported',
+      payload: { filename: '水墨笺.html' },
+    });
+  });
+
   it('rejects wrong type / non-object payloads', () => {
     expect(parseArtifactActionMessage(null)).toBeNull();
     expect(parseArtifactActionMessage('str')).toBeNull();

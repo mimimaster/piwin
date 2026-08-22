@@ -22,7 +22,8 @@ const EN_LABELS: LabelTable = {
   'explain-failure': 'Explain failure',
   'fix-error': 'Fix this error',
   open: 'Open',
-  reveal: 'Reveal in Finder',
+  reveal: 'Show in Folder',
+  'save-as': 'Save As…',
   copy: 'Copy',
   'copy-relative-path': 'Copy Relative Path',
   'copy-absolute-path': 'Copy Absolute Path',
@@ -47,10 +48,11 @@ const ZH_LABELS: LabelTable = {
   'explain-failure': '解释失败原因',
   'fix-error': '修复此错误',
   open: '打开',
-  reveal: '在访达中显示',
+  reveal: '在文件管理器中显示',
+  'save-as': '另存为…',
   copy: '复制',
   'copy-relative-path': '复制相对路径',
-  'copy-absolute-path': '复制绝对路径',
+  'copy-absolute-path': '复制完整路径',
   'quote-in-composer': '引用到输入框',
   retry: '编辑此轮',
   'truncate-after': '删除此处之后',
@@ -78,6 +80,7 @@ const ACTION_ICONS: Record<ContextMenuActionId, string> = {
   'fix-error': 'spark',
   open: 'file',
   reveal: 'folder',
+  'save-as': 'file',
   copy: 'copy',
   'copy-relative-path': 'copy',
   'copy-absolute-path': 'copy',
@@ -189,11 +192,12 @@ export function buildContextMenuItems(
     case 'path-chip':
       return compact([
         item('open', labels),
+        ...(caps.canSaveAs ? [item('save-as', labels)] : []),
         item('add-to-chat', labels, { disabled: noProject }),
         sep(),
         item('copy-relative-path', labels, { disabled: noProject }),
         item('copy-absolute-path', labels),
-        ...(caps.canReveal && !noProject ? [item('reveal', labels)] : []),
+        ...(caps.canReveal ? [item('reveal', labels)] : []),
       ]);
     case 'selection':
       return compact([

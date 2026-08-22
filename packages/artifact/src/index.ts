@@ -9,16 +9,13 @@ export {
   MIN_ARTIFACT_IFRAME_HEIGHT,
   ARTIFACT_BOOTSTRAP_HEIGHT,
   ARTIFACT_FALLBACK_HEIGHT,
-  ARTIFACT_VIEWPORT_FILL_HEIGHT,
-  ARTIFACT_VIEWPORT_FILL_SLACK_PX,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   ARTIFACT_READY_TIMEOUT_MS,
   MAX_CONCURRENT_ARTIFACT_INITS,
   ARTIFACT_LIVE_PRIORITY_VISIBLE,
   ARTIFACT_LIVE_PRIORITY_STREAM,
   ARTIFACT_LIVE_PRIORITY_CANVAS,
-  ARTIFACT_BRIDGE_READY_TYPE,
-  ARTIFACT_BRIDGE_RESIZE_TYPE,
+  ARTIFACT_BRIDGE_SIZE_TYPE,
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_BRIDGE_ACTION_TYPE,
   COMPOSER_PROPOSE_TEXT_ACTION,
@@ -35,6 +32,8 @@ export type {
   ExternalArtifactResource,
   ArtifactSecurityResult,
   ArtifactSurface,
+  ArtifactDeclaration,
+  ArtifactDocumentKind,
   ArtifactDescriptorBase,
   HtmlArtifactDescriptor,
   SvgArtifactDescriptor,
@@ -46,8 +45,6 @@ export type {
   ArtifactThemeContractIssue,
   ArtifactThemeContractRepair,
   ArtifactThemeContractResult,
-  ArtifactLayoutContractIssueKind,
-  ArtifactLayoutContractRepair,
   StreamablePreviewResult,
   OpenArtifactFence,
   ArtifactBridgeMessageType,
@@ -57,6 +54,7 @@ export type {
   FlashcardRateActionPayload,
   FlashcardOpenSourceActionPayload,
   ComposerProposeTextActionPayload,
+  ArtifactDownloadUnsupportedPayload,
   ArtifactPreviewDecision,
 } from './types.js';
 
@@ -79,10 +77,7 @@ export {
 export { tryParseHtmlArtifactFence, splitMarkdownBlocks } from './parser.js';
 export type { MarkdownFenceBlock, ParsedMarkdownBlock, TableAlignment } from './parser.js';
 
-export {
-  isFullHtmlDocument,
-  normalizeHtmlDocumentToArtifactFragment,
-} from './html-document-fragment.js';
+export { isFullHtmlDocument } from './html-document.js';
 
 export { createDefaultArtifactTheme } from './theme.js';
 
@@ -93,24 +88,21 @@ export {
 } from './srcdoc.js';
 export type { BuildHtmlArtifactSrcdocInput } from './srcdoc.js';
 
-export {
-  parseArtifactBridgeMessage,
-  isArtifactBridgeReadyMessage,
-  parseArtifactActionMessage,
-} from './bridge-protocol.js';
+export { parseArtifactBridgeMessage, parseArtifactActionMessage } from './bridge-protocol.js';
 
-export {
-  normalizeArtifactHeight,
-  clampArtifactHeight,
-  stabilizeInlineArtifactHeight,
-} from './height-policy.js';
-export type { StabilizeInlineArtifactHeightInput } from './height-policy.js';
+export { normalizeArtifactHeight, clampArtifactHeight } from './height-policy.js';
 
 export { resolveArtifactRenderTarget } from './render-route.js';
+export type { ArtifactRenderTarget, ResolveArtifactRenderTargetInput } from './render-route.js';
+
+export {
+  findArtifactInlineCompatibilityIssues,
+  resolveArtifactPresentation,
+} from './presentation-policy.js';
 export type {
-  ArtifactRenderTarget,
-  ResolveArtifactRenderTargetInput,
-} from './render-route.js';
+  ArtifactInlineCompatibilityIssue,
+  ArtifactPresentationDecision,
+} from './presentation-policy.js';
 
 export { parseSvgFenceIntrinsicSize, estimateSvgFenceHeight } from './svg-intrinsic-size.js';
 export type { EstimateSvgFenceHeightInput } from './svg-intrinsic-size.js';
@@ -149,9 +141,6 @@ export {
 export { buildStreamableArtifactPreview } from './streamable-preview.js';
 
 export { applyArtifactThemeContract } from './theme-contract.js';
-
-export { applyArtifactLayoutContract } from './layout-contract.js';
-export type { ArtifactLayoutContractResult } from './layout-contract.js';
 
 export {
   evaluateCodeFence,

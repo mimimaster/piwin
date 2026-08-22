@@ -19,7 +19,14 @@ import type {
   WebElementPickResult,
 } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
-import type { SavedMediaAsset, SaveMediaInput } from './media.js';
+import type {
+  MediaSaveAbortInput,
+  MediaSaveBeginInput,
+  MediaSaveChunkInput,
+  MediaSaveFinishInput,
+  SavedMediaAsset,
+  SaveMediaInput,
+} from './media.js';
 import type { LocalFilePreviewCommandInput, TrustedTextReadCommandInput } from './preview.js';
 import type { SpeechTranscribeInput } from './speech.js';
 import type { SessionListOrder, SessionListPageQuery } from './session-list-page.js';
@@ -438,6 +445,10 @@ export type HostCommand =
       refs?: import('./side-chat.js').SideChatContextRef[];
     }
   | { id?: string; type: 'media/save'; input: MediaSaveCommandInput }
+  | { id?: string; type: 'media/save-begin'; input: MediaSaveBeginInput }
+  | { id?: string; type: 'media/save-chunk'; input: MediaSaveChunkInput }
+  | { id?: string; type: 'media/save-finish'; input: MediaSaveFinishInput }
+  | { id?: string; type: 'media/save-abort'; input: MediaSaveAbortInput }
   | { id?: string; type: 'media/read'; input: MediaReadCommandInput }
   /**
    * Config-root-relative text preview (ADR 0052 Slice 3). Remote-safe:

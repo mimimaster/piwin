@@ -7,6 +7,7 @@ import type {
   HostCommand,
   HostResponse,
   HostServerMessage,
+  PromptAttachment,
   PromptContextRef,
   PromptInput,
   SessionBranchListData,
@@ -211,18 +212,24 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         );
         return;
       }
-      const text = nextText.trim();
-      if (!text) {
-        return;
-      }
-      if (!isGeneralScope && !projectTrusted) {
-        dispatch({ type: 'project/trust-dialog', open: true });
-        return;
-      }
       const visible = visibleMessages;
       const target = visible.find((message) => message.id === messageId);
       if (!target || target.role !== 'user') {
         dispatchNotification(pushError(`Cannot branch: message not found in chat (${messageId})`));
+        return;
+      }
+      const text = nextText.trim();
+      const attachments = target.attachments;
+      const contextRefs = target.contextRefs;
+      if (
+        !text &&
+        attachments.length === 0 &&
+        !(contextRefs !== undefined && contextRefs.length > 0)
+      ) {
+        return;
+      }
+      if (!isGeneralScope && !projectTrusted) {
+        dispatch({ type: 'project/trust-dialog', open: true });
         return;
       }
 
@@ -236,16 +243,15 @@ export function useBranchActions(args: UseBranchActionsArgs) {
       }
       setEditingMessageId(null);
       const resendClientMessageId = crypto.randomUUID();
-      // The edit card only lets the user change the text; any context refs
-      // (quoted messages, file/selection pins, ...) attached to the original
-      // turn are shown read-only above it and must survive the resend —
-      // otherwise "edit this turn" silently drops them (both from the
-      // optimistic bubble and from the Host-persisted prompt).
-      const contextRefs = target.contextRefs;
+      // The edit card only lets the user change the text; attachments and
+      // context refs on the original turn are shown read-only above it and
+      // must survive the resend — otherwise "edit this turn" silently drops
+      // them from the optimistic bubble and the Host-persisted prompt.
       dispatch({
         type: 'user/send',
         text,
         clientMessageId: resendClientMessageId,
+        ...(attachments.length > 0 ? { attachments } : {}),
         ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
       });
       const input = buildBranchPromptInput({
@@ -255,6 +261,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         agentMode,
         selectedModelKey,
         modelOptions,
+        ...(attachments.length > 0 ? { attachments } : {}),
         ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
         ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
         ...(orchestrationSchemeId !== undefined ? { orchestrationSchemeId } : {}),
@@ -397,6 +404,7 @@ export function buildBranchPromptInput(input: {
   agentMode: AgentModeId;
   selectedModelKey: string;
   modelOptions: ModelOption[];
+  attachments?: PromptAttachment[];
   contextRefs?: PromptContextRef[];
   thinkingLevel?: ThinkingLevel;
   orchestrationSchemeId?: string;
@@ -408,6 +416,9 @@ export function buildBranchPromptInput(input: {
     clientMessageId: input.clientMessageId,
     branchFromMessageId: input.branchFromMessageId,
   };
+  if (input.attachments && input.attachments.length > 0) {
+    prompt.attachments = input.attachments;
+  }
   if (input.contextRefs && input.contextRefs.length > 0) {
     prompt.contextRefs = input.contextRefs;
   }

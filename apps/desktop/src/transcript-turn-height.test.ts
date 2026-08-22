@@ -3,6 +3,7 @@ import type { ChatMessageUi } from './chat-reducer';
 import {
   estimateTranscriptTurnHeight,
   normalizeTranscriptTurnHeight,
+  normalizeTranscriptTurnEstimate,
   resolveTranscriptTurnEstimate,
   TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX,
   TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX,
@@ -40,8 +41,12 @@ describe('normalizeTranscriptTurnHeight', () => {
     expect(normalizeTranscriptTurnHeight(5)).toBeNull();
   });
 
-  it('clamps to the max cache ceiling', () => {
-    expect(normalizeTranscriptTurnHeight(99_999)).toBe(TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX);
+  it('keeps the full actual height above the cache ceiling', () => {
+    expect(normalizeTranscriptTurnHeight(99_999)).toBe(99_999);
+  });
+
+  it('caps speculative estimates without capping actual measurements', () => {
+    expect(normalizeTranscriptTurnEstimate(99_999)).toBe(TRANSCRIPT_TURN_MAX_CACHED_HEIGHT_PX);
   });
 
   it('ceils finite positive heights', () => {
@@ -51,20 +56,14 @@ describe('normalizeTranscriptTurnHeight', () => {
 
 describe('estimateTranscriptTurnHeight', () => {
   it('stays compact for a short user+assistant turn', () => {
-    const turns = groupTranscriptTurns([
-      userMessage('u1', 'hi'),
-      assistantMessage('a1', 'hello'),
-    ]);
+    const turns = groupTranscriptTurns([userMessage('u1', 'hi'), assistantMessage('a1', 'hello')]);
     const height = estimateTranscriptTurnHeight(turns[0]);
     expect(height).toBeLessThan(360);
     expect(height).toBeGreaterThanOrEqual(TRANSCRIPT_TURN_ESTIMATED_HEIGHT_PX - 20);
   });
 
   it('grows with longer assistant text and tools', () => {
-    const short = groupTranscriptTurns([
-      userMessage('u1', 'hi'),
-      assistantMessage('a1', 'ok'),
-    ])[0];
+    const short = groupTranscriptTurns([userMessage('u1', 'hi'), assistantMessage('a1', 'ok')])[0];
     const long = groupTranscriptTurns([
       userMessage('u2', 'hi'),
       {
@@ -80,9 +79,7 @@ describe('estimateTranscriptTurnHeight', () => {
         ],
       },
     ])[0];
-    expect(estimateTranscriptTurnHeight(long)).toBeGreaterThan(
-      estimateTranscriptTurnHeight(short),
-    );
+    expect(estimateTranscriptTurnHeight(long)).toBeGreaterThan(estimateTranscriptTurnHeight(short));
   });
 });
 

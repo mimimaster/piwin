@@ -193,6 +193,33 @@ describe('transcript turn window', () => {
     expect(container.querySelector('#msg-user-250')).toBeNull();
   });
 
+  it('reserves the full measured height of a mounted turn above the cache ceiling', async () => {
+    const turns = createTurns(21);
+    turnHeightOverrides.set('turn-user-0', 6_000);
+    const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
+    Object.defineProperties(container, {
+      offsetHeight: { configurable: true, writable: true, value: 640 },
+      offsetWidth: { configurable: true, writable: true, value: 900 },
+      clientHeight: { configurable: true, writable: true, value: 640 },
+      scrollHeight: { configurable: true, writable: true, value: 12_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+    });
+
+    await act(async () => {
+      root.render(
+        <TranscriptScrollProvider sessionId="session-tall" scrollElementRef={scrollElementRef}>
+          <TranscriptTurnList turns={turns} pinnedMessageId={null} renderTurn={renderTurn} />
+        </TranscriptScrollProvider>,
+      );
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+
+    const turnWindow = container.querySelector<HTMLElement>(
+      '[data-testid="transcript-turn-window"]',
+    );
+    expect(Number.parseFloat(turnWindow?.style.height ?? '0')).toBeGreaterThan(6_000);
+  });
+
   it('keeps an edited historical turn mounted and focused while the tail changes', async () => {
     const scrollElementRef: RefObject<HTMLDivElement | null> = { current: container };
     Object.defineProperties(container, {

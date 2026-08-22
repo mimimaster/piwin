@@ -2,7 +2,12 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { HostCommand, HostResponse, PromptContextRef } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  PromptAttachment,
+  PromptContextRef,
+} from '@piwin/contracts';
 import type { ChatMessageUi } from '../chat-reducer.js';
 import {
   buildBranchPromptInput,
@@ -70,6 +75,32 @@ describe('buildBranchPromptInput', () => {
     });
     expect(input.contextRefs).toBeUndefined();
   });
+
+  it('carries attachments through when the edited turn had any', () => {
+    const attachments = [mediaAttachment('img-1')];
+    const input = buildBranchPromptInput({
+      text: 'try again',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+      attachments,
+    });
+    expect(input.attachments).toEqual(attachments);
+  });
+
+  it('omits attachments when the edited turn had none', () => {
+    const input = buildBranchPromptInput({
+      text: 'try again',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+    });
+    expect(input.attachments).toBeUndefined();
+  });
 });
 
 describe('branchResend (Edit this turn / revert)', () => {
@@ -120,6 +151,123 @@ describe('branchResend (Edit this turn / revert)', () => {
     );
     expect(promptCommand?.input.contextRefs).toEqual(contextRefs);
   });
+
+  it('keeps the original attachments on both the optimistic bubble and the Host prompt', async () => {
+    const attachments = [mediaAttachment('img-1')];
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: 'look at this',
+      thinking: '',
+      tools: [],
+      attachments,
+      status: 'done',
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-1' });
+        }
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.branchResend('u1', 'look at this again');
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send', text: 'look at this again', attachments }),
+    );
+    const promptCommand = sent.find(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    );
+    expect(promptCommand?.input.attachments).toEqual(attachments);
+  });
+
+  it('allows an image-only resend when the original turn had attachments and no text', async () => {
+    const attachments = [mediaAttachment('img-1')];
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments,
+      status: 'done',
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        if (command.type === 'session/prompt') {
+          return response({ runId: 'run-1' });
+        }
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.branchResend('u1', '   ');
+    });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'user/send', text: '', attachments }),
+    );
+    const promptCommand = sent.find(
+      (command): command is Extract<HostCommand, { type: 'session/prompt' }> =>
+        command.type === 'session/prompt',
+    );
+    expect(promptCommand?.input.text).toBe('');
+    expect(promptCommand?.input.attachments).toEqual(attachments);
+  });
+
+  it('does not send when the edited turn has neither text nor attachments', async () => {
+    const originalMessage: ChatMessageUi = {
+      id: 'u1',
+      role: 'user',
+      text: 'original text',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const sent: HostCommand[] = [];
+    const dispatch = vi.fn();
+    const hostClient = {
+      request: async (command: HostCommand): Promise<HostResponse> => {
+        sent.push(command);
+        return response({ sessionId: 's1', branchPoints: [] });
+      },
+      subscribe: () => () => undefined,
+    };
+    const actions = renderBranchActions(hostClient, {
+      visibleMessages: [originalMessage],
+      dispatch,
+    });
+
+    await act(async () => {
+      await actions.current?.branchResend('u1', '   ');
+    });
+
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send' }));
+    expect(sent.some((command) => command.type === 'session/prompt')).toBe(false);
+  });
 });
 
 describe('switch confirmation (ADR 0055 write boundary)', () => {
@@ -161,6 +309,17 @@ describe('switch confirmation (ADR 0055 write boundary)', () => {
     expect(actions.current?.pendingSwitchConfirm).toBeNull();
   });
 });
+
+function mediaAttachment(id: string): PromptAttachment {
+  return {
+    id,
+    kind: 'media',
+    path: `/Users/test/.piwin/media/${id}.png`,
+    mimeType: 'image/png',
+    byteSize: 2048,
+    source: 'paste',
+  };
+}
 
 function response(data: unknown): HostResponse {
   return { id: 'r1', type: 'response', command: 'session/branch-switch', success: true, data };

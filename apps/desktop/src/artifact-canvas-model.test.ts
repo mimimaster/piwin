@@ -16,6 +16,8 @@ function makeDescriptor(overrides: Partial<ArtifactDescriptor> = {}): ArtifactDe
     source: '<div>config</div>',
     rawLanguage: 'artifact-html',
     alias: 'artifact-html',
+    declaration: 'explicit',
+    documentKind: 'fragment',
     surface: 'canvas',
     ...overrides,
   } as ArtifactDescriptor;
@@ -53,6 +55,8 @@ describe('createArtifactCanvasTarget', () => {
       surface: 'canvas',
       title: 'Deployment configurator',
       type: 'html',
+      declaration: 'explicit',
+      documentKind: 'fragment',
       rawLanguage: 'artifact-html',
       source: '<div>config</div>',
     });

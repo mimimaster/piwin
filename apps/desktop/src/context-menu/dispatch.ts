@@ -12,6 +12,8 @@ export type ContextMenuDispatchers = {
   sendPreset: (text: string, refs: PromptContextRef[]) => void;
   openPath: (absolutePath: string, relativePath: string) => void;
   revealPath: (absolutePath: string) => void;
+  /** Optional: Save As / download for path chips. */
+  savePathAs?: (absolutePath: string) => void;
   copyText: (text: string) => void;
   quoteInComposer: (text: string) => void;
   retryMessage: (messageId: string) => void;
@@ -163,6 +165,11 @@ export function dispatchContextMenuAction(
     case 'reveal': {
       const paths = pathFields(target);
       if (paths) dispatchers.revealPath(paths.absolutePath);
+      return;
+    }
+    case 'save-as': {
+      const paths = pathFields(target);
+      if (paths) dispatchers.savePathAs?.(paths.absolutePath);
       return;
     }
     case 'quote-in-composer':

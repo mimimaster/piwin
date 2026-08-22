@@ -8,7 +8,7 @@ import {
   NATIVE_HTML_ARTIFACT_LANGUAGES,
   NATIVE_SVG_ARTIFACT_LANGUAGES,
 } from './constants.js';
-import { normalizeHtmlDocumentToArtifactFragment } from './html-document-fragment.js';
+import { isFullHtmlDocument } from './html-document.js';
 import type { ArtifactDescriptor, ArtifactSurface } from './types.js';
 
 const ARTIFACT_ALIAS_SET = new Set<string>(ARTIFACT_LANGUAGE_ALIASES);
@@ -20,8 +20,7 @@ const PLACEHOLDER_SOURCE_PATTERN =
   /^(?:enter your code here\.{0,3}|todo|tbd|placeholder|\/\/\s*todo|<!--\s*(?:todo|placeholder|visible content here)\s*-->)$/i;
 const HTML_LIKE_SOURCE_PATTERN =
   /<\s*(?:style|script|div|section|article|main|aside|header|footer|button|input|select|textarea|form|table|ul|ol|li|details|summary|dialog|canvas|svg)\b|--piwin-artifact-/i;
-const SVG_SOURCE_PATTERN =
-  /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b[\s\S]*(?:<\/svg\s*>|\/>)\s*$/i;
+const SVG_SOURCE_PATTERN = /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b[\s\S]*(?:<\/svg\s*>|\/>)\s*$/i;
 const SVG_OPEN_SOURCE_PATTERN = /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b/i;
 const NATIVE_HTML_UI_SOURCE_PATTERN =
   /(?:<!doctype\s+html\b|<\s*html\b|<\s*body\b|<\s*style\b|<\s*iframe\b|<\s*(?:section|main|article|details|summary|form|button|table)\b|<\s*div\b[^>]*(?:class|id)\s*=)/i;
@@ -38,7 +37,11 @@ export type TableAlignment = 'left' | 'center' | 'right' | 'default';
 export type ParsedMarkdownBlock =
   | { type: 'paragraph'; value: string }
   | { type: 'heading'; level: number; text: string }
-  | { type: 'blockquote'; text: string; kind?: 'note' | 'tip' | 'important' | 'warning' | 'caution' }
+  | {
+      type: 'blockquote';
+      text: string;
+      kind?: 'note' | 'tip' | 'important' | 'warning' | 'caution';
+    }
   | { type: 'list'; items: string[]; ordered?: boolean }
   | { type: 'code'; language: string; source: string }
   | {
@@ -97,9 +100,7 @@ function isArtifactFenceMarker(rawLanguage: string): boolean {
     alias.startsWith('artifact_') ||
     alias.endsWith('-artifact') ||
     alias.endsWith('_artifact') ||
-    [...attributes.keys()].some(
-      (key) => key === 'artifact' || key.startsWith('artifact-'),
-    )
+    [...attributes.keys()].some((key) => key === 'artifact' || key.startsWith('artifact-'))
   );
 }
 
@@ -164,6 +165,8 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
+      declaration: 'explicit',
+      documentKind: isFullHtmlDocument(source) ? 'document' : 'fragment',
       surface,
     };
   }
@@ -179,6 +182,8 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
+      declaration: 'explicit',
+      documentKind: isFullHtmlDocument(source) ? 'document' : 'fragment',
       surface,
     };
   }
@@ -194,22 +199,22 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
+      declaration: 'native',
+      documentKind: 'fragment',
       surface,
     };
   }
 
-  if (
-    htmlUiModeEnabled &&
-    isNativeHtmlLanguage(rawLanguage) &&
-    isUiLikeHtmlSource(source)
-  ) {
+  if (htmlUiModeEnabled && isNativeHtmlLanguage(rawLanguage) && isUiLikeHtmlSource(source)) {
     return {
       id: input.id,
       type: 'html',
       title: parseTitle(rawLanguage) ?? 'HTML UI',
-      source: normalizeHtmlDocumentToArtifactFragment(source),
+      source,
       rawLanguage,
       alias,
+      declaration: 'native',
+      documentKind: isFullHtmlDocument(source) ? 'document' : 'fragment',
       surface,
     };
   }
@@ -328,8 +333,11 @@ export function splitMarkdownBlocks(text: string): ParsedMarkdownBlock[] {
       const quoteLines: string[] = [];
 
       if (calloutMatch && calloutMatch[1]) {
-        kind = calloutMatch[1].toLowerCase() as 'note' | 'tip' | 'important' | 'warning' | 'caution';
-        const restOfFirstLine = trimmed.replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i, '').trim();
+        kind = calloutMatch[1].toLowerCase() as
+          'note' | 'tip' | 'important' | 'warning' | 'caution';
+        const restOfFirstLine = trimmed
+          .replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i, '')
+          .trim();
         if (restOfFirstLine) {
           quoteLines.push(restOfFirstLine);
         }
@@ -385,7 +393,11 @@ export function splitMarkdownBlocks(text: string): ParsedMarkdownBlock[] {
       !/^\s*\d+\.\s+/.test(lines[index] ?? '') &&
       !/^(#{1,6})\s+/.test((lines[index] ?? '').trim()) &&
       !(lines[index] ?? '').trim().startsWith('>') &&
-      !((lines[index] ?? '').includes('|') && index + 1 < lines.length && isTableDelimiterLine(lines[index + 1] ?? ''))
+      !(
+        (lines[index] ?? '').includes('|') &&
+        index + 1 < lines.length &&
+        isTableDelimiterLine(lines[index + 1] ?? '')
+      )
     ) {
       paragraphLines.push(lines[index] ?? '');
       index += 1;

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-11)
+Accepted (2026-08-03; amended 2026-08-22)
 
 ## Context
 
@@ -174,7 +174,8 @@ Runtime guarantees:
   raw-source disclosure.
 - **Same security posture as Inline**: existing Artifact security
   classification, iframe sandbox, CSP, theme injection, external-resource
-  policy, ready timeout, and action validation remain mandatory and identical.
+  policy, and action validation remain mandatory and identical. Canvas does not
+  participate in Inline sizing or its bounded load-fallback lifecycle.
 - **Streaming stays source-only** (ADR 0005); Canvas mounts only after user
   action on a completed message.
 
@@ -202,6 +203,31 @@ Rules:
   is appended to the current Composer draft (separated by a newline when
   needed).
 - Insertion never auto-sends and never silently destroys existing draft text.
+
+### 8. Native source and Inline compatibility boundary (2026-08-22 amendment)
+
+The declared `surface` remains authoritative for explicit Artifact fences.
+Ordinary `html`/`htm`/`svg` fences are not declarations, so they stay source-first:
+
+- a native component fragment may be previewed Inline after user action;
+- a native full document or viewport-coupled page may be previewed only in Canvas;
+- this is a user command, not runtime auto-promotion, and Canvas never auto-opens;
+- an explicit `surface="inline"` fence that violates the Inline component
+  contract remains source with a diagnostic. The UI may offer a deliberate
+  Canvas preview, but runtime does not mutate the descriptor or silently reroute.
+
+Inline compatibility is conservative and deterministic. Full documents,
+viewport-height CSS units, JavaScript that reads viewport height, and fixed page
+shells are rejected before an Inline iframe mounts. The runtime no longer
+repairs `100vh`/`min-height` declarations or guesses whether a canvas/video is a
+viewport-filling scene. Those mechanisms fed parent iframe height back into
+child viewport layout and could ratchet a single response into a large blank
+region before later Markdown.
+
+Canvas preserves full document structure and owns both axes of scrolling. It
+does not install or emit the Inline size stream. Compatible sandboxed Inline
+fragments emit one revisioned root-box size stream; the parent applies the latest
+trusted revision with the existing 16384px defensive clamp.
 
 ## Consequences
 

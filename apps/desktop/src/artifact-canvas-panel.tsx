@@ -54,6 +54,8 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
       source: activeTarget.source,
       rawLanguage: activeTarget.rawLanguage,
       alias: activeTarget.rawLanguage,
+      declaration: activeTarget.declaration,
+      documentKind: activeTarget.documentKind,
       surface: activeTarget.surface,
     } as const;
     const options: Parameters<typeof evaluateArtifactDescriptor>[1] = {

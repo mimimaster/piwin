@@ -805,6 +805,22 @@ describe('ComposerDock host status', () => {
     expect(handleRemove).toHaveBeenCalledWith('local-error');
   });
 
+  it('enables send when carry content is present even if the composer is empty', () => {
+    const handleSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} composer="" hasCarryContent={true} onSend={handleSend} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(sendBtn?.disabled).toBe(false);
+    act(() => {
+      sendBtn?.click();
+    });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+  });
+
   it('confirms retry / send-rest / back before sending with failed attachments', () => {
     const handleSend = vi.fn();
     const discardFailed = vi.fn();

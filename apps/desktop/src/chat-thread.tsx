@@ -185,7 +185,9 @@ export type ChatThreadProps = {
    * existing tests keep the Agent presentation.
    */
   isConversationSession?: boolean;
-  onResolveFlashcards?: (itemIds: string[]) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
+  onResolveFlashcards?: (
+    itemIds: string[],
+  ) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
   /** Model snapshot / live model used for conversation headers. */
   livePromptModel?: ModelRef | null;
   /** Active model options for name resolution. */
@@ -241,7 +243,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     [transcriptMessages],
   );
   const chatMessages = useMemo(
-    () => (docCardSequence ? transcriptMessages.filter((message) => !message.docCardSequence) : transcriptMessages),
+    () =>
+      docCardSequence
+        ? transcriptMessages.filter((message) => !message.docCardSequence)
+        : transcriptMessages,
     [docCardSequence, transcriptMessages],
   );
 
@@ -256,10 +261,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return undefined;
   }, [transcriptMessages]);
 
-  const turnGroups = useMemo(
-    () => groupTranscriptTurns(chatMessages),
-    [chatMessages],
-  );
+  const turnGroups = useMemo(() => groupTranscriptTurns(chatMessages), [chatMessages]);
   // Cursor-style explore flow: consecutive read/search/thought-only assistant
   // steps collapse into one "Explored N files" capsule anchored at the first
   // step (agent sessions only — conversation mode keeps per-reply chrome).
@@ -293,9 +295,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     props.streaming &&
     props.activeRunId != null &&
     !props.permissionPrompt &&
-    (transcriptMessages.length === 0 ||
-      transcriptTail?.role === 'user' ||
-      tailAwaitsFirstOutput);
+    (transcriptMessages.length === 0 || transcriptTail?.role === 'user' || tailAwaitsFirstOutput);
   const conversationSession = props.isConversationSession === true;
   const conversationActivityKind = conversationSession
     ? resolveConversationActivityKind({
@@ -303,48 +303,49 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         tools: transcriptMessages.flatMap((message) => message.tools),
       })
     : null;
-  const runActivitySlot = showRunActivity
-    ? conversationSession
-      ? conversationActivityKind
-        ? (
-            <div className="chat-run-activity-line" data-testid="conversation-activity">
-              <div className="agent-locator-stack">
-                <div
-                  className="agent-locator"
-                  role="status"
-                  aria-live="polite"
-                  data-testid="conversation-agent-locator"
-                  data-activity-id={conversationActivityKind}
-                >
-                  <span className="agent-locator-visual" aria-hidden="true">
-                    <RadialBellow
-                      size="sm"
-                      label={conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
-                      testId="conversation-locator-radial-bellow"
-                    />
-                  </span>
-                  <span
-                    className="agent-locator-copy agent-locator-copy--shimmer"
-                    data-testid="conversation-activity-copy"
-                  >
-                    {conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
-                  </span>
-                </div>
-              </div>
+  const runActivitySlot = showRunActivity ? (
+    conversationSession ? (
+      conversationActivityKind ? (
+        <div className="chat-run-activity-line" data-testid="conversation-activity">
+          <div className="agent-locator-stack">
+            <div
+              className="agent-locator"
+              role="status"
+              aria-live="polite"
+              data-testid="conversation-agent-locator"
+              data-activity-id={conversationActivityKind}
+            >
+              <span className="agent-locator-visual" aria-hidden="true">
+                <RadialBellow
+                  size="sm"
+                  label={conversationActivityLabel(
+                    conversationActivityKind,
+                    props.locale ?? 'zh-CN',
+                  )}
+                  testId="conversation-locator-radial-bellow"
+                />
+              </span>
+              <span
+                className="agent-locator-copy agent-locator-copy--shimmer"
+                data-testid="conversation-activity-copy"
+              >
+                {conversationActivityLabel(conversationActivityKind, props.locale ?? 'zh-CN')}
+              </span>
             </div>
-          )
-        : null
-      : (
-          <RunActivitySlot
-            activeRunId={props.activeRunId ?? null}
-            runRecordsById={props.runRecordsById ?? {}}
-            {...(activeToolName ? { activeToolName } : {})}
-            {...(props.locale ? { locale: props.locale } : {})}
-            {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
-            {...(props.activeSkill ? { skill: props.activeSkill } : {})}
-          />
-        )
-    : null;
+          </div>
+        </div>
+      ) : null
+    ) : (
+      <RunActivitySlot
+        activeRunId={props.activeRunId ?? null}
+        runRecordsById={props.runRecordsById ?? {}}
+        {...(activeToolName ? { activeToolName } : {})}
+        {...(props.locale ? { locale: props.locale } : {})}
+        {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
+        {...(props.activeSkill ? { skill: props.activeSkill } : {})}
+      />
+    )
+  ) : null;
   const changedFilePathsByTurnId = useMemo(() => {
     const pathsByTurnId = new Map<string, string[]>();
     for (const turn of turnGroups) {
@@ -381,13 +382,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
   }, [chatMessages]);
 
   return (
-    <div className={`chat-thread${conversationSession ? ' is-conversation' : ''}`} data-testid="chat-thread">
+    <div
+      className={`chat-thread${conversationSession ? ' is-conversation' : ''}`}
+      data-testid="chat-thread"
+    >
       {docCardSequence && props.docCardRequest ? (
         <div className="chat-doc-card-sequence-slot">
-          <DocCardSequenceView
-            sequence={docCardSequence}
-            request={props.docCardRequest}
-          />
+          <DocCardSequenceView sequence={docCardSequence} request={props.docCardRequest} />
         </div>
       ) : null}
       {props.plan && !conversationSession ? (
@@ -425,7 +426,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         turns={turnGroups}
         pinnedMessageId={props.editingMessageId}
         streaming={props.streaming === true}
-        latestAssistantMessageId={latestAssistantMessageId}
         renderTurn={(turn) => {
           const turnMessages = turn.items.map((item) => item.message);
           const turnFlashcardTools = collectFlashcardToolsFromMessages(turnMessages);
@@ -464,10 +464,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     : undefined;
                 const isLatestAssistant = latestAssistantMessageId === message.id;
                 const onRegenerate =
-                  conversationSession &&
-                  isLatestAssistant &&
-                  precedingUser &&
-                  props.onBranchResend
+                  conversationSession && isLatestAssistant && precedingUser && props.onBranchResend
                     ? () => props.onBranchResend?.(precedingUser.id, precedingUser.text)
                     : undefined;
                 const exploreRole = exploreRolesByMessageId.get(message.id);
@@ -492,9 +489,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     messageIndex={messageIndex}
                     showStreamingCaret={streamingCaretMessageId === message.id}
                     isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
-                    {...(turnFlashcardTools.length > 0
-                      ? { turnFlashcardTools }
-                      : {})}
+                    {...(turnFlashcardTools.length > 0 ? { turnFlashcardTools } : {})}
                     isLatestAssistantResponse={isLatestAssistant}
                     {...(props.livePromptModel !== undefined
                       ? { livePromptModel: props.livePromptModel }

@@ -169,9 +169,11 @@
 
 .user-message-wrapper.is-conversation .user-message-bubble,
 .user-message-wrapper.is-conversation .user-message-collapsible {
+  --user-message-mask: var(--user-bubble, color-mix(in srgb, var(--accent, #3b82f6) 12%, var(--surface-raised, #232733)));
+  position: relative;
   width: fit-content;
   max-width: 100%;
-  padding: 10px 14px 8px;
+  padding: 10px 14px;
   border-radius: 18px 4px 18px 18px;
   background: var(--user-bubble, color-mix(in srgb, var(--accent, #3b82f6) 12%, var(--surface-raised, #232733)));
   border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
@@ -180,10 +182,12 @@
   text-align: left;
   word-break: break-word;
   color: var(--text, #f1f5f9);
+  overflow: hidden;
 }
 
 [data-theme='light'] .user-message-wrapper.is-conversation .user-message-bubble,
 [data-theme='light'] .user-message-wrapper.is-conversation .user-message-collapsible {
+  --user-message-mask: color-mix(in srgb, var(--accent, #3b82f6) 8%, #ffffff);
   background: color-mix(in srgb, var(--accent, #3b82f6) 8%, #ffffff);
   border-color: rgba(0, 0, 0, 0.08);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -231,35 +235,67 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   max-width: 100% !important;
 }
 
+/* Hover veil: fade the last line into the bubble color and sit the
+   time / copy / revert row on that mask. Idle state stays out of flow. */
 .user-message-wrapper.is-conversation .user-message-footer,
 .user-message-wrapper.is-conversation .user-message-actions {
-  display: flex;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  z-index: 2;
+  display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  margin-top: 4px;
+  gap: 4px;
+  margin: 0;
+  min-height: 0;
+  padding: 8px 14px 10px 44px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   font-size: 10.5px;
   line-height: 1;
   color: var(--muted);
   user-select: none;
-  min-height: 16px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--user-message-mask) 70%, transparent) 32%,
+    var(--user-message-mask) 58%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
 .user-message-wrapper.is-conversation .user-message-action-buttons {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 160ms ease;
 }
 
-.user-message-wrapper.is-conversation .user-message-bubble:hover .user-message-action-buttons,
-.bubble.role-user.is-conversation-bubble:hover .user-message-action-buttons,
-.bubble.role-user.is-conversation-bubble:focus-within .user-message-action-buttons,
-.user-message-wrapper.is-conversation:hover .user-message-action-buttons {
+.user-message-wrapper.is-conversation:hover .user-message-footer,
+.user-message-wrapper.is-conversation:focus-within .user-message-footer,
+.bubble.role-user.is-conversation-bubble:hover .user-message-footer,
+.bubble.role-user.is-conversation-bubble:focus-within .user-message-footer {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Intervention status is operational, not chrome — keep it readable. */
+.user-message-wrapper.is-conversation .user-message-footer:has([data-testid="intervention-delivery-status"]) {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  z-index: auto;
+  opacity: 1;
+  pointer-events: auto;
+  margin-top: 6px;
+  width: 100%;
+  padding: 6px 0 0;
+  background: none;
 }
 
 .user-message-avatar {
@@ -329,6 +365,7 @@ html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-conversation-bubbl
 
 html[data-theme-visual-style='ink-wash'] .user-message-bubble,
 html[data-theme-visual-style='ink-wash'] .user-message-collapsible {
+  --user-message-mask: rgba(22, 26, 34, 0.98);
   background-color: rgba(26, 30, 40, 0.94) !important;
   background-image: linear-gradient(
     180deg,
@@ -353,6 +390,18 @@ html[data-theme-visual-style='ink-wash'] .user-message-avatar {
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .user-message-footer,
+html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .user-message-actions {
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(22, 26, 34, 0.7) 32%,
+    rgba(22, 26, 34, 0.98) 58%
+  );
+  border: none;
+  box-shadow: none;
 }
 
 /* ─── Responsive Adjustments (< 640px) ───────────────────────────────── */

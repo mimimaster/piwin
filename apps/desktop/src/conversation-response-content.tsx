@@ -20,7 +20,11 @@ import {
   renderFlashcardBatchHtml,
 } from './flashcard-artifact';
 import type { FlashcardItem, FlashcardReviewCard } from '@piwin/contracts';
-import { collapseToPhysicalCards, isValidClozeText, itemToDisplayCard } from '@piwin/flashcards/cloze';
+import {
+  collapseToPhysicalCards,
+  isValidClozeText,
+  itemToDisplayCard,
+} from '@piwin/flashcards/cloze';
 import { extractFlashcardItemIdsFromText } from './resolve-conversation-flashcards.js';
 import { FlashcardStackView } from './FlashcardView';
 import { MarkdownView } from './MarkdownView';
@@ -91,7 +95,8 @@ function asItem(value: unknown): FlashcardItem | null {
   if (typeof record.id !== 'string') return null;
   const model = record.model === 'cloze' ? 'cloze' : 'basic';
   const deck = typeof record.deck === 'string' && record.deck ? record.deck : 'default';
-  const createdAt = typeof record.createdAt === 'string' ? record.createdAt : new Date().toISOString();
+  const createdAt =
+    typeof record.createdAt === 'string' ? record.createdAt : new Date().toISOString();
   const tags = Array.isArray(record.tags)
     ? record.tags.filter((tag): tag is string => typeof tag === 'string')
     : [];
@@ -221,8 +226,9 @@ function displayCardsFromToolArgs(rawArgs: unknown, toolCallId: string): Flashca
     args.arguments && typeof args.arguments === 'object' ? args.arguments : args
   ) as Record<string, unknown>;
   const inputs: Record<string, unknown>[] = Array.isArray(inner.cards)
-    ? inner.cards.filter((entry): entry is Record<string, unknown> =>
-        Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
+    ? inner.cards.filter(
+        (entry): entry is Record<string, unknown> =>
+          Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
       )
     : [inner];
   const cards: FlashcardReviewCard[] = [];
@@ -275,10 +281,7 @@ export function extractFlashcardRecords(
   return physical;
 }
 
-function textFromCreateTurn(
-  message: ChatMessageUi,
-  extraTools?: readonly ToolCardUi[],
-): string {
+function textFromCreateTurn(message: ChatMessageUi, extraTools?: readonly ToolCardUi[]): string {
   const parts = [message.text];
   for (const tool of getMessageTools(message, extraTools)) {
     parts.push(tool.output ?? '');
@@ -347,10 +350,13 @@ export function ConversationResponseContent(props: {
   usageChip?: ConversationUsageChipData | null;
   isStreaming?: boolean;
   artifactPreviewEnabled?: boolean;
+  artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   onOpenDocument?: ((input: DocumentOpenInput) => void) | undefined;
+  /** Active project root for path chips (Save As / Reveal / absolute copy). */
+  projectPath?: string | null | undefined;
   /** When false, skip in-message flip cards (used for earlier tool-only rows). */
   renderExtractedFlashcards?: boolean;
   /** Extra tool cards to scan (turn-level flashcard creates). */
@@ -404,7 +410,12 @@ export function ConversationResponseContent(props: {
     return () => {
       cancelled = true;
     };
-  }, [extractedCards.length, message.text, props.onResolveFlashcards, props.renderExtractedFlashcards]);
+  }, [
+    extractedCards.length,
+    message.text,
+    props.onResolveFlashcards,
+    props.renderExtractedFlashcards,
+  ]);
   const displayCards = extractedCards.length > 0 ? extractedCards : resolvedCards;
   const flashcardArtifactHtml =
     props.renderExtractedFlashcards === false || displayCards.length > 0
@@ -446,7 +457,9 @@ export function ConversationResponseContent(props: {
           {...(modelDisplay?.shortModelName !== undefined
             ? { shortModelName: modelDisplay.shortModelName }
             : {})}
-          {...(modelDisplay?.modelLabel !== undefined ? { modelLabel: modelDisplay.modelLabel } : {})}
+          {...(modelDisplay?.modelLabel !== undefined
+            ? { modelLabel: modelDisplay.modelLabel }
+            : {})}
           {...(props.usageChip !== undefined ? { usageChip: props.usageChip } : {})}
           locale={locale}
         />
@@ -527,6 +540,9 @@ export function ConversationResponseContent(props: {
           showStreamingCaret={props.showStreamingCaret}
           locale={locale}
           {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+          {...(props.artifactCodeFirst !== undefined
+            ? { artifactCodeFirst: props.artifactCodeFirst }
+            : {})}
           {...(props.artifactMaxBytes !== undefined
             ? { artifactMaxBytes: props.artifactMaxBytes }
             : {})}
@@ -538,6 +554,7 @@ export function ConversationResponseContent(props: {
             ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
             : {})}
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+          {...(props.projectPath ? { projectPath: props.projectPath } : {})}
         />
       ) : null}
 
@@ -566,6 +583,9 @@ export function ConversationResponseContent(props: {
             showStreamingCaret={false}
             locale={locale}
             artifactPreviewEnabled={true}
+            {...(props.artifactCodeFirst !== undefined
+              ? { artifactCodeFirst: props.artifactCodeFirst }
+              : {})}
             {...(props.artifactMaxBytes !== undefined
               ? { artifactMaxBytes: props.artifactMaxBytes }
               : {})}
@@ -577,6 +597,7 @@ export function ConversationResponseContent(props: {
               ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
               : {})}
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+            {...(props.projectPath ? { projectPath: props.projectPath } : {})}
           />
         </div>
       ) : null}
