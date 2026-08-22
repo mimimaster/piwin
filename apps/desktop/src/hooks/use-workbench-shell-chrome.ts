@@ -1,0 +1,245 @@
+/**
+ * Shell chrome: layout, panel resize, session-list query, locale, and
+ * foreground-run confirms. Host commands stay with App / session hooks.
+ */
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from 'react';
+import {
+  ORCHESTRATION_SCHEME_OFF_ID,
+  type ForegroundRunMismatchProblem,
+  type ModelRef,
+  type ThinkingLevel,
+} from '@piwin/contracts';
+import type { AgentModeId } from '../agent-mode';
+import type { ChatUiState } from '../chat-reducer';
+import { getDesktopCopy, loadDesktopLocale, type DesktopLocale } from '../desktop-locale';
+import type { HostClient } from '../host-client';
+import { useComposerPlusMenu } from './use-composer-plus-menu';
+import { useRightPanelResize } from './use-right-panel-resize';
+import { useSessionListChrome } from './use-session-list-chrome';
+import { useSessionListQuery } from './use-session-list-query';
+import { useShellLayout } from './use-shell-layout';
+import { useSidebarResize } from './use-sidebar-resize';
+import { useTerminalPanelState } from './use-terminal-panel-state';
+import type { RightPanelTab } from '../right-panel';
+import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from '../right-panel-width';
+import { useConfirmDialog } from '../use-confirm-dialog';
+import {
+  loadDesktopPreferences,
+  type DesktopPreferences,
+} from '../ui-preferences';
+import { appShellCssVars, desktopPreferencesCssVars } from '../workbench-preferences-style';
+
+export type UseWorkbenchShellChromeArgs = {
+  hostClient: HostClient;
+  state: ChatUiState;
+};
+
+export function useWorkbenchShellChrome(args: UseWorkbenchShellChromeArgs) {
+  const { hostClient, state } = args;
+  const [projectInput, setProjectInput] = useState('');
+  const shell = useShellLayout();
+  const {
+    settingsOpen,
+    settingsSection,
+    commandPaletteOpen,
+    navDrawerOpen,
+    rightPanelOpen,
+    inspectorTab: rightPanelTab,
+    showOverlayScrim,
+    layoutMode,
+  } = shell;
+  const isOverlayPresentation = layoutMode === 'compact';
+  const rightPanelWidthRef = useRef(RIGHT_PANEL_DEFAULT_WIDTH_PX);
+  const sidebarResize = useSidebarResize({
+    layoutMode,
+    rightPanelOpen,
+    rightPanelWidthPx: rightPanelWidthRef.current,
+  });
+  const rightPanelResize = useRightPanelResize({
+    layoutMode,
+    navDrawerOpen,
+    sidebarWidthPx: sidebarResize.widthPx,
+  });
+  if (rightPanelWidthRef.current !== rightPanelResize.widthPx) {
+    rightPanelWidthRef.current = rightPanelResize.widthPx;
+  }
+  const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
+  const revealDocPreview = useCallback(() => {
+    const inspectorTab: RightPanelTab = 'docPreview';
+    shell.setInspectorTab(inspectorTab);
+    if (!rightPanelOpen) {
+      shell.openInspector(inspectorTab);
+    }
+  }, [rightPanelOpen, shell]);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const handleOpenCardsPanel = useCallback(() => {
+    shell.openInspector('cards');
+  }, [shell]);
+  const handleOpenKnowledge = useCallback(
+    (subTab: 'doccards' | 'cards' | 'wiki' = 'doccards') => {
+      if (subTab === 'cards') {
+        handleOpenCardsPanel();
+        return;
+      }
+      setKnowledgeOpen(true);
+    },
+    [handleOpenCardsPanel],
+  );
+  const watchingTerminalRef = useRef(false);
+  watchingTerminalRef.current =
+    rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
+  const sessionListChrome = useSessionListChrome();
+  const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
+  const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
+    ORCHESTRATION_SCHEME_OFF_ID,
+  );
+  const [delegationDisabled, setDelegationDisabled] = useState(false);
+  useEffect(() => {
+    setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+    setDelegationDisabled(false);
+  }, [state.activeSessionId]);
+  const sessionListQuery = useSessionListQuery({
+    hostClient,
+    sessionSearch: sessionListChrome.sessionSearch,
+    showArchivedSessions: sessionListChrome.showArchivedSessions,
+    activeScope: state.activeScope,
+    sessions: state.sessions,
+    generalSessions: state.generalSessions,
+  });
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const composerSetterRef = useRef<(value: SetStateAction<string>) => void>(() => undefined);
+  const [preferences, setPreferences] = useState<DesktopPreferences>(() =>
+    loadDesktopPreferences(),
+  );
+  const terminal = useTerminalPanelState({
+    projectPath: state.projectPath,
+    watchingTerminalRef,
+    preferences,
+    setPreferences,
+  });
+  const preferencesStyle = useMemo(() => desktopPreferencesCssVars(preferences), [preferences]);
+  const appShellStyle = useMemo(
+    () =>
+      appShellCssVars({
+        preferencesStyle,
+        sidebarWidthPx: sidebarResize.widthPx,
+        sidebarResizing: sidebarResize.isResizing,
+        rightPanelWidthPx: rightPanelResize.widthPx,
+        rightPanelResizing: rightPanelResize.isResizing,
+      }),
+    [
+      preferencesStyle,
+      sidebarResize.isResizing,
+      sidebarResize.widthPx,
+      rightPanelResize.isResizing,
+      rightPanelResize.widthPx,
+    ],
+  );
+  const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
+  const foregroundReplaceConfirm = useConfirmDialog();
+  const confirmBusyRun = useCallback(
+    async (problem: ForegroundRunMismatchProblem) => {
+      const copy = getDesktopCopy(desktopLocale).composer;
+      if (problem.data.reason !== 'active') {
+        return 'dismiss' as const;
+      }
+      const choice = await foregroundReplaceConfirm.choose({
+        title: copy.busyOtherClientTitle,
+        description: copy.busyOtherClient,
+        confirmLabel: copy.busyReplace,
+        alternateLabel: copy.busyQueue,
+        cancelLabel: copy.busyDismiss,
+        tone: 'danger',
+      });
+      if (choice === 'confirm') return 'replace' as const;
+      if (choice === 'alternate') return 'queue' as const;
+      return 'dismiss' as const;
+    },
+    [desktopLocale, foregroundReplaceConfirm],
+  );
+  const confirmForegroundReplace = useCallback(
+    async (problem: ForegroundRunMismatchProblem): Promise<boolean> => {
+      return (await confirmBusyRun(problem)) === 'replace';
+    },
+    [confirmBusyRun],
+  );
+  const plusMenu = useComposerPlusMenu({
+    hostClient,
+    projectPath: state.projectPath,
+    projectTrusted: state.projectTrusted,
+    activeSessionId: state.activeSessionId,
+  });
+  const [selectedModelKey, setSelectedModelKey] = useState('');
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>('off');
+  const sessionComposerProfileRestoredRef = useRef<
+    (profile: { model?: ModelRef; thinkingLevel?: ThinkingLevel }) => void
+  >(() => undefined);
+  const [runClock, setRunClock] = useState(() => Date.now());
+  useEffect(() => {
+    if (state.activeRunStartedAt === null) {
+      return;
+    }
+    const timer = window.setInterval(() => setRunClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [state.activeRunStartedAt]);
+
+  return {
+    projectInput,
+    setProjectInput,
+    shell,
+    settingsOpen,
+    settingsSection,
+    commandPaletteOpen,
+    navDrawerOpen,
+    rightPanelOpen,
+    rightPanelTab,
+    showOverlayScrim,
+    layoutMode,
+    isOverlayPresentation,
+    sidebarResize,
+    rightPanelResize,
+    rightPanelView,
+    setRightPanelView,
+    revealDocPreview,
+    knowledgeOpen,
+    setKnowledgeOpen,
+    handleOpenCardsPanel,
+    handleOpenKnowledge,
+    sessionListChrome,
+    agentMode,
+    setAgentMode,
+    orchestrationSchemeId,
+    setOrchestrationSchemeId,
+    delegationDisabled,
+    setDelegationDisabled,
+    sessionListQuery,
+    editingMessageId,
+    setEditingMessageId,
+    composerSetterRef,
+    preferences,
+    setPreferences,
+    terminal,
+    appShellStyle,
+    desktopLocale,
+    setDesktopLocale,
+    foregroundReplaceConfirm,
+    confirmBusyRun,
+    confirmForegroundReplace,
+    plusMenu,
+    selectedModelKey,
+    setSelectedModelKey,
+    thinkingLevel,
+    setThinkingLevel,
+    sessionComposerProfileRestoredRef,
+    runClock,
+  };
+}
+
+export type WorkbenchShellChrome = ReturnType<typeof useWorkbenchShellChrome>;

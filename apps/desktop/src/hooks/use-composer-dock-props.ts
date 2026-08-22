@@ -268,13 +268,11 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     (payload: { confirmed?: boolean; value?: string; cancelled?: boolean }): void => {
       void onExtensionUiResolve(payload);
     },
-    // onExtensionUiResolve closes over request state; rebind when request changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [extensionUiRequest],
+    [onExtensionUiResolve],
   );
   const handleComposerExtensionUiAbort = useCallback((): void => {
     void onExtensionUiAbort();
-  }, [extensionUiRequest]);
+  }, [onExtensionUiAbort]);
   const handleComposerAbort = useCallback((): void => {
     void onAbort();
   }, [onAbort]);

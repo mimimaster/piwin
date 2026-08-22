@@ -1,0 +1,165 @@
+/**
+ * Stage ContextBar of the desktop workbench (extracted from App.tsx).
+ * Host commands stay with App; this file owns title/scope labels, lineage
+ * popover, and run-status chrome callbacks.
+ */
+import type { ReactElement } from 'react';
+import type {
+  PermissionPreset,
+  ProductSessionLineageView,
+  ProductSessionOrigin,
+  ProjectRecord,
+} from '@piwin/contracts';
+import { ContextBar } from './context-bar';
+import type { ChatUiState } from './chat-reducer';
+import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
+import { projectLabel } from './project-display-name';
+import type { RightPanelTab } from './right-panel';
+import type { RunStatusView } from './run-status';
+import { SessionLineageHeaderPopover } from './session-lineage-popover';
+import type { ShellSettingsSection } from './shell-navigation';
+import {
+  resolveWorkbenchScopeLabel,
+  resolveWorkbenchSessionTitle,
+} from './workbench-chrome-assembly';
+
+type ContextBarShell = {
+  toggleSessions: () => void;
+  toggleInspector: (tab?: RightPanelTab | null) => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
+};
+
+export type WorkbenchContextBarProps = {
+  state: ChatUiState;
+  recentProjects: readonly ProjectRecord[];
+  activeSessionName: string;
+  activeSessionOrigin: ProductSessionOrigin | null;
+  sessionLineage: ProductSessionLineageView | null;
+  runStatus: RunStatusView;
+  lastUserMessage: { id: string; text: string } | null;
+  effectiveRunMode: PermissionPreset;
+  locale: DesktopLocale;
+  appearanceMode: 'light' | 'dark';
+  sessionsExpanded: boolean;
+  workPanelOpen: boolean;
+  rightPanelTab: RightPanelTab | null;
+  shell: ContextBarShell;
+  onStop: () => void | Promise<void>;
+  onCancelCompact: () => void | Promise<void>;
+  onOpenInspector: (tab: RightPanelTab) => void;
+  openSettingsSection: (section: ShellSettingsSection) => void;
+  onToggleAppearance: () => void;
+  onResumeSession: (sessionId: string) => void | Promise<void>;
+  onRetryLastUser: (messageId: string, text: string) => void | Promise<void>;
+};
+
+export function WorkbenchContextBar(props: WorkbenchContextBarProps): ReactElement {
+  const {
+    state,
+    recentProjects,
+    activeSessionName,
+    activeSessionOrigin,
+    sessionLineage,
+    runStatus,
+    lastUserMessage,
+    effectiveRunMode,
+    locale,
+    appearanceMode,
+    sessionsExpanded,
+    workPanelOpen,
+    rightPanelTab,
+    shell,
+    onStop,
+    onCancelCompact,
+    onOpenInspector,
+    openSettingsSection,
+    onToggleAppearance,
+    onResumeSession,
+    onRetryLastUser,
+  } = props;
+  const desktopCopy = getDesktopCopy(locale);
+  const activeSessionId = state.activeSessionId;
+
+  return (
+    <ContextBar
+      session={{
+        title: resolveWorkbenchSessionTitle({
+          projectPath: state.projectPath,
+          projectLabel: state.projectPath
+            ? projectLabel(state.projectPath, recentProjects)
+            : null,
+          sessionName: activeSessionName,
+        }),
+        scopeLabel: resolveWorkbenchScopeLabel({
+          isGeneral: state.activeScope.kind === 'general',
+          locale,
+          generalCopy: desktopCopy.general,
+        }),
+      }}
+      {...(activeSessionId
+        ? {
+            sessionTreeControl: (
+              <SessionLineageHeaderPopover
+                lineage={sessionLineage}
+                activeSessionId={activeSessionId}
+                activeSessionName={activeSessionName}
+                activeSessionArchived={state.activeSessionArchived}
+                onOpenSession={(sessionId) => void onResumeSession(sessionId)}
+                locale={locale}
+              />
+            ),
+          }
+        : {})}
+      isConversationSession={state.activeScope.kind === 'general'}
+      runState={runStatus}
+      onStop={() => void onStop()}
+      onViewActivity={() => onOpenInspector('terminal')}
+      onReviewPermission={() => {
+        // Focus the inline permission gate in the stream when present.
+        const gate = document.querySelector<HTMLElement>('[data-testid="permission-gate"]');
+        gate?.focus?.();
+        gate?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+      }}
+      onViewPlan={() => onOpenInspector('terminal')}
+      onCancelCompact={() => void onCancelCompact()}
+      {...(lastUserMessage
+        ? {
+            onRetry: () => {
+              void onRetryLastUser(lastUserMessage.id, lastUserMessage.text);
+            },
+          }
+        : {})}
+      permissionMode={effectiveRunMode}
+      onOpenPermissions={() => openSettingsSection('permissions')}
+      locale={locale}
+      appearanceMode={appearanceMode}
+      sessionsExpanded={sessionsExpanded}
+      onToggleSessions={() => {
+        shell.toggleSessions();
+      }}
+      canGoBack={shell.canGoBack}
+      canGoForward={shell.canGoForward}
+      onGoBack={() => {
+        shell.goBack();
+      }}
+      onGoForward={() => {
+        shell.goForward();
+      }}
+      onOpenSkills={() => openSettingsSection('skills')}
+      onOpenMcp={() => openSettingsSection('tools')}
+      onToggleAppearance={onToggleAppearance}
+      onOpenSettings={() => openSettingsSection('general')}
+      workPanelOpen={workPanelOpen}
+      onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
+      {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
+      {...(activeSessionOrigin?.kind === 'fork'
+        ? {
+            onReturnToRoot: () => void onResumeSession(activeSessionOrigin.rootSessionId),
+          }
+        : {})}
+    />
+  );
+}
