@@ -44,6 +44,10 @@ describe('cli-prompt-image', () => {
     });
 
     expect(commands).toEqual(['media/save']);
+    expect(saved.attachment.kind).toBe('media');
+    if (saved.attachment.kind !== 'media') {
+      throw new Error('CLI image upload must produce a media attachment');
+    }
     expect(saved.attachment.path).toBe('remote-asset:asset-cli-1');
     expect(saved.logPath).toBe('remote-asset:asset-cli-1');
   });

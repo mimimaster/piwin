@@ -1,4 +1,5 @@
 import { isPlaceholderSessionName } from './title-display';
+import { isAssistantContentEmpty } from './assistant-message-content';
 import type {
   AgentEvent,
   AgentEventEnvelope,
@@ -3020,15 +3021,10 @@ function removeWorkingSessionId(
 /** Pi ends the tool-call assistant row before tool/start. Keep it until the next answer. */
 function isEmptyAssistantPlaceholder(message: ChatMessageUi): boolean {
   return (
-    message.role === 'assistant' &&
     message.status !== 'streaming' &&
     message.status !== 'error' &&
     !message.error &&
-    message.text.trim().length === 0 &&
-    message.thinking.trim().length === 0 &&
-    message.tools.length === 0 &&
-    message.attachments.length === 0 &&
-    (message.searchEvidence?.citations.length ?? 0) === 0
+    isAssistantContentEmpty(message)
   );
 }
 
@@ -3062,6 +3058,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         attachments: [],
         status: 'streaming',
         ...(resolvedRunId ? { runId: resolvedRunId } : {}),
+        ...(event.model ? { model: event.model } : {}),
       };
       return enforceBoundedTranscriptWindow({
         ...state,

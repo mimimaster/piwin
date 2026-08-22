@@ -166,4 +166,49 @@ describe('resolveComposerModelSelection', () => {
       markSessionId: null,
     });
   });
+
+  it('restores the session model after a catalog refresh drops the current pick', () => {
+    expect(
+      resolveComposerModelSelection({
+        sessionChanged: false,
+        activeSessionId: 'session-1',
+        selectedModelKey: 'acme::removed',
+        modelOptions,
+        activeSessionModel: {
+          providerId: 'acme',
+          modelId: 'gpt-b',
+          protocol: 'openai-compatible',
+        },
+        activeSessionThinkingLevel: 'high',
+        defaultProviderId: 'acme',
+        defaultModelId: 'gpt-a',
+      }),
+    ).toEqual({
+      kind: 'apply',
+      modelKey: 'acme::gpt-b',
+      thinkingLevel: 'high',
+      markSessionId: 'session-1',
+    });
+  });
+
+  it('matches a session model when catalog protocol annotation changed', () => {
+    expect(
+      resolveComposerModelSelection({
+        sessionChanged: true,
+        activeSessionId: 'session-1',
+        selectedModelKey: '',
+        modelOptions,
+        activeSessionModel: {
+          providerId: 'acme',
+          modelId: 'gpt-b',
+          protocol: 'google-gemini',
+        },
+      }),
+    ).toEqual({
+      kind: 'apply',
+      modelKey: 'acme::gpt-b',
+      thinkingLevel: undefined,
+      markSessionId: 'session-1',
+    });
+  });
 });

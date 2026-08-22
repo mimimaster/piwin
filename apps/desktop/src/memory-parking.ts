@@ -7,6 +7,7 @@
  * Must not touch MemoryGovernor — pressure and parking are independent.
  */
 import { requestNativeWebviewMemoryPurge } from './memory-pressure';
+import { requestRendererSelfHealTick } from './renderer-self-heal';
 
 export const PARK_AFTER_HIDDEN_MS = 120_000;
 
@@ -30,6 +31,7 @@ function applyParked(next: boolean): void {
   if (next) {
     document.documentElement.dataset.memoryParked = '';
     void requestNativeWebviewMemoryPurge();
+    requestRendererSelfHealTick();
     return;
   }
   delete document.documentElement.dataset.memoryParked;

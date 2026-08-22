@@ -496,13 +496,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       // Re-assert ownership with host scope so dual-listed rows collapse to
       // the correct sidebar section (project vs Conversations).
-      if (data.scope || data.name) {
+      if (data.scope || data.name || data.model || data.thinkingLevel !== undefined) {
         dispatch({
           type: 'session/update',
           session: {
             id: sessionId,
             name: data.name ?? existingListItem?.name ?? '',
             ...(data.scope ? { scope: data.scope } : {}),
+            ...(data.model ? { model: data.model } : {}),
+            ...(data.thinkingLevel !== undefined ? { thinkingLevel: data.thinkingLevel } : {}),
           },
         });
       }

@@ -135,6 +135,33 @@ describe('mapListedSessionItems', () => {
       scope: { kind: 'project', projectPath: '/tmp/proj' },
     });
   });
+
+  it('keeps last-used composer model and thinking level from local summaries', () => {
+    const listed = mapListedSessionItems({
+      sessions: [
+        {
+          id: 'local-gemini',
+          name: 'Gemini chat',
+          scope: { kind: 'general' },
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'cpa',
+            modelId: 'gemini-3.7-flash',
+          },
+          thinkingLevel: 'high',
+        },
+      ],
+    });
+    expect(listed.sessions[0]).toMatchObject({
+      id: 'local-gemini',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'cpa',
+        modelId: 'gemini-3.7-flash',
+      },
+      thinkingLevel: 'high',
+    });
+  });
 });
 
 describe('mapListedProjects', () => {

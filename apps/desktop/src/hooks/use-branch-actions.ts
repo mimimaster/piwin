@@ -7,6 +7,7 @@ import type {
   HostCommand,
   HostResponse,
   HostServerMessage,
+  PromptContextRef,
   PromptInput,
   SessionBranchListData,
   SessionBranchSwitchData,
@@ -235,7 +236,18 @@ export function useBranchActions(args: UseBranchActionsArgs) {
       }
       setEditingMessageId(null);
       const resendClientMessageId = crypto.randomUUID();
-      dispatch({ type: 'user/send', text, clientMessageId: resendClientMessageId });
+      // The edit card only lets the user change the text; any context refs
+      // (quoted messages, file/selection pins, ...) attached to the original
+      // turn are shown read-only above it and must survive the resend —
+      // otherwise "edit this turn" silently drops them (both from the
+      // optimistic bubble and from the Host-persisted prompt).
+      const contextRefs = target.contextRefs;
+      dispatch({
+        type: 'user/send',
+        text,
+        clientMessageId: resendClientMessageId,
+        ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
+      });
       const input = buildBranchPromptInput({
         text,
         branchFromMessageId: messageId,
@@ -243,6 +255,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         agentMode,
         selectedModelKey,
         modelOptions,
+        ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
         ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
         ...(orchestrationSchemeId !== undefined ? { orchestrationSchemeId } : {}),
         ...(delegationDisabled !== undefined ? { delegationDisabled } : {}),
@@ -384,6 +397,7 @@ export function buildBranchPromptInput(input: {
   agentMode: AgentModeId;
   selectedModelKey: string;
   modelOptions: ModelOption[];
+  contextRefs?: PromptContextRef[];
   thinkingLevel?: ThinkingLevel;
   orchestrationSchemeId?: string;
   delegationDisabled?: boolean;
@@ -394,6 +408,9 @@ export function buildBranchPromptInput(input: {
     clientMessageId: input.clientMessageId,
     branchFromMessageId: input.branchFromMessageId,
   };
+  if (input.contextRefs && input.contextRefs.length > 0) {
+    prompt.contextRefs = input.contextRefs;
+  }
   if (input.orchestrationSchemeId && input.orchestrationSchemeId !== 'off') {
     prompt.orchestrationSchemeId = input.orchestrationSchemeId;
   }

@@ -32,6 +32,7 @@ import type {
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DocumentOpenInput } from './tool-call-card';
 import { RunActivitySlot } from './RunActivitySlot.js';
+import { isAssistantContentEmpty } from './assistant-message-content.js';
 import { PlanCard } from './plan-card';
 import { GoalStickyStrip } from './goal';
 import { resolveAssemblySummaryForUserMessage } from './assembly-summary-capsule';
@@ -165,7 +166,6 @@ export type ChatThreadProps = {
   onCancelWalkthrough?:
     ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
   /** SF-03: Duplicate the entire session. */
-  onDuplicateSession?: (() => void | Promise<void>) | undefined;
   /** SF-03: Fork from a specific assistant response. */
   onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
   /** SF-03: Open the lineage / branch list for a message. */
@@ -280,12 +280,22 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return undefined;
   }, [chatMessages]);
   const currentResponseTurnId = turnGroups[turnGroups.length - 1]?.id ?? null;
+  const transcriptTail = transcriptMessages[transcriptMessages.length - 1];
+  // Providers open the assistant lifecycle before the first token, and a model
+  // that reasons without streaming its reasoning keeps that bubble empty for
+  // the whole think. Without this the locator would hand off to nothing and the
+  // turn would look frozen behind a bare model header.
+  const tailAwaitsFirstOutput =
+    transcriptTail !== undefined &&
+    transcriptTail.status === 'streaming' &&
+    isAssistantContentEmpty(transcriptTail);
   const showRunActivity =
     props.streaming &&
     props.activeRunId != null &&
     !props.permissionPrompt &&
     (transcriptMessages.length === 0 ||
-      transcriptMessages[transcriptMessages.length - 1]?.role === 'user');
+      transcriptTail?.role === 'user' ||
+      tailAwaitsFirstOutput);
   const conversationSession = props.isConversationSession === true;
   const conversationActivityKind = conversationSession
     ? resolveConversationActivityKind({
@@ -596,9 +606,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                       : {})}
                     {...(props.onCancelWalkthrough
                       ? { onCancelWalkthrough: props.onCancelWalkthrough }
-                      : {})}
-                    {...(props.onDuplicateSession
-                      ? { onDuplicateSession: props.onDuplicateSession }
                       : {})}
                     {...(props.onForkFromMessage
                       ? { onForkFromMessage: props.onForkFromMessage }

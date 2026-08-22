@@ -3,7 +3,15 @@
  */
 
 import type { ReactElement } from 'react';
-import { IconBrowser, IconCards, IconDocument, IconFolder, IconGit, IconTerminal } from './shell-icons';
+import {
+  IconBrowser,
+  IconCards,
+  IconDocument,
+  IconFolder,
+  IconGit,
+  IconListTree,
+  IconTerminal,
+} from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import type { RightPanelTabKind } from './right-panel-memory';
 
@@ -22,6 +30,7 @@ export const SECTION_META: Array<{
   { id: 'terminal', icon: <IconTerminal />, labelEn: 'zsh', labelZh: 'zsh' },
   { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: '变更' },
   { id: 'browser', icon: <IconBrowser />, labelEn: 'Browser', labelZh: '浏览器' },
+  { id: 'branches', icon: <IconListTree />, labelEn: 'Branches', labelZh: '分支' },
   { id: 'cards', icon: <IconCards />, labelEn: 'Flashcards', labelZh: '知识卡片' },
   { id: 'canvas', icon: <IconDocument />, labelEn: 'Canvas', labelZh: '画布', hidden: true },
   { id: 'docPreview', icon: <IconDocument />, labelEn: 'Document', labelZh: '文档', hidden: true },
