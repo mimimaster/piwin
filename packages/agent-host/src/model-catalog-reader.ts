@@ -1,8 +1,7 @@
 /**
  * Project Pi's static built-in catalog into piwin contracts (no apps → pi-ai).
- * Uses `@earendil-works/pi-ai/providers/all` (MODELS is not on the package root export).
+ * Uses the pi-ai providers/all entry (MODELS is not on the package root export).
  */
-import { createRequire } from 'node:module';
 import { builtinImagesProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
 import type {
   ImageModelCatalogEntry,
@@ -12,17 +11,13 @@ import type {
   ModelCatalogSearchResult,
   ModelInputModality,
 } from '@piwin/contracts';
+import agentHostPackage from '../package.json' with { type: 'json' };
 
-const require = createRequire(import.meta.url);
-
-function readCatalogVersion(): string {
-  try {
-    const pkg = require('@earendil-works/pi-ai/package.json') as { version?: string };
-    return typeof pkg.version === 'string' ? pkg.version : 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
+// The Host bundle inlines this package metadata. Resolving pi-ai/package.json at
+// runtime is unreliable because pi-ai is bundled and does not export package.json.
+const configuredPiAiVersion = agentHostPackage.dependencies?.['@earendil-works/pi-ai'];
+const PI_AI_CATALOG_VERSION =
+  typeof configuredPiAiVersion === 'string' ? configuredPiAiVersion : 'unknown';
 
 function flattenCatalog(): ModelCatalogEntry[] {
   const entries: ModelCatalogEntry[] = [];
@@ -112,7 +107,7 @@ export function searchPiCatalog(request: ModelCatalogSearchRequest = {}): ModelC
 
   return {
     entries: entries.slice(0, limit),
-    catalogVersion: readCatalogVersion(),
+    catalogVersion: PI_AI_CATALOG_VERSION,
   };
 }
 
@@ -226,6 +221,6 @@ function getAllImagesEntries(): ImageModelCatalogEntry[] {
 export function searchPiImagesCatalog(): ImageModelCatalogSearchResult {
   return {
     entries: getAllImagesEntries(),
-    catalogVersion: readCatalogVersion(),
+    catalogVersion: PI_AI_CATALOG_VERSION,
   };
 }

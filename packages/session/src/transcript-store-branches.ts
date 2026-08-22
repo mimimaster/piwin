@@ -29,6 +29,8 @@ export type TranscriptBranchSibling = {
   leafPreview: string;
   /** Rows in the branch subtree. */
   messageCount: number;
+  /** Any row in the branch subtree recorded workspace writes (ADR 0055 §6.1). */
+  writesWorkspace: boolean;
   /** Newest `created_at` in the branch subtree. */
   updatedAt: string;
 };
@@ -123,14 +125,25 @@ export function createTranscriptBranchesOps(
     messageCount: number;
     updatedAt: string;
     leafPreview: string;
+    writesWorkspace: boolean;
   } {
+    // Presence of the metadata key is enough: the recorder only persists
+    // `workspaceWrites` when a write was actually detected, never an empty set.
     const stats = db
       .prepare(
         `${SUBTREE_CTE}
-         SELECT COUNT(*) AS message_count, MAX(m.created_at) AS updated_at
+         SELECT COUNT(*) AS message_count, MAX(m.created_at) AS updated_at,
+                MAX(CASE
+                      WHEN json_extract(m.metadata_json, '$.workspaceWrites') IS NULL THEN 0
+                      ELSE 1
+                    END) AS writes_workspace
          FROM transcript_message m JOIN subtree s ON m.id = s.id`,
       )
-      .get(headMessageId) as { message_count: number; updated_at: string };
+      .get(headMessageId) as {
+      message_count: number;
+      updated_at: string;
+      writes_workspace: number | null;
+    };
     const leaf = db
       .prepare(
         `${SUBTREE_CTE}
@@ -146,6 +159,7 @@ export function createTranscriptBranchesOps(
       messageCount: stats.message_count,
       updatedAt: stats.updated_at,
       leafPreview: leaf?.preview ?? '',
+      writesWorkspace: stats.writes_workspace === 1,
     };
   }
 
@@ -292,6 +306,7 @@ export function createTranscriptBranchesOps(
               preview: sibling.preview,
               leafPreview: stats.leafPreview,
               messageCount: stats.messageCount,
+              writesWorkspace: stats.writesWorkspace,
               updatedAt: stats.updatedAt,
             };
           }),

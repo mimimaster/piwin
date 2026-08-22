@@ -79,13 +79,17 @@ export async function applyPetOverlayVisibility(visible: boolean): Promise<void>
 
 /**
  * Main-window startup: create the overlay only when the user left it visible.
- * Hide=destroy means a hidden preference must not spawn a second WebContent.
+ * A hidden preference must still invoke hide so a stray overlay (close() that
+ * did not destroy, or a race with the overlay page re-showing itself) dies.
  */
 export function installPetOverlayRestore(): void {
   if (typeof window === 'undefined') {
     return;
   }
   if (!loadPetOverlayVisibility()) {
+    void applyPetOverlayVisibility(false).catch(() => {
+      // Already gone — the native hide command is idempotent.
+    });
     return;
   }
   void applyPetOverlayVisibility(true).catch((error: unknown) => {

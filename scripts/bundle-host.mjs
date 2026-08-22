@@ -27,6 +27,7 @@ const EXTERNAL_DEPS = {
   '@earendil-works/pi-coding-agent': '0.84.2',
   '@lancedb/lancedb': '0.37.1',
   '@silvia-odwyer/photon-node': '0.3.4',
+  '@medv/finder': '4.0.2',
   esbuild: '0.25.12',
   'playwright-core': '1.61.1',
 };
@@ -186,17 +187,13 @@ async function main() {
   }
 
   console.log('[bundle-host] verify critical external paths…');
-  const piPkg = join(distHost, 'node_modules/@earendil-works/pi-coding-agent/package.json');
-  if (!(await pathExists(piPkg))) {
-    throw new Error(
-      'missing @earendil-works/pi-coding-agent in dist-host/node_modules — external install failed',
-    );
-  }
-  const lancePkg = join(distHost, 'node_modules/@lancedb/lancedb/package.json');
-  if (!(await pathExists(lancePkg))) {
-    throw new Error(
-      'missing @lancedb/lancedb in dist-host/node_modules — external install failed',
-    );
+  for (const dependency of Object.keys(EXTERNAL_DEPS)) {
+    const packagePath = join(distHost, 'node_modules', dependency, 'package.json');
+    if (!(await pathExists(packagePath))) {
+      throw new Error(
+        'missing ' + dependency + ' in dist-host/node_modules — external install failed',
+      );
+    }
   }
 
   const photonCandidates = [

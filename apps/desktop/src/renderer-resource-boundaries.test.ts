@@ -7,6 +7,23 @@ function readSource(relativeUrl: string): string {
   return readFileSync(new URL(relativeUrl, import.meta.url), 'utf8');
 }
 
+/**
+ * The composer send/attachment/draft/steer-queue implementation is split
+ * across several `hooks/*composer*.ts` files (see `use-composer-media.ts`
+ * for the composition). Boundary checks below care about the feature as a
+ * whole, not which sub-file a given import currently lives in.
+ */
+function readComposerHookSources(): string {
+  const hooksDir = fileURLToPath(new URL('./hooks/', import.meta.url));
+  const files = readdirSync(hooksDir).filter(
+    (name) =>
+      /^(use-)?composer-/.test(name) &&
+      (name.endsWith('.ts') || name.endsWith('.tsx')) &&
+      !name.includes('.test.'),
+  );
+  return files.map((name) => readFileSync(join(hooksDir, name), 'utf8')).join('\n');
+}
+
 /** Permanent product glass — change only with the memory-diet execution plan. */
 const PRODUCT_GLASS_WHITELIST = [
   '.provider-editor-overlay',
@@ -148,7 +165,7 @@ describe('Desktop renderer resource boundaries', () => {
     const settingsPanel = readSource('./SettingsPanel.tsx');
     const app = readSource('./App.tsx');
     const deferredSurfaces = readSource('./deferred-desktop-surfaces.tsx');
-    const composerMedia = readSource('./hooks/use-composer-media.ts');
+    const composerMedia = readComposerHookSources();
     const hostClient = readSource('./host-client.ts');
     const mockHostClient = readSource('./host-client-mock.ts');
     const syntaxHighlight = readSource('./syntax-highlight.tsx');
@@ -209,7 +226,7 @@ describe('Desktop renderer resource boundaries', () => {
   });
 
   it('keeps composer and transcript thumbs off the original File / asset URL', () => {
-    const composerMedia = readSource('./hooks/use-composer-media.ts');
+    const composerMedia = readComposerHookSources();
     const mediaPreview = readSource('./MediaPreview.tsx');
     const transcriptPreview = readSource('./transcript-media-preview.ts');
     expect(composerMedia).toContain('beginComposerImagePreview');

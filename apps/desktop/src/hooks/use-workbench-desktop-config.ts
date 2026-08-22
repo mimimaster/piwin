@@ -10,7 +10,6 @@ import {
   type SessionScope,
   type SettingsMutation,
 } from '@piwin/contracts';
-import { formatComposerModelKey } from '../composer-model-selection-policy';
 import { lastSessionPersistUnchanged } from '../workbench-session-lifecycle';
 import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
 
@@ -36,7 +35,6 @@ export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): 
   const {
     config,
     setConfig,
-    setSelectedModelKey,
     setPreferences,
     saveSettingsInOrder,
     activeSessionId,
@@ -79,11 +77,11 @@ export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): 
   const handleSettingsSaved = useCallback(
     (next: PiwinConfig): void => {
       setConfig(next);
-      if (next.defaultProviderId && next.defaultModelId) {
-        setSelectedModelKey(formatComposerModelKey(next.defaultProviderId, next.defaultModelId));
-      }
+      // Catalog/default changes must not yank an open session's composer onto
+      // the product default. `resolveComposerModelSelection` keeps a valid
+      // pick, or restores the session last-used model when the pick vanished.
     },
-    [setConfig, setSelectedModelKey],
+    [setConfig],
   );
 
   useEffect(() => {

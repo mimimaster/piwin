@@ -142,13 +142,22 @@ describe('conversation-message-identity', () => {
       expect(resolved).toEqual(liveModel);
     });
 
-    it('uses livePromptModel when snapshot is not yet hydrated even after streaming finishes', () => {
+    it('does not backfill completed historic rows from the current composer model', () => {
       const resolved = resolveConversationMessageModel({
         message: { ...baseMessage, status: 'done' },
         livePromptModel: liveModel,
         isStreaming: false,
       });
-      expect(resolved).toEqual(liveModel);
+      expect(resolved).toBeUndefined();
+    });
+
+    it('does not backfill historic rows when the session-level streaming flag is on', () => {
+      const resolved = resolveConversationMessageModel({
+        message: { ...baseMessage, status: 'done' },
+        livePromptModel: liveModel,
+        isStreaming: true,
+      });
+      expect(resolved).toBeUndefined();
     });
 
     it('returns undefined when neither snapshot nor live model is available', () => {

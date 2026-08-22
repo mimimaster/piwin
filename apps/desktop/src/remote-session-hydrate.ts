@@ -16,6 +16,7 @@ import type {
   SessionScope,
   ThinkingLevel,
 } from '@piwin/contracts';
+import { isThinkingLevel } from '@piwin/contracts';
 import type { ChatUiAction, SessionListItemUi } from './chat-reducer';
 import { MAX_RECENT_PROJECTS } from './record-budget';
 
@@ -324,7 +325,35 @@ export function mapListedSessionItem(value: unknown): SessionListItemUi | undefi
   if (typeof value.archivedAt === 'string') item.archivedAt = value.archivedAt;
   const scope = mapListedSessionScope(value);
   if (scope !== undefined) item.scope = scope;
+  const model = readListedModelRef(value.model);
+  if (model) item.model = model;
+  if (isThinkingLevel(value.thinkingLevel)) item.thinkingLevel = value.thinkingLevel;
   return item;
+}
+
+function readListedModelRef(value: unknown): ModelRef | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const protocol = value.protocol;
+  if (
+    protocol !== 'openai-compatible' &&
+    protocol !== 'anthropic-compatible' &&
+    protocol !== 'google-gemini'
+  ) {
+    return undefined;
+  }
+  if (typeof value.providerId !== 'string' || value.providerId.length === 0) {
+    return undefined;
+  }
+  if (typeof value.modelId !== 'string' || value.modelId.length === 0) {
+    return undefined;
+  }
+  return {
+    protocol,
+    providerId: value.providerId,
+    modelId: value.modelId,
+  };
 }
 
 function mapListedSessionScope(value: Record<string, unknown>): SessionScope | undefined {

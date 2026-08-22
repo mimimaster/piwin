@@ -12,6 +12,7 @@
 import type { SessionSummary } from './host.js';
 import type { SessionTranscriptMessage } from './session-transcript.js';
 import type { SessionTranscriptPageInfo } from './session-transcript-page.js';
+import type { WorkspaceWrites } from './workspace-writes.js';
 
 export type TranscriptBranchSibling = {
   /** First message of the branch (the row whose parent is the anchor). */
@@ -22,6 +23,14 @@ export type TranscriptBranchSibling = {
   leafPreview: string;
   /** Rows in the branch subtree. */
   messageCount: number;
+  /**
+   * Any row in the branch subtree recorded workspace writes (ADR 0055 §6.1).
+   * Drives the panel's write marker so a switch that will strand file changes
+   * is visible before the confirmation card appears. Rows written before the
+   * write boundary shipped carry no metadata and read as `false`; the switch
+   * check stays authoritative.
+   */
+  writesWorkspace: boolean;
   /** Newest message timestamp in the branch subtree. */
   updatedAt: string;
 };
@@ -56,7 +65,7 @@ export type SessionBranchSwitchData =
        * Disk does not follow the switch; the client must confirm.
        */
       status: 'needs-confirmation';
-      offPathWrites: { files: string[]; hasUnknownWrites: boolean };
+      offPathWrites: WorkspaceWrites;
     }
   | {
       /** A foreground run is active; switching now would corrupt the run. */

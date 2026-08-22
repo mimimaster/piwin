@@ -165,8 +165,9 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
   const responseMessageIdsByToolId = new Map<string, string>();
   const rawToolOutputById = new Map<string, string>();
   const citationUrlsByMessageId = new Map<string, Set<string>>();
-  /** Dedupe identical upstream provider errors across message_end + agent_end. */
+  /** Dedupe identical upstream provider errors across one retry lifecycle. */
   const surfacedProviderErrorMessages = new Set<string>();
+  let retryLifecycleActive = false;
   const envelopeGenerator = createEventEnvelopeGenerator();
 
   const reset = (): void => {
@@ -179,6 +180,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
     rawToolOutputById.clear();
     citationUrlsByMessageId.clear();
     surfacedProviderErrorMessages.clear();
+    retryLifecycleActive = false;
   };
 
   return {
@@ -190,6 +192,17 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
 
       const record = raw as Record<string, unknown>;
       const type = typeof record.type === 'string' ? record.type : '';
+      if (type === 'auto_retry_start') {
+        // Pi emits agent_end before it announces the retry. Keep the error
+        // key alive so the next attempt cannot create a second error card.
+        retryLifecycleActive = true;
+      } else if (type === 'auto_retry_end') {
+        // The next agent/message start belongs to a fresh user operation and
+        // may surface the same provider error again legitimately.
+        retryLifecycleActive = false;
+      } else if (type === 'agent_start' && !retryLifecycleActive) {
+        surfacedProviderErrorMessages.clear();
+      }
       if (type === 'message_start') {
         const explicitMessageId = readString(record.messageId) ?? readNestedId(record, 'message');
         activeMessageId = explicitMessageId ?? `pi-message-${++generatedMessageSequence}`;
@@ -353,7 +366,6 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
         presentationSeedsByToolId.clear();
         responseMessageIdsByToolId.clear();
         rawToolOutputById.clear();
-        surfacedProviderErrorMessages.clear();
       }
       if (type === 'message_end') {
         const endedMessage = mappedEvents.find((event) => event.type === 'message/end');

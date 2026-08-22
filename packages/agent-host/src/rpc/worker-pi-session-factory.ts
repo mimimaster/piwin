@@ -44,6 +44,7 @@ import {
   createSeededPiSessionManager,
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
+import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import {
@@ -341,6 +342,11 @@ export function createWorkerPiSessionFactory(
       agentDir,
       resourceLoader,
       modelRuntime,
+      settingsManager: createPiwinSettingsManager(
+        piModule,
+        blueprint.workingDirectory,
+        agentDir,
+      ),
     };
     if (input.seedMessages) {
       sessionOptions.sessionManager = createSeededPiSessionManager(

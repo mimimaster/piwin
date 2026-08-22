@@ -40,10 +40,17 @@ describe('PetThumbnail', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
   it('clips the real pet atlas instead of rendering a placeholder emoji', () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {
+        convertFileSrc: (assetPath: string) => `https://asset.localhost${assetPath}`,
+      },
+    });
     act(() => {
       root.render(<PetThumbnail pet={createPet()} />);
     });
@@ -51,9 +58,21 @@ describe('PetThumbnail', () => {
     const thumbnail = container.querySelector('[data-testid="pet-thumbnail-architect-alpaca"]');
     const image = thumbnail?.querySelector('img');
     expect(thumbnail).not.toBeNull();
-    expect(image?.getAttribute('src')).toBe('file:///tmp/architect-alpaca/spritesheet.webp');
+    expect(image?.getAttribute('src')).toBe(
+      'https://asset.localhost/tmp/architect-alpaca/spritesheet.webp',
+    );
     expect(image?.style.width).toMatch(/px$/);
     expect(image?.style.height).toMatch(/px$/);
+  });
+
+  it('falls back when convertFileSrc is unavailable instead of using a blocked file:// URL', () => {
+    act(() => {
+      root.render(<PetThumbnail pet={createPet()} />);
+    });
+
+    expect(
+      container.querySelector('[data-testid="pet-thumbnail-architect-alpaca"]')?.textContent,
+    ).toBe('🐾');
   });
 
   it('keeps a readable fallback when no spritesheet path is available', () => {

@@ -16,6 +16,7 @@ const point: TranscriptBranchPoint = {
       preview: 'original',
       leafPreview: 'original reply',
       messageCount: 2,
+      writesWorkspace: false,
       updatedAt: '2026-08-21T00:00:00.000Z',
     },
     {
@@ -23,6 +24,7 @@ const point: TranscriptBranchPoint = {
       preview: 'alternative',
       leafPreview: 'alternative reply',
       messageCount: 2,
+      writesWorkspace: false,
       updatedAt: '2026-08-21T00:01:00.000Z',
     },
   ],

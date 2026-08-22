@@ -658,40 +658,59 @@ describe('ChatThread render isolation (E1)', () => {
     expect(slot?.closest('[data-testid="current-response-turn"]')).not.toBeNull();
   });
 
-  it('removes run-activity slot when a streaming assistant message arrives', () => {
+  it('keeps run-activity slot through the empty assistant lifecycle, then drops it on first token', () => {
     const userMessage = createUserMessage('u2', 'Hello');
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
-            messages={[userMessage]}
-            streaming={true}
-            activeRunId="run-1"
-            editingMessageId={null}
-            lastUserMessageId={userMessage.id}
-            activeTheme={null}
-            artifactThemeKey={0}
-            onEdit={noop}
-            onCancelEdit={noop}
-            onEditResend={noop}
-            onRetry={noop}
-            onInspectSubagent={undefined}
-            composerCard={composerCard}
-            locale="en"
-          />
-        </PiwinUiProvider>,
-      );
-    });
+    const renderWith = (messages: ChatMessageUi[]): void => {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ChatThread
+              messages={messages}
+              streaming={true}
+              activeRunId="run-1"
+              editingMessageId={null}
+              lastUserMessageId={userMessage.id}
+              activeTheme={null}
+              artifactThemeKey={0}
+              onEdit={noop}
+              onCancelEdit={noop}
+              onEditResend={noop}
+              onRetry={noop}
+              onInspectSubagent={undefined}
+              composerCard={composerCard}
+              locale="en"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    };
 
+    renderWith([userMessage]);
     expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
 
-    const assistantMessage = createStreamingAssistant('a1');
+    // A model that hides its reasoning opens this bubble and then stays silent;
+    // the locator has to survive or the turn looks frozen.
+    const pendingAssistant = createStreamingAssistant('a1');
+    renderWith([userMessage, pendingAssistant]);
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+
+    renderWith([userMessage, { ...pendingAssistant, text: 'Here we go' }]);
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('drops the run-activity slot once the pending assistant lifecycle runs a tool', () => {
+    const userMessage = createUserMessage('u2-tool', 'Hello');
+    const toolAssistant: ChatMessageUi = {
+      ...createStreamingAssistant('a1-tool'),
+      tools: [{ toolCallId: 'tool-1', toolName: 'bash', status: 'running', output: '' }],
+    };
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <ChatThread
-            messages={[userMessage, assistantMessage]}
+            messages={[userMessage, toolAssistant]}
             streaming={true}
+            activeRunId="run-1"
             editingMessageId={null}
             lastUserMessageId={userMessage.id}
             activeTheme={null}
@@ -1279,6 +1298,7 @@ describe('ChatThread render isolation (E1)', () => {
           preview: 'first',
           leafPreview: 'first',
           messageCount: 1,
+          writesWorkspace: false,
           updatedAt: '2026-07-31T13:53:00.000Z',
         },
         {
@@ -1286,6 +1306,7 @@ describe('ChatThread render isolation (E1)', () => {
           preview: 'second',
           leafPreview: 'second',
           messageCount: 1,
+          writesWorkspace: true,
           updatedAt: '2026-07-31T13:54:00.000Z',
         },
       ],
@@ -2233,6 +2254,31 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     );
     expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
+  });
+
+  it('keeps Conversation activity while the opened reply has no content yet', () => {
+    // Conversation replies have no in-bubble waiting line, so an empty
+    // streaming bubble would otherwise render nothing but the model header.
+    renderConversation(
+      [
+        createUserMessage('u-silent', 'hello'),
+        {
+          id: 'a-silent',
+          role: 'assistant',
+          text: '',
+          thinking: '',
+          tools: [],
+          attachments: [],
+          status: 'streaming',
+          runId: 'run-silent',
+        },
+      ],
+      { streaming: true, activeRunId: 'run-silent' },
+    );
+
+    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
+      'Thinking…',
+    );
   });
 
   it('shows flip cards on the visible Conversation reply after a cloze batch-create', () => {

@@ -1274,6 +1274,25 @@ describe('HostServer', () => {
       code: 'command-not-allowed',
     });
 
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'ingest-local-rejected',
+        command: {
+          type: 'preview/read-local-file',
+          id: 'ingest-local-rejected',
+          input: { sessionId: 'session-1', absolutePath: '/tmp/ncg-boot2.png' },
+        },
+      }),
+    );
+    const ingestRejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'ingest-local-rejected',
+    );
+    expect(ingestRejected).toMatchObject({
+      type: 'error',
+      code: 'command-not-allowed',
+    });
+
     socket.close();
     await server.stop();
   });

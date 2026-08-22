@@ -199,6 +199,63 @@ describe('mapPiSessionEvent', () => {
     expect(second.filter((event) => event.type === 'error')).toHaveLength(0);
   });
 
+  it('dedupes identical provider errors across coding-agent retry attempts', () => {
+    const mapper = createPiSessionEventMapper();
+    const errorMessage = '400: Provider returned error';
+
+    mapper.map({ type: 'agent_start' });
+    const firstAttempt = mapper
+      .map({
+        type: 'agent_end',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            stopReason: 'error',
+            errorMessage,
+          },
+        ],
+      })
+      .map((wrapped) => wrapped.event);
+
+    mapper.map({ type: 'auto_retry_start', attempt: 1 });
+    mapper.map({ type: 'agent_start' });
+    const retryAttempt = mapper
+      .map({
+        type: 'agent_end',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            stopReason: 'error',
+            errorMessage,
+          },
+        ],
+      })
+      .map((wrapped) => wrapped.event);
+
+    expect(firstAttempt.filter((event) => event.type === 'error')).toHaveLength(1);
+    expect(retryAttempt.filter((event) => event.type === 'error')).toHaveLength(0);
+
+    mapper.map({ type: 'auto_retry_end', success: false });
+    mapper.map({ type: 'agent_start' });
+    const nextPrompt = mapper
+      .map({
+        type: 'agent_end',
+        messages: [
+          {
+            role: 'assistant',
+            content: [],
+            stopReason: 'error',
+            errorMessage,
+          },
+        ],
+      })
+      .map((wrapped) => wrapped.event);
+
+    expect(nextPrompt.filter((event) => event.type === 'error')).toHaveLength(1);
+  });
+
   it('maps standalone Pi error events including errorMessage aliases', () => {
     expect(
       mapPiSessionEvent({

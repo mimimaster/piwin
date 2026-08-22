@@ -26,6 +26,7 @@ import type {
 } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import { exploreFlowRolesEqual, type ExploreFlowRole } from './explore-flow';
+import { isAssistantContentEmpty } from './assistant-message-content';
 import { MarkdownView } from './MarkdownView';
 import { CitationCards } from './CitationCards';
 import { MessageAttachments } from './message-attachments';
@@ -150,7 +151,6 @@ export type ChatMessageRowProps = {
   onCancelWalkthrough?:
     ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
   /** SF-03: Duplicate the entire session. */
-  onDuplicateSession?: (() => void | Promise<void>) | undefined;
   /** SF-03: Fork from a specific assistant response. */
   onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
   /** SF-03: Open the lineage / branch list for a message. */
@@ -255,16 +255,11 @@ export const ChatMessageRow = memo(
     // Keep errored turns visible even when the provider failed before any
     // content: an empty bubble is still the only place TurnErrorCard renders.
     if (
-      message.role === 'assistant' &&
       message.status !== 'streaming' &&
       message.status !== 'error' &&
       !message.error &&
       props.runRecord?.outcome !== 'failed' &&
-      message.text.trim().length === 0 &&
-      message.thinking.trim().length === 0 &&
-      message.tools.length === 0 &&
-      message.attachments.length === 0 &&
-      (message.searchEvidence?.citations.length ?? 0) === 0 &&
+      isAssistantContentEmpty(message) &&
       imageGenerationStatus === null &&
       videoGenerationStatus === null
     ) {
@@ -656,8 +651,7 @@ export const ChatMessageRow = memo(
         message.status === 'done' &&
         (props.isLastAssistantInTurn === true ||
           (props.isConversationSession === true && Boolean(message.text?.trim()))) &&
-        (props.onDuplicateSession ||
-          props.onForkFromMessage ||
+        (props.onForkFromMessage ||
           message.text ||
           (props.isConversationSession === true &&
             props.isLatestAssistantResponse === true &&
@@ -665,9 +659,6 @@ export const ChatMessageRow = memo(
           <AssistantResponseActions
             messageId={message.id}
             messageText={message.text}
-            showDuplicate={
-              props.isLastAssistantInTurn === true && props.onDuplicateSession !== undefined
-            }
             showFork={
               props.isLastAssistantInTurn === true && props.onForkFromMessage !== undefined
             }
@@ -681,9 +672,6 @@ export const ChatMessageRow = memo(
             {...(props.sessionLineage ? { lineage: props.sessionLineage } : {})}
             showTreeOnLatestResponse={props.isLatestAssistantResponse === true}
             disabled={props.derivedActionsDisabled === true || props.streaming}
-            {...(props.onDuplicateSession
-              ? { onDuplicate: props.onDuplicateSession }
-              : { onDuplicate: () => {} })}
             {...(props.onForkFromMessage
               ? { onFork: props.onForkFromMessage }
               : { onFork: () => {} })}
@@ -809,7 +797,6 @@ export const ChatMessageRow = memo(
       previous.walkthroughEligible === next.walkthroughEligible &&
       previous.onGenerateWalkthrough === next.onGenerateWalkthrough &&
       previous.onCancelWalkthrough === next.onCancelWalkthrough &&
-      previous.onDuplicateSession === next.onDuplicateSession &&
       previous.onForkFromMessage === next.onForkFromMessage &&
       previous.onOpenForks === next.onOpenForks &&
       previous.forkCountsByMessageId === next.forkCountsByMessageId &&

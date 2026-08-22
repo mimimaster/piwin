@@ -1984,6 +1984,46 @@ export class MockHostBackend {
           },
         };
       }
+      case 'preview/read-local-file': {
+        const fileName = command.input.absolutePath.split(/[\\/]/).pop() || 'preview';
+        if (/\.(png|jpe?g|gif|webp)$/i.test(fileName)) {
+          const extension = fileName.match(/\.[a-z0-9]{1,12}$/iu)?.[0] ?? '.png';
+          const assetId = crypto.randomUUID();
+          return {
+            id,
+            type: 'response',
+            command: 'preview/read-local-file',
+            success: true,
+            data: {
+              status: 'ready',
+              kind: 'media',
+              asset: {
+                id: assetId,
+                sessionId: command.input.sessionId,
+                absolutePath: `/tmp/piwin-mock-media/${command.input.sessionId}/${assetId}${extension}`,
+                mimeType: 'image/png',
+                byteSize: 12,
+                createdAt: new Date().toISOString(),
+                name: fileName,
+              },
+            },
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'preview/read-local-file',
+          success: true,
+          data: {
+            status: 'ready',
+            kind: 'text',
+            content: `# mock local file\n\n${command.input.absolutePath}\n`,
+            byteSize: 32,
+            truncated: false,
+            readOnly: true,
+          },
+        };
+      }
       case 'git/stage':
       case 'git/unstage':
       case 'git/commit':
