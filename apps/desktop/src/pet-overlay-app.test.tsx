@@ -154,7 +154,7 @@ describe('PetOverlayApp', () => {
   it('persists and applies hide from the pet hover control', async () => {
     Object.defineProperty(window, '__TAURI_INTERNALS__', {
       configurable: true,
-      value: {},
+      value: { invoke: invokeMock },
     });
     invokeMock.mockImplementation(async (command: string) => {
       if (command === 'host_request') {
@@ -179,8 +179,49 @@ describe('PetOverlayApp', () => {
       await flushMicrotasks();
     });
 
-    expect(invokeMock).toHaveBeenCalledWith('pet_overlay_show');
+    expect(invokeMock).not.toHaveBeenCalledWith('pet_overlay_show');
     expect(invokeMock).toHaveBeenCalledWith('pet_overlay_hide');
     expect(localStorage.getItem('piwin.desktop.petOverlayVisible')).toBe('false');
+  });
+
+  it('does not re-show itself on boot when the preference is already visible', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: { invoke: invokeMock },
+    });
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'host_request') {
+        return { success: true, data: { pet: createPet() } };
+      }
+      return undefined;
+    });
+
+    act(() => {
+      root.render(<PetOverlayApp />);
+    });
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(invokeMock).not.toHaveBeenCalledWith('pet_overlay_show');
+  });
+
+  it('closes a stale overlay page when the saved preference is hidden', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: { invoke: invokeMock },
+    });
+    localStorage.setItem('piwin.desktop.petOverlayVisible', 'false');
+    invokeMock.mockResolvedValue(undefined);
+
+    act(() => {
+      root.render(<PetOverlayApp />);
+    });
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('pet_overlay_hide');
+    expect(invokeMock).not.toHaveBeenCalledWith('pet_overlay_show');
   });
 });

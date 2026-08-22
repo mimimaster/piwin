@@ -31,7 +31,11 @@ export async function runSessionBranches(
     print(`fork ${pointIndex + 1} at ${anchor}  (${point.activeIndex + 1}/${point.siblings.length} active)`);
     for (const [siblingIndex, sibling] of point.siblings.entries()) {
       const marker = siblingIndex === point.activeIndex ? '*' : ' ';
-      print(`  ${marker} [${siblingIndex + 1}] ${sibling.headMessageId}  ${sibling.preview}`);
+      // `write` warns that switching away strands file changes (ADR 0055 §6).
+      const writes = sibling.writesWorkspace ? ' (write)' : '';
+      print(
+        `  ${marker} [${siblingIndex + 1}] ${sibling.headMessageId}${writes}  ${sibling.preview}`,
+      );
     }
   }
   return data;

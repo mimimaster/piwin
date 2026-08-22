@@ -9,42 +9,61 @@
  * navigations. Killing the renderer released it (1365 MB → 185 MB); WKWebView
  * reloads the page and the shell re-hydrates from the Host (ADR 0038).
  *
+ * 2026-08-22 packaged-app sample: main WebContent climbed 164 → 900+ MB over
+ * ~3 h of a quiet session (gfx 32 → 500+). Governor moderate (768) stripped
+ * glass and did not move the IOSurface ledger. Self-heal must not wait for the
+ * visual-critical ceiling (1536) — that tier also sheds highlighting / ink-wash
+ * while the user is looking. Reclaim is therefore a separate byte floor, and
+ * only fires when the user is not looking (hidden, or unfocused long enough).
+ *
  * Policy lives here (unit-tested, injectable clock); the Rust command
- * `relaunch_webview_renderer` is the mechanism. Deliberately conservative:
- * only while the governor has held `critical` continuously, no run is
- * streaming, and the window is hidden — the relaunch flash happens when the
- * user is not looking, and an unsent composer draft implies a visible window.
+ * `relaunch_webview_renderer` is the mechanism.
  */
-import { globalMemoryGovernor, type MemoryPressureLevel } from './memory-governor';
+import { getLastMemoryPressureBytes } from './memory-pressure';
 
-/** Critical must persist this long before a relaunch is considered. */
-export const SELF_HEAL_CRITICAL_HOLD_MS = 5 * 60 * 1000;
+const MIB = 1024 * 1024;
+
+/**
+ * Release idle-after-use plateau sat at 650–1000 MB with gfx pinned. Cold
+ * packaged start is ~164 MB; a healthy loaded idle is well below this floor.
+ * Independent of MEMORY_PRESSURE_CRITICAL_BYTES so we can recycle without
+ * turning the visible UI into safe-mode.
+ */
+export const SELF_HEAL_RECLAIM_BYTES = 512 * MIB;
+
+/** Align with parking: cmd-tab must not recycle the renderer. */
+export const SELF_HEAL_HIDDEN_HOLD_MS = 120_000;
+
+/**
+ * Activity Monitor in front leaves the document visible. Five minutes of
+ * backgrounded-but-on-screen is the Chrome discarded-tab analog that still
+ * avoids a flash while the user is glancing at piwin on another display.
+ */
+export const SELF_HEAL_UNFOCUSED_HOLD_MS = 5 * 60 * 1000;
 
 /** Minimum spacing between relaunch attempts (kill failures, SPI loss). */
-export const SELF_HEAL_COOLDOWN_MS = 30 * 60 * 1000;
+export const SELF_HEAL_COOLDOWN_MS = 10 * 60 * 1000;
 
-/** Decision cadence; coarse on purpose — this is a last-resort valve. */
-export const SELF_HEAL_TICK_MS = 60 * 1000;
+/** Decision cadence; coarse on purpose. */
+export const SELF_HEAL_TICK_MS = 30 * 1000;
 
 export type RendererSelfHealInput = {
-  level: MemoryPressureLevel;
-  /** Epoch ms when the governor entered critical, or null while not critical. */
-  criticalSinceMs: number | null;
-  /** A chat run is streaming/compacting; never interrupt active work. */
+  bytes: number | null;
+  /** A chat run is streaming/compacting, or the composer has unsent work. */
   busy: boolean;
   documentHidden: boolean;
+  windowFocused: boolean;
+  hiddenSinceMs: number | null;
+  unfocusedSinceMs: number | null;
   lastAttemptAtMs: number | null;
   nowMs: number;
 };
 
 export function shouldRelaunchRenderer(input: RendererSelfHealInput): boolean {
-  if (input.level !== 'critical' || input.criticalSinceMs === null) {
+  if (input.bytes === null || input.bytes < SELF_HEAL_RECLAIM_BYTES) {
     return false;
   }
-  if (input.busy || !input.documentHidden) {
-    return false;
-  }
-  if (input.nowMs - input.criticalSinceMs < SELF_HEAL_CRITICAL_HOLD_MS) {
+  if (input.busy) {
     return false;
   }
   if (
@@ -53,14 +72,22 @@ export function shouldRelaunchRenderer(input: RendererSelfHealInput): boolean {
   ) {
     return false;
   }
-  return true;
+  const hiddenLongEnough =
+    input.documentHidden &&
+    input.hiddenSinceMs !== null &&
+    input.nowMs - input.hiddenSinceMs >= SELF_HEAL_HIDDEN_HOLD_MS;
+  const unfocusedLongEnough =
+    !input.windowFocused &&
+    input.unfocusedSinceMs !== null &&
+    input.nowMs - input.unfocusedSinceMs >= SELF_HEAL_UNFOCUSED_HOLD_MS;
+  return hiddenLongEnough || unfocusedLongEnough;
 }
 
 export type RendererSelfHealDeps = {
-  getLevel: () => MemoryPressureLevel;
-  subscribeLevel: (listener: (level: MemoryPressureLevel) => void) => () => void;
+  getBytes: () => number | null;
   isBusy: () => boolean;
   isDocumentHidden: () => boolean;
+  isWindowFocused: () => boolean;
   requestRelaunch: () => Promise<boolean>;
   now: () => number;
 };
@@ -72,32 +99,41 @@ export type RendererSelfHeal = {
 };
 
 export function createRendererSelfHeal(deps: RendererSelfHealDeps): RendererSelfHeal {
-  let criticalSinceMs: number | null = deps.getLevel() === 'critical' ? deps.now() : null;
+  let hiddenSinceMs: number | null = null;
+  let unfocusedSinceMs: number | null = null;
   let lastAttemptAtMs: number | null = null;
 
-  const unsubscribe = deps.subscribeLevel((level) => {
-    if (level === 'critical') {
-      criticalSinceMs ??= deps.now();
-    } else {
-      criticalSinceMs = null;
-    }
-  });
-
   const tick = (): boolean => {
+    const nowMs = deps.now();
+    const documentHidden = deps.isDocumentHidden();
+    const windowFocused = deps.isWindowFocused();
+    if (documentHidden) {
+      hiddenSinceMs ??= nowMs;
+    } else {
+      hiddenSinceMs = null;
+    }
+    if (!windowFocused) {
+      unfocusedSinceMs ??= nowMs;
+    } else {
+      unfocusedSinceMs = null;
+    }
+
     const fire = shouldRelaunchRenderer({
-      level: deps.getLevel(),
-      criticalSinceMs,
+      bytes: deps.getBytes(),
       busy: deps.isBusy(),
-      documentHidden: deps.isDocumentHidden(),
+      documentHidden,
+      windowFocused,
+      hiddenSinceMs,
+      unfocusedSinceMs,
       lastAttemptAtMs,
-      nowMs: deps.now(),
+      nowMs,
     });
     if (!fire) {
       return false;
     }
-    lastAttemptAtMs = deps.now();
+    lastAttemptAtMs = nowMs;
     console.warn(
-      '[renderer-self-heal] critical pressure held while hidden and idle; relaunching WebContent',
+      '[renderer-self-heal] pinned WebContent footprint while backgrounded; relaunching renderer',
     );
     void deps.requestRelaunch().catch((error: unknown) => {
       console.warn('[renderer-self-heal] relaunch request failed:', error);
@@ -107,9 +143,7 @@ export function createRendererSelfHeal(deps: RendererSelfHealDeps): RendererSelf
 
   return {
     tick,
-    dispose: () => {
-      unsubscribe();
-    },
+    dispose: () => undefined,
   };
 }
 
@@ -118,28 +152,60 @@ async function invokeRelaunchRenderer(): Promise<boolean> {
   return await invoke<boolean>('relaunch_webview_renderer');
 }
 
+let installedTick: (() => boolean) | null = null;
+
+/** Parking calls this at the 2-minute mark so we do not wait for the next interval. */
+export function requestRendererSelfHealTick(): boolean {
+  return installedTick?.() ?? false;
+}
+
 /**
  * Wire the self-heal loop for the Tauri shell. `isBusy` is provided by the
- * App (streaming/compacting state); non-Tauri harnesses install nothing.
- * Returns a cleanup for effect symmetry.
+ * App (streaming/compacting/unsent composer); non-Tauri harnesses install
+ * nothing. Returns a cleanup for effect symmetry.
  */
 export function installRendererSelfHeal(isBusy: () => boolean): () => void {
   if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
     return () => undefined;
   }
+  let windowFocused = true;
   const selfHeal = createRendererSelfHeal({
-    getLevel: globalMemoryGovernor.getLevel,
-    subscribeLevel: globalMemoryGovernor.subscribe,
+    getBytes: getLastMemoryPressureBytes,
     isBusy,
     isDocumentHidden: () => document.visibilityState === 'hidden',
+    isWindowFocused: () => windowFocused,
     requestRelaunch: invokeRelaunchRenderer,
     now: Date.now,
   });
+  const onVisibility = (): void => {
+    selfHeal.tick();
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+  installedTick = () => selfHeal.tick();
   const timer = setInterval(() => {
     selfHeal.tick();
   }, SELF_HEAL_TICK_MS);
+
+  let unlistenFocus: (() => void) | undefined;
+  void import('@tauri-apps/api/window')
+    .then(({ getCurrentWindow }) =>
+      getCurrentWindow().onFocusChanged((event) => {
+        windowFocused = event.payload;
+        selfHeal.tick();
+      }),
+    )
+    .then((unlisten) => {
+      unlistenFocus = unlisten;
+    })
+    .catch((error: unknown) => {
+      console.warn('[renderer-self-heal] window focus listener unavailable:', error);
+    });
+
   return () => {
+    installedTick = null;
     clearInterval(timer);
+    document.removeEventListener('visibilitychange', onVisibility);
+    unlistenFocus?.();
     selfHeal.dispose();
   };
 }

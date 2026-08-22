@@ -17,6 +17,7 @@ import { persistPetOverlayWindowPosition } from './pet-overlay-position.js';
 import {
   applyPetOverlayVisibility,
   loadPetOverlayVisibility,
+  subscribePetOverlayVisibility,
   updatePetOverlayVisibility,
 } from './pet-overlay-visibility.js';
 
@@ -25,13 +26,18 @@ export function PetOverlayApp() {
   const [locale, setLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
   const tauriWindow = useRef<TauriWindow | null>(null);
 
-  // Window is created on demand. Re-apply the saved preference after this
-  // entry is ready so a stale hidden preference closes the process instead of
-  // leaving a second WebContent resident.
+  // This page only loads inside an already-created overlay window. Never call
+  // show() here — that races the settings switch and recreates a pet the user
+  // just hid. Only self-close when the saved preference is already hidden.
   useEffect(() => {
-    void applyPetOverlayVisibility(loadPetOverlayVisibility()).catch((error: unknown) => {
-      console.error('Failed to restore pet overlay visibility', error);
-    });
+    const hideIfNeeded = (visible: boolean): void => {
+      if (visible) return;
+      void applyPetOverlayVisibility(false).catch((error: unknown) => {
+        console.error('Failed to hide pet overlay', error);
+      });
+    };
+    hideIfNeeded(loadPetOverlayVisibility());
+    return subscribePetOverlayVisibility(hideIfNeeded);
   }, []);
 
   const hidePet = useCallback((): void => {

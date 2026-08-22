@@ -10,7 +10,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { HostClient } from '../host-client';
 import type { DocumentOpenInput } from '../tool-call-card';
-import { planDocumentOpenPath } from '../document-open-path';
+import { localPreviewPathForPlan, planDocumentOpenPath } from '../document-open-path';
 import {
   createDocumentRequestId,
   type ActiveDocument,
@@ -446,6 +446,27 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
         return;
       }
 
+      // ADR 0052 Slice 4: local Host previews whatever the UI can render.
+      // Do not show outside-project for a file that is sitting on disk.
+      if (openPlan.kind === 'legacy-absolute' && activeSessionId) {
+        applyDocument({
+          status: 'loading',
+          requestId,
+          title: cleanTitle,
+          displayRef: cleanPath,
+        });
+        void loadLocalFilePreviewDocument({
+          hostClient,
+          sessionId: activeSessionId,
+          absolutePath: openPlan.absolutePath,
+          title: cleanTitle,
+          displayRef: cleanPath,
+          requestId,
+          applyDocument,
+        });
+        return;
+      }
+
       if (openPlan.kind === 'trusted-config') {
         applyDocument({
           status: 'loading',
@@ -501,6 +522,19 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
                 content: fileData.content,
                 displayRef: cleanPath,
                 provenance: 'project-current',
+              });
+              return;
+            }
+            const previewPath = localPreviewPathForPlan(openPlan);
+            if (fileData.isBinary === true && previewPath && activeSessionId) {
+              await loadLocalFilePreviewDocument({
+                hostClient,
+                sessionId: activeSessionId,
+                absolutePath: previewPath,
+                title: cleanTitle,
+                displayRef: cleanPath,
+                requestId,
+                applyDocument,
               });
               return;
             }
@@ -663,7 +697,15 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
         });
       }
     },
-    [hostClient, messages, piwinRoot, projectPath, requestToolSnapshot, revealPreview],
+    [
+      activeSessionId,
+      hostClient,
+      messages,
+      piwinRoot,
+      projectPath,
+      requestToolSnapshot,
+      revealPreview,
+    ],
   );
 
   return { activeDocument, openDocument };
@@ -749,5 +791,94 @@ async function loadTrustedConfigDocument(input: {
     displayRef: input.displayRef,
     reason: 'not-found',
     suggestion: '该受信配置文件无法读取，或已不存在。',
+  });
+}
+
+async function loadLocalFilePreviewDocument(input: {
+  hostClient: HostClient;
+  sessionId: string;
+  absolutePath: string;
+  title: string;
+  displayRef: string;
+  requestId: string;
+  applyDocument: (next: ActiveDocument) => void;
+}): Promise<void> {
+  const response = await input.hostClient.request({
+    type: 'preview/read-local-file',
+    input: { sessionId: input.sessionId, absolutePath: input.absolutePath },
+  });
+  if (response.success && response.data) {
+    const previewData = response.data as {
+      status?: string;
+      kind?: string;
+      content?: string;
+      truncated?: boolean;
+      asset?: {
+        id?: string;
+        absolutePath?: string;
+        mimeType?: string;
+        byteSize?: number;
+      };
+      reason?: string;
+      suggestion?: string;
+    };
+    if (
+      previewData.status === 'ready' &&
+      previewData.kind === 'media' &&
+      typeof previewData.asset?.absolutePath === 'string' &&
+      previewData.asset.absolutePath.length > 0
+    ) {
+      input.applyDocument({
+        status: 'ready',
+        requestId: input.requestId,
+        title: input.title,
+        content: '',
+        displayRef: input.displayRef,
+        provenance: 'session-media',
+        media: {
+          path: previewData.asset.absolutePath,
+          ...(typeof previewData.asset.id === 'string' ? { assetId: previewData.asset.id } : {}),
+          ...(typeof previewData.asset.mimeType === 'string'
+            ? { mimeType: previewData.asset.mimeType }
+            : {}),
+          ...(typeof previewData.asset.byteSize === 'number'
+            ? { byteSize: previewData.asset.byteSize }
+            : {}),
+        },
+      });
+      return;
+    }
+    if (previewData.status === 'ready' && previewData.kind === 'text' && typeof previewData.content === 'string') {
+      input.applyDocument({
+        status: 'ready',
+        requestId: input.requestId,
+        title: input.title,
+        content: previewData.content,
+        displayRef: input.displayRef,
+        provenance: 'project-current',
+        readOnly: true,
+        ...(previewData.truncated === true ? { warning: '内容已截断，只展示部分文本。' } : {}),
+      });
+      return;
+    }
+    if (previewData.status === 'unavailable') {
+      input.applyDocument({
+        status: 'unavailable',
+        requestId: input.requestId,
+        title: input.title,
+        displayRef: input.displayRef,
+        reason: previewData.reason || 'not-found',
+        ...(previewData.suggestion ? { suggestion: previewData.suggestion } : {}),
+      });
+      return;
+    }
+  }
+  input.applyDocument({
+    status: 'unavailable',
+    requestId: input.requestId,
+    title: input.title,
+    displayRef: input.displayRef,
+    reason: 'not-found',
+    suggestion: '该文件当前无法读取。',
   });
 }

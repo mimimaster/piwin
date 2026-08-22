@@ -9,6 +9,8 @@ import {
   applyMemoryPressureEvent,
   applyMemoryPressureSample,
   classifyMemoryPressure,
+  getLastMemoryPressureBytes,
+  resetLastMemoryPressureBytes,
   resetMemoryPressureRecoveryDwell,
 } from './memory-pressure';
 
@@ -97,11 +99,13 @@ describe('applyMemoryPressureEvent', () => {
     globalMemoryGovernor.reset();
     globalHighlightCache.clear();
     resetMemoryPressureRecoveryDwell();
+    resetLastMemoryPressureBytes();
   });
 
   it('classifies native byte samples through the shared thresholds', () => {
     expect(applyMemoryPressureEvent({ bytes: MEMORY_PRESSURE_MODERATE_BYTES }, 0)).toBe('moderate');
     expect(globalMemoryGovernor.getLevel()).toBe('moderate');
+    expect(getLastMemoryPressureBytes()).toBe(MEMORY_PRESSURE_MODERATE_BYTES);
 
     expect(
       applyMemoryPressureEvent({ bytes: 100 * MIB }, MEMORY_PRESSURE_RECOVERY_DWELL_MS),

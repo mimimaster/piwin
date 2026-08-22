@@ -27,11 +27,19 @@ export function findComposerModelByRef(
   options: readonly ComposerModelPickerOption[],
   ref: Pick<ModelRef, 'providerId' | 'modelId' | 'protocol'>,
 ): ComposerModelPickerOption | undefined {
-  return options.find(
+  const exact = options.find(
     (model) =>
       model.providerId === ref.providerId &&
       model.modelId === ref.modelId &&
       model.protocol === ref.protocol,
+  );
+  if (exact) {
+    return exact;
+  }
+  // Catalog protocol annotations can change after a model pull. Provider+id
+  // is enough to restore the session's last-used picker row.
+  return options.find(
+    (model) => model.providerId === ref.providerId && model.modelId === ref.modelId,
   );
 }
 
@@ -98,6 +106,24 @@ export type ComposerModelResolution =
       markSessionId: string | null;
     };
 
+function applySessionCatalogModel(
+  input: ComposerModelResolutionInput,
+): ComposerModelResolution | undefined {
+  if (!input.activeSessionModel) {
+    return undefined;
+  }
+  const sessionModel = findComposerModelByRef(input.modelOptions, input.activeSessionModel);
+  if (!sessionModel) {
+    return undefined;
+  }
+  return {
+    kind: 'apply',
+    modelKey: formatComposerModelKey(sessionModel.providerId, sessionModel.modelId),
+    thinkingLevel: input.activeSessionThinkingLevel,
+    markSessionId: input.activeSessionId,
+  };
+}
+
 /**
  * Single resolver for the composer model effect and resume hooks.
  * Priority: session last-used model → preserve in-flight pick → composerProfile → default.
@@ -105,15 +131,10 @@ export type ComposerModelResolution =
 export function resolveComposerModelSelection(
   input: ComposerModelResolutionInput,
 ): ComposerModelResolution {
-  if (input.sessionChanged && input.activeSessionModel) {
-    const sessionModel = findComposerModelByRef(input.modelOptions, input.activeSessionModel);
-    if (sessionModel) {
-      return {
-        kind: 'apply',
-        modelKey: formatComposerModelKey(sessionModel.providerId, sessionModel.modelId),
-        thinkingLevel: input.activeSessionThinkingLevel,
-        markSessionId: input.activeSessionId,
-      };
+  if (input.sessionChanged) {
+    const sessionResolution = applySessionCatalogModel(input);
+    if (sessionResolution) {
+      return sessionResolution;
     }
   }
 
@@ -126,6 +147,13 @@ export function resolveComposerModelSelection(
     })
   ) {
     return { kind: 'preserve' };
+  }
+
+  // Catalog/config refresh dropped the current pick. Prefer this session's
+  // last-used model over the product default (e.g. after fetching models).
+  const sessionResolution = applySessionCatalogModel(input);
+  if (sessionResolution) {
+    return sessionResolution;
   }
 
   const desired = input.composerProfileModel

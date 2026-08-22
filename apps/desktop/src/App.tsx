@@ -107,6 +107,7 @@ import { collectSessionDocuments } from './session-documents';
 import type { LineCommentItem } from './EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from './doc-comments';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
+import { BranchPointsPanel } from './branch-points-panel';
 import { collectSessionTools } from './tool-call-card';
 import type { DocumentOpenInput } from './tool-call-card';
 import { FileDiffInspector } from './file-diff-inspector';
@@ -245,9 +246,10 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
 
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
 
-  // Renderer self-heal: relaunch WebContent when critical pressure holds while
-  // hidden and idle (pinned IOSurface leak; see renderer-self-heal.ts). The
-  // busy flag rides a ref so the installer effect never re-subscribes.
+  // Renderer self-heal: recycle WebContent when footprint is fat and the
+  // user is not looking (see renderer-self-heal.ts). The skip flag rides a
+  // ref so the installer effect never re-subscribes; composer/attachments
+  // are OR'd in once those hooks have run.
   const selfHealBusyRef = useRef(false);
   selfHealBusyRef.current = state.streaming || state.compacting;
   useEffect(() => installRendererSelfHeal(() => selfHealBusyRef.current), []);
@@ -971,12 +973,12 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     clearColdRestorePrompt,
     handleLoadOlderTranscript,
     handleRenameSession,
-    handleDuplicateSession,
     handleContinueSessionInProject,
     handleForkSession,
     handleSessionMenuAction,
     confirmDeleteSession,
     handleAbort,
+    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,
@@ -1082,9 +1084,9 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const handleSettingsSaved = useCallback(
     (next: PiwinConfig): void => {
       setConfig(next);
-      if (next.defaultProviderId && next.defaultModelId) {
-        setSelectedModelKey(formatComposerModelKey(next.defaultProviderId, next.defaultModelId));
-      }
+      // Catalog/default changes must not yank an open session's composer onto
+      // the product default. `resolveComposerModelSelection` keeps a valid
+      // pick, or restores the session last-used model when the pick vanished.
     },
     [setConfig],
   );
@@ -1722,6 +1724,11 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
     },
   });
   composerSetterRef.current = setComposer;
+  selfHealBusyRef.current =
+    state.streaming ||
+    state.compacting ||
+    composer.trim().length > 0 ||
+    pendingAttachments.length > 0;
 
   const handleOpenArtifactCanvas = useCallback(
     (target: ArtifactCanvasTarget): void => {
@@ -2357,6 +2364,9 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
   const handleComposerAbort = useCallback((): void => {
     void handleAbort();
   }, [handleAbort]);
+  const handleComposerResume = useCallback((): void => {
+    void handleResumeRun();
+  }, [handleResumeRun]);
   const handleComposerCompact = useCallback((): void => {
     void handleCompact();
   }, [handleCompact]);
@@ -2414,6 +2424,7 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       activeSessionId: state.activeSessionId,
       streaming: state.streaming,
       runPhase: state.runPhase,
+      paused: state.runTerminal.kind === 'paused',
       compacting: state.compacting,
       composer,
       onComposerChange: setComposer,
@@ -2478,6 +2489,7 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       onThinkingLevelChange: handleThinkingLevelChange,
       ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
       onAbort: handleComposerAbort,
+      onResume: handleComposerResume,
       onCompact: handleComposerCompact,
       compactionSupported: hostStatus?.capabilities?.compaction !== false,
       contextUsage: state.contextUsage,
@@ -2530,6 +2542,7 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       extensionUiInput,
       extensionUiRequest,
       handleComposerAbort,
+      handleComposerResume,
       handleComposerAttachImage,
       handleComposerAttachFile,
       handleComposerCompact,
@@ -2598,6 +2611,7 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       state.projectPath,
       state.projectTrusted,
       state.runPhase,
+      state.runTerminal.kind,
       state.streaming,
       state.activeScope.kind,
       thinkingLevel,
@@ -3303,8 +3317,6 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                         onCancelWalkthrough={handleCancelWalkthrough}
                         {...(state.activeSessionId
                           ? {
-                              onDuplicateSession: () =>
-                                void handleDuplicateSession(state.activeSessionId!),
                               onForkFromMessage: (messageId: string) =>
                                 void handleForkSession(state.activeSessionId!, messageId),
                             }
@@ -3488,6 +3500,14 @@ function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                   onOpenMcp={() => openSettingsSection('tools')}
                   onOpenSettings={() => openSettingsSection('general')}
                   onToggleSessions={() => shell.toggleSessions()}
+                  branchesContent={
+                    <BranchPointsPanel
+                      branchPoints={branchPoints}
+                      disabled={state.streaming}
+                      onSwitch={(headMessageId) => void switchBranch(headMessageId)}
+                      locale={desktopLocale}
+                    />
+                  }
                   notesContent={
                     hostClient.supportsCommand('notes/list') ? (
                       <DeferredNotesPanel

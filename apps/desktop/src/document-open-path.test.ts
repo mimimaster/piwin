@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDocumentUnavailableStub,
   isPathInsideProjectRoot,
+  localPreviewPathForPlan,
   planDocumentOpenPath,
 } from './document-open-path';
 import { isPiwinMediaPath, isRemoteMediaAssetRef, mediaKindForPath } from './media-path';
@@ -98,6 +99,29 @@ describe('planDocumentOpenPath', () => {
       absolutePath: '/tmp/outside.md',
       displayPath: '/tmp/outside.md',
     });
+  });
+
+  it('does not reclassify /tmp files as media; local preview helper returns the path', () => {
+    const imagePlan = planDocumentOpenPath({
+      path: '/tmp/ncg-boot2.png',
+      projectPath: '/workspace',
+    });
+    expect(imagePlan.kind).toBe('legacy-absolute');
+    expect(localPreviewPathForPlan(imagePlan)).toBe('/tmp/ncg-boot2.png');
+    expect(
+      localPreviewPathForPlan(
+        planDocumentOpenPath({ path: '/tmp/outside.md', projectPath: '/workspace' }),
+      ),
+    ).toBe('/tmp/outside.md');
+  });
+
+  it('offers local preview for in-project paths without changing project classification', () => {
+    const plan = planDocumentOpenPath({
+      path: '/workspace/docs/shot.png',
+      projectPath: '/workspace',
+    });
+    expect(plan.kind).toBe('project');
+    expect(localPreviewPathForPlan(plan)).toBe('/workspace/docs/shot.png');
   });
 
   it('classifies config-root text as trusted-config after media and skill', () => {

@@ -83,15 +83,21 @@ pub fn ensure_pet_overlay_window(
 }
 
 #[tauri::command]
-pub fn pet_overlay_show(app: tauri::AppHandle, x: Option<f64>, y: Option<f64>) -> Result<(), String> {
+pub fn pet_overlay_show(
+    app: tauri::AppHandle,
+    x: Option<f64>,
+    y: Option<f64>,
+) -> Result<(), String> {
     ensure_pet_overlay_window(&app, x, y).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
-        // Destroy the WebContent process. hide() would keep ~25 MB resident.
-        window.close().map_err(|e| e.to_string())
+        // destroy() skips CloseRequested and actually tears down the
+        // WebContent. close() can leave a transparent always-on-top window
+        // resident so the speech bubble keeps floating after the user hid it.
+        window.destroy().map_err(|e| e.to_string())
     } else {
         Ok(())
     }
@@ -101,7 +107,7 @@ pub fn pet_overlay_hide(app: tauri::AppHandle) -> Result<(), String> {
 pub fn pet_overlay_toggle(app: tauri::AppHandle) -> Result<bool, String> {
     if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
         if window.is_visible().map_err(|e| e.to_string())? {
-            window.close().map_err(|e| e.to_string())?;
+            window.destroy().map_err(|e| e.to_string())?;
             Ok(false)
         } else {
             prepare_pet_overlay_window(&window).map_err(|e| e.to_string())?;

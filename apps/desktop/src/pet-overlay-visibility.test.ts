@@ -79,11 +79,15 @@ describe('pet overlay visibility preference', () => {
     expect(invokeMock).toHaveBeenCalledWith('pet_overlay_show', { x: 12, y: 34 });
   });
 
-  it('does not spawn a hidden overlay on restore', () => {
+  it('does not spawn a hidden overlay on restore', async () => {
     enableTauriRuntime();
+    invokeMock.mockResolvedValue(undefined);
     savePetOverlayVisibility(false);
     installPetOverlayRestore();
-    expect(invokeMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('pet_overlay_hide');
+    });
+    expect(invokeMock).not.toHaveBeenCalledWith('pet_overlay_show');
   });
 
   it('clears the visible preference when restore fails', async () => {

@@ -298,3 +298,20 @@ function sanitizeTrustedRelative(relativePath: string): string | null {
   }
   return relative;
 }
+
+/**
+ * Host-absolute path to try as a local file preview (ADR 0052 Slice 4).
+ * Classification stays `legacy-absolute` / `project` — the Host sniffs bytes
+ * and renders whatever the UI can show (image or text).
+ */
+export function localPreviewPathForPlan(plan: DocumentOpenPathPlan): string | null {
+  if (plan.kind === 'legacy-absolute') {
+    return plan.absolutePath;
+  }
+  if (plan.kind === 'project' && plan.relativePath) {
+    const rootNorm = normalizeSeparators(plan.projectPath).replace(/\/+$/, '');
+    const relativeNorm = normalizeSeparators(plan.relativePath).replace(/^\/+/, '');
+    return `${rootNorm}/${relativeNorm}`;
+  }
+  return null;
+}

@@ -26,6 +26,9 @@
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: auto;
+  /* WKWebView drops fully-transparent canvas layers in a transparent window. */
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
 }
 .pet-sprite-root.hidden {
   display: none;

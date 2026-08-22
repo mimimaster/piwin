@@ -102,6 +102,12 @@ describe('PetSprite animation loop', () => {
     vi.stubGlobal('Image', FakeImage);
     vi.spyOn(globalThis.Math, 'random').mockReturnValue(0);
     vi.spyOn(globalThis.performance, 'now').mockImplementation(() => nowValue);
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {
+        convertFileSrc: (assetPath: string) => `https://asset.localhost${assetPath}`,
+      },
+    });
 
     ctxMock = {
       clearRect: vi.fn(),
@@ -125,6 +131,7 @@ describe('PetSprite animation loop', () => {
     HTMLCanvasElement.prototype.getContext = originalGetContext;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -400,5 +407,61 @@ describe('PetSprite animation loop', () => {
     expect(hideButton.getAttribute('aria-label')).toBe('隐藏宠物');
     expect(onHide).toHaveBeenCalledTimes(1);
     expect(onOpenSettings).not.toHaveBeenCalled();
+  });
+
+  it('draws a cached spritesheet whose load completes synchronously when src is set', async () => {
+    class SyncCachedImage {
+      onload: (() => void) | null = null;
+      onerror: ((error: unknown) => void) | null = null;
+      complete = false;
+      naturalWidth = 1536;
+      naturalHeight = 1872;
+      width = 1536;
+      height = 1872;
+      private _src = '';
+      get src(): string {
+        return this._src;
+      }
+      set src(value: string) {
+        this._src = value;
+        this.complete = true;
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal('Image', SyncCachedImage);
+
+    mount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(drawCalls.length).toBeGreaterThan(0);
+  });
+
+  it('draws when the image is already complete and never fires onload', async () => {
+    class SilentCompleteImage {
+      onload: (() => void) | null = null;
+      onerror: ((error: unknown) => void) | null = null;
+      complete = true;
+      naturalWidth = 1536;
+      naturalHeight = 1872;
+      width = 1536;
+      height = 1872;
+      private _src = '';
+      get src(): string {
+        return this._src;
+      }
+      set src(value: string) {
+        this._src = value;
+      }
+    }
+    vi.stubGlobal('Image', SilentCompleteImage);
+
+    mount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(drawCalls.length).toBeGreaterThan(0);
   });
 });
