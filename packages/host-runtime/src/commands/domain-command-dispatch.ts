@@ -13,6 +13,7 @@ import { handleResolveCommand } from './resolve-commands.js';
 import { handleProjectCommand } from './project-commands.js';
 import { handlePermissionRulesCommand } from './permission-rules-commands.js';
 import { handlePreviewCommand } from './preview-commands.js';
+import { handleMediaIngestCommand } from './media-ingest-commands.js';
 import { handleBrowserCommand } from './browser-commands.js';
 import { handlePluginCommand } from './plugin-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
@@ -81,6 +82,9 @@ export async function dispatchDomainCommands(
 
   const preview = await handlePreviewCommand(command, requestId, context.piwinRoot);
   if (preview) return preview;
+
+  const mediaIngest = await handleMediaIngestCommand(command, requestId, context);
+  if (mediaIngest) return mediaIngest;
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;

@@ -20,7 +20,7 @@ import type {
 } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
-import type { TrustedTextReadCommandInput } from './preview.js';
+import type { LocalFilePreviewCommandInput, TrustedTextReadCommandInput } from './preview.js';
 import type { SpeechTranscribeInput } from './speech.js';
 import type { SessionListOrder, SessionListPageQuery } from './session-list-page.js';
 import type {
@@ -444,6 +444,11 @@ export type HostCommand =
    * callers send a path under `~/.piwin`, never a host-absolute path.
    */
   | { id?: string; type: 'preview/read-trusted-text'; input: TrustedTextReadCommandInput }
+  /**
+   * Local-Host only. Previews a clicked host path as media or text
+   * (ADR 0052 Slice 4). Remote host-server rejects this command.
+   */
+  | { id?: string; type: 'preview/read-local-file'; input: LocalFilePreviewCommandInput }
   /**
    * Transient Desktop audio. Unlike media/save, Host must not write this input
    * to ~/.piwin/media, transcript, prompt attachments, or logs.

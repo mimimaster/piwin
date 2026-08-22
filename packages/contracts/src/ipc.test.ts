@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEventEnvelope } from './host.js';
 import type { HostCommand, HostPush } from './ipc.js';
 import { toMediaAttachmentRef } from './ipc.js';
+import type { SavedMediaAsset } from './media.js';
 import type { CreateSessionOptions, SessionSeedMessage } from './session-seed.js';
 
 describe('ipc types', () => {
@@ -45,17 +46,15 @@ describe('ipc types', () => {
   });
 
   it('maps saved media assets to prompt attachments', () => {
-    const attachment = toMediaAttachmentRef(
-      {
-        id: 'asset-1',
-        sessionId: 'session-1',
-        absolutePath: '/tmp/media/session-1/a.png',
-        mimeType: 'image/png',
-        byteSize: 32,
-        createdAt: new Date().toISOString(),
-      },
-      'paste',
-    );
+    const savedAsset: SavedMediaAsset = {
+      id: 'asset-1',
+      sessionId: 'session-1',
+      absolutePath: '/tmp/media/session-1/a.png',
+      mimeType: 'image/png',
+      byteSize: 32,
+      createdAt: new Date().toISOString(),
+    };
+    const attachment = toMediaAttachmentRef(savedAsset, 'paste');
     expect(attachment.path).toBe('/tmp/media/session-1/a.png');
     expect(attachment.source).toBe('paste');
   });
@@ -93,6 +92,17 @@ describe('ipc types', () => {
     expect(command.type).toBe('preview/read-trusted-text');
     if (command.type === 'preview/read-trusted-text') {
       expect(command.input.relativePath).toBe('config.json');
+    }
+  });
+
+  it('accepts preview/read-local-file command shape', () => {
+    const command: HostCommand = {
+      type: 'preview/read-local-file',
+      input: { sessionId: 's1', absolutePath: '/tmp/ncg-boot2.png' },
+    };
+    expect(command.type).toBe('preview/read-local-file');
+    if (command.type === 'preview/read-local-file') {
+      expect(command.input.absolutePath).toBe('/tmp/ncg-boot2.png');
     }
   });
 

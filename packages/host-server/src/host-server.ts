@@ -1624,6 +1624,10 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         Number.isSafeInteger(command.expectedRevision) &&
         command.expectedRevision > 0
       );
+    case 'preview/read-local-file':
+      // ADR 0052 Slice 4: host-absolute path preview is local-sidecar only.
+      // Remote clients must not send this command even as the operator.
+      return false;
     case 'media/save':
       return (
         (command.input.source === 'file-picker' ||

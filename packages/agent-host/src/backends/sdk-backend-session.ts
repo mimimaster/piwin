@@ -25,6 +25,7 @@ import {
   createSeededPiSessionManager,
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
+import { createPiwinSettingsManager } from '../pi-settings-manager.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 import { normalizeAgentEventIds } from '../generation-identity.js';
@@ -102,6 +103,11 @@ export async function createBackendSdkSession(
     // Empty allowlist is intentional when both sides are empty: no Pi defaults.
     tools: toolAllowlist,
     customTools,
+    settingsManager: createPiwinSettingsManager(
+      piModule,
+      capabilitySnapshot.workingDirectory,
+      agentDir,
+    ),
   };
   if (input.seedMessages) {
     sessionOptions.sessionManager = createSeededPiSessionManager(

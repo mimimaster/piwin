@@ -100,10 +100,11 @@ ImageBitmap 正确 close）；CSS HMR 与小组件 TSX HMR 单独测试均不泄
    落到 `MAIN_WEBVIEW_PID` 的 pid，经 `proc_pidpath` 验证确为
    `com.apple.WebKit.WebContent` 后 SIGKILL；WKWebView 自动重载页面，
    会话按 ADR 0038 从 Host 重水合。
-2. TS 策略 `renderer-self-heal.ts`（App 装配）：critical 连续保持
-   ≥5 分钟 且 无 streaming/compacting 且 `document.hidden` 时触发，
-   30 分钟冷却；决策纯函数单测覆盖。
+2. TS 策略 `renderer-self-heal.ts`（App 装配）：与视觉 critical（1536）脱钩。
+   占用 ≥512 MiB 且用户不在看时触发——最小化/hidden 满 2 分钟，或窗口失焦
+   满 5 分钟（Activity Monitor 盖住但仍 `visible` 的情况）。streaming /
+   compacting / 未发送 composer 内容时不杀。10 分钟冷却。决策纯函数单测覆盖。
 3. 非 Tauri 环境与非 macOS 平台自动 no-op。
 
-后续（未做）：泄漏的 WebKit 内部归属需 Instruments IOSurface 模板定位；
-若 release 包长跑复现同一钉死模式，考虑把自愈条件放宽到可见但空闲。
+2026-08-22 修正：release 包长跑 164→900+ MB，gfx 钉死，moderate 剥玻璃无效，
+critical 从未到达。自愈按占用回收，不再等 1.5 GB。

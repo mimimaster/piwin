@@ -82,6 +82,7 @@ import {
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
 } from './vision-delegation.js';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
+import { enrichAgentEventSessionModel } from './agent-event-session-model.js';
 import { enrichAgentEventDocumentTargets } from './document-targets.js';
 import { permissionResolvedPushes } from './permission-resolved-push.js';
 import { effectivePermissionMode } from './effective-permission-mode.js';
@@ -552,6 +553,8 @@ export class HostRuntime {
   private readonly workerCrashCleanupRoots = new Set<string>();
   /** CE-OBS: last known usage snapshot per session. */
   private readonly sessionUsage = new Map<string, ContextUsageSnapshot>();
+  /** CE-OBS: usage writes that must finish before a Host instance is disposed. */
+  private readonly pendingUsageLedgerWrites = new Set<Promise<void>>();
   /** Last user prompt text for host-estimate usage (mock path). */
   private readonly sessionLastPromptText = new Map<string, string>();
   private readonly modelRequestOrdinals = new Map<string, number>();
@@ -1363,6 +1366,7 @@ export class HostRuntime {
     this.retiredRuntimeSessions.clear();
     this.sessionAllowlists.clear();
     this.sessionPermissionOverrides.clear();
+    await this.flushUsageLedgerWrites();
     this.sessionUsage.clear();
     this.sessionLastPromptText.clear();
     this.sessionModels.clear();
@@ -5292,10 +5296,13 @@ export class HostRuntime {
       // Attach logical documentTargets for Doc Preview without rewriting
       // targetPaths (actual tool evidence stays intact).
       const projectPathForTargets = this.sessionProjects.get(session.id) ?? projectPath ?? null;
-      const eventForClients = enrichAgentEventDocumentTargets(correlatedEvent, {
-        ...(projectPathForTargets ? { projectPath: projectPathForTargets } : {}),
-        piwinRoot: getPiwinRoot(this.options.piwinRoot),
-      });
+      const eventForClients = enrichAgentEventSessionModel(
+        enrichAgentEventDocumentTargets(correlatedEvent, {
+          ...(projectPathForTargets ? { projectPath: projectPathForTargets } : {}),
+          piwinRoot: getPiwinRoot(this.options.piwinRoot),
+        }),
+        this.sessionModels.get(session.id),
+      );
       this.push({ type: 'event', sessionId: session.id, event: eventForClients });
       // Forward child session events to parent for inline subagent stream UX.
       if (parentSessionId) {
@@ -5331,7 +5338,7 @@ export class HostRuntime {
         // CE-OBS: only agent_end (assistant-usage) is a billable per-turn
         // count. pi-contextUsage is cumulative context occupancy — never sum.
         if (event.usage.source !== 'pi-contextUsage') {
-          void this.recordUsageToLedger(session.id, event.usage);
+          this.enqueueUsageLedgerWrite(session.id, event.usage);
         }
       }
       if (
@@ -6496,6 +6503,30 @@ export class HostRuntime {
     }
   }
 
+  private enqueueUsageLedgerWrite(sessionId: string, usage: ContextUsageSnapshot): void {
+    const write = this.recordUsageToLedger(sessionId, usage);
+    this.pendingUsageLedgerWrites.add(write);
+    void write.then(
+      () => {
+        this.pendingUsageLedgerWrites.delete(write);
+      },
+      (error: unknown) => {
+        this.pendingUsageLedgerWrites.delete(write);
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `usage ledger write failed: ${formatError(error)}`,
+        });
+      },
+    );
+  }
+
+  private async flushUsageLedgerWrites(): Promise<void> {
+    while (this.pendingUsageLedgerWrites.size > 0) {
+      await Promise.allSettled([...this.pendingUsageLedgerWrites]);
+    }
+  }
+
   private async loadSessionUsage(sessionId: string): Promise<ContextUsageSnapshot | null> {
     const cached = this.sessionUsage.get(sessionId);
     if (cached) {
@@ -6546,7 +6577,7 @@ export class HostRuntime {
         return;
       }
       this.sessionUsage.set(sessionId, usage);
-      void this.recordUsageToLedger(sessionId, usage);
+      this.enqueueUsageLedgerWrite(sessionId, usage);
       this.push({
         type: 'event',
         sessionId,

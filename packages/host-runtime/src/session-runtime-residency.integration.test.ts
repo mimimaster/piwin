@@ -90,6 +90,23 @@ async function waitForGeneration(runtime: HostRuntime, sessionId: string): Promi
   throw new Error(`session ${sessionId} never acquired a runtime generation`);
 }
 
+async function waitForGenerationOrCold(
+  runtime: HostRuntime,
+  sessionId: string,
+): Promise<string | undefined> {
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const generationId = runtimeControllerOf(runtime).getStatus(sessionId).generationId;
+    if (generationId !== undefined) {
+      return generationId;
+    }
+    if (residencyOf(runtime).getResidency(sessionId) === 'cold') {
+      return undefined;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return undefined;
+}
+
 async function createConfiguredRuntime(input: {
   rootDir: string;
   mode: 'sdk' | 'rpc';
@@ -230,8 +247,8 @@ describe('Session runtime residency integration (WP8 / ADR 0040)', () => {
       await waitForIdleOrCold(runtime, sessionId);
     }
     for (const sessionId of [sessionA, sessionB]) {
-      if (residencyOf(runtime).getResidency(sessionId) !== 'cold') {
-        const generationId = generationOf(runtime, sessionId);
+      const generationId = await waitForGenerationOrCold(runtime, sessionId);
+      if (generationId !== undefined) {
         expect(await residencyOf(runtime).requestSuspend(sessionId, generationId, 'manual')).toBe(
           true,
         );

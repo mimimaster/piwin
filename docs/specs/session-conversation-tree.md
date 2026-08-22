@@ -230,7 +230,7 @@ type TranscriptBranchPoint = {
     preview: string;            // 首条 user 文本截断
     leafPreview: string;        // 该分支最深叶预览
     messageCount: number;
-    writesWorkspace: boolean;   // S3 写标记聚合
+    writesWorkspace: boolean;   // S3 写标记聚合（子树内是否存在 workspaceWrites）
     updatedAt: string;
   }>;
 };
@@ -261,10 +261,17 @@ type SessionBranchSwitchCommand = {
 - **Desktop**：
   - 分叉点消息侧 `‹ n/m ›` 切换器（ui-kit 既有组件组合，不造新原语）；
     切换时走 branch-switch，`needs-confirmation` 弹确认卡（S3）。
-  - 树面板：挂在现有大纲/检查器区域，节点显示角色+预览+写标记图标，点击
-    即切换。首版可仅列分叉点清单，可视化树后置。
+  - 树面板（**已落地 2026-08-21，首版=分叉点清单**）：右侧检查器新增
+    `branches` tab（`BranchPointsPanel`），按分叉点分组，每行 = 一条兄弟分支，
+    显示首条预览 + 叶预览 + 消息数/时间 + 写标记（`writesWorkspace`），点击
+    即走 branch-switch。可视化树仍后置。
+    - 写标记是**提示不是判据**：由 `listBranchPoints` 在兄弟子树上聚合
+      `metadata_json.workspaceWrites` 是否存在；写边界上线前的旧行没有该
+      metadata，一律显示为"无写"。切换时的 `needs-confirmation` 检查才是权威。
+    - 该面板同时是分叉能力的**唯一前置入口**：`‹ n/m ›` 只在分叉发生后才出现，
+      所以空态必须写明"编辑已发送的消息并重发即可就地分叉，旧后续会保留"。
 - **CLI**（避免 AGENTS.md"仅 Desktop 实现"反模式）：
-  `piwin session branches`（列分叉点与兄弟）、
+  `piwin session branches`（列分叉点与兄弟，写标记降级为行内 `(write)` 后缀）、
   `piwin session switch <messageId>`。树可视化 CLI 降级为缩进列表，记录于
   CLI 文档。
 
