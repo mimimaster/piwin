@@ -40,7 +40,7 @@ import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type { DocumentOpenInput } from './tool-call-card';
-import { TranscriptViewport } from './transcript-viewport';
+import { TranscriptViewport, type TranscriptViewportProps } from './transcript-viewport';
 import type { DesktopPreferences } from './ui-preferences';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 
@@ -71,9 +71,7 @@ export type WorkbenchTranscriptProps = {
   sessionLineage: ProductSessionLineageView | null | undefined;
   forkCountsByMessageId: Record<string, number>;
   branchPoints: TranscriptBranchPoint[];
-  onJumpToHistoryAnchor: NonNullable<
-    import('./transcript-viewport').TranscriptViewportProps['onJumpToHistoryAnchor']
-  >;
+  onJumpToHistoryAnchor: NonNullable<TranscriptViewportProps['onJumpToHistoryAnchor']>;
   onReturnToLatest: () => void;
   onLoadOlder: () => Promise<void>;
   onOpenReview: () => void;

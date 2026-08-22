@@ -29,6 +29,8 @@ export function resolveComposerLayoutMode(input: {
   messageCount: number;
   awaitingTranscript: boolean;
 }): 'centered' | 'docked' {
+  // While resuming a session, keep docked layout even if paint is still
+  // previous/warm rows or briefly empty — never treat that as a brand-new chat.
   return input.messageCount === 0 && !input.awaitingTranscript ? 'centered' : 'docked';
 }
 
