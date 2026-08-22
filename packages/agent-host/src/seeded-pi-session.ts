@@ -97,6 +97,10 @@ export function createSeededPiSettingsManager(piModule: Record<string, unknown>)
     compaction: {
       keepRecentTokens: 1,
     },
+    retry: {
+      enabled: false,
+      maxRetries: 0,
+    },
   });
 }
 

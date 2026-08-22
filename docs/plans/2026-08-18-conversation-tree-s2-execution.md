@@ -9,7 +9,7 @@
 | Depends | S1 已落地（native_entry / replay seed，见 spec §4 实现注记） |
 | Supersedes | Desktop 编辑重发 / Revert / 再生成的 `session/truncate-from` 破坏性链路（全部删除，见 §D 删除清单） |
 | ADR | 新增 ADR 0055（会话内产品树）；修订 ADR 0009 的 truncate-from 后果条目与 D-M2-01b 残留描述 |
-| Non-goals | 树面板可视化（Slice B 后置）、全树搜索/导出、旧分支自动 GC、Pi JSONL / `piSessionFile`、S3 worktree 升级按钮（随 SF-06）、mobile 切换器 UI |
+| Non-goals | 树的**图形化**可视化（Slice B 后置；分叉点清单面板已于 2026-08-21 落地，见 spec §5.4）、全树搜索/导出、旧分支自动 GC、Pi JSONL / `piSessionFile`、S3 worktree 升级按钮（随 SF-06）、mobile 切换器 UI |
 
 ## 0. 一句话
 

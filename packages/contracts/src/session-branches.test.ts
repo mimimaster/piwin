@@ -16,6 +16,7 @@ describe('session branch contracts (ADR 0055)', () => {
           preview: 'original opening',
           leafPreview: 'original ending',
           messageCount: 4,
+          writesWorkspace: true,
           updatedAt: '2026-08-21T00:00:00.000Z',
         },
         {
@@ -23,6 +24,7 @@ describe('session branch contracts (ADR 0055)', () => {
           preview: 'fresh start',
           leafPreview: 'fresh start',
           messageCount: 1,
+          writesWorkspace: false,
           updatedAt: '2026-08-21T00:01:00.000Z',
         },
       ],

@@ -1,6 +1,6 @@
 # Preview Resource Resolution — Spec
 
-Status: Slices 1–3 implemented.
+Status: Slices 1–4 implemented.
 ADR: [`../adr/0052-preview-resource-resolution.md`](../adr/0052-preview-resource-resolution.md)
 
 ## Problem
@@ -15,11 +15,12 @@ transcript opens the right-panel Doc Preview and fails with
 | Resource | Identity | Read channel | Renderer |
 |----------|----------|--------------|----------|
 | Project file (text) | registered root + relative path | `project/read-file` | Markdown / code viewer |
-| Project file (binary) | registered root + relative path | Slice 2+ (bounded binary read) | media viewer (deferred) |
+| Project file (binary image) | registered root + relative path | Slice 4 `preview/read-local-file` (local) | media viewer |
 | Skill doc | `skillId` | `skills/read` (+ `session/tool-output` snapshot) | Markdown viewer |
 | Media vault asset | vault path or `remote-asset:<id>` | local: Tauri asset protocol; remote: `media/read` (Slice 2) | media viewer (zoom / video) |
 | Trusted config-root text | config-root-relative path | `preview/read-trusted-text` | text viewer + `[项目外 · 只读]` |
-| Anything else | — | none | `outside-project` card (upgraded copy) |
+| Local clicked file | host-absolute path + user click | Slice 4 `preview/read-local-file` (local Host only) | media viewer or text |
+| Anything else | — | none | unavailable with a real reason (`not-found` / `binary` / `too-large`) |
 
 Classification rule: **store identity, not extension**. `planDocumentOpenPath`
 returns `kind: 'media'` iff `isPiwinMediaPath(path)` or the path is an opaque
@@ -106,11 +107,33 @@ image vs video *rendering*.
   `outside-project` cards mention the Finder/访达 escape hatch.
 - Never accepts arbitrary absolute paths from transcript-emitted chips.
 
+## Slice 4 — Local-Host click-to-preview for any displayable file (implemented)
+
+ADR 0052 Slice 1 only previews **vault** paths (`~/.piwin/media/...`). A Read
+tool that opened `/tmp/ncg-boot2.png` still classified as `legacy-absolute`
+→ `outside-project`. The product rule on local Desktop is: **if the UI can
+render it, render it.** `outside-project` is not a preview reason.
+
+- New local-only Host command `preview/read-local-file`
+  `{ sessionId, absolutePath }`:
+  - raster magic (PNG/JPEG/GIF/WEBP) → copy into the session media vault
+    and return `{ kind: 'media', asset }`
+  - no NUL in the text sample → `{ kind: 'text', content, readOnly: true }`
+    (truncated at 256 KiB)
+  - otherwise `{ unavailable, reason: binary | not-found | too-large }`
+- Desktop: any `legacy-absolute` click goes through this command. Project
+  text still uses `project/read-file`; project binary falls through here.
+- Remote host-server rejects the command (`isSafeRemoteCommand` → false).
+- A `.png` name with text bytes previews as text. Location is not a deny
+  list — capability (can we render) is the only local gate.
+
 ## Security invariants
 
 1. Read authority = store identity. Media vault reads stay inside
    `~/.piwin/media/` after realpath; project reads stay inside registered
-   roots; no command accepts "any absolute path" for preview.
+   roots. The only absolute-path preview command is local-Host
+   `preview/read-local-file` (user click; render image or text);
+   remote clients cannot send it.
 2. Remote clients never send host-local absolute paths for media; they send
    opaque ids. Host absolute paths never appear in remote payloads.
 3. Model-emitted path chips gain no new read authority beyond existing

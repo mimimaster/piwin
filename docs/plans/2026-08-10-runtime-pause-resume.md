@@ -13,9 +13,10 @@
 `abort`，没有原生 `pause/resume`。因此 piwin 不能在不 fork Pi 的前提下冻结
 当前 provider 请求，并从同一个 token 位置继续。
 
-本计划实现的是 **可恢复检查点暂停（cooperative checkpoint pause）**：
+本计划实现的是 **可恢复检查点暂停（cooperative checkpoint pause）**（Host/CLI
+协议能力）：
 
-1. 用户点击暂停后，Host 立即关闭该 Run 的新工作 admission。
+1. 调用 `session/pause` 后，Host 立即关闭该 Run 的新工作 admission。
 2. 模型生成阶段通过现有 abort/cancellation 路径停止当前 provider 请求；
    当前已生成的 assistant 文本和已完成的工具结果保留在 Transcript。
 3. 工具正在执行时不做回滚。默认等待当前工具到达安全边界；若工具本身支持
@@ -23,12 +24,17 @@
    进程副作用。
 4. Run 以 `interrupted + terminalCode: 'paused'` 结束，并保存一个可恢复检查点。
    这保持现有 Run 的终态不可变规则；恢复会创建新的 Run，而不是复活旧 Run。
-5. 用户点击继续后，Host 在同一 product session 中发起新的 continuation Run。
-   continuation 会读取原始用户消息、已保存的部分回答和工具状态，要求模型先
-   检查当前状态，再继续未完成工作。
+5. 调用 `session/resume-run` 后，Host 在同一 product session 中发起新的
+   continuation Run。continuation 会读取原始用户消息、已保存的部分回答和工具
+   状态，要求模型先检查当前状态，再继续未完成工作。
+
+**Desktop 产品 UX（2026-08-21）**：主 composer 运行中只提供 **一个 Stop**
+（与 Cursor / Claude Code 一致），走 `session/abort`。不要把本协议的 pause/
+resume 做成第二颗中断按钮，也不要「点暂停 / Esc 停止」双语义。详见
+ADR 0042 Product UI。
 
 这不是“逐 token 精确续传”，而是“保留上下文后继续执行”。未来 Pi 提供原生
-pause/resume 后，可以在相同 HostCommand/UI 语义下替换 backend 实现。
+pause/resume 后，可以在相同 HostCommand 语义下替换 backend 实现。
 
 ## 2. 不纳入第一版的范围
 
@@ -184,12 +190,12 @@ Run。任何一步失败都不能发出带 `resumeCheckpointId` 的 paused termi
 
 - `use-session-actions` 增加 `handlePause`、`handleResumeRun`，并保留现有
   `handleAbort` 的 Stop 语义。
-- Composer 使用 `@piwin/ui-kit` 已有按钮/notice 组件：运行中显示 Pause，
-  `pausing` 显示不可重复点击的状态，paused 显示 Continue 与 Start new。
-- chat reducer 增加 `paused` terminal 投影：partial assistant 不丢失，工具卡
-  显示真实的 done/error/cancelled，不把 paused 渲染成 completed。
-- paused session 禁用普通发送，直到 Continue 或明确 Stop/Start new；按钮状态
-  必须来自 Host Run/checkpoint projection，不能靠本地 timer 推断。
+- **Desktop composer（产品 UX）**：运行中只显示 **一个 Stop**，对齐 Cursor /
+  Claude Code。禁止 Pause+Stop 双按钮，禁止「点击=暂停 / Esc=停止」双语义。
+  `session/pause` / `session/resume-run` 留给 CLI 与 Host 协议，不进 composer
+  第二中断控件。
+- chat reducer 仍投影 Host 的 `paused` terminal（CLI/恢复路径）；Desktop 主路径
+  以 Stop/`session/abort` 为准。
 - CLI 增加 `session pause <sessionId>`、`session resume-run <sessionId>`，交互式
   chat 也接入同一 Host commands；如果暂时没有快捷键，必须在 CLI help 中明确
   显示命令，而不是只做 Desktop 功能。
@@ -296,12 +302,13 @@ resume-run → terminal(completed)` 场景。
 
 ## 8. Definition of Done
 
-- Pause/Continue 在 Desktop、CLI 和 Host 协议上语义一致。
-- Stop 仍然是不可恢复取消；`session/resume` 仍然只是历史恢复。
+- Pause/Continue 在 **CLI 与 Host 协议**上语义一致；Desktop 主路径是 **一个 Stop**。
+- Stop（Desktop 点击与 Esc）是不可恢复取消（`session/abort`）；`session/resume`
+  仍然只是历史恢复。
 - paused Run 的 partial transcript、checkpoint 和新 Run correlation 可跨
   Host reconnect/cold runtime 使用，且不会重复执行旧 tool result。
 - SDK/RPC conformance 通过，旧 generation 的 late events 不会污染新 Run。
-- 不宣称精确 token pause；文档和 UI 都明确“暂停会在安全/可取消边界建立检查点”。
+- 不宣称精确 token pause；文档明确检查点暂停是 Host 能力，不是 Desktop 双中断 UX。
 - `pnpm typecheck`、触及包的测试和 Host JSONL smoke 全部通过，public exports
   有意更新，新增 ADR 已落盘。
 
@@ -323,9 +330,12 @@ resume-run → terminal(completed)` 场景。
 - Phase 2–3：已完成 Host foreground pause/resume command path；SDK 与 RPC 通过同一
   Host coordinator 和参数化 smoke，旧 Run 以 `interrupted/paused` 终止，新 Run
   使用内部 continuation prompt。
-- Phase 4–5：已接入 Desktop Pause/Stop/Continue、CLI 命令、Mobile 控件、Host
-  Server/remote capability 和 `sessionPause` capability；Desktop 保留原有 Stop
-  的不可恢复语义。
+- Phase 4–5：已接入 Host pause/resume 协议、CLI 命令、Mobile/Host capability；
+  Desktop 主 composer **只保留 Stop**（与 Cursor/Claude Code 一致）。检查点
+  pause 不作为 Desktop 第二中断按钮；`session/abort` 为 Desktop 点击与 Esc 的
+  同一条不可恢复中断路径。
+- 2026-08-21 修正：禁止把 Host 的 pause/abort 两套命令映射成 Desktop「暂停 vs
+  停止」双按钮或「点暂停 / Esc 停止」双语义（见 ADR 0042 Product UI）。
 - 关键验证：`pnpm typecheck` 通过；Contracts、Session、Host Runtime、Host Server、
   CLI 和 Desktop 相关定向测试通过；SDK/RPC `prompt → pause → resume-run` smoke
   通过。

@@ -131,6 +131,12 @@ function createPiModuleForTest(): {
       DefaultResourceLoader: FakeResourceLoader,
       createAgentSession,
       ModelRuntime: { create: vi.fn(async () => modelRuntime) },
+      SettingsManager: {
+        create: vi.fn(() => ({
+          getRetryEnabled: () => true,
+          getRetrySettings: () => ({ enabled: true, maxRetries: 3, baseDelayMs: 2000 }),
+        })),
+      },
     },
     createAgentSession,
     getSessionOptions: () => ({
@@ -172,6 +178,14 @@ describe('backend input conformance', () => {
       },
     );
     const sdkOptions = moduleFixture.getSessionOptions();
+    const sdkSettings = sdkOptions.settingsManager as {
+      getRetryEnabled: () => boolean;
+      getRetrySettings: () => { maxRetries: number };
+      getProviderRetrySettings: () => { maxRetries: number };
+    };
+    expect(sdkSettings.getRetryEnabled()).toBe(false);
+    expect(sdkSettings.getRetrySettings().maxRetries).toBe(0);
+    expect(sdkSettings.getProviderRetrySettings().maxRetries).toBe(0);
     const sdkTools = sdkOptions.customTools as PiBackendCustomToolDefinition[];
     const serializableBlueprint = projectBackendBlueprintForWorker(
       createBackendBlueprint([descriptor]),

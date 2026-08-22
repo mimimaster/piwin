@@ -123,7 +123,13 @@ describe('createSeededPiSessionManager', () => {
 
     const result = createSeededPiSettingsManager({ SettingsManager: { inMemory } });
 
-    expect(inMemory).toHaveBeenCalledWith({ compaction: { keepRecentTokens: 1 } });
-    expect(result).toEqual({ compaction: { keepRecentTokens: 1 } });
+    expect(inMemory).toHaveBeenCalledWith({
+      compaction: { keepRecentTokens: 1 },
+      retry: { enabled: false, maxRetries: 0 },
+    });
+    expect(result).toEqual({
+      compaction: { keepRecentTokens: 1 },
+      retry: { enabled: false, maxRetries: 0 },
+    });
   });
 });

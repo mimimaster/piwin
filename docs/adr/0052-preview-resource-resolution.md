@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Accepted; Slices 1–3 implemented |
+| Status | Accepted; Slices 1–4 implemented |
 | Date | 2026-08-16 |
 | Related | ADR 0005, ADR 0019, ADR 0036, ADR 0037, ADR 0041 |
 | Specification | [`../specs/preview-resource-resolution.md`](../specs/preview-resource-resolution.md) |
@@ -100,6 +100,13 @@ entry points stop carrying host paths and remote projection stays consistent.
 - Orchestration moved out of `App.tsx`: `hooks/use-active-document.ts` (doc
   preview) and `hooks/use-terminal-panel-state.ts` (terminal panel state).
   App.tsx is still over the 1000-line cap; extraction continues.
+- Slice 4 (implemented) is the user-gesture + local-Host path called out
+  above: clicking any host path the UI can render (`/tmp/shot.png`,
+  `/tmp/notes.md`, a project PNG) previews it via `preview/read-local-file`.
+  Images land in the session media store and reuse the Slice 1 media viewer;
+  text opens read-only in Doc Preview. Remote clients cannot send this
+  command. Files that cannot be rendered fail with `binary` / `not-found` /
+  `too-large`, never `outside-project`.
 - Rejected alternatives: forging a project root via `dirname()` (historical bug,
   banned); a generic "read any path read-only" command (prompt-injection /
   remote info-exposure surface); loosening `project/read-file` guards (the
