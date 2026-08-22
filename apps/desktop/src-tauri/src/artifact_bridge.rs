@@ -97,11 +97,16 @@ mod macos {
             return None;
         }
         match payload.get("type")?.as_str()? {
-            "piwin-artifact:ready" | "piwin-artifact:resize" => {
+            "piwin-artifact:size" => {
                 payload.get("height")?.as_f64()?;
+                payload.get("viewportHeight")?.as_f64()?;
+                payload.get("revision")?.as_u64()?;
             }
             "piwin-artifact:action" => match payload.get("action")?.as_str()? {
-                "flashcard/rate" | "flashcard/open-source" | "composer/propose-text" => {}
+                "flashcard/rate"
+                | "flashcard/open-source"
+                | "composer/propose-text"
+                | "artifact/download-unsupported" => {}
                 _ => return None,
             },
             _ => return None,
@@ -116,9 +121,13 @@ mod macos {
         #[test]
         fn accepts_only_bounded_known_messages() {
             assert!(parse_artifact_bridge_message(
-                r#"{"type":"piwin-artifact:ready","channelId":"artifact-1","height":684}"#
+                r#"{"type":"piwin-artifact:size","channelId":"artifact-1","height":684,"viewportHeight":80,"revision":0}"#
             )
             .is_some());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:size","channelId":"artifact-1","height":684}"#
+            )
+            .is_none());
             assert!(parse_artifact_bridge_message(
                 r#"{"type":"unknown","channelId":"artifact-1","height":684}"#
             )
@@ -127,6 +136,10 @@ mod macos {
                 r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"shell/run"}"#
             )
             .is_none());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"artifact/download-unsupported","payload":{"filename":"demo.html"}}"#
+            )
+            .is_some());
         }
     }
 }

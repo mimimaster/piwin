@@ -1,5 +1,9 @@
 # ArtifactFrame 瘦身计划
 
+> 2026-08-22：本计划的“单 observer”方向保留，但 Canvas、完整 document、
+> viewport-coupled 页面与协议细节已由
+> `2026-08-22-artifact-height-chain-v2.md` 取代。后者是当前实现依据。
+
 ## 背景
 
 `apps/desktop/src/ArtifactFrame.tsx` 已从 80px 高度调整前的 351 行增长到

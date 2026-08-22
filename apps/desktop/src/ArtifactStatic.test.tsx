@@ -20,14 +20,20 @@ function decision(source: string): Extract<ArtifactPreviewDecision, { kind: 'ren
       source,
       rawLanguage: 'artifact-html',
       alias: 'artifact-html',
+      declaration: 'explicit',
+      documentKind: 'fragment',
       surface: 'inline',
     },
-    security: { canRender: true, blockReason: null, byteSize: source.length, externalResources: [] },
+    security: {
+      canRender: true,
+      blockReason: null,
+      byteSize: source.length,
+      externalResources: [],
+    },
     srcdoc: '',
     csp: "default-src 'none'",
     renderSource: source,
     themeRepairs: [],
-    layoutRepairs: [],
   };
 }
 
@@ -63,7 +69,9 @@ describe('ArtifactStatic', () => {
 
     const host = container.querySelector<HTMLElement>('[data-testid="artifact-static"]');
     expect(host?.shadowRoot?.querySelector('h1')?.textContent).toBe('Hello');
-    expect(host?.shadowRoot?.querySelector('style:not([data-piwin-artifact-static-base])')).not.toBeNull();
+    expect(
+      host?.shadowRoot?.querySelector('style:not([data-piwin-artifact-static-base])'),
+    ).not.toBeNull();
     expect(container.querySelector('iframe')).toBeNull();
     expect(host?.style.height).toBe('');
   });
@@ -79,7 +87,9 @@ describe('ArtifactStatic', () => {
       );
     });
 
-    const shadow = container.querySelector<HTMLElement>('[data-testid="artifact-static"]')?.shadowRoot;
+    const shadow = container.querySelector<HTMLElement>(
+      '[data-testid="artifact-static"]',
+    )?.shadowRoot;
     expect(shadow?.querySelector('script')).toBeNull();
     expect(shadow?.querySelector('[onerror]')).toBeNull();
   });

@@ -1,52 +1,68 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ARTIFACT_BRIDGE_READY_TYPE,
-  ARTIFACT_BRIDGE_RESIZE_TYPE,
-} from './constants.js';
-import {
-  isArtifactBridgeReadyMessage,
-  parseArtifactBridgeMessage,
-} from './bridge-protocol.js';
+import { ARTIFACT_BRIDGE_SIZE_TYPE } from './constants.js';
+import { parseArtifactBridgeMessage } from './bridge-protocol.js';
 
 describe('parseArtifactBridgeMessage', () => {
-  it('accepts a valid ready message', () => {
+  it('accepts and normalizes a valid revisioned size message', () => {
     const message = parseArtifactBridgeMessage({
-      type: ARTIFACT_BRIDGE_READY_TYPE,
+      type: ARTIFACT_BRIDGE_SIZE_TYPE,
       channelId: 'ch-1',
       height: 420.7,
+      viewportHeight: 80.2,
+      revision: 3,
     });
     expect(message).toEqual({
-      type: ARTIFACT_BRIDGE_READY_TYPE,
+      type: ARTIFACT_BRIDGE_SIZE_TYPE,
       channelId: 'ch-1',
       height: 421,
-    });
-    expect(message && isArtifactBridgeReadyMessage(message)).toBe(true);
-  });
-
-  it('ignores legacy height-mode metadata and keeps one height shape', () => {
-    const message = parseArtifactBridgeMessage({
-      type: ARTIFACT_BRIDGE_RESIZE_TYPE,
-      channelId: 'ch-2',
-      height: 300,
-      mode: 'interaction',
-    });
-    expect(message).toEqual({
-      type: ARTIFACT_BRIDGE_RESIZE_TYPE,
-      channelId: 'ch-2',
-      height: 300,
+      viewportHeight: 81,
+      revision: 3,
     });
   });
 
-  it('rejects wrong type, missing channel, and NaN height', () => {
-    expect(parseArtifactBridgeMessage({ type: 'other', channelId: 'x', height: 1 })).toBeNull();
+  it('rejects legacy, incomplete, and non-finite messages', () => {
     expect(
-      parseArtifactBridgeMessage({ type: ARTIFACT_BRIDGE_READY_TYPE, height: 10 }),
+      parseArtifactBridgeMessage({
+        type: 'piwin-artifact:resize',
+        channelId: 'ch',
+        height: 300,
+        viewportHeight: 80,
+        revision: 1,
+      }),
     ).toBeNull();
     expect(
       parseArtifactBridgeMessage({
-        type: ARTIFACT_BRIDGE_READY_TYPE,
+        type: ARTIFACT_BRIDGE_SIZE_TYPE,
+        channelId: 'ch',
+        height: 300,
+        revision: 1,
+      }),
+    ).toBeNull();
+    expect(
+      parseArtifactBridgeMessage({
+        type: ARTIFACT_BRIDGE_SIZE_TYPE,
         channelId: 'ch',
         height: Number.NaN,
+        viewportHeight: 80,
+        revision: 1,
+      }),
+    ).toBeNull();
+    expect(
+      parseArtifactBridgeMessage({
+        type: ARTIFACT_BRIDGE_SIZE_TYPE,
+        channelId: 'ch',
+        height: 300,
+        viewportHeight: 80,
+        revision: -1,
+      }),
+    ).toBeNull();
+    expect(
+      parseArtifactBridgeMessage({
+        type: ARTIFACT_BRIDGE_SIZE_TYPE,
+        channelId: 'x'.repeat(201),
+        height: 300,
+        viewportHeight: 80,
+        revision: 1,
       }),
     ).toBeNull();
   });

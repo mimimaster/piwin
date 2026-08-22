@@ -112,6 +112,10 @@ export class MockHostBackend {
   private mockQueueRevisions = new Map<string, number>();
   private mockPauseRequested = new Set<string>();
   /** Mock browser session current URL (null = stopped). */
+  private mockMediaUploads = new Map<
+    string,
+    { sessionId: string; mimeType: string; name?: string; byteSize: number }
+  >();
   private mockBrowserUrl: string | null = null;
   private mockBrowserAgentWantsLock = false;
   /** ADR 0015: the run currently owning each session's foreground turn. */
@@ -1928,25 +1932,76 @@ export class MockHostBackend {
         };
       }
       case 'media/save': {
-        const extension =
-          command.input.name?.match(/\.[a-z0-9]{1,12}$/iu)?.[0].toLowerCase() ??
-          (command.input.mimeType.split('/')[1]?.replace(/[^a-z0-9]/giu, '') || 'bin');
-        const asset = {
-          id: crypto.randomUUID(),
-          sessionId: command.input.sessionId,
-          absolutePath: `/tmp/piwin-mock-media/${command.input.sessionId}/${crypto.randomUUID()}${extension.startsWith('.') ? extension : `.${extension}`}`,
-          mimeType: command.input.mimeType,
-          byteSize: Math.max(1, Math.floor(command.input.base64Data.length * 0.75)),
-          createdAt: new Date().toISOString(),
-          ...(command.input.name ? { name: command.input.name } : {}),
-          ...(command.input.contentKind ? { contentKind: command.input.contentKind } : {}),
-        };
         return {
           id,
           type: 'response',
           command: 'media/save',
           success: true,
-          data: { asset },
+          data: { asset: this.createMockMediaAsset(command.input) },
+        };
+      }
+      case 'media/save-begin': {
+        const uploadId = crypto.randomUUID();
+        this.mockMediaUploads.set(uploadId, {
+          sessionId: command.input.sessionId,
+          mimeType: command.input.mimeType,
+          byteSize: command.input.byteSize,
+          ...(command.input.name ? { name: command.input.name } : {}),
+        });
+        return {
+          id,
+          type: 'response',
+          command: 'media/save-begin',
+          success: true,
+          data: { uploadId, chunkMaxBytes: 384 * 1024 },
+        };
+      }
+      case 'media/save-chunk': {
+        if (!this.mockMediaUploads.has(command.input.uploadId)) {
+          return {
+            id,
+            type: 'response',
+            command: 'media/save-chunk',
+            success: false,
+            error: 'media upload is not active',
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'media/save-chunk',
+          success: true,
+          data: { uploadId: command.input.uploadId, receivedBytes: 1 },
+        };
+      }
+      case 'media/save-finish': {
+        const pending = this.mockMediaUploads.get(command.input.uploadId);
+        if (!pending) {
+          return {
+            id,
+            type: 'response',
+            command: 'media/save-finish',
+            success: false,
+            error: 'media upload is not active',
+          };
+        }
+        this.mockMediaUploads.delete(command.input.uploadId);
+        return {
+          id,
+          type: 'response',
+          command: 'media/save-finish',
+          success: true,
+          data: { asset: this.createMockMediaAsset(pending) },
+        };
+      }
+      case 'media/save-abort': {
+        this.mockMediaUploads.delete(command.input.uploadId);
+        return {
+          id,
+          type: 'response',
+          command: 'media/save-abort',
+          success: true,
+          data: { uploadId: command.input.uploadId },
         };
       }
       case 'media/read': {
@@ -4523,6 +4578,43 @@ export class MockHostBackend {
           error: `mock client does not implement ${command.type}`,
         };
     }
+  }
+
+  private createMockMediaAsset(input: {
+    sessionId: string;
+    mimeType: string;
+    name?: string;
+    contentKind?: string;
+    byteSize?: number;
+    base64Data?: string;
+  }): {
+    id: string;
+    sessionId: string;
+    absolutePath: string;
+    mimeType: string;
+    byteSize: number;
+    createdAt: string;
+    name?: string;
+    contentKind?: string;
+  } {
+    const extension =
+      input.name?.match(/\.[a-z0-9]{1,12}$/iu)?.[0].toLowerCase() ??
+      (input.mimeType.split('/')[1]?.replace(/[^a-z0-9]/giu, '') || 'bin');
+    const asset = {
+      id: crypto.randomUUID(),
+      sessionId: input.sessionId,
+      absolutePath: `/tmp/piwin-mock-media/${input.sessionId}/${crypto.randomUUID()}${extension.startsWith('.') ? extension : `.${extension}`}`,
+      mimeType: input.mimeType,
+      byteSize:
+        input.byteSize ??
+        Math.max(1, Math.floor((input.base64Data?.length ?? 4) * 0.75)),
+      createdAt: new Date().toISOString(),
+    };
+    return {
+      ...asset,
+      ...(input.name ? { name: input.name } : {}),
+      ...(input.contentKind ? { contentKind: input.contentKind } : {}),
+    };
   }
 
   private copyMockAssemblySummaries(

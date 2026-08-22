@@ -45,6 +45,12 @@ export type ArtifactSecurityResult = {
 /** Where an artifact is rendered in the product UI. */
 export type ArtifactSurface = 'inline' | 'canvas';
 
+/** Whether the model deliberately emitted an Artifact fence or ordinary code. */
+export type ArtifactDeclaration = 'explicit' | 'native';
+
+/** Full documents require a viewport; fragments may participate in Inline flow. */
+export type ArtifactDocumentKind = 'fragment' | 'document';
+
 export type ArtifactDescriptorBase = {
   id: string;
   title: string;
@@ -52,6 +58,8 @@ export type ArtifactDescriptorBase = {
   source: string;
   rawLanguage: string;
   alias: string;
+  declaration: ArtifactDeclaration;
+  documentKind: ArtifactDocumentKind;
   /** Where the artifact is rendered in the product UI. */
   surface: ArtifactSurface;
 };
@@ -90,9 +98,7 @@ export type ArtifactThemeContractIssueKind =
   | 'fixed-light-surface'
   | 'fixed-light-gradient'
   | 'fixed-light-variable'
-  | 'tailwind-light-surface'
-  | 'full-page-height'
-  | 'root-scroll-lock';
+  | 'tailwind-light-surface';
 
 export type ArtifactThemeContractIssue = {
   kind: ArtifactThemeContractIssueKind;
@@ -114,14 +120,6 @@ export type ArtifactThemeContractResult = {
   changed: boolean;
 };
 
-export type ArtifactLayoutContractIssueKind = 'full-page-height';
-
-export type ArtifactLayoutContractRepair = {
-  kind: ArtifactLayoutContractIssueKind;
-  from: string;
-  to: string;
-};
-
 export type StreamablePreviewResult = {
   canStream: boolean;
   previewSource: string;
@@ -133,16 +131,22 @@ export type OpenArtifactFence = {
   contentStartIndex: number;
 };
 
-export type ArtifactBridgeMessageType = 'piwin-artifact:ready' | 'piwin-artifact:resize';
+export type ArtifactBridgeMessageType = 'piwin-artifact:size';
 
 export type ArtifactBridgeMessage = {
   type: ArtifactBridgeMessageType;
   channelId: string;
   height: number;
+  viewportHeight: number;
+  revision: number;
 };
 
 /** Whitelisted user-intent action from artifact UI (untrusted origin). */
-export type ArtifactActionName = 'flashcard/rate' | 'flashcard/open-source';
+export type ArtifactActionName =
+  | 'flashcard/rate'
+  | 'flashcard/open-source'
+  | 'composer/propose-text'
+  | 'artifact/download-unsupported';
 
 export type FlashcardRateActionPayload = {
   cardId: string;
@@ -166,6 +170,12 @@ export type ComposerProposeTextActionPayload = {
   label?: string;
 };
 
+/** Sandboxed HTML tried to download; parent shows a toast instead. */
+export type ArtifactDownloadUnsupportedPayload = {
+  /** Optional suggested filename from the untrusted UI (display only). */
+  filename?: string;
+};
+
 export type ArtifactActionMessage =
   | {
       type: 'piwin-artifact:action';
@@ -184,6 +194,12 @@ export type ArtifactActionMessage =
       channelId: string;
       action: 'composer/propose-text';
       payload: ComposerProposeTextActionPayload;
+    }
+  | {
+      type: 'piwin-artifact:action';
+      channelId: string;
+      action: 'artifact/download-unsupported';
+      payload: ArtifactDownloadUnsupportedPayload;
     };
 
 export type ArtifactPreviewDecision =
@@ -199,8 +215,6 @@ export type ArtifactPreviewDecision =
       /** Sanitized/repaired body snapshot used only for in-place stream updates. */
       streamSource?: string;
       themeRepairs: ArtifactThemeContractRepair[];
-      /** Soft layout repairs (e.g. viewport-unit heights) applied for preview. */
-      layoutRepairs: ArtifactLayoutContractRepair[];
     }
   | {
       kind: 'blocked';

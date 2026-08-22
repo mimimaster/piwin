@@ -8,6 +8,7 @@ import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { pushError, type NotificationAction } from '../notification-queue';
+import { showUiNotification } from '@piwin/ui-kit';
 
 export type UseWorkbenchArtifactActionsArgs = {
   hostClient: HostClient;
@@ -55,6 +56,18 @@ export function useWorkbenchArtifactActions(args: UseWorkbenchArtifactActionsArg
                 });
             }
           });
+        return;
+      }
+      if (action.action === 'artifact/download-unsupported') {
+        const filename = action.payload.filename?.trim();
+        const message = filename
+          ? `沙箱内无法下载「${filename}」。请让 Agent 把文件写到工作区，再对路径芯片右键另存为。`
+          : '沙箱内无法下载文件。请让 Agent 把文件写到工作区，再对路径芯片右键另存为。';
+        showUiNotification({ message, tone: 'warning' });
+        dispatchNotification({
+          type: 'notify/push',
+          notification: { level: 'info', message },
+        });
       }
     },
     [hostClient, dispatchNotification],

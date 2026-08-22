@@ -55,7 +55,7 @@ describe('PathChip context menu (CM-06)', () => {
     return document.body.querySelector(`[data-testid="${testId}"]`);
   }
 
-  it('opens the catalog menu with Open / Add to Chat / Copy paths', () => {
+  it('opens the catalog menu with Open / Save As / Copy paths / Reveal', () => {
     const rendered = renderPathChip(
       <PathChip
         fullPath="/p/src/a.ts"
@@ -74,11 +74,41 @@ describe('PathChip context menu (CM-06)', () => {
     openContextMenu(trigger as HTMLElement);
 
     expect(menuItem('context-menu-open')).not.toBeNull();
+    expect(menuItem('context-menu-save-as')).not.toBeNull();
     expect(menuItem('context-menu-add-to-chat')).not.toBeNull();
     expect(menuItem('context-menu-copy-relative-path')).not.toBeNull();
     expect(menuItem('context-menu-copy-absolute-path')).not.toBeNull();
-    // Reveal is hidden when the OS reveal hook is not wired (canReveal false).
-    expect(menuItem('context-menu-reveal')).toBeNull();
+    expect(menuItem('context-menu-reveal')).not.toBeNull();
+  });
+
+  it('Copy Absolute Path writes the resolved path to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator.clipboard, 'writeText', {
+      value: writeText,
+      configurable: true,
+      writable: true,
+    });
+    const rendered = renderPathChip(
+      <PathChip
+        fullPath="out/a.zip"
+        label="a.zip"
+        projectPath="/p"
+        data-testid="path-chip-a"
+        onOpen={() => undefined}
+        onAddContextRef={() => undefined}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    openContextMenu(container.querySelector('[data-testid="path-chip-a"]') as HTMLElement);
+    const copyItem = menuItem('context-menu-copy-absolute-path') as HTMLElement | null;
+    expect(copyItem).not.toBeNull();
+    act(() => {
+      copyItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(writeText).toHaveBeenCalledWith('/p/out/a.zip');
   });
 
   it('Add to Chat calls onAddContextRef with a file ref', () => {

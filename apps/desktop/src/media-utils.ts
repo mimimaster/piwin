@@ -18,9 +18,13 @@ export { isPiwinMediaPath };
 
 /** Longest edge after smart resize (keeps UI text/screenshots readable). */
 export const COMPOSER_IMAGE_MAX_EDGE_PX = 2048;
-/** Soft size budget before we re-encode for transport + model cost. */
-export const COMPOSER_IMAGE_TARGET_MAX_BYTES = 1_200_000;
+/**
+ * Soft encode budget after resize. Chunked Host upload can carry more, but
+ * vision APIs (Claude ~5MB, Copilot ~2.5MB budget) prefer a smaller JPEG.
+ */
+export const COMPOSER_IMAGE_TARGET_MAX_BYTES = 2 * 1024 * 1024;
 export const COMPOSER_IMAGE_JPEG_QUALITY = 0.82;
+const COMPOSER_IMAGE_JPEG_FALLBACK_QUALITIES = [0.7, 0.58, 0.45] as const;
 
 /** Local composer chip lifecycle for media attachments. */
 export type PendingAttachmentUploadStatus = 'queued' | 'ready' | 'saving' | 'error';
@@ -197,10 +201,10 @@ export async function prepareComposerAttachmentForSave(
 }
 
 /**
- * Quietly shrink large paste/drop images before media/save.
- * GIFs are rasterized to their first frame for model input. The composer chip
- * is a size-capped still (S3a); the lightbox keeps the original File URL.
- * Failures fall back to the original file so attach never hard-fails here.
+ * Compress paste/drop images as they arrive. Screenshots (often 6–7MB Retina
+ * PNGs) become a 2048-edge JPEG so send never fails on size. GIFs keep the
+ * first frame. If the runtime cannot decode, the original is kept when it
+ * still fits Host `maxPasteBytes`.
  */
 export async function prepareComposerImageForSave(
   file: File,
@@ -220,59 +224,28 @@ export async function prepareComposerImageForSave(
     return { blob: file, mimeType, byteSize: file.size, compressed: false };
   }
 
-  if (file.size <= COMPOSER_IMAGE_TARGET_MAX_BYTES) {
-    // Still check dimensions when the browser can; a 4000px PNG can be "small" in bytes.
-    const dimensions = await probeImageDimensions(file);
-    if (
-      !dimensions ||
-      (dimensions.width <= COMPOSER_IMAGE_MAX_EDGE_PX &&
-        dimensions.height <= COMPOSER_IMAGE_MAX_EDGE_PX)
-    ) {
-      return {
-        blob: file,
-        mimeType,
-        byteSize: file.size,
-        compressed: false,
-        ...(dimensions?.width !== undefined ? { width: dimensions.width } : {}),
-        ...(dimensions?.height !== undefined ? { height: dimensions.height } : {}),
-      };
-    }
-  }
-
   try {
     const compressed = await compressImageBlob(file, mimeType);
-    if (!compressed || compressed.byteSize >= file.size * 0.95) {
-      // Compression did not help enough — keep original fidelity.
-      return {
-        blob: file,
-        mimeType,
-        byteSize: file.size,
-        compressed: false,
-      };
+    if (compressed && preferCompressedComposerImage(file.size, compressed.byteSize)) {
+      return compressed;
     }
-    return compressed;
   } catch {
-    return {
-      blob: file,
-      mimeType,
-      byteSize: file.size,
-      compressed: false,
-    };
+    // Decode/encode is best-effort; chunked upload can still carry the original.
   }
+  return { blob: file, mimeType, byteSize: file.size, compressed: false };
 }
 
-async function probeImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
-  if (typeof createImageBitmap === 'function') {
-    try {
-      const bitmap = await createImageBitmap(file);
-      const size = { width: bitmap.width, height: bitmap.height };
-      bitmap.close();
-      return size;
-    } catch {
-      return null;
-    }
-  }
-  return null;
+/** Use the compressed bytes when they are actually smaller. */
+export function preferCompressedComposerImage(
+  originalBytes: number,
+  compressedBytes: number,
+): boolean {
+  return compressedBytes < originalBytes;
+}
+
+export function isHostWireFrameLimitError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Host wire frame exceeds');
 }
 
 async function compressImageBlob(
@@ -304,22 +277,35 @@ async function compressImageBlob(
     // Screenshots with UI chrome compress well as JPEG; keep PNG only when source
     // was PNG *and* stayed under budget after resize (rare). Prefer JPEG for speed.
     const outputMime = sourceMimeType === 'image/gif' ? 'image/png' : 'image/jpeg';
+    const qualities =
+      outputMime === 'image/jpeg'
+        ? [COMPOSER_IMAGE_JPEG_QUALITY, ...COMPOSER_IMAGE_JPEG_FALLBACK_QUALITIES]
+        : [undefined];
 
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((result) => resolve(result), outputMime, COMPOSER_IMAGE_JPEG_QUALITY);
-    });
-    if (!blob) {
-      return null;
+    let best: PreparedComposerImage | null = null;
+    for (const quality of qualities) {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((result) => resolve(result), outputMime, quality);
+      });
+      if (!blob) {
+        continue;
+      }
+      const candidate: PreparedComposerImage = {
+        blob,
+        mimeType: outputMime,
+        byteSize: blob.size,
+        compressed: true,
+        width: targetWidth,
+        height: targetHeight,
+      };
+      if (!best || candidate.byteSize < best.byteSize) {
+        best = candidate;
+      }
+      if (candidate.byteSize <= COMPOSER_IMAGE_TARGET_MAX_BYTES) {
+        return candidate;
+      }
     }
-
-    return {
-      blob,
-      mimeType: outputMime,
-      byteSize: blob.size,
-      compressed: true,
-      width: targetWidth,
-      height: targetHeight,
-    };
+    return best;
   } finally {
     bitmap.close();
   }

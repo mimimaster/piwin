@@ -108,3 +108,26 @@ ImageBitmap 正确 close）；CSS HMR 与小组件 TSX HMR 单独测试均不泄
 
 2026-08-22 修正：release 包长跑 164→900+ MB，gfx 钉死，moderate 剥玻璃无效，
 critical 从未到达。自愈按占用回收，不再等 1.5 GB。
+
+## 2026-08-22 部署复核：代码已修、安装包仍旧
+
+用户再次报告 Activity Monitor 中 Shell Web Content 约 975 MB。对同一进程
+`footprint` 复核为 1048 MB，其中 graphics 696 MB、WebKit malloc 289 MB，
+JS Gigacage 仅 2.2 MB；仍是 WebKit 进程级图形驻留，不是会话 JSON/JS heap。
+
+现场安装包 `/Applications/piwinwin Shell.app` 的构建时间是 2026-08-21
+23:13，早于 `f230d355`（2026-08-22 10:03）。因此它虽包含原始 renderer
+self-heal，却仍等待 visual critical（1536 MiB），不会在此次 975–1050 MB
+平台触发。干净 HEAD 已重新构建 thin Shell，前端 27 个 memory/self-heal
+测试与 Rust memory-pressure 7 个测试通过；App-only bundle 绿色完成并暂存于
+`dist/desktop-shell-memory-fix/piwinwin Shell.app`。切换安装包时不强杀正在运行
+的旧 Shell，避免丢失未发送 composer draft；退出后用新包替换并重开，再做
+`cold → active → background-2m → fresh renderer` 的 PID/footprint 验收。
+
+切换前通过 Desktop UI 确认无 active run、composer 为空且发送按钮禁用，随后
+正常退出旧 Shell、原子替换并重开。新 WebContent PID 97128 的启动样本为
+126 MB（graphics 29 MB、WebKit malloc 71 MB），相对旧 PID 66571 的
+1048 MB 立即释放约 922 MB。旧 App 保存在
+`/Applications/piwinwin Shell.app.previous-20260821-231313`，可恢复。剩余验收是
+让新包经历一次真实的 >512 MiB 活跃增长后退到后台 2 分钟，确认 PID 更换且
+footprint 回到冷启动量级；此验证不能用当前 126 MB 冷态伪造。

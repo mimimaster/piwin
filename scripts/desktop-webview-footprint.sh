@@ -44,13 +44,21 @@ done < <(pgrep -f 'com.apple.WebKit.WebContent' || true)
 
 classify_webcontent() {
   local pid=$1
-  local listing
+  local listing launch_record
   listing=$(lsof -p "$pid" 2>/dev/null || true)
   if echo "$listing" | grep -q 'pet-overlay'; then
     echo pet
     return
   fi
   if echo "$listing" | grep -Eq 'Caches/piwin-desktop|piwin-desktop\.app|apps/desktop|@piwin/desktop|127\.0\.0\.1:1420|/ui/ink-wash'; then
+    echo piwin
+    return
+  fi
+  # Release-packaged WKWebViews may expose no app/cache path through lsof.
+  # launchd still records their resource coalition with the owning bundle ID,
+  # which is a stronger ownership proof than launch-time or footprint guesses.
+  launch_record=$(launchctl print "pid/$pid" 2>/dev/null || true)
+  if echo "$launch_record" | grep -Eq 'bundle ID = app\.piwinwin\.desktop(\.shell)?$'; then
     echo piwin
     return
   fi

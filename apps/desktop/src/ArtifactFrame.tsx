@@ -9,6 +9,7 @@ import {
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   estimateSvgFenceHeight,
+  findArtifactInlineCompatibilityIssues,
   resolveArtifactRenderTarget,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
@@ -82,6 +83,25 @@ export function ArtifactFrame({
           {decision.security.externalResources.length > 0
             ? ` (${decision.security.externalResources.length} external resource(s))`
             : ''}
+        </p>
+      </div>
+    );
+  }
+
+  const inlineCompatibilityIssues =
+    presentation === 'inline'
+      ? findArtifactInlineCompatibilityIssues(decision.descriptor, decision.renderSource)
+      : [];
+  if (inlineCompatibilityIssues.length > 0) {
+    return (
+      <div
+        data-testid="artifact-frame"
+        data-artifact-renderer="inline-incompatible"
+        data-tool-status="error"
+        className="artifact-frame blocked"
+      >
+        <p className="muted" data-testid="artifact-inline-incompatible">
+          This HTML requires a page viewport and cannot be measured as an Inline component.
         </p>
       </div>
     );

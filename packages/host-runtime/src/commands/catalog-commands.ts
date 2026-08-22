@@ -5,7 +5,6 @@ import type {
   HostCommand,
   HostResponse,
   MediaReadData,
-  MediaSaveData,
   SpeechTranscribeData,
 } from '@piwin/contracts';
 import {
@@ -40,7 +39,6 @@ import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.j
 import { scanExtensions } from '../extension-scanner.js';
 import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
 import { scanPrompts } from '../prompt-scanner.js';
-import { decodeBase64Media } from '../media-decode.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
 import {
   mergeProviderSecretSource,
@@ -78,7 +76,6 @@ import type { HostCommandContext } from './host-command-context.js';
 const activePetAborts = new Map<string, AbortController>();
 
 const TYPES = new Set<HostCommand['type']>([
-  'media/save',
   'media/read',
   'speech/transcribe',
   'skills/list',
@@ -187,38 +184,6 @@ export async function handleCatalogCommand(
       } catch (error) {
         return fail(requestId, 'speech/transcribe', formatError(error));
       }
-    }
-    case 'media/save': {
-      // Media persistence belongs to a durable product session, not to the
-      // session's current in-memory runtime generation. A cold/evicted session
-      // must be able to receive an attachment before the following prompt
-      // wakes its Agent runtime.
-      if (context.requireDurableSession) {
-        await context.requireDurableSession(command.input.sessionId);
-      } else {
-        // Compatibility fallback for stateless command test contexts.
-        context.requireSession(command.input.sessionId);
-      }
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const config = await loadPiwinConfig(rootDir);
-      const mediaService = createMediaService({
-        mediaRoot: getPiwinMediaDir(rootDir),
-        maxPasteBytes: config.media.maxPasteBytes,
-        allowedMimeTypes: config.media.allowedMimeTypes,
-      });
-      const bytes = decodeBase64Media(command.input.base64Data);
-      const asset = await mediaService.saveMediaAsset({
-        sessionId: command.input.sessionId,
-        bytes,
-        mimeType: command.input.mimeType,
-        ...(command.input.name !== undefined ? { name: command.input.name } : {}),
-        ...(command.input.contentKind !== undefined
-          ? { contentKind: command.input.contentKind }
-          : {}),
-        source: command.input.source,
-      });
-      const data: MediaSaveData = { asset };
-      return ok(requestId, 'media/save', data);
     }
     case 'media/read': {
       // ADR 0052: preview reads address the vault by logical identity only.

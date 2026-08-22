@@ -4,7 +4,6 @@
  */
 import { DEFAULT_MAX_ARTIFACT_BYTES } from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
-import { applyArtifactLayoutContract } from './layout-contract.js';
 import { tryParseHtmlArtifactFence } from './parser.js';
 import { classifyArtifactSecurity } from './security.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
@@ -147,12 +146,6 @@ export function evaluateArtifactDescriptor(
     }
   }
 
-  // Neutralize viewport-unit heights (100vh feedback loop) before measuring.
-  const layout = applyArtifactLayoutContract(bodySource);
-  if (layout.changed) {
-    bodySource = layout.source;
-  }
-
   const theme = options.theme ?? createDefaultArtifactTheme('dark');
   const renderSurface = options.renderSurface ?? descriptor.surface;
   // One channel spans stream-preview and final commit. Changing it at `done`
@@ -166,6 +159,7 @@ export function evaluateArtifactDescriptor(
     surface: renderSurface,
     includeBridge: true,
     enableStreamUpdates: mode === 'stream-preview',
+    documentKind: descriptor.documentKind,
   });
 
   return {
@@ -178,7 +172,6 @@ export function evaluateArtifactDescriptor(
     renderSource: bodySource,
     ...(mode === 'stream-preview' ? { streamSource: bodySource } : {}),
     themeRepairs,
-    layoutRepairs: layout.repairs,
   };
 }
 

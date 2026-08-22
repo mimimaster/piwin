@@ -91,6 +91,21 @@ describe('buildContextMenuItems', () => {
     expect(actionIds(target, { ...baseCaps, canReveal: true })).toContain('reveal');
   });
 
+  it('path-chip offers Save As and Reveal when caps allow', () => {
+    const target: ContextMenuTarget = {
+      surface: 'path-chip',
+      projectPath: '/p',
+      relativePath: 'a.zip',
+      absolutePath: '/p/a.zip',
+      label: 'a.zip',
+    };
+    expect(
+      actionIds(target, { ...baseCaps, canSaveAs: true, canReveal: true }),
+    ).toEqual(
+      expect.arrayContaining(['open', 'save-as', 'copy-absolute-path', 'reveal']),
+    );
+  });
+
   it('localizes labels through en/zh tables while keeping stable action ids', () => {
     const target: ContextMenuTarget = {
       surface: 'selection',

@@ -183,6 +183,14 @@ The staged upload decision below remains the long-term transport improvement:
 it removes the Base64 command envelope and makes draft attachments independent
 of a session id altogether.
 
+### Compatibility-path correction (2026-08-22)
+
+Composer attachments no longer stuff a whole screenshot into one `media/save`
+JSON frame. Desktop uses `media/save-begin` / `media/save-chunk` /
+`media/save-finish` so files up to `media.maxPasteBytes` (10 MiB) fit the 1 MiB
+Host wire. One-shot `media/save` remains for small CLI/compat callers. Original
+screenshot bytes are stored; GIF first-frame rasterization is unchanged.
+
 ### Known debt on the compatibility path (recorded 2026-08-13)
 
 - A `media/save` that succeeds and is then abandoned (chip removed, draft

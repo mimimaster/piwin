@@ -123,6 +123,11 @@ export type ComposerDockProps = {
   goalExtensionEnabled?: boolean;
   pendingAttachments: PendingComposerAttachment[];
   onRemoveAttachment: (localId: string) => void;
+  /**
+   * In-place edit: original media/refs sit read-only above the card, so Send
+   * must stay enabled even when the local composer and chips are empty.
+   */
+  hasCarryContent?: boolean;
   /** One-tap retry after a failed media/save. */
   onRetryAttachment?: (localId: string) => void;
   /** Phase 0 send confirmation: re-queue every failed chip before sending. */
@@ -282,7 +287,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       : props.composer.trim().length > 0
     : props.composer.trim().length > 0 ||
       props.pendingAttachments.length > 0 ||
-      (props.pendingContextRefs?.length ?? 0) > 0;
+      (props.pendingContextRefs?.length ?? 0) > 0 ||
+      props.hasCarryContent === true;
   const failedAttachments = props.pendingAttachments.filter(isFailedMediaAttachment);
   // Phase 0 (ADR 0045 Decision 4): failed chips never disable Send. Send with
   // failures present routes through a retry / send-rest / back confirmation;

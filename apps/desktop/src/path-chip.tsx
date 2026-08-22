@@ -4,6 +4,11 @@ import { FileTypeIcon } from '@piwin/ui-kit';
 import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
 import type { DesktopLocale } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
+import {
+  revealLocalFileInFolder,
+  resolveLocalFileAbsolutePath,
+  saveLocalFileAs,
+} from './local-file-actions.js';
 
 export type PathChipProps = {
   fullPath: string;
@@ -12,11 +17,13 @@ export type PathChipProps = {
   className?: string | undefined;
   showIcon?: boolean | undefined;
   'data-testid'?: string | undefined;
-  /** Optional project root — enables Add to Chat when onAddContextRef is set. */
+  /** Optional project root — enables Add to Chat / relative path / resolve. */
   projectPath?: string | undefined;
   /** Optional path relative to project root. */
   relativePath?: string | undefined;
   onAddContextRef?: ((ref: PromptContextRef) => void) | undefined;
+  /** Optional toast/notify hook for action results. */
+  onNotify?: ((message: string, level: 'success' | 'error' | 'info') => void) | undefined;
 };
 
 export function fileNameFromPath(path: string): string {
@@ -51,11 +58,18 @@ export function PathChip({
   projectPath,
   relativePath,
   onAddContextRef,
+  onNotify,
 }: PathChipProps): ReactElement {
   const { locale } = useDesktopLocale();
   const displayText = label ?? fileNameFromPath(fullPath);
-  const resolvedRelative = relativePath ?? relativePathFromFull(fullPath, projectPath);
+  const absolutePath = resolveLocalFileAbsolutePath(fullPath, projectPath);
+  const resolvedRelative =
+    relativePath ??
+    (projectPath ? relativePathFromFull(absolutePath, projectPath) : fullPath);
   const hasProjectContext = Boolean(projectPath && onAddContextRef);
+  // Absolute host paths (or project-resolved) can reveal / save-as.
+  const canActOnDisk =
+    absolutePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(absolutePath);
 
   const dispatchers: ContextMenuDispatchers = useMemo(
     () => ({
@@ -72,22 +86,71 @@ export function PathChip({
       openPath: () => {
         onOpen();
       },
-      revealPath: () => undefined,
+      revealPath: (path) => {
+        void revealLocalFileInFolder(path).then((ok) => {
+          if (!ok) {
+            onNotify?.(
+              locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
+              'error',
+            );
+          }
+        });
+      },
+      savePathAs: (path) => {
+        void saveLocalFileAs(path)
+          .then((result) => {
+            if (result.kind === 'downloaded') {
+              onNotify?.(locale === 'zh-CN' ? '已开始另存为' : 'Save As started', 'success');
+              return;
+            }
+            if (result.kind === 'revealed-fallback') {
+              onNotify?.(
+                locale === 'zh-CN'
+                  ? '已复制完整路径并打开所在文件夹，请手动拷贝文件'
+                  : 'Path copied and folder opened — copy the file manually',
+                'info',
+              );
+              return;
+            }
+            if (result.kind === 'failed') {
+              onNotify?.(
+                locale === 'zh-CN' ? '另存为失败' : 'Save As failed',
+                'error',
+              );
+            }
+          })
+          .catch(() => {
+            onNotify?.(
+              locale === 'zh-CN' ? '另存为失败' : 'Save As failed',
+              'error',
+            );
+          });
+      },
       copyText: (value) => {
-        void navigator.clipboard.writeText(value).catch(() => undefined);
+        void navigator.clipboard.writeText(value).then(
+          () => {
+            onNotify?.(locale === 'zh-CN' ? '已复制' : 'Copied', 'success');
+          },
+          () => {
+            onNotify?.(locale === 'zh-CN' ? '复制失败' : 'Could not copy', 'error');
+          },
+        );
       },
       quoteInComposer: () => undefined,
       retryMessage: () => undefined,
       forkMessage: () => undefined,
       openSideChat: () => undefined,
-      notify: () => undefined,
+      notify: (message, level) => {
+        onNotify?.(message, level);
+      },
     }),
-    [onAddContextRef, onOpen],
+    [locale, onAddContextRef, onNotify, onOpen],
   );
 
   const caps = {
     hasProject: hasProjectContext,
-    canReveal: false,
+    canReveal: canActOnDisk,
+    canSaveAs: canActOnDisk,
     sideChatAvailable: false,
     applyAvailable: true,
     locale: locale as DesktopLocale,
@@ -98,9 +161,9 @@ export function PathChip({
     <a
       href="#"
       className={className}
-      title={fullPath}
+      title={absolutePath}
       data-testid={testId}
-      data-full-path={fullPath}
+      data-full-path={absolutePath}
       onClick={(event) => {
         event.preventDefault();
         onOpen();
@@ -118,7 +181,7 @@ export function PathChip({
         surface: 'path-chip',
         projectPath: targetProjectPath,
         relativePath: resolvedRelative,
-        absolutePath: fullPath,
+        absolutePath,
         label: displayText,
       }}
       caps={caps}

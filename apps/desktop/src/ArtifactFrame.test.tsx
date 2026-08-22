@@ -32,6 +32,8 @@ function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render'
       title: 'piwin architecture (simplified)',
       rawLanguage: 'artifact-html',
       alias: 'artifact-html',
+      declaration: 'explicit',
+      documentKind: 'fragment',
       surface: 'inline',
       source: '<div class="diagram">wide content</div><script>window.ready = true</script>',
     },
@@ -43,11 +45,9 @@ function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render'
     },
     srcdoc:
       '<!DOCTYPE html><html><body><div class="diagram">wide content</div><script>window.ready = true</script></body></html>',
-    renderSource:
-      '<div class="diagram">wide content</div><script>window.ready = true</script>',
+    renderSource: '<div class="diagram">wide content</div><script>window.ready = true</script>',
     csp: "default-src 'none'",
     themeRepairs: [],
-    layoutRepairs: [],
   };
 }
 
@@ -181,9 +181,11 @@ describe('ArtifactFrame chrome', () => {
         new MessageEvent('message', {
           source: iframe?.contentWindow ?? null,
           data: {
-            type: 'piwin-artifact:ready',
+            type: 'piwin-artifact:size',
             channelId: decision.descriptor.id,
             height: 1_480,
+            viewportHeight: 80,
+            revision: 0,
           },
         }),
       );
@@ -200,9 +202,7 @@ describe('ArtifactFrame chrome', () => {
     ).toBe(false);
   });
 
-  it('applies height bridge messages when event.source is not contentWindow (Tauri package)', async () => {
-    // Packaged Tauri custom-protocol sandboxed srcdoc often fails
-    // event.source === iframe.contentWindow. Height must still apply via channelId.
+  it('rejects browser height messages from a foreign window', async () => {
     const decision = makeRenderDecision();
     const { container, root } = renderFrame(decision);
     instances.push({ container, root });
@@ -215,19 +215,20 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          // Deliberately wrong / foreign source — mimics WindowProxy mismatch.
           source: window,
           data: {
-            type: 'piwin-artifact:ready',
+            type: 'piwin-artifact:size',
             channelId: decision.descriptor.id,
             height: 920,
+            viewportHeight: 80,
+            revision: 0,
           },
         }),
       );
     });
 
     const stage = container.querySelector('.artifact-iframe-stage') as HTMLElement | null;
-    expect(stage?.style.height).toBe('920px');
+    expect(stage?.style.height).toBe('80px');
   });
 
   it('seeds SVG stage height from viewBox so the first paint is not an 80px strip', async () => {
@@ -395,20 +396,24 @@ describe('ArtifactFrame chrome', () => {
       await Promise.resolve();
     });
     const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
-    const dispatchHeight = (
-      type: 'piwin-artifact:ready' | 'piwin-artifact:resize',
-      height: number,
-    ): void => {
+    let revision = 0;
+    const dispatchHeight = (height: number): void => {
       window.dispatchEvent(
         new MessageEvent('message', {
           source: iframe?.contentWindow ?? null,
-          data: { type, channelId: 'artifact-test-1', height },
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'artifact-test-1',
+            height,
+            viewportHeight: 80,
+            revision: revision++,
+          },
         }),
       );
     };
 
-    act(() => dispatchHeight('piwin-artifact:resize', 360));
-    act(() => dispatchHeight('piwin-artifact:resize', 180));
+    act(() => dispatchHeight(360));
+    act(() => dispatchHeight(180));
     const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
     expect(stage?.style.height).toBe('180px');
 
@@ -420,9 +425,24 @@ describe('ArtifactFrame chrome', () => {
         </PiwinUiProvider>,
       );
     });
-    act(() => dispatchHeight('piwin-artifact:resize', 900));
+    act(() => dispatchHeight(900));
     expect(stage?.style.height).toBe('900px');
-    act(() => dispatchHeight('piwin-artifact:ready', 420));
+    act(() => dispatchHeight(420));
+    expect(stage?.style.height).toBe('420px');
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe?.contentWindow ?? null,
+          data: {
+            type: 'piwin-artifact:size',
+            channelId: 'artifact-test-1',
+            height: 1_200,
+            viewportHeight: 420,
+            revision: 2,
+          },
+        }),
+      );
+    });
     expect(stage?.style.height).toBe('420px');
   });
 
@@ -445,9 +465,11 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       const handler = nativeHandler as ((payload: unknown) => void) | null;
       handler?.({
-        type: 'piwin-artifact:ready',
+        type: 'piwin-artifact:size',
         channelId: decision.descriptor.id,
         height: 684,
+        viewportHeight: 80,
+        revision: 0,
       });
     });
 
@@ -622,9 +644,11 @@ describe('ArtifactFrame chrome', () => {
         new MessageEvent('message', {
           source: iframe?.contentWindow ?? null,
           data: {
-            type: 'piwin-artifact:ready',
+            type: 'piwin-artifact:size',
             channelId: decision.descriptor.id,
             height: 640,
+            viewportHeight: 80,
+            revision: 0,
           },
         }),
       );

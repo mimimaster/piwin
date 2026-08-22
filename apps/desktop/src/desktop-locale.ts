@@ -153,6 +153,7 @@ export type DesktopCopy = {
     attachmentRemove: string;
     attachmentFailedLabel: string;
     attachmentFailureConnectionHint: string;
+    attachmentFailureTooLarge: string;
     attachmentFailureDialogTitle: string;
     attachmentFailureDialogBody: (count: number) => string;
     attachmentFailureRetrySend: string;
@@ -707,6 +708,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       attachmentRemove: '移除',
       attachmentFailedLabel: '保存失败',
       attachmentFailureConnectionHint: 'Host 连接失败',
+      attachmentFailureTooLarge: '图片太大，无法保存。请使用 10MB 以内的截图。',
       attachmentFailureDialogTitle: '部分附件保存失败',
       attachmentFailureDialogBody: (count) =>
         `${count} 个附件未能保存。可以重试，或不带失败附件发送其余内容。`,
@@ -1022,6 +1024,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       attachmentRemove: 'Remove',
       attachmentFailedLabel: 'Save failed',
       attachmentFailureConnectionHint: 'Host connection failed',
+      attachmentFailureTooLarge: 'Image is too large to save. Use a screenshot under 10 MB.',
       attachmentFailureDialogTitle: 'Some attachments failed to save',
       attachmentFailureDialogBody: (count) =>
         count === 1

@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   applyChipPreviewUrl,
   commitLimitedChipPreview,
+  COMPOSER_IMAGE_TARGET_MAX_BYTES,
   fileToBase64,
+  isHostWireFrameLimitError,
   isPendingAttachmentReady,
+  preferCompressedComposerImage,
   prepareComposerImageForSave,
   resolveImageMimeType,
   revokePendingAttachmentUrls,
@@ -26,6 +29,20 @@ describe('media-utils', () => {
     const encoded = await fileToBase64(file);
     expect(encoded.includes(',')).toBe(false);
     expect(encoded).toBe(Buffer.from(bytes).toString('base64'));
+  });
+
+  it('prefers the compressed encode only when it is smaller', () => {
+    expect(COMPOSER_IMAGE_TARGET_MAX_BYTES).toBe(2 * 1024 * 1024);
+    expect(preferCompressedComposerImage(800_000, 790_000)).toBe(true);
+    expect(preferCompressedComposerImage(800_000, 810_000)).toBe(false);
+    expect(preferCompressedComposerImage(500_000, 400_000)).toBe(true);
+  });
+
+  it('detects Host wire-frame limit errors from media/save encode', () => {
+    expect(isHostWireFrameLimitError(new Error('Host wire frame exceeds 1048576 bytes'))).toBe(
+      true,
+    );
+    expect(isHostWireFrameLimitError(new Error('network down'))).toBe(false);
   });
 
   it('passes small images through prepareComposerImageForSave unchanged', async () => {

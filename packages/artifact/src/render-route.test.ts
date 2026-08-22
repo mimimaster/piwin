@@ -10,6 +10,8 @@ function descriptor(source: string, type: 'html' | 'svg' = 'html'): ArtifactDesc
     source,
     rawLanguage: type === 'svg' ? 'svg' : 'artifact-html',
     alias: type === 'svg' ? 'svg' : 'artifact-html',
+    declaration: type === 'svg' ? 'native' : 'explicit',
+    documentKind: 'fragment',
     surface: 'inline',
   };
 }
@@ -18,7 +20,11 @@ describe('resolveArtifactRenderTarget', () => {
   it('routes completed static HTML and SVG into natural transcript flow', () => {
     const html = '<style>.card{padding:12px}</style><section class="card">Hello</section>';
     expect(
-      resolveArtifactRenderTarget({ descriptor: descriptor(html), mode: 'interactive', source: html }),
+      resolveArtifactRenderTarget({
+        descriptor: descriptor(html),
+        mode: 'interactive',
+        source: html,
+      }),
     ).toBe('static-flow');
 
     const svg =

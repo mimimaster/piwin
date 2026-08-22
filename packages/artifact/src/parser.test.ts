@@ -11,6 +11,8 @@ describe('tryParseHtmlArtifactFence', () => {
     expect(descriptor?.type).toBe('html');
     expect(descriptor?.title).toBe('Demo');
     expect(descriptor?.surface).toBe('inline');
+    expect(descriptor?.declaration).toBe('explicit');
+    expect(descriptor?.documentKind).toBe('fragment');
   });
 
   it('parses an explicit Canvas surface and safely defaults unknown values', () => {
@@ -37,6 +39,24 @@ describe('tryParseHtmlArtifactFence', () => {
       htmlUiModeEnabled: true,
     });
     expect(descriptor?.type).toBe('html');
+    expect(descriptor?.declaration).toBe('native');
+  });
+
+  it('preserves a native full document byte-for-byte and marks it as code-origin', () => {
+    const source =
+      '<!DOCTYPE html><html class="app"><head><title>Demo</title></head><body data-page="true"><main>UI</main></body></html>';
+    const descriptor = tryParseHtmlArtifactFence({
+      language: 'html',
+      source,
+      id: 'native-document',
+      htmlUiModeEnabled: true,
+    });
+
+    expect(descriptor).toMatchObject({
+      declaration: 'native',
+      documentKind: 'document',
+      source,
+    });
   });
 
   it('does not promote plain html snippets when mode off', () => {

@@ -36,7 +36,7 @@ type BridgeInput = {
   onContentGrew?: () => void;
 };
 
-/** Owns the one-shot completed-document measurement and Artifact actions. */
+/** Owns the revisioned Inline size stream and whitelisted Artifact actions. */
 export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge {
   const initialStatus: ArtifactBridgeStatus = input.measureHeight
     ? input.decision.mode === 'stream-preview'
@@ -49,9 +49,8 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
   latestRef.current = input;
   const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heightRef = useRef(input.bootstrapHeight);
-  const dataHandlerRef = useRef<(data: unknown, trustedActionSource: boolean) => void>(
-    () => undefined,
-  );
+  const lastRevisionRef = useRef(-1);
+  const dataHandlerRef = useRef<(data: unknown, trustedSource: boolean) => void>(() => undefined);
 
   const clearReadyTimer = useCallback((): void => {
     if (readyTimerRef.current) {
@@ -74,21 +73,24 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
         ARTIFACT_BOOTSTRAP_HEIGHT,
       );
-      heightRef.current = Math.max(heightRef.current, fallbackHeight);
-      setHeight(heightRef.current);
+      heightRef.current = fallbackHeight;
+      setHeight(fallbackHeight);
       setStatus('fallback');
-      console.warn('Artifact height bridge timed out; keeping the preview in a bounded fallback viewport.', {
-        channelId: current.channelId,
-        fallbackHeight: heightRef.current,
-      });
+      console.warn(
+        'Artifact height bridge timed out; keeping the preview in a bounded fallback viewport.',
+        {
+          channelId: current.channelId,
+          fallbackHeight,
+        },
+      );
     }, ARTIFACT_READY_TIMEOUT_MS);
   }, [clearReadyTimer]);
 
-  dataHandlerRef.current = (data, trustedActionSource): void => {
+  dataHandlerRef.current = (data, trustedSource): void => {
     const current = latestRef.current;
     const action = parseArtifactActionMessage(data);
     if (action) {
-      if (!trustedActionSource || action.channelId !== current.channelId) {
+      if (!trustedSource || action.channelId !== current.channelId) {
         return;
       }
       if (
@@ -103,14 +105,23 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         action.action === 'composer/propose-text'
       ) {
         current.onComposerProposal(action.payload);
+      } else if (current.onArtifactAction && action.action === 'artifact/download-unsupported') {
+        current.onArtifactAction(action);
       }
       return;
     }
 
     const message = parseArtifactBridgeMessage(data);
-    if (!current.measureHeight || !message || message.channelId !== current.channelId) {
+    if (
+      !trustedSource ||
+      !current.measureHeight ||
+      !message ||
+      message.channelId !== current.channelId ||
+      message.revision <= lastRevisionRef.current
+    ) {
       return;
     }
+    lastRevisionRef.current = message.revision;
     const measuredHeight = clampArtifactHeight(
       message.height,
       MIN_ARTIFACT_IFRAME_HEIGHT,
@@ -134,13 +145,15 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       return;
     }
     heightRef.current = input.bootstrapHeight;
+    lastRevisionRef.current = -1;
     setHeight(input.bootstrapHeight);
     setStatus(initialStatus);
 
     const onWindowMessage = (event: MessageEvent): void => {
       const iframeWindow = latestRef.current.iframeRef.current?.contentWindow;
-      const trustedActionSource = !event.source || !iframeWindow || event.source === iframeWindow;
-      dataHandlerRef.current(event.data, trustedActionSource);
+      const trustedSource =
+        iframeWindow !== null && iframeWindow !== undefined && event.source === iframeWindow;
+      dataHandlerRef.current(event.data, trustedSource);
     };
     window.addEventListener('message', onWindowMessage);
 

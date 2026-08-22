@@ -170,7 +170,9 @@ export type ChatMessageRowProps = {
   /** Assembly capsule for this user row, if Host recorded one. */
   assemblySummary?: ContextSummaryPush;
   isConversationSession?: boolean;
-  onResolveFlashcards?: (itemIds: string[]) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
+  onResolveFlashcards?: (
+    itemIds: string[],
+  ) => Promise<import('@piwin/contracts').FlashcardReviewCard[]>;
   /** Flashcard create tools from the whole turn; shown on the last assistant row. */
   turnFlashcardTools?: readonly ToolCardUi[];
   livePromptModel?: ModelRef | null;
@@ -373,12 +375,19 @@ export const ChatMessageRow = memo(
               showStreamingCaret={props.showStreamingCaret}
               activeTheme={props.activeTheme}
               artifactThemeKey={props.artifactThemeKey}
+              {...(props.artifactCodeFirst !== undefined
+                ? { artifactCodeFirst: props.artifactCodeFirst }
+                : {})}
               runRecordsById={props.runRecordsById}
               activeRunId={props.activeRunId}
               locale={props.locale ?? 'zh-CN'}
-              {...(props.livePromptModel !== undefined ? { livePromptModel: props.livePromptModel } : {})}
+              {...(props.livePromptModel !== undefined
+                ? { livePromptModel: props.livePromptModel }
+                : {})}
               {...(props.modelOptions !== undefined ? { modelOptions: props.modelOptions } : {})}
-              {...(props.configProviders !== undefined ? { configProviders: props.configProviders } : {})}
+              {...(props.configProviders !== undefined
+                ? { configProviders: props.configProviders }
+                : {})}
               showHeader={props.showConversationHeader !== false}
               usageChip={
                 props.isConversationSession === true &&
@@ -397,6 +406,7 @@ export const ChatMessageRow = memo(
                 ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
                 : {})}
               {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+              {...(props.projectPath ? { projectPath: props.projectPath } : {})}
             />
           ) : (
             <TurnWorkDetails
@@ -407,7 +417,9 @@ export const ChatMessageRow = memo(
               {...(props.agentLocatorAnimation
                 ? { agentLocatorAnimation: props.agentLocatorAnimation }
                 : {})}
-              permissionPrompt={props.isLastAssistantInTurn === true ? props.permissionPrompt : null}
+              permissionPrompt={
+                props.isLastAssistantInTurn === true ? props.permissionPrompt : null
+              }
               workDetailsExpanded={props.workDetailsExpanded}
               toolDensity={props.toolDensity}
               showThinking={props.showThinking}
@@ -461,64 +473,68 @@ export const ChatMessageRow = memo(
                   {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
                 />
               ) : null}
-                {message.searchEvidence !== undefined ? (
-                  <CitationCards evidence={message.searchEvidence} />
-                ) : null}
-                {(() => {
-                  const extractedCards = extractFlashcardRecords(message);
-                  const flashcardArtifactHtml = extractFlashcardArtifactHtml(message);
-                  const textHasFlashcard = isFlashcardArtifactSource(message.text);
-                  const shouldRender = Boolean(
-                    (extractedCards.length > 0 || flashcardArtifactHtml) && !textHasFlashcard,
+              {message.searchEvidence !== undefined ? (
+                <CitationCards evidence={message.searchEvidence} />
+              ) : null}
+              {(() => {
+                const extractedCards = extractFlashcardRecords(message);
+                const flashcardArtifactHtml = extractFlashcardArtifactHtml(message);
+                const textHasFlashcard = isFlashcardArtifactSource(message.text);
+                const shouldRender = Boolean(
+                  (extractedCards.length > 0 || flashcardArtifactHtml) && !textHasFlashcard,
+                );
+                if (!shouldRender) return null;
+                if (extractedCards.length > 0) {
+                  return (
+                    <div
+                      className="conversation-extracted-flashcard"
+                      data-testid="conversation-extracted-flashcard"
+                    >
+                      <FlashcardStackView
+                        cards={extractedCards}
+                        locale={props.locale ?? 'zh-CN'}
+                        {...(props.onArtifactAction ? { onAction: props.onArtifactAction } : {})}
+                      />
+                    </div>
                   );
-                  if (!shouldRender) return null;
-                  if (extractedCards.length > 0) {
-                    return (
-                      <div
-                        className="conversation-extracted-flashcard"
-                        data-testid="conversation-extracted-flashcard"
-                      >
-                        <FlashcardStackView
-                          cards={extractedCards}
-                          locale={props.locale ?? 'zh-CN'}
-                          {...(props.onArtifactAction ? { onAction: props.onArtifactAction } : {})}
-                        />
-                      </div>
-                    );
-                  }
-                  if (flashcardArtifactHtml) {
-                    return (
-                      <div
-                        className="conversation-extracted-flashcard"
-                        data-testid="conversation-extracted-flashcard"
-                      >
-                        <MarkdownView
-                          text={`\`\`\`html\n${flashcardArtifactHtml}\n\`\`\``}
-                          renderingPhase="completed"
-                          artifactTheme={mapThemeToArtifactVariables(props.activeTheme)}
-                          initPriorityBase={props.messageIndex * 10 + 1}
-                          artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
-                          showStreamingCaret={false}
-                          locale={props.locale ?? 'zh-CN'}
-                          artifactPreviewEnabled={true}
-                          {...(props.artifactMaxBytes !== undefined
-                            ? { artifactMaxBytes: props.artifactMaxBytes }
-                            : {})}
-                          {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-                          {...(props.sessionId
-                            ? { artifactOrigin: { sessionId: props.sessionId, messageId: message.id } }
-                            : {})}
-                          {...(props.onOpenArtifactCanvas
-                            ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
-                            : {})}
-                          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-                        />
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-              </TurnWorkDetails>
+                }
+                if (flashcardArtifactHtml) {
+                  return (
+                    <div
+                      className="conversation-extracted-flashcard"
+                      data-testid="conversation-extracted-flashcard"
+                    >
+                      <MarkdownView
+                        text={`\`\`\`html\n${flashcardArtifactHtml}\n\`\`\``}
+                        renderingPhase="completed"
+                        artifactTheme={mapThemeToArtifactVariables(props.activeTheme)}
+                        initPriorityBase={props.messageIndex * 10 + 1}
+                        artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
+                        showStreamingCaret={false}
+                        locale={props.locale ?? 'zh-CN'}
+                        artifactPreviewEnabled={true}
+                        {...(props.artifactMaxBytes !== undefined
+                          ? { artifactMaxBytes: props.artifactMaxBytes }
+                          : {})}
+                        {...(props.onArtifactAction
+                          ? { onArtifactAction: props.onArtifactAction }
+                          : {})}
+                        {...(props.sessionId
+                          ? {
+                              artifactOrigin: { sessionId: props.sessionId, messageId: message.id },
+                            }
+                          : {})}
+                        {...(props.onOpenArtifactCanvas
+                          ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
+                          : {})}
+                        {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+                      />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </TurnWorkDetails>
           )
         ) : null}
         {imageGenerationStatus &&
@@ -555,6 +571,10 @@ export const ChatMessageRow = memo(
             messageId={message.id}
             initialText={message.text}
             composerCard={props.composerCard}
+            {...(message.attachments.length > 0 ||
+            (message.contextRefs !== undefined && message.contextRefs.length > 0)
+              ? { hasCarryContent: true }
+              : {})}
             onCancel={props.onCancelEdit}
             onResend={(text) => {
               if (canEditPendingIntervention && props.onInterventionEdit) {
@@ -628,13 +648,19 @@ export const ChatMessageRow = memo(
           />
         ) : null}
         {message.role === 'assistant' &&
-        (message.status === 'error' || Boolean(message.error) || props.runRecord?.outcome === 'failed') ? (
+        (message.status === 'error' ||
+          Boolean(message.error) ||
+          props.runRecord?.outcome === 'failed') ? (
           <TurnErrorCard
             messageId={message.id}
             error={
               message.error ||
               props.runRecord?.terminalMessage ||
-              (message.status === 'error' ? (props.locale === 'zh-CN' ? '生成失败' : 'Generation failed') : null)
+              (message.status === 'error'
+                ? props.locale === 'zh-CN'
+                  ? '生成失败'
+                  : 'Generation failed'
+                : null)
             }
             locale={props.locale}
             onRetry={() => {
@@ -659,9 +685,7 @@ export const ChatMessageRow = memo(
           <AssistantResponseActions
             messageId={message.id}
             messageText={message.text}
-            showFork={
-              props.isLastAssistantInTurn === true && props.onForkFromMessage !== undefined
-            }
+            showFork={props.isLastAssistantInTurn === true && props.onForkFromMessage !== undefined}
             showRegenerate={
               props.isConversationSession === true &&
               props.isLatestAssistantResponse === true &&

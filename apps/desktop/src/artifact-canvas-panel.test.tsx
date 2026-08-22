@@ -27,6 +27,8 @@ function makeTarget(overrides: Partial<ArtifactCanvasTarget> = {}): ArtifactCanv
     surface: 'canvas',
     title: 'Deployment configurator',
     type: 'html',
+    declaration: 'explicit',
+    documentKind: 'fragment',
     rawLanguage: 'artifact-html',
     source: '<div class="config">stack</div>',
     ...overrides,
@@ -139,7 +141,7 @@ describe('ArtifactCanvasPanel', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: proposal,
         }),
       );
@@ -163,7 +165,7 @@ describe('ArtifactCanvasPanel', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: ARTIFACT_BRIDGE_ACTION_TYPE,
             channelId: 'artifact-s1-m1-0',
@@ -199,7 +201,7 @@ describe('ArtifactCanvasPanel', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: ARTIFACT_BRIDGE_ACTION_TYPE,
             channelId: 'artifact-s1-m1-0',
@@ -231,7 +233,7 @@ describe('ArtifactCanvasPanel', () => {
     act(() => {
       window.dispatchEvent(
         new MessageEvent('message', {
-          source: (iframe?.contentWindow ?? null),
+          source: iframe?.contentWindow ?? null,
           data: {
             type: ARTIFACT_BRIDGE_ACTION_TYPE,
             channelId: 'fence-99',

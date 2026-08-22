@@ -25,6 +25,11 @@ const INTERACTIVE_ARTIFACT_HTML_FENCE =
 const CANVAS_ARTIFACT_FENCE =
   '```artifact-html title="Wide workspace" surface="canvas"\n<div>Wide</div>\n```';
 const PLAIN_HTML_FENCE = '```html\n<div class="card"><p>Hello</p></div>\n```';
+const FULL_HTML_DOCUMENT_FENCE = [
+  '```html',
+  '<!DOCTYPE html><html><head><title>Ink</title></head><body><main>App</main></body></html>',
+  '```',
+].join('\n');
 const FLASHCARD_FENCE =
   '```html\n<div class="piwin-flashcard" data-card-id="card-abc12345-xyz"></div>\n```';
 const MERMAID_FENCE = '```mermaid\ngraph TD\nA-->B\n```';
@@ -114,9 +119,9 @@ describe('MarkdownView artifact preview policy', () => {
     expect(wrapper?.querySelector('.artifact-floating-actions')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-preview-surface .artifact-frame')).not.toBeNull();
     expect(wrapper?.querySelector('.artifact-frame .artifact-frame-actions')).toBeNull();
-    expect(
-      wrapper?.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer'),
-    ).toBe('static-flow');
+    expect(wrapper?.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer')).toBe(
+      'static-flow',
+    );
     expect(wrapper?.querySelector('[data-testid="artifact-static"]')).not.toBeNull();
     expect(wrapper?.querySelector('iframe')).toBeNull();
   });
@@ -158,9 +163,9 @@ describe('MarkdownView artifact preview policy', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      container.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer'),
-    ).toBe('sandbox');
+    expect(container.querySelector('.artifact-frame')?.getAttribute('data-artifact-renderer')).toBe(
+      'sandbox',
+    );
     expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
     expect(container.querySelector('[data-testid="artifact-static"]')).toBeNull();
   });
@@ -286,11 +291,12 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="flashcard-preview-card"]')).not.toBeNull();
   });
 
-  it('capability on + flashcard source: directly renders ArtifactFrame by default', () => {
+  it('capability on + native flashcard HTML stays source-first', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" />,
     );
-    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
   it('mermaid still renders (mounts MermaidBlock) when capability off', () => {
@@ -324,26 +330,48 @@ describe('MarkdownView artifact preview policy', () => {
     expect(toggle?.textContent).toContain('Preview SVG');
   });
 
-  it('streaming mode materializes SVG through a live Artifact frame', () => {
+  it('streaming mode keeps native SVG source-first', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={SVG_FENCE} renderingPhase="streaming" />,
     );
-    expect(container.querySelector('.artifact-frame')).not.toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
   });
 
-  it('mounts a live Artifact frame immediately for an incomplete SVG (no waiting shell)', () => {
+  it('keeps an incomplete native SVG in the streaming source view', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={'```svg\n<svg'} renderingPhase="streaming" locale="zh-CN" />,
     );
-    const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
+    expect(container.querySelector('[data-testid="artifact-frame"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+  });
 
-    expect(frame).not.toBeNull();
-    // Streaming mounts the frame right away so UI blocks draw progressively;
-    // there is no animated "preparing" intermediate state anymore.
-    expect(frame?.classList.contains('preparing')).toBe(false);
-    expect(frame?.querySelector('.artifact-preparing-sheen')).toBeNull();
-    expect(container.querySelector('[data-testid="artifact-stream-live"]')).not.toBeNull();
+  it('offers a full native HTML document only through Canvas', () => {
+    const onOpenArtifactCanvas = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={FULL_HTML_DOCUMENT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-full', messageId: 'message-full' }}
+        onOpenArtifactCanvas={onOpenArtifactCanvas}
+      />,
+    );
+
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    const preview = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(preview?.textContent).toContain('Preview in Canvas');
+    act(() => preview?.click());
+    expect(onOpenArtifactCanvas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-full',
+        messageId: 'message-full',
+        documentKind: 'document',
+        surface: 'canvas',
+      }),
+    );
   });
 
   it('streaming mode keeps the explicit code-first preference source-only', () => {
@@ -577,6 +605,54 @@ describe('MarkdownView file references', () => {
     expect(onOpenDocument).toHaveBeenCalledWith({ title: 'My Notes', path: fullPath });
   });
 
+  it('turns relative deliverable links into path chips instead of [blocked]', () => {
+    const onOpenDocument = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={[
+          '获取结果：',
+          '- 压缩包: [cropped-portraits-16.zip](cropped-portraits-16.zip)',
+          '- 目录: [cropped-portraits/](cropped-portraits/)',
+        ].join('\n')}
+        renderingPhase="completed"
+        onOpenDocument={onOpenDocument}
+      />,
+    );
+    expect(container.textContent ?? '').not.toContain('[blocked]');
+    const chips = [...container.querySelectorAll<HTMLElement>('.md-doc-chip')];
+    expect(chips.length).toBeGreaterThanOrEqual(2);
+    const paths = chips.map((chip) => chip.getAttribute('data-full-path'));
+    expect(paths).toContain('cropped-portraits-16.zip');
+    expect(paths).toContain('cropped-portraits/');
+    act(() => {
+      chips
+        .find((chip) => chip.getAttribute('data-full-path') === 'cropped-portraits-16.zip')
+        ?.click();
+    });
+    expect(onOpenDocument).toHaveBeenCalledWith({
+      title: 'cropped-portraits-16.zip',
+      path: 'cropped-portraits-16.zip',
+    });
+  });
+
+  it('opens absolute zip links via path chips (file: stripped)', () => {
+    const onOpenDocument = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="[包](file:///Users/me/out.zip)"
+        renderingPhase="completed"
+        onOpenDocument={onOpenDocument}
+      />,
+    );
+    expect(container.textContent ?? '').not.toContain('[blocked]');
+    const chip = container.querySelector<HTMLElement>('.md-doc-chip');
+    expect(chip?.getAttribute('data-full-path')).toBe('/Users/me/out.zip');
+    act(() => {
+      chip?.click();
+    });
+    expect(onOpenDocument).toHaveBeenCalledWith({ title: '包', path: '/Users/me/out.zip' });
+  });
+
   it('renders bash command line code blocks with shell formatting', () => {
     const bashText = '```bash\npnpm run dev\n```';
     const { container } = renderMarkdown(
@@ -703,10 +779,7 @@ describe('MarkdownView local media images', () => {
 
   it('still renders remote images', () => {
     const { container } = renderMarkdown(
-      <MarkdownView
-        text={'![cat](https://example.com/cat.jpg)'}
-        renderingPhase="completed"
-      />,
+      <MarkdownView text={'![cat](https://example.com/cat.jpg)'} renderingPhase="completed" />,
     );
     expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/cat.jpg');
   });

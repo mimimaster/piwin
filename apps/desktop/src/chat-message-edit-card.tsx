@@ -13,6 +13,8 @@ export type MessageEditCardProps = {
   onCancel: () => void;
   onResend: (text: string) => void;
   interventionEdit?: boolean;
+  /** Original turn still has media/refs shown read-only above this card. */
+  hasCarryContent?: boolean;
 };
 
 export function MessageEditCard(props: MessageEditCardProps): ReactElement {
@@ -70,7 +72,7 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
 
   function handleSend(): void {
     const text = editTextRef.current.trim();
-    if (text) {
+    if (text || props.hasCarryContent === true) {
       props.onResend(text);
     }
   }
@@ -93,6 +95,7 @@ export function MessageEditCard(props: MessageEditCardProps): ReactElement {
         compacting={props.composerCard.compacting}
         pendingAttachments={pendingAttachments}
         onRemoveAttachment={handleRemoveAttachment}
+        {...(props.hasCarryContent === true ? { hasCarryContent: true } : {})}
         dropActive={dropActive}
         onDropActiveChange={setDropActive}
         plusMenuOpen={plusMenuOpen}

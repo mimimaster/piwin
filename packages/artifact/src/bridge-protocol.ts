@@ -2,15 +2,8 @@
  * Parent-side validation for artifact iframe postMessage payloads.
  * Pure — no DOM. Desktop checks event.source separately.
  */
-import {
-  ARTIFACT_BRIDGE_ACTION_TYPE,
-  ARTIFACT_BRIDGE_READY_TYPE,
-  ARTIFACT_BRIDGE_RESIZE_TYPE,
-} from './constants.js';
-import type {
-  ArtifactActionMessage,
-  ArtifactBridgeMessage,
-} from './types.js';
+import { ARTIFACT_BRIDGE_ACTION_TYPE, ARTIFACT_BRIDGE_SIZE_TYPE } from './constants.js';
+import type { ArtifactActionMessage, ArtifactBridgeMessage } from './types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -26,12 +19,12 @@ export function parseArtifactBridgeMessage(data: unknown): ArtifactBridgeMessage
   }
 
   const type = data['type'];
-  if (type !== ARTIFACT_BRIDGE_READY_TYPE && type !== ARTIFACT_BRIDGE_RESIZE_TYPE) {
+  if (type !== ARTIFACT_BRIDGE_SIZE_TYPE) {
     return null;
   }
 
   const channelId = data['channelId'];
-  if (typeof channelId !== 'string' || channelId.length === 0) {
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
     return null;
   }
 
@@ -39,18 +32,22 @@ export function parseArtifactBridgeMessage(data: unknown): ArtifactBridgeMessage
   if (typeof rawHeight !== 'number' || !Number.isFinite(rawHeight)) {
     return null;
   }
+  const rawViewportHeight = data['viewportHeight'];
+  if (typeof rawViewportHeight !== 'number' || !Number.isFinite(rawViewportHeight)) {
+    return null;
+  }
+  const revision = data['revision'];
+  if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) {
+    return null;
+  }
 
   return {
     type,
     channelId,
     height: Math.max(0, Math.ceil(rawHeight)),
+    viewportHeight: Math.max(0, Math.ceil(rawViewportHeight)),
+    revision,
   };
-}
-
-export function isArtifactBridgeReadyMessage(
-  message: ArtifactBridgeMessage,
-): boolean {
-  return message.type === ARTIFACT_BRIDGE_READY_TYPE;
 }
 
 const VALID_RATINGS = new Set(['again', 'hard', 'good', 'easy']);
@@ -75,12 +72,31 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
     return null;
   }
   const action = data['action'];
-  if (action !== 'flashcard/rate' && action !== 'flashcard/open-source' && action !== 'composer/propose-text') {
+  if (
+    action !== 'flashcard/rate' &&
+    action !== 'flashcard/open-source' &&
+    action !== 'composer/propose-text' &&
+    action !== 'artifact/download-unsupported'
+  ) {
     return null;
   }
   const payload = data['payload'];
   if (!isRecord(payload)) {
     return null;
+  }
+  if (action === 'artifact/download-unsupported') {
+    const filename = payload['filename'];
+    if (filename !== undefined && (typeof filename !== 'string' || filename.length > 256)) {
+      return null;
+    }
+    return {
+      type: ARTIFACT_BRIDGE_ACTION_TYPE,
+      channelId,
+      action: 'artifact/download-unsupported',
+      payload: {
+        ...(typeof filename === 'string' && filename.length > 0 ? { filename } : {}),
+      },
+    };
   }
   // composer/propose-text does not require a cardId
   if (action === 'composer/propose-text') {
@@ -131,7 +147,10 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
     }
   }
   const sourceLine = payload['sourceLine'];
-  if (sourceLine !== undefined && (typeof sourceLine !== 'number' || !Number.isInteger(sourceLine) || sourceLine < 1)) {
+  if (
+    sourceLine !== undefined &&
+    (typeof sourceLine !== 'number' || !Number.isInteger(sourceLine) || sourceLine < 1)
+  ) {
     return null;
   }
   return {

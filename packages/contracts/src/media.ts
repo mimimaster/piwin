@@ -22,6 +22,49 @@ export type SaveMediaInput = {
   source: 'paste' | 'drop' | 'file-picker' | 'generated';
 };
 
+/**
+ * Raw bytes per `media/save-chunk`. Base64 expands ~4/3; keep the encoded
+ * command under `HOST_WIRE_HARD_FRAME_BYTES` (1 MiB) with envelope headroom.
+ */
+export const MEDIA_SAVE_CHUNK_MAX_BYTES = 384 * 1024;
+
+export type MediaSaveBeginInput = {
+  sessionId: string;
+  mimeType: string;
+  name?: string;
+  contentKind?: AttachmentContentKind;
+  source: SaveMediaInput['source'];
+  byteSize: number;
+};
+
+export type MediaSaveBeginData = {
+  uploadId: string;
+  chunkMaxBytes: number;
+};
+
+export type MediaSaveChunkInput = {
+  uploadId: string;
+  chunkIndex: number;
+  base64Data: string;
+};
+
+export type MediaSaveChunkData = {
+  uploadId: string;
+  receivedBytes: number;
+};
+
+export type MediaSaveFinishInput = {
+  uploadId: string;
+};
+
+export type MediaSaveAbortInput = {
+  uploadId: string;
+};
+
+export type MediaSaveAbortData = {
+  uploadId: string;
+};
+
 /** Text injected into text-only model prompts. */
 export type TextModelImageInjection = {
   absolutePath: string;
