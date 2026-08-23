@@ -416,6 +416,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           }
           status={props.streaming ? 'running' : 'paused'}
           turnsCount={props.messages.filter((m) => m.role === 'user').length}
+          {...(props.streaming
+            ? {
+                onPause: () => {
+                  props.composerCard.onAbort();
+                },
+              }
+            : {})}
           onAbort={() => {
             props.composerCard.onAbort();
             props.composerCard.onAgentModeChange('agent');

@@ -2000,6 +2000,7 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     expect(container.querySelector('[data-testid="goal-sticky-strip"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="goal-pause-btn"]')).not.toBeNull();
     const abortButton =
       container.querySelector('[data-testid="goal-abort-btn"]') ??
       Array.from(container.querySelectorAll('button')).find((element) =>

@@ -6,6 +6,7 @@
 import { type ReactElement } from 'react';
 import { Button, Spinner } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context';
+import { GoalPauseButton, GoalResumeButton } from './GoalRunControl';
 
 export type GoalStatus = 'running' | 'paused' | 'blocked' | 'completed';
 
@@ -86,25 +87,21 @@ export function GoalStickyStrip({
         ) : null}
 
         {status === 'running' && onPause ? (
-          <Button
-            size="compact"
-            variant="secondary"
+          <GoalPauseButton
             onClick={onPause}
             aria-label={isZh ? '暂停目标' : 'Pause Goal'}
-          >
-            ⏸️ {isZh ? '暂停' : 'Pause'}
-          </Button>
+            title={isZh ? '暂停目标执行' : 'Pause goal execution'}
+            label={isZh ? '暂停' : 'Pause'}
+          />
         ) : null}
 
         {status === 'paused' && onResume ? (
-          <Button
-            size="compact"
-            variant="primary"
+          <GoalResumeButton
             onClick={onResume}
             aria-label={isZh ? '继续目标' : 'Resume Goal'}
-          >
-            ▶️ {isZh ? '继续' : 'Resume'}
-          </Button>
+            title={isZh ? '继续目标执行' : 'Resume goal execution'}
+            label={isZh ? '继续' : 'Resume'}
+          />
         ) : null}
 
         {onAbort && status !== 'completed' ? (
