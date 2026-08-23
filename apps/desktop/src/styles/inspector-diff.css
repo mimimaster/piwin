@@ -1,0 +1,489 @@
+/* Inspector: changes panel, diff view, diff action bar.
+   Split out of region-inspector.css (one region, split by responsibility
+   per AGENTS.md 3.2). Panel frame, tabstrip, and home launcher stay in
+   region-inspector.css.
+
+   Deck rule: a diff is raw content, so it recesses to the void step rather
+   than sitting on a card. Change semantics use the reserved colours — mint
+   added, coral deleted, amber modified, sky moved — the same four the file
+   tree and the files-changed card use. */
+
+/* ── Changes panel ────────────────────────────────────────────────── */
+
+.changes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 0;
+}
+
+.changes-panel-list {
+  height: 100%;
+  overflow: hidden;
+}
+
+.changes-panel-list .changes-list {
+  flex: 1;
+  max-height: none;
+}
+
+.changes-list-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.changes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-height: var(--h-lg);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.changes-toolbar-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+}
+
+.changes-toolbar-heading > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.changes-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changes-branch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  flex-shrink: 0;
+}
+
+.changes-totals {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  padding: var(--s-4) var(--s-5) var(--s-2);
+}
+
+.changes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: min(52vh, 480px);
+  overflow: auto;
+}
+
+.changes-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.changes-row:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+/* The selected row drives what the diff pane shows, so it takes the iris rim
+   rather than a plain fill — this is a "you are looking at this" state, not
+   just a highlight. */
+.changes-row.selected {
+  background: var(--iris-wash);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 28%, transparent);
+  color: var(--text-1);
+}
+
+.changes-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: 1;
+  min-width: 0;
+  height: var(--h-md);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  padding: 0 var(--s-2) 0 0;
+}
+
+.changes-check {
+  flex-shrink: 0;
+  accent-color: var(--iris);
+}
+
+.changes-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--text-4);
+}
+
+.changes-code.status-modified {
+  color: var(--amber);
+}
+.changes-code.status-added,
+.changes-code.status-untracked {
+  color: var(--mint);
+}
+.changes-code.status-deleted {
+  color: var(--coral);
+}
+.changes-code.status-conflicted {
+  color: var(--coral);
+}
+
+.changes-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.changes-stats {
+  display: inline-flex;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.changes-stats .add {
+  color: var(--mint);
+}
+.changes-stats .del {
+  color: var(--coral);
+}
+
+.changes-chip {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.changes-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+/* ── Diff view ────────────────────────────────────────────────────── */
+
+/* Add/delete tints derive from mint and coral rather than literal hexes, and
+   the line text stays in the normal ink. The previous palette hard-coded pale
+   mint text (#a7f3d0) that only worked on a dark field — on the light face it
+   sat invisible on its own tint. A tint carries the signal; the words still
+   have to be readable. */
+
+.diff-mode-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--r-control);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.diff-mode-toggle button {
+  height: var(--h-xs);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: var(--fs-micro);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.diff-mode-toggle button:hover:not(.active) {
+  color: var(--text-1);
+}
+
+.diff-mode-toggle button.active {
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.diff-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+  border: none;
+  border-radius: var(--r-card);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  animation: diff-in var(--t-3) var(--ease-spring) both;
+}
+
+@keyframes diff-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-panel {
+    transition: none;
+  }
+
+  .diff-view {
+    animation: none;
+  }
+
+  .right-panel-resize-handle::after {
+    transition: none;
+  }
+}
+
+.diff-view.empty {
+  display: grid;
+  place-items: center;
+  padding: var(--s-8);
+  color: var(--text-4);
+}
+
+/* Reviewed diffs keep a coloured rim instead of a border: the view has no
+   border to recolour, and the rim reads at a glance while scrolling. */
+.diff-view[data-review='accepted'] {
+  opacity: 0.7;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 35%, transparent);
+}
+
+.diff-view[data-review='rejected'] {
+  opacity: 0.5;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 35%, transparent);
+}
+
+.diff-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.diff-view-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.diff-unified,
+.diff-split {
+  margin: 0;
+  min-width: max-content;
+}
+
+.diff-line {
+  display: flex;
+  white-space: pre;
+  padding: 0 var(--s-4);
+  color: var(--text-2);
+}
+
+.diff-gutter {
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--text-4);
+}
+
+.diff-lineno {
+  width: 3ch;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: var(--s-3);
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.diff-lineno.old {
+  padding-right: var(--s-2);
+}
+
+.diff-lineno.new {
+  padding-right: var(--s-4);
+}
+
+.diff-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.diff-line.kind-add {
+  background: color-mix(in srgb, var(--mint) 15%, transparent);
+  color: var(--text-1);
+}
+
+.diff-line.kind-del {
+  background: color-mix(in srgb, var(--coral) 15%, transparent);
+  color: var(--text-1);
+}
+
+.diff-line.kind-hunk,
+.diff-line.kind-meta {
+  color: var(--text-4);
+  background: var(--hover);
+}
+
+.diff-line.kind-empty {
+  background: transparent;
+  min-height: 1.45em;
+}
+
+.diff-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100%;
+}
+
+.diff-split-col {
+  border-right: 1px solid var(--line-1);
+  min-width: 0;
+}
+
+.diff-split-col:last-child {
+  border-right: 0;
+}
+
+/* ── Diff action bar (accept / reject) ────────────────────────────── */
+
+.diff-action-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  background: var(--surface-2);
+}
+
+/* Accept and reject are tinted fills rather than outlined buttons: two
+   outlined pills side by side read as a segmented control, which is exactly
+   the wrong affordance for a destructive/constructive pair. */
+.diff-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--h-sm);
+  padding: 0 var(--s-5);
+  border: 0;
+  border-radius: var(--r-control);
+  font-family: var(--font);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+  background: transparent;
+}
+
+.diff-action-btn.accept {
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 10%, transparent);
+}
+
+.diff-action-btn.accept:hover {
+  background: color-mix(in srgb, var(--mint) 20%, transparent);
+}
+
+.diff-action-btn.reject {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
+}
+
+.diff-action-btn.reject:hover {
+  background: color-mix(in srgb, var(--coral) 20%, transparent);
+}
+
+.diff-review-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.diff-review-badge.accepted {
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+}
+
+.diff-review-badge.rejected {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}

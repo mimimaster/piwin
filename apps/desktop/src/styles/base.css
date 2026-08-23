@@ -1,8 +1,11 @@
-/* extracted from styles.css L44-L75 */
+/* Resets, focus policy, and the motion kill-switch.
+   Deck surfaces live in region-shell.css; this file owns document-level only. */
+
 /* Keyboard focus — never remove outline without a replacement */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--iris);
   outline-offset: 2px;
+  border-radius: var(--r-control);
 }
 button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
@@ -11,13 +14,15 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
+/* The document paints the void field the deck floats on. */
 html,
 body,
 #root {
   margin: 0;
   height: 100%;
-  background: var(--canvas);
-  color: var(--text);
+  background: var(--void);
+  color: var(--text-1);
+  overflow: hidden;
 }
 
 /* Pet overlay window: fully transparent so the OS-level transparent window
@@ -36,12 +41,39 @@ select {
   color: inherit;
 }
 
-/* Native check controls track the Daybreak accent instead of UA blue. */
+/* Native check controls track the product accent instead of UA blue. */
 input[type='checkbox'],
 input[type='radio'],
 input[type='range'],
 progress {
-  accent-color: var(--accent);
+  accent-color: var(--iris);
+}
+
+/* Scrollbars read as part of the surface, not as chrome bolted onto it. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line-3);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::selection {
+  background: var(--iris-wash);
+  color: var(--text-1);
 }
 
 .sr-only {
@@ -113,9 +145,22 @@ html.is-theme-switching *::after {
 
   .turn-thinking pre.turn-shimmer-text,
   .agent-locator-copy--shimmer {
-    -webkit-text-fill-color: var(--muted);
-    color: var(--muted);
+    -webkit-text-fill-color: var(--text-2);
+    color: var(--text-2);
     background: none;
+  }
+
+  /* Deck liveness motion: hold the lit state rather than the mid-breath dip,
+     so "running" still reads without any movement. */
+  .is-breathing,
+  .deck-breath {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .stage-ember-wash {
+    animation: none;
   }
 }
 

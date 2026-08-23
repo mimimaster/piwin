@@ -1,22 +1,25 @@
-/* ── Notes Panel (Repo Wiki) Styling ─────────────────────────────────── */
+/* Notes panel (repo wiki).
+   Deck rule: list cards are quiet objects — surface-2 + elev-1, no border.
+   Recessed inputs and advanced blocks sit on void with inset hairlines. */
 
 .notes-panel-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-5);
 }
 
 .notes-toolbar-card {
-  background: var(--surface, #1e1e24);
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  border-radius: var(--radius-lg, 12px);
-  padding: 14px;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+  padding: var(--s-5);
 }
 
 .notes-search-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
 }
 
 .notes-search-input-wrap {
@@ -28,112 +31,120 @@
 }
 
 .notes-mode-select {
-  background: var(--surface-inset, #141418);
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
-  color: var(--text, #eee);
-  border-radius: var(--radius-sm, 6px);
-  padding: 6px 10px;
-  font-size: 12px;
-  height: 36px;
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--text-1);
+  border-radius: var(--r-control);
+  padding: var(--s-3) var(--s-5);
+  font-size: var(--fs-chrome);
+  height: var(--h-md);
 }
 
 .notes-actions-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.08));
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+  padding-top: var(--s-5);
+  border-top: 1px dashed var(--line-1);
 }
 
 .notes-advanced-card {
-  background: var(--surface-inset, #141418);
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  border-radius: var(--radius-md, 10px);
-  padding: 12px;
+  background: var(--void);
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  padding: var(--s-5);
 }
 
 .notes-eval-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--s-4);
 }
 
 .notes-eval-results {
-  margin-top: 10px;
-  font-size: 12px;
+  margin-top: var(--s-5);
+  font-size: var(--fs-chrome);
 }
 
 .notes-eval-results ul {
-  margin: 6px 0 0;
+  margin: var(--s-3) 0 0;
   padding-left: 18px;
 }
 
 .notes-detail-card,
 .notes-editor-card {
-  background: var(--surface, #1e1e24);
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-lg, 12px);
-  padding: 16px;
-  margin-top: 8px;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+  padding: var(--s-6);
+  margin-top: var(--s-4);
 }
 
 .notes-detail-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  padding-bottom: 10px;
-  margin-bottom: 12px;
+  gap: var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  padding-bottom: var(--s-5);
+  margin-bottom: var(--s-5);
 }
 
 .notes-detail-header h3 {
-  margin: 0 0 4px;
-  font-size: 16px;
-  color: var(--text, #eee);
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-title);
+  color: var(--text-1);
 }
 
 .notes-detail-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--muted, #888);
+  gap: var(--s-4);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
 }
 
 .notes-detail-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--s-3);
   flex-wrap: wrap;
 }
 
 .notes-content-body pre {
   margin: 0;
-  font-family: var(--font-sans, inherit);
+  font-family: var(--font, var(--font-sans));
   white-space: pre-wrap;
   line-height: 1.5;
-  color: var(--text, #ddd);
+  color: var(--text-2);
 }
 
 .notes-grid-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 10px;
+  gap: var(--s-5);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .notes-item-card {
-  background: var(--surface-inset, #141418);
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  border-radius: var(--radius-md, 10px);
+  background: var(--void);
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px var(--line-1);
   overflow: hidden;
-  transition: all var(--motion-quick, 120ms) ease;
+  transition:
+    box-shadow var(--t-1) var(--ease-out),
+    transform var(--t-1) var(--ease-out);
 }
 
 .notes-item-card:hover {
-  border-color: var(--accent, #6ea8fe);
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 35%, transparent);
   transform: translateY(-1px);
 }
 
@@ -142,7 +153,7 @@
   text-align: left;
   background: transparent;
   border: none;
-  padding: 12px;
+  padding: var(--s-5);
   color: inherit;
   cursor: pointer;
 }
@@ -150,54 +161,55 @@
 .notes-item-top {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
 }
 
 .notes-item-title {
-  font-size: 13.5px;
-  color: var(--text, #eee);
+  font-size: var(--fs-body);
+  color: var(--text-1);
 }
 
 .notes-item-coll {
-  font-size: 11px;
-  color: var(--muted, #777);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
   margin-left: auto;
 }
 
 .doc-cards-channel-tag {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent, #6ea8fe) 20%, transparent);
-  color: var(--accent, #6ea8fe);
-  font-size: 10px;
+  padding: 1px var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
   text-transform: uppercase;
 }
 
 .notes-item-preview {
   margin: 0;
-  font-size: 12px;
-  color: var(--muted, #aaa);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
   line-height: 1.4;
 }
 
 .notes-empty-state {
-  background: var(--surface, #1e1e24);
-  border: 1px dashed var(--line-soft, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-lg, 12px);
-  padding: 30px 20px;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px dashed var(--line-2);
+  padding: var(--s-9) var(--s-7);
   text-align: center;
 }
 
 .notes-editor-title-wrap {
-  margin: 12px 0 10px;
+  margin: var(--s-5) 0 var(--s-5);
 }
 
 .notes-editor-content-wrap {
-  margin-bottom: 12px;
+  margin-bottom: var(--s-5);
 }
 
 .notes-editor-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--s-4);
 }

@@ -1,0 +1,266 @@
+/* Region: Doc Cards — generation controls and the generated-card grid.
+   Split out of region-doccards.css by responsibility (AGENTS.md 3.2).
+
+   Deck rule: a generated flashcard is an object, so DocCardItem.tsx gets a
+   real surface + elevation and lifts on hover, matching the flip-card
+   treatment in doccards-grid's sibling region-flashcards.css. Q uses iris
+   (the neutral accent), A uses mint (the answer is the payoff) — the same
+   two-tone split flashcards uses for its own question/answer tags. */
+
+/* ── Flashcard Generation ────────────────────────────────────────────── */
+.doc-cards-topic-row {
+  display: flex;
+  gap: var(--s-4);
+  align-items: center;
+}
+
+.doc-cards-topic-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+.doc-cards-pills-label {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.doc-cards-topic-pill {
+  padding: 3px var(--s-4);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-pill);
+  color: var(--text-2);
+  font-size: var(--fs-micro);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.doc-cards-topic-pill:hover {
+  box-shadow: inset 0 0 0 1px var(--iris);
+  color: var(--iris-lift);
+}
+
+.doc-cards-session-link-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px dashed var(--line-1);
+  font-size: var(--fs-chrome);
+  color: var(--text-4);
+}
+
+/* ── Generated Cards Showcase & Deck Actions ────────────────────────── */
+.doc-cards-deck-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.doc-cards-grid,
+.knowledge-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+
+.doc-card-showcase-item {
+  perspective: 1000px;
+  min-height: 190px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.doc-card-item-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-card);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--elev-1);
+  transition:
+    box-shadow var(--t-2) var(--ease-out),
+    background-color var(--t-2) var(--ease-out),
+    transform var(--t-2) var(--ease-out);
+}
+
+.doc-card-showcase-item:hover .doc-card-item-inner {
+  box-shadow: var(--elev-2);
+  transform: translateY(-2px);
+}
+
+.doc-card-showcase-item.flipped .doc-card-item-inner {
+  background: color-mix(in srgb, var(--mint) 5%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--mint) 30%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-card-showcase-item:hover .doc-card-item-inner {
+    transform: none;
+  }
+}
+
+.doc-card-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.doc-card-item-tag {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+}
+
+.doc-card-item-type {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  background: var(--void);
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+  text-transform: uppercase;
+}
+
+.doc-card-item-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.doc-card-action-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 3px var(--s-3);
+  font-size: var(--fs-chrome);
+  border-radius: var(--r-chip);
+  cursor: pointer;
+  color: var(--text-4);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.doc-card-action-icon-btn:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.doc-card-item-flip-hint {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  padding: 2px var(--s-2);
+}
+
+.doc-card-item-body {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+}
+
+.doc-card-item-front,
+.doc-card-item-back {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  width: 100%;
+}
+
+.doc-card-side-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-chip);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.doc-card-side-answer {
+  background: color-mix(in srgb, var(--mint) 18%, transparent);
+  color: var(--mint);
+}
+
+.doc-card-text {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--text-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.doc-card-item-footer {
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px dashed var(--line-1);
+}
+
+.doc-card-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.doc-card-source-badge:hover {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.doc-card-source-open-hint {
+  font-size: var(--fs-micro);
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+.doc-cards-error-banner,
+.doc-cards-info-banner {
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  margin: var(--s-5) 0;
+  font-size: var(--fs-chrome);
+}
+
+.doc-cards-error-banner {
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  border: 0;
+  color: var(--coral);
+}
+
+.doc-cards-info-banner {
+  background: var(--iris-wash);
+  border: 0;
+  color: var(--iris-lift);
+}

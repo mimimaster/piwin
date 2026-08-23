@@ -1,0 +1,346 @@
+/* Composer: context rail — project path, branch picker, runtime chips.
+   Split out of region-composer.css (one region, split by responsibility
+   per AGENTS.md 3.2). Core dock/card/toolbar stays in region-composer.css.
+
+   Deck rule: the context rail is chrome, not a panel — transparent, with
+   links that only gain a hover fill. Menus that open from it are surface-4
+   flyouts, same object language as the plus menu. */
+
+/* Context layer flush OUTSIDE the input card (project / branch / runtime). */
+.composer-context-rail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px var(--s-4);
+  margin-bottom: var(--s-2);
+  padding: 0 var(--s-2);
+  min-height: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.composer-dock.layout-centered .composer-context-rail {
+  margin-bottom: var(--s-2);
+  padding: 0 var(--s-2);
+}
+
+.composer-context-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 360px;
+  height: 24px;
+  padding: 2px var(--s-2);
+  border: none !important;
+  border-radius: var(--r-chip);
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 400;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background var(--t-1) var(--ease-out);
+}
+
+.composer-context-link:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--hover) !important;
+}
+
+.composer-context-link:disabled,
+.composer-context-link.is-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.composer-context-link.is-static {
+  cursor: default;
+}
+
+.composer-context-link-icon {
+  display: inline-grid;
+  place-items: center;
+  color: inherit;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.composer-context-link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-context-link-caret {
+  font-size: 9px;
+  color: inherit;
+  opacity: 0.7;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.composer-context-link.is-dirty .composer-context-link-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex-shrink: 0;
+}
+
+.ui-menu-content.composer-context-menu {
+  min-width: 200px;
+  max-width: 300px;
+  max-height: min(50vh, 320px);
+  overflow: auto;
+}
+
+/* Project path dropdown: recent projects switch in place without a dialog. */
+.ui-menu-content.project-picker-menu {
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(50vh, 360px);
+  overflow: auto;
+}
+
+.project-picker-menu-title {
+  padding-bottom: var(--s-3);
+  font-weight: 600;
+}
+
+.project-picker-menu .ui-menu-item {
+  padding: 0;
+}
+
+.project-picker-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  min-width: 0;
+  padding: var(--s-3) var(--s-4);
+}
+
+.project-picker-menu-icon {
+  flex: 0 0 auto;
+  color: var(--text-4);
+}
+
+.project-picker-menu-item-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-picker-menu-item-name,
+.project-picker-menu-item-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-picker-menu-item-name {
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+}
+
+.project-picker-menu-item-path {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.project-picker-menu-check {
+  flex: 0 0 auto;
+  color: var(--iris-lift);
+}
+
+/* Branch picker: search field + clean rows + checkmark. */
+.ui-menu-content.branch-picker-menu {
+  min-width: 240px;
+  max-width: 320px;
+  padding: var(--s-3);
+  border-radius: var(--r-panel);
+  background: var(--surface-4);
+  border: 0;
+  box-shadow: var(--elev-4);
+  overflow: hidden;
+}
+
+.branch-picker-search {
+  padding: 2px 2px var(--s-3);
+}
+
+.branch-picker-search-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 var(--s-5);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  outline: none;
+}
+
+.branch-picker-search-input::placeholder {
+  color: var(--text-4);
+}
+
+.branch-picker-search-input:focus {
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+
+.branch-picker-list {
+  max-height: min(42vh, 280px);
+  overflow: auto;
+  padding: 2px 0;
+}
+
+.branch-picker-menu .ui-menu-item {
+  padding: 0;
+  border-radius: var(--r-control);
+}
+
+.branch-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  width: 100%;
+  min-height: 32px;
+  padding: var(--s-3) var(--s-5);
+  box-sizing: border-box;
+}
+
+.branch-picker-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+}
+
+.branch-picker-item.is-current .branch-picker-item-name {
+  color: var(--text-1);
+}
+
+.branch-picker-item-check {
+  flex-shrink: 0;
+  color: var(--iris-lift);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.branch-picker-empty,
+.branch-picker-error {
+  padding: var(--s-4) var(--s-5);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.branch-picker-error {
+  color: var(--coral);
+  border-top: 1px solid var(--line-1);
+}
+
+.composer-context-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--s-5);
+  width: 100%;
+}
+
+.composer-context-menu-row.is-muted {
+  opacity: 0.55;
+}
+
+.composer-context-menu-hint {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-weight: 400;
+}
+
+.composer-host-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  user-select: none;
+  cursor: pointer;
+  padding: 2px var(--s-3);
+  border: none;
+  border-radius: var(--r-chip);
+  background: transparent;
+  transition:
+    color var(--t-2) var(--ease-out),
+    background-color var(--t-2) var(--ease-out);
+  justify-self: start;
+  font-family: inherit;
+}
+
+.composer-host-status:hover {
+  color: var(--text-1);
+  background-color: var(--hover);
+}
+
+.composer-host-status .host-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.composer-host-status .host-status-dot.online {
+  background-color: var(--mint);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mint) 50%, transparent);
+}
+
+.composer-host-status .host-status-dot.offline {
+  background-color: var(--amber);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 50%, transparent);
+  animation: host-status-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes host-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-host-status .host-status-dot.offline {
+    animation: none;
+  }
+}
+
+.composer-hint {
+  grid-column: 2;
+  margin-top: 0;
+  text-align: center;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  user-select: none;
+  white-space: nowrap;
+}

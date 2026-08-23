@@ -1,6 +1,9 @@
 /* Behavior motion for concrete call-chain units.
- * The live run locator remains the only run chrome; timeline, group, gate,
- * context, result, and generation surfaces bind here through behavior data. */
+   The live run locator remains the only run chrome; timeline, group, gate,
+   context, result, and generation surfaces bind here through behavior data.
+
+   Deck rule: motion reads against --text-1; gates use --amber / --iris;
+   errors use --coral. No bordered containers — inset accents only. */
 
 :root {
   /* The reference status copy uses a 2.4s control value and a 1.25x bloom
@@ -31,31 +34,31 @@
 .behavior-generic-active {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--text) 38%, transparent) 0%,
-    color-mix(in srgb, var(--text) 92%, transparent) 42%,
-    color-mix(in srgb, var(--text) 38%, transparent) 78%
+    color-mix(in srgb, var(--text-1) 38%, transparent) 0%,
+    color-mix(in srgb, var(--text-1) 92%, transparent) 42%,
+    color-mix(in srgb, var(--text-1) 38%, transparent) 78%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: wb-shimmer var(--motion-shimmer, 2s) linear infinite;
-  filter: drop-shadow(0 0 8px rgba(218, 222, 234, 0.08));
+  animation: wb-shimmer var(--shimmer) linear infinite;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--text-1) 8%, transparent));
 }
 
 /* Group/extension labels use a slower opacity breath so they remain legible
  * while still showing that the parent behavior is live. */
 .behavior-thinking-active,
 .behavior-context-active {
-  color: color-mix(in srgb, var(--text) 82%, transparent);
+  color: color-mix(in srgb, var(--text-1) 82%, transparent);
   animation: behavior-label-breathe 2.8s ease-in-out infinite;
 }
 
 /* Human gates are attention cues, not tool work: use the gate color and a
  * restrained pulse instead of the neutral text shimmer. */
 .behavior-gate-active {
-  color: var(--behavior-gate-color, var(--state-warning, #f59e0b));
+  color: var(--behavior-gate-color, var(--amber));
   animation: behavior-gate-text-pulse 1.8s ease-in-out infinite;
 }
 
@@ -89,33 +92,33 @@
 .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-preview {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--text) 38%, transparent) 0%,
-    color-mix(in srgb, var(--text) 92%, transparent) 42%,
-    color-mix(in srgb, var(--text) 38%, transparent) 78%
+    color-mix(in srgb, var(--text-1) 38%, transparent) 0%,
+    color-mix(in srgb, var(--text-1) 92%, transparent) 42%,
+    color-mix(in srgb, var(--text-1) 38%, transparent) 78%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: wb-shimmer var(--motion-shimmer, 2s) linear infinite;
+  animation: wb-shimmer var(--shimmer) linear infinite;
 }
 
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active,
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-context-active {
-  color: color-mix(in srgb, var(--text) 82%, transparent);
+  color: color-mix(in srgb, var(--text-1) 82%, transparent);
 }
 
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-gate-active {
-  color: var(--behavior-gate-color, var(--state-warning, #f59e0b));
+  color: var(--behavior-gate-color, var(--amber));
 }
 
 .turn-work-details .tool-call-card .tool-call-action-verb.behavior-error {
-  color: #ef4444;
+  color: var(--coral);
 }
 
 .behavior-error {
-  color: #ef4444;
+  color: var(--coral);
   background: none;
   -webkit-background-clip: border-box;
   background-clip: border-box;
@@ -124,7 +127,7 @@
 }
 
 .behavior-done {
-  color: color-mix(in srgb, var(--text) 58%, transparent);
+  color: color-mix(in srgb, var(--text-1) 58%, transparent);
   background: none;
   -webkit-background-clip: border-box;
   background-clip: border-box;
@@ -133,16 +136,16 @@
 }
 
 .behavior-gate-surface {
-  --behavior-gate-color: var(--state-warning, #f59e0b);
+  --behavior-gate-color: var(--amber);
   border-left: 2px solid color-mix(in srgb, var(--behavior-gate-color) 70%, transparent);
 }
 
 [data-activity-id='ask'] {
-  --behavior-gate-color: var(--accent, #60a5fa);
+  --behavior-gate-color: var(--iris);
 }
 
 [data-activity-id='permission'] {
-  --behavior-gate-color: var(--state-warning, #f59e0b);
+  --behavior-gate-color: var(--amber);
 }
 
 /* Compact live locator. It intentionally has no container card or glass
@@ -156,7 +159,7 @@
   align-items: center;
   gap: 8px;
   min-height: calc(var(--agent-locator-icon-size) + 4px);
-  color: color-mix(in srgb, var(--text) 58%, transparent);
+  color: color-mix(in srgb, var(--text-1) 58%, transparent);
   font-size: 1em;
   line-height: 1.35;
   user-select: none;
@@ -169,7 +172,7 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 var(--agent-locator-icon-size);
-  color: color-mix(in srgb, var(--text) 58%, transparent);
+  color: color-mix(in srgb, var(--text-1) 58%, transparent);
 }
 
 /* ui-kit's sm frame is intentionally 24px. Scale that public animation
@@ -202,16 +205,16 @@
 .agent-locator-copy--shimmer {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--text) 42%, transparent) 0%,
-    color-mix(in srgb, var(--text) 88%, transparent) 42%,
-    color-mix(in srgb, var(--text) 42%, transparent) 72%
+    color-mix(in srgb, var(--text-1) 42%, transparent) 0%,
+    color-mix(in srgb, var(--text-1) 88%, transparent) 42%,
+    color-mix(in srgb, var(--text-1) 42%, transparent) 72%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: wb-shimmer var(--motion-shimmer, 1.6s) linear infinite;
+  animation: wb-shimmer var(--shimmer) linear infinite;
 }
 
 .agent-locator-stack {
@@ -226,13 +229,13 @@
   align-items: center;
   gap: 5px;
   min-height: 22px;
-  color: color-mix(in srgb, var(--text) 58%, transparent);
+  color: color-mix(in srgb, var(--text-1) 58%, transparent);
   font-size: 12px;
   line-height: 1.3;
 }
 
 .skill-activity-chip strong {
-  color: color-mix(in srgb, var(--text) 78%, transparent);
+  color: color-mix(in srgb, var(--text-1) 78%, transparent);
   font-weight: 500;
 }
 
@@ -320,7 +323,7 @@
 }
 
 [data-activity-id='mcp.server.status'][data-tool-status='error'] .mcp-status-dot-inline {
-  background: #ef4444;
+  background: var(--coral);
   box-shadow: none;
 }
 
@@ -330,12 +333,11 @@
 }
 
 [data-activity-id='skill.use'] {
-  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
-  border-style: solid;
-  border-width: 1px;
-  border-radius: 999px;
-  padding: 2px 7px;
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: var(--s-1) var(--s-3);
+  background: var(--iris-wash);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 18%, transparent);
 }
 
 @keyframes behavior-icon-breathe {
@@ -382,7 +384,7 @@
   }
   50% {
     opacity: 1;
-    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 34%, transparent));
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--iris) 34%, transparent));
   }
 }
 
@@ -402,11 +404,11 @@
   0%,
   100% {
     opacity: 0.45;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 18%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--iris) 18%, transparent);
   }
   50% {
     opacity: 1;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 8%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--iris) 8%, transparent);
   }
 }
 
@@ -478,7 +480,7 @@
   .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-action-verb,
   .turn-work-details .tool-call-card[data-tool-status='running'] .tool-call-preview {
     animation: none;
-    color: color-mix(in srgb, var(--text) 72%, transparent);
+    color: color-mix(in srgb, var(--text-1) 72%, transparent);
     background: none;
     -webkit-background-clip: border-box;
     background-clip: border-box;
@@ -501,13 +503,13 @@
   .turn-work-details .tool-call-card .tool-call-action-verb.behavior-process-active,
   .turn-work-details .tool-call-card .tool-call-action-verb.behavior-artifact-active,
   .turn-work-details .tool-call-card .tool-call-action-verb.behavior-generic-active {
-    color: color-mix(in srgb, var(--text) 72%, transparent);
+    color: color-mix(in srgb, var(--text-1) 72%, transparent);
   }
 
   .turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active,
   .turn-work-details .tool-call-card .tool-call-action-verb.behavior-context-active,
   .turn-work-details .tool-call-card .tool-call-action-verb.behavior-gate-active {
-    color: color-mix(in srgb, var(--text) 72%, transparent);
+    color: color-mix(in srgb, var(--text-1) 72%, transparent);
   }
 
   [data-activity-animation='breath-dot'][data-tool-status='running'] .tool-call-kind-icon,

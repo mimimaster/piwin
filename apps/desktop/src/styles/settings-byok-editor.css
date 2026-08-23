@@ -1,0 +1,905 @@
+/* Settings: BYOK editor modal, drawer form fields, image-gen routes, ext list.
+   Split out of settings-resources.css (one region, split by responsibility
+   per AGENTS.md 3.2). The provider list lives in settings-byok.css.
+
+   Deck rule: the editor is a modal, so it sits at the top elevation tier and
+   its internal sections recess rather than stack — inside a raised surface the
+   only direction left is down. Head, foot and status bar are wells cut into
+   the modal, and every field is a well cut into those.
+
+   Capability and test-status colors are the reserved semantics: mint = passed,
+   coral = failed, iris = in flight. */
+
+/* Centered floating editor modal (not a right-edge drawer).
+   Covers the full window including titleband. One of the blurs on the
+   memory-diet whitelist (see renderer-resource-boundaries.test.ts). */
+.provider-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--layer-settings) + 40);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-8);
+  background: var(--scrim);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: provider-editor-fade-in var(--t-2) var(--ease-out);
+}
+
+.provider-editor-modal {
+  width: min(560px, 100%);
+  max-height: min(88vh, 820px);
+  background: var(--surface-3);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--elev-4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: provider-editor-pop var(--t-3) var(--ease-spring);
+}
+
+@keyframes provider-editor-pop {
+  from {
+    transform: scale(0.95) translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes provider-editor-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .provider-editor-overlay,
+  .provider-editor-modal {
+    animation: none;
+  }
+}
+
+/* ── Drawer frame ─────────────────────────────────────────────────────── */
+
+.provider-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-6) var(--s-7);
+  background: var(--surface-2);
+  border-bottom: none;
+  flex: none;
+  border-radius: var(--r-overlay) var(--r-overlay) 0 0;
+}
+
+.provider-drawer-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.provider-drawer-name {
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.provider-drawer-host {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.provider-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--s-3) var(--s-7) var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-height: 0;
+}
+
+.provider-drawer-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-7);
+  border-top: none;
+  background: var(--surface-2);
+  flex: none;
+  border-radius: 0 0 var(--r-overlay) var(--r-overlay);
+}
+
+.provider-statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-card);
+  border: none;
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.provider-statusbar-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.provider-statusbar-text b {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  display: block;
+}
+
+.provider-statusbar-text span {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.provider-statusbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+.provider-drawer-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  margin-bottom: var(--s-5);
+}
+
+.provider-drawer-section-title span {
+  font-weight: 400;
+  color: var(--text-4);
+}
+
+.provider-test-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ── Drawer form fields ───────────────────────────────────────────────── */
+
+.provider-drawer-body .piwin-text-input,
+.provider-drawer-body .piwin-text-input-field,
+.provider-drawer-body input {
+  width: 100%;
+  max-width: 100%;
+}
+
+.provider-drawer-iconbtn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-control);
+  border: none;
+  background: var(--hover);
+  color: var(--text-3);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.provider-drawer-iconbtn:hover {
+  background: var(--active);
+  color: var(--text-1);
+}
+
+.provider-field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s-5);
+  margin: var(--s-6) 0 var(--s-3);
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  color: var(--text-3);
+}
+
+.provider-field-label:first-of-type {
+  margin-top: var(--s-2);
+}
+
+.provider-field-label-count {
+  font-weight: 400;
+  color: var(--text-4);
+  margin-left: var(--s-1);
+}
+
+.provider-field-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  line-height: var(--lh-tight);
+}
+
+.provider-linkbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: none;
+  border: none;
+  color: var(--iris-lift);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.provider-linkbtn:hover {
+  text-decoration: underline;
+}
+
+.provider-linkbtn:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.provider-discover-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  background: var(--iris-wash);
+  border: 0;
+  color: var(--iris-lift);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--s-2) var(--s-5);
+  border-radius: var(--r-chip);
+  font-family: inherit;
+  line-height: 1.2;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out);
+}
+
+.provider-discover-btn:hover:not(:disabled) {
+  background: var(--iris);
+  color: var(--on-iris);
+}
+
+.provider-discover-btn:disabled {
+  color: var(--text-4);
+  background: var(--hover);
+  cursor: not-allowed;
+}
+
+.provider-discover-btn-icon {
+  flex-shrink: 0;
+}
+
+.provider-discover-btn-icon--spin {
+  animation: provider-discover-spin 1s linear infinite;
+}
+
+@keyframes provider-discover-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.provider-input-wrap {
+  position: relative;
+}
+
+.provider-input-wrap .piwin-text-input,
+.provider-input-wrap .piwin-text-input-field,
+.provider-input-wrap input {
+  padding-right: 64px;
+}
+
+.provider-input-trail {
+  position: absolute;
+  right: var(--s-3);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: var(--s-1);
+  /* Above Mantine input chrome so eye / key-manager clicks always hit. */
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.provider-mini-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-control);
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  font-size: var(--fs-chrome);
+  flex: none;
+  pointer-events: auto;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.provider-model-row .provider-mini-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.provider-mini-btn:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.provider-mini-btn:disabled {
+  color: var(--text-4);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.provider-input-mono input,
+.provider-input-mono .piwin-text-input-field {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+}
+
+/* ── Model list inside the editor ─────────────────────────────────────── */
+
+.provider-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.provider-model-empty {
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-card);
+  padding: var(--s-7);
+  text-align: center;
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+}
+
+.provider-model-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  background: var(--void);
+  border-radius: var(--r-card);
+  padding: var(--s-4) var(--s-4) var(--s-4) var(--s-5);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    border-radius var(--t-1) var(--ease-out);
+}
+
+.provider-model-row:hover {
+  background: color-mix(in srgb, var(--iris) 8%, var(--void));
+}
+
+.provider-model-expand-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-xs);
+  height: var(--h-xs);
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: var(--r-chip);
+  padding: 0;
+  margin-left: -4px;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.provider-model-expand-btn:hover {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.provider-model-chevron {
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.provider-model-chevron:not(.provider-model-chevron--open) {
+  transform: rotate(-90deg);
+}
+
+.provider-model-item--expanded .provider-model-row {
+  border-radius: var(--r-control) var(--r-control) 0 0;
+  background: color-mix(in srgb, var(--iris) 10%, var(--void));
+}
+
+.provider-model-id {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-chrome);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.provider-model-name {
+  max-width: 100%;
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.provider-model-id-secondary {
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.provider-model-default {
+  font-family: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.provider-model-caps {
+  display: flex;
+  gap: var(--s-3);
+  flex: none;
+  align-items: center;
+}
+
+.provider-capchip {
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.provider-model-test-status {
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  white-space: nowrap;
+  flex: none;
+}
+
+.provider-model-test-status--ok {
+  color: var(--mint);
+}
+
+.provider-model-test-status--error {
+  color: var(--coral);
+}
+
+.provider-model-test-status--busy {
+  color: var(--iris-lift);
+}
+
+.provider-add-model-btn {
+  width: 100%;
+  background: var(--void);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-card);
+  padding: var(--s-4);
+  color: var(--iris-lift);
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  margin-top: var(--s-1);
+  font-family: inherit;
+  transition: background-color var(--t-2) var(--ease-out);
+}
+
+.provider-add-model-btn:hover {
+  background: var(--iris-wash);
+}
+
+.provider-add-model-btn:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+/* ── Advanced fold ────────────────────────────────────────────────────── */
+
+.provider-adv-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  cursor: pointer;
+  padding: var(--s-2) 0;
+  margin-top: var(--s-6);
+  font-family: inherit;
+}
+
+.provider-adv-head svg {
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.provider-adv-head--open svg {
+  transform: rotate(90deg);
+}
+
+.provider-adv-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+}
+
+.provider-header-row {
+  display: flex;
+  gap: var(--s-4);
+  align-items: center;
+}
+
+.provider-header-row > :first-child,
+.provider-header-row > :nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.provider-spin {
+  animation: provider-spin 1s linear infinite;
+}
+
+@keyframes provider-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.provider-connection-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.provider-connection-form .ui-field-row,
+.provider-connection-form .ui-field-row > div:last-child,
+.provider-connection-form input,
+.provider-connection-form .piwin-text-input,
+.provider-connection-form .piwin-text-input-field {
+  width: 100%;
+  max-width: 100%;
+}
+
+.provider-connection-key-row {
+  display: flex;
+  gap: var(--s-4);
+  align-items: center;
+  width: 100%;
+}
+
+.provider-connection-key-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.provider-connection-form-hint {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
+}
+
+@media (max-width: 720px) {
+  .provider-list-search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .provider-row-who {
+    width: auto;
+    flex: 1 1 140px;
+  }
+
+  .provider-row-models,
+  .provider-row-models-count {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .image-gen-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Image generation routes ──────────────────────────────────────────── */
+
+.image-gen-form-hint {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+  color: var(--text-4);
+}
+
+.image-gen-model-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.image-gen-model-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-card);
+  border: 0;
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+/* Editing is the one state that outranks the rest of the list, so it takes an
+   iris rim — the same "you are working on this" signal as a focused field. */
+.image-gen-model-item.is-editing {
+  background: var(--surface-3);
+  box-shadow:
+    var(--elev-2),
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 45%, transparent);
+}
+
+.image-gen-model-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+}
+
+.image-gen-model-item-identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.image-gen-model-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.image-gen-model-item-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.image-gen-model-item-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.image-gen-model-item-label {
+  font-size: var(--fs-chrome);
+  color: var(--text-4);
+}
+
+.image-gen-model-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  flex-wrap: wrap;
+}
+
+.image-gen-provider-name {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.image-gen-meta-sep {
+  color: var(--text-4);
+}
+
+.image-gen-meta-path {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.image-gen-meta-pill {
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+}
+
+.image-gen-default-badge {
+  font-size: var(--fs-micro);
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+  color: var(--mint);
+  font-weight: 600;
+}
+
+.image-gen-model-item-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.image-gen-route-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line-1);
+  width: 100%;
+}
+
+.image-gen-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+}
+
+/* ── Segmented control ────────────────────────────────────────────────── */
+
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  width: fit-content;
+  padding: var(--s-1);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.segmented-control-item {
+  border: 0;
+  border-radius: var(--r-chip);
+  padding: var(--s-3) var(--s-5);
+  color: var(--text-3);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.segmented-control-item:hover {
+  color: var(--text-1);
+}
+
+.segmented-control-item[data-state='active'] {
+  color: var(--text-1);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+}
+
+/* ── Extension list ───────────────────────────────────────────────────── */
+
+.ext-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.ext-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-5) var(--s-6);
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-1);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.ext-list-item.active {
+  background: color-mix(in srgb, var(--iris) 7%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 30%, transparent);
+}
+
+.ext-list-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ext-list-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-1);
+}
+
+.ext-list-title strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ext-desc {
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}

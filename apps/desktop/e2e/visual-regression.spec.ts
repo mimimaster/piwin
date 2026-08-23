@@ -19,12 +19,18 @@ async function openPrimitiveGallery(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1280, height: 840 });
   await page.goto(PRIMITIVE_GALLERY_URL);
   await expect(page.getByTestId('primitive-gallery')).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-dark');
+  // Cold start paints Appearance prefs (`piwin-dark-appearance`). Pin the
+  // authored Obsidian face so the baseline is the shipped palette, not a
+  // derived approximation of the user's last three-color override.
+  await page.getByTestId('gallery-theme-dark').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-obsidian');
+  // Theme click steals focus from the autofocus icon used by the dark capture.
+  await page.getByTestId('gallery-focus-target').focus();
 }
 
 async function applyGalleryLightTheme(page: Page): Promise<void> {
   await page.getByTestId('gallery-theme-light').click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-bone');
   await expect(page.locator('html')).toHaveAttribute('data-theme-mode', 'light');
 }
 

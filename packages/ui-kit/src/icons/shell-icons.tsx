@@ -36,17 +36,15 @@ function createIcon(children: ReactNode): (props: IconProps) => ReactElement {
 /* ── G1 Chrome & Navigation ── */
 export const IconPanelLeft = createIcon(
   <>
-    <rect x="3.25" y="4.5" width="17.5" height="15" rx="3" />
-    <path d="M9.75 4.5v15" />
-    <path d="M6.1 8.25h1.3M6.1 11.25h1.3" opacity=".45" />
+    <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+    <path d="M9.5 4.5v15" />
   </>,
 );
 
 export const IconPanelRight = createIcon(
   <>
-    <rect x="3.25" y="4.5" width="17.5" height="15" rx="3" />
-    <path d="M14.25 4.5v15" />
-    <path d="M16.6 8.25h1.3M16.6 11.25h1.3" opacity=".45" />
+    <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+    <path d="M14.5 4.5v15" />
   </>,
 );
 
@@ -119,7 +117,6 @@ export const IconSearch = createIcon(
   <>
     <circle cx="10.9" cy="10.9" r="6.15" />
     <path d="M15.4 15.4l4.1 4.1" />
-    <path d="M8 8.6a3.7 3.7 0 0 1 2.6-1.4" opacity=".45" />
   </>,
 );
 
@@ -156,7 +153,7 @@ export const IconChat = createIcon(
 export const IconSideChat = createIcon(
   <>
     <path d="M7.25 4.75h7a2.5 2.5 0 0 1 2.5 2.5v3.5a2.5 2.5 0 0 1-2.5 2.5h-3.3l-3.2 2.9v-2.9h-.5a2.5 2.5 0 0 1-2.5-2.5v-3.5a2.5 2.5 0 0 1 2.5-2.5Z" />
-    <path d="M19.25 9.25v3.4a4.6 4.6 0 0 1-4.6 4.6h-3.3l-2.5 2.25" opacity=".45" />
+    <path d="M19.25 9.25v3.4a4.6 4.6 0 0 1-4.6 4.6h-3.3l-2.5 2.25" />
   </>,
 );
 
@@ -188,17 +185,16 @@ export const IconCommentAction = createIcon(
   </>,
 );
 
+/* Send is the composer's up-arrow; it shares IconArrowUp's geometry exactly so
+   the primary action never looks like a different glyph at a different size. */
 export const IconSend = createIcon(
-  <>
-    <path d="M12 19.25V5.25" />
-    <path d="M5.9 11.35 12 5.25l6.1 6.1" />
-  </>,
+  <path d="M12 19.25V4.75M5.85 10.9 12 4.75l6.15 6.15" />,
 );
 
 export const IconPaperPlane = createIcon(
   <>
     <path d="M19.75 4.25 4.5 10.9l6.35 2.25L13.1 19.5Z" />
-    <path d="M19.75 4.25 10.85 13.15" opacity=".45" />
+    <path d="M19.75 4.25 10.85 13.15" />
   </>,
 );
 
@@ -221,8 +217,10 @@ export const IconMic = createIcon(
   </>,
 );
 
+/* Stop sits inside a 28px circular button, so the filled square is drawn to
+   the inner optical area rather than the full grid. */
 export const IconStop = createIcon(
-  <rect x="4.75" y="4.75" width="14.5" height="14.5" rx="2.8" fill="currentColor" stroke="none" />,
+  <rect x="7" y="7" width="10" height="10" rx="2.4" fill="currentColor" stroke="none" />,
 );
 
 export const IconPause = createIcon(
@@ -231,15 +229,14 @@ export const IconPause = createIcon(
 
 export const IconSpark = createIcon(
   <>
-    <path d="M11 7.4c.5 3.1 2.1 4.7 5.2 5.2-3.1.5-4.7 2.1-5.2 5.2-.5-3.1-2.1-4.7-5.2-5.2 3.1-.5 4.7-2.1 5.2-5.2Z" />
-    <path d="M17.9 3.9c.25 1.55 1.05 2.35 2.6 2.6-1.55.25-2.35 1.05-2.6 2.6-.25-1.55-1.05-2.35-2.6-2.6 1.55-.25 2.35-1.05 2.6-2.6Z" opacity=".45" />
+    <path d="M10.25 8.2c.48 2.95 2 4.47 4.95 4.95-2.95.48-4.47 2-4.95 4.95-.48-2.95-2-4.47-4.95-4.95 2.95-.48 4.47-2 4.95-4.95Z" />
+    <path d="M17.75 4.1c.24 1.48 1 2.24 2.48 2.48-1.48.24-2.24 1-2.48 2.48-.24-1.48-1-2.24-2.48-2.48 1.48-.24 2.24-1 2.48-2.48Z" />
   </>,
 );
 
 export const IconBrain = createIcon(
   <>
     <rect x="6.25" y="6.25" width="11.5" height="11.5" rx="2.5" />
-    <path d="M9.5 4.5v1.75M14.5 4.5v1.75M9.5 17.75v1.75M14.5 17.75v1.75M4.5 9.5h1.75M4.5 14.5h1.75M17.75 9.5h1.75M17.75 14.5h1.75" opacity=".45" />
     <path d="M12 8.85c.32 1.85 1.33 2.86 3.18 3.18-1.85.32-2.86 1.33-3.18 3.18-.32-1.85-1.33-2.86-3.18-3.18 1.85-.32 2.86-1.33 3.18-3.18Z" />
   </>,
 );
@@ -258,7 +255,7 @@ export const IconFolder = createIcon(
 
 export const IconFolderOpen = createIcon(
   <>
-    <path d="M3.75 16V6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h5.43c1.19 0 2.15.96 2.15 2.15v1.15" opacity=".45" />
+    <path d="M3.75 16V6.9c0-1.2.95-2.15 2.15-2.15h3.2c.57 0 1.12.23 1.52.63l1.3 1.32h5.43c1.19 0 2.15.96 2.15 2.15v1.15" />
     <path d="M6.35 10h11.5a1.9 1.9 0 0 1 1.85 2.33l-1.15 4.9a1.9 1.9 0 0 1-1.85 1.47H5.15c-.8 0-1.43-.68-1.36-1.48l.68-5.48A1.9 1.9 0 0 1 6.35 10Z" />
   </>,
 );
@@ -273,14 +270,14 @@ export const IconFolderPlus = createIcon(
 export const IconFile = createIcon(
   <>
     <path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z" />
-    <path d="M13.6 3.75V8.1h4.35" opacity=".45" />
+    <path d="M13.6 3.75V8.1h4.35" />
   </>,
 );
 
 export const IconFileDiff = createIcon(
   <>
     <path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z" />
-    <path d="M13.6 3.75V8.1h4.35" opacity=".45" />
+    <path d="M13.6 3.75V8.1h4.35" />
     <path d="M12 10.9v4.6M9.7 13.2h4.6" />
   </>,
 );
@@ -288,7 +285,7 @@ export const IconFileDiff = createIcon(
 export const IconDocument = createIcon(
   <>
     <path d="M13.6 3.75H8.15c-1.16 0-2.1.94-2.1 2.1v12.3c0 1.16.94 2.1 2.1 2.1h7.7c1.16 0 2.1-.94 2.1-2.1V8.1Z" />
-    <path d="M13.6 3.75V8.1h4.35" opacity=".45" />
+    <path d="M13.6 3.75V8.1h4.35" />
     <path d="M9.4 12.75h5.2M9.4 16h3.4" />
   </>,
 );
@@ -296,7 +293,7 @@ export const IconDocument = createIcon(
 export const IconNote = createIcon(
   <>
     <path d="M19.25 13.1V7.15c0-1.33-1.07-2.4-2.4-2.4H7.15c-1.33 0-2.4 1.07-2.4 2.4v9.7c0 1.33 1.07 2.4 2.4 2.4h5.95Z" />
-    <path d="M13.1 19.25v-3.75c0-1.33 1.07-2.4 2.4-2.4h3.75" opacity=".45" />
+    <path d="M13.1 19.25v-3.75c0-1.33 1.07-2.4 2.4-2.4h3.75" />
     <path d="M8.4 9.4h7.2M8.4 12.65h3.7" />
   </>,
 );
@@ -304,14 +301,14 @@ export const IconNote = createIcon(
 export const IconBook = createIcon(
   <>
     <path d="M12 6.4C10.55 5.1 8.6 4.55 5.5 4.55c-.4 0-.75.33-.75.74v11.9c0 .41.34.74.75.74 3.1 0 5.05.56 6.5 1.85 1.45-1.3 3.4-1.85 6.5-1.85.4 0 .75-.33.75-.74V5.3c0-.41-.34-.74-.75-.74-3.1 0-5.05.56-6.5 1.85Z" />
-    <path d="M12 6.4v12.6" opacity=".45" />
+    <path d="M12 6.4v12.6" />
   </>,
 );
 
 export const IconCards = createIcon(
   <>
     <rect x="4.5" y="7.1" width="12.4" height="12.4" rx="2.25" />
-    <path d="M8.9 4.5h8.35c1.24 0 2.25 1 2.25 2.25v8.35" opacity=".45" />
+    <path d="M8.9 4.5h8.35c1.24 0 2.25 1 2.25 2.25v8.35" />
   </>,
 );
 
@@ -325,9 +322,9 @@ export const IconCanvas = createIcon(
 export const IconImage = createIcon(
   <>
     <rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2.6" />
-    <circle cx="9.1" cy="9.5" r="1.5" fill="currentColor" stroke="none" opacity=".45" />
+    <circle cx="9.1" cy="9.5" r="1.5" fill="currentColor" stroke="none" />
     <path d="M4.6 17.75l4.5-4.5a1.55 1.55 0 0 1 2.2 0l5.2 5.2" />
-    <path d="M14.6 15.9l1.4-1.4a1.55 1.55 0 0 1 2.2 0l2 2" opacity=".45" />
+    <path d="M14.6 15.9l1.4-1.4a1.55 1.55 0 0 1 2.2 0l2 2" />
   </>,
 );
 
@@ -335,7 +332,7 @@ export const IconListTree = createIcon(
   <>
     <path d="M4.75 5.9h14.5" />
     <path d="M10 12h9.25M10 18.1h9.25" />
-    <path d="M6.6 8.4v7.45c0 1.25 1 2.25 2.25 2.25M6.6 12h2.3" opacity=".45" />
+    <path d="M6.6 8.4v7.45c0 1.25 1 2.25 2.25 2.25M6.6 12h2.3" />
   </>,
 );
 
@@ -387,7 +384,6 @@ export const IconBrowser = createIcon(
   <>
     <circle cx="12" cy="12" r="8.25" />
     <path d="M3.75 12h16.5" />
-    <path d="M12 3.75c2.55 2.2 3.85 4.95 3.85 8.25S14.55 18.05 12 20.25c-2.55-2.2-3.85-4.95-3.85-8.25S9.45 5.95 12 3.75Z" opacity=".45" />
   </>,
 );
 
@@ -395,9 +391,9 @@ export const IconMcp = createIcon(
   <>
     <circle cx="12" cy="12" r="2.25" />
     <path d="M12 9.75V6.4M13.95 13.1l2.9 1.7M10.05 13.1l-2.9 1.7" />
-    <circle cx="12" cy="4.9" r="1.5" opacity=".45" />
-    <circle cx="18.15" cy="15.55" r="1.5" opacity=".45" />
-    <circle cx="5.85" cy="15.55" r="1.5" opacity=".45" />
+    <circle cx="12" cy="4.9" r="1.5" />
+    <circle cx="18.15" cy="15.55" r="1.5" />
+    <circle cx="5.85" cy="15.55" r="1.5" />
   </>,
 );
 
@@ -433,7 +429,7 @@ export const IconLaptop = createIcon(
   <>
     <rect x="4.75" y="5" width="14.5" height="11" rx="1.9" />
     <path d="M2.9 18.25h18.2" />
-    <path d="M8.6 8.5l2 1.9-2 1.9" opacity=".45" />
+    <path d="M8.6 8.5l2 1.9-2 1.9" />
   </>,
 );
 
@@ -444,7 +440,7 @@ export const IconCloud = createIcon(
 export const IconKeyboard = createIcon(
   <>
     <rect x="3.25" y="6.75" width="17.5" height="10.5" rx="2.4" />
-    <path d="M6.6 10.15h.05M10.2 10.15h.05M13.8 10.15h.05M17.4 10.15h.05M6.6 13.85h.05M17.4 13.85h.05" opacity=".45" />
+    <path d="M6.6 10.15h.05M10.2 10.15h.05M13.8 10.15h.05M17.4 10.15h.05M6.6 13.85h.05M17.4 13.85h.05" />
     <path d="M9.7 13.85h4.6" />
   </>,
 );
@@ -478,7 +474,7 @@ export const IconCopy = createIcon(
 export const IconEdit = createIcon(
   <>
     <path d="M16.9 3.95a2.25 2.25 0 0 1 3.15 3.15L8.6 18.55l-4.35 1.2 1.2-4.35Z" />
-    <path d="M14.9 5.95l3.15 3.15" opacity=".45" />
+    <path d="M14.9 5.95l3.15 3.15" />
   </>,
 );
 
@@ -487,7 +483,7 @@ export const IconTrash = createIcon(
     <path d="M4.75 7.25h14.5" />
     <path d="M9.75 7.25V6c0-.7.55-1.25 1.25-1.25h2c.7 0 1.25.55 1.25 1.25v1.25" />
     <path d="M6.75 7.25l.65 10.9a2.1 2.1 0 0 0 2.1 1.98h4.99a2.1 2.1 0 0 0 2.1-1.98l.66-10.9" />
-    <path d="M10.25 11.25v5M13.75 11.25v5" opacity=".45" />
+    <path d="M10.25 11.25v5M13.75 11.25v5" />
   </>,
 );
 
@@ -557,8 +553,8 @@ export const IconEye = createIcon(
 
 export const IconEyeOff = createIcon(
   <>
-    <path d="M3.75 12c2.3-3.85 5.05-5.8 8.25-5.8s5.95 1.95 8.25 5.8c-2.3 3.85-5.05 5.8-8.25 5.8S6.05 15.85 3.75 12Z" opacity=".45" />
-    <circle cx="12" cy="12" r="2.4" opacity=".45" />
+    <path d="M3.75 12c2.3-3.85 5.05-5.8 8.25-5.8s5.95 1.95 8.25 5.8c-2.3 3.85-5.05 5.8-8.25 5.8S6.05 15.85 3.75 12Z" />
+    <circle cx="12" cy="12" r="2.4" />
     <path d="M4.75 4.75l14.5 14.5" />
   </>,
 );
@@ -575,16 +571,16 @@ export const IconUsers = createIcon(
   <>
     <circle cx="9.25" cy="8.4" r="3.1" />
     <path d="M3.75 19.25c.35-3.1 2.6-4.9 5.5-4.9s5.15 1.8 5.5 4.9" />
-    <path d="M15.1 5.9a3.1 3.1 0 0 1 0 5M17.1 14.6c1.8.55 3 1.9 3.35 4.05" opacity=".45" />
+    <path d="M15.1 5.9a3.1 3.1 0 0 1 0 5M17.1 14.6c1.8.55 3 1.9 3.35 4.05" />
   </>,
 );
 
 export const IconPet = createIcon(
   <>
     <path d="M12 19.1c-2.75-1.4-4.5-3.1-4.5-5.05 0-1.5 1.15-2.55 2.5-2.55.75 0 1.45.3 2 .85.55-.55 1.25-.85 2-.85 1.35 0 2.5 1.05 2.5 2.55 0 1.95-1.75 3.65-4.5 5.05Z" />
-    <circle cx="6.6" cy="8.4" r="1.55" fill="currentColor" stroke="none" opacity=".45" />
-    <circle cx="12" cy="6.6" r="1.55" fill="currentColor" stroke="none" opacity=".45" />
-    <circle cx="17.4" cy="8.4" r="1.55" fill="currentColor" stroke="none" opacity=".45" />
+    <circle cx="6.6" cy="8.4" r="1.55" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="6.6" r="1.55" fill="currentColor" stroke="none" />
+    <circle cx="17.4" cy="8.4" r="1.55" fill="currentColor" stroke="none" />
   </>,
 );
 
@@ -595,7 +591,7 @@ export const IconHeart = createIcon(
 export const IconShield = createIcon(
   <>
     <path d="M12 3.9c2.3 1.45 4.55 2.2 6.9 2.35v5.4c0 4.25-2.75 7.2-6.9 8.8-4.15-1.6-6.9-4.55-6.9-8.8v-5.4C7.45 6.1 9.7 5.35 12 3.9Z" />
-    <path d="M9.4 11.9l1.85 1.85 3.35-3.45" opacity=".45" />
+    <path d="M9.4 11.9l1.85 1.85 3.35-3.45" />
   </>,
 );
 
@@ -609,7 +605,7 @@ export const IconPower = createIcon(
 export const IconMoon = createIcon(
   <>
     <path d="M11.7 3.75a6.75 6.75 0 0 0 8.55 8.55A8.4 8.4 0 1 1 11.7 3.75Z" />
-    <path d="M17.25 4.75c.2 1.2.85 1.85 2.05 2.05-1.2.2-1.85.85-2.05 2.05-.2-1.2-.85-1.85-2.05-2.05 1.2-.2 1.85-.85 2.05-2.05Z" opacity=".45" />
+    <path d="M17.25 4.75c.2 1.2.85 1.85 2.05 2.05-1.2.2-1.85.85-2.05 2.05-.2-1.2-.85-1.85-2.05-2.05 1.2-.2 1.85-.85 2.05-2.05Z" />
   </>,
 );
 

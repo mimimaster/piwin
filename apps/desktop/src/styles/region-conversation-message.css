@@ -1,6 +1,9 @@
 /* Region: Conversation Message Chrome (Header, Usage Chip, User Bubble, Action Hover)
    Owns assistant message header, per-turn usage chip, right-aligned user bubble,
-   and hoverable assistant footer dock. */
+   and hoverable assistant footer dock.
+
+   Deck rule: chips and badges use inset hairlines or void recess; the user bubble
+   is a raised surface-3 object with elev-1. No [data-theme] mode overrides. */
 
 /* ─── Conversation Assistant Header & Left Rail ─────────────────────── */
 
@@ -16,24 +19,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: var(--s-5);
+  margin-bottom: var(--s-5);
   min-height: 32px;
   user-select: none;
 }
 
 .conversation-response.is-continuation {
-  padding-top: 4px;
+  padding-top: var(--s-2);
 }
 
 .chat-thread.is-conversation .chat-message-row.role-assistant.is-turn-continuation {
-  margin-top: 8px;
+  margin-top: var(--s-4);
 }
 
 .conversation-message-identity {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--s-3);
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -46,19 +49,19 @@
   height: 32px;
   flex-shrink: 0;
   display: inline-flex;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: var(--r-control);
+  border: 0;
+  box-shadow: var(--elev-1);
   transition:
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    transform var(--t-3) var(--ease-out),
+    box-shadow var(--t-3) var(--ease-out);
 }
 
 .conversation-message-model-name {
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
-  color: var(--text);
-  letter-spacing: -0.01em;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -69,24 +72,25 @@
 .conversation-message-provider-badge {
   display: inline-flex;
   align-items: center;
-  padding: 1.5px 7px;
-  border-radius: 5px;
-  font-size: 11px;
+  padding: 1.5px var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
   font-weight: 500;
   line-height: 1.35;
-  color: var(--muted, var(--faint, #777));
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-3);
+  background: var(--hover);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .conversation-message-time {
-  font-size: 11.5px;
-  color: var(--faint, #888);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
   white-space: nowrap;
   flex-shrink: 0;
-  margin-left: 2px;
+  margin-left: var(--s-1);
   font-variant-numeric: tabular-nums;
 }
 
@@ -95,18 +99,19 @@
 .conversation-message-usage-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   line-height: 1.35;
-  color: var(--muted, #666);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--text-3);
+  background: var(--hover);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
   white-space: nowrap;
   flex-shrink: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
 }
 
 .conversation-message-usage-chip.is-estimated {
@@ -117,14 +122,15 @@
 .conversation-reply-writer-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
   font-weight: 500;
   line-height: 1.35;
-  color: var(--muted, #666);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--text-3);
+  background: var(--hover);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -140,7 +146,7 @@
   justify-content: flex-end;
   width: 100%;
   max-width: 100%;
-  margin: 4px 0 14px;
+  margin: var(--s-2) 0 var(--s-5);
   padding: 0;
   border: none;
   background: transparent;
@@ -151,7 +157,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--s-5);
   width: fit-content;
   max-width: 85%;
   margin-left: auto;
@@ -164,53 +170,45 @@
   align-items: flex-end;
   max-width: 100%;
   min-width: 0;
-  gap: 4px;
+  gap: var(--s-2);
 }
 
 .user-message-wrapper.is-conversation .user-message-bubble,
 .user-message-wrapper.is-conversation .user-message-collapsible {
-  --user-message-mask: var(--user-bubble, color-mix(in srgb, var(--accent, #3b82f6) 12%, var(--surface-raised, #232733)));
+  --user-message-mask: var(
+    --user-bubble,
+    color-mix(in srgb, var(--iris) 12%, var(--surface-3))
+  );
   position: relative;
   width: fit-content;
   max-width: 100%;
-  padding: 10px 14px;
+  padding: var(--s-5) var(--s-5);
   border-radius: 18px 4px 18px 18px;
-  background: var(--user-bubble, color-mix(in srgb, var(--accent, #3b82f6) 12%, var(--surface-raised, #232733)));
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  box-shadow: 0 3px 12px -2px rgba(0, 0, 0, 0.2);
+  border: 0;
+  background: var(
+    --user-bubble,
+    color-mix(in srgb, var(--iris) 12%, var(--surface-3))
+  );
+  box-shadow: var(--elev-1);
   box-sizing: border-box;
   text-align: left;
   word-break: break-word;
-  color: var(--text, #f1f5f9);
+  color: var(--text-1);
   overflow: hidden;
-}
-
-[data-theme='light'] .user-message-wrapper.is-conversation .user-message-bubble,
-[data-theme='light'] .user-message-wrapper.is-conversation .user-message-collapsible {
-  --user-message-mask: color-mix(in srgb, var(--accent, #3b82f6) 8%, #ffffff);
-  background: color-mix(in srgb, var(--accent, #3b82f6) 8%, #ffffff);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  color: #1e293b;
-}
-
-html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message-bubble,
-html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message-collapsible {
-  border-color: color-mix(in srgb, var(--text) 12%, transparent);
-  box-shadow: 0 3px 14px -2px rgba(0, 0, 0, 0.3);
 }
 
 .user-message-wrapper.is-conversation .user-message-quote-box {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  padding: 5px 9px;
-  border-radius: 4px 8px 8px 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border-left: 3px solid var(--accent, #38bdf8);
-  font-size: 12px;
+  margin-bottom: var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-chip) var(--r-control) var(--r-control) var(--r-chip);
+  background: var(--hover);
+  border: 0;
+  border-left: 3px solid var(--iris-lift);
+  font-size: var(--fs-chrome);
   line-height: 1.4;
-  color: var(--muted, #94a3b8);
+  color: var(--text-3);
 }
 
 .user-message-wrapper.is-conversation .user-message-quote-box .message-context-refs {
@@ -218,25 +216,26 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--s-2);
   width: 100%;
 }
 
-.user-message-wrapper.is-conversation .user-message-quote-box .message-context-refs .composer-v2-attachment-chip {
+.user-message-wrapper.is-conversation
+  .user-message-quote-box
+  .message-context-refs
+  .composer-v2-attachment-chip {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
-  font-size: 12px !important;
+  font-size: var(--fs-chrome) !important;
   color: inherit !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: var(--s-3) !important;
   max-width: 100% !important;
 }
 
-/* Hover veil: fade the last line into the bubble color and sit the
-   time / copy / revert row on that mask. Idle state stays out of flow. */
 .user-message-wrapper.is-conversation .user-message-footer,
 .user-message-wrapper.is-conversation .user-message-actions {
   position: absolute;
@@ -247,16 +246,16 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: var(--s-2);
   margin: 0;
   min-height: 0;
-  padding: 8px 14px 10px 44px;
+  padding: var(--s-4) var(--s-5) var(--s-5) 44px;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   line-height: 1;
-  color: var(--muted);
+  color: var(--text-3);
   user-select: none;
   background: linear-gradient(
     to right,
@@ -266,13 +265,13 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   );
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease;
+  transition: opacity var(--t-3) var(--ease-out);
 }
 
 .user-message-wrapper.is-conversation .user-message-action-buttons {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--s-1);
 }
 
 .user-message-wrapper.is-conversation:hover .user-message-footer,
@@ -283,8 +282,8 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   pointer-events: auto;
 }
 
-/* Intervention status is operational, not chrome — keep it readable. */
-.user-message-wrapper.is-conversation .user-message-footer:has([data-testid="intervention-delivery-status"]) {
+.user-message-wrapper.is-conversation
+  .user-message-footer:has([data-testid='intervention-delivery-status']) {
   position: relative;
   top: auto;
   right: auto;
@@ -292,9 +291,9 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   z-index: auto;
   opacity: 1;
   pointer-events: auto;
-  margin-top: 6px;
+  margin-top: var(--s-3);
   width: 100%;
-  padding: 6px 0 0;
+  padding: var(--s-3) 0 0;
   background: none;
 }
 
@@ -305,18 +304,22 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent, #3b82f6) 80%, #1e40af), color-mix(in srgb, var(--accent, #3b82f6) 40%, #1e3a8a));
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: 13px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--iris) 80%, var(--void)),
+    color-mix(in srgb, var(--iris) 40%, var(--void))
+  );
+  color: var(--on-iris, #ffffff);
+  border: 0;
+  font-size: var(--fs-chrome);
   font-weight: 600;
   flex-shrink: 0;
   user-select: none;
-  margin-top: 2px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  margin-top: var(--s-1);
+  box-shadow: var(--elev-1);
   transition:
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    transform var(--t-3) var(--ease-out),
+    box-shadow var(--t-3) var(--ease-out);
 }
 
 /* ─── Assistant Response Actions (Unified Dock) in Conversation Mode ── */
@@ -334,20 +337,19 @@ html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message
   margin-left: 44px;
 }
 
-/* ─── Conversation Visual Theme Enhancements (Ink-Wash & Dark) ──────── */
+/* ─── Ink-wash visual style (not a light/dark mode override) ───────── */
 
 html[data-theme-visual-style='ink-wash'] .conversation-message-provider-icon {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
-  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+  box-shadow: var(--elev-2);
 }
 
 html[data-theme-visual-style='ink-wash'] .conversation-message-provider-badge {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--line-2);
 }
 
 html[data-theme-visual-style='ink-wash'] .conversation-message-model-name {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--void) 35%, transparent);
 }
 
 html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-conversation-bubble {
@@ -365,40 +367,44 @@ html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-conversation-bubbl
 
 html[data-theme-visual-style='ink-wash'] .user-message-bubble,
 html[data-theme-visual-style='ink-wash'] .user-message-collapsible {
-  --user-message-mask: rgba(22, 26, 34, 0.98);
-  background-color: rgba(26, 30, 40, 0.94) !important;
-  background-image: linear-gradient(
+  --user-message-mask: color-mix(in srgb, var(--surface-3) 98%, transparent);
+  background: linear-gradient(
     180deg,
-    rgba(36, 40, 52, 0.96) 0%,
-    rgba(22, 26, 34, 0.96) 100%
+    color-mix(in srgb, var(--surface-3) 96%, transparent) 0%,
+    color-mix(in srgb, var(--void) 96%, transparent) 100%
   ) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border: 0 !important;
   border-radius: 18px 4px 18px 18px !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 6px 20px rgba(0, 0, 0, 0.35) !important;
-  color: #ffffff !important;
+    inset 0 1px 0 color-mix(in srgb, var(--text-1) 14%, transparent),
+    var(--elev-2) !important;
+  color: var(--text-1) !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .user-message-quote-box {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-left-color: var(--accent, #60a5fa) !important;
+  background: var(--hover) !important;
+  border-left-color: var(--iris-lift) !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .user-message-avatar {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent, #3b82f6) 80%, #1e40af), color-mix(in srgb, var(--accent, #3b82f6) 40%, #1e3a8a));
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--iris) 80%, var(--void)),
+    color-mix(in srgb, var(--iris) 40%, var(--void))
+  );
+  color: var(--on-iris, #ffffff);
+  box-shadow: var(--elev-2);
 }
 
 html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .user-message-footer,
-html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .user-message-actions {
+html[data-theme-visual-style='ink-wash']
+  .user-message-wrapper.is-conversation
+  .user-message-actions {
   background: linear-gradient(
     to right,
     transparent 0%,
-    rgba(22, 26, 34, 0.7) 32%,
-    rgba(22, 26, 34, 0.98) 58%
+    color-mix(in srgb, var(--void) 70%, transparent) 32%,
+    color-mix(in srgb, var(--void) 98%, transparent) 58%
   );
   border: none;
   box-shadow: none;
@@ -420,11 +426,11 @@ html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .
   .user-message-avatar {
     width: 28px;
     height: 28px;
-    font-size: 11.5px;
+    font-size: var(--fs-micro);
   }
 
   .user-message-wrapper.is-conversation {
-    gap: 8px;
+    gap: var(--s-4);
     max-width: calc(100% - 36px);
   }
 
@@ -440,10 +446,10 @@ html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .
 .message-branch-switcher {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  margin-left: 4px;
-  color: var(--muted);
-  font-size: 11px;
+  gap: var(--s-1);
+  margin-left: var(--s-2);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
   line-height: 1;
   user-select: none;
 }
@@ -459,5 +465,3 @@ html[data-theme-visual-style='ink-wash'] .user-message-wrapper.is-conversation .
   height: 22px;
   font-size: 14px;
 }
-
-

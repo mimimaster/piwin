@@ -1,42 +1,50 @@
-/* Browser workbench panel (ADR 0020 / 0057). */
+/* Browser workbench panel (ADR 0020 / 0057).
+
+   Deck rule: chrome rows are flat on the panel surface; controls recess to
+   void with inset hairlines. The frame viewport stays surface-4 so external
+   page content reads against a neutral canvas. */
 
 .browser-session-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: var(--canvas, var(--bg));
+  background: var(--surface-1);
 }
 
 .browser-session-urlbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line);
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
 }
 
 .browser-session-urlbar-icon {
-  color: var(--muted);
+  color: var(--text-3);
   flex-shrink: 0;
 }
 
 .browser-session-url-input {
   flex: 1;
   min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-size: 12px;
+  height: var(--h-sm);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--void);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  transition: box-shadow var(--t-1) var(--ease-out);
 }
 
 .browser-session-url-input:focus {
   outline: none;
-  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 1px var(--iris-lift),
+    0 0 0 2px color-mix(in srgb, var(--iris) 24%, transparent);
 }
 
 .browser-session-url-input:disabled,
@@ -50,72 +58,86 @@
 .browser-session-refresh-btn {
   display: grid;
   place-items: center;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
+  height: var(--h-sm);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  color: var(--text-1);
   cursor: pointer;
   flex-shrink: 0;
+  box-shadow: var(--elev-1);
+  transition: background-color var(--t-1) var(--ease-out);
 }
 
 .browser-session-go-btn:hover:not(:disabled),
 .browser-session-refresh-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
+  background: var(--hover);
 }
 
 .browser-session-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  font-size: 12px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-bottom: 1px solid var(--line-soft);
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-chrome);
+  background: color-mix(in srgb, var(--iris) 12%, transparent);
+  border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
 }
 
 .browser-session-banner.user {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--text-1) 6%, transparent);
 }
 
 .browser-session-banner button {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-size: 11px;
+  height: var(--h-xs);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: var(--fs-micro);
   cursor: pointer;
+  box-shadow: var(--elev-1);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.browser-session-banner button:hover {
+  background: var(--hover);
 }
 
 .browser-session-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--line-soft);
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line-1);
   flex-shrink: 0;
 }
 
 .browser-session-pick-toggle {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-size: 11px;
+  height: var(--h-xs);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: var(--fs-micro);
   cursor: pointer;
+  box-shadow: var(--elev-1);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    box-shadow var(--t-1) var(--ease-out);
 }
 
 .browser-session-pick-toggle.active {
-  background: var(--accent-soft, color-mix(in srgb, var(--accent) 15%, transparent));
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--iris-wash);
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--iris-lift) 40%, transparent);
+  color: var(--iris-lift);
 }
 
 .browser-session-pick-toggle:disabled {
@@ -124,13 +146,13 @@
 }
 
 .browser-session-pick-pending {
-  font-size: 11px;
-  color: var(--muted);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
 }
 
 .browser-session-pick-error {
-  font-size: 11px;
-  color: var(--danger);
+  font-size: var(--fs-micro);
+  color: var(--coral);
 }
 
 .browser-session-clear-highlight {
@@ -139,15 +161,18 @@
   width: 20px;
   height: 20px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--r-chip);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-3);
   cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .browser-session-clear-highlight:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-1);
+  background: var(--hover);
 }
 
 .browser-session-frame-container {
@@ -158,7 +183,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  /* Neutral canvas for rendered page pixels — not a themed surface. */
+  background: var(--surface-4);
 }
 
 .browser-session-frame {
@@ -176,14 +202,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
+  gap: var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
 }
 
 .browser-session-highlight {
-  border: 2px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 2px solid var(--iris-lift);
+  background: color-mix(in srgb, var(--iris) 12%, transparent);
   pointer-events: none;
   box-sizing: border-box;
 }
@@ -199,36 +225,42 @@
 
 .browser-session-dev {
   flex-shrink: 0;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--line-1);
 }
 
 .browser-session-dev-toggle {
   width: 100%;
-  height: 24px;
+  height: var(--h-xs);
   border: 0;
   background: transparent;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
   cursor: pointer;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.browser-session-dev-toggle:hover {
+  color: var(--text-1);
 }
 
 .browser-session-dev-body {
   max-height: 120px;
   overflow: auto;
-  padding: 4px 8px 8px;
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
+  padding: var(--s-2) var(--s-4) var(--s-4);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  background: var(--void);
 }
 
 .browser-session-dev-list {
   margin: 0;
-  padding-left: 16px;
+  padding-left: var(--s-6);
 }
 
 .browser-session-dev-error {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .browser-session-dev-warning {
-  color: var(--warn, #b45309);
+  color: var(--amber);
 }

@@ -1,4 +1,8 @@
-/* Region: Settings → Plugins marketplace (Marketplace / Yours cards). */
+/* Region: Settings → Plugins marketplace (Marketplace / Yours cards).
+
+   Deck rule: a marketplace row is a list entry you scan, not an object you
+   own yet, so it stays flat and only earns a hover fill. That keeps the whole
+   grid quiet enough to read at a glance. */
 
 .plugin-market {
   min-width: 0;
@@ -8,8 +12,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: var(--s-5);
+  margin-bottom: var(--s-7);
 }
 
 .plugin-market-header .piwin-text-input {
@@ -17,13 +21,13 @@
 }
 
 .plugin-market-section {
-  margin-bottom: 22px;
+  margin-bottom: var(--s-8);
 }
 
 .plugin-market-section-label {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 12px;
+  margin: 0 0 var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -31,21 +35,22 @@
 .plugin-market-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px 20px;
+  gap: var(--s-1) var(--s-7);
 }
 
 .plugin-market-card {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-5);
   min-width: 0;
   min-height: 58px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  transition: background-color var(--t-1) var(--ease-out);
 }
 
 .plugin-market-card:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
+  background: var(--hover);
 }
 
 .plugin-market-icon {
@@ -55,13 +60,13 @@
   width: 36px;
   height: 36px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--r-control);
 }
 
 .plugin-market-icon--github,
 .plugin-market-icon--figma {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-1);
+  background: var(--hover);
 }
 
 .plugin-market-copy {
@@ -71,17 +76,17 @@
 
 .plugin-market-copy strong {
   display: block;
-  color: var(--text);
-  font-size: 13.5px;
+  color: var(--text-1);
+  font-size: var(--fs-body);
   font-weight: 650;
   line-height: 1.25;
 }
 
 .plugin-market-copy p {
-  margin: 2px 0 0;
+  margin: var(--s-1) 0 0;
   overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -96,44 +101,44 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 5px;
-  color: var(--ok, #10b981);
-  font-size: 13px;
+  gap: var(--s-3);
+  color: var(--mint);
+  font-size: var(--fs-body);
   font-weight: 550;
   white-space: nowrap;
 }
 
 .plugin-market-empty {
-  padding: 36px 12px;
-  color: var(--muted);
-  font-size: 13.5px;
+  padding: var(--s-10) var(--s-5);
+  color: var(--text-3);
+  font-size: var(--fs-body);
   text-align: center;
 }
 
 .plugin-market-secret-dialog {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-5);
   min-width: min(420px, 86vw);
 }
 
 .plugin-market-secret-dialog h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--fs-title);
   font-weight: 650;
 }
 
 .plugin-market-secret-dialog > p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
 }
 
 .plugin-market-secret-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
 }
 
 @media (max-width: 720px) {

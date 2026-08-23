@@ -1,38 +1,49 @@
-/* Goal mode styling: sticky status strip, delivery cards, and blocker cards */
+/* Goal mode styling: sticky status strip, delivery cards, and blocker cards.
+   Deck rule: status strips are raised cards on the transcript stage; delivery
+   and blocker cards use semantic wash surfaces (mint / coral) with inset
+   hairlines — the same treatment as turn-error-card in transcript-message.css. */
 
 .goal-sticky-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  margin: 8px var(--chat-inline-pad);
-  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  transition: all var(--motion-standard) var(--motion-ease);
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-6);
+  border-radius: var(--r-control);
+  margin: var(--s-4) var(--chat-inline-pad);
+  background: var(--surface-2);
+  border: 0;
+  box-shadow: var(--elev-1);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
 }
 
 .goal-sticky-strip.goal-status-running {
-  border-color: rgba(99, 102, 241, 0.35);
-  background: rgba(99, 102, 241, 0.06);
+  background: color-mix(in srgb, var(--iris) 6%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--iris-lift) 35%, transparent);
 }
 
 .goal-sticky-strip.goal-status-blocked {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--coral) 40%, transparent);
 }
 
 .goal-sticky-strip.goal-status-completed {
-  border-color: rgba(16, 185, 129, 0.35);
-  background: rgba(16, 185, 129, 0.06);
+  background: color-mix(in srgb, var(--mint) 6%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--mint) 35%, transparent);
 }
 
 .goal-strip-main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-5);
   min-width: 0;
   flex: 1;
 }
@@ -40,8 +51,8 @@
 .goal-strip-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: var(--s-3);
+  font-size: var(--fs-chrome);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -53,104 +64,108 @@
 }
 
 .goal-status-dot.dot-paused {
-  background: var(--warning, #f59e0b);
+  background: var(--amber);
 }
 
 .goal-status-dot.dot-blocked {
-  background: var(--danger, #ef4444);
+  background: var(--coral);
 }
 
 .goal-status-dot.dot-completed {
-  background: var(--ok, #10b981);
+  background: var(--mint);
 }
 
 .goal-turn-pill {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--fg-muted, #888);
+  font-size: var(--fs-micro);
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
 }
 
 .goal-strip-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--s-3);
+  font-size: var(--fs-body);
   font-weight: 500;
-  color: var(--fg-primary, #eee);
+  color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .goal-strip-blocker {
-  font-size: 12px;
-  color: var(--danger, #ef4444);
-  margin-left: 8px;
+  font-size: var(--fs-chrome);
+  color: var(--coral);
+  margin-left: var(--s-4);
 }
 
 .goal-strip-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s-3);
   flex-shrink: 0;
 }
 
 /* Goal Delivery Card */
 .goal-delivery-card {
-  margin: 12px 0;
-  padding: 16px;
-  border-radius: 10px;
-  background: var(--bg-surface-elevated, rgba(255, 255, 255, 0.04));
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  margin: var(--s-5) 0;
+  padding: var(--s-6);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--mint) 6%, var(--surface-2));
+  border: 0;
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--mint) 28%, transparent);
 }
 
 .goal-delivery-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: var(--s-5);
 }
 
 .goal-delivery-badge {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: var(--s-4);
+  font-size: var(--fs-body);
   font-weight: 600;
-  color: var(--ok, #10b981);
+  color: var(--mint);
 }
 
 .goal-delivery-section {
-  margin-top: 10px;
+  margin-top: var(--s-4);
 }
 
 .goal-section-label {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--fg-muted, #888);
-  margin-bottom: 4px;
+  letter-spacing: var(--tracking-micro);
+  color: var(--text-3);
+  margin-bottom: var(--s-2);
 }
 
 .goal-summary-text {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--fg-primary, #eee);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--text-1);
 }
 
 .goal-verification-pre {
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--fg-secondary, #ccc);
+  color: var(--text-2);
 }
 
 .goal-artifacts-list {
@@ -159,62 +174,67 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s-2);
 }
 
 .goal-artifact-link {
   background: none;
   border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-  color: var(--accent, #6366f1);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-chip);
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  color: var(--iris-lift);
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--t-1) var(--ease-out);
 }
 
 .goal-artifact-link:hover {
-  background: var(--wb-hover, rgba(255, 255, 255, 0.06));
+  background: var(--hover);
 }
 
 .goal-delivery-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line-1);
 }
 
 /* Goal Blocked Card */
 .goal-blocked-card {
-  margin: 12px 0;
-  padding: 16px;
-  border-radius: 10px;
-  background: rgba(239, 68, 68, 0.05);
-  border: 1px solid rgba(239, 68, 68, 0.35);
+  margin: var(--s-5) 0;
+  padding: var(--s-6);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface-2));
+  border: 0;
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--coral) 28%, transparent);
 }
 
 .goal-blocked-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: var(--s-4);
+  font-size: var(--fs-body);
   font-weight: 600;
-  color: var(--danger, #ef4444);
-  margin-bottom: 12px;
+  color: var(--coral);
+  margin-bottom: var(--s-5);
 }
 
-.goal-reason-text, .goal-action-text {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--fg-primary, #eee);
+.goal-reason-text,
+.goal-action-text {
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--text-1);
 }
 
 .goal-blocked-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(239, 68, 68, 0.15);
+  gap: var(--s-4);
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid color-mix(in srgb, var(--coral) 15%, transparent);
 }

@@ -1,0 +1,397 @@
+/* Inspector: context window, git, plan, host log, knowledge panels.
+   Split out of region-inspector.css (one region, split by responsibility
+   per AGENTS.md 3.2). Panel frame, tabstrip, and home launcher stay in
+   region-inspector.css.
+
+   Deck rule: these are readouts, not objects. They live directly on the
+   inspector panel with no surface of their own; anything that *contains* data
+   the user reads at length (a commit body, a log) recesses to the void step
+   instead of being boxed, because inside a raised panel the only direction
+   left is down. */
+
+/* ── Context window panel ─────────────────────────────────────────── */
+
+.context-window-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5);
+}
+
+.context-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-window-header h3 {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+  margin: 0;
+}
+
+.context-window-percent {
+  font-size: var(--fs-chrome);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reserved semantics: amber is the warning colour everywhere in the product.
+   This readout used to warn in accent, which made a filling context window
+   look like an affordance. */
+.context-window-percent.tone-ok {
+  color: var(--mint);
+}
+.context-window-percent.tone-warn {
+  color: var(--amber);
+}
+.context-window-percent.tone-critical {
+  color: var(--coral);
+}
+
+.context-window-bar {
+  display: flex;
+  align-items: stretch;
+  height: 8px;
+  border-radius: var(--r-chip);
+  overflow: hidden;
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.context-window-segment {
+  display: block;
+  height: 100%;
+  min-width: 1px;
+  transition: width var(--t-4) var(--ease-out);
+}
+
+/* Disable context segment transitions during panel resize to prevent jitter. */
+.right-panel.is-resizing .context-window-segment {
+  transition: none;
+}
+
+.context-window-segment.free {
+  background: transparent;
+  flex: 1;
+}
+
+.context-window-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.context-window-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.context-window-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-micro);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-chip);
+  flex-shrink: 0;
+}
+
+.legend-label {
+  flex: 1;
+  color: var(--text-3);
+}
+
+.legend-value {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-micro);
+}
+
+/* ── Git panel (embedded review tab + dialog variant) ─────────────── */
+
+.git-panel {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.git-section {
+  margin: var(--s-6) 0;
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line-1);
+}
+
+.git-section h4 {
+  margin: 0 0 var(--s-4);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.git-path {
+  display: block;
+  margin-top: var(--s-2);
+  word-break: break-all;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+.git-graph-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--s-5);
+}
+
+.git-graph-list {
+  max-height: 220px;
+}
+
+.git-commit-detail {
+  border: 0;
+  border-radius: var(--r-card);
+  padding: var(--s-5);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  min-height: 120px;
+}
+
+.git-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: center;
+  cursor: pointer;
+}
+
+.git-panel-body .git-section {
+  margin-top: var(--s-5);
+}
+
+.git-panel-body .git-graph-layout {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 800px) {
+  .git-graph-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Plan panel ───────────────────────────────────────────────────── */
+
+.plan-step-list {
+  margin: var(--s-5) 0 0;
+  padding-left: var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.plan-status {
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+/* ── Host log panel ───────────────────────────────────────────────── */
+
+.host-log-panel {
+  border-top: 1px solid var(--line-1);
+  background: var(--surface-1);
+  flex-shrink: 0;
+}
+
+.host-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-5);
+}
+
+.host-log-toggle {
+  font-size: var(--fs-chrome);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.host-log-counts {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.host-log-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* The log body recesses: it is raw output, the same treatment terminal and
+   test output get everywhere else. */
+.host-log-body {
+  max-height: 160px;
+  overflow: auto;
+  padding: 0 var(--s-5) var(--s-4);
+  border-top: 1px solid var(--line-1);
+  background: var(--void);
+}
+
+.host-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.host-log-line {
+  display: grid;
+  grid-template-columns: 72px 48px 1fr;
+  gap: var(--s-4);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--line-1);
+  color: var(--text-2);
+}
+
+.host-log-line.level-error .host-log-level {
+  color: var(--coral);
+}
+
+.host-log-line.level-warn .host-log-level {
+  color: var(--amber);
+}
+
+.host-log-line.level-info .host-log-level {
+  color: var(--text-4);
+}
+
+.host-log-message {
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ── Knowledge Center (right-panel sub-tabbed entry) ──────────────── */
+
+.knowledge-center-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+}
+
+.knowledge-center-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--s-2) var(--s-6) var(--s-5);
+}
+
+/* Same micro kicker as .right-panel-kicker: an eyebrow is a label, not a
+   signal, so it stays in the quiet ink rather than borrowing the accent. */
+.knowledge-center-kicker {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.knowledge-center-subtitle {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* Sub-tabs strip — reuse ui-tabs styles with tighter spacing. */
+.knowledge-center-panel .ui-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.knowledge-center-panel .ui-tabs-list {
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-5) var(--s-4);
+  margin: 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+.knowledge-center-panel .ui-tabs-trigger {
+  border: 0;
+  background: transparent;
+  border-radius: var(--r-control);
+  padding: 0 var(--s-4);
+  height: var(--h-sm);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.knowledge-center-panel .ui-tabs-trigger:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+/* Raised active segment, same as .right-panel-tab and .review-subtab. */
+.knowledge-center-panel .ui-tabs-trigger[data-state='active'] {
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.knowledge-center-panel .ui-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-5) var(--s-2) 0;
+}
+
+.knowledge-center-panel .right-panel-section {
+  border: 0;
+  padding: 0 var(--s-5) var(--s-6);
+}
+
+/* Knowledge Center discoverability hint under the section label. */
+.right-panel-section-hint,
+.right-panel-section-hint-en {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-4);
+  margin-top: 1px;
+  line-height: var(--lh-tight);
+}
+
+.right-panel-section-hint-en {
+  display: inline-block;
+  margin-top: 0;
+  margin-left: auto;
+  padding-left: var(--s-4);
+  font-size: var(--fs-micro);
+}

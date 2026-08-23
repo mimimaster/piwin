@@ -1,0 +1,621 @@
+/* Inspector: terminal dock, directory switcher, PTY, sessions, split view.
+   Split out of region-inspector.css (one region, split by responsibility
+   per AGENTS.md 3.2). Panel frame, tabstrip, and home launcher stay in
+   region-inspector.css.
+
+   Deck rule: the console recesses. `--term-bg` resolves to the void step in
+   both faces, so the terminal is the deepest thing on screen rather than a
+   literal black rectangle pasted onto a light theme — output reads as cut
+   into the panel, which is what a shell actually is. */
+
+/* ── Terminal dock (panel variant inside inspector) ───────────────── */
+
+.terminal-dock {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.terminal-dock-panel {
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.terminal-dock-panel .terminal-dock-body {
+  flex: 1;
+  min-height: 240px;
+}
+
+.terminal-dock-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  height: var(--h-md);
+  min-height: var(--h-md);
+  padding: 0 var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.terminal-dock-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.terminal-dock-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+.terminal-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.terminal-icon-button:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+/* ── Directory switcher ─────────────────────────────────────────── */
+
+.terminal-dir-switcher {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--s-2);
+}
+
+.terminal-dir-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-xs);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: var(--fs-micro);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.terminal-dir-btn:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.terminal-dir-btn[aria-expanded='true'] {
+  color: var(--text-1);
+  background: var(--iris-wash);
+}
+
+.terminal-dir-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A dropdown is an overlay: top surface tier, top elevation, no outline. */
+.terminal-dir-dropdown {
+  position: absolute;
+  top: calc(100% + var(--s-2));
+  left: var(--s-2);
+  min-width: 240px;
+  max-width: 360px;
+  background: var(--surface-4);
+  border: 0;
+  border-radius: var(--r-overlay);
+  box-shadow: var(--elev-3);
+  z-index: 100;
+  padding: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.terminal-dir-dropdown-header {
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+}
+
+.terminal-dir-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: var(--fs-chrome);
+  text-align: left;
+  width: 100%;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.terminal-dir-option:hover {
+  background: var(--hover);
+}
+
+.terminal-dir-option-label {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-dir-option-path {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  flex-shrink: 0;
+}
+
+.terminal-dir-input-row {
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line-1);
+  margin-top: 2px;
+}
+
+.terminal-dir-input {
+  flex: 1;
+  height: var(--h-xs);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: var(--fs-micro);
+  outline: none;
+  transition: box-shadow var(--t-1) var(--ease-out);
+}
+
+.terminal-dir-input:focus {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 55%, transparent);
+}
+
+.terminal-dock-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-stream {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-4) 0 var(--s-4) var(--s-5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+}
+
+.terminal-empty {
+  padding: var(--s-5) 0;
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+}
+
+.terminal-line {
+  display: grid;
+  grid-template-columns: 52px 42px minmax(0, 1fr);
+  gap: var(--s-4);
+  padding: 1px 0;
+  color: var(--term-text);
+}
+
+.terminal-line.level-warn .terminal-level,
+.terminal-line.level-warn .terminal-text {
+  color: var(--amber);
+}
+
+.terminal-line.level-error .terminal-level,
+.terminal-line.level-error .terminal-text {
+  color: var(--coral);
+}
+
+.terminal-level {
+  text-transform: uppercase;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.terminal-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── PTY (interactive + line-preview) ─────────────────────────────── */
+
+.pty-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pty-stream {
+  flex: 1;
+  overflow: auto;
+  padding: var(--s-4) 0 var(--s-4) var(--s-5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+}
+
+.pty-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--term-text);
+}
+
+.pty-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--line-1);
+  background: var(--term-bg);
+}
+
+.pty-prompt {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--mint);
+}
+
+/* The command line sits *inside* the console, which is already the void step,
+   so it lifts one notch instead of recessing further — there is nowhere left
+   to go down. */
+.pty-input {
+  flex: 1;
+  height: var(--h-md);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-1);
+  padding: 0 var(--s-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  transition: box-shadow var(--t-1) var(--ease-out);
+}
+
+.pty-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 55%, transparent);
+}
+
+.pty-xterm-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.xterm-surface {
+  flex: 1;
+  min-height: 140px;
+  padding: var(--s-2) 0 var(--s-2) var(--s-3);
+  background: var(--term-bg);
+  border: 0;
+  border-radius: var(--r-control);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  overflow: hidden;
+}
+
+.xterm-surface .xterm {
+  height: 100%;
+}
+
+/* xterm.js sets inline overflow on its viewport; this is the one place we
+   must out-rank an inline style to keep the scrollbar functional. */
+.xterm-surface .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+/* ── Terminal sessions ────────────────────────────────────────────── */
+
+.terminal-dock-session-strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border-bottom: 0;
+  overflow-x: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.terminal-dock-session-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-dock-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--h-xs);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.terminal-dock-session:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.terminal-dock-session.active {
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.terminal-dock-session-main {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  cursor: inherit;
+}
+
+.terminal-dock-session-name {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sky, not ember: a running shell is a background process you started, not
+   the agent working. Ember stays reserved so a warm pixel always means the
+   same thing. */
+.terminal-dock-session-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sky);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+.terminal-dock-session-dot.error {
+  background: var(--coral);
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-dock-session-dot {
+    animation: none;
+  }
+}
+
+.terminal-dock-session-close,
+.terminal-dock-session-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: var(--r-chip);
+  padding: 0;
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.terminal-dock-session-close:hover,
+.terminal-dock-session-add:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.terminal-dock-surfaces {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-dock-surface {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-2);
+}
+
+.terminal-dock-surface[hidden] {
+  display: none;
+}
+
+/* ── Split content & sessions sidebar ───────────────────────────── */
+
+.terminal-dock-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.terminal-surface-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-sessions-sidebar {
+  width: 150px;
+  min-width: 130px;
+  max-width: 200px;
+  border-left: 1px solid var(--line-1);
+  background: var(--surface-1);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.terminal-sessions-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+  border-bottom: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.terminal-sessions-count {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--s-2);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.terminal-session-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+  user-select: none;
+}
+
+.terminal-session-item:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.terminal-session-item.active {
+  background: var(--active);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.terminal-session-item-icon {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--text-4);
+}
+
+.terminal-session-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-session-item-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: var(--r-chip);
+  padding: 0;
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+}
+
+.terminal-session-item:hover .terminal-session-item-close {
+  display: inline-flex;
+}
+
+.terminal-session-item-close:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}

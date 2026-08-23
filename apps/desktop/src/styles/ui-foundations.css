@@ -8,7 +8,7 @@
 /* ── Text helpers ─────────────────────────────────────────────────── */
 
 .muted {
-  color: var(--muted);
+  color: var(--text-3);
 }
 .list {
   padding-left: 18px;
@@ -24,7 +24,7 @@
 .banner-summary-pre {
   white-space: pre-wrap;
   font-size: 11px;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────── */
@@ -43,75 +43,91 @@
   min-height: 28px;
 }
 
-/* ui-kit IconButton — ghost by default (P1: no boxed chrome). */
+/* ui-kit IconButton — ghost at rest, real surface on hover. Disabled state
+   drops to text-4 rather than fading the whole button: an opacity fade on a
+   ghost control leaves nothing legible behind. */
 .piwin-icon-button {
   border: none;
   background: transparent;
-  color: var(--muted);
-  border-radius: 7px;
+  color: var(--text-3);
+  border-radius: var(--r-control);
   transition:
-    background var(--motion-quick, 120ms) var(--motion-ease, ease),
-    color var(--motion-quick, 120ms) var(--motion-ease, ease);
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .piwin-icon-button:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--wb-hover, var(--surface-hover));
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.piwin-icon-button:active:not(:disabled) {
+  background: var(--active);
 }
 
 .piwin-icon-button.active,
 .piwin-icon-button[aria-pressed='true'] {
-  color: var(--accent);
-  background: var(--wb-accent-soft, var(--accent-soft));
+  color: var(--iris-lift);
+  background: var(--iris-wash);
 }
 
 .piwin-icon-button svg {
-  width: var(--icon-size-sm, 16px);
-  height: var(--icon-size-sm, 16px);
-  stroke-width: 1.6;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  stroke-width: var(--icon-stroke);
 }
 
 .piwin-icon-button:disabled,
 .piwin-icon-button:disabled:hover {
-  opacity: 0.42;
+  color: var(--text-4);
   background: transparent;
   cursor: default;
 }
 
-/* ── Inputs ───────────────────────────────────────────────────────── */
+/* ── Inputs ───────────────────────────────────────────────────────────
+   Fields are wells, not cards: they recess into the surface they sit on and
+   take an iris ring on focus. */
 
 .text-input,
 textarea {
   width: 100%;
-  border: 1px solid var(--border);
-  background: var(--surface-inset);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  margin-bottom: 10px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  background: var(--void);
+  color: var(--text-1);
+  border-radius: var(--r-control);
+  padding: var(--s-5);
+  margin-bottom: var(--s-5);
   font: inherit;
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.text-input:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--iris);
 }
 
 /* ── Pills ────────────────────────────────────────────────────────── */
 
 .pill {
   border: none;
-  background: var(--wb-accent-soft, var(--accent-soft));
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 11px;
+  background: var(--iris-wash);
+  border-radius: var(--r-chip);
+  padding: 2px var(--s-4);
+  font-size: var(--fs-mono);
   font-weight: 600;
-  color: var(--accent);
+  color: var(--iris-lift);
 }
 
 .pill.ok {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
 }
 
 .pill.neutral {
-  color: var(--muted);
-  background: var(--surface-hover);
+  color: var(--text-3);
+  background: var(--hover);
 }
 
 /* ── Media thumbnails (transcript attachments + composer chips) ───── */
@@ -144,8 +160,8 @@ textarea {
   height: 120px;
   max-width: 100%;
   object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px var(--line-1);
   cursor: pointer;
 }
 
@@ -155,10 +171,11 @@ textarea {
   height: auto;
   max-height: 520px;
   object-fit: contain;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.15)) 80%, transparent);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
-  background: color-mix(in srgb, var(--surface, #1e1e1e) 40%, rgba(0, 0, 0, 0.2));
+  border-radius: var(--r-card);
+  box-shadow:
+    inset 0 0 0 1px var(--line-1),
+    var(--elev-2);
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--void));
   cursor: zoom-in;
 }
 
@@ -193,7 +210,7 @@ textarea {
 
 .media-preview-image-button:focus-visible,
 .media-chip-thumb-button:focus-visible {
-  outline: 2px solid var(--accent, #3b82f6);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -218,7 +235,9 @@ textarea {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-2px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
   z-index: 2;
 }
 
@@ -238,10 +257,13 @@ textarea {
   padding: 0;
   border: none;
   background: transparent;
-  color: #f3f4f6;
+  /* Cinema overlay stays dark in both faces; --on-iris is white on both. */
+  color: var(--on-iris, #ffffff);
   border-radius: 5px;
   cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .media-preview-toolbar-btn:hover {
@@ -250,7 +272,7 @@ textarea {
 }
 
 .media-preview-toolbar-btn.copied {
-  color: #4ade80;
+  color: var(--mint);
 }
 
 /* Fullscreen image lightbox (portaled to body from MediaPreview). */
@@ -286,7 +308,7 @@ textarea {
   object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 24px 80px color-mix(in srgb, #000 45%, transparent);
-  background: color-mix(in srgb, var(--panel, #111) 40%, #000);
+  background: color-mix(in srgb, var(--void) 40%, transparent);
   user-select: none;
 }
 
@@ -301,20 +323,20 @@ textarea {
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--on-iris, #fff) 18%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, #0b0f14 78%, transparent);
-  color: #fff;
+  background: color-mix(in srgb, var(--void) 78%, transparent);
+  color: var(--on-iris, #fff);
   cursor: pointer;
   backdrop-filter: blur(8px);
 }
 
 .media-lightbox-close:hover {
-  background: color-mix(in srgb, #0b0f14 92%, transparent);
+  background: color-mix(in srgb, var(--void) 92%, transparent);
 }
 
 .media-lightbox-close:focus-visible {
-  outline: 2px solid var(--accent, #3b82f6);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -341,18 +363,19 @@ textarea {
   display: block;
   width: min(520px, 100%);
   max-height: 380px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: #000;
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  background: var(--void);
 }
 
 .media-preview-video.is-hero {
   width: 100%;
   max-width: min(560px, 100%);
   max-height: 440px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--border, rgba(255, 255, 255, 0.15)) 80%, transparent);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+  border-radius: var(--r-card);
+  box-shadow:
+    inset 0 0 0 1px var(--line-1),
+    var(--elev-2);
 }
 
 .media-chip-video-container {
@@ -371,7 +394,7 @@ textarea {
 .media-chip-fallback,
 .media-preview-fallback {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text-3);
   padding: 8px;
 }
 
@@ -381,7 +404,7 @@ textarea {
   align-items: center;
   gap: 7px;
   min-width: 0;
-  color: var(--text);
+  color: var(--text-1);
 }
 
 .media-chip-file {
@@ -414,7 +437,7 @@ textarea {
 }
 
 .media-file-card-meta {
-  color: var(--muted);
+  color: var(--text-3);
   font-size: 10px;
 }
 
@@ -454,32 +477,60 @@ textarea {
 
 /* ── ui-kit: Notice ───────────────────────────────────────────────── */
 
+/* Tone is carried by a left stripe rather than a tinted border all round: at
+   notice size a full colored outline competes with the run state. */
 .ui-notice {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-surface);
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: none;
-  margin: 8px 16px;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-5) var(--s-5) var(--s-6);
+  border-radius: var(--r-card);
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-2);
+  margin: var(--s-4) var(--s-6);
+  overflow: hidden;
+}
+
+.ui-notice.tone-error,
+.ui-notice.tone-warning,
+.ui-notice.tone-success {
+  border: 0;
+}
+
+.ui-notice.tone-error::before,
+.ui-notice.tone-warning::before,
+.ui-notice.tone-success::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
 }
 
 .ui-notice.tone-error {
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
-  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface-3));
+}
+
+.ui-notice.tone-error::before {
+  background: var(--coral);
 }
 
 .ui-notice.tone-warning {
-  border-color: color-mix(in srgb, var(--state-warning) 40%, transparent);
-  background: color-mix(in srgb, var(--state-warning) 10%, var(--panel));
+  background: color-mix(in srgb, var(--amber) 8%, var(--surface-3));
+}
+
+.ui-notice.tone-warning::before {
+  background: var(--amber);
 }
 
 .ui-notice.tone-success {
-  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
-  background: color-mix(in srgb, var(--ok) 10%, var(--panel));
+  background: color-mix(in srgb, var(--mint) 8%, var(--surface-3));
+}
+
+.ui-notice.tone-success::before {
+  background: var(--mint);
 }
 
 /* Panel-embedded notices align with their container, not the stage gutter. */
@@ -495,29 +546,32 @@ textarea {
 .ui-status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--muted);
+  gap: var(--s-3);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
 }
 
 .ui-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--faint);
+  background: var(--text-4);
 }
 
+/* Running dots breathe on the shared shell cycle so every liveness indicator
+   in the window pulses in phase. */
 .ui-status-badge.tone-running .ui-status-dot {
-  background: var(--accent);
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
 }
 .ui-status-badge.tone-success .ui-status-dot {
-  background: var(--ok);
+  background: var(--mint);
 }
 .ui-status-badge.tone-warning .ui-status-dot {
-  background: var(--state-warning);
+  background: var(--amber);
 }
 .ui-status-badge.tone-danger .ui-status-dot {
-  background: var(--danger);
+  background: var(--coral);
 }
 
 /* ── ui-kit: Field ────────────────────────────────────────────────── */
@@ -537,7 +591,7 @@ textarea {
   font-size: 12px;
 }
 .ui-field-error {
-  color: var(--danger);
+  color: var(--coral);
   font-size: 12px;
   margin: 4px 0 0;
 }
@@ -547,12 +601,21 @@ textarea {
 .ui-field-control > select:not([class*='piwin-']),
 .ui-field-control > textarea:not([class*='piwin-']) {
   width: 100%;
-  border: 1px solid var(--border);
-  background: var(--surface-inset);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  background: var(--void);
+  color: var(--text-1);
+  border-radius: var(--r-control);
+  padding: var(--s-4) var(--s-5);
   font: inherit;
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.ui-field-control > input:not([class*='piwin-']):focus,
+.ui-field-control > select:not([class*='piwin-']):focus,
+.ui-field-control > textarea:not([class*='piwin-']):focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--iris);
 }
 
 .ui-field-control .piwin-text-input,
@@ -591,7 +654,7 @@ textarea {
 .ui-field-checkbox-label {
   display: block;
   font-size: 12.5px;
-  color: var(--text);
+  color: var(--text-1);
   cursor: pointer;
 }
 
@@ -605,8 +668,8 @@ textarea {
   display: inline-block;
   width: 1rem;
   height: 1rem;
-  border: 2px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-top-color: var(--accent);
+  border: 2px solid var(--line-2);
+  border-top-color: var(--iris);
   border-radius: 50%;
   animation: piwin-spin 0.7s linear infinite;
   vertical-align: middle;
@@ -629,112 +692,147 @@ textarea {
 
 .ui-tabs-list {
   display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: var(--s-1);
+  margin-bottom: var(--s-5);
+  padding: 3px;
+  border-radius: var(--r-control);
+  background: var(--void);
 }
 
+/* Segmented control: the active tab is the raised one. No borders — the
+   track recesses and the selected segment sits on top of it. */
 .ui-tabs-trigger {
-  border: 1px solid var(--line-soft);
+  border: 0;
   background: transparent;
-  border-radius: 8px;
-  padding: 6px 10px;
+  border-radius: var(--r-chip);
+  padding: var(--s-3) var(--s-5);
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out);
+}
+
+.ui-tabs-trigger:hover {
+  color: var(--text-1);
 }
 
 .ui-tabs-trigger[data-state='active'] {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--surface-3);
+  color: var(--text-1);
+  box-shadow: var(--elev-1);
 }
 
 /* ── piwin component language ─────────────────────────────────────── */
 
 .piwin-surface {
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-surface);
-  background: var(--panel);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
 }
 .piwin-surface--raised {
-  background: var(--surface-raised);
+  background: var(--surface-4);
+  box-shadow: var(--elev-2);
 }
 .piwin-surface--inset {
-  background: var(--surface-control);
+  background: var(--void);
+  box-shadow: none;
 }
 .piwin-surface--selected {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
-  background: var(--surface-selected);
+  background: var(--surface-3);
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px var(--iris);
 }
 
+/* Rows use fill for hover and an iris cap for selection — the same language
+   as sidebar sessions, so "this one is current" reads identically everywhere. */
 .piwin-list-row {
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: var(--control-height-large);
-  padding: 7px 9px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  min-height: var(--h-lg);
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
   background: transparent;
-  color: var(--text);
+  color: var(--text-1);
   cursor: pointer;
   font: inherit;
   text-align: left;
   transition:
-    background var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    color var(--motion-fast) ease;
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 .piwin-list-row:hover:not(:disabled) {
-  border-color: var(--line-soft);
-  background: var(--surface-hover);
+  background: var(--hover);
 }
 .piwin-list-row.is-selected {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: var(--surface-selected);
+  background: var(--active);
+}
+.piwin-list-row.is-selected::before {
+  content: '';
+  position: absolute;
+  left: var(--s-1);
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--iris);
+  transform: translateY(-50%);
 }
 .piwin-list-row.is-compact {
-  min-height: var(--control-height-default);
-  padding-block: 5px;
+  min-height: var(--h-md);
+  padding-block: var(--s-2);
 }
 .piwin-list-row:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  color: var(--text-4);
 }
 
 .piwin-button {
-  min-height: var(--control-height-default);
+  min-height: var(--h-md);
+  border-radius: var(--r-control);
   font-weight: 550;
   letter-spacing: 0;
 }
 .piwin-button--compact {
-  min-height: var(--control-height-compact);
+  min-height: var(--h-sm);
 }
 .piwin-button--primary {
-  box-shadow: none;
+  box-shadow: var(--elev-1);
 }
 .piwin-button--ghost {
-  color: var(--muted);
+  color: var(--text-3);
 }
 .piwin-button--danger {
-  color: var(--danger);
+  color: var(--coral);
 }
 
-/* ── Mantine bridge ───────────────────────────────────────────────── */
-/* Mantine variables inherit validated piwin theme tokens, never hard-coded
-   feature colors. */
+/* ── Mantine bridge ───────────────────────────────────────────────────
+   Mantine variables inherit validated Deck tokens, never hard-coded feature
+   colors. This is the single place ui-kit's Mantine layer meets the theme. */
 
 .mantine-Button-root,
 .mantine-ActionIcon-root,
 .mantine-Input-input,
 .mantine-Select-input,
 .mantine-Textarea-input {
-  --mantine-color-body: var(--panel);
-  --mantine-color-text: var(--text);
-  --mantine-color-dimmed: var(--muted);
-  --mantine-color-default-border: var(--line);
-  --mantine-color-default-hover: var(--surface-hover);
-  --mantine-primary-color-filled: var(--accent);
-  --mantine-primary-color-filled-hover: var(--accent-2);
-  --mantine-primary-color-light: var(--accent-soft);
-  --mantine-primary-color-light-hover: color-mix(in srgb, var(--accent) 23%, var(--panel));
+  --mantine-color-body: var(--surface-3);
+  --mantine-color-text: var(--text-1);
+  --mantine-color-dimmed: var(--text-3);
+  --mantine-color-default-border: var(--line-2);
+  --mantine-color-default-hover: var(--hover);
+  --mantine-primary-color-filled: var(--iris);
+  --mantine-primary-color-filled-hover: var(--iris-lift);
+  --mantine-primary-color-light: var(--iris-wash);
+  --mantine-primary-color-light-hover: var(--iris-glow);
+  --mantine-radius-default: var(--r-control);
 }
 
 @media (prefers-reduced-motion: reduce) {

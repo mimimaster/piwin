@@ -1,133 +1,74 @@
 /* Region: overlays & dialogs (app-dialogs.tsx, ui-kit Dialog/ConfirmDialog,
-   command-palette.tsx, NotificationRegion.tsx, session-row-menu.tsx,
-   transcript-outline-popover.tsx, permission-request-card.tsx dialog usage,
+   command-palette.tsx, session-row-menu.tsx, transcript-outline-popover.tsx,
    ui-kit DropdownMenu/Popover, shell overlay scrim).
-   Owns .modal*, .ui-dialog-content, .notification-*, .session-row-menu*,
-   .session-menu-backdrop, .session-rename-form, .command-palette-*,
-   .shell-overlay-scrim, .ui-menu-*, .ui-popover-content, .permission-detail,
-   .checkbox-row, .settings-modal, .project-picker-*,
-   .drawer-panel/.drawer-header/.drawer-body.
-   All z-index values come from the tokens.css --layer-* contract.
-   Semantic runtime tokens only; no forced declarations. */
 
-/* ── Modal / dialog ───────────────────────────────────────────────── */
+   Deck rule: overlays are the top of the elevation stack. They sit on
+   surface-4 with elev-4 and no border — the shadow and the surface step do the
+   separating, the same way the three shell panels are separated. Nothing below
+   an overlay is ever styled to compete with it.
+
+   All z-index values come from the tokens.css --layer-* contract. */
+
+/* ── Modal / dialog ───────────────────────────────────────────────────── */
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: var(--overlay-backdrop);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--layer-dialog);
+  animation: deck-fade-in var(--t-3) var(--ease-out);
 }
 
 .modal {
   width: min(480px, calc(100vw - 32px));
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-overlay);
-  padding: 18px;
-  box-shadow: var(--shadow-overlay);
+  background: var(--surface-4);
+  border: 0;
+  border-radius: var(--r-panel);
+  padding: var(--s-6);
+  box-shadow: var(--elev-4);
+  animation: deck-rise var(--t-4) var(--ease-spring);
 }
 
 .modal h3 {
-  margin: 0 0 10px;
+  margin: 0 0 var(--s-5);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-1);
 }
 
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 16px;
+  gap: var(--s-4);
+  margin-top: var(--s-6);
 }
 
 .ui-confirm-dont-ask {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--muted);
+  gap: var(--s-3);
+  font-size: var(--fs-body);
+  color: var(--text-3);
   cursor: pointer;
   user-select: none;
-  margin-top: 12px;
-  transition: color 140ms ease;
+  margin-top: var(--s-5);
+  transition: color var(--t-2) var(--ease-out);
 }
 
 .ui-confirm-dont-ask:hover {
-  color: var(--text);
+  color: var(--text-1);
 }
 
 .ui-confirm-dont-ask input[type='checkbox'] {
   width: 16px;
   height: 16px;
-  border-radius: 4px;
+  border-radius: var(--r-chip);
   cursor: pointer;
-  accent-color: var(--accent);
-}
-
-
-/* ─── Checkpoint Revert Modal ────────────────────────────────────────── */
-
-.revert-modal-content {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 0;
-}
-
-.revert-modal-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.45;
-}
-
-.revert-modal-subtitle {
-  margin: 0;
-  font-size: 13.5px;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.revert-modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.revert-modal-footer .modal-actions {
-  margin-top: 0;
-}
-
-.branch-switch-write-list {
-  margin: 2px 0 0;
-  padding: 8px 10px;
-  list-style: none;
-  max-height: 168px;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-2, rgb(0 0 0 / 12%));
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text);
-}
-
-.revert-continue-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.revert-continue-btn .enter-symbol {
-  font-size: 13px;
-  line-height: 1;
-  opacity: 0.9;
+  accent-color: var(--iris);
 }
 
 .ui-dialog-content {
@@ -136,7 +77,74 @@
   z-index: calc(var(--layer-dialog) + 1);
 }
 
-/* ── Project picker ──────────────────────────────────────────────── */
+/* ── Checkpoint revert modal ──────────────────────────────────────────── */
+
+.revert-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+}
+
+.revert-modal-title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.revert-modal-subtitle {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+}
+
+.revert-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-top: var(--s-7);
+}
+
+.revert-modal-footer .modal-actions {
+  margin-top: 0;
+}
+
+/* Files that would be lost — a well, not a card: this is data you inspect,
+   not a surface that should lift off the dialog. */
+.branch-switch-write-list {
+  margin: var(--s-1) 0 0;
+  padding: var(--s-4) var(--s-5);
+  list-style: none;
+  max-height: 168px;
+  overflow-y: auto;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-card);
+  background: var(--void);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-relaxed);
+  color: var(--text-2);
+}
+
+.revert-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.revert-continue-btn .enter-symbol {
+  font-size: var(--fs-body);
+  line-height: 1;
+  color: var(--text-3);
+}
+
+/* ── Project picker ───────────────────────────────────────────────────── */
 
 .project-picker-dialog {
   width: min(560px, calc(100vw - 32px));
@@ -148,22 +156,23 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--s-6);
 }
 
 .project-picker-header h3 {
-  margin-bottom: 4px;
+  margin-bottom: var(--s-2);
 }
 
 .project-picker-header p {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 var(--s-5);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
 }
 
 .project-picker-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s-1);
   max-height: 380px;
   margin: 0;
   padding: 0;
@@ -172,12 +181,12 @@
 }
 
 .project-picker-item {
-  gap: 9px;
+  gap: var(--s-4);
 }
 
 .project-picker-item > svg:first-child {
   flex: 0 0 auto;
-  color: var(--faint);
+  color: var(--text-4);
 }
 
 .project-picker-item-body {
@@ -185,7 +194,7 @@
   flex: 1;
   min-width: 0;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .project-picker-item-name,
@@ -196,32 +205,34 @@
 }
 
 .project-picker-item-name {
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
+  color: var(--text-1);
 }
 
 .project-picker-item-path {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 11px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
 }
 
 .project-picker-item-check {
   flex: 0 0 auto;
-  color: var(--accent);
+  color: var(--iris-lift);
 }
 
 .project-picker-empty {
-  padding: 18px 10px;
+  padding: var(--s-6) var(--s-5);
   text-align: center;
+  color: var(--text-3);
 }
 
 /* Models picker: keep a single solid panel, no nested 480 vs 620 war. */
 .modal.ui-dialog-content:has(.cherry-dialog) {
   width: min(460px, calc(100vw - 32px));
   max-width: min(460px, calc(100vw - 32px));
-  padding: 16px;
-  background: var(--panel);
+  padding: var(--s-6);
+  background: var(--surface-4);
 }
 
 .modal.ui-dialog-content:has(.cherry-dialog) > .cherry-dialog {
@@ -238,16 +249,19 @@
 
 .permission-detail {
   white-space: pre-wrap;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-card);
+  padding: var(--s-5);
   max-height: 180px;
   overflow: auto;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--text-2);
 }
 
-/* ── Drawer panels (settings/skills fallbacks still use) ──────────── */
+/* ── Drawer panels ────────────────────────────────────────────────────── */
 
 .drawer-panel {
   position: fixed;
@@ -258,34 +272,34 @@
   width: min(380px, 100vw);
   display: flex;
   flex-direction: column;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  box-shadow: var(--shadow-overlay);
+  background: var(--surface-4);
+  border: 0;
+  box-shadow: var(--elev-4);
 }
 
 .drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line-soft);
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .drawer-body {
   flex: 1;
   overflow: auto;
-  padding: 14px 16px 20px;
+  padding: var(--s-5) var(--s-6) var(--s-7);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s-4);
 }
 
 .drawer-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
 }
 
 .embedded-panel {
@@ -297,26 +311,21 @@
 .embedded-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s-4);
 }
 
-/* ── Shell overlay scrim ──────────────────────────────────────────── */
+/* ── Scrim ────────────────────────────────────────────────────────────── */
 
 .shell-overlay-scrim {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  /* Cover full stage; desktop has no permanent top chrome. */
-  left: 0;
+  inset: 0;
   border: 0;
-  background: rgba(0, 0, 0, 0.45); /* scrim tint — deliberate literal */
+  background: var(--scrim);
   z-index: var(--layer-scrim);
+  animation: deck-fade-in var(--t-3) var(--ease-out);
 }
 
-/* No shell topbar — scrim covers the full window. */
-
-/* ── Session row context menu ─────────────────────────────────────── */
+/* ── Context menus ────────────────────────────────────────────────────── */
 
 .session-menu-backdrop {
   position: fixed;
@@ -333,42 +342,53 @@
   position: fixed;
   z-index: var(--layer-menu);
   min-width: 168px;
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-overlay);
+  padding: var(--s-2);
+  border-radius: var(--r-card);
+  border: 0;
+  background: var(--surface-4);
+  box-shadow: var(--elev-4);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  animation: deck-rise var(--t-2) var(--ease-out);
 }
 
 .session-row-menu-item {
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--text-2);
   text-align: left;
   font: inherit;
-  font-size: 13px;
-  border-radius: 7px;
-  padding: 8px 10px;
+  font-size: var(--fs-body);
+  border-radius: var(--r-control);
+  padding: var(--s-4) var(--s-5);
   cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .session-row-menu-item:hover,
 .session-row-menu-item:focus-visible {
-  background: var(--surface-hover);
+  background: var(--hover);
+  color: var(--text-1);
   outline: none;
 }
 
 .session-row-menu-item.danger {
-  color: var(--danger);
+  color: var(--coral);
+}
+
+.session-row-menu-item.danger:hover,
+.session-row-menu-item.danger:focus-visible {
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  color: var(--coral);
 }
 
 .session-rename-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s-4);
   min-width: min(360px, 80vw);
 }
 
@@ -376,36 +396,41 @@
    the .ui-field-control input specificity; later import order wins. */
 input.project-path-input {
   margin: 0;
-  font-size: 11px;
-  font-family: var(--mono);
-  padding: 8px 9px;
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  padding: var(--s-4);
 }
 
-/* Main-workspace failures are persistent inline feedback, not transient
-   notifications. Keep the message aligned with the current conversation
-   measure without placing it inside the transcript history. */
-.main-error-banner {
-  width: var(--chat-max, 780px);
-  max-width: 100%;
-  margin: 8px auto 0;
-}
+/* ── Main error banner ────────────────────────────────────────────────
+   Workspace failures are persistent inline feedback, not toasts. Aligned to
+   the conversation measure but outside transcript history. */
 
 .main-error-banner {
   width: var(--chat-max, 780px);
   max-width: 100%;
-  margin: 8px auto 0;
+  margin: var(--s-4) auto 0;
 }
 
 .main-error-banner-inner {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-5);
   min-height: 44px;
-  padding: 8px 12px;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
-  background: color-mix(in srgb, var(--danger) 6%, var(--surface-raised, #18181b));
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.12));
+  padding: var(--s-4) var(--s-5) var(--s-4) var(--s-6);
+  border-radius: var(--r-card);
+  border: 0;
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface-3));
+  box-shadow: var(--elev-2);
+  overflow: hidden;
+}
+
+.main-error-banner-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--coral);
 }
 
 .main-error-icon-badge {
@@ -413,9 +438,9 @@ input.project-path-input {
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  color: var(--danger);
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
   flex-shrink: 0;
 }
 
@@ -425,44 +450,43 @@ input.project-path-input {
 }
 
 .main-error-title {
-  font-size: 12.5px;
+  font-size: var(--fs-chrome);
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-1);
   margin-bottom: 1px;
 }
 
 .main-error-message {
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-muted, #a1a1aa);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  color: var(--text-3);
   overflow-wrap: anywhere;
 }
 
 .main-error-actions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s-3);
   flex-shrink: 0;
 }
 
 .main-error-dismiss,
 .main-error-copy-btn {
-  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--line)) !important;
-  background: transparent !important;
-  color: var(--text-muted, #a1a1aa) !important;
-  font-size: 12px !important;
-  padding: 2px 8px !important;
-  border-radius: 4px !important;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  padding: var(--s-1) var(--s-4);
+  border-radius: var(--r-chip);
 }
 
 .main-error-dismiss:hover:not(:disabled),
 .main-error-copy-btn:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--danger) 45%, var(--line)) !important;
-  background: color-mix(in srgb, var(--danger) 10%, transparent) !important;
-  color: var(--danger) !important;
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  color: var(--coral);
 }
 
-/* ── Command palette ──────────────────────────────────────────────── */
+/* ── Command palette ──────────────────────────────────────────────────── */
 
 .command-palette-list {
   list-style: none;
@@ -476,80 +500,92 @@ input.project-path-input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
   width: 100%;
   text-align: left;
   border: 0;
   background: transparent;
-  color: var(--text);
-  padding: 10px 8px;
-  border-radius: 8px;
+  color: var(--text-2);
+  padding: var(--s-4);
+  border-radius: var(--r-control);
   cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .command-palette-item:hover:not(:disabled),
 .command-palette-item:focus-visible {
-  background: var(--surface-hover);
+  background: var(--hover);
+  color: var(--text-1);
+  outline: none;
 }
 
 .command-palette-item:disabled {
-  opacity: 0.55;
+  color: var(--text-4);
   cursor: not-allowed;
 }
 
 .command-palette-shortcut {
   margin-left: auto;
-  font-size: 11px;
-  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
 }
 
 .command-palette-reason {
   width: 100%;
-  font-size: 11px;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
 }
 
-/* ── ui-kit menu / popover surfaces ───────────────────────────────── */
-/* Appearance + entrance animation moved to @piwin/ui-kit/styles.css.
-   Radix portals render above everything; desktop keeps only the z-layer so
-   menus opened from dialogs stay clickable (matches previous cascade). */
+/* ── ui-kit menu / popover surfaces ───────────────────────────────────
+   Appearance + entrance animation live in @piwin/ui-kit/styles.css. Radix
+   portals render above everything; desktop keeps only the z-layer so menus
+   opened from dialogs stay clickable. */
 
 .ui-menu-content,
 .ui-popover-content {
   z-index: var(--layer-toast);
 }
 
-/* SF-04: compact product-session lineage tree opened from response actions. */
+/* ── Session lineage popover ──────────────────────────────────────────
+   A tree of forks: the thread line is a hairline, the current node takes the
+   iris fill, and everything else stays quiet. */
+
 .ui-popover-content.session-lineage-popover {
   width: min(380px, calc(100vw - 24px));
   max-height: min(70vh, 460px);
   overflow-y: auto;
-  padding: 10px;
+  padding: var(--s-4);
 }
 
 .session-lineage-popover-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 2px 4px 9px;
-  border-bottom: 1px solid var(--line-soft);
+  gap: var(--s-5);
+  padding: var(--s-1) var(--s-2) var(--s-4);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .session-lineage-popover-header > div {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .session-lineage-popover-header strong {
-  font-size: 12px;
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-1);
 }
 
 .session-lineage-popover-header > span,
 .session-lineage-popover-subtitle {
-  color: var(--text-muted);
-  font-size: 11px;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
 }
 
 .session-lineage-popover-header > span {
@@ -566,8 +602,8 @@ input.project-path-input {
 .session-lineage-tree {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-top: 7px;
+  gap: 1px;
+  padding-top: var(--s-3);
 }
 
 .session-lineage-branch {
@@ -576,38 +612,40 @@ input.project-path-input {
 
 .session-lineage-children {
   position: relative;
-  margin-left: 13px;
-  padding-left: 12px;
-  border-left: 1px solid var(--line-soft);
+  margin-left: var(--s-5);
+  padding-left: var(--s-5);
+  border-left: 1px solid var(--line-1);
 }
 
 .session-lineage-node {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--s-3);
   width: 100%;
   min-width: 0;
-  padding: 6px 7px;
+  padding: var(--s-3);
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-control);
   background: transparent;
-  color: var(--text);
+  color: var(--text-2);
   cursor: pointer;
   text-align: left;
+  transition: background-color var(--t-1) var(--ease-out);
 }
 
 .session-lineage-node:hover:not(:disabled),
 .session-lineage-node:focus-visible {
-  background: var(--surface-hover);
+  background: var(--hover);
   outline: none;
 }
 
 .session-lineage-node--active {
-  background: var(--accent-soft);
+  background: var(--iris-wash);
+  color: var(--text-1);
 }
 
 .session-lineage-node--missing {
-  color: var(--text-muted);
+  color: var(--text-4);
   cursor: default;
 }
 
@@ -615,15 +653,13 @@ input.project-path-input {
   flex: 0 0 auto;
   width: 7px;
   height: 7px;
-  border: 1px solid currentColor;
+  border: 1px solid var(--line-3);
   border-radius: 50%;
-  opacity: 0.75;
 }
 
 .session-lineage-node--active .session-lineage-node-marker {
-  border-color: var(--accent);
-  background: var(--accent);
-  opacity: 1;
+  border-color: var(--iris);
+  background: var(--iris);
 }
 
 .session-lineage-node-copy {
@@ -631,7 +667,7 @@ input.project-path-input {
   flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .session-lineage-node-name,
@@ -642,29 +678,29 @@ input.project-path-input {
 }
 
 .session-lineage-node-name {
-  font-size: 12px;
+  font-size: var(--fs-chrome);
 }
 
 .session-lineage-node-hint {
-  color: var(--text-muted);
-  font-size: 10px;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
 }
 
 .session-lineage-node-status {
   flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 10px;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
 }
 
 .session-lineage-empty {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
-  gap: 9px;
-  margin: 8px 3px 2px;
-  padding: 10px;
-  border: 1px dashed var(--line-soft);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-hover) 46%, transparent);
+  gap: var(--s-4);
+  margin: var(--s-4) var(--s-1) var(--s-1);
+  padding: var(--s-5);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
 }
 
 .session-lineage-empty-icon {
@@ -673,36 +709,36 @@ input.project-path-input {
   height: 26px;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
-  background: var(--surface-active, var(--hover));
-  color: var(--content-secondary, var(--muted));
+  border-radius: var(--r-control);
+  background: var(--hover);
+  color: var(--text-3);
 }
 
 .session-lineage-empty-copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s-2);
 }
 
 .session-lineage-empty-copy strong {
-  color: var(--content-primary, var(--text));
-  font-size: 11px;
+  color: var(--text-1);
+  font-size: var(--fs-micro);
   font-weight: 600;
 }
 
 .session-lineage-empty-copy > span {
-  color: var(--text-muted, var(--muted));
-  font-size: 10.5px;
-  line-height: 1.45;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
 }
 
 .continue-session-project-list {
   display: flex;
   max-height: 280px;
   flex-direction: column;
-  gap: 8px;
-  margin: 16px 0;
+  gap: var(--s-4);
+  margin: var(--s-6) 0;
   overflow-y: auto;
 }
 

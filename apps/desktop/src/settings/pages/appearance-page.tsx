@@ -196,7 +196,7 @@ function ThemeLibraryCard(): ReactElement {
         preferences.appearanceMode === 'system'
           ? resolveSystemThemeMode()
           : preferences.appearanceMode;
-      const baseThemeId = activeMode === 'light' ? 'piwin-light' : 'piwin-dark';
+      const baseThemeId = activeMode === 'light' ? 'piwin-bone' : 'piwin-obsidian';
       const response = await request({ type: 'theme/set-active', themeId: baseThemeId });
       if (!response.success) {
         setError(response.error);

@@ -1,48 +1,134 @@
-/* geometry & z-layer only — colors are applied at runtime by appearance-tokens.ts */
+/* Deck geometry, motion, and z-layers.
+   Colors, elevation, and typography are written at runtime by
+   theme/apply-appearance.ts — never declare them here.
+   See docs/design/deck-design-system.md. */
 
 :root {
-  /* Shell geometry — single source of truth; never hardcode these in cascade files. */
-  --sidebar-width: 240px;
-  --rail-width: 48px;
-  --signal-rail-width: 48px;
-  --right-panel-width: 300px;
-  --conversation-width: 780px;
-  /* The readable content column shared by transcript and Composer. App.tsx
+  /* ── Deck frame ───────────────────────────────────────────────────
+     Panels float over the void field. `inset` is the window margin,
+     `gap` the space between panels; both read as the same field. */
+  --deck-inset: 7px;
+  --deck-gap: 7px;
+
+  /* ── Shell geometry — single source of truth; never hardcode in cascade files. */
+  --rail-width: 46px;
+  --sidebar-width: 246px;
+  --signal-rail-width: 46px;
+  --right-panel-width: 320px;
+  --conversation-width: 760px;
+  /* The readable content column shared by transcript and composer. App.tsx
      updates --conversation-width from the Default / Narrow / Wide setting. */
   --chat-max: min(100%, var(--conversation-width));
   /* Stable stage gutter. Content width is controlled by --chat-max rather
      than by padding so each conversation-width option visibly changes size. */
-  --chat-inline-pad: 24px;
+  --chat-inline-pad: 28px;
   --chat-side-pad: var(--chat-inline-pad);
-  --chat-font-size: 13.5px;
+  /* The stage is a reading surface: long sessions need a comfortable measure. */
+  --chat-font-size: 14.5px;
+  --chat-line-height: 1.68;
   --code-font-size: 12px;
   --code-wrap: unset;
 
-  /* Band heights */
+  /* ── Band heights ─────────────────────────────────────────────── */
   --topbar-height: 40px;
-  /* Must fit titleband controls (≥28px) under Overlay traffic lights without clipping. */
-  --titleband-height: 36px;
-  --workspace-header-height: 44px;
+  /* Must fit titleband controls (≥28px) under Overlay traffic lights. */
+  --titleband-height: 40px;
+  --workspace-header-height: 40px;
+  --statusline-height: 26px;
 
-  /* Quiet Workbench motion + icon geometry (docs/plans/2026-07-27-quiet-workbench-implementation.md) */
+  /* ── Radius scale ─────────────────────────────────────────────── */
+  --r-chip: 4px;
+  --r-control: 7px;
+  --r-card: 10px;
+  --r-panel: 14px;
+  --r-overlay: 18px;
+  --r-pill: 999px;
+
+  /* ── Spacing scale ────────────────────────────────────────────── */
+  --s-1: 2px;
+  --s-2: 4px;
+  --s-3: 6px;
+  --s-4: 8px;
+  --s-5: 12px;
+  --s-6: 16px;
+  --s-7: 20px;
+  --s-8: 24px;
+  --s-9: 32px;
+  --s-10: 40px;
+
+  /* ── Control heights ──────────────────────────────────────────── */
+  --h-xs: 24px;
+  --h-sm: 28px;
+  --h-md: 32px;
+  --h-lg: 38px;
+
+  /* ── Icon geometry ────────────────────────────────────────────── */
   --icon-size-sm: 16px;
-  --icon-size-md: 20px;
-  --motion-quick: 120ms;
-  --motion-standard: 200ms;
-  --motion-large: 260ms;
-  --motion-think-collapse: 350ms;
-  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --motion-shimmer: 1.6s;
-  --motion-pulse: 1.6s;
+  --icon-size-md: 18px;
+  --icon-size-lg: 20px;
+  --icon-stroke: 1.6;
 
-  /* Daybreak hover fill fallback (runtime may override via appearance). */
-  --wb-hover: rgba(255, 240, 225, 0.055);
-  --wb-line: rgba(255, 238, 220, 0.07);
-  --wb-accent-soft: rgba(255, 131, 89, 0.13);
-  --wb-send-fg: #2b1508;
-  --wb-term-bg: #100e12;
+  /* ── Motion ───────────────────────────────────────────────────────
+     One breath cycle drives every liveness indicator so they pulse in
+     phase; see docs/design/deck-design-system.md §6. */
+  --t-1: 90ms;
+  --t-2: 150ms;
+  --t-3: 240ms;
+  --t-4: 380ms;
+  /* Reserved for height/collapse transitions, which need longer than any
+     color or transform change to stay legible. */
+  --t-5: 350ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --breath: 2.4s;
+  --wash-cycle: 4.8s;
+  --shimmer: 1.6s;
 
-  /* Stacking contract — shell overlays use these only (PSR-S1) */
+  /* Pre-Deck motion names still read by un-rewritten regions. */
+  --motion-quick: var(--t-1);
+  --motion-large: var(--t-3);
+  --motion-think-collapse: var(--t-5);
+  --motion-ease: var(--ease-out);
+  --motion-shimmer: var(--shimmer);
+  --motion-pulse: var(--breath);
+
+  /* Names the knowledge / settings / activity regions already referenced
+     before the Deck migration and that were never defined anywhere — those
+     rules were silently rendering with inherited values. Point them at the
+     Deck ramp so they are correct now; delete each alias as its region gets
+     rewritten. See docs/design/deck-design-system.md "Migration state". */
+  --panel2: var(--surface-3);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
+  --text-faint: var(--text-4);
+  --shadow-sm: var(--elev-1);
+  --shadow-md: var(--elev-2);
+
+  /* ── Typography scale ─────────────────────────────────────────────
+     Four sizes only. Chrome is the default for UI text; body is reserved for
+     prose and for the few chrome rows that read as sentences. Prose itself
+     (markdown) sizes from --chat-font-size, which the user controls. */
+  --fs-micro: 10px;
+  --fs-mono: 11.5px;
+  --fs-chrome: 12.5px;
+  --fs-body: 13.5px;
+  /* Dialog and modal headings — the only type in the shell above body size. */
+  --fs-title: 15px;
+
+  --lh-tight: 1.4;
+  --lh-normal: 1.45;
+  --lh-relaxed: 1.58;
+
+  --tracking-micro: 0.09em;
+  --tracking-tight: -0.01em;
+
+  /* Scrim stays dark in both modes: it reads as the room lights going down,
+     and a light scrim over the Bone theme has too little contrast to signal
+     that the surface behind it is inert. */
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  /* ── Stacking contract — shell overlays use these only ────────── */
   --layer-shell: 1;
   --layer-scrim: 20;
   --layer-drawer: 30;
@@ -52,20 +138,20 @@
   --layer-dialog: 70;
   --layer-toast: 80;
 
-  /* Base typography — font values are overwritten at runtime by appearance-tokens.ts
-     but these fallbacks prevent a flash before the first applyAppearanceToDocument call. */
+  /* Font fallbacks prevent a flash before the first applyAppearanceToDocument
+     call; the runtime overwrites --font / --mono from the active manifest. */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui, 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --font-mono:
     'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
-  font-family: var(--font-sans);
-  font-size: 13px;
+  font-family: var(--font, var(--font-sans));
+  font-size: var(--fs-chrome);
   line-height: 1.45;
   font-weight: 400;
-  letter-spacing: -0.011em;
+  letter-spacing: -0.008em;
   font-feature-settings:
     'cv02',
     'cv03',
@@ -79,4 +165,52 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* ── Shared motion primitives ───────────────────────────────────────
+   `breath` is referenced by every "the agent is alive" indicator. They
+   share one name and duration so the whole shell pulses in phase. */
+
+@keyframes breath {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+/* Ambient warmth behind the composer while a run is active. Peripheral by
+   design: never legible as a shape, only as heat. */
+@keyframes ember-wash {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes deck-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes deck-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

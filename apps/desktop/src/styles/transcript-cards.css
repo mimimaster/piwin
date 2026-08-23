@@ -1,0 +1,828 @@
+/* Transcript: inline cards — subagent, permission, citation, diff, plan.
+   Split out of region-transcript.css (one region, split by responsibility
+   per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
+   region-transcript.css.
+
+   Deck rule: these are the few things in the transcript that *are* objects
+   rather than process, so they are allowed a surface and one step of
+   elevation. They earn it by carrying a decision (permission gate), a diff to
+   accept, or a plan to track. Everything else in the thread stays flat. */
+
+/* ── Subagent slot ────────────────────────────────────────────────────── */
+/* The compact launcher card, ticker, and Working dock are styled in
+   run-activity.css; this file owns only the transcript slot geometry. */
+
+.chat-subagent-slot {
+  margin: var(--s-5) var(--s-6);
+}
+
+/* ── Permission request card ──────────────────────────────────────────── */
+/* .permission-detail is shared with the dialog body in overlays-feedback.css. */
+
+.permission-request-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: min(420px, 80vw);
+}
+
+.permission-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-4) var(--s-6);
+  margin: 0;
+  font-size: var(--fs-chrome);
+}
+
+.permission-facts dt {
+  color: var(--text-3);
+  font-weight: 600;
+  font-size: var(--fs-chrome);
+  padding-top: var(--s-2);
+}
+
+.permission-facts dd {
+  margin: 0;
+}
+
+/* The thing you are being asked to approve: a well, so it reads as quoted
+   evidence rather than as more UI. */
+.permission-detail {
+  margin: var(--s-2) 0 0;
+  padding: var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.permission-risk-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-5);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  color: var(--coral);
+  border: 0;
+  font-weight: 600;
+  font-size: var(--fs-chrome);
+}
+
+/* ── Inline permission gate ───────────────────────────────────────────
+   The agent is stopped and waiting on you. This is the one card in the
+   transcript allowed to shout: a full-height amber rail on the leading edge,
+   escalating to coral when the gate is guarding a shell command. */
+
+.gate {
+  border-radius: var(--r-panel);
+  margin: var(--s-4) 0 var(--s-5);
+  overflow: hidden;
+  border: 0;
+  border-left: 3px solid var(--amber);
+  background: var(--surface-3);
+  box-shadow: var(--elev-2);
+}
+
+.gate[data-kind='command'] {
+  border-left-color: var(--coral);
+}
+
+.gate-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.gate-head-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: var(--amber);
+}
+
+.gate[data-kind='command'] .gate-head-icon {
+  color: var(--coral);
+}
+
+.gate-cmd {
+  margin: 0 var(--s-6) var(--s-5);
+  padding: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+}
+
+.gate-cmd .permission-facts {
+  font-size: var(--fs-chrome);
+}
+
+.gate-cmd .permission-detail {
+  margin: 0;
+}
+
+.gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 0 var(--s-6) var(--s-5);
+}
+
+.gate-hint {
+  margin-left: auto;
+  align-self: center;
+  font-size: var(--fs-mono);
+  color: var(--text-3);
+}
+
+/* Session resume in flight — sits above the transcript, not empty-chat UI. */
+.transcript-awaiting-banner {
+  flex: none;
+  margin: 0 auto var(--s-4);
+  max-width: var(--chat-max, 760px);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--iris-wash);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* ── Citation cards ───────────────────────────────────────────────────── */
+
+.citation-block {
+  margin-top: var(--s-4);
+}
+
+.citation-meta {
+  font-size: var(--fs-micro);
+  margin-bottom: var(--s-3);
+  color: var(--text-4);
+}
+
+.citation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.citation-card {
+  border: 0;
+  border-radius: var(--r-control);
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-2);
+}
+
+.citation-card a {
+  color: var(--iris-lift);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: var(--fs-body);
+}
+
+.citation-card a:hover {
+  text-decoration: underline;
+}
+
+.citation-url {
+  font-size: var(--fs-micro);
+  word-break: break-all;
+  margin: var(--s-1) 0 var(--s-2);
+  color: var(--text-4);
+}
+
+.citation-snippet {
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+.citation-excerpt {
+  margin-top: var(--s-4);
+  font-size: var(--fs-chrome);
+}
+
+.citation-excerpt pre {
+  white-space: pre-wrap;
+  color: var(--text-3);
+  margin: var(--s-3) 0 0;
+}
+
+/* Assistant output is document flow; the user prompt owns the only framed
+   card in the thread. */
+.bubble.role-assistant {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  max-width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.bubble-header {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+}
+
+.chat-stream {
+  justify-content: flex-start;
+}
+
+/* ── Inline diff card ─────────────────────────────────────────────────
+   A patch awaiting Accept / Reject is a real object with a pending decision,
+   so it takes a surface. Once accepted it recedes rather than disappearing:
+   the decision stays visible in the history. */
+
+.diff-card {
+  border-radius: var(--r-card);
+  margin: var(--s-2) 0 var(--s-5);
+  overflow: hidden;
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+}
+
+.diff-card.accepted {
+  box-shadow:
+    var(--elev-1),
+    inset 2px 0 0 var(--mint);
+}
+
+.diff-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.diff-head .file {
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  font-weight: 550;
+  color: var(--text-1);
+}
+
+.diff-head .stat {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-head .stat .add {
+  color: var(--mint);
+}
+
+.diff-head .stat .del {
+  color: var(--coral);
+}
+
+.diff-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--s-3);
+}
+
+.diff-card .btn {
+  height: var(--h-sm);
+  padding: 0 var(--s-5);
+  border-radius: var(--r-control);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border: 0;
+  color: var(--text-2);
+  background: var(--surface-4);
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out),
+    filter var(--t-1) var(--ease-out);
+}
+
+.diff-card .btn:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+/* Accept is a commit action, so it takes the mint fill rather than iris —
+   iris means "interactive", mint means "this succeeded / will succeed". */
+.diff-card .btn.primary {
+  color: var(--void);
+  border-color: transparent;
+  background: var(--mint);
+}
+
+.diff-card .btn.primary:hover {
+  filter: brightness(1.06);
+}
+
+.review-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  letter-spacing: var(--tracking-micro);
+}
+
+.review-badge.accepted {
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+}
+
+.review-badge.rejected {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+.diff-body {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-tight);
+  padding: var(--s-4) 0;
+  background: var(--void);
+}
+
+.diff-body .ln {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 var(--s-5);
+  white-space: pre;
+  line-height: 1.35;
+}
+
+.diff-body .ln .g {
+  flex: 0 0 auto;
+  min-width: 2.5ch;
+  box-sizing: content-box;
+  color: var(--text-4);
+  text-align: right;
+  padding-right: var(--s-3);
+  white-space: nowrap;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-body .ln .g.old {
+  padding-right: var(--s-2);
+}
+
+.diff-body .ln .g.new {
+  padding-right: var(--s-5);
+}
+
+.diff-body .ln .ln-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}
+
+.diff-body .ln.add {
+  background: var(--add-bg);
+  color: var(--add-text);
+}
+
+.diff-body .ln.del {
+  background: var(--del-bg);
+  color: var(--del-text);
+}
+
+.diff-body .ln.ctx {
+  color: var(--text-3);
+}
+
+.diff-card.accepted .diff-body {
+  opacity: 0.45;
+}
+
+/* ── Collapsible content block ────────────────────────────────────────── */
+
+.collapsible-content-block {
+  position: relative;
+  width: 100%;
+}
+
+.collapsible-content-block.has-overflow.is-collapsed {
+  cursor: pointer;
+}
+
+.collapsible-content-block.is-collapsed .collapsible-content-inner {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 45%,
+    rgba(0, 0, 0, 0.25) 75%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 45%,
+    rgba(0, 0, 0, 0.25) 75%,
+    transparent 100%
+  );
+  transition: max-height var(--t-4) var(--ease-out);
+}
+
+.collapsible-content-block.is-expanded .collapsible-content-inner {
+  overflow: visible;
+  max-height: none !important;
+  -webkit-mask-image: none;
+  mask-image: none;
+  transition: max-height var(--t-4) var(--ease-out);
+}
+
+/* Floats over faded-out content, so it needs real separation from whatever it
+   happens to be covering — one of the few blurs on the memory-diet whitelist
+   (see renderer-resource-boundaries.test.ts). */
+.collapsible-content-toggle {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--r-pill);
+  border: 0;
+  background: color-mix(in srgb, var(--surface-4) 82%, transparent);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  color: var(--text-2);
+  box-shadow: var(--elev-2);
+  cursor: pointer;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    transform var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.collapsible-content-toggle:hover {
+  background: var(--surface-4);
+  transform: translateX(-50%) scale(1.08);
+  box-shadow: var(--elev-3);
+}
+
+.collapsible-toggle-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--text-3);
+}
+
+.collapsible-content-toggle:hover .collapsible-toggle-icon {
+  color: var(--text-1);
+}
+
+/* ── Inline plan card ─────────────────────────────────────────────────
+   Session-level (not anchored to a message), so only one is mounted at a
+   time. It tracks state over the whole run, which is why it keeps a surface
+   while ordinary tool rows do not. */
+
+.plan-card {
+  border-radius: var(--r-card);
+  margin: var(--s-2) 0 var(--s-5);
+  overflow: hidden;
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  color: var(--text-3);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.plan-head:hover {
+  background: var(--hover);
+}
+
+.plan-head .ic {
+  width: 13px;
+  height: 13px;
+  color: var(--text-4);
+}
+
+.plan-card .chev {
+  transition: transform var(--t-3) var(--ease-spring);
+  color: var(--text-4);
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+.plan-card.closed .chev {
+  transform: rotate(-90deg);
+}
+
+.plan-card .plan-doc-link {
+  margin-left: auto;
+  font-size: var(--fs-mono);
+  color: var(--iris-lift);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.plan-card .plan-doc-link:hover {
+  text-decoration: underline;
+}
+
+.plan-steps {
+  padding: var(--s-1) var(--s-5) var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.plan-card .step {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--fs-chrome);
+  color: var(--text-2);
+  transition: color var(--t-2) var(--ease-out);
+}
+
+.plan-card .step .step-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  transition: transform var(--t-3) var(--ease-spring);
+}
+
+.plan-card .step.done {
+  color: var(--text-4);
+}
+
+.plan-card .step.done .step-icon {
+  transform: scale(1);
+  color: var(--mint);
+}
+
+/* The running step is the one thing you are waiting on, so it is the only
+   full-strength text in the list. */
+.plan-card .step.run {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.plan-card .step-icon-run .pulse-dot {
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+  transform-origin: center;
+  color: var(--ember);
+}
+
+.plan-card .step.skipped {
+  color: var(--text-4);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-4);
+}
+
+/* ── Plan execution actions ───────────────────────────────────────────── */
+
+.plan-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-5) var(--s-5);
+  flex-wrap: wrap;
+}
+
+.plan-mode-buttons {
+  display: flex;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.plan-btn {
+  appearance: none;
+  border: 0;
+  background: var(--surface-4);
+  color: var(--text-2);
+  border-radius: var(--r-control);
+  padding: var(--s-3) var(--s-6);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.plan-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.plan-btn:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+.plan-btn-primary {
+  background: var(--iris);
+  color: var(--on-iris);
+}
+
+.plan-btn-primary:hover:not(:disabled) {
+  background: var(--iris-lift);
+  color: var(--on-iris);
+}
+
+.plan-btn-recommended {
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+}
+
+.plan-btn-danger {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
+}
+
+.plan-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--coral) 18%, transparent);
+  color: var(--coral);
+}
+
+.plan-running-label {
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+.plan-terminal {
+  padding: var(--s-2) var(--s-5) var(--s-5);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+/* ── Activity call chain ──────────────────────────────────────────────
+   Compact Run activity row. Detailed response steps expand inside this card
+   with a strict height cap, so it never grows with the full tool history. */
+
+.activity-call-chain {
+  display: flex;
+  flex-direction: column;
+  margin: var(--s-1) 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+}
+
+.activity-call-chain-summary {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  max-width: 100%;
+  min-height: 29px;
+  padding: var(--s-2) var(--s-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-4);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 450;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.activity-call-chain-summary:hover {
+  background: var(--hover);
+}
+
+.activity-call-chain.has-items .activity-call-chain-summary {
+  border-bottom: 1px solid var(--line-1);
+}
+
+.activity-call-chain-icon {
+  flex: none;
+  color: var(--text-4);
+}
+
+.activity-call-chain-label {
+  flex: none;
+  color: var(--text-3);
+  font-weight: 520;
+  white-space: nowrap;
+}
+
+.activity-call-chain-count {
+  flex: none;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-call-chain-failure {
+  flex: none;
+  color: var(--coral);
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.activity-call-chain-chevron {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  flex: none;
+  color: var(--text-4);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.activity-call-chain-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.activity-call-chain-items {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.activity-call-chain-item {
+  min-width: 0;
+  background: transparent;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.activity-call-chain-item + .activity-call-chain-item {
+  border-top: 1px solid var(--line-1);
+}
+
+/* The newest call is where your eye should land when the chain updates. */
+.activity-call-chain-item.is-latest {
+  background: var(--iris-wash);
+  box-shadow: inset 2px 0 0 var(--iris);
+}
+
+.activity-call-chain-item.status-error:not(.is-latest) {
+  background: color-mix(in srgb, var(--coral) 5%, transparent);
+}
+
+.activity-call-chain-item .tool-call-card,
+.activity-call-chain-item .tool-call-card.is-expanded {
+  margin: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.activity-call-chain-item.is-latest .tool-call-body {
+  background: color-mix(in srgb, var(--void) 84%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-card .step-icon-run .pulse-dot {
+    animation: none;
+  }
+}

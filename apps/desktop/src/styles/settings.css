@@ -8,9 +8,18 @@
 @import './region-settings-knowledge.css';
 @import './region-settings-plugins.css';
 @import './settings-resources.css';
+@import './settings-mcp.css';
+@import './settings-web-tools.css';
+@import './settings-provider-dialogs.css';
+@import './settings-byok.css';
+@import './settings-byok-editor.css';
+@import './settings-provider-connection.css';
+@import './settings-misc-pages.css';
+@import './settings-ink-wash.css';
+
 .appearance-theme-library-note {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 12px;
+  margin: var(--s-5) 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
   line-height: 1.5;
 }

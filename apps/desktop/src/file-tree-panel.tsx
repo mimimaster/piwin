@@ -725,8 +725,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           />
         ) : null}
         <header className="file-tree-header">
-          <div>
-            <span className="inspector-kicker">Workspace</span>
+          <div className="right-panel-header-copy">
+            <span className="right-panel-kicker">Workspace</span>
             <strong>Files</strong>
           </div>
           <IconButton title="Refresh" label="Refresh file tree" onClick={() => void reloadRoot()}>

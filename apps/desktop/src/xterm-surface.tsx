@@ -12,6 +12,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { formatError } from '@piwin/contracts';
+import { readDeckXtermFontFamily, readDeckXtermTheme } from './xterm-theme';
 import {
   listenTauriPtyData,
   listenTauriPtyExit,
@@ -69,13 +70,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-      theme: {
-        background: '#0f1115',
-        foreground: '#d7dbe3',
-        cursor: '#9bb8ff',
-        selectionBackground: '#3a4a6b',
-      },
+      fontFamily: readDeckXtermFontFamily(),
+      theme: readDeckXtermTheme(),
       allowProposedApi: false,
       convertEol: true,
     });
@@ -212,9 +208,22 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
     });
     resizeObserver.observe(containerRef.current);
 
+    const themeObserver = new MutationObserver(() => {
+      if (disposed) {
+        return;
+      }
+      terminal.options.theme = readDeckXtermTheme();
+      terminal.options.fontFamily = readDeckXtermFontFamily();
+    });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme-id', 'data-theme-mode', 'style'],
+    });
+
     return () => {
       disposed = true;
       bootingRef.current = false;
+      themeObserver.disconnect();
       if (resizeDebounce) {
         clearTimeout(resizeDebounce);
       }

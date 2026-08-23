@@ -1,0 +1,60 @@
+/* Shell + sidebar: ink-wash theme package overrides.
+   Split out of region-shell.css / region-sidebar.css (one region, split by
+   responsibility per AGENTS.md 3.2). Core deck frame and sidebar structure
+   stay in their region files.
+
+   Ink-wash paints a full-bleed artwork behind the whole window, so the Deck
+   surface ramp has to get out of the way: panels go translucent and let the
+   painting read through instead of stacking opaque steps on top of it. The
+   !important flags are deliberate — these override the runtime token values
+   emitted by apply-appearance.ts, which the cascade cannot otherwise beat. */
+
+html[data-theme-visual-style='ink-wash'] .workspace,
+html[data-theme-visual-style='ink-wash'] .chat-column,
+html[data-theme-visual-style='ink-wash'] .chat-column-empty,
+html[data-theme-visual-style='ink-wash'] .chat-stage,
+html[data-theme-visual-style='ink-wash'] .transcript-viewport {
+  background: transparent !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .session-title-text {
+  color: #d8d3cb !important;
+  font-weight: 500 !important;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+
+html[data-theme-visual-style='ink-wash'] .sidebar {
+  background: rgba(16, 18, 22, 0.3) !important;
+  border-right: none !important;
+  box-shadow: 4px 0 24px -4px rgba(0, 0, 0, 0.55) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .session-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme-visual-style='ink-wash'] .session-item.active {
+  position: relative;
+  border-radius: var(--r-control);
+  background: rgba(214, 205, 190, 0.09) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .sidebar-footer-button {
+  border-radius: var(--r-control);
+  transition:
+    background-color var(--t-3) var(--ease-out),
+    transform var(--t-2) var(--ease-out),
+    color var(--t-3) var(--ease-out);
+}
+
+html[data-theme-visual-style='ink-wash'] .sidebar-footer-button:hover {
+  background: rgba(112, 145, 156, 0.14) !important;
+  color: #f8f6f0 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .session-item-completed-dismiss:hover,
+html[data-theme-visual-style='ink-wash'] .session-item-completed-dismiss:focus-visible {
+  background: #d85c52 !important;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.7) !important;
+}

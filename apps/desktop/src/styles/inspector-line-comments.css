@@ -1,0 +1,203 @@
+/* Inspector: line-level review affordance on rendered Markdown — the hover
+   target around each semantic line, the comment button, and the popover.
+   Split out of inspector-code-preview.css by responsibility (AGENTS.md 3.2).
+
+   Deck rule: iris means "you can act here", which is exactly what a
+   commentable line is. Depth of tint encodes state — hoverable, commented,
+   commented-and-hovered — instead of three unrelated colours. */
+
+.enhanced-line-wrapper {
+  position: relative;
+  transition: background-color var(--t-1) var(--ease-out);
+  border-radius: var(--r-control);
+  background: transparent;
+  /* room for the absolute comment button */
+  padding-right: 34px;
+}
+
+/* Soft hover for any commentable line */
+.enhanced-line-wrapper.has-hover-highlight:hover,
+.enhanced-line-wrapper.popover-open {
+  background: color-mix(in srgb, var(--iris) 6%, transparent);
+}
+
+/* Commented lines: always tinted */
+.enhanced-line-wrapper.has-comment {
+  background: color-mix(in srgb, var(--iris) 10%, transparent);
+}
+
+/* Commented + hover: deepen */
+.enhanced-line-wrapper.has-comment:hover,
+.enhanced-line-wrapper.has-comment.popover-open {
+  background: color-mix(in srgb, var(--iris) 16%, transparent);
+}
+
+.line-comment-btn {
+  opacity: 0;
+  visibility: hidden;
+  position: absolute;
+  right: var(--s-3);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  border: none;
+  width: var(--h-sm);
+  height: var(--h-sm);
+  padding: 0;
+  border-radius: var(--r-control);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--iris);
+  color: var(--on-iris);
+  box-shadow: var(--elev-2);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out),
+    box-shadow var(--t-1) var(--ease-out);
+}
+
+.line-comment-btn:hover {
+  background: var(--iris-press);
+  box-shadow: var(--elev-3);
+}
+
+.line-comment-btn.has-comment {
+  opacity: 1;
+  visibility: visible;
+}
+
+.enhanced-line-wrapper:hover > .line-comment-btn,
+.enhanced-line-wrapper:hover .line-comment-btn,
+.enhanced-line-wrapper.popover-open > .line-comment-btn {
+  opacity: 1;
+  visibility: visible;
+}
+
+.line-comment-popover-anchor {
+  position: relative;
+  width: 100%;
+  z-index: 20;
+}
+
+/* The popover is an overlay: top surface tier, top elevation, no outline. */
+.line-comment-popover {
+  margin-top: var(--s-3);
+  margin-bottom: var(--s-4);
+  padding: var(--s-6);
+  border-radius: var(--r-overlay);
+  background: var(--surface-4);
+  border: 0;
+  box-shadow: var(--elev-3);
+  width: 100%;
+  max-width: 420px;
+}
+
+.line-comment-input {
+  width: 100%;
+  min-height: 54px;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--void);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  resize: vertical;
+  outline: none;
+  transition: box-shadow var(--t-1) var(--ease-out);
+}
+
+.line-comment-input:focus {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 55%, transparent);
+}
+
+.line-comment-body {
+  font-size: 13.5px;
+  color: var(--text-1);
+  line-height: var(--lh-normal);
+  padding: var(--s-2) 0 var(--s-5) 0;
+  white-space: pre-wrap;
+}
+
+.line-comment-popover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--s-5);
+}
+
+/* Cancel and delete are the same quiet text button until you reach for them,
+   at which point they turn coral — the destructive colour. */
+.popover-btn-cancel,
+.popover-btn-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-control);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.popover-btn-cancel:hover,
+.popover-btn-delete:hover {
+  color: var(--coral);
+}
+
+.popover-btn-submit {
+  background: var(--iris);
+  border: none;
+  color: var(--on-iris);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--s-3) var(--s-6);
+  border-radius: var(--r-control);
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.popover-btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.popover-btn-submit:not(:disabled):hover {
+  background: var(--iris-press);
+}
+
+.popover-btn-edit {
+  background: var(--hover);
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--s-3) var(--s-6);
+  border-radius: var(--r-control);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.popover-btn-edit:hover {
+  background: var(--active);
+}
+
+.doc-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  color: var(--iris-lift);
+}

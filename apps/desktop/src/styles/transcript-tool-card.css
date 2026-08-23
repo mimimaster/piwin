@@ -1,0 +1,927 @@
+/* Transcript: tool call cards — head row, status, body, batch capsules.
+   Split out of region-transcript.css (one region, split by responsibility
+   per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
+   region-transcript.css.
+
+   Deck rule: tool calls are *process*, not content. The transcript is a
+   document and the assistant's prose is the body text; tool rows sit below it
+   in the hierarchy. So a tool call is a quiet row that earns a surface only
+   when you open it — and inside a work-details chain it flattens away
+   entirely, because there the timeline rail already does the grouping.
+
+   Status uses the reserved semantics: --ember means the tool is running right
+   now (same signal as the agent breathing elsewhere in the window), --mint
+   means it finished, --coral means it failed. */
+
+/* ── Tool call card ───────────────────────────────────────────────────── */
+
+.tool-call-card {
+  border-radius: var(--r-card);
+  margin: 0;
+  overflow: hidden;
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  animation: deck-rise var(--t-3) var(--ease-spring) both;
+}
+
+/* Staggered entrance: a burst of tool calls lands as a cascade rather than a
+   single jarring block. Capped at 8 — past that the delay reads as lag. */
+.tool-call-card:nth-child(1) {
+  animation-delay: 0ms;
+}
+.tool-call-card:nth-child(2) {
+  animation-delay: 40ms;
+}
+.tool-call-card:nth-child(3) {
+  animation-delay: 80ms;
+}
+.tool-call-card:nth-child(4) {
+  animation-delay: 120ms;
+}
+.tool-call-card:nth-child(5) {
+  animation-delay: 160ms;
+}
+.tool-call-card:nth-child(6) {
+  animation-delay: 200ms;
+}
+.tool-call-card:nth-child(7) {
+  animation-delay: 240ms;
+}
+.tool-call-card:nth-child(8) {
+  animation-delay: 280ms;
+}
+
+/* ── Head row ─────────────────────────────────────────────────────────── */
+
+.tool-call-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  line-height: var(--lh-normal);
+  color: var(--text-3);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.tool-call-summary:hover {
+  background: var(--hover);
+}
+
+.tool-call-summary:hover .tool-call-chevron {
+  color: var(--text-2);
+}
+
+.tool-call-card.density-compact .tool-call-summary {
+  padding: var(--s-3) var(--s-5);
+}
+
+.tool-call-kind-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  color: var(--text-4);
+  stroke-width: var(--icon-stroke);
+}
+
+/* The verb is scaffolding ("Read", "Ran command"); the path or query that
+   follows is the actual information, so the verb stays a step quieter. */
+.tool-call-action-verb {
+  font-weight: 500;
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+  letter-spacing: var(--tracking-tight);
+  flex: none;
+}
+
+.tool-call-file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.tool-call-file-pill.is-link .tool-call-file-name {
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.tool-call-file-pill.is-link:hover .tool-call-file-name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tool-call-file-pill.is-openable:hover {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  text-decoration: underline;
+}
+
+.tool-call-file-pill.is-openable:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.tool-call-line-range {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+}
+
+.tool-call-diff-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-call-diff-stats .add {
+  color: var(--mint);
+}
+
+.tool-call-diff-stats .del {
+  color: var(--coral);
+}
+
+.tool-call-count-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Result count trailing the query text inside the preview span. */
+.tool-call-count-inline {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+}
+
+.tool-call-card.density-compact .tool-call-action-verb {
+  font-size: var(--fs-chrome);
+}
+
+.tool-call-preview {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* A search query is the thing the user cares about on the row, so it gets the
+   only lift of color in the head. */
+.tool-call-preview.is-query {
+  color: var(--text-1);
+}
+
+.tool-call-duration {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.tool-call-duration-live {
+  color: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+/* ── Status markers ───────────────────────────────────────────────────── */
+
+.tool-call-ok {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  flex-shrink: 0;
+}
+
+.tool-call-err {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  flex-shrink: 0;
+}
+
+.tool-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-4);
+}
+
+/* On the shared breath cycle so an in-flight tool pulses in phase with the
+   stage wash and every other liveness dot in the window. */
+.tool-status-dot.status-running {
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+/* ── Chevron ──────────────────────────────────────────────────────────── */
+
+.tool-call-chevron {
+  width: 13px;
+  height: 13px;
+  color: var(--text-4);
+  transition:
+    color var(--t-1) var(--ease-out),
+    transform var(--t-3) var(--ease-spring);
+  flex-shrink: 0;
+}
+
+.tool-call-chevron.open {
+  transform: rotate(0deg);
+}
+
+.tool-call-card:not(.is-expanded) .tool-call-chevron {
+  transform: rotate(-90deg);
+}
+
+.tool-call-chevron-hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: var(--r-chip);
+}
+
+.tool-call-chevron-hit:hover {
+  background: var(--active);
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────
+   Output recesses into the void: it is raw material you inspect, not a
+   surface that should lift toward you. */
+
+.tool-call-body {
+  border-top: 1px solid var(--line-1);
+  padding: var(--s-5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  color: var(--text-3);
+  background: var(--void);
+  animation: deck-fade-in var(--t-2) var(--ease-out) both;
+}
+
+.tool-call-card.density-detailed .tool-call-body {
+  padding-bottom: var(--s-5);
+}
+
+.tool-call-empty {
+  font-size: var(--fs-micro);
+  padding: 0;
+  min-height: 0;
+}
+
+.tool-call-empty-hint {
+  padding: 0 var(--s-5) var(--s-3);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
+  color: var(--text-4);
+}
+
+.tool-call-empty-hint .dim,
+.tool-call-body .dim {
+  color: var(--text-4);
+}
+
+.tool-call-output {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  padding: var(--s-1) 0;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.tool-call-card.density-detailed .tool-call-output {
+  max-height: 320px;
+}
+
+.tool-call-command {
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-mono);
+}
+
+.tool-call-command code {
+  font-size: var(--fs-mono);
+  color: var(--text-1);
+  background: var(--hover);
+  padding: 1px var(--s-2);
+  border-radius: var(--r-chip);
+}
+
+.tool-call-paths {
+  margin-bottom: var(--s-3);
+  font-size: var(--fs-mono);
+  font-family: var(--font-mono);
+  color: var(--text-4);
+}
+
+.tool-call-paths-prefix {
+  color: var(--text-4);
+}
+
+.tool-call-path-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--iris-lift);
+  font: inherit;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.tool-call-path-link:hover {
+  text-decoration: underline;
+}
+
+.tool-call-path-link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.tool-call-error {
+  color: var(--coral);
+  font-size: var(--fs-mono);
+}
+
+/* Truncation and output notices are the agent telling you it had to cut
+   something — amber, the "needs your attention" role, not accent. */
+.tool-call-truncated-tag {
+  flex: 0 0 auto;
+  color: var(--amber);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+}
+
+.tool-call-output-notice {
+  margin-bottom: var(--s-4);
+  color: var(--amber);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+}
+
+.tool-call-raw-fold {
+  margin-top: var(--s-4);
+}
+
+.tool-call-raw-fold > summary {
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  list-style: none;
+}
+
+.tool-call-raw-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ── Fetch variant ────────────────────────────────────────────────────
+   A fetch reads as a sentence with a transcript attached, so the head drops
+   all card chrome and the body becomes the one real surface. */
+
+.tool-call-card.is-fetch-style {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.tool-call-card.is-fetch-style .tool-call-summary {
+  gap: var(--s-2);
+  padding: var(--s-2) 0;
+  color: var(--text-3);
+  font-size: var(--fs-body);
+  font-weight: 400;
+}
+
+.tool-call-card.is-fetch-style .tool-call-kind-icon,
+.tool-call-card.is-fetch-style .tool-call-count-tag,
+.tool-call-card.is-fetch-style .tool-call-ok,
+.tool-call-card.is-fetch-style .tool-call-err,
+.tool-call-card.is-fetch-style .tool-status-dot,
+.tool-call-card.is-fetch-style .tool-call-duration,
+.tool-call-card.is-fetch-style .tool-call-truncated-tag {
+  display: none;
+}
+
+.tool-call-card.is-fetch-style .tool-call-action-verb {
+  color: var(--text-3);
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+.tool-call-card.is-fetch-style .tool-call-preview {
+  flex: 0 1 auto;
+  max-width: calc(100% - 26px);
+  color: var(--text-4);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 400;
+}
+
+.tool-call-card.is-fetch-style .tool-call-summary:hover {
+  background: transparent;
+  color: var(--text-1);
+}
+
+.tool-call-card.is-fetch-style .tool-call-chevron {
+  margin-left: var(--s-1);
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+
+.tool-call-card.is-fetch-style .tool-call-body {
+  margin-top: var(--s-4);
+  padding: var(--s-6) var(--s-7);
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  color: var(--text-2);
+  font-size: var(--code-font-size, 13px);
+  overflow: hidden;
+}
+
+.tool-call-fetch-panel {
+  width: 100%;
+  min-width: 0;
+}
+
+.tool-call-command.is-fetch-command {
+  position: relative;
+  display: block;
+  max-height: 360px;
+  margin: 0;
+  padding: 0 var(--s-7) 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: var(--code-font-size, 13px);
+  line-height: var(--lh-relaxed);
+}
+
+.tool-call-command.is-fetch-command code {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  white-space: pre-wrap;
+}
+
+.tool-call-command-prompt {
+  display: inline-block;
+  margin-right: var(--s-5);
+  color: var(--text-4);
+  user-select: none;
+  vertical-align: top;
+}
+
+.tool-call-command-menu {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-4);
+}
+
+.tool-call-command-menu svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Image generation progress ────────────────────────────────────────
+   The one tool card that stays visible through completion: it carries a
+   result, so it keeps a surface and shifts tone by outcome. */
+
+.image-generation-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: min(380px, 100%);
+  margin: var(--s-2) 0 var(--s-5);
+  padding: var(--s-5);
+  border: 0;
+  border-radius: var(--r-panel);
+  background: color-mix(in srgb, var(--iris) 8%, var(--surface-3));
+  box-shadow: var(--elev-1);
+  overflow: hidden;
+}
+
+.image-generation-progress.status-done {
+  background: color-mix(in srgb, var(--mint) 8%, var(--surface-3));
+}
+
+.image-generation-progress.status-error {
+  background: color-mix(in srgb, var(--coral) 8%, var(--surface-3));
+}
+
+.image-generation-progress-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--iris) 55%, var(--surface-3)),
+    var(--surface-3)
+  );
+}
+
+.image-generation-progress.status-done .image-generation-progress-art {
+  background: color-mix(in srgb, var(--mint) 18%, var(--surface-3));
+}
+
+.image-generation-progress.status-error .image-generation-progress-art {
+  background: color-mix(in srgb, var(--coral) 18%, var(--surface-3));
+}
+
+.image-generation-progress-art::before {
+  position: absolute;
+  inset: -55%;
+  content: '';
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    color-mix(in srgb, var(--text-1) 28%, transparent) 48%,
+    transparent 61%
+  );
+  animation: image-generation-sheen 1.8s linear infinite;
+}
+
+.image-generation-progress-art::after {
+  position: absolute;
+  inset: 12px;
+  content: '';
+  border: 1px solid color-mix(in srgb, var(--text-1) 20%, transparent);
+  border-radius: var(--r-control);
+  animation: image-generation-frame 1.6s ease-in-out infinite;
+}
+
+.image-generation-progress-spark {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  color: var(--text-1);
+  filter: drop-shadow(0 2px 7px var(--iris-glow));
+  animation: image-generation-spark 1.4s ease-in-out infinite;
+}
+
+.image-generation-progress-status-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.image-generation-progress-status-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.image-generation-progress.status-done .image-generation-progress-status-icon {
+  color: var(--mint);
+}
+
+.image-generation-progress.status-error .image-generation-progress-status-icon {
+  color: var(--coral);
+}
+
+.image-generation-progress.status-done .image-generation-progress-art::before,
+.image-generation-progress.status-done .image-generation-progress-art::after,
+.image-generation-progress.status-error .image-generation-progress-art::before,
+.image-generation-progress.status-error .image-generation-progress-art::after {
+  animation: none;
+  opacity: 0;
+}
+
+.image-generation-progress-copy {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.image-generation-progress-copy strong {
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.image-generation-progress-copy > span {
+  color: var(--text-3);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+}
+
+.image-generation-progress-dots {
+  display: inline-block;
+  width: 1.2em;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: image-generation-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes image-generation-sheen {
+  from {
+    transform: translateX(-32%);
+  }
+  to {
+    transform: translateX(32%);
+  }
+}
+
+@keyframes image-generation-frame {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+@keyframes image-generation-spark {
+  0%,
+  100% {
+    transform: scale(0.82) rotate(-8deg);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.08) rotate(8deg);
+    opacity: 1;
+  }
+}
+
+@keyframes image-generation-dots {
+  0%,
+  25% {
+    width: 0;
+  }
+  50%,
+  75% {
+    width: 0.6em;
+  }
+  100% {
+    width: 1.2em;
+  }
+}
+
+/* ── Turn tool group ──────────────────────────────────────────────────── */
+
+.turn-tool-group {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.turn-tool-group-summary {
+  width: 100%;
+  text-align: left;
+  margin: var(--s-3) 0;
+  padding: var(--s-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.turn-tool-group-summary:hover {
+  color: var(--text-2);
+}
+
+/* ── Activity timeline ────────────────────────────────────────────────
+   Inside a work-details chain the cards stop being cards. The rail supplies
+   the grouping, so each row drops its surface, shadow, and radius and becomes
+   a line of text you can scan vertically. */
+
+.activity-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: var(--s-1) 0 var(--s-3);
+}
+
+.turn-work-details .tool-call-card {
+  margin: 0;
+  border: none;
+  border-radius: var(--r-chip);
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+/* One response's tool calls stay in provider order. There is deliberately no
+   Run-level process shell or nested scrolling surface around this sequence. */
+.turn-tool-sequence {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.turn-work-details .tool-call-card.density-compact .tool-call-summary {
+  padding: 1px var(--s-2);
+  min-height: 20px;
+  gap: var(--s-3);
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+  font-weight: 450;
+}
+
+.turn-work-details .tool-call-card.density-compact .tool-call-summary:hover {
+  background: var(--hover);
+  color: var(--text-2);
+}
+
+/* Top-level chain rows lead with a 13px kind icon so thinking / explore /
+   command / read rows share one left rhythm. Rows nested inside a capsule
+   body drop the icon — the timeline rail already anchors them. */
+.turn-work-details .tool-call-card .tool-call-kind-icon {
+  color: var(--text-4);
+  width: 13px;
+  height: 13px;
+}
+
+.tool-batch-body .tool-call-card:not(.is-expanded) .tool-call-kind-icon {
+  display: none;
+}
+
+.turn-work-details .tool-call-card .tool-call-file-pill.is-link .tool-call-file-name {
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.turn-work-details .tool-call-card .tool-call-action-verb {
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+  font-weight: 450;
+}
+
+.turn-work-details .tool-call-card .tool-call-file-pill {
+  background: transparent;
+  padding: 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+}
+
+/* ── Tool batch capsule ───────────────────────────────────────────────
+   Not a boxed card: the header reads as one more chain row. Only failures
+   take a surface, because a failure is the one case worth interrupting the
+   scan for. */
+
+.tool-batch-capsule {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-chip);
+  background: transparent;
+  border: none;
+  margin: 1px 0;
+  overflow: hidden;
+}
+
+.tool-batch-capsule.has-error {
+  border-radius: var(--r-control);
+  border: 0;
+  background: color-mix(in srgb, var(--coral) 7%, transparent);
+}
+
+.tool-batch-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 22px;
+  padding: 1px var(--s-2);
+  border: none;
+  border-radius: var(--r-chip);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: var(--lh-normal);
+  user-select: none;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.tool-batch-header:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.tool-batch-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-4);
+}
+
+.tool-batch-kind-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.tool-batch-title-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.tool-batch-title {
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Ambient loops are liveness, not decoration: drop them, keep the layout. */
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-card,
+  .tool-call-body {
+    animation: none;
+  }
+
+  .tool-call-duration-live,
+  .tool-status-dot.status-running,
+  .image-generation-progress-art::before,
+  .image-generation-progress-art::after,
+  .image-generation-progress-spark,
+  .image-generation-progress-dots {
+    animation: none;
+  }
+
+  .image-generation-progress-dots {
+    width: 1.2em;
+  }
+}

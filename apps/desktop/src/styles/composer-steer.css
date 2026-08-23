@@ -1,0 +1,219 @@
+/* Composer: steer queue dock — queued turns while a run is in flight.
+   Split out of region-composer.css (one region, split by responsibility
+   per AGENTS.md 3.2). Core dock/card/toolbar stays in region-composer.css.
+
+   Deck rule: the steer queue is a lid snapped to the top of the composer
+   card — same surface family, no separate border, one continuous object. */
+
+/* ─── Steer Queue Dock ──────────────────────────────────────────────── */
+
+.steer-queue-dock {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin: 0 auto -1px;
+  box-sizing: border-box;
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  padding: var(--s-4) var(--s-4) var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  overflow: hidden;
+  animation: steerQueuePopIn var(--t-2) var(--ease-out) forwards;
+}
+
+.composer-dock.has-steer-queue .composer-card-v2 {
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
+}
+
+.composer-dock.has-steer-queue .composer-card-v2.is-streaming {
+  border-top: 0;
+}
+
+@keyframes steerQueuePopIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .steer-queue-dock {
+    animation: none;
+  }
+}
+
+.steer-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  user-select: none;
+  padding: 0 var(--s-1);
+}
+
+.steer-queue-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-chrome);
+  line-height: 1.3;
+}
+
+.steer-queue-title {
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.steer-queue-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.steer-queue-subtitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.steer-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: min(232px, 34vh);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.steer-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-height: 36px;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+  box-sizing: border-box;
+  border-radius: var(--r-control);
+  background: var(--hover);
+  border: 0;
+  transition: background-color var(--t-2) var(--ease-out);
+}
+
+.steer-queue-item:hover {
+  background: var(--active);
+}
+
+.steer-queue-position {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: var(--r-chip);
+  background: var(--surface-4);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.steer-queue-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.steer-queue-item-text {
+  font-size: var(--fs-chrome);
+  color: var(--text-1);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.steer-queue-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--iris);
+  border-radius: var(--r-control);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  padding: var(--s-2) var(--s-3);
+  outline: none;
+  resize: none;
+}
+
+.steer-queue-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.steer-queue-action {
+  display: inline-grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.steer-queue-action.is-send-now {
+  color: var(--iris-lift);
+}
+
+.steer-queue-action.is-send-now:hover {
+  color: var(--iris);
+  background: var(--iris-wash);
+}
+
+.steer-queue-action:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.steer-queue-action.is-remove:hover {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+.steer-queue-action.is-confirm {
+  color: var(--iris-lift);
+}
+
+.steer-queue-action.is-confirm:hover {
+  background: var(--iris-wash);
+}

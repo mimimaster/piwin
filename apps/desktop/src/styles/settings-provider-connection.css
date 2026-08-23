@@ -1,0 +1,457 @@
+/* Settings: provider connection strip, model edit popover, inline model form.
+   Split out of settings-resources.css (one region, split by responsibility
+   per AGENTS.md 3.2).
+
+   Deck rule: the inline model editor opens *inside* an already-raised row, so
+   everything in it recesses — the panel is a well cut into the row, and the
+   fields are wells cut into that. Going up another step here would put a
+   sub-form above the card that contains it. */
+
+/* ── Connection strip ─────────────────────────────────────────────────── */
+
+.provider-connection-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-6);
+  padding: var(--s-5) var(--s-6);
+  background: var(--surface-2);
+  border: 0;
+  box-shadow: var(--elev-1);
+  border-radius: var(--r-card);
+  margin-bottom: var(--s-4);
+}
+
+.provider-connection-strip-main {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  min-width: 0;
+  flex: 1;
+}
+
+.provider-connection-strip-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.provider-connection-strip-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+}
+
+.provider-connection-strip-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.provider-connection-strip-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+
+.provider-connection-strip-sep {
+  color: var(--text-4);
+}
+
+.provider-connection-strip-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  flex-shrink: 0;
+}
+
+.provider-connection-strip-status {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.provider-connection-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+.provider-connection-dot--ok {
+  background: var(--mint);
+}
+
+.provider-connection-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-2) var(--s-1) var(--s-1);
+  min-width: 0;
+}
+
+.provider-connection-form-hint {
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  margin: 0 0 var(--s-1);
+}
+
+/* ── Model edit popover ───────────────────────────────────────────────── */
+
+.ui-popover-content.model-edit-popover {
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(620px, calc(100vh - 32px));
+  overflow-y: auto;
+  padding: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.model-edit-popover-header,
+.model-edit-popover-footer,
+.model-edit-capability-row,
+.model-edit-effort-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.model-edit-popover-header,
+.model-edit-popover-footer {
+  justify-content: space-between;
+}
+
+.model-edit-popover-footer {
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-1);
+}
+
+.model-edit-effort-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.model-edit-effort-option,
+.model-edit-capability-row {
+  font-size: var(--fs-chrome);
+  color: var(--text-1);
+}
+
+.model-edit-effort-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--hover);
+}
+
+/* ── Inline model edit form ───────────────────────────────────────────── */
+
+.model-edit-inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  background: var(--void);
+  border-radius: 0 0 var(--r-control) var(--r-control);
+  border-top: 1px solid var(--line-1);
+}
+
+.model-edit-inline-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.model-edit-inline-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.model-edit-inline-field input {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-chrome);
+  background: var(--surface-2);
+  color: var(--text-1);
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.model-edit-inline-field input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+
+.model-edit-inline-label {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.model-edit-inline-caps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: var(--s-4) var(--s-6);
+  font-size: var(--fs-chrome);
+}
+
+.model-edit-inline-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.model-edit-inline-cap input {
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  accent-color: var(--iris);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.model-edit-inline-cap span {
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.model-edit-route-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.model-edit-route-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding: var(--s-5) var(--s-6);
+  border-radius: var(--r-control);
+  background: var(--surface-2);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.model-edit-route-fields-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.model-edit-route-fields-title {
+  font-size: var(--fs-chrome);
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.model-edit-route-fields-pill {
+  padding: var(--s-1) var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.model-edit-route-fields-hint {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.model-edit-route-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-5);
+  margin-top: var(--s-1);
+}
+
+.model-edit-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.model-edit-field-group--full {
+  grid-column: 1 / -1;
+}
+
+.model-edit-field-label {
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  color: var(--text-3);
+}
+
+.model-edit-route-fields select,
+.model-edit-route-fields input,
+.model-edit-field-group select,
+.model-edit-field-group input {
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--h-md);
+  padding: var(--s-2) var(--s-4);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-chrome);
+  font-family: inherit;
+  background: var(--void);
+  color: var(--text-1);
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.model-edit-route-fields input[type='text'],
+.model-edit-route-fields input[inputmode='decimal'],
+.model-edit-field-group input[type='text'],
+.model-edit-field-group input[inputmode='decimal'] {
+  font-family: var(--font-mono);
+}
+
+.model-edit-route-fields select:focus,
+.model-edit-route-fields input:focus,
+.model-edit-field-group select:focus,
+.model-edit-field-group input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+
+.model-edit-inline-thinking {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--surface-2);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.model-edit-inline-thinking-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.model-edit-inline-thinking-hint {
+  font-size: var(--fs-micro);
+  font-weight: 400;
+  color: var(--text-4);
+}
+
+.model-edit-inline-default {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.model-edit-inline-default select {
+  padding: 1px var(--s-2);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  background: var(--void);
+  color: var(--text-1);
+}
+
+.model-edit-inline-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+}
+
+.model-edit-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  border: 0;
+  background: var(--hover);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+  white-space: nowrap;
+}
+
+.model-edit-chip:hover {
+  background: var(--active);
+  color: var(--text-1);
+}
+
+.model-edit-chip.is-active {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-weight: 600;
+}
+
+.model-edit-inline-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-3);
+  padding-top: 1px;
+}
+
+.model-edit-inline-saved {
+  margin-right: auto;
+  font-size: var(--fs-micro);
+  font-weight: 550;
+  color: var(--mint);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  animation: model-edit-saved-fade var(--t-2) var(--ease-out);
+}
+
+@keyframes model-edit-saved-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-edit-inline-saved {
+    animation: none;
+  }
+}

@@ -1,0 +1,312 @@
+/* Region: full-window Knowledge Center — detail stage.
+   Split out of region-knowledge.css by responsibility (AGENTS.md 3.2): page
+   shell and sidebar stay there, card generation lives in
+   region-knowledge-cards.css.
+
+   Deck rule: the topbar is a titleband, not a toolbar — transparent, hairline
+   below, same shape as region-context-bar.css. The tab switcher is the
+   segmented-control pattern used everywhere else (right-panel tabs, review
+   subtabs, settings appearance mode): the active segment lifts out of a
+   recessed track rather than filling with accent. */
+
+.knowledge-detail-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--surface-1);
+}
+
+/* Single Clean Integrated Topbar */
+.knowledge-stage-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-6);
+  padding: 0 var(--s-6);
+  height: var(--h-lg);
+  min-height: var(--h-lg);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line-1);
+  background: transparent;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.stage-project-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.stage-project-icon {
+  color: var(--iris-lift);
+  flex-shrink: 0;
+}
+
+.stage-project-kicker {
+  font-size: var(--fs-chrome);
+  color: var(--text-4);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.stage-project-title {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-1);
+}
+
+.stage-tab-switcher {
+  display: flex;
+  align-items: center;
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  padding: 2px;
+  border-radius: var(--r-control);
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.stage-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-5);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.stage-tab-btn:hover:not(.active) {
+  color: var(--text-1);
+}
+
+.stage-tab-btn.active {
+  background: var(--surface-3);
+  color: var(--text-1);
+  box-shadow: var(--elev-1);
+}
+
+.stage-global-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-shrink: 0;
+}
+
+/* Amber marks "this needs your attention to work correctly" — the same
+   reserved color settings uses for a misconfigured provider. Not coral: it is
+   a nudge, not a failure. */
+.knowledge-config-prompt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-xs);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  border: 0;
+  background: color-mix(in srgb, var(--amber) 12%, var(--surface-2));
+  color: var(--text-1);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.knowledge-config-prompt-pill:hover {
+  background: color-mix(in srgb, var(--amber) 20%, var(--surface-2));
+}
+
+.config-prompt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex-shrink: 0;
+}
+
+.config-prompt-text {
+  color: var(--text-3);
+}
+
+.config-prompt-action {
+  color: var(--iris-lift);
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.knowledge-settings-icon-btn.has-badge-dot {
+  position: relative;
+}
+
+.knowledge-settings-icon-btn.has-badge-dot::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  pointer-events: none;
+}
+
+/* Stage Inner Body */
+.knowledge-stage-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.knowledge-action-error {
+  margin: var(--s-4) var(--s-6) 0;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  font-size: var(--fs-chrome);
+  white-space: pre-line;
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
+  border: 0;
+}
+
+/* ── Unindexed Hero ─────────────────────────────────────────────────────── */
+.knowledge-unindexed-hero {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-9) var(--s-6);
+  overflow-y: auto;
+}
+
+.unindexed-hero-card {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  padding: var(--s-9) var(--s-8);
+  border-radius: var(--r-panel);
+  border: 0;
+  background: var(--surface-2);
+  box-shadow: var(--elev-2);
+}
+
+.unindexed-hero-icon-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--s-6);
+}
+
+.unindexed-hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  border: 0;
+}
+
+.unindexed-hero-title {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  margin: 0 0 var(--s-4);
+  color: var(--text-1);
+}
+
+.unindexed-hero-desc {
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  margin: 0 0 var(--s-7);
+  color: var(--text-3);
+}
+
+.unindexed-hero-stats {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-bottom: var(--s-8);
+}
+
+.stat-pill {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-control);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  display: flex;
+  gap: var(--s-3);
+}
+
+.stat-val {
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.unindexed-hero-config-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  margin: -12px 0 var(--s-7);
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  border: 0;
+  font-size: var(--fs-micro);
+  color: var(--text-2);
+}
+
+.hint-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex-shrink: 0;
+}
+
+.hint-config-btn {
+  border: none;
+  background: transparent;
+  color: var(--iris-lift);
+  font-family: var(--font);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-size: var(--fs-micro);
+}
+
+.hint-config-btn:hover {
+  text-decoration: underline;
+}
+
+.unindexed-hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-4);
+}
