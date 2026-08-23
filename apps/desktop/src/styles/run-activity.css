@@ -1,69 +1,126 @@
-/* Run activity animation & UI styling.
-   Includes SVG keyframe micro-animations, glassmorphism card layouts,
-   ambient glowing backdrops, status badges, and subagent card enhancements. */
+/* Run activity animation and subagent transcript surfaces.
+   Splash/inline chrome is hidden in product; SVG keyframes and subagent cards
+   remain for tests and embedded surfaces.
+
+   Deck rule: badges are semantic chips (iris-wash / mint / amber / coral);
+   subagent cards are quiet objects — surface-2 + elev-1, no border. */
 
 .context-bar-status,
 .run-activity-inline,
 .run-activity-splash,
-[data-testid="run-status-strip"] {
+[data-testid='run-status-strip'] {
   display: none !important;
 }
 
-/* ==========================================================================
-   SVG Keyframe Animations
-   ========================================================================== */
+/* ── SVG keyframe animations ──────────────────────────────────────── */
 
 @keyframes svg-spin-fast {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes svg-spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes svg-spin-gear {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes svg-spin-reverse {
-  from { transform: rotate(360deg); }
-  to { transform: rotate(0deg); }
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
 }
 
 @keyframes svg-pulse-bg {
-  0%, 100% { opacity: 0.35; transform: scale(0.96); }
-  50% { opacity: 0.85; transform: scale(1.08); }
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
 }
 
 @keyframes svg-node-pulse {
-  0%, 100% { transform: scale(0.9); opacity: 0.8; }
-  50% { transform: scale(1.2); opacity: 1; }
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
 }
 
 @keyframes svg-core-breathe {
-  0%, 100% { transform: scale(0.85); opacity: 0.7; }
-  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px rgba(192, 132, 252, 0.8)); }
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--iris) 55%, transparent));
+  }
 }
 
 @keyframes svg-shield-pulse {
-  0%, 100% { opacity: 0.8; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.04); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6)); }
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--amber) 45%, transparent));
+  }
 }
 
 @keyframes svg-stop-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes svg-check-draw {
-  0% { stroke-dashoffset: 30; stroke-dasharray: 30; }
-  100% { stroke-dashoffset: 0; stroke-dasharray: 30; }
+  0% {
+    stroke-dashoffset: 30;
+    stroke-dasharray: 30;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    stroke-dasharray: 30;
+  }
 }
 
-/* SVG icon transform origin centering */
 .run-activity-svg-icon {
   transform-origin: center center;
   overflow: visible;
@@ -116,15 +173,13 @@
   animation: svg-check-draw 0.45s ease-out forwards;
 }
 
-/* ==========================================================================
-   RunActivitySplash Component (Glassmorphism & Ambient Glow)
-   ========================================================================== */
+/* ── RunActivitySplash (hidden in product; deck tokens for tests) ─── */
 
 .chat-run-activity-line {
   display: flex;
   align-items: center;
-  padding: 4px 12px;
-  margin: 2px 0 8px 0;
+  padding: var(--s-2) var(--s-5);
+  margin: var(--s-1) 0 var(--s-4);
   background: transparent;
   border: none;
 }
@@ -133,15 +188,12 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 4px;
+  gap: var(--s-5);
+  padding: var(--s-2);
   background: transparent;
   border: none;
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  transition: all 0.2s ease;
-  margin: 4px 0;
+  margin: var(--s-2) 0;
   overflow: visible;
 }
 
@@ -165,64 +217,70 @@
   opacity: 0.5;
   z-index: 0;
   pointer-events: none;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--t-3) var(--ease-out);
 }
 
-.run-activity-splash[data-kind="connecting-model"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.6) 0%, transparent 70%);
+.run-activity-splash[data-kind='connecting-model'] .run-activity-splash-glow,
+.run-activity-splash[data-action='web'] .run-activity-splash-glow,
+.run-activity-splash[data-kind='idle'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--sky) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
-.run-activity-splash[data-kind="waiting-first-token"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.6) 0%, transparent 70%);
+.run-activity-splash[data-kind='waiting-first-token'] .run-activity-splash-glow,
+.run-activity-splash[data-action='subagent'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--iris) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
-.run-activity-splash[data-kind="planning"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.6) 0%, transparent 70%);
+.run-activity-splash[data-kind='planning'] .run-activity-splash-glow,
+.run-activity-splash[data-action='search'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--sky) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
-.run-activity-splash[data-kind="working"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.6) 0%, transparent 70%);
+.run-activity-splash[data-kind='working'] .run-activity-splash-glow,
+.run-activity-splash[data-action='terminal'] .run-activity-splash-glow,
+.run-activity-splash[data-action='edit'] .run-activity-splash-glow,
+.run-activity-splash[data-kind='complete'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mint) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
-/* Action category custom glows */
-.run-activity-splash[data-action="terminal"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.65) 0%, transparent 70%);
+.run-activity-splash[data-kind='waiting-permission'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--amber) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
-.run-activity-splash[data-action="edit"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.65) 0%, transparent 70%);
+.run-activity-splash[data-kind='compacting'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--ember) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
-.run-activity-splash[data-action="search"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.65) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-action="web"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.65) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-action="subagent"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.65) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-kind="waiting-permission"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.6) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-kind="compacting"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-kind="complete"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.5) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-kind="idle"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.55) 0%, transparent 70%);
-}
-
-.run-activity-splash[data-kind="failed"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(239, 68, 68, 0.6) 0%, transparent 70%);
+.run-activity-splash[data-kind='failed'] .run-activity-splash-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--coral) 60%, transparent) 0%,
+    transparent 70%
+  );
 }
 
 .run-activity-splash-icon {
@@ -235,7 +293,7 @@
 .run-activity-splash-content {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s-2);
   min-width: 0;
   flex: 1;
 }
@@ -243,125 +301,94 @@
 .run-activity-splash-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
 }
 
 .run-activity-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 10px;
+  padding: var(--s-1) var(--s-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tracking-micro);
   text-transform: uppercase;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary, #a1a1aa);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--hover);
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 1px var(--line-1);
 }
 
-.run-activity-badge[data-kind="connecting-model"] {
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(59, 130, 246, 0.25);
+.run-activity-badge[data-kind='connecting-model'],
+.run-activity-badge[data-action='web'],
+.run-activity-badge[data-kind='idle'] {
+  color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sky) 28%, transparent);
 }
 
-.run-activity-badge[data-kind="waiting-first-token"] {
-  color: #c084fc;
-  background: rgba(168, 85, 247, 0.12);
-  border-color: rgba(168, 85, 247, 0.25);
+.run-activity-badge[data-kind='waiting-first-token'],
+.run-activity-badge[data-action='subagent'] {
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 28%, transparent);
 }
 
-.run-activity-badge[data-kind="planning"] {
-  color: #22d3ee;
-  background: rgba(6, 182, 212, 0.12);
-  border-color: rgba(6, 182, 212, 0.25);
+.run-activity-badge[data-kind='planning'],
+.run-activity-badge[data-action='search'] {
+  color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sky) 28%, transparent);
 }
 
-.run-activity-badge[data-kind="working"] {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.25);
+.run-activity-badge[data-kind='working'],
+.run-activity-badge[data-action='terminal'],
+.run-activity-badge[data-action='edit'],
+.run-activity-badge[data-kind='complete'] {
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 28%, transparent);
 }
 
-.run-activity-badge[data-action="terminal"] {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.14);
-  border-color: rgba(16, 185, 129, 0.3);
+.run-activity-badge[data-kind='waiting-permission'] {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 28%, transparent);
 }
 
-.run-activity-badge[data-action="edit"] {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.14);
-  border-color: rgba(16, 185, 129, 0.3);
+.run-activity-badge[data-kind='compacting'] {
+  color: var(--ember);
+  background: color-mix(in srgb, var(--ember) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ember) 28%, transparent);
 }
 
-.run-activity-badge[data-action="search"] {
-  color: #22d3ee;
-  background: rgba(6, 182, 212, 0.14);
-  border-color: rgba(6, 182, 212, 0.3);
-}
-
-.run-activity-badge[data-action="web"] {
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.14);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-.run-activity-badge[data-action="subagent"] {
-  color: #c084fc;
-  background: rgba(168, 85, 247, 0.14);
-  border-color: rgba(168, 85, 247, 0.3);
-}
-
-.run-activity-badge[data-kind="waiting-permission"] {
-  color: #fbbf24;
-  background: rgba(245, 158, 11, 0.14);
-  border-color: rgba(245, 158, 11, 0.3);
-}
-
-.run-activity-badge[data-kind="compacting"] {
-  color: #f472b6;
-  background: rgba(236, 72, 153, 0.12);
-  border-color: rgba(236, 72, 153, 0.25);
-}
-
-.run-activity-badge[data-kind="complete"] {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.12);
-}
-
-.run-activity-badge[data-kind="idle"] {
-  color: #60a5fa;
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(96, 165, 250, 0.25);
-  box-shadow: 0 0 8px rgba(96, 165, 250, 0.15);
-}
-
-.run-activity-badge[data-kind="failed"] {
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.14);
+.run-activity-badge[data-kind='failed'] {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 28%, transparent);
 }
 
 .run-activity-timer-pill {
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  color: var(--content-secondary, var(--muted, #82776a));
-  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  font-size: var(--fs-mono);
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  background: var(--hover);
+  padding: 1px var(--s-3);
+  border: 0;
+  border-radius: var(--r-chip);
+  box-shadow: inset 0 0 0 1px var(--line-1);
   animation: activity-pill-shimmer 2.5s ease-in-out infinite;
 }
 
 @keyframes activity-pill-shimmer {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.85;
-    border-color: var(--border, rgba(0, 0, 0, 0.08));
+    box-shadow: inset 0 0 0 1px var(--line-1);
   }
   50% {
     opacity: 1;
-    border-color: rgba(16, 185, 129, 0.35);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 35%, transparent);
   }
 }
 
@@ -375,9 +402,9 @@
   position: relative;
   height: 1.4em;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 500;
-  color: var(--text, #f4f4f5);
+  color: var(--text-1);
 }
 
 .run-activity-splash-phrase {
@@ -385,26 +412,27 @@
   white-space: nowrap;
 }
 
-/* ==========================================================================
-   RunActivityInline Component
-   ========================================================================== */
+/* ── RunActivityInline (hidden in product) ──────────────────────────── */
 
 .run-activity-inline {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 12px;
-  color: var(--content-secondary, #a1a1aa);
-  transition: all 0.2s ease;
+  gap: var(--s-3);
+  padding: var(--s-1) var(--s-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  font-size: var(--fs-chrome);
+  color: var(--text-2);
+  transition:
+    background var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
 }
 
 .run-activity-inline:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--hover);
+  box-shadow: var(--elev-2);
 }
 
 .run-activity-inline-icon-wrap {
@@ -425,7 +453,7 @@
   position: relative;
   height: 1.3em;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--fs-chrome);
 }
 
 .run-activity-inline-phrase {
@@ -434,61 +462,54 @@
 }
 
 .run-activity-inline-timer {
-  font-size: 10px;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-tertiary, #71717a);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  color: var(--text-3);
   opacity: 0.8;
 }
-
-/* ── Turn Work Details Active Icon ─────────────────────────────────── */
 
 .turn-summary-active-icon {
   width: 16px;
   height: 16px;
-  margin-right: 6px;
+  margin-right: var(--s-3);
   display: inline-block;
   vertical-align: middle;
 }
 
-/* ==========================================================================
-   Subagent activity surfaces (compact transcript card + ticker + dock).
-   Owns all `.subagent-activity-*`, `.subagent-ticker-*`, and
-   `.subagent-working-*` classes; region-transcript.css keeps only the slot
-   geometry. The inline session panel and accordion embed are styled in
-   subagent-session-inspector.css.
-   ========================================================================== */
-
-/* ── Compact transcript launcher card (real <button>) ─────────────── */
+/* ── Subagent activity surfaces ───────────────────────────────────── */
 
 .subagent-activity-card {
   position: relative;
   width: 100%;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  background: var(--bg-surface-elevated, rgba(24, 24, 27, 0.6));
-  padding: 12px 34px 12px 14px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  padding: var(--s-5) 34px var(--s-5) var(--s-5);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s-4);
   overflow: hidden;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
+  transition:
+    box-shadow var(--t-2) var(--ease-out),
+    background var(--t-2) var(--ease-out);
 }
 
 .subagent-activity-card:disabled {
   cursor: default;
 }
 
-.subagent-activity-card:hover,
-.subagent-activity-card:focus-visible {
-  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
-  outline: none;
+.subagent-activity-card:hover {
+  box-shadow: var(--elev-2);
 }
 
 .subagent-activity-card:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 35%, transparent);
+  outline: var(--focus-ring);
+  box-shadow: var(--elev-2);
 }
 
 .subagent-activity-header {
@@ -500,7 +521,7 @@
 .subagent-activity-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
   min-width: 0;
 }
 
@@ -518,40 +539,40 @@
 }
 
 .subagent-activity-state {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 650;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-2);
+  padding: var(--s-1) var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
   flex-shrink: 0;
 }
 
 .subagent-activity-state.state-failed,
 .subagent-activity-state.state-cancelled {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
 }
 
 .subagent-activity-state.state-completed,
 .subagent-activity-state.state-merged {
-  background: color-mix(in srgb, var(--ok) 16%, transparent);
-  color: var(--ok);
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+  color: var(--mint);
 }
 
 .subagent-activity-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s-2);
   min-width: 0;
 }
 
 .subagent-activity-task {
-  font-size: 12.5px;
+  font-size: var(--fs-chrome);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--text);
+  color: var(--text-1);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -559,30 +580,31 @@
 }
 
 .subagent-activity-worktree {
-  font-size: 11px;
-  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
 }
 
 .subagent-activity-worktree code {
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 
 .subagent-activity-inspect-hint {
   position: absolute;
-  right: 12px;
+  right: var(--s-5);
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-faint);
-  transition: transform 0.15s ease, color 0.15s ease;
+  color: var(--text-4);
+  transition:
+    transform var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .subagent-activity-card:hover .subagent-activity-inspect-hint,
 .subagent-activity-card:focus-visible .subagent-activity-inspect-hint {
-  color: var(--accent-2);
+  color: var(--iris-lift);
   transform: translateY(-50%) translateX(2px);
 }
 
-/* Reduced Motion Fallbacks */
 @media (prefers-reduced-motion: reduce) {
   .svg-spin-fast,
   .svg-spin-slow,

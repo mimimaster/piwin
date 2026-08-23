@@ -1,0 +1,573 @@
+/* Region: sidebar session rows (project-session-sidebar.tsx).
+   Row surface, title/time hierarchy, run + completion markers, hover actions,
+   and the customize-sidebar menu. Tree scaffolding is region-sidebar-tree.css. */
+
+.session-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: 0 1px;
+  flex: 1;
+  min-height: 0;
+}
+
+.session-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Row ──────────────────────────────────────────────────────────────
+   The row is a quiet target: no fill at rest, a hover wash, and a neutral
+   selected surface. Selection is announced by the iris cap below, not by
+   tinting the whole row — a tinted row competes with run state. */
+
+.session-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-control);
+}
+
+.session-row .session-item {
+  position: relative;
+  width: 100%;
+  min-height: var(--h-md);
+  padding: 0 var(--s-4);
+  padding-right: 48px;
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  line-height: 1.35;
+  /* Color only — never animate padding/box-shadow here; those read as session
+     rows "jumping" during theme flips and hover reveal. */
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out);
+}
+
+.session-row:hover .session-item,
+.session-row:focus-within .session-item {
+  padding-right: 84px;
+}
+
+.session-item:hover:not(.active),
+.session-row:hover .session-item:not(.active) {
+  background: var(--hover);
+}
+
+.session-item.active,
+.session-item.context-active,
+.session-item[data-context-active='true'],
+.session-item.active:hover,
+.session-item.context-active:hover,
+.session-item[data-context-active='true']:hover {
+  background: var(--active);
+  box-shadow: none;
+}
+
+/* The iris cap. In a project list it lands exactly on the thread line drawn
+   by region-sidebar-tree.css, so the selected session reads as a lit node on
+   the branch rather than a separately highlighted row. */
+.session-item.active::before {
+  content: '';
+  position: absolute;
+  left: var(--s-2);
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--iris);
+  transform: translateY(-50%);
+  animation: deck-fade-in var(--t-2) var(--ease-out);
+}
+
+.tree-session-list:not(.conversations-list) .session-item.active::before {
+  left: 11px;
+}
+
+/* ── Title and time ───────────────────────────────────────────────────── */
+
+.session-item-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.session-item-name {
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.35;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  transition: color var(--t-2) var(--ease-out);
+}
+
+.session-item:hover:not(.active) .session-item-name,
+.session-row:hover .session-item-name {
+  color: var(--text-1);
+}
+
+.session-item.active .session-item-name {
+  color: var(--text-1);
+  font-weight: 530;
+}
+
+.session-item[data-completed='true'] .session-item-name {
+  font-weight: 500;
+}
+
+.session-item-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-time {
+  position: absolute;
+  right: var(--s-5);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--fs-mono);
+  font-weight: 400;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  transition:
+    opacity var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out);
+  pointer-events: none;
+}
+
+.session-item.active .session-item-time {
+  color: var(--text-3);
+}
+
+.session-item-preview {
+  margin-top: 0;
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Time yields to the hover action cluster. */
+.session-row:not(.session-row--working):hover .session-item-time,
+.session-row:not(.session-row--working):focus-within .session-item-time {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* ── Draft and archived rows ──────────────────────────────────────────
+   Both read lighter than durable sessions without being greyed out to the
+   point of looking disabled. */
+
+.session-item[data-draft='true'] .session-item-name,
+.session-item[data-archived='true'] .session-item-name {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+.session-item[data-draft='true'].active .session-item-name,
+.session-item[data-archived='true'].active .session-item-name {
+  color: var(--text-2);
+  font-weight: 450;
+}
+
+.session-item[data-archived='true']:hover .session-item-name,
+.session-row:hover .session-item[data-archived='true'] .session-item-name {
+  color: var(--text-2);
+}
+
+.session-item[data-draft='true'] .session-item-time,
+.session-item[data-archived='true'] .session-item-time {
+  color: var(--text-4);
+}
+
+.session-draft-mark {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+.session-archived-mark {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-4);
+}
+
+.session-storage-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--s-3);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-4);
+  background: var(--hover);
+}
+
+.session-storage-badge--missing {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+/* ── Run and completion markers ───────────────────────────────────────
+   A session that is working is the only place in the sidebar allowed to use
+   ember, and it uses the shell breath so it pulses in phase with the stage. */
+
+.session-item-activity {
+  position: absolute;
+  top: 50%;
+  right: var(--s-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  transform: translateY(-50%);
+  color: var(--ember);
+  pointer-events: none;
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out);
+}
+
+.session-item-activity--working {
+  border: 2px solid color-mix(in srgb, var(--ember) 85%, transparent);
+  border-right-color: color-mix(in srgb, var(--ember) 20%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--ember) 20%, transparent);
+  border-radius: 50%;
+  animation: session-working-spin 0.85s linear infinite;
+}
+
+@keyframes session-working-spin {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.session-item-activity--service {
+  gap: 2px;
+}
+
+.session-item-activity-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.45;
+  animation: session-service-wave 0.95s ease-in-out infinite;
+}
+
+.session-item-activity-dot:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.session-item-activity-dot:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes session-service-wave {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.session-row--working:hover .session-item-activity,
+.session-row--working:focus-within .session-item-activity {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Sibling of .session-item (not nested) so click can dismiss without opening. */
+.session-item-completed-mark,
+.session-item-completed-dismiss {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mint) 20%, transparent);
+  color: var(--mint);
+  cursor: pointer;
+  z-index: 2;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.session-item-completed-dismiss:hover,
+.session-item-completed-dismiss:focus-visible {
+  background: color-mix(in srgb, var(--mint) 32%, transparent);
+  outline: none;
+}
+
+.session-item-completed-mark svg {
+  display: block;
+  stroke-width: 2.5;
+  pointer-events: none;
+}
+
+/* ── Hover actions ────────────────────────────────────────────────────── */
+
+.session-row-actions {
+  position: absolute;
+  right: var(--s-2);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  z-index: 2;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    visibility var(--t-1) var(--ease-out);
+}
+
+.session-row--draft .session-row-actions--draft {
+  display: none;
+}
+
+.session-row:hover .session-row-actions,
+.session-row:focus-within .session-row-actions {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.session-action-btn {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.session-action-btn:hover,
+.session-action-btn:focus-visible {
+  color: var(--text-1);
+  background: var(--active);
+  outline: none;
+}
+
+.session-action-btn.active {
+  color: var(--iris-lift);
+}
+
+.session-action-btn.session-delete-btn:hover,
+.session-action-btn.session-delete-btn:focus-visible {
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+}
+
+/* ── Customize sidebar menu ───────────────────────────────────────────
+   Label left, current value + chevron right. */
+
+.ui-menu-content.sidebar-display-menu {
+  min-width: 240px;
+  max-width: 280px;
+  padding: var(--s-3);
+  border-radius: var(--r-overlay);
+  background: var(--surface-4);
+}
+
+.ui-menu-content.sidebar-display-submenu {
+  min-width: 196px;
+  padding: var(--s-3);
+  border-radius: var(--r-card);
+  background: var(--surface-4);
+}
+
+.sidebar-display-menu-title {
+  padding: var(--s-4) var(--s-5) var(--s-3);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+}
+
+.sidebar-display-section-label {
+  padding: var(--s-4) var(--s-5) var(--s-2);
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.sidebar-display-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-6);
+  width: 100%;
+  min-width: 0;
+}
+
+.sidebar-display-row-label {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+}
+
+.sidebar-display-row-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sidebar-display-row-value svg {
+  width: 12px;
+  height: 12px;
+  color: var(--text-4);
+  flex-shrink: 0;
+}
+
+.sidebar-display-option-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-display-check {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--iris-lift);
+}
+
+.sidebar-display-check svg {
+  width: 13px;
+  height: 13px;
+}
+
+.sidebar-display-check-spacer {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.sidebar-display-menu > .ui-menu-item,
+.sidebar-display-menu [data-radix-collection-item] {
+  width: 100%;
+}
+
+.sidebar-display-menu .ui-menu-item {
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+}
+
+.sidebar-display-submenu .ui-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+}
+
+.sidebar-display-menu .ui-menu-separator {
+  margin: var(--s-3) var(--s-1);
+}
+
+/* ── Ink wash ─────────────────────────────────────────────────────────
+   Selection becomes a jade brush stroke; completion becomes a cinnabar seal. */
+
+html[data-theme-visual-style='ink-wash'] .session-item.active::before {
+  background: #70919c;
+  box-shadow: 0 0 8px rgba(112, 145, 156, 0.6);
+  width: 3px;
+}
+
+html[data-theme-visual-style='ink-wash'] .session-item-completed-mark,
+html[data-theme-visual-style='ink-wash'] .session-item-completed-dismiss {
+  border-radius: 3px;
+  background: #c24d43;
+  color: #f8f6f0;
+  box-shadow: 0 2px 8px rgba(194, 77, 67, 0.5);
+}
+
+html[data-theme-visual-style='ink-wash'] .session-item-completed-mark svg {
+  display: none;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .session-item-completed-mark
+  [data-testid='session-completed-indicator']::after {
+  content: '訖';
+  font-family: STKaiti, KaiTi, serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f8f6f0;
+  line-height: 1;
+}

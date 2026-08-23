@@ -1,0 +1,166 @@
+/* Inspector: code rendering — the plain file preview, fenced code blocks
+   inside rendered Markdown, and inline diff lines.
+   Split out of region-inspector.css, then split again by responsibility
+   (AGENTS.md 3.2): document typography lives in inspector-markdown-doc.css
+   and the review affordance in inspector-line-comments.css.
+
+   Deck rule: code recesses to the void step. The old rules painted a literal
+   near-black slab plus a [data-theme='light'] patch to undo it; the surface
+   ladder already knows which way is down in each face, so one rule serves
+   both. */
+
+/* ── Code preview (non-Markdown files) ─────────────────────────── */
+
+.code-preview-view {
+  margin: 0;
+  padding: 0 0 var(--s-8) 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+  white-space: pre;
+  overflow-x: auto;
+  flex: 1;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-2);
+  contain: layout style;
+}
+
+.code-preview-row {
+  display: flex;
+  white-space: pre;
+  padding: 0 var(--s-4);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 19px;
+}
+
+.code-preview-lineno {
+  flex-shrink: 0;
+  width: calc(var(--code-gutter-ch, 4ch) + 12px);
+  padding-right: var(--s-5);
+  text-align: right;
+  color: var(--text-4);
+  user-select: none;
+  border-right: 1px solid var(--line-1);
+  margin-right: var(--s-4);
+}
+
+.code-preview-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Fenced code blocks in rendered Markdown ─────────────────────── */
+
+.enhanced-code-block {
+  margin: var(--s-5) 0;
+  border-radius: var(--r-card);
+  background: var(--void);
+  border: none;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  overflow: hidden;
+}
+
+.enhanced-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-3) var(--s-5);
+  background: transparent;
+  border-bottom: 1px solid var(--line-1);
+  font-family: var(--font);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.enhanced-code {
+  padding: var(--s-5) var(--s-6);
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  line-height: var(--lh-normal);
+  color: var(--text-2);
+}
+
+.code-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.enhanced-code-body-wrapper {
+  position: relative;
+}
+
+.enhanced-code-block.folded .enhanced-code {
+  max-height: 280px;
+  overflow: hidden;
+}
+
+/* The fold fade has to end in the block's own colour or it reads as a smudge;
+   the block recesses to void, so the gradient does too. */
+.enhanced-code-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--void));
+  pointer-events: none;
+}
+
+/* ── Inline diff lines inside code blocks ────────────────────────── */
+
+/* Tint carries add/delete; the text stays in normal ink so it is readable on
+   both faces. Mint and coral are the same change colours the file tree, the
+   changes list and the diff viewer use. */
+.diff-line {
+  font-family: var(--font-mono);
+  line-height: var(--lh-normal);
+  white-space: pre;
+}
+
+.diff-line-add {
+  background: color-mix(in srgb, var(--mint) 15%, transparent);
+  color: var(--text-1);
+  padding: 0 var(--s-2);
+  margin: 0 calc(var(--s-2) * -1);
+  border-radius: 2px;
+}
+
+.diff-line-delete {
+  background: color-mix(in srgb, var(--coral) 15%, transparent);
+  color: var(--text-1);
+  padding: 0 var(--s-2);
+  margin: 0 calc(var(--s-2) * -1);
+  border-radius: 2px;
+}
+
+.diff-line-context {
+  color: var(--text-2);
+}
+
+.code-line-num {
+  display: inline-block;
+  width: 3.5ch;
+  flex: none;
+  margin-right: var(--s-5);
+  text-align: right;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.enhanced-code .diff-line {
+  display: flex;
+  align-items: baseline;
+}
+
+.code-line-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}

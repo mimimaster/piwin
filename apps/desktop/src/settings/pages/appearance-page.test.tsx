@@ -84,7 +84,7 @@ function createContextValue(
       const theme: ThemeManifest =
         cmd.themeId === 'piwin-ink-wash'
           ? PIWIN_APPEARANCE_INK_WASH
-          : cmd.themeId === 'piwin-light'
+          : cmd.themeId === 'piwin-bone' || cmd.themeId === 'piwin-light'
             ? PIWIN_APPEARANCE_LIGHT
             : PIWIN_APPEARANCE_DARK;
       return {
@@ -208,7 +208,7 @@ describe('AppearancePage', () => {
     expect(contextValue.request).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'theme/set-active',
-        themeId: 'piwin-light',
+        themeId: 'piwin-bone',
       }),
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
@@ -255,7 +255,7 @@ describe('AppearancePage', () => {
     expect(contextValue.request).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'theme/set-active',
-        themeId: 'piwin-dark',
+        themeId: 'piwin-obsidian',
       }),
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(

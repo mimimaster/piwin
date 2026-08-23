@@ -1,37 +1,43 @@
-/* Region: settings → models capability defaults (ASR/TTS). */
+/* Region: settings → models capability defaults (ASR/TTS).
+
+   Deck rule: a reserved (not-yet-available) card recesses instead of fading.
+   Opacity on a card takes its text with it and leaves a grey smear; dropping
+   it to the void step says "inactive" while keeping every word readable. */
 
 .speech-defaults {
   gap: 0;
-  margin-top: var(--space-8, 32px);
-  padding-top: var(--space-8, 32px);
-  border-top: 1px solid var(--line-soft);
+  margin-top: var(--s-9);
+  padding-top: var(--s-9);
+  border-top: 1px solid var(--line-1);
 }
 
 .speech-defaults-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3, 12px);
+  gap: var(--s-5);
 }
 
 .speech-default-card {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  padding: var(--space-4, 16px);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-surface, 12px);
-  background: var(--surface-raised, var(--panel));
+  padding: var(--s-6);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
 }
 
 .speech-default-card--reserved {
-  background: var(--surface-inset);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
 }
 
 .speech-default-card-heading {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  gap: var(--space-3, 12px);
+  gap: var(--s-5);
   min-width: 0;
 }
 
@@ -42,14 +48,14 @@
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border-radius: 10px;
-  color: var(--accent);
-  background: var(--accent-soft);
+  border-radius: var(--r-card);
+  color: var(--iris-lift);
+  background: var(--iris-wash);
 }
 
 .speech-default-icon--output {
-  color: var(--content-secondary, var(--muted));
-  background: var(--surface-hover);
+  color: var(--text-3);
+  background: var(--hover);
 }
 
 .speech-default-icon svg {
@@ -63,9 +69,9 @@
 
 .speech-default-card-kicker {
   display: block;
-  margin-bottom: 2px;
-  color: var(--content-muted, var(--muted));
-  font-size: 10px;
+  margin-bottom: var(--s-1);
+  color: var(--text-4);
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0.08em;
   line-height: 1.2;
@@ -73,7 +79,7 @@
 
 .speech-default-card-heading h3 {
   margin: 0;
-  color: var(--content-primary, var(--text));
+  color: var(--text-1);
   font-size: 14px;
   font-weight: 650;
   letter-spacing: -0.015em;
@@ -81,35 +87,35 @@
 }
 
 .speech-default-card-heading p {
-  margin: 4px 0 0;
-  color: var(--content-secondary, var(--muted));
-  font-size: 11.5px;
-  line-height: 1.45;
+  margin: var(--s-2) 0 0;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
 }
 
 .speech-default-card-heading .ui-status-badge {
-  margin-top: 2px;
+  margin-top: var(--s-1);
   white-space: nowrap;
 }
 
 .speech-default-card-body {
   min-width: 0;
-  margin-top: var(--space-4, 16px);
-  padding-top: var(--space-3, 12px);
-  border-top: 1px solid var(--line-soft);
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line-1);
 }
 
 .speech-default-card-body .ui-notice {
   align-items: center;
   min-height: 40px;
   margin: 0;
-  padding: 8px 10px;
-  border-radius: var(--radius-control, 8px);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
 }
 
 .speech-default-card-body .ui-notice-message {
-  font-size: 11.5px;
-  line-height: 1.4;
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
 }
 
 .speech-default-card-body .ui-notice-action {
@@ -120,7 +126,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3, 12px);
+  gap: var(--s-5);
   min-height: 40px;
 }
 
@@ -128,7 +134,7 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--s-1);
 }
 
 .speech-default-model strong,
@@ -140,15 +146,15 @@
 }
 
 .speech-default-model strong {
-  color: var(--content-primary, var(--text));
-  font-size: 12.5px;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
   font-weight: 600;
 }
 
 .speech-default-model span {
-  color: var(--content-muted, var(--muted));
-  font-family: var(--mono);
-  font-size: 10.5px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
 }
 
 .speech-default-card-body--reserved {
@@ -158,9 +164,9 @@
 }
 
 .speech-default-reserved-label {
-  color: var(--content-secondary, var(--muted));
-  font-size: 11.5px;
-  line-height: 1.4;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
 }
 
 @media (max-width: 760px) {

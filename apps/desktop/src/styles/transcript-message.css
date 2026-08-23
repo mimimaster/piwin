@@ -1,0 +1,480 @@
+/* Transcript: message bubbles, attachments, context refs, hover actions.
+   Split out of region-transcript.css (one region, split by responsibility
+   per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
+   region-transcript.css. */
+
+/* ─── Roles ───────────────────────────────────────────────────────────
+   The bubble element itself is frameless. The user prompt card is drawn in
+   region-transcript.css; the assistant is deliberately unframed body text so
+   the transcript reads as a document rather than a chat log. */
+
+.bubble {
+  position: relative;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+.bubble-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+}
+
+.bubble-header::before {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: none;
+  border-radius: var(--r-chip);
+  background: var(--iris-fill);
+  color: var(--on-iris);
+  content: 'P';
+  font-size: 9px;
+  font-weight: 700;
+  box-shadow: var(--elev-1);
+}
+
+.bubble-role {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+/* Streaming caret: a static ember bar, since it only exists while the agent
+   is producing tokens. Never blink — model output must stay readable. */
+.stream-dot {
+  display: inline-block;
+  width: 6px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 1px;
+  background: var(--ember);
+}
+
+.role-user {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.role-assistant {
+  width: 100%;
+  max-width: 100%;
+  font-size: var(--chat-font-size);
+  line-height: var(--chat-line-height);
+  color: var(--text-1);
+}
+
+/* System merge/status messages stay plain, but changed file references are
+   readable links. Keep every state background-free so only the text color
+   provides emphasis in the transcript. */
+.bubble.role-system {
+  width: 100%;
+  max-width: var(--chat-max);
+  margin: var(--s-1) auto var(--s-4);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: 1.55;
+}
+
+.system-message-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.system-file-link,
+.system-file-reference {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28em;
+  margin: 0 0.12em;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--iris-lift);
+  font-family: var(--font-mono);
+  font-size: inherit;
+  line-height: inherit;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+
+.system-file-link span,
+.system-file-reference span,
+.system-file-link .chip-text,
+.system-file-reference .chip-text {
+  color: inherit !important;
+}
+
+.system-file-link:hover,
+.system-file-link:focus-visible {
+  background: transparent;
+  box-shadow: none;
+  color: var(--iris-lift);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.system-file-link .file-icon,
+.system-file-reference .file-icon {
+  width: 0.95em;
+  height: 0.95em;
+  flex: none;
+}
+
+.message-text {
+  white-space: pre-wrap;
+  color: var(--text-1);
+  font-size: var(--chat-font-size);
+  line-height: 1.6;
+}
+
+.role-assistant .markdown {
+  max-width: var(--chat-max);
+  margin: 0 auto;
+  color: var(--text-1);
+  font-size: var(--chat-font-size);
+  line-height: 1.7;
+}
+
+.role-assistant .bubble-header,
+.role-assistant .turn-work-details,
+.role-assistant .turn-error-card {
+  max-width: var(--chat-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.turn-error-card {
+  max-width: var(--chat-max);
+  margin: var(--s-5) auto;
+}
+
+/* Deck rule: the error card is the one place in the transcript that gets a
+   real coral surface rather than just coral text — an error is a distinct
+   object you need to notice mid-document, not a status word. */
+.turn-error-card-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  border: 0;
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface-2));
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--coral) 28%, transparent);
+}
+
+.turn-error-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.turn-error-icon-badge {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
+  flex-shrink: 0;
+}
+
+.turn-error-header-text {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex: 1;
+}
+
+.turn-error-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.turn-error-category-tag {
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  color: var(--coral);
+  letter-spacing: var(--tracking-micro);
+}
+
+.turn-error-body {
+  padding-left: 30px;
+}
+
+.turn-error-message {
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  word-break: break-word;
+  white-space: pre-wrap;
+  color: var(--text-3);
+}
+
+.turn-error-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding-left: 30px;
+  margin-top: 2px;
+}
+
+.role-assistant .markdown .md-p {
+  margin-bottom: 0.8em;
+}
+
+/* Attachments preview inside a message */
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+.role-assistant .message-attachments {
+  max-width: var(--chat-max);
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+/* Assistant Hero Single Media (1 Image / 1 Video) */
+.message-attachments.is-hero-single {
+  display: block;
+  width: 100%;
+  max-width: min(540px, 100%);
+  margin-top: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+.role-assistant .message-attachments.is-hero-single {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Assistant Pair Media Grid (2 Images) */
+.message-attachments.is-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-5);
+  width: 100%;
+  max-width: min(620px, 100%);
+  margin-top: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+.message-attachments.is-pair-grid .media-preview-container,
+.message-attachments.is-pair-grid .media-preview-image-button {
+  width: 100%;
+  height: 280px;
+}
+
+.message-attachments.is-pair-grid .media-preview-image {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  border-radius: var(--r-card);
+}
+
+/* Assistant Gallery Grid (3 or 4 Images) */
+.message-attachments.is-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-5);
+  width: 100%;
+  max-width: min(620px, 100%);
+  margin-top: var(--s-4);
+  margin-bottom: var(--s-6);
+}
+
+.message-attachments.is-gallery-grid .media-preview-container,
+.message-attachments.is-gallery-grid .media-preview-image-button {
+  width: 100%;
+  height: 220px;
+}
+
+.message-attachments.is-gallery-grid .media-preview-image {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: var(--r-card);
+}
+
+/* User Message Attachments */
+.message-attachments.is-user-attachments,
+.role-user .message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-bottom: var(--s-4);
+}
+
+.message-attachments.is-user-attachments .media-preview-image,
+.role-user .message-attachments .media-preview-image {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--r-control);
+}
+
+/* Message Context Refs (selections, file pins, terminal output in message bubble) */
+.message-context-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: var(--s-4);
+}
+
+.message-context-refs .composer-v2-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 3px var(--s-5);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  border: 0;
+  color: var(--text-1);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  max-width: min(380px, 100%);
+  cursor: default;
+  user-select: none;
+}
+
+.message-context-refs .composer-v2-context-chip .doc-comment-chip-icon {
+  color: var(--iris-lift);
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.message-context-refs .composer-v2-context-chip .chip-text {
+  max-width: 240px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-context-refs .composer-v2-context-chip .doc-comment-chip-dot {
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.message-context-refs .composer-v2-context-chip .doc-comment-chip-count {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  opacity: 0.85;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Message hover actions + inline edit ───────────────────────────── */
+
+.message-actions {
+  display: flex;
+  gap: var(--s-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-1) var(--ease-out);
+  margin-top: var(--s-4);
+}
+
+.bubble:hover .message-actions,
+.bubble:focus-within .message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* SF-03: Assistant response action dock (Duplicate + Fork icons) */
+.assistant-response-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: var(--chat-max);
+  margin: var(--s-2) auto 0;
+}
+.assistant-response-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.assistant-response-actions .msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+.assistant-response-actions .msg-action-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text-1);
+}
+.assistant-response-actions .msg-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.assistant-response-actions .msg-action-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.assistant-response-actions .msg-action-btn svg {
+  width: 17px;
+  height: 17px;
+}
+.assistant-response-actions .fork-count-badge {
+  width: auto;
+  min-width: 28px;
+  padding: 0 var(--s-3);
+  gap: 3px;
+}
+
+@media (max-width: 820px) {
+  .assistant-response-actions {
+    margin-top: var(--s-2);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

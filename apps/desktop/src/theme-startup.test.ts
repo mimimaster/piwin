@@ -36,7 +36,7 @@ describe('resolveStartupAppearance', () => {
     expect(theme).toBe(PIWIN_APPEARANCE_INK_WASH);
   });
 
-  it('pre-paints Paper from the last applied library theme id', () => {
+  it('pre-paints Bone from a retired library theme id still sitting in lastThemeId', () => {
     localStorage.setItem('piwin.desktop.lastThemeId', 'piwin-light');
     const theme = resolveStartupAppearance();
     expect(theme).toBe(PIWIN_APPEARANCE_LIGHT);

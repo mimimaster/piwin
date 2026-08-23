@@ -1,11 +1,12 @@
-/* Region: context bar — middle-column header only (Cursor pattern).
-   Shell is three columns: nav | stage | signal. No full-window topbar.
-   Stage header layout:
-     [sidebar?][←][→]  title …flex…  [theme][more][panel]
-*/
+/* Region: context bar — the stage titleband (no full-window topbar).
+   Layout: [sidebar][←][→] title …drag… [theme][more][panel]
+
+   Deck rule: the titleband is not a band. It has no fill and no bottom rule —
+   it is the top of the stage panel with the title floating in it. Separation
+   from the transcript comes from space, not from a line. */
 
 .chat-column > .context-bar {
-  /* Ensure chrome is a stage child, never a grid topbar. */
+  /* Chrome is a stage child, never a grid topbar. */
   position: relative;
   z-index: 2;
 }
@@ -14,30 +15,26 @@
 .context-titlebar-box {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-1);
   flex-shrink: 0;
   width: 100%;
-  min-height: 38px;
-  height: 38px;
-  padding: 0 10px 0 8px;
+  min-height: var(--titleband-height);
+  height: var(--titleband-height);
+  padding: 0 var(--s-3) 0 var(--s-2);
   box-sizing: border-box;
   margin: 0;
-  /* Match conversation glass so the stage header does not form a solid band. */
-  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  background: transparent;
   border: 0;
-  border-bottom: none;
   overflow: hidden;
   /* Titleband is the window drag surface; interactive children opt out. */
   -webkit-app-region: drag;
   app-region: drag;
 }
 
-/* Whenever the navigator is closed, the stage sits beneath the macOS traffic
-   lights. This applies to both a collapsed desktop sidebar and the default
-   compact-shell state; otherwise the sidebar toggle lands under the red close
-   button until the compact drawer is opened. */
+/* Whenever the navigator is closed the stage sits beneath the macOS traffic
+   lights, so the leading cluster has to clear them. */
 .app-shell:not(.nav-open) .context-bar {
-  padding-left: 88px;
+  padding-left: 84px;
 }
 
 .context-bar [data-no-window-drag],
@@ -46,73 +43,78 @@
   app-region: no-drag;
 }
 
-/* Left cluster: sidebar + history — flush to stage left edge (Cursor). */
-.context-bar-leading {
+/* ── Leading cluster ──────────────────────────────────────────────── */
+
+.context-bar-leading,
+.context-bar-history {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: var(--s-1);
   flex: 0 0 auto;
   margin: 0;
   padding: 0;
 }
 
-.context-bar-history {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-}
-
+/* Chrome icon buttons: recessive at rest, a real surface on hover. A hover
+   that only changes glyph color reads as unresponsive at this size. */
 .context-bar .piwin-icon-button {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  border-radius: 6px;
-  color: var(--muted);
+  width: var(--h-sm);
+  height: var(--h-sm);
+  min-width: var(--h-sm);
+  border-radius: var(--r-control);
+  color: var(--text-3);
   flex-shrink: 0;
   background: transparent !important;
   box-shadow: none !important;
   border: none !important;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .context-bar .piwin-icon-button svg {
-  width: 17px;
-  height: 17px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
 }
 
 .context-bar .piwin-icon-button:hover {
-  color: var(--text) !important;
-  background: transparent !important;
+  color: var(--text-1) !important;
+  background: var(--hover) !important;
+}
+
+.context-bar .piwin-icon-button:active {
+  background: var(--active) !important;
 }
 
 .context-bar .piwin-icon-button.active,
 .context-bar .piwin-icon-button[aria-pressed='true'] {
-  color: var(--accent) !important;
-  background: transparent !important;
+  color: var(--iris-lift) !important;
+  background: var(--iris-wash) !important;
 }
 
 .context-bar .piwin-icon-button:disabled,
 .context-bar .piwin-icon-button[aria-disabled='true'] {
-  color: color-mix(in srgb, var(--faint) 72%, transparent);
-  background: transparent;
-  opacity: 0.42;
+  color: var(--text-4);
+  background: transparent !important;
   cursor: default;
   pointer-events: none;
 }
 
 .context-bar-sessions-toggle {
-  color: var(--text);
+  color: var(--text-2);
 }
 
-/* Title immediately after left buttons. */
+/* ── Title ────────────────────────────────────────────────────────── */
+
 .context-bar-identity {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s-3);
   min-width: 0;
   flex: 0 1 auto;
   max-width: min(560px, calc(100% - 200px));
   overflow: hidden;
-  margin: 0 0 0 4px;
+  margin: 0 0 0 var(--s-3);
   padding: 0;
 }
 
@@ -120,16 +122,18 @@
   flex: 1 1 auto;
   min-width: 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 560;
   line-height: 1.2;
-  color: var(--content-primary, var(--text));
+  color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.014em;
   user-select: none;
 }
+
+/* ── Session tree trigger ─────────────────────────────────────────── */
 
 .context-bar-session-tree-slot {
   display: inline-flex;
@@ -140,54 +144,55 @@
 .context-session-tree-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 24px;
-  padding: 0 5px 0 7px;
-  border: 1px solid var(--line-soft, var(--line));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-control, var(--panel2)) 62%, transparent);
-  color: var(--content-secondary, var(--muted));
+  gap: var(--s-2);
+  height: var(--h-xs);
+  padding: 0 var(--s-2) 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
   font: inherit;
-  font-size: 10.5px;
-  font-weight: 550;
+  font-size: 11px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    color var(--motion-quick, 120ms) var(--motion-ease, ease),
-    border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
-    background var(--motion-quick, 120ms) var(--motion-ease, ease);
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .context-session-tree-trigger:hover,
 .context-session-tree-trigger:focus-visible,
 .context-session-tree-trigger[aria-expanded='true'] {
-  color: var(--content-primary, var(--text));
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--line-soft));
-  background: var(--surface-hover, var(--hover));
+  color: var(--text-1);
+  background: var(--active);
   outline: none;
 }
 
 .context-session-tree-trigger svg {
   flex: 0 0 auto;
+  opacity: 0.75;
 }
 
 .context-session-tree-count {
   display: inline-flex;
   min-width: 16px;
   height: 16px;
-  padding: 0 4px;
+  padding: 0 var(--s-2);
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  background: var(--surface-active, var(--hover));
-  color: var(--content-secondary, var(--muted));
-  font-size: 9.5px;
+  border-radius: var(--r-pill);
+  background: var(--active);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 560;
   font-variant-numeric: tabular-nums;
 }
 
+/* Branches are the one thing in this control worth an accent. */
 .context-session-tree-trigger[data-has-branches='true'] .context-session-tree-count {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
 }
 
 @media (max-width: 700px) {
@@ -196,88 +201,86 @@
   }
 }
 
+/* ── Badges ───────────────────────────────────────────────────────── */
+
 .context-bar-scope-pill {
   display: none;
 }
 
-.context-bar-mode-badge {
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px 7px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: var(--surface-hover, var(--hover));
-  color: var(--content-secondary, var(--muted));
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.context-bar-mode-badge:hover {
-  background: var(--surface-active, var(--hover));
-  color: var(--content-primary, var(--text));
-}
-
-.context-bar-mode-badge.is-warning {
-  background: var(--state-warning-soft, rgba(204, 153, 0, 0.16));
-  color: var(--state-warning);
-  border-color: var(--state-warning);
-}
-
-.context-bar-mode-badge.is-warning:hover {
-  background: var(--state-warning);
-  color: var(--content-on-accent, #fff);
-}
-
+.context-bar-mode-badge,
 .context-bar-origin-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 1px 7px;
-  border: 1px solid var(--line-soft, var(--line));
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted, var(--muted));
-  font-size: 10px;
-  font-weight: 500;
+  gap: var(--s-2);
+  height: 20px;
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 560;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
+  transition:
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
+.context-bar-mode-badge:hover,
 .context-bar-origin-badge:hover {
-  background: var(--hover-bg, rgba(128, 128, 128, 0.12));
-  color: var(--text);
+  background: var(--active);
+  color: var(--text-1);
 }
 
-/* Run status sits after title when active; permanently hidden per user instruction. */
+/* A relaxed permission preset is a standing condition, not an alert: it gets
+   amber text on a wash, never an amber fill competing with the run state. */
+.context-bar-mode-badge.is-warning {
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+  color: var(--amber);
+}
+
+.context-bar-mode-badge.is-warning:hover {
+  background: color-mix(in srgb, var(--amber) 22%, transparent);
+  color: var(--amber);
+}
+
+/* ── Run phase ────────────────────────────────────────────────────────
+   The strip itself stays hidden (user preference); the stage ember wash in
+   region-shell.css is the visible run indicator and keys off this dot. */
+
 .context-bar-status,
-[data-testid="run-status-strip"] {
+[data-testid='run-status-strip'] {
   display: none !important;
 }
 
 .context-bar-phase-dot {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--content-muted, var(--faint));
+  background: var(--text-4);
   flex-shrink: 0;
 }
 
 .context-bar-phase-dot.is-running {
-  background: var(--ok);
-  animation: wb-pulse var(--motion-pulse, 1.6s) ease-in-out infinite;
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
 }
 
 .context-bar-phase-dot.is-warning {
-  background: var(--state-warning);
+  background: var(--amber);
 }
 
 .context-bar-phase-dot.is-error {
-  background: var(--state-danger);
+  background: var(--coral);
 }
 
 .context-bar-phase-dot.is-complete {
-  background: var(--state-success);
+  background: var(--mint);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -288,8 +291,9 @@
 }
 
 .context-bar-elapsed {
-  font-size: 11px;
+  font-size: var(--fs-mono);
   font-variant-numeric: tabular-nums;
+  color: var(--text-3);
 }
 
 /* Flexible drag region between title cluster and right tools.
@@ -298,19 +302,20 @@
 .context-bar-drag {
   flex: 1 1 auto;
   align-self: stretch;
-  min-width: 24px;
+  min-width: var(--s-8);
   min-height: 100%;
   cursor: default;
   -webkit-app-region: drag;
   app-region: drag;
 }
 
-/* Right tools — stage top-right corner (Cursor). */
+/* ── Trailing tools ───────────────────────────────────────────────── */
+
 .context-bar-controls {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0;
+  gap: var(--s-1);
   flex: 0 0 auto;
   margin: 0;
   padding: 0;
@@ -322,6 +327,6 @@
 
 .context-bar-inspector-btn.active,
 .context-bar-inspector-btn[aria-pressed='true'] {
-  color: var(--accent);
-  background: transparent;
+  color: var(--iris-lift);
+  background: var(--iris-wash);
 }

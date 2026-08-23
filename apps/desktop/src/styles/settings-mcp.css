@@ -1,0 +1,534 @@
+/* Settings: MCP server list, shared dialog chrome, MCP editor dialog.
+   Split out of settings-resources.css (one region, split by responsibility
+   per AGENTS.md 3.2).
+
+   Deck rule: an MCP server is a running process you own, so its card carries a
+   live status dot using the same colors as everywhere else — mint running,
+   sky starting (and breathing, because it is mid-flight), coral failed,
+   text-4 stopped. Amber is reserved here for pinning, which is the one thing
+   on this page that changes what the agent sees. */
+
+/* ── Server list ──────────────────────────────────────────────────────── */
+
+.mcp-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s-7);
+  gap: var(--s-6);
+}
+
+.mcp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  flex-shrink: 0;
+}
+
+.mcp-server-list-clean {
+  margin-top: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: 0;
+  list-style: none;
+}
+
+.mcp-empty-list {
+  padding: var(--s-10) var(--s-8);
+  text-align: center;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-card);
+  background: var(--void);
+  margin-top: var(--s-6);
+}
+
+.mcp-empty-list p {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--text-3);
+}
+
+.mcp-server-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  padding: var(--s-6);
+  background: var(--surface-2);
+  border: 0;
+  box-shadow: var(--elev-1);
+  border-radius: var(--r-card);
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.mcp-server-card:hover {
+  box-shadow: var(--elev-2);
+}
+
+.mcp-server-card-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.mcp-server-card-body:hover .mcp-server-id {
+  color: var(--iris-lift);
+}
+
+.mcp-server-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin-bottom: var(--s-2);
+}
+
+.mcp-server-id {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+/* ── Status dot ───────────────────────────────────────────────────────── */
+
+.mcp-status-dot-inline {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+  transition: background-color var(--t-2) var(--ease-out);
+}
+
+.mcp-status-dot-inline.running {
+  background: var(--mint);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint) 18%, transparent);
+}
+
+/* Starting is in-flight, so it breathes — the same cycle the agent uses. */
+.mcp-status-dot-inline.starting {
+  background: var(--sky);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sky) 18%, transparent);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+.mcp-status-dot-inline.error {
+  background: var(--coral);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--coral) 18%, transparent);
+}
+
+.mcp-status-dot-inline.stopped {
+  background: var(--text-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mcp-status-dot-inline.starting {
+    animation: none;
+  }
+}
+
+.mcp-disabled-pill {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  background: var(--hover);
+  border: 0;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  line-height: var(--lh-tight);
+}
+
+.mcp-server-card-meta {
+  font-size: var(--fs-chrome);
+  color: var(--text-4);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.mcp-command-snippet {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  background: var(--void);
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-chip);
+  border: 0;
+  max-width: 380px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mcp-meta-badge {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  background: var(--hover);
+  border: 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-chip);
+}
+
+.mcp-tools-badge {
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+}
+
+.mcp-pinned-badge {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+}
+
+.mcp-env-badge {
+  color: var(--text-3);
+}
+
+.mcp-server-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  flex-shrink: 0;
+}
+
+/* ── Dialog shared chrome (cherry-dialog) ─────────────────────────────── */
+
+.cherry-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.cherry-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--s-6);
+  margin-bottom: var(--s-6);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.cherry-dialog-header h3 {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 650;
+  letter-spacing: var(--tracking-tight);
+}
+
+.cherry-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.cherry-dialog-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding-top: var(--s-6);
+  margin-top: var(--s-7);
+  border-top: 1px solid var(--line-1);
+}
+
+/* ── MCP editor dialog ────────────────────────────────────────────────── */
+
+.modal.ui-dialog-content:has(.cherry-dialog--mcp-editor) {
+  width: min(560px, calc(100vw - 32px));
+  max-width: min(560px, calc(100vw - 32px));
+  padding: var(--s-7) var(--s-8);
+}
+
+.cherry-dialog--mcp-editor .mcp-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+/* Field component adds margin-bottom; gap handles spacing in dialog context. */
+.cherry-dialog--mcp-editor .ui-field {
+  margin-bottom: 0;
+}
+
+.cherry-dialog--mcp-editor .mcp-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+}
+
+.mcp-editor-spacer {
+  flex: 1;
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-preview {
+  margin-top: var(--s-2);
+  padding: var(--s-5);
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-chip);
+}
+
+.mcp-tools-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-3);
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-preview h5,
+.mcp-tools-preview-header h5 {
+  margin: 0 0 var(--s-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+}
+
+.mcp-tools-preview-header h5 {
+  margin: 0;
+}
+
+.mcp-tools-preview-hint {
+  margin: 0 0 var(--s-5);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-normal);
+}
+
+.mcp-tools-empty {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-list li,
+.mcp-tool-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-3);
+  border-radius: var(--r-control);
+}
+
+.mcp-tool-row:hover {
+  background: var(--hover);
+}
+
+.mcp-tool-pin-btn {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mcp-tool-pin-btn--active,
+.mcp-tool-pin-btn[aria-pressed='true'] {
+  color: var(--amber);
+}
+
+.mcp-tool-pin-icon--filled {
+  fill: currentColor;
+}
+
+.mcp-server-pin-icon {
+  color: currentColor;
+}
+
+.mcp-server-pin-icon--filled {
+  fill: currentColor;
+  color: var(--amber);
+}
+
+.mcp-tool-row-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.mcp-tool-row-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.mcp-tool-row-desc {
+  display: block;
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+}
+
+.mcp-tool-selector {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.mcp-tool-pin-pill,
+.mcp-tool-gateway-pill {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  border: 0;
+}
+
+.mcp-tool-pin-pill {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.mcp-tool-gateway-pill {
+  color: var(--text-3);
+  background: var(--hover);
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-list strong {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-list .muted {
+  font-size: var(--fs-micro);
+}
+
+/* MCP raw JSON editor (used in dialog and legacy) */
+.mcp-raw-editor {
+  width: 100%;
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  background: var(--void);
+  color: var(--text-1);
+  border-radius: var(--r-chip);
+  padding: var(--s-5);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  line-height: 1.6;
+  outline: none;
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.mcp-raw-editor:focus {
+  box-shadow: inset 0 0 0 1px var(--iris);
+}
+
+.mcp-raw-document {
+  min-height: 280px;
+  resize: vertical;
+}
+
+.mcp-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-6);
+}
+
+.mcp-tab-content {
+  position: relative;
+  padding-top: var(--s-2);
+}
+
+/* The pin explanation is persistent page content, not transient feedback.
+   Keep it in normal flow so it cannot cover the first server card. */
+.mcp-pin-tip {
+  margin-bottom: var(--s-5);
+}
+
+.mcp-pin-tip .ui-notice {
+  align-items: center;
+  gap: var(--s-5);
+  margin: 0;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--iris-wash);
+  border: 0;
+}
+
+.mcp-pin-tip .ui-notice-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.mcp-pin-tip .ui-notice-title {
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.mcp-pin-tip .ui-notice-message {
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-tight);
+}
+
+/* ── Toolbars ─────────────────────────────────────────────────────────── */
+
+.settings-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.settings-toolbar > .piwin-text-input,
+.settings-toolbar > .piwin-select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .mcp-pin-tip .ui-notice-body {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
+
+  .mcp-pin-tip .ui-notice-title {
+    white-space: normal;
+  }
+}
+
+.settings-toolbar .piwin-button {
+  flex-shrink: 0;
+}
+
+.settings-toolbar--install .settings-install-kind {
+  flex: 0 0 auto;
+  min-width: 132px;
+}
+
+.settings-segmented-wrap {
+  display: flex;
+  align-items: center;
+}
+
+/* Reserve checkmark column so selection doesn't shift list text. */
+.ext-list-check {
+  flex-shrink: 0;
+  width: 1.1em;
+  text-align: center;
+  color: var(--iris-lift);
+  font-weight: 700;
+}
+
+.ext-list-check--empty {
+  visibility: hidden;
+}

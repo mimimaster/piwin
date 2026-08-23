@@ -1,27 +1,40 @@
 /* Region: status bar (status-bar.tsx). Owns every .status-bar-* selector.
-   Uses runtime semantic tokens from appearance-tokens.ts only. */
+
+   The bar itself is hidden by product decision — the stage ember wash and the
+   composer carry run state instead. Rules below stay token-correct so the
+   surface is coherent the moment it is switched back on. */
 
 .status-bar {
   display: none;
+  align-items: center;
+  gap: var(--s-5);
+  flex-shrink: 0;
+  height: var(--statusline-height);
+  padding: 0 var(--s-5);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .status-bar-left,
 .status-bar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-5);
   min-width: 0;
 }
 
-/* Right cluster pushed to the trailing edge (proto: margin-left:auto on .right). */
 .status-bar-right {
   margin-left: auto;
 }
 
+/* ── Agent state ──────────────────────────────────────────────────── */
+
 .status-bar-agent {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-3);
   font-weight: 400;
 }
 
@@ -29,48 +42,51 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--faint);
+  background: var(--text-4);
 }
 
+/* Ember is reserved for "the agent is running" everywhere in the shell. */
 .status-bar-agent.state-running {
-  color: var(--accent);
-  font-weight: 500;
+  color: var(--ember);
 }
 
 .status-bar-agent.state-running .status-bar-dot {
-  background: var(--accent);
-  animation: status-bar-pulse 1.4s ease-in-out infinite;
+  background: var(--ember);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
 }
 
-/* Quiet workbench: terminal output while panel home/collapsed — pulse only. */
+/* Terminal output arriving while the panel is collapsed. */
 .status-bar-agent.has-terminal-attention .status-bar-dot {
-  background: var(--ok);
-  animation: status-bar-pulse 1.4s ease-in-out infinite;
+  background: var(--sky);
+  animation: breath var(--breath) var(--ease-in-out) infinite;
 }
 
 .status-bar-agent.state-error {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .status-bar-agent.state-error .status-bar-dot {
-  background: var(--danger);
+  background: var(--coral);
 }
 
-.status-bar-branch {
+/* ── Readouts ─────────────────────────────────────────────────────── */
+
+.status-bar-branch,
+.status-bar-model {
   display: flex;
   align-items: center;
-  gap: 4px;
-  max-width: 120px;
+  gap: var(--s-2);
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--text-3);
 }
 
 .status-bar-context {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -85,31 +101,31 @@ button.status-bar-context {
 }
 
 .status-bar-context.tone-ok {
-  color: var(--ok);
+  color: var(--mint);
 }
 .status-bar-context.tone-warn {
-  color: var(--accent);
+  color: var(--amber);
 }
 .status-bar-context.tone-critical {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .status-bar-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-2);
   height: 18px;
-  padding: 0 6px;
+  padding: 0 var(--s-3);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--r-chip);
   background: transparent;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition:
-    color var(--duration-fast) ease,
-    background var(--duration-fast) ease;
-  font-variant-numeric: tabular-nums;
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
 }
 
 .status-bar-chip img {
@@ -120,48 +136,12 @@ button.status-bar-context {
 }
 
 .status-bar-chip:hover {
-  color: var(--text);
-  background: var(--surface-hover);
-}
-
-.status-bar-model {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--faint);
-}
-
-@keyframes status-bar-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-@keyframes status-bar-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  color: var(--text-1);
+  background: var(--hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-bar {
-    animation: none;
-  }
-
-  .status-bar-agent.state-running .status-bar-dot {
+  .status-bar-agent .status-bar-dot {
     animation: none;
     opacity: 1;
   }

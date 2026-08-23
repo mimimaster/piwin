@@ -1,0 +1,571 @@
+/* Transcript: ink-wash theme package overrides.
+   Split out of region-transcript.css (one region, split by responsibility
+   per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
+   region-transcript.css. */
+
+/* ── Ink Wash Transcript & Message Turn Refinements ─────────────────── */
+
+@keyframes ink-drop-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.82;
+    box-shadow: 0 0 4px rgba(137, 163, 168, 0.4);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 12px rgba(137, 163, 168, 0.85);
+  }
+}
+
+html[data-theme-visual-style='ink-wash'] ::selection,
+html[data-theme-visual-style='ink-wash'] ::selection:window-inactive,
+html[data-theme-visual-style='ink-wash'] .bubble ::selection,
+html[data-theme-visual-style='ink-wash'] .bubble ::selection:window-inactive,
+html[data-theme-visual-style='ink-wash'] .chat-turn ::selection,
+html[data-theme-visual-style='ink-wash'] .chat-turn ::selection:window-inactive,
+html[data-theme-visual-style='ink-wash'] .markdown-body ::selection,
+html[data-theme-visual-style='ink-wash'] .markdown-body ::selection:window-inactive {
+  background: rgba(90, 123, 134, 0.45);
+  color: #f8f6f0;
+}
+
+/* ── Ink Wash Agent Mode User Message Banner (全宽横幅，不透明深色卡片) ───────── */
+html[data-theme-visual-style='ink-wash'] .bubble.role-user:not(.is-conversation-bubble) {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 12px 18px !important;
+  background-color: rgba(20, 22, 28, 0.92) !important;
+  background-image: linear-gradient(
+    180deg,
+    rgba(32, 34, 42, 0.96) 0%,
+    rgba(18, 20, 26, 0.96) 100%
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  color: #ffffff !important;
+  display: block !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .bubble.role-user:not(.is-conversation-bubble)::before,
+html[data-theme-visual-style='ink-wash'] .bubble.role-user:not(.is-conversation-bubble)::after {
+  content: none !important;
+  display: none !important;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .bubble.role-user:not(.is-conversation-bubble)
+  .user-message-actions {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .bubble.role-user:not(.is-conversation-bubble)
+  .message-text {
+  position: relative !important;
+  z-index: 2 !important;
+  color: #ffffff !important;
+}
+
+/* Editing reuses the complete ComposerCard inside the user-message row. The
+   row must stop painting the ink-wash banner while that card is mounted;
+   otherwise both surfaces draw a frame and ornament around the same editor. */
+html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-editing {
+  background: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-editing::before,
+html[data-theme-visual-style='ink-wash'] .bubble.role-user.is-editing::after {
+  content: none !important;
+  display: none !important;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .markdown[style*='--streamdown-caret']
+  > :last-child::after {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: #89a3a8;
+  content: '';
+  vertical-align: 0.05em;
+  white-space: nowrap;
+  animation: ink-drop-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .chat-message-row.role-user
+  + .chat-message-row.role-assistant
+  .turn-work-details::before,
+html[data-theme-visual-style='ink-wash']
+  .chat-turn-group
+  > .chat-message-row.role-assistant:first-child
+  .turn-work-details::before,
+html[data-theme-visual-style='ink-wash'] .role-assistant .bubble-header::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  border-radius: 3px;
+  background-image: var(--ink-wash-agent-seal, none);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 2px 8px rgba(194, 77, 67, 0.4);
+}
+
+html[data-theme-visual-style='ink-wash'] .chat-turn + .chat-turn {
+  position: relative;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+html[data-theme-visual-style='ink-wash'] .chat-turn + .chat-turn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 5%;
+  right: 5%;
+  height: 8px;
+  background-image: var(--ink-wash-dry-brush-divider, none);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+html[data-theme-visual-style='ink-wash'] .transcript-viewport::before,
+html[data-theme-visual-style='ink-wash'] .transcript-viewport::after {
+  display: none !important;
+}
+
+/* ── Ink Wash Notifications, Thinking Blocks, Code Headers & Diffs ───── */
+
+/* 完成状态 Banner 朱砂印鉴 */
+html[data-theme-visual-style='ink-wash'] .run-complete-notice,
+html[data-theme-visual-style='ink-wash'] .execution-complete-pill {
+  background: rgba(112, 145, 156, 0.12) !important;
+  border-left: 3px solid #c24d43 !important;
+  color: #f8f6f0 !important;
+  border-radius: 6px !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .session-error-notice {
+  background: rgba(194, 77, 67, 0.12) !important;
+  border: none !important;
+  color: #e8867d !important;
+  border-radius: 6px !important;
+}
+
+/* 思考过程折叠块（Thinking process）水墨墨线与折叠页质感 */
+html[data-theme-visual-style='ink-wash'] .thinking-block-container,
+html[data-theme-visual-style='ink-wash'] .reasoning-header {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  color: #d8d3cb !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .reasoning-content {
+  border-left: 2px solid rgba(112, 145, 156, 0.35) !important;
+  padding-left: 12px !important;
+  margin-left: 6px !important;
+  color: #9e988e !important;
+}
+
+/* 代码块 Header & Diff 行 */
+html[data-theme-visual-style='ink-wash'] .code-block-header {
+  background: #1a1b1e !important;
+  border-bottom: none !important;
+  color: #d8d3cb !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .diff-line-add {
+  background: rgba(52, 211, 153, 0.14) !important;
+  color: #6ee7b7 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .diff-line-delete {
+  background: rgba(244, 63, 94, 0.14) !important;
+  color: #fda4af !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .artifact-preview-card {
+  background: rgba(26, 27, 30, 0.9) !important;
+  border: none !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ── Ink Wash Completion Status Badge & Icons (朱砂钤印“成” 仅在水墨主题下生效) ── */
+
+/* 1. 图片/视频生成与完成指示器 (Image & Video Generation Completed Badge) */
+html[data-theme-visual-style='ink-wash'] .image-generation-progress-status-icon,
+html[data-theme-visual-style='ink-wash'] .video-generation-progress-status-icon {
+  position: relative !important;
+  background: #c24d43 !important;
+  border: 1px solid #d85c52 !important;
+  border-radius: 4px !important;
+  color: #f8f6f0 !important;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.5) !important;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .image-generation-progress.status-done
+  .image-generation-progress-status-icon,
+html[data-theme-visual-style='ink-wash']
+  .video-generation-progress.status-done
+  .video-generation-progress-status-icon {
+  background: #c24d43 !important;
+  border-color: #d85c52 !important;
+  color: #f8f6f0 !important;
+  box-shadow: 0 2px 10px rgba(194, 77, 67, 0.6) !important;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .image-generation-progress.status-done
+  .image-generation-progress-status-icon
+  svg,
+html[data-theme-visual-style='ink-wash']
+  .video-generation-progress.status-done
+  .video-generation-progress-status-icon
+  svg {
+  display: none !important;
+}
+
+html[data-theme-visual-style='ink-wash']
+  .image-generation-progress.status-done
+  .image-generation-progress-status-icon::after,
+html[data-theme-visual-style='ink-wash']
+  .video-generation-progress.status-done
+  .video-generation-progress-status-icon::after {
+  content: '訖' !important;
+  font-family: STKaiti, KaiTi, serif !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #f8f6f0 !important;
+  line-height: 1 !important;
+}
+
+/* 2. Subagent & Execution 完成标识 (Subagent & Plan Step Completed Status) */
+html[data-theme-visual-style='ink-wash'] .subagent-activity-state.state-completed,
+html[data-theme-visual-style='ink-wash'] .subagent-activity-state.state-merged,
+html[data-theme-visual-style='ink-wash'] .subagent-working-row-state.state-completed {
+  background: rgba(194, 77, 67, 0.2) !important;
+  color: #f8f6f0 !important;
+  border: 1px solid rgba(194, 77, 67, 0.45) !important;
+  border-radius: 4px !important;
+  font-family: STKaiti, KaiTi, serif !important;
+}
+
+/* 3. 计划卡片完成勾 (Plan Card Completed Step) */
+html[data-theme-visual-style='ink-wash'] .plan-card .step.done .step-icon {
+  color: #c24d43 !important;
+  filter: drop-shadow(0 0 6px rgba(194, 77, 67, 0.5)) !important;
+}
+
+/* 4. 通用对话与工具完成 CheckCircle 图标替换 (CheckCircle Icons in Transcript) */
+html[data-theme-visual-style='ink-wash'] .run-complete-notice .status-icon,
+html[data-theme-visual-style='ink-wash'] .execution-complete-pill .status-icon {
+  background: #c24d43 !important;
+  color: #f8f6f0 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 8px rgba(194, 77, 67, 0.5) !important;
+}
+
+/* ── Ink Wash Chat Transcript Font Color Overrides (对话区域字体颜色高对比水墨调优) ── */
+html[data-theme-visual-style='ink-wash'] .role-assistant,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown p,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown li,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown span {
+  color: #f3efe6 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown strong,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown b {
+  color: #ffffff !important;
+  font-weight: 650 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h1,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h2,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h3,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown h4 {
+  color: #d8b888 !important;
+  border-bottom-color: rgba(216, 184, 136, 0.25) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-doc-chip,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-link,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-reference,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .enhanced-link,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link {
+  color: #70a6b4 !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown a span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-doc-chip span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-link span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .system-file-reference span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .enhanced-link span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .md-link span,
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown .chip-text {
+  color: inherit !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .role-assistant .markdown code {
+  color: #e6dfd5 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .bubble.role-user .message-text,
+html[data-theme-visual-style='ink-wash'] .user-message-wrapper .message-text {
+  color: #ffffff !important;
+  font-weight: 500 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .turn-thinking pre,
+html[data-theme-visual-style='ink-wash'] .turn-work-details-label,
+html[data-theme-visual-style='ink-wash'] .reasoning-content {
+  color: #e4ded5 !important;
+  opacity: 0.95 !important;
+}
+
+/* ── Ink Wash Tool Call Chain & Thinking Process Readability (水墨竹简连绵长卷方案) ── */
+
+/* 1. The rollup owns the card. Keep the timeline transparent so a long live
+   run cannot recreate the old ever-growing black wrapper. */
+html[data-theme-visual-style='ink-wash'] .activity-timeline {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 4px 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .activity-call-chain {
+  background: rgba(18, 19, 23, 0.88) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 2. 内部所有的工具行 (ToolCallCard / SearchToolItem / ExploreGroup) 独立卡片背景全清，变为一体行 */
+html[data-theme-visual-style='ink-wash'] .tool-call-card,
+html[data-theme-visual-style='ink-wash'] .search-tool-item,
+html[data-theme-visual-style='ink-wash'] .activity-explore-group {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  border-radius: 6px !important;
+}
+
+/* 3. 工具行之间增加优雅的水墨虚线分割线 (Subtle ink-dash divider between rows) */
+html[data-theme-visual-style='ink-wash'] .activity-call-chain-item + .activity-call-chain-item {
+  border-top: 1px dashed rgba(214, 205, 190, 0.12) !important;
+}
+
+/* 4. 统一每行高度与 Hover 效果 (Uniform row padding & hover) */
+html[data-theme-visual-style='ink-wash'] .tool-call-summary,
+html[data-theme-visual-style='ink-wash'] .search-tool-item-summary,
+html[data-theme-visual-style='ink-wash'] .activity-explore-summary {
+  padding: 2px 4px !important;
+  border-radius: 6px !important;
+  transition: background 0.15s ease !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .tool-call-summary:hover,
+html[data-theme-visual-style='ink-wash'] .search-tool-item-summary:hover,
+html[data-theme-visual-style='ink-wash'] .activity-explore-summary:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* 5. 工具动作动词 (“执行”/“已搜索”/“已读取”/“已修改”) — 古风洒金高亮 */
+html[data-theme-visual-style='ink-wash'] .tool-call-action-verb,
+html[data-theme-visual-style='ink-wash'] .search-tool-action,
+html[data-theme-visual-style='ink-wash'] .turn-work-details-summary {
+  color: #d8b888 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+
+/* 6. 命令路径、参数、搜索关键词与代码预览文案 (Command, path, query, & output text) */
+html[data-theme-visual-style='ink-wash'] .tool-call-preview,
+html[data-theme-visual-style='ink-wash'] .search-query-chip,
+html[data-theme-visual-style='ink-wash'] .search-tool-item-summary,
+html[data-theme-visual-style='ink-wash'] .activity-call-chain-summary,
+html[data-theme-visual-style='ink-wash'] .tool-call-card pre,
+html[data-theme-visual-style='ink-wash'] .tool-call-card code {
+  color: #e8e2d8 !important;
+  opacity: 0.96 !important;
+}
+
+/* 7. 文件胶囊 (File Pill) 与行号标签 */
+html[data-theme-visual-style='ink-wash'] .tool-call-file-pill {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f3efe6 !important;
+  border: none !important;
+}
+
+/* 8. 当前流式工具保持高亮，完成后只留下同一条紧凑记录。 */
+html[data-theme-visual-style='ink-wash'] .activity-call-chain-item.is-latest {
+  background: rgba(137, 163, 168, 0.1) !important;
+  box-shadow: inset 2px 0 0 rgba(137, 163, 168, 0.82) !important;
+}
+.subagent-invocation-block {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagent-invocation-block:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface-raised, #fff) 7%, transparent);
+}
+
+.subagent-invocation-block:focus-visible {
+  outline: 2px solid var(--accent-color, #8aa4ff);
+  outline-offset: 2px;
+}
+
+.subagent-invocation-block:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.subagent-invocation-icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.subagent-invocation-copy,
+.subagent-invocation-heading {
+  min-width: 0;
+  display: flex;
+}
+
+.subagent-invocation-copy {
+  flex-direction: column;
+  gap: 3px;
+}
+
+.subagent-invocation-heading {
+  align-items: baseline;
+  gap: 8px;
+}
+
+.subagent-invocation-title,
+.subagent-invocation-activity {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-invocation-title {
+  font-weight: 560;
+  flex: 1 1 auto;
+}
+
+.subagent-identity-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.subagent-role-chip,
+.subagent-model-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 14em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.78em;
+  line-height: 1.35;
+  color: var(--text-muted, rgba(255, 255, 255, 0.7));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.subagent-model-chip-label,
+.subagent-role-chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-model-chip-icon {
+  flex: 0 0 auto;
+}
+
+.subagent-model-chip.is-resolving {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.subagent-invocation-meta,
+.subagent-invocation-activity {
+  color: var(--text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.subagent-invocation-activity {
+  display: block;
+  line-height: 1.45;
+}
+
+.subagent-invocation-block[data-status='failed'] .subagent-invocation-activity {
+  color: var(--danger-color, #e98080);
+}
+
+.subagent-invocation-block[data-status='needs-integration'] .subagent-invocation-activity {
+  color: var(--warning-color, #d9ad68);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-invocation-block,
+  .subagent-invocation-block * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

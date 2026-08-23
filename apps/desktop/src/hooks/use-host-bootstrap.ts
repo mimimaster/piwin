@@ -30,7 +30,11 @@ import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { PtyOutputLine } from '../terminal-dock';
-import { PIWIN_APPEARANCE_DARK, resolveDesktopAppearance } from '../appearance-tokens';
+import {
+  PIWIN_APPEARANCE_DARK,
+  isAppearanceFaceId,
+  resolveDesktopAppearance,
+} from '../appearance-tokens';
 import { getDesktopCopy, type DesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { createStreamEventBuffer } from '../stream-event-buffer';
@@ -704,15 +708,13 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       if (hostClient.supportsCommand('theme/get-active')) {
         const themeResponse = await hostClient.request({ type: 'theme/get-active' });
         // DesktopThemeRoot already applied Appearance prefs at mount. Only push
-        // custom installed theme packages from the host; built-in dark/light/橙白
-        // must not stomp the user's Appearance mode (causes a second theme flash).
+        // library / installed packages from the host; Obsidian, Bone, and the
+        // three-color Appearance overrides must not stomp the user's mode
+        // (that was a second theme flash). Retired ids are migrated first —
+        // resolveDesktopAppearance rewrites piwin-dark → piwin-obsidian, so a
+        // literal id check against the old names would miss and re-apply.
         const bootstrappedTheme = resolveThemeBootstrapResponse(themeResponse);
-        const isBuiltinAppearance =
-          bootstrappedTheme.id === 'piwin-dark' ||
-          bootstrappedTheme.id === 'piwin-light' ||
-          bootstrappedTheme.id === 'piwin-orange-white' ||
-          bootstrappedTheme.id.endsWith('-appearance');
-        if (!isBuiltinAppearance) {
+        if (!isAppearanceFaceId(bootstrappedTheme.id)) {
           args.onThemeResolved(bootstrappedTheme);
         }
       }

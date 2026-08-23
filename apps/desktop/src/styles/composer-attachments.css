@@ -1,0 +1,404 @@
+/* Composer: attachment shelf — media cards, text chips, failure rows.
+   Split out of region-composer.css (one region, split by responsibility
+   per AGENTS.md 3.2). Core dock/card/toolbar stays in region-composer.css.
+
+   Deck rule: attachments live inside the raised composer card, so the shelf
+   is a recessed strip at the top — line-1 divider, chips as small objects
+   on surface-3. Context/doc chips use iris-wash like message context refs. */
+
+/* ─── Attachments / diversion shelf ──────────────────────────────────── */
+
+.composer-attachment-shelf {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 160px;
+  border-bottom: 1px solid var(--line-1);
+  background: transparent;
+  animation: composer-shelf-open var(--t-2) var(--ease-out);
+}
+
+@keyframes composer-shelf-open {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 160px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-attachment-shelf {
+    animation: none;
+  }
+}
+
+.composer-attachment-shelf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5) var(--s-4);
+  overflow: auto;
+  max-height: 140px;
+}
+
+.composer-v2-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5) var(--s-4);
+}
+
+/* Text-only model + image attachment: warn at attach time (not only on send). */
+.composer-v2-vision-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin: var(--s-4) var(--s-5) 0;
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--r-control);
+  border: 0;
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--text-1);
+}
+
+.composer-v2-vision-warning-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+.composer-v2-vision-warning-action {
+  flex: none;
+  margin: 0;
+  padding: 2px var(--s-4);
+  border: none;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  color: var(--text-1);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.composer-v2-vision-warning-action:hover {
+  background: color-mix(in srgb, var(--amber) 28%, transparent);
+}
+
+/* Base chip container */
+.composer-v2-attachment-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--r-control);
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition:
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.composer-v2-attachment-chip:focus {
+  outline: none;
+}
+
+.composer-v2-attachment-chip:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Media (image/screenshot) thumbnail card */
+.composer-v2-attachment-chip.composer-v2-media-chip,
+.composer-v2-attachment-chip:not(.composer-v2-doc-comment-chip):not(.composer-v2-context-chip) {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.composer-v2-attachment-chip.composer-v2-media-chip:hover,
+.composer-v2-attachment-chip:not(.composer-v2-doc-comment-chip):not(
+    .composer-v2-context-chip
+  ):hover {
+  box-shadow: var(--elev-2);
+}
+
+.composer-v2-attachment-chip .media-chip-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.composer-v2-attachment-chip .media-chip-thumb-button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: inherit;
+}
+
+.composer-v2-attachment-chip .media-chip-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* Badge (GIF / Resolution) on media thumbnail */
+.composer-attachment-media-badge {
+  position: absolute;
+  left: 2px;
+  bottom: 2px;
+  z-index: 4;
+  padding: 1px 3px;
+  border-radius: var(--r-chip);
+  background: color-mix(in srgb, var(--void) 85%, transparent);
+  color: var(--text-1);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  pointer-events: none;
+}
+
+/* Saving/preparing status overlay */
+.composer-v2-attachment-status {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px var(--s-2);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--void) 85%, transparent);
+  color: var(--text-1);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+}
+
+.composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb,
+.composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb-button {
+  opacity: 0.65;
+}
+
+/* Failed attachment chip */
+.composer-v2-attachment-chip[data-upload-status='error'] {
+  box-shadow:
+    var(--elev-1),
+    inset 0 0 0 1px color-mix(in srgb, var(--coral) 40%, transparent);
+}
+
+.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb,
+.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb-button {
+  opacity: 0.5;
+  filter: grayscale(0.4);
+}
+
+/* Media card delete button (✕ on top-right of image) */
+.composer-v2-chip-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 10;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--void) 78%, transparent);
+  color: var(--text-1);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  opacity: 0.85;
+  transition:
+    opacity var(--t-2) var(--ease-out),
+    background var(--t-2) var(--ease-out);
+}
+
+.composer-v2-chip-remove:hover {
+  opacity: 1;
+  background: var(--coral);
+  color: var(--on-iris);
+}
+
+.composer-v2-attachment-chip:hover .composer-v2-chip-remove,
+.composer-v2-attachment-chip:focus-within .composer-v2-chip-remove {
+  opacity: 1;
+}
+
+/* Context / Doc comment chip (Text pills) */
+.composer-v2-doc-comment-chip {
+  width: auto;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-control);
+  background: var(--iris-wash);
+  border: 0;
+  box-shadow: none;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--text-1);
+  max-width: 280px;
+  position: relative;
+}
+
+.composer-v2-context-chip.is-error {
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 35%, transparent);
+}
+
+.composer-v2-context-chip.is-error .doc-comment-chip-icon {
+  color: var(--coral);
+}
+
+.doc-comment-chip-icon {
+  display: inline-flex;
+  color: var(--iris-lift);
+  flex-shrink: 0;
+}
+
+.doc-comment-chip-title,
+.composer-v2-context-chip .chip-text {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.doc-comment-chip-dot {
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.doc-comment-chip-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.doc-comment-chip-count-icon {
+  opacity: 0.85;
+}
+
+/* Remove control: inline for text chips */
+.composer-v2-doc-comment-chip .doc-comment-chip-remove {
+  position: static;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  opacity: 0.7;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    background var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.composer-v2-doc-comment-chip:hover .doc-comment-chip-remove,
+.composer-v2-doc-comment-chip:focus-within .doc-comment-chip-remove {
+  opacity: 1;
+}
+
+.composer-v2-doc-comment-chip .doc-comment-chip-remove:hover {
+  background: color-mix(in srgb, var(--coral) 14%, transparent);
+  color: var(--coral);
+}
+
+/* Attachment failure rows */
+.composer-v2-attachment-failures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: 0 var(--s-5) var(--s-4);
+}
+
+.composer-v2-attachment-failure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  min-width: 0;
+  font-size: var(--fs-chrome);
+  line-height: 1.35;
+}
+
+.composer-v2-attachment-failure-label {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--coral);
+}
+
+.composer-v2-attachment-failure-reason {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+
+.composer-v2-attachment-failure-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: var(--s-2);
+}
+
+.composer-v2-attachment-failure-action {
+  border: none;
+  background: none;
+  padding: 0 var(--s-2);
+  font: inherit;
+  font-weight: 600;
+  color: var(--iris-lift);
+  cursor: pointer;
+}
+
+.composer-v2-attachment-failure-action:hover {
+  text-decoration: underline;
+}
+
+/* Only failed attachments remain: the action button is a retry. */
+.composer-v2-send-btn.is-retry {
+  background: color-mix(in srgb, var(--coral) 18%, transparent);
+  color: var(--coral);
+}

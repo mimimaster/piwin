@@ -1,0 +1,351 @@
+/* Inspector: canvas, side chat, document/media/code preview, web chips.
+   Split out of region-inspector.css (one region, split by responsibility
+   per AGENTS.md 3.2). Panel frame, tabstrip, and home launcher stay in
+   region-inspector.css.
+
+   Deck rule: a preview shows someone else's content, so the chrome around it
+   stays out of the way — transparent frames, hairlines only where a fixed bar
+   meets a scroll region, and the stage itself recessed so the artwork reads
+   as sitting in the panel rather than on it. */
+
+/* ── Canvas, Side Chat panels ───────────────────────────────────────── */
+
+.canvas-panel,
+.artifact-canvas-panel,
+.side-chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.artifact-canvas-panel > .artifact-frame,
+.artifact-canvas-panel > .artifact-frame > .artifact-iframe {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.artifact-canvas-empty {
+  margin: auto;
+  padding: var(--s-8);
+  text-align: center;
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+}
+
+.artifact-canvas-proposal {
+  flex: 0 0 auto;
+  padding: var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.artifact-canvas-proposal-text {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--text-2);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.artifact-canvas-proposal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-3);
+}
+
+/* Canvas */
+
+.canvas-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.canvas-panel-colors {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.canvas-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+/* The active swatch is ringed in ink rather than iris: the swatch already
+   carries a colour, and a second colour around it would be unreadable. */
+.canvas-swatch.active {
+  border-color: var(--text-1);
+}
+
+.canvas-panel-size {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.canvas-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-left: auto;
+}
+
+.canvas-panel-surface {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--void);
+  cursor: crosshair;
+}
+
+.canvas-panel-canvas {
+  display: block;
+}
+
+/* Side Chat */
+
+.side-chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.side-chat-empty {
+  text-align: center;
+  padding: var(--s-8) var(--s-4);
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+}
+
+.side-chat-message {
+  display: flex;
+}
+
+.side-chat-message.user {
+  justify-content: flex-end;
+}
+
+.side-chat-bubble {
+  max-width: 86%;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Your own turn is tinted, matching the transcript: iris marks the things you
+   authored or selected. */
+.side-chat-message.user .side-chat-bubble {
+  background: var(--iris-wash);
+}
+
+.side-chat-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: var(--h-md);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+}
+
+.side-chat-activity > .ui-anim-radial-bellow {
+  transform: scale(0.62);
+  transform-origin: center;
+}
+
+.side-chat-composer {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-top: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.side-chat-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-lg);
+  padding: 0 var(--s-5);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  transition: box-shadow var(--t-1) var(--ease-out);
+}
+
+.side-chat-input:focus {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 55%, transparent),
+    var(--focus-ring);
+}
+
+/* ── Enhanced Document Preview Panel ───────────────────────────────────── */
+
+.doc-preview-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: transparent;
+  color: var(--text-1);
+}
+
+.doc-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--h-lg);
+  padding: 0 var(--s-6);
+  border-bottom: 1px solid var(--line-1);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.doc-preview-title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.doc-preview-title {
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* The document body is a page, so it sits on surface-1 rather than the void.
+   Code blocks and quoted output inside it recess to void the way raw content
+   does everywhere else, and that step only exists if the page is above it. */
+.doc-preview-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 0;
+  background: var(--surface-1);
+  font-family: var(--font);
+  line-height: var(--lh-relaxed);
+}
+
+/* ── Media document preview (ADR 0052) ──────────────────────────── */
+
+.media-doc-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5);
+  overflow: hidden;
+}
+
+.media-doc-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: var(--r-card);
+}
+
+.media-doc-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: transform var(--t-1) var(--ease-out);
+  user-select: none;
+  touch-action: none;
+}
+
+.media-doc-stage:active .media-doc-image {
+  transition: none;
+}
+
+/* Video keeps a literal black bed: letterbox bars belong to the footage, and
+   tinting them with a theme surface makes the frame edge ambiguous. */
+.media-doc-video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--r-card);
+  background: #000;
+}
+
+/* The zoom HUD floats over arbitrary artwork, so it is the one control here
+   that carries its own surface and elevation. */
+.media-doc-zoom-hud {
+  position: absolute;
+  right: var(--s-5);
+  bottom: var(--s-5);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-5);
+  border-radius: var(--r-pill);
+  background: var(--surface-4);
+  border: 0;
+  box-shadow: var(--elev-3);
+  font-size: var(--fs-chrome);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  pointer-events: auto;
+}
+
+.media-doc-zoom-reset {
+  border: none;
+  background: transparent;
+  color: var(--iris-lift);
+  font-family: var(--font);
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+  padding: 0;
+}
+
+.media-doc-zoom-reset:disabled {
+  color: var(--text-4);
+  cursor: default;
+}
+
+.media-doc-zoom-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -1,20 +1,24 @@
-/* Region: shell frame (App.tsx root + workspace-shell.tsx).
-   Three columns only (nav | stage | signal). No full-window topbar row.
-   Stage owns its local chrome bar (ContextBar). */
+/* Region: the deck frame (App.tsx root + workspace-shell.tsx).
+   Owns the void field, panel placement, and the elevation treatment shared by
+   every column. Panel *contents* belong to region-sidebar / -context-bar /
+   -composer / -transcript / -inspector. See docs/design/deck-design-system.md. */
 
-/* ── Grid frame ───────────────────────────────────────────────────── */
+/* ── The field ─────────────────────────────────────────────────────
+   Panels float on the void with a uniform inset; the gap between them and
+   the window edge is the same value, so the frame reads as one object. */
 
 .app-shell {
   --workspace-control-height: 30px;
   height: 100%;
   display: grid;
+  padding: var(--deck-inset);
+  gap: var(--deck-gap);
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: 'nav stage';
   min-width: 0;
   overflow: hidden;
-  grid-auto-rows: minmax(0, auto);
-  background: var(--bg);
+  background: var(--void);
   transition: none;
 }
 
@@ -69,13 +73,37 @@
   }
 }
 
-/* ── Column placement ─────────────────────────────────────────────── */
+/* ── Panel treatment ───────────────────────────────────────────────
+   Elevation is a rim light on top, a hairline all round, and a drop shadow —
+   never a flat 1px border. The child combinator lets the frame own these
+   three properties while region files keep ownership of panel interiors. */
+
+.app-shell > .sidebar,
+.app-shell > .workspace,
+.app-shell > .right-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: var(--r-panel);
+  box-shadow: var(--elev-2);
+  /* Panels clip their own contents so scroll edges follow the corner radius. */
+  overflow: hidden;
+}
+
+.app-shell > .sidebar {
+  grid-area: nav;
+  background: var(--surface-1);
+}
 
 .app-shell > .workspace {
   grid-area: stage;
-  min-width: 0;
-  min-height: 0;
-  overflow: visible;
+  background: var(--surface-2);
+}
+
+.app-shell > .right-panel {
+  grid-area: signal;
+  background: var(--surface-1);
 }
 
 /* Settings is a separate full-window surface. Keep the workspace mounted so
@@ -88,23 +116,23 @@
   display: none;
 }
 
+/* Overlays escape the deck: fixed to the window, not placed in the grid. */
 .app-shell > .notification-region,
 .app-shell > .shell-overlay-scrim {
   grid-area: unset;
   position: fixed;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 
-/* ── Stage ────────────────────────────────────────────────────────── */
+/* ── Stage ─────────────────────────────────────────────────────────
+   The widest panel and the one the eye rests on, so it sits a step above the
+   chrome columns: lighter surface, same elevation, no interior dividers. */
 
 .workspace {
-  position: relative;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  /* Conversation stage: solid canvas. Glass/transparent mix flashed white
-     during high-frequency stream reflow (SVG artifact height growth). */
-  background: var(--canvas, var(--bg));
 }
 
 .chat-column {
@@ -115,7 +143,6 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  background: var(--canvas, var(--bg));
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
   transition: none;
 }
@@ -123,12 +150,41 @@
 /* Groups transcript + composer. Stays full stage width so the transcript
    scrollbar sits on the stage edge; content measure is on the children. */
 .chat-stage {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   width: 100%;
+}
+
+/* The ember wash: while a run is active the bottom of the stage warms up.
+   Ambient only — it must never resolve into a shape or a readable edge. */
+.chat-stage::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 220px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to top, var(--ember-wash), transparent);
+  transition: opacity var(--t-4) var(--ease-out);
+  z-index: 0;
+}
+
+/* The phase dot is the shell's normalized "agent is alive" signal (every
+   running-ish RunStatusKind maps onto it), so the wash keys off it directly
+   instead of duplicating that mapping as a second data attribute. */
+.app-shell:has(.context-bar-phase-dot.is-running) .chat-stage::after {
+  opacity: 1;
+  animation: ember-wash var(--wash-cycle) var(--ease-in-out) infinite;
+}
+
+/* Stage children stay above the wash. */
+.chat-stage > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* File selections replace the transcript in the stage while the Files
@@ -140,15 +196,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  background: var(--surface-2);
 }
 
-.workspace-document-stage .doc-preview-panel {
-  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
-}
-
+.workspace-document-stage .doc-preview-panel,
 .workspace-document-stage .doc-preview-header {
-  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  background: transparent;
 }
 
 /* A new session is composer-first: no landing page, just the prompt card. */
@@ -157,8 +210,14 @@
   overflow: hidden;
 }
 
-/* Ink wash: Paints the conversation stage with subtle Xuan paper ink texture & quiet mist.
-   Transcript cards, code blocks, logs, terminal, and artifacts retain solid fills for clarity. */
+.chat-column-empty .chat-stage {
+  justify-content: center;
+}
+
+/* ── Ink wash ──────────────────────────────────────────────────────
+   A theme package, not a built-in: it paints the void with Xuan paper and
+   lets the panels sit on it translucently. Card interiors stay opaque. */
+
 html[data-theme-visual-style='ink-wash'] .app-shell {
   background-color: #191a1d;
   background-image: var(--ink-wash-hero, url('/ui/ink-wash/master-bg.jpg?v=restore'));
@@ -167,76 +226,27 @@ html[data-theme-visual-style='ink-wash'] .app-shell {
   background-repeat: no-repeat;
 }
 
-html[data-theme-visual-style='ink-wash'] .workspace,
+/* Translucent fill only — no blur. These three panels are always mounted and
+   full height, so per-panel backdrop filters are exactly the cost the
+   memory-diet budget forbids (renderer-resource-boundaries.test.ts). The
+   Xuan-paper hero behind them is already soft, so a fill alone reads as paper. */
+html[data-theme-visual-style='ink-wash'] .app-shell > .sidebar,
+html[data-theme-visual-style='ink-wash'] .app-shell > .workspace,
+html[data-theme-visual-style='ink-wash'] .app-shell > .right-panel {
+  background: color-mix(in srgb, var(--surface-1) 78%, transparent);
+}
+
 html[data-theme-visual-style='ink-wash'] .chat-column,
 html[data-theme-visual-style='ink-wash'] .chat-column-empty,
 html[data-theme-visual-style='ink-wash'] .chat-stage,
 html[data-theme-visual-style='ink-wash'] .transcript-viewport {
-  background: transparent !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .session-title-text {
-  color: #d8d3cb !important;
-  font-weight: 500 !important;
-}
-
-.chat-column-empty .chat-stage {
-  justify-content: center;
-}
-
-/* ── App-level error boundary ─────────────────────────────────────── */
-
-.app-error-boundary {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-  padding: 40px;
-  background: var(--canvas);
-  color: var(--text);
-}
-
-.app-error-boundary h1 {
-  margin: 0;
-  font-size: 22px;
-}
-
-/* ── Global scrollbar / selection / motion ────────────────────────── */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 3px;
-  transition: background 0.3s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text) 20%, transparent);
-}
-
-::selection,
-::selection:window-inactive {
-  background: var(--accent-ring);
-  color: var(--text);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    scroll-behavior: auto;
-  }
-}
-
-/* While a column is drag-resized, drop expensive glass blur so the shell does
+/* ── Resize performance ────────────────────────────────────────────
+   While a column is drag-resized, drop expensive glass blur so the shell does
    not re-composite backdrop filters on every width sample (visible flicker). */
+
 .app-shell.is-resizing-panels .workspace,
 .app-shell.is-resizing-panels .chat-column,
 .app-shell.is-resizing-panels .sidebar,
@@ -251,41 +261,67 @@ html[data-theme-visual-style='ink-wash'] .session-title-text {
   cursor: col-resize;
 }
 
-/* Boot gate: choose Host / connect wall before workbench mounts. */
+/* ── App-level error boundary ──────────────────────────────────────── */
+
+.app-error-boundary {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-5);
+  padding: var(--s-10);
+  background: var(--void);
+  color: var(--text-1);
+}
+
+.app-error-boundary h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
+}
+
+/* ── Boot gate: choose Host / connect wall before the workbench mounts ─── */
+
 .host-gate {
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: var(--bg);
-  color: var(--fg);
+  padding: var(--s-8);
+  background: var(--void);
+  color: var(--text-1);
 }
 
 .host-gate-card {
   width: min(420px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s-5);
+  padding: var(--s-8);
+  border-radius: var(--r-panel);
+  background: var(--surface-2);
+  box-shadow: var(--elev-3);
+  animation: deck-rise var(--t-4) var(--ease-out);
 }
 
 .host-gate-title {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 560;
+  letter-spacing: -0.02em;
 }
 
 .host-gate-description {
   margin: 0;
-  color: var(--fg-muted, var(--fg));
-  opacity: 0.8;
-  line-height: 1.45;
+  color: var(--text-3);
+  line-height: 1.55;
 }
 
 .host-gate-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--s-4);
 }
 
 .host-gate-actions-stack {

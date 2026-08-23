@@ -1,6 +1,9 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import {
+  DEFAULT_DARK_THEME_SETTINGS,
+  DEFAULT_LIGHT_THEME_SETTINGS,
   loadDesktopPreferences,
+  migrateStoredAppearanceTheme,
   saveDesktopPreferences,
   loadToolCallDensity,
   resolveConversationWidth,
@@ -72,18 +75,8 @@ describe('DesktopPreferences loading', () => {
       verboseAgentChat: true,
       conversationWidth: 'default',
       appearanceMode: 'system',
-      lightTheme: {
-        preset: 'default',
-        background: '#EEEEEE',
-        foreground: '#101010',
-        accent: '#007ACC',
-      },
-      darkTheme: {
-        preset: 'default',
-        background: '#101010',
-        foreground: '#CCCCCC',
-        accent: '#007ACC',
-      },
+      lightTheme: DEFAULT_LIGHT_THEME_SETTINGS,
+      darkTheme: DEFAULT_DARK_THEME_SETTINGS,
     });
   });
 
@@ -107,18 +100,8 @@ describe('DesktopPreferences loading', () => {
       verboseAgentChat: true,
       conversationWidth: 'default',
       appearanceMode: 'system',
-      lightTheme: {
-        preset: 'default',
-        background: '#EEEEEE',
-        foreground: '#101010',
-        accent: '#007ACC',
-      },
-      darkTheme: {
-        preset: 'default',
-        background: '#101010',
-        foreground: '#CCCCCC',
-        accent: '#007ACC',
-      },
+      lightTheme: DEFAULT_LIGHT_THEME_SETTINGS,
+      darkTheme: DEFAULT_DARK_THEME_SETTINGS,
     });
   });
 
@@ -221,8 +204,8 @@ describe('DesktopPreferences saving and roundtrip', () => {
     expect(output).toEqual(input);
   });
 
-  it('save then load with all-defaults roundtrips', () => {
-    const defaults: DesktopPreferences = {
+  it('save then load roundtrips custom appearance colors', () => {
+    const input: DesktopPreferences = {
       assistantTextSize: 'default',
       codeTextSize: 'default',
       codeWrap: false,
@@ -235,21 +218,89 @@ describe('DesktopPreferences saving and roundtrip', () => {
       appearanceMode: 'system',
       lightTheme: {
         preset: 'default',
+        background: '#FFFFFF',
+        foreground: '#000000',
+        accent: '#FF0000',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#000000',
+        foreground: '#FFFFFF',
+        accent: '#00FF00',
+      },
+    };
+    saveDesktopPreferences(input);
+
+    const output = loadDesktopPreferences();
+    expect(output).toEqual(input);
+  });
+});
+
+describe('appearance theme migration', () => {
+  it('maps retired VS Code light defaults onto Bone', () => {
+    const migrated = migrateStoredAppearanceTheme(
+      {
+        preset: 'default',
         background: '#EEEEEE',
         foreground: '#101010',
         accent: '#007ACC',
       },
-      darkTheme: {
+      'light',
+    );
+    expect(migrated).toEqual(DEFAULT_LIGHT_THEME_SETTINGS);
+  });
+
+  it('maps retired VS Code dark defaults onto Obsidian', () => {
+    const migrated = migrateStoredAppearanceTheme(
+      {
         preset: 'default',
         background: '#101010',
         foreground: '#CCCCCC',
         accent: '#007ACC',
       },
-    };
-    saveDesktopPreferences(defaults);
+      'dark',
+    );
+    expect(migrated).toEqual(DEFAULT_DARK_THEME_SETTINGS);
+  });
 
-    const output = loadDesktopPreferences();
-    expect(output).toEqual(defaults);
+  it('leaves custom accent colors alone', () => {
+    const custom = {
+      preset: 'default' as const,
+      background: '#EEEEEE',
+      foreground: '#101010',
+      accent: '#FF4488',
+    };
+    expect(migrateStoredAppearanceTheme(custom, 'light')).toEqual({
+      ...custom,
+      background: '#EEEEEE',
+      foreground: '#101010',
+      accent: '#FF4488',
+    });
+  });
+
+  it('upgrades legacy stored prefs on load', () => {
+    setLocalStorage(
+      'lightTheme',
+      JSON.stringify({
+        preset: 'default',
+        background: '#EEEEEE',
+        foreground: '#101010',
+        accent: '#007ACC',
+      }),
+    );
+    setLocalStorage(
+      'darkTheme',
+      JSON.stringify({
+        preset: 'default',
+        background: '#101010',
+        foreground: '#CCCCCC',
+        accent: '#007ACC',
+      }),
+    );
+
+    const prefs = loadDesktopPreferences();
+    expect(prefs.lightTheme).toEqual(DEFAULT_LIGHT_THEME_SETTINGS);
+    expect(prefs.darkTheme).toEqual(DEFAULT_DARK_THEME_SETTINGS);
   });
 });
 

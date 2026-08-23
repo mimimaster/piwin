@@ -1,0 +1,220 @@
+/* Inspector: document preview container, sub-sidebar, web element chips.
+   Split out of region-inspector.css (one region, split by responsibility
+   per AGENTS.md 3.2). */
+
+/* ── Document Preview Container & Sub-Sidebar ───────────────────────────── */
+
+.doc-preview-container {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.doc-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--surface-1);
+  border-right: 1px solid var(--line-1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.doc-sidebar-header {
+  padding: var(--s-6) var(--s-6) var(--s-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+}
+
+.doc-sidebar-list {
+  list-style: none;
+  padding: 0 var(--s-3);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.doc-sidebar-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: var(--fs-chrome);
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.doc-sidebar-item:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+/* The active section reads in normal ink on an iris wash, not in iris type.
+   Coloured body text is harder to read than black on a tint, and the wash
+   already says which row is selected. */
+.doc-sidebar-item.active {
+  background: var(--iris-wash);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.doc-sidebar-icon {
+  display: flex;
+  align-items: center;
+  color: var(--text-4);
+}
+
+.doc-sidebar-item.active .doc-sidebar-icon {
+  color: var(--iris-lift);
+}
+
+.doc-sidebar-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-menu-item-content {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--fs-chrome);
+}
+
+.doc-action-active {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+/* ── Web element chip (composer + chat) ──────────────────────────── */
+
+.web-element-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  max-width: 240px;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
+}
+
+.web-element-chip.compact {
+  max-width: 180px;
+}
+
+.web-element-chip-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: var(--r-chip);
+  flex-shrink: 0;
+}
+
+.web-element-chip-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.web-element-chip-url {
+  font-size: var(--fs-micro);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.web-element-chip-selector {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.web-element-chip-text {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.right-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* Pin to the panel's right edge so drag-resize reflow cannot leave the
+     chrome lagging behind the live column width. */
+  position: absolute;
+  top: 0;
+  right: var(--s-4);
+  bottom: 0;
+  flex-shrink: 0;
+  z-index: 2;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Titlebar actions stay chromeless in every state — they sit on the drag
+   region, where a hover plate would look like a loose tile. Colour alone
+   carries hover and active. */
+.right-panel-actions .piwin-icon-button,
+.right-panel-action-btn {
+  width: var(--h-sm);
+  height: var(--h-sm);
+  border-radius: var(--r-control);
+  color: var(--text-4);
+  display: grid;
+  place-items: center;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.right-panel-titlebar-box .piwin-icon-button svg,
+.right-panel-action-btn svg,
+.right-panel-tab-add svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: var(--icon-stroke);
+}
+
+.right-panel-actions .piwin-icon-button:hover,
+.right-panel-action-btn:hover {
+  color: var(--text-1) !important;
+  background: transparent !important;
+}
+
+.right-panel-actions .piwin-icon-button.active,
+.right-panel-actions .piwin-icon-button[aria-pressed='true'],
+.right-panel-action-btn.active {
+  color: var(--iris) !important;
+  background: transparent !important;
+}
+
+.right-panel[data-view='home'] .right-panel-tabstrip {
+  border-bottom: 1px solid transparent;
+}

@@ -1,0 +1,325 @@
+/* Settings: shortcuts reference, image suggestions, animations showcase.
+   Split out of settings-resources.css (one region, split by responsibility
+   per AGENTS.md 3.2).
+
+   Deck rule: keycaps are the one place a literal skeuomorphic gradient earns
+   its keep — a key is a physical object and reads faster when it looks
+   pressable. Everything else here follows the flat page rules. */
+
+/* ── Shortcuts reference ──────────────────────────────────────────────── */
+
+.shortcuts-page {
+  padding-bottom: var(--s-4);
+}
+
+.shortcuts-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  margin-top: var(--s-2);
+}
+
+.shortcuts-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.shortcuts-group-label {
+  margin: 0 0 var(--s-4);
+  padding: 0 var(--s-1);
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-6);
+  min-height: 42px;
+  padding: var(--s-5) var(--s-6);
+  border-top: 1px solid var(--line-1);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.shortcuts-row:first-child {
+  border-top: 0;
+}
+
+.shortcuts-row:hover {
+  background: var(--hover);
+}
+
+.shortcuts-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--text-1);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.35;
+}
+
+.shortcut-keycaps {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+/* Raised cap: light rim on top, shadow below. The same rim-and-shadow pair
+   the Deck panels use, just at object scale. */
+.shortcut-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--h-xs);
+  height: var(--h-xs);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+  border: 0;
+  background: var(--surface-4);
+  box-shadow:
+    var(--elev-1),
+    inset 0 1px 0 var(--line-2);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.shortcuts-footnote {
+  margin: var(--s-7) var(--s-1) 0;
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+/* ── Image model suggestion dropdown ──────────────────────────────────── */
+
+.image-model-suggest {
+  position: relative;
+  flex: 1;
+}
+
+.image-model-suggest-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--surface-4);
+  border: 0;
+  border-radius: var(--r-control);
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: var(--s-2);
+  box-shadow: var(--elev-4);
+}
+
+.image-model-suggest-loading {
+  display: flex;
+  align-items: center;
+  padding: var(--s-5) var(--s-6);
+}
+
+.image-model-suggest-empty {
+  padding: var(--s-5) var(--s-6);
+  font-size: var(--fs-body);
+}
+
+.image-model-suggest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.image-model-suggest-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--s-4) var(--s-5);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font-size: var(--fs-body);
+}
+
+.image-model-suggest-option:hover,
+.image-model-suggest-option.is-active {
+  background: var(--hover);
+}
+
+.image-model-suggest-option-id {
+  font-weight: 500;
+  font-size: var(--fs-body);
+}
+
+.image-model-suggest-option-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-1);
+  font-size: var(--fs-micro);
+}
+
+.image-model-suggest-badge {
+  display: inline-block;
+  padding: 1px var(--s-3);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.image-model-suggest-show-all {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: var(--s-4) var(--s-5);
+  border: none;
+  border-top: 1px solid var(--line-1);
+  background: transparent;
+  color: var(--iris-lift);
+  font-size: var(--fs-chrome);
+  cursor: pointer;
+}
+
+.image-model-suggest-show-all:hover {
+  background: var(--hover);
+}
+
+/* Model row enable/disable toggle */
+.provider-model-toggle {
+  display: flex;
+  align-items: center;
+  flex: none;
+  margin-left: auto;
+}
+
+/* ── Animations showcase ──────────────────────────────────────────────── */
+
+.animations-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+
+.animations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-6);
+}
+
+.animations-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-6);
+  padding: var(--s-9) var(--s-7) var(--s-7);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+}
+
+.animations-card-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+}
+
+.animations-card-name {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.animations-card-desc {
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  text-align: center;
+  line-height: var(--lh-tight);
+}
+
+.animation-locator-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-7);
+}
+
+.animation-locator-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-7);
+  flex-wrap: wrap;
+}
+
+/* The preview needs to be visibly darker than the card so the animation reads
+   against it, which is exactly what the void step is for. */
+.animation-locator-preview {
+  display: flex;
+  align-items: center;
+  min-height: var(--h-md);
+  padding: var(--s-2) var(--s-5);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.animations-sizes-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.animations-sizes-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-6);
+}
+
+.animations-sizes-label {
+  width: 80px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.animations-sizes-cells {
+  display: flex;
+  align-items: center;
+  gap: var(--s-7);
+}
+
+.animations-sizes-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+}

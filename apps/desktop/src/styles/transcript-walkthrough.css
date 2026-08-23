@@ -1,0 +1,216 @@
+/* Transcript: walkthrough artifact card.
+   Split out of region-transcript.css (one region, split by responsibility
+   per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
+   region-transcript.css. */
+
+/* ─── Walkthrough Document Artifact Card ─────────────────────── */
+/* A generated report is a document object, not a chat bubble: it gets a
+   surface and lifts on hover like the other inline transcript cards. */
+
+.walkthrough-card {
+  position: relative;
+  border-radius: var(--r-card);
+  margin: var(--s-3) 0;
+  border: 0;
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  transition: box-shadow var(--t-2) var(--ease-out);
+  overflow: visible;
+}
+
+.walkthrough-card:hover {
+  box-shadow: var(--elev-2);
+}
+
+.walkthrough-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) var(--s-2);
+  font-size: var(--fs-chrome);
+}
+
+.doc-artifact-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--iris-lift);
+  flex-shrink: 0;
+}
+
+.walkthrough-card-title {
+  font-weight: 600;
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+}
+
+.walkthrough-card-status {
+  font-size: var(--fs-micro);
+  padding: 1px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+  font-weight: 500;
+}
+
+.walkthrough-card[data-status='generating'] .walkthrough-card-status {
+  background: color-mix(in srgb, var(--sky) 16%, transparent);
+  color: var(--sky);
+}
+
+.walkthrough-card[data-status='error'] .walkthrough-card-status {
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
+}
+
+.walkthrough-card-mode,
+.walkthrough-card-model {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-family: var(--font-mono);
+}
+
+.doc-artifact-body {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0 0 var(--s-2);
+}
+
+.doc-artifact-body.is-openable {
+  cursor: pointer;
+}
+
+.doc-artifact-body.is-openable:hover .doc-artifact-footer,
+.doc-artifact-body.is-openable:focus-visible .doc-artifact-footer {
+  color: var(--iris-lift);
+}
+
+.doc-artifact-body.is-openable:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+  border-radius: var(--r-card);
+}
+
+.doc-artifact-excerpt-box {
+  padding: var(--s-2) var(--s-5) var(--s-5);
+}
+
+.doc-artifact-excerpt-label {
+  display: block;
+  margin-bottom: var(--s-2);
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 650;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.doc-artifact-excerpt-text {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+  color: var(--text-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-artifact-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin: 0 var(--s-5) var(--s-2);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-1);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.doc-artifact-footer-arrow {
+  font-size: var(--fs-body);
+  line-height: 1;
+  transition: transform var(--t-1) var(--ease-out);
+}
+
+.doc-artifact-body.is-openable:hover .doc-artifact-footer-arrow,
+.doc-artifact-body.is-openable:focus-visible .doc-artifact-footer-arrow {
+  transform: translateX(2px);
+}
+
+/* Floating Regenerate Action & Tooltip Bubble */
+.walkthrough-card-hover-actions {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-4);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-2) var(--ease-out);
+  z-index: 25;
+}
+
+.walkthrough-card:hover .walkthrough-card-hover-actions,
+.walkthrough-card:focus-within .walkthrough-card-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doc-artifact-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-control);
+  border: 0;
+  background: var(--surface-3);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all var(--t-1) var(--ease-out);
+}
+
+.doc-artifact-icon-btn:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+/* Hover Tooltip Bubble */
+.doc-artifact-tooltip {
+  position: absolute;
+  bottom: calc(100% + var(--s-2));
+  right: 0;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-control);
+  background: var(--surface-4);
+  color: var(--text-1);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    transform var(--t-1) var(--ease-out);
+  box-shadow: var(--elev-3);
+  z-index: 100;
+}
+
+.doc-artifact-icon-btn:hover .doc-artifact-tooltip {
+  opacity: 1;
+  transform: translateY(-2px);
+}

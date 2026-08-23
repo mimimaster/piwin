@@ -1,0 +1,538 @@
+/* Transcript: markdown content typography, code fences, tables, callouts.
+   Split out of region-transcript.css (one region, split by responsibility
+   per AGENTS.md 3.2). Viewport, thread rhythm, and turn structure stay in
+   region-transcript.css.
+
+   Deck rule: prose stays unframed (it already lives on the transcript's own
+   surface), but the objects prose contains — code, tables, math, diagrams —
+   recess to the void step like every other structured/technical content in
+   the product. Errors are the one exception: they break out onto a coral
+   surface so they cannot be mistaken for settled output. */
+
+/* ─── Markdown content typography ───────────────────────────────────── */
+
+.markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.markdown > * {
+  max-width: 100%;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+/* Streaming caret: same ember signal as .stream-dot — it only exists while
+   the agent is producing tokens. */
+.markdown[style*='--streamdown-caret'] > :last-child::after {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--ember);
+  width: 0.42em;
+  height: 1em;
+  border-radius: 1px;
+  background: var(--ember);
+  content: '';
+  vertical-align: -0.12em;
+  white-space: nowrap;
+}
+
+.md-p {
+  margin: 0 0 0.6em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.md-list {
+  margin: 0 0 0.6em;
+  padding-left: 1.2em;
+}
+
+.md-list-item {
+  padding-left: 0.15em;
+  overflow-wrap: anywhere;
+}
+
+.md-list-item > .md-code-block,
+.md-list-item > .enhanced-code-block,
+.md-list-item > pre,
+.md-list-item > .md-table-wrapper {
+  margin-left: -1.05em;
+  width: calc(100% + 1.05em);
+}
+
+.md-list .md-list {
+  margin-top: 0.3em;
+  margin-bottom: 0.2em;
+}
+
+.md-task-checkbox {
+  width: 13px;
+  height: 13px;
+  margin: 0 0.45em 0 0;
+  vertical-align: -1px;
+  accent-color: var(--iris);
+}
+
+.md-link {
+  color: var(--iris-lift);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--iris-lift) 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+.md-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.md-link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--r-chip);
+}
+
+.md-hr {
+  margin: 1.1em 0;
+  border: 0;
+  border-top: 1px solid var(--line-1);
+}
+
+.md-del {
+  color: var(--text-4);
+  text-decoration-thickness: 1px;
+}
+
+.markdown img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.8em auto;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-control);
+}
+
+.md-image-fallback {
+  display: inline-block;
+  padding: 3px var(--s-4);
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: 0.9em;
+}
+
+.md-code {
+  margin: 0.4em 0 0.8em;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  overflow: auto;
+  font-size: var(--code-font-size);
+  line-height: 1.35;
+  overflow-wrap: var(--code-wrap);
+  word-break: var(--code-wrap);
+}
+
+.md-code-content {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+/* Long code fences: hide inner scroll while collapsed so the mask gradient wins. */
+.md-code-collapsible.is-collapsed .md-code {
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.md-code-collapsible .collapsible-content-toggle {
+  bottom: var(--s-4);
+}
+
+.md-code-line {
+  display: flex;
+  align-items: flex-start;
+  font-family: var(--font-mono);
+  line-height: 1.35;
+}
+
+.md-code-line-num {
+  flex: 0 0 auto;
+  min-width: 2.5ch;
+  box-sizing: content-box;
+  text-align: right;
+  padding-right: var(--s-5);
+  margin-right: var(--s-2);
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Diff fences: two-column old/new gutters (GitHub-style). */
+.md-code-diff .md-code-line-num {
+  min-width: 2.5ch;
+  padding-right: var(--s-3);
+  margin-right: 0;
+}
+
+.md-code-diff .md-code-line-num-old {
+  padding-right: var(--s-2);
+}
+
+.md-code-diff .md-code-line-num-new {
+  padding-right: var(--s-4);
+  margin-right: var(--s-2);
+}
+
+.md-code-line-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}
+
+/* Same change semantics as the file tree, diff viewer and inline review
+   lines: mint adds, coral deletes, text stays normal ink. */
+.md-code-line.diff-line-add {
+  background: color-mix(in srgb, var(--mint) 15%, transparent);
+}
+
+.md-code-line.diff-line-delete {
+  background: color-mix(in srgb, var(--coral) 15%, transparent);
+}
+
+.md-code-line.diff-line-context {
+  background: transparent;
+}
+
+.md-inline-code {
+  font-family: var(--font-mono);
+  /* Inline code should read as text, not as a pill-shaped control. */
+  background: transparent;
+  color: var(--text-1);
+  border-radius: var(--r-chip);
+  padding: 1px var(--s-3);
+  font-size: var(--code-font-size);
+  font-weight: 450;
+}
+
+.md-code-block {
+  margin: var(--s-4) 0;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  border: none;
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.md-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+  background: transparent;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.md-code-block[data-is-shell='true'] .md-code-header {
+  padding: var(--s-4) var(--s-5);
+}
+
+.md-code-header-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.md-code-shell-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-chip);
+  border: 0;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.md-code-lang {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-weight: 500;
+  text-transform: lowercase;
+}
+
+.md-code-block[data-is-shell='true'] .md-code-line-num {
+  display: none;
+}
+
+.md-code-block[data-is-shell='true'] .md-code {
+  padding: var(--s-2) var(--s-5) var(--s-5);
+}
+
+.md-code-block[data-is-shell='true'] .md-code-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.md-code-block[data-is-shell='true'] .md-code-line::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--iris);
+  flex-shrink: 0;
+}
+
+.md-code-block .md-code {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: var(--code-font-size);
+  overflow-wrap: var(--code-wrap);
+  word-break: var(--code-wrap);
+  white-space: normal;
+}
+
+/* ─── Markdown Tables ───────────────────────────────────────────────── */
+
+.md-table-wrapper {
+  margin: var(--s-4) 0 var(--s-5);
+  overflow-x: auto;
+  border-radius: var(--r-card);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-chrome);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.md-table th {
+  padding: var(--s-4) var(--s-5);
+  font-weight: 600;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-micro);
+  color: var(--text-1);
+  background: var(--hover);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.md-table td {
+  padding: var(--s-3) var(--s-5);
+  border-bottom: 1px solid var(--line-1);
+  color: var(--text-1);
+}
+
+.md-table tr:last-child td {
+  border-bottom: none;
+}
+
+.md-table tbody tr:nth-child(even) {
+  background: var(--hover);
+}
+
+.md-table tbody tr:hover {
+  background: var(--active);
+}
+
+/* ─── Headings & Callouts ────────────────────────────────────────────── */
+
+.md-h {
+  margin: 1.2em 0 0.4em;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.3;
+}
+
+.md-h1 {
+  font-size: 1.4em;
+  border-bottom: 1px solid var(--line-1);
+  padding-bottom: 0.3em;
+}
+
+.md-h2 {
+  font-size: 1.25em;
+  border-bottom: 1px solid var(--line-1);
+  padding-bottom: 0.25em;
+}
+
+.md-h3 {
+  font-size: 1.1em;
+}
+
+.md-h4,
+.md-h5,
+.md-h6 {
+  font-size: 1em;
+}
+
+.md-list-ordered {
+  list-style-type: decimal;
+}
+
+.md-blockquote {
+  margin: 0.6em 0 0.8em;
+  padding: var(--s-4) var(--s-5);
+  border-left: 3px solid var(--iris);
+  background: var(--iris-wash);
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+/* Reserved signals, matching the doc-preview callouts: coral stops you,
+   amber warns you, mint confirms, iris is neutral emphasis. GitHub's
+   "caution" gets the same treatment as "important" — both are stop signs
+   and the palette only carries one red. */
+.md-callout {
+  margin: var(--s-4) 0;
+  border-radius: var(--r-control);
+  border-left: 4px solid var(--iris);
+  background: var(--iris-wash);
+  padding: var(--s-4) var(--s-5);
+}
+
+.md-callout-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s-2);
+}
+
+.md-callout-badge {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--iris-lift);
+}
+
+.md-callout-tip {
+  border-left-color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 10%, transparent);
+}
+
+.md-callout-tip .md-callout-badge {
+  color: var(--mint);
+}
+
+.md-callout-warning {
+  border-left-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+}
+
+.md-callout-warning .md-callout-badge {
+  color: var(--amber);
+}
+
+.md-callout-important,
+.md-callout-caution {
+  border-left-color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 10%, transparent);
+}
+
+.md-callout-important .md-callout-badge,
+.md-callout-caution .md-callout-badge {
+  color: var(--coral);
+}
+
+.md-math-display {
+  margin: 0.6em 0 0.9em;
+  overflow-x: auto;
+  padding: var(--s-4) var(--s-2);
+}
+
+.md-math-inline {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: middle;
+}
+
+.md-math-error {
+  font-family: var(--font-mono);
+  color: var(--coral);
+  background: color-mix(in srgb, var(--coral) 8%, transparent);
+  border-radius: var(--r-control);
+  padding: var(--s-2) var(--s-4);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.md-math-error.md-math-display {
+  padding: var(--s-4) var(--s-5);
+}
+
+.md-mermaid {
+  margin: 0.5em 0 0.9em;
+  padding: var(--s-5);
+  border-radius: var(--r-card);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  overflow-x: auto;
+}
+
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.md-mermaid-loading {
+  margin: 0.5em 0 0.9em;
+  padding: var(--s-5);
+  border-radius: var(--r-card);
+  border: 1px dashed var(--line-2);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.md-mermaid-error {
+  margin: 0.5em 0 0.9em;
+  padding: var(--s-4) var(--s-5);
+  border-radius: var(--r-card);
+  border: 0;
+  background: color-mix(in srgb, var(--coral) 6%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 28%, transparent);
+}
+
+.md-mermaid-error-title {
+  font-weight: 600;
+  font-size: var(--fs-micro);
+  margin-bottom: var(--s-2);
+  color: var(--coral);
+}
+
+.md-mermaid-error-message {
+  margin: 0 0 var(--s-4);
+  font-size: var(--fs-micro);
+  color: var(--text-2);
+}
+
+.md-mermaid-error-code {
+  margin: 0;
+  font-size: var(--fs-micro);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-3);
+}

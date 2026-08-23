@@ -1,0 +1,284 @@
+/* Settings: add-provider and add-model dialogs, image generation form.
+   Split out of settings-resources.css (one region, split by responsibility
+   per AGENTS.md 3.2).
+
+   Deck rule: these all live inside a modal, so their internals recess instead
+   of stacking. The preset cards are the exception — they are the choices you
+   are here to make, so they get a hover lift, the only transform in the file. */
+
+/* ── Add-provider preset picker ───────────────────────────────────────── */
+
+.provider-add-dialog-desc {
+  margin: 0 0 var(--s-5);
+  font-size: var(--fs-chrome);
+  line-height: var(--lh-normal);
+}
+
+.provider-preset-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  padding: var(--s-1) var(--s-1) var(--s-4);
+}
+
+.provider-preset-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.provider-preset-group-title {
+  margin: 0;
+  padding: 0 var(--s-1);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.provider-preset-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+@media (min-width: 720px) {
+  .provider-preset-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.provider-preset-card {
+  width: 100%;
+  min-height: 56px;
+  padding: var(--s-5);
+  border-radius: var(--r-card);
+  border: none;
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  color: var(--text-1);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  cursor: pointer;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    transform var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.provider-preset-card:hover {
+  background: var(--iris-wash);
+  box-shadow:
+    var(--elev-2),
+    inset 0 0 0 1px color-mix(in srgb, var(--iris) 30%, transparent);
+  transform: translateY(-1px);
+}
+
+.provider-preset-card:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .provider-preset-card:hover {
+    transform: none;
+  }
+}
+
+.provider-preset-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+
+.provider-preset-card-name {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-preset-card-meta {
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Add model dialog ─────────────────────────────────────────────────── */
+
+.add-model-dialog .piwin-modal-content,
+.add-model-dialog .piwin-modal-body {
+  overflow: visible;
+}
+
+.add-model-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.add-model-id-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.add-model-catalog-status {
+  margin-top: var(--s-3);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+}
+
+/* Floats above the modal it belongs to, so it takes the menu tier. */
+.add-model-catalog-suggestions {
+  position: absolute;
+  z-index: 80;
+  left: 0;
+  right: 0;
+  top: calc(100% + var(--s-2));
+  margin: 0;
+  padding: var(--s-2) 0;
+  list-style: none;
+  background: var(--surface-4);
+  border: 0;
+  border-radius: var(--r-card);
+  max-height: 240px;
+  overflow: auto;
+  box-shadow: var(--elev-4);
+}
+
+.add-model-catalog-option {
+  width: 100%;
+  text-align: left;
+  padding: var(--s-4) var(--s-5);
+  background: transparent;
+  border: 0;
+  color: var(--text-1);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.add-model-catalog-option:hover,
+.add-model-catalog-option.is-active {
+  background: var(--hover);
+}
+
+.add-model-catalog-option-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-chrome);
+  line-height: 1.3;
+  word-break: break-all;
+}
+
+.add-model-catalog-option-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-5);
+  font-size: var(--fs-micro);
+  line-height: 1.3;
+}
+
+.add-model-limits-row {
+  display: flex;
+  gap: var(--s-6);
+}
+
+.add-model-limits-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-model-flags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.add-model-flag {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--fs-body);
+}
+
+.add-model-catalog-hint {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+}
+
+.add-model-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-5);
+  margin-top: var(--s-8);
+}
+
+/* ── Image generation form ────────────────────────────────────────────── */
+
+.image-gen-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.image-gen-type-pills {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-1);
+  background: var(--void);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--line-1);
+  border-radius: var(--r-control);
+}
+
+.image-gen-type-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-2) var(--s-6);
+  border-radius: var(--r-chip);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  color: var(--text-3);
+  background: transparent;
+  user-select: none;
+}
+
+/* The one filled segment in the product: picking a generation type is a mode
+   switch, and the fill is what tells you which mode you are in at a glance. */
+.image-gen-type-pill.active {
+  background: var(--iris);
+  color: var(--on-iris);
+  font-weight: 600;
+}
+
+.image-gen-type-pill.disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+.image-gen-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+}
+
+.image-gen-form-row--full {
+  grid-template-columns: 1fr;
+}

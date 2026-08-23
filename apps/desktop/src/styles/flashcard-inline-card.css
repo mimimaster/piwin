@@ -1,0 +1,377 @@
+/* Region: inline flashcard flip-card, rendered directly in the transcript
+   (FlashcardView.tsx, via chat-message-row.tsx / conversation-response-content.tsx).
+   Split out of region-flashcards.css by responsibility (AGENTS.md 3.2).
+
+   Deck rule: this card previously hardcoded a near-black charcoal face
+   (`rgba(28, 30, 38, ...)`) regardless of theme, so it rendered as a dark
+   slab even in Bone. It gets the same treatment as the transcript's other
+   floating objects (permission-request-card, subagent slots): surface-3 at
+   rest, lifting to elev-3 on hover/focus — an object you are meant to pick up
+   and turn over, not a fixed panel. */
+
+.fc-quiet-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  width: 100%;
+  max-width: 640px;
+  margin: var(--s-4) 0 var(--s-5);
+}
+
+.fc-quiet-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-card);
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  user-select: none;
+}
+
+.fc-quiet-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.fc-quiet-nav-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hover);
+  border: none;
+  border-radius: var(--r-chip);
+  color: var(--text-1);
+  font-size: var(--fs-body);
+  cursor: pointer;
+  transition: background-color var(--t-1) var(--ease-out);
+  line-height: 1;
+}
+
+.fc-quiet-nav-btn:hover {
+  background: var(--active);
+}
+
+.fc-quiet-card-container {
+  perspective: 1400px;
+  width: 100%;
+  user-select: none;
+  outline: none;
+}
+
+.fc-quiet-card-container:focus-visible .fc-quiet-frame {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.fc-quiet-frame {
+  position: relative;
+  width: 100%;
+  border-radius: var(--r-overlay);
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  cursor: pointer;
+  outline: none;
+}
+
+.fc-quiet-frame.is-flipping {
+  will-change: transform;
+}
+
+.fc-quiet-frame.is-flipped {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-quiet-frame {
+    transition: none !important;
+    transform-style: flat !important;
+  }
+}
+
+.fc-quiet-face {
+  width: 100%;
+  border-radius: var(--r-overlay);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+  border: none !important;
+  background: var(--surface-3);
+  box-shadow: var(--elev-2);
+  transition: box-shadow var(--t-2) var(--ease-out);
+}
+
+.fc-quiet-face.is-active {
+  position: relative;
+  z-index: 2;
+}
+
+.fc-quiet-face.is-hidden {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.fc-quiet-face.fc-quiet-front {
+  transform: rotateY(0deg);
+}
+
+.fc-quiet-face.fc-quiet-back {
+  transform: rotateY(180deg);
+}
+
+.fc-quiet-frame:hover .fc-quiet-face.fc-quiet-front,
+.fc-quiet-frame:hover .fc-quiet-face.fc-quiet-back {
+  box-shadow: var(--elev-3);
+}
+
+.fc-quiet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-5) var(--s-6) var(--s-4);
+  border-bottom: none;
+  gap: var(--s-4);
+}
+
+.fc-quiet-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.fc-quiet-deck {
+  font-size: var(--fs-chrome);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.fc-quiet-tag {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+/* Sky: this is a status readout ("the answer is showing"), the same reserved
+   color the terminal and MCP use for a background process running. */
+.fc-quiet-answer-pill {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--sky);
+  background: color-mix(in srgb, var(--sky) 14%, transparent);
+  padding: 2px var(--s-4);
+  border-radius: var(--r-control);
+  border: none;
+}
+
+.fc-quiet-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.fc-quiet-index {
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.fc-quiet-flip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+}
+
+.fc-quiet-flip-badge kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  padding: 2px var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--surface-4);
+  box-shadow: var(--elev-1);
+  border: none;
+  color: var(--text-2);
+}
+
+.fc-quiet-body {
+  padding: var(--s-5) var(--s-6) var(--s-6);
+  flex: 1;
+}
+
+.fc-quiet-body p {
+  margin: 0 0 var(--s-4) 0;
+  line-height: var(--lh-relaxed);
+  font-size: var(--fs-title);
+  color: var(--text-2);
+}
+
+.fc-quiet-body p:last-child {
+  margin-bottom: 0;
+}
+
+.fc-quiet-question p {
+  font-size: 17px;
+  font-weight: 550;
+  color: var(--text-1);
+  line-height: var(--lh-relaxed);
+}
+
+.fc-quiet-body blockquote {
+  margin: var(--s-5) 0;
+  padding: var(--s-4) var(--s-5);
+  border-left: 3px solid var(--iris);
+  background: var(--iris-wash);
+  border-radius: var(--r-control);
+  color: var(--text-1);
+}
+
+.fc-quiet-source-row {
+  margin-top: var(--s-5);
+  display: flex;
+}
+
+.fc-quiet-source-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.fc-quiet-source-btn:hover {
+  color: var(--text-1);
+}
+
+.fc-quiet-source-path {
+  font-family: var(--font-mono);
+  color: var(--text-4);
+}
+
+/* Footer / Rating Bar */
+.fc-quiet-footer {
+  padding: var(--s-5) var(--s-6) var(--s-6);
+  background: var(--surface-2);
+  border-top: none;
+}
+
+.fc-quiet-rating-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s-4);
+}
+
+.fc-quiet-rate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4);
+  border-radius: var(--r-control);
+  border: none;
+  background: var(--hover);
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    transform var(--t-1) var(--ease-out);
+  outline: none;
+  user-select: none;
+}
+
+.fc-quiet-rate-btn:hover {
+  background: var(--active);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-quiet-rate-btn:hover {
+    transform: none;
+  }
+}
+
+.fc-rate-key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+}
+
+.fc-quiet-rated-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--fs-chrome);
+  color: var(--text-2);
+}
+
+.fc-quiet-change-btn {
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-control);
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.fc-quiet-change-btn:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+/* Source Popover */
+.fc-quiet-source-popover {
+  margin-top: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-4);
+  border: 0;
+  border-radius: var(--r-card);
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  box-shadow: var(--elev-3);
+}
+
+.fc-quiet-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s-2);
+}
+
+.fc-quiet-popover-path {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.fc-quiet-popover-excerpt {
+  white-space: pre-wrap;
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+}
+
+.fc-quiet-open-btn {
+  font-size: var(--fs-micro);
+  color: var(--iris-lift);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}

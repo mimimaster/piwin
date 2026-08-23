@@ -1,0 +1,316 @@
+/* Composer: interruption dock — questions, permission prompts, disclosures.
+   Split out of region-composer.css (one region, split by responsibility
+   per AGENTS.md 3.2). Core dock/card/toolbar stays in region-composer.css.
+
+   Deck rule: an interruption is a lid snapped to the composer card — a real
+   object that demands attention. Tone is carried by a left stripe (iris /
+   amber / coral), not by repainting the whole surface. Permission actions use
+   the same iris primary + coral deny pattern as the rest of the product. */
+
+/* ─── Agent interruption dock (shared shell, ADR 0023 + 0024) ──────── */
+
+.agent-interruption {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin: 0 auto 0;
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  border: 0;
+  background: var(--surface-3);
+  box-shadow: var(--elev-2);
+  overflow: hidden;
+  animation: agent-interruption-slide-in var(--t-2) var(--ease-out);
+  transition:
+    background-color var(--t-2) var(--ease-out);
+}
+
+@keyframes agent-interruption-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-interruption {
+    animation: none;
+  }
+}
+
+/* Tone variants — left status stripe only; the card surface stays neutral. */
+.agent-interruption--question {
+  box-shadow:
+    var(--elev-2),
+    inset 4px 0 0 var(--iris);
+}
+
+.agent-interruption--warning {
+  box-shadow:
+    var(--elev-2),
+    inset 4px 0 0 var(--amber);
+}
+
+.agent-interruption--danger {
+  box-shadow:
+    var(--elev-2),
+    inset 4px 0 0 var(--coral);
+}
+
+/* ── Header ── */
+
+.agent-interruption-header {
+  padding: var(--s-5) var(--s-6) var(--s-4);
+}
+
+.agent-interruption-title {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.4;
+}
+
+.agent-interruption-description {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-chrome);
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+/* ── Content area ── */
+
+.agent-interruption-content {
+  padding: 0 var(--s-6) var(--s-5);
+}
+
+/* ── Question choices & Option Badges ── */
+
+.agent-interruption-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.agent-interruption-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--hover);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out);
+}
+
+.agent-interruption-choice:hover {
+  background: var(--iris-wash);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 25%, transparent);
+}
+
+.agent-interruption-choice:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.agent-interruption-choice-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--surface-4);
+  color: var(--text-2);
+  border: 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+  transition: all var(--t-2) var(--ease-out);
+}
+
+.agent-interruption-choice:hover .agent-interruption-choice-badge {
+  background: var(--iris);
+  color: var(--on-iris);
+}
+
+.agent-interruption-choice-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Action row (confirm / permission) ── */
+
+.agent-interruption-actions,
+.permission-bar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+
+.permission-bar-actions button,
+.agent-interruption-actions button {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  height: 32px;
+  padding: 0 var(--s-5);
+  border-radius: var(--r-control);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  transition: all var(--t-2) var(--ease-out);
+  cursor: pointer;
+}
+
+.permission-bar-btn-allow-session {
+  background: var(--iris) !important;
+  color: var(--on-iris) !important;
+  border: 0 !important;
+  font-weight: 600 !important;
+  box-shadow: var(--elev-1);
+}
+
+.permission-bar-btn-allow-session:hover {
+  background: var(--iris-press) !important;
+  box-shadow: var(--elev-2);
+}
+
+.permission-bar-btn-allow-once {
+  background: var(--iris-wash) !important;
+  color: var(--iris-lift) !important;
+  border: 0 !important;
+  font-weight: 500 !important;
+}
+
+.permission-bar-btn-allow-once:hover {
+  background: color-mix(in srgb, var(--iris) 22%, transparent) !important;
+}
+
+.permission-bar-btn-allow-project {
+  background: color-mix(in srgb, var(--iris) 18%, transparent) !important;
+  color: var(--iris-lift) !important;
+  border: 0 !important;
+  font-weight: 500 !important;
+}
+
+.permission-bar-btn-allow-project:hover {
+  background: color-mix(in srgb, var(--iris) 28%, transparent) !important;
+}
+
+.permission-bar-btn-deny {
+  background: color-mix(in srgb, var(--coral) 10%, var(--surface-3)) !important;
+  color: var(--coral) !important;
+  border: 0 !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 30%, transparent) !important;
+  font-weight: 600 !important;
+}
+
+.permission-bar-btn-deny:hover {
+  background: var(--coral) !important;
+  color: var(--on-iris) !important;
+  box-shadow: var(--elev-1) !important;
+}
+
+.permission-bar-btn-deny .agent-interruption-choice-badge {
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
+}
+
+.permission-bar-btn-deny:hover .agent-interruption-choice-badge {
+  background: color-mix(in srgb, var(--on-iris) 25%, transparent);
+  color: var(--on-iris);
+}
+
+/* ── Footer (cancel question) ── */
+
+.agent-interruption-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s-3);
+}
+
+/* ── Permission disclosure button ── */
+
+.permission-bar-disclosure {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.permission-bar-disclosure:hover {
+  color: var(--text-1);
+}
+
+.permission-bar-disclosure .permission-bar-chevron {
+  transition: transform var(--t-2) var(--ease-out);
+  font-size: var(--fs-body);
+}
+
+.permission-bar-disclosure .permission-bar-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+/* ── Permission detail panel ── */
+
+.permission-bar-detail-inner {
+  padding: var(--s-4) 0 var(--s-3);
+  border-top: 1px solid var(--line-1);
+  margin-top: var(--s-3);
+}
+
+.permission-bar-detail-inner .permission-facts {
+  margin: 0;
+}
+
+.permission-bar-detail-inner .permission-detail {
+  font-size: var(--fs-chrome);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* ── Permission action buttons (compact row) ── */
+
+.permission-bar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+}
+
+.permission-bar-actions button {
+  font-size: var(--fs-chrome);
+  height: 28px;
+  padding: 0 var(--s-5);
+}
+
+.permission-bar-btn-allow-session {
+  font-weight: 600;
+}

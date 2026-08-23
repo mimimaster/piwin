@@ -2,8 +2,8 @@
  * Cold-start theme resolution for the first paint.
  *
  * Host is the long-term authority (`theme/get-active`), but connecting is
- * async. Without a local last-theme cache the shell always paints Noir first,
- * then jumps to ink-wash / Paper / custom once Host responds — classic FOUC.
+ * async. Without a local last-theme cache the shell always paints Obsidian
+ * first, then jumps to Bone / ink-wash / custom once Host responds — FOUC.
  *
  * Strategy:
  * 1. If we remember a product built-in library theme id, project it immediately
@@ -15,6 +15,8 @@
 import type { ThemeManifest } from '@piwin/contracts';
 import {
   buildAppearanceTheme,
+  isBuiltinAppearanceId,
+  migrateThemeId,
   resolveBuiltinAppearance,
   resolveSystemThemeMode,
 } from './appearance-tokens';
@@ -25,14 +27,6 @@ import {
   type AppearanceMode,
 } from './ui-preferences';
 
-/** Product built-ins that ship in the desktop bundle (no Host required). */
-const STARTUP_BUILTIN_THEME_IDS = new Set([
-  'piwin-dark',
-  'piwin-light',
-  'piwin-orange-white',
-  'piwin-ink-wash',
-]);
-
 function resolvePreferredThemeMode(appearanceMode: AppearanceMode): 'light' | 'dark' {
   return appearanceMode === 'system' ? resolveSystemThemeMode() : appearanceMode;
 }
@@ -40,7 +34,7 @@ function resolvePreferredThemeMode(appearanceMode: AppearanceMode): 'light' | 'd
 /** Resolve the best theme for pre-React and DesktopThemeRoot initial state. */
 export function resolveStartupAppearance(): ThemeManifest {
   const lastThemeId = loadLastThemeId();
-  if (lastThemeId !== null && STARTUP_BUILTIN_THEME_IDS.has(lastThemeId)) {
+  if (lastThemeId !== null && isBuiltinAppearanceId(lastThemeId)) {
     return resolveBuiltinAppearance(lastThemeId);
   }
 
@@ -58,14 +52,19 @@ export function rememberAppliedTheme(theme: ThemeManifest): void {
 /**
  * True when document tokens already match this theme id — callers can skip
  * beginThemeSwitch / re-apply to avoid a second visual flip after Host bootstrap.
+ *
+ * Both sides are migrated first: Host can still hold a retired built-in id from
+ * before the Deck rename, and treating that as a different theme would repaint
+ * the shell for no visual change.
  */
 export function isDocumentThemeId(themeId: string): boolean {
   if (typeof document === 'undefined') {
     return false;
   }
-  return document.documentElement.dataset.themeId === themeId;
+  const applied = document.documentElement.dataset.themeId;
+  return applied !== undefined && migrateThemeId(applied) === migrateThemeId(themeId);
 }
 
 export function isStartupBuiltinThemeId(themeId: string): boolean {
-  return STARTUP_BUILTIN_THEME_IDS.has(themeId);
+  return isBuiltinAppearanceId(themeId);
 }

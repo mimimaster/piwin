@@ -14,7 +14,12 @@ import {
   visibleMockTranscript,
 } from './host-client-mock-tree.js';
 import { createMockSessionUserMessageIndex } from './mock-session-user-message-index';
-import { PIWIN_APPEARANCE_INK_WASH } from './appearance-tokens';
+import {
+  PIWIN_APPEARANCE_BONE,
+  PIWIN_APPEARANCE_INK_WASH,
+  PIWIN_APPEARANCE_OBSIDIAN,
+  migrateThemeId,
+} from './appearance-tokens';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
   AgentEvent,
@@ -40,6 +45,7 @@ import type {
   ContextSummaryPush,
   RunInterventionRecord,
   QueuedTurnRecord,
+  ThemeManifest,
 } from '@piwin/contracts';
 import {
   isJobTerminal,
@@ -54,6 +60,27 @@ import {
 } from '@piwin/contracts';
 
 export type MockEmit = (message: HostPush) => void;
+
+type MockBuiltinThemeId = 'piwin-obsidian' | 'piwin-bone' | 'piwin-ink-wash';
+
+function resolveMockThemeId(themeId: string): MockBuiltinThemeId {
+  const migrated = migrateThemeId(themeId);
+  if (migrated === 'piwin-bone' || migrated === 'piwin-ink-wash') {
+    return migrated;
+  }
+  return 'piwin-obsidian';
+}
+
+function mockThemeManifest(themeId: MockBuiltinThemeId): ThemeManifest {
+  switch (themeId) {
+    case 'piwin-bone':
+      return PIWIN_APPEARANCE_BONE;
+    case 'piwin-ink-wash':
+      return PIWIN_APPEARANCE_INK_WASH;
+    default:
+      return PIWIN_APPEARANCE_OBSIDIAN;
+  }
+}
 
 /**
  * In-process deterministic host for Vite/browser e2e.
@@ -90,8 +117,8 @@ export class MockHostBackend {
   private mockDisabledExtensionIds = new Set<string>();
   private mockBundledExtensionsInstalled = true;
   private mockDisabledPromptIds = new Set<string>();
-  private mockActiveThemeId:
-    'piwin-dark' | 'piwin-light' | 'piwin-orange-white' | 'piwin-ink-wash' = 'piwin-dark';
+  private mockActiveThemeId: 'piwin-obsidian' | 'piwin-bone' | 'piwin-ink-wash' =
+    'piwin-obsidian';
   private mockJobs = new Map<string, import('@piwin/contracts').JobRecord>();
   private mockJobLogs = new Map<string, string>();
   private mockPtys = new Map<string, { projectPath: string }>();
@@ -2129,31 +2156,22 @@ export class MockHostBackend {
             activeThemeId,
             themes: [
               {
-                id: 'piwin-dark',
-                name: 'Piwin Dark',
-                version: '5.0.0',
+                id: 'piwin-obsidian',
+                name: 'Obsidian',
+                version: '1.0.0',
                 mode: 'dark',
-                path: '/mock/themes/piwin-dark',
+                path: '/mock/themes/piwin-obsidian',
                 source: 'bundled',
-                active: activeThemeId === 'piwin-dark',
+                active: activeThemeId === 'piwin-obsidian',
               },
               {
-                id: 'piwin-light',
-                name: 'Piwin Light',
-                version: '5.0.0',
+                id: 'piwin-bone',
+                name: 'Bone',
+                version: '1.0.0',
                 mode: 'light',
-                path: '/mock/themes/piwin-light',
+                path: '/mock/themes/piwin-bone',
                 source: 'bundled',
-                active: activeThemeId === 'piwin-light',
-              },
-              {
-                id: 'piwin-orange-white',
-                name: '橙白',
-                version: '6.0.0',
-                mode: 'light',
-                path: '/mock/themes/piwin-orange-white',
-                source: 'bundled',
-                active: activeThemeId === 'piwin-orange-white',
+                active: activeThemeId === 'piwin-bone',
               },
               {
                 id: 'piwin-ink-wash',
@@ -2171,90 +2189,14 @@ export class MockHostBackend {
       case 'theme/get-active':
       case 'theme/set-active': {
         if (command.type === 'theme/set-active') {
-          const nextId =
-            command.themeId === 'piwin-light' ||
-            command.themeId === 'piwin-orange-white' ||
-            command.themeId === 'piwin-ink-wash'
-              ? command.themeId
-              : 'piwin-dark';
-          this.mockActiveThemeId = nextId;
+          this.mockActiveThemeId = resolveMockThemeId(command.themeId);
         }
-        const themeId = this.mockActiveThemeId;
-        if (themeId === 'piwin-ink-wash') {
-          return {
-            id,
-            type: 'response',
-            command: command.type,
-            success: true,
-            data: { theme: PIWIN_APPEARANCE_INK_WASH },
-          };
-        }
-        const isLight = themeId !== 'piwin-dark';
-        const themeName =
-          themeId === 'piwin-orange-white' ? '橙白' : isLight ? 'Piwin Light' : 'Piwin Dark';
         return {
           id,
           type: 'response',
           command: command.type,
           success: true,
-          data: {
-            theme: {
-              id: themeId,
-              name: themeName,
-              version: '5.0.0',
-              mode: isLight ? 'light' : 'dark',
-              tokens: isLight
-                ? {
-                    bg: '#f6f2eb',
-                    panel: '#fffdf9',
-                    panel2: '#f7f2ea',
-                    border: 'rgba(54, 40, 20, 0.12)',
-                    text: '#1f1a14',
-                    muted: '#6f675d',
-                    accent: '#b07a36',
-                    accent2: '#d89a4a',
-                    danger: '#c45a4c',
-                    ok: '#2f8a68',
-                    radius: '12px',
-                    font: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
-                  }
-                : {
-                    bg: '#090807',
-                    panel: '#151311',
-                    panel2: '#1b1916',
-                    border: 'rgba(255, 236, 210, 0.10)',
-                    text: '#f4efe7',
-                    muted: '#a89f93',
-                    accent: '#d89a4a',
-                    accent2: '#f0c27a',
-                    danger: '#e07a6a',
-                    ok: '#79c4a3',
-                    radius: '12px',
-                    font: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
-                  },
-              artifact: isLight
-                ? {
-                    bg: 'transparent',
-                    surface: 'rgba(255, 253, 249, 0.96)',
-                    text: '#1f1a14',
-                    muted: '#6f675d',
-                    accent: '#b07a36',
-                    border: 'rgba(54, 40, 20, 0.12)',
-                    radius: '0.75rem',
-                    font: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
-                  }
-                : {
-                    bg: 'transparent',
-                    surface: 'rgba(27, 25, 22, 0.96)',
-                    text: '#f4efe7',
-                    muted: '#a89f93',
-                    accent: '#d89a4a',
-                    border: 'rgba(255, 236, 210, 0.14)',
-                    radius: '0.75rem',
-                    font: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
-                  },
-            },
-          },
+          data: { theme: mockThemeManifest(this.mockActiveThemeId) },
         };
       }
       case 'theme/install-local':

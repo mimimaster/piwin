@@ -2,6 +2,9 @@
  * Desktop UI preferences (localStorage). Cursor-like tool density etc.
  * Not product config under ~/.piwin — pure presentation.
  */
+import type { ThemeManifest } from '@piwin/contracts';
+
+import { PIWIN_APPEARANCE_BONE, PIWIN_APPEARANCE_OBSIDIAN } from './theme/deck-palette.js';
 
 export type ToolCallDensity = 'compact' | 'comfortable' | 'detailed';
 
@@ -31,20 +34,85 @@ export type AppearanceThemeSettings = {
   accent: string;
 };
 
-/** Appearance values mirror the reference settings screen. */
-export const DEFAULT_LIGHT_THEME_SETTINGS: AppearanceThemeSettings = {
+/**
+ * Appearance defaults are the Deck faces themselves, read off the palettes
+ * rather than restated here.
+ *
+ * `buildAppearanceTheme` re-derives the whole ramp from these three colors, so
+ * any value that is not the palette's own would quietly replace the built-in
+ * face: before this was wired up the defaults were pre-Deck VS Code colors,
+ * which meant Bone shipped with a blue accent and a cold grey field and its
+ * authored palette was unreachable without hand-editing the color pickers.
+ */
+function appearanceDefaults(theme: ThemeManifest): AppearanceThemeSettings {
+  return {
+    preset: 'default',
+    background: theme.tokens.bg.toUpperCase(),
+    foreground: theme.tokens.text.toUpperCase(),
+    accent: theme.tokens.accent.toUpperCase(),
+  };
+}
+
+export const DEFAULT_LIGHT_THEME_SETTINGS: AppearanceThemeSettings =
+  appearanceDefaults(PIWIN_APPEARANCE_BONE);
+
+export const DEFAULT_DARK_THEME_SETTINGS: AppearanceThemeSettings =
+  appearanceDefaults(PIWIN_APPEARANCE_OBSIDIAN);
+
+/**
+ * Pre-Deck appearance defaults shipped before the Obsidian/Bone palettes.
+ * Users who never touched the color pickers but did save preferences will still
+ * have these in localStorage; silently map them onto the Deck faces on load so
+ * an upgrade does not strand them on VS Code blue.
+ */
+const LEGACY_LIGHT_APPEARANCE: AppearanceThemeSettings = {
   preset: 'default',
   background: '#EEEEEE',
   foreground: '#101010',
   accent: '#007ACC',
 };
 
-export const DEFAULT_DARK_THEME_SETTINGS: AppearanceThemeSettings = {
+const LEGACY_DARK_APPEARANCE: AppearanceThemeSettings = {
   preset: 'default',
   background: '#101010',
   foreground: '#CCCCCC',
   accent: '#007ACC',
 };
+
+function normalizeAppearanceTheme(settings: AppearanceThemeSettings): AppearanceThemeSettings {
+  return {
+    preset: settings.preset,
+    background: settings.background.toUpperCase(),
+    foreground: settings.foreground.toUpperCase(),
+    accent: settings.accent.toUpperCase(),
+  };
+}
+
+function appearanceThemesEqual(
+  left: AppearanceThemeSettings,
+  right: AppearanceThemeSettings,
+): boolean {
+  return (
+    left.background === right.background &&
+    left.foreground === right.foreground &&
+    left.accent === right.accent
+  );
+}
+
+/** Upgrade a stored appearance triple when it is exactly a retired default. */
+export function migrateStoredAppearanceTheme(
+  settings: AppearanceThemeSettings,
+  mode: 'light' | 'dark',
+): AppearanceThemeSettings {
+  const normalized = normalizeAppearanceTheme(settings);
+  const legacy = mode === 'light' ? LEGACY_LIGHT_APPEARANCE : LEGACY_DARK_APPEARANCE;
+  if (appearanceThemesEqual(normalized, legacy)) {
+    return mode === 'light'
+      ? { ...DEFAULT_LIGHT_THEME_SETTINGS }
+      : { ...DEFAULT_DARK_THEME_SETTINGS };
+  }
+  return normalized;
+}
 
 export type DesktopPreferences = {
   assistantTextSize: AssistantTextSize;
@@ -231,8 +299,14 @@ export function loadDesktopPreferences(): DesktopPreferences {
     verboseAgentChat: parseBoolean(readString(VERBOSE_AGENT_CHAT_KEY), true),
     conversationWidth: parseConversationWidth(readString(CONVERSATION_WIDTH_KEY)),
     appearanceMode: parseAppearanceMode(readString(APPEARANCE_MODE_KEY)),
-    lightTheme: parseAppearanceTheme(readString(LIGHT_THEME_KEY), DEFAULT_LIGHT_THEME_SETTINGS),
-    darkTheme: parseAppearanceTheme(readString(DARK_THEME_KEY), DEFAULT_DARK_THEME_SETTINGS),
+    lightTheme: migrateStoredAppearanceTheme(
+      parseAppearanceTheme(readString(LIGHT_THEME_KEY), DEFAULT_LIGHT_THEME_SETTINGS),
+      'light',
+    ),
+    darkTheme: migrateStoredAppearanceTheme(
+      parseAppearanceTheme(readString(DARK_THEME_KEY), DEFAULT_DARK_THEME_SETTINGS),
+      'dark',
+    ),
     ...(locatorAnimationRaw
       ? { agentLocatorAnimation: parseAgentLocatorAnimation(locatorAnimationRaw) }
       : {}),

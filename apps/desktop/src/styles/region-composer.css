@@ -1,8 +1,13 @@
-/* Region: composer (composer-dock.tsx, composer-plus-menu.tsx,
-   ThinkingEffortControl.tsx, context-usage-ring.tsx, slash/slash-menu.tsx).
-   Owns .composer-*, .plus-*, .slash-menu-*, .thinking-effort-*,
-   .context-usage-*, .linkish-btn and the plus-menu .status-dot indicator.
-   Uses runtime semantic tokens from appearance-tokens.ts only. */
+/* Region: composer core (composer-dock.tsx).
+   Dock, card, input area, toolbar, toolbar pills, send/stop.
+
+   The composer is the most-touched control in the product, so it is the one
+   surface allowed to sit clearly above the stage: raised fill, real elevation,
+   and an iris focus ring. Everything else in the shell stays recessive.
+
+   Sibling files (same region, split per AGENTS.md 3.2): composer-context-rail,
+   composer-interrupt, composer-attachments, composer-steer, composer-menus,
+   composer-popovers, composer-ink-wash. */
 
 /* ─── Dock ──────────────────────────────────────────────────────────── */
 
@@ -15,23 +20,20 @@
   flex-direction: column;
   align-items: stretch;
   width: 100%;
-  /* Full stage wrapper; .composer-card-v2 below owns the selected content measure. */
   max-width: none;
   margin: 0;
-  /* The transcript owns the responsive output-floor clearance above this card.
-     Keeping the dock flush also gives jump-to-latest a stable 12px gap. */
-  padding: 0 var(--chat-inline-pad, 24px) 16px;
+  /* The transcript owns the responsive output-floor clearance above this card. */
+  padding: 0 var(--chat-inline-pad) var(--s-6);
   box-sizing: border-box;
-  border: none !important;
-  border-top: none !important;
-  /* Solid canvas — transparent dock flashed white during SVG stream reflow. */
-  background: var(--canvas, var(--bg, #141416)) !important;
-  box-shadow: none !important;
+  border: none;
+  /* Transparent so the stage ember wash reads behind the card while running. */
+  background: transparent;
+  box-shadow: none;
 }
 
 .composer-dock::before,
 .composer-dock::after {
-  display: none !important;
+  display: none;
 }
 
 .composer-dock.layout-centered {
@@ -42,7 +44,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 6px var(--chat-inline-pad, 24px) 24px;
+  padding: var(--s-3) var(--chat-inline-pad) var(--s-8);
   box-sizing: border-box;
   border-top: none;
 }
@@ -53,7 +55,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 0 var(--chat-inline-pad, 24px);
+  padding: 0 var(--chat-inline-pad);
   box-sizing: border-box;
   border-top: 0;
   background: transparent;
@@ -64,19 +66,19 @@
 }
 
 .composer-sticky-banner {
-  width: var(--chat-max, 780px);
+  width: var(--chat-max);
   max-width: 100%;
-  margin: 0 auto 8px;
+  margin: 0 auto var(--s-4);
 }
 
 .composer-sticky-banner .ui-notice {
   margin: 0;
-  border-radius: var(--radius-md, 8px);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.12));
+  border-radius: var(--r-card);
+  box-shadow: var(--elev-2);
 }
 
 /* This is the concrete conversation-width boundary. It intentionally matches
-   .chat-thread, so Default equals the Composer width and Narrow / Wide change
+   .chat-thread, so Default equals the composer width and Narrow / Wide change
    both visible surfaces together. */
 .composer-card-v2,
 .composer-footer-row,
@@ -87,1208 +89,139 @@
   margin-left: auto;
 }
 
-.composer-card-v2 {
-  box-sizing: border-box;
-}
-
-@media (max-width: 820px) {
-  .composer-dock {
-    padding-bottom: 12px;
-  }
-
-  .chat-column-empty .composer-dock.layout-centered {
-    padding: 0 max(12px, var(--chat-inline-pad, 24px));
-  }
-}
-
-/* ─── Card ──────────────────────────────────────────────────────────── */
-
 .composer-footer-row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  margin-top: 6px;
-  padding: 0 4px;
+  margin-top: var(--s-3);
+  padding: 0 var(--s-1);
 }
 
-/* Context layer flush OUTSIDE the input card (project / branch / runtime). */
-.composer-context-rail {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  /* Sit flush directly above the card as a transparent layer — no card chrome. */
-  margin-bottom: 4px;
-  padding: 0 4px;
-  min-height: 0;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  pointer-events: auto;
-  z-index: 2;
-}
-
-.composer-dock.layout-centered .composer-context-rail {
-  margin-bottom: 4px;
-  padding: 0 4px;
-}
-
-.composer-context-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 360px;
-  height: 24px;
-  padding: 2px 4px;
-  border: none !important;
-  border-radius: 4px;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--muted, rgba(255, 255, 255, 0.6));
-  font: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.3;
-  cursor: pointer;
-  transition:
-    color 120ms ease,
-    background 120ms ease;
-}
-
-.composer-context-link:hover:not(:disabled) {
-  color: var(--text, #ffffff);
-  background: color-mix(in srgb, var(--text, #ffffff) 6%, transparent) !important;
-}
-
-.composer-context-link:disabled,
-.composer-context-link.is-disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.composer-context-link.is-static {
-  cursor: default;
-}
-
-.composer-context-link-icon {
-  display: inline-grid;
-  place-items: center;
-  color: inherit;
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.composer-context-link-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.composer-context-link-caret {
-  font-size: 9px;
-  color: inherit;
-  opacity: 0.7;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.composer-context-link.is-dirty .composer-context-link-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--warn, #f59e0b);
-  flex-shrink: 0;
-}
-
-.ui-menu-content.composer-context-menu {
-  min-width: 200px;
-  max-width: 300px;
-  max-height: min(50vh, 320px);
-  overflow: auto;
-}
-
-/* Project path dropdown: recent projects switch in place without a dialog. */
-.ui-menu-content.project-picker-menu {
-  width: min(380px, calc(100vw - 24px));
-  max-height: min(50vh, 360px);
-  overflow: auto;
-}
-
-.project-picker-menu-title {
-  padding-bottom: 7px;
-  font-weight: 600;
-}
-
-.project-picker-menu .ui-menu-item {
-  padding: 0;
-}
-
-.project-picker-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-width: 0;
-  padding: 7px 9px;
-}
-
-.project-picker-menu-icon {
-  flex: 0 0 auto;
-  color: var(--faint);
-}
-
-.project-picker-menu-item-body {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.project-picker-menu-item-name,
-.project-picker-menu-item-path {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-picker-menu-item-name {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.project-picker-menu-item-path {
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10.5px;
-}
-
-.project-picker-menu-check {
-  flex: 0 0 auto;
-  color: var(--accent);
-}
-
-/* Cursor-like branch picker: search field + clean rows + checkmark. */
-.ui-menu-content.branch-picker-menu {
-  min-width: 240px;
-  max-width: 320px;
-  padding: 6px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--panel, #1c1c20) 96%, #000);
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.45),
-    0 0 0 1px color-mix(in srgb, var(--text) 4%, transparent);
-  overflow: hidden;
-}
-
-.branch-picker-search {
-  padding: 2px 2px 6px;
-}
-
-.branch-picker-search-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--canvas, #111) 70%, var(--panel, #1c1c20));
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-}
-
-.branch-picker-search-input::placeholder {
-  color: var(--faint);
-}
-
-.branch-picker-search-input:focus {
-  border-color: color-mix(in srgb, var(--accent, #6ea8fe) 55%, transparent);
-}
-
-.branch-picker-list {
-  max-height: min(42vh, 280px);
-  overflow: auto;
-  padding: 2px 0;
-}
-
-.branch-picker-menu .ui-menu-item {
-  padding: 0;
-  border-radius: 8px;
-}
-
-.branch-picker-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-height: 32px;
-  padding: 6px 10px;
-  box-sizing: border-box;
-}
-
-.branch-picker-item-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.branch-picker-item.is-current .branch-picker-item-name {
-  color: var(--text);
-}
-
-.branch-picker-item-check {
-  flex-shrink: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  opacity: 0.9;
-}
-
-.branch-picker-empty,
-.branch-picker-error {
-  padding: 10px 12px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.branch-picker-error {
-  color: var(--danger, #ef4444);
-  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.composer-context-menu-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-}
-
-.composer-context-menu-row.is-muted {
-  opacity: 0.55;
-}
-
-.composer-context-menu-hint {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--faint);
-  font-weight: 400;
-}
-
-.composer-host-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
-  color: var(--faint);
-  user-select: none;
-  cursor: pointer;
-  padding: 2px 6px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease;
-  justify-self: start;
-  font-family: inherit;
-}
-
-.composer-host-status:hover {
-  color: var(--fg);
-  background-color: var(--hover-bg, rgba(255, 255, 255, 0.06));
-}
-
-.composer-host-status .host-status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.composer-host-status .host-status-dot.online {
-  background-color: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
-}
-
-.composer-host-status .host-status-dot.offline {
-  background-color: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
-  animation: host-status-pulse 1.5s infinite ease-in-out;
-}
-
-@keyframes host-status-pulse {
-  0%,
-  100% {
-    opacity: 1;
+@media (max-width: 820px) {
+  .composer-dock {
+    padding-bottom: var(--s-5);
   }
-  50% {
-    opacity: 0.4;
+
+  .chat-column-empty .composer-dock.layout-centered {
+    padding: 0 max(var(--s-5), var(--chat-inline-pad));
   }
 }
 
-.composer-hint {
-  grid-column: 2;
-  margin-top: 0;
-  text-align: center;
-  font-size: 10.5px;
-  color: var(--faint);
-  user-select: none;
-  white-space: nowrap;
-}
-
-/* ─── Agent interruption dock (shared shell, ADR 0023 + 0024) ──────── */
-
-.agent-interruption {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 0 auto 0;
-  border-radius: 12px 12px 0 0;
-  border: 1px solid var(--line);
-  background: var(--card, #1c1c20);
-  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.09);
-  overflow: hidden;
-  animation: agent-interruption-slide-in 180ms ease-out;
-  transition:
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-
-html[data-theme-mode='light'] .agent-interruption {
-  background: var(--card, #ffffff);
-  border-color: var(--line, #e2e8f0);
-  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.05);
-}
-
-@keyframes agent-interruption-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Tone variants — pure theme card background with crisp left status stripe */
-.agent-interruption--question {
-  border-left: 4px solid var(--accent, #3b82f6);
-  border-top-color: color-mix(in srgb, var(--accent, #3b82f6) 35%, var(--line));
-}
-
-.agent-interruption--warning {
-  border-left: 4px solid var(--warn, #f59e0b);
-  border-top-color: color-mix(in srgb, var(--warn, #f59e0b) 40%, var(--line));
-}
-
-.agent-interruption--danger {
-  border-left: 4px solid var(--danger, #ef4444);
-  border-top-color: color-mix(in srgb, var(--danger, #ef4444) 45%, var(--line));
-}
-
-/* ── Header ── */
-
-.agent-interruption-header {
-  padding: 12px 16px 8px;
-}
-
-.agent-interruption-title {
-  margin: 6px 0 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.4;
-}
-
-.agent-interruption-description {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-/* ── Content area ── */
-
-.agent-interruption-content {
-  padding: 0 16px 12px;
-}
-
-/* ── Question choices & Option Badges ── */
-
-.agent-interruption-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.agent-interruption-choice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-subtle, #141416) 40%, var(--card, #1c1c20));
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  transition: all 140ms ease-out;
-}
-
-.agent-interruption-choice:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  background: color-mix(in srgb, var(--accent) 12%, var(--card, #1c1c20));
-  transform: translateX(2px);
-}
-
-.agent-interruption-choice:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-}
-
-.agent-interruption-choice-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  font-size: 10.5px;
-  font-weight: 700;
-  font-family: var(--font-mono, monospace);
-  flex-shrink: 0;
-  transition: all 140ms ease-out;
-}
-
-.agent-interruption-choice:hover .agent-interruption-choice-badge {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
-.agent-interruption-choice-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ── Action row (confirm / permission) ── */
-
-.agent-interruption-actions,
-.permission-bar-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.permission-bar-actions button,
-.agent-interruption-actions button {
-  font-size: 12.5px;
-  font-weight: 500;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 140ms ease-out;
-  cursor: pointer;
-}
-
-/* Solid Blue Primary: "允许本次会话" */
-.permission-bar-btn-allow-session {
-  background: var(--accent, #2563eb) !important;
-  color: #ffffff !important;
-  border: 1px solid transparent !important;
-  font-weight: 600 !important;
-  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.28);
-}
-
-.permission-bar-btn-allow-session:hover {
-  background: #1d4ed8 !important;
-  box-shadow: 0 3px 8px rgba(29, 78, 216, 0.38);
-  transform: translateY(-1px);
-}
-
-/* Solid Blue Secondary: "仅允许这一次" */
-.permission-bar-btn-allow-once {
-  background: #2563eb !important;
-  color: #ffffff !important;
-  border: 1px solid transparent !important;
-  font-weight: 500 !important;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.22);
-}
-
-.permission-bar-btn-allow-once:hover {
-  background: #1d4ed8 !important;
-  box-shadow: 0 3px 6px rgba(29, 78, 216, 0.32);
-  transform: translateY(-1px);
-}
-
-/* Solid Blue Project Allow: "允许此项目" */
-.permission-bar-btn-allow-project {
-  background: #1d4ed8 !important;
-  color: #ffffff !important;
-  border: 1px solid transparent !important;
-  font-weight: 500 !important;
-  box-shadow: 0 1px 3px rgba(29, 78, 216, 0.22);
-}
-
-.permission-bar-btn-allow-project:hover {
-  background: #1e40af !important;
-  box-shadow: 0 3px 6px rgba(30, 64, 175, 0.32);
-  transform: translateY(-1px);
-}
-
-/* Solid Red Deny: "拒绝" */
-.permission-bar-btn-deny {
-  background: color-mix(in srgb, var(--danger, #ef4444) 10%, var(--card)) !important;
-  color: var(--danger, #dc2626) !important;
-  border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 38%, transparent) !important;
-  font-weight: 600 !important;
-}
-
-.permission-bar-btn-deny:hover {
-  background: var(--danger, #dc2626) !important;
-  color: #ffffff !important;
-  border-color: var(--danger, #dc2626) !important;
-  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
-  transform: translateY(-1px);
-}
-
-.permission-bar-btn-deny .agent-interruption-choice-badge {
-  background: color-mix(in srgb, var(--danger, #ef4444) 18%, transparent);
-  color: var(--danger, #dc2626);
-  border-color: color-mix(in srgb, var(--danger, #ef4444) 40%, transparent);
-}
-
-.permission-bar-btn-deny:hover .agent-interruption-choice-badge {
-  background: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.4);
-}
-
-/* ── Footer (cancel question) ── */
-
-.agent-interruption-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 6px;
-}
-
-/* ── Permission disclosure button ── */
-
-.permission-bar-disclosure {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 100ms ease;
-}
-
-.permission-bar-disclosure:hover {
-  color: var(--text);
-}
-
-.permission-bar-disclosure .permission-bar-chevron {
-  transition: transform 160ms ease;
-  font-size: 14px;
-}
-
-.permission-bar-disclosure .permission-bar-chevron.is-expanded {
-  transform: rotate(180deg);
-}
-
-/* ── Permission detail panel ── */
-
-.permission-bar-detail-inner {
-  padding: 8px 0 6px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
-  margin-top: 6px;
-}
-
-.permission-bar-detail-inner .permission-facts {
-  margin: 0;
-}
-
-.permission-bar-detail-inner .permission-detail {
-  font-size: 12px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-/* ── Permission action buttons ── */
-
-.permission-bar-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.permission-bar-actions button {
-  font-size: 12px;
-  height: 28px;
-  padding: 0 12px;
-}
-
-.permission-bar-btn-allow-session {
-  font-weight: 600;
-}
+/* ─── Card ────────────────────────────────────────────────────────────
+   Elevation instead of a border: the rim light on top and the shadow beneath
+   are what lift it off the stage. Focus adds an iris ring rather than
+   changing the fill, so the card never appears to move when you click into it. */
 
 .composer-card-v2 {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   width: var(--chat-max);
   max-width: 100%;
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--composer, var(--card)) 96%, transparent);
-  /* Quiet rounded pill with gentle elevation shadow. */
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  border: 0;
+  border-radius: var(--r-panel);
+  background: var(--surface-3);
+  box-shadow: var(--elev-3);
   transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease;
+    box-shadow var(--t-3) var(--ease-out),
+    background-color var(--t-3) var(--ease-out);
   /* Popovers (slash menu, thinking effort) open upward past the card edge. */
   overflow: visible;
 }
 
-html[data-theme-mode='dark'] .composer-card-v2 {
-  background: color-mix(in srgb, var(--composer, #1c1c21) 94%, transparent);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.25);
+/* Hover lifts the card a step without claiming focus; focus adds the iris rim
+   on top of that lift. */
+.composer-card-v2:hover {
+  box-shadow: var(--elev-4);
 }
 
-/* No accent glow on hover/focus — keep the same quiet border. */
-.composer-card-v2:hover,
-.composer-card-v2:focus-within {
-  border-color: color-mix(in srgb, var(--text) 18%, transparent);
+.composer-card-v2:focus-within,
+.composer-card-v2:hover:focus-within {
+  box-shadow:
+    var(--elev-3),
+    0 0 0 1px var(--iris);
 }
 
-/* No focus glow — selected composer keeps the idle border/background.
-   Drop-active still gets a quiet accent border so drag targets remain clear. */
 .composer-card-v2.drop-active {
-  background: var(--composer, var(--sidebar, var(--panel)));
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow: none;
+  background: var(--surface-4);
+  box-shadow:
+    var(--elev-4),
+    0 0 0 2px var(--iris);
 }
 
-html[data-theme-mode='dark'] .composer-card-v2.drop-active {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: none;
-}
-
+/* While the agent is running the card takes an ember rim — the same signal as
+   the stage wash behind it, so the two read as one state, not two. */
 .composer-card-v2.is-streaming {
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  box-shadow: none;
+  box-shadow:
+    var(--elev-3),
+    0 0 0 1px color-mix(in srgb, var(--ember) 55%, transparent);
 }
 
 /* Empty session: a single focused prompt card, without landing-page chrome. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
   width: var(--chat-max);
-  border-radius: 18px;
-  background: var(--composer, var(--sidebar, var(--panel)));
-  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: var(--r-overlay);
+  box-shadow: var(--elev-4);
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-v2-input-area {
-  padding: 12px 14px 6px;
+  padding: var(--s-6) var(--s-6) var(--s-3);
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-v2-textarea {
   min-height: 26px;
-  font-size: 14.5px;
-  line-height: 1.5;
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-v2-toolbar {
-  padding: 4px 10px 8px;
+  padding: var(--s-2) var(--s-5) var(--s-4);
 }
 
-/* ─── Attachments / diversion shelf ──────────────────────────────────── */
-
-.composer-attachment-shelf {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: 160px;
-  border-bottom: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  background: transparent;
-  animation: composer-shelf-open 180ms ease-out;
-}
-
-[data-theme='light'] .composer-attachment-shelf {
-  border-bottom-color: rgba(0, 0, 0, 0.07);
-}
-
-@keyframes composer-shelf-open {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 160px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-attachment-shelf {
-    animation: none;
-  }
-}
-
-.composer-attachment-shelf-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px 8px;
-  overflow: auto;
-  max-height: 140px;
-}
-
-.composer-v2-attachments {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px 8px;
-}
-
-/* Text-only model + image attachment: warn at attach time (not only on send). */
-.composer-v2-vision-warning {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 8px 14px 0;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 35%, var(--line-soft, transparent));
-  background: color-mix(in srgb, var(--warn, #f59e0b) 12%, var(--surface, transparent));
-  color: var(--text);
-}
-
-.composer-v2-vision-warning-text {
-  flex: 1;
-  min-width: 0;
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: color-mix(in srgb, var(--text) 88%, var(--warn, #f59e0b));
-}
-
-.composer-v2-vision-warning-action {
-  flex: none;
-  margin: 0;
-  padding: 2px 8px;
-  border: none;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--warn, #f59e0b) 18%, transparent);
-  color: var(--text);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.composer-v2-vision-warning-action:hover {
-  background: color-mix(in srgb, var(--warn, #f59e0b) 28%, transparent);
-}
-
-/* Base chip container */
-.composer-v2-attachment-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
-  background: var(--surface, rgba(255, 255, 255, 0.04));
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  box-sizing: border-box;
-  flex-shrink: 0;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
-}
-
-[data-theme='light'] .composer-v2-attachment-chip {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.composer-v2-attachment-chip:focus {
-  outline: none;
-}
-
-.composer-v2-attachment-chip:focus-visible {
-  outline: 2px solid var(--accent, #3b82f6);
-  outline-offset: 2px;
-}
-
-/* Media (image/screenshot) thumbnail card */
-.composer-v2-attachment-chip.composer-v2-media-chip,
-.composer-v2-attachment-chip:not(.composer-v2-doc-comment-chip):not(.composer-v2-context-chip) {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  overflow: hidden;
-}
-
-.composer-v2-attachment-chip.composer-v2-media-chip:hover,
-.composer-v2-attachment-chip:not(.composer-v2-doc-comment-chip):not(.composer-v2-context-chip):hover {
-  border-color: color-mix(in srgb, var(--text) 32%, transparent);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-}
-
-.composer-v2-attachment-chip .media-chip-container {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  border-radius: inherit;
-  overflow: hidden;
-}
-
-.composer-v2-attachment-chip .media-chip-thumb-button {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  margin: 0;
-  border: none;
-  background: transparent;
-  cursor: zoom-in;
-  border-radius: inherit;
-}
-
-.composer-v2-attachment-chip .media-chip-thumb {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: inherit;
-}
-
-/* Badge (GIF / Resolution) on media thumbnail */
-.composer-attachment-media-badge {
-  position: absolute;
-  left: 2px;
-  bottom: 2px;
-  z-index: 4;
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.78);
-  color: #fff;
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
-  pointer-events: none;
-}
-
-/* Saving/preparing status overlay */
-.composer-v2-attachment-status {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 4px;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--surface, #0f172a) 85%, transparent);
-  color: var(--text, #f8fafc);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
-  text-align: center;
-  pointer-events: none;
-}
-
-.composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb,
-.composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb-button {
-  opacity: 0.65;
-}
-
-/* Failed attachment chip */
-.composer-v2-attachment-chip[data-upload-status='error'] {
-  border-color: color-mix(in srgb, var(--danger, #ef4444) 75%, transparent);
-}
-
-.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb,
-.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb-button {
-  opacity: 0.5;
-  filter: grayscale(0.4);
-}
-
-/* Media card delete button (✕ on top-right of image) */
-.composer-v2-chip-remove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  z-index: 10;
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.78);
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 10px;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-  line-height: 1;
-  opacity: 0.85;
-  transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
-}
-
-.composer-v2-chip-remove:hover {
-  opacity: 1;
-  background: var(--danger, #ef4444);
-  border-color: var(--danger, #ef4444);
-  color: #fff;
-  transform: scale(1.1);
-}
-
-.composer-v2-attachment-chip:hover .composer-v2-chip-remove,
-.composer-v2-attachment-chip:focus-within .composer-v2-chip-remove {
-  opacity: 1;
-}
-
-/* Context / Doc comment chip (Text pills) */
-.composer-v2-doc-comment-chip {
-  width: auto;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: color-mix(
-    in srgb,
-    var(--card, var(--surface)) 92%,
-    var(--surface-inset, transparent)
-  );
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text, #f1f5f9);
-  max-width: 280px;
-  position: relative;
-}
-
-[data-theme='light'] .composer-v2-doc-comment-chip {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.08);
-  color: #1e293b;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.composer-v2-context-chip.is-error {
-  border-color: color-mix(in srgb, var(--danger, #ef4444) 55%, transparent);
-}
-
-.composer-v2-context-chip.is-error .doc-comment-chip-icon {
-  color: var(--danger, #ef4444);
-}
-
-.doc-comment-chip-icon {
-  display: inline-flex;
-  color: var(--accent, #3b82f6);
-  flex-shrink: 0;
-}
-
-.doc-comment-chip-title,
-.composer-v2-context-chip .chip-text {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;
-}
-
-.doc-comment-chip-dot {
-  color: var(--muted, #94a3b8);
-  flex-shrink: 0;
-}
-
-.doc-comment-chip-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 12px;
-  color: var(--muted, #94a3b8);
-  flex-shrink: 0;
-}
-
-.doc-comment-chip-count-icon {
-  opacity: 0.85;
-}
-
-/* Remove control: inline for text chips */
-.composer-v2-doc-comment-chip .doc-comment-chip-remove {
-  position: static;
-  width: 16px;
-  height: 16px;
-  margin-left: 2px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted, #94a3b8);
-  opacity: 0.7;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  cursor: pointer;
-  transition:
-    opacity 0.12s ease,
-    background 0.12s ease,
-    color 0.12s ease;
-}
-
-.composer-v2-doc-comment-chip:hover .doc-comment-chip-remove,
-.composer-v2-doc-comment-chip:focus-within .doc-comment-chip-remove {
-  opacity: 1;
-}
-
-.composer-v2-doc-comment-chip .doc-comment-chip-remove:hover {
-  background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
-  color: var(--danger, #ef4444);
-}
-
-/* Attachment failure rows */
-.composer-v2-attachment-failures {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0 14px 8px;
-}
-
-.composer-v2-attachment-failure {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.composer-v2-attachment-failure-label {
-  flex-shrink: 0;
-  font-weight: 600;
-  color: var(--danger, #ef4444);
-}
-
-.composer-v2-attachment-failure-reason {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted, rgba(248, 250, 252, 0.64));
-}
-
-.composer-v2-attachment-failure-actions {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 4px;
-}
-
-.composer-v2-attachment-failure-action {
-  border: none;
-  background: none;
-  padding: 0 4px;
-  font: inherit;
-  font-weight: 600;
-  color: var(--accent, #60a5fa);
-  cursor: pointer;
-}
-
-.composer-v2-attachment-failure-action:hover {
-  text-decoration: underline;
-}
-
-/* Only failed attachments remain: the action button is a retry. */
-.composer-v2-send-btn.is-retry {
-  background: color-mix(in srgb, var(--danger, #ef4444) 24%, transparent);
-  color: var(--danger, #ef4444);
-}
-
-/* ─── Input area ────────────────────────────────────────────────────── */
+/* ─── Input area ──────────────────────────────────────────────────────
+   Generous top padding: the prompt is the subject of the card, the toolbar
+   is a caption under it. */
 
 .composer-v2-input-area {
   position: relative;
-  padding: 12px 14px 6px;
+  padding: var(--s-5) var(--s-6) var(--s-3);
 }
 
 .composer-v2-textarea {
   display: block;
   width: 100%;
   min-height: 26px;
-  max-height: 160px;
+  max-height: 200px;
   padding: 0;
   border: none;
   outline: none;
   resize: none;
   background: transparent;
-  color: var(--text);
+  color: var(--text-1);
   font-family: var(--font);
-  font-size: 14.5px;
-  line-height: 1.5;
-  letter-spacing: -0.01em;
+  font-size: var(--chat-font-size);
+  line-height: 1.55;
+  letter-spacing: -0.011em;
 }
 
 .composer-v2-textarea::placeholder {
-  color: var(--faint);
+  color: var(--text-4);
 }
 
 .composer-v2-textarea:disabled {
-  opacity: 0.5;
+  color: var(--text-4);
 }
 
-/* ─── Toolbar (Separated by background color difference, NO top line) ── */
+/* ─── Toolbar ─────────────────────────────────────────────────────────
+   No divider line: the toolbar is separated from the prompt by space alone.
+   Every control here is a ghost until hovered. */
 
 .composer-v2-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 10px 8px;
-  border-radius: 0 0 16px 16px;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-4) var(--s-4);
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
   background: transparent;
   overflow: visible;
 }
@@ -1297,64 +230,62 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-toolbar-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s-2);
   min-width: 0;
+  overflow: visible;
 }
 
 .composer-speech-status {
   max-width: 150px;
   overflow: hidden;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: var(--fs-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .composer-speech-status.is-error {
-  color: var(--danger, #ef4444);
-}
-
-.composer-v2-toolbar-right {
-  gap: 6px;
-  overflow: visible;
+  color: var(--coral);
 }
 
 .composer-v2-icon-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: var(--h-sm);
+  height: var(--h-sm);
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-control);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-3);
   cursor: pointer;
-  transition:
-    background 140ms ease,
-    color 140ms ease,
-    transform 140ms ease;
   flex-shrink: 0;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .composer-v2-icon-btn svg {
-  width: 15px;
-  height: 15px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
 }
 
 .composer-v2-icon-btn:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  transform: none;
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.composer-v2-icon-btn:active:not(:disabled) {
+  background: var(--active);
 }
 
 .composer-v2-icon-btn.active {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--iris-lift);
+  background: var(--iris-wash);
 }
 
 .composer-v2-icon-btn:disabled {
-  opacity: 0.35;
+  color: var(--text-4);
   cursor: default;
 }
 
@@ -1362,15 +293,15 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-mode-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-2);
   height: 22px;
-  padding: 0 8px;
+  padding: 0 var(--s-4);
   border: none;
-  border-radius: 100px;
-  font-size: 11px;
-  font-weight: 650;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-mono);
+  font-weight: 600;
+  background: var(--iris-wash);
+  color: var(--iris-lift);
 }
 
 .composer-v2-mode-dismiss {
@@ -1382,243 +313,161 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   border-radius: 50%;
   background: transparent;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--fs-chrome);
   cursor: pointer;
   line-height: 1;
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
 .composer-v2-mode-dismiss:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--iris) 22%, transparent);
 }
 
-/* ─── Steer Queue Dock ──────────────────────────────────────────────── */
+/* ─── Toolbar pills ───────────────────────────────────────────────────
+   Model, thinking effort, run mode, and orchestration share one shape so the
+   toolbar reads as a row of peers. Only the value carries emphasis; labels,
+   separators, and chevrons stay at text-3 or below. */
 
-.steer-queue-dock {
-  width: var(--chat-max);
-  max-width: 100%;
-  margin: 0 auto -1px;
-  box-sizing: border-box;
-  border-radius: 14px 14px 0 0;
-  border: 1px solid color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
-  border-bottom-color: color-mix(in srgb, var(--text, #ffffff) 7%, transparent);
-  background: color-mix(in srgb, var(--composer, var(--card, #1c1c21)) 97%, #000000);
-  box-shadow: none;
-  padding: 8px 9px 7px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  overflow: hidden;
-  animation: steerQueuePopIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.thinking-effort-control,
+.run-mode-control,
+.orchestration-scheme-control {
+  position: relative;
+  overflow: visible;
+  z-index: 3;
 }
 
-.composer-dock.has-steer-queue .composer-card-v2 {
-  border-radius: 0 0 14px 14px;
-}
-
-.composer-dock.has-steer-queue .composer-card-v2.is-streaming {
-  border-top-color: color-mix(in srgb, var(--text, #ffffff) 7%, transparent);
-}
-
-@keyframes steerQueuePopIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.steer-queue-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  user-select: none;
-  padding: 0 3px;
-}
-
-.steer-queue-heading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  line-height: 1.3;
-}
-
-.steer-queue-title {
-  font-weight: 650;
-  color: color-mix(in srgb, var(--text, #f4f4f5) 88%, transparent);
-}
-
-.steer-queue-count {
+.thinking-effort-trigger,
+.run-mode-trigger,
+.orchestration-scheme-trigger {
   display: inline-flex;
   align-items: center;
-  min-height: 18px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: color-mix(in srgb, var(--accent) 78%, var(--text, #ffffff));
-  font-size: 10.5px;
-  font-weight: 600;
-}
-
-.steer-queue-subtitle {
+  justify-content: flex-start;
+  gap: var(--s-2);
+  height: var(--h-sm);
   min-width: 0;
-  overflow: hidden;
-  color: color-mix(in srgb, var(--text, #ffffff) 43%, transparent);
-  font-size: 10.5px;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.steer-queue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: min(232px, 34vh);
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  list-style: none;
-  scrollbar-width: thin;
-}
-
-.steer-queue-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 36px;
-  padding: 4px 5px 4px 7px;
-  box-sizing: border-box;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--text, #ffffff) 3.5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text, #ffffff) 5.5%, transparent);
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease;
-}
-
-.steer-queue-item:hover {
-  background: color-mix(in srgb, var(--text, #ffffff) 5.5%, transparent);
-  border-color: color-mix(in srgb, var(--text, #ffffff) 9%, transparent);
-}
-
-.steer-queue-position {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--text, #ffffff) 6%, transparent);
-  color: color-mix(in srgb, var(--text, #ffffff) 47%, transparent);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-.steer-queue-item-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-}
-
-.steer-queue-item-text {
-  font-size: 12.5px;
-  color: color-mix(in srgb, var(--text, #f4f4f5) 90%, transparent);
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.steer-queue-edit-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: color-mix(in srgb, var(--panel, #111115) 90%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 50%, transparent);
-  border-radius: 6px;
-  color: var(--text, #ffffff);
-  font-family: inherit;
-  font-size: 12.5px;
-  padding: 4px 7px;
-  outline: none;
-  resize: none;
-}
-
-.steer-queue-item-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.steer-queue-action {
-  display: inline-grid;
-  place-items: center;
-  width: 25px;
-  height: 25px;
-  padding: 0;
+  max-width: 280px;
+  padding: 0 var(--s-4);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-control);
   background: transparent;
-  color: color-mix(in srgb, var(--text, #ffffff) 55%, transparent);
+  color: var(--text-3);
   cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+  box-shadow: none;
+  white-space: nowrap;
   transition:
-    color 120ms ease,
-    background-color 120ms ease;
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
-.steer-queue-action.is-send-now {
-  color: color-mix(in srgb, var(--accent) 82%, var(--text, #ffffff));
+.thinking-effort-trigger:hover:not(:disabled),
+.run-mode-trigger:hover:not(:disabled),
+.orchestration-scheme-trigger:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--hover);
 }
 
-.steer-queue-action.is-send-now:hover {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+.thinking-effort-trigger[aria-expanded='true'],
+.run-mode-trigger[aria-expanded='true'],
+.orchestration-scheme-trigger[aria-expanded='true'] {
+  color: var(--text-1);
+  background: var(--active);
 }
 
-.steer-queue-action:hover {
-  color: var(--text, #ffffff);
-  background: color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
+.thinking-effort-trigger:disabled,
+.run-mode-trigger:disabled,
+.orchestration-scheme-trigger:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
 }
 
-.steer-queue-action.is-remove:hover {
-  color: var(--danger, #ef4444);
-  background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
+.thinking-effort-model,
+.run-mode-value,
+.orchestration-scheme-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-weight: 550;
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.steer-queue-action.is-confirm {
-  color: var(--accent, #6ea8fe);
+.thinking-effort-trigger:hover .thinking-effort-model,
+.run-mode-trigger:hover .run-mode-value,
+.orchestration-scheme-trigger:hover .orchestration-scheme-value {
+  color: var(--text-1);
 }
 
-.steer-queue-action.is-confirm:hover {
-  background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent);
+.thinking-effort-sep,
+.thinking-effort-value,
+.orchestration-scheme-prefix {
+  flex-shrink: 0;
+  color: var(--text-4);
+  font-weight: 450;
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+  background: transparent;
 }
 
-/* ─── Send / stop / steer action button ─────────────────────────────── */
+/* Ultra thinking is a real cost signal, so it is the one pill value that
+   earns a tint. */
+.thinking-effort-control.ultra-active .thinking-effort-value {
+  color: var(--iris-lift);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--iris-wash);
+}
+
+/* A relaxed permission preset is a standing condition: amber text only, no
+   fill — ember and coral must stay the loudest things in this toolbar. */
+.run-mode-control.is-warning .run-mode-value {
+  color: var(--amber);
+}
+
+.thinking-effort-chevron,
+.run-mode-chevron,
+.orchestration-scheme-chevron {
+  flex-shrink: 0;
+  width: 0;
+  height: 0;
+  margin-left: var(--s-1);
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  color: var(--text-4);
+  opacity: 0.8;
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.thinking-effort-trigger[aria-expanded='true'] .thinking-effort-chevron,
+.run-mode-trigger[aria-expanded='true'] .run-mode-chevron,
+.orchestration-scheme-trigger[aria-expanded='true'] .orchestration-scheme-chevron {
+  transform: rotate(180deg);
+}
+
+/* ─── Send / stop / steer ─────────────────────────────────────────────
+   Send is the only solid iris fill in the shell. Stop replaces it in place
+   at the same size, so the primary action never moves. */
 
 .composer-v2-action-slot {
   position: relative;
   display: grid;
   place-items: center;
-  min-width: 24px;
+  min-width: var(--s-8);
   width: auto;
-  height: 24px;
+  height: var(--h-sm);
   flex-shrink: 0;
 }
 
 .composer-v2-action-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--s-2);
 }
 
 /* Class display:grid would otherwise override the UA [hidden] { display:none }. */
@@ -1631,60 +480,61 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-send-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: var(--h-sm);
+  height: var(--h-sm);
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-fg, #ffffff);
+  background: var(--iris-fill);
+  color: var(--on-iris);
   cursor: pointer;
-  box-shadow: none;
-  transition:
-    opacity 0.12s ease,
-    filter 0.12s ease,
-    background-color 0.12s ease;
+  box-shadow: var(--elev-1);
   flex-shrink: 0;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    box-shadow var(--t-2) var(--ease-out),
+    transform var(--t-1) var(--ease-out);
 }
 
 .composer-v2-send-btn svg {
-  width: 15px;
-  height: 15px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .composer-v2-send-btn:hover:not(:disabled) {
-  filter: brightness(1.06);
+  box-shadow:
+    var(--elev-1),
+    0 0 0 4px var(--iris-wash);
 }
 
 .composer-v2-send-btn:active:not(:disabled) {
-  filter: brightness(0.96);
+  background: var(--iris-press);
+  transform: scale(0.94);
 }
 
 .composer-v2-send-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-  background: color-mix(in srgb, var(--fg) 8%, transparent);
-  color: color-mix(in srgb, var(--fg) 40%, transparent);
+  background: var(--hover);
+  color: var(--text-4);
   box-shadow: none;
+  cursor: default;
 }
 
 .composer-v2-stop-btn {
   position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: var(--h-sm);
+  height: var(--h-sm);
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--text, #ffffff) 10%, var(--composer, #1c1c21));
-  color: var(--danger, #ef4444);
+  background: color-mix(in srgb, var(--coral) 16%, transparent);
+  color: var(--coral);
   cursor: pointer;
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    filter 140ms ease;
   flex-shrink: 0;
+  transition:
+    background-color var(--t-2) var(--ease-out),
+    transform var(--t-1) var(--ease-out);
 }
 
 .composer-v2-stop-btn.is-running::before {
@@ -1694,1847 +544,237 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-stop-btn svg {
   position: relative;
   z-index: 1;
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .composer-v2-stop-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text, #ffffff) 22%, var(--composer, #1c1c21));
-  color: color-mix(in srgb, var(--danger, #ef4444) 95%, #ffffff);
+  background: color-mix(in srgb, var(--coral) 26%, transparent);
 }
 
 .composer-v2-stop-btn:active:not(:disabled) {
-  filter: brightness(0.92);
+  transform: scale(0.94);
 }
 
 .composer-v2-stop-btn:disabled {
-  opacity: 0.45;
+  background: var(--hover);
+  color: var(--text-4);
   cursor: default;
-  background: color-mix(in srgb, var(--text, #ffffff) 8%, var(--composer, #1c1c21));
-  color: color-mix(in srgb, var(--fg) 40%, transparent);
 }
 
 .composer-v2-streaming-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--s-3);
 }
 
 .composer-v2-text-btn {
   height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 600;
+  padding: 0 var(--s-5);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--hover);
+  color: var(--text-3);
+  font-size: var(--fs-mono);
+  font-weight: 560;
   cursor: pointer;
   transition:
-    background var(--motion-quick, 120ms) ease,
-    border-color var(--motion-quick, 120ms) ease,
-    color var(--motion-quick, 120ms) ease,
-    box-shadow var(--motion-quick, 120ms) ease;
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
 .composer-v2-text-btn:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--line);
-  background: var(--surface-hover);
+  color: var(--text-1);
+  background: var(--active);
 }
 
 .composer-v2-text-btn:disabled {
-  opacity: 0.35;
+  color: var(--text-4);
   cursor: default;
 }
 
-/* ─── Plus menu (ui-kit DropdownMenu) ───────────────────────────────── */
-
-.plus-anchor {
-  position: relative;
-}
-
-/* Radix anchors the portaled menu to this element; it mirrors the "+" button
-   box so the flyout lines up, and never intercepts the button's own clicks. */
-.plus-menu-anchor {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.ui-menu-content.plus-menu,
-.ui-menu-content.plus-submenu {
-  min-width: 220px;
-  max-width: 280px;
-  max-height: min(70vh, 420px);
-  overflow: auto;
-  border-radius: 12px;
-  background: var(--surface-raised);
-}
-
-.ui-menu-content.plus-submenu {
-  min-width: 240px;
-}
-
-.plus-menu-caption {
-  padding: 6px 10px 8px;
-  font-size: 11px;
-}
-
-.plus-menu-icon {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  color: var(--muted);
-  font-size: 15px;
-}
-
-.plus-menu-icon svg {
-  width: 15px;
-  height: 15px;
-}
-
-.plus-menu-label {
-  flex: 1;
-  min-width: 0;
-}
-
-.plus-menu-chevron {
-  color: var(--faint);
-  font-size: 16px;
-}
-
-.plus-menu-check {
-  color: var(--accent);
-  font-size: 12px;
-}
-
-.plus-menu-empty,
-.plus-menu-static {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  font-size: 12.5px;
-}
-
-.plus-menu-flag {
-  font-size: 11px;
-}
-
-/* MCP server on/off indicator inside the plus submenu. */
-.plus-menu-static .status-dot {
-  font-family: var(--mono);
-  color: var(--muted);
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  padding: 2px 8px;
-  background: var(--surface-inset);
-}
-
-.plus-menu-static .status-dot.ok {
-  color: var(--ok);
-  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
-}
-
-/* ─── Slash menu (/) ────────────────────────────────────────────────── */
-
-.slash-menu-root {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% + 6px);
-  z-index: var(--layer-menu);
-  display: flex;
-  justify-content: stretch;
-  pointer-events: auto;
-}
-
-.slash-menu {
-  width: 100%;
-  max-height: min(50vh, 320px);
-  overflow: auto;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow);
-}
-
-.slash-menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-bottom: 4px;
-}
-
-.slash-menu-section-title {
-  padding: 6px 10px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.slash-menu-item {
-  display: grid;
-  grid-template-columns: minmax(96px, auto) 1fr auto;
-  align-items: center;
-  gap: 8px 12px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
-  font-size: 13px;
-}
-
-.slash-menu-item:hover,
-.slash-menu-item.active {
-  background: var(--surface-hover);
-}
-
-.slash-menu-item:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.slash-menu-name {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--accent);
-}
-
-.slash-menu-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.slash-menu-badge {
-  font-size: 10px;
-}
-
-.slash-menu-empty {
-  padding: 12px 10px;
-  font-size: 13px;
-}
-
-/* Prompt history list (ArrowUp) — reuses slash menu chrome. */
-.prompt-history-menu .slash-menu-item {
-  grid-template-columns: 28px minmax(0, 1fr);
-}
-
-.prompt-history-menu .slash-menu-name {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  color: var(--muted);
-}
-
-/* ─── Thinking effort / model pill ──────────────────────────────────── */
-
-.thinking-effort-control {
-  position: relative;
-  overflow: visible;
-  z-index: 3;
-}
-
-.thinking-effort-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 5px;
-  height: 28px;
-  min-width: 0;
-  max-width: 280px;
-  padding: 2px 8px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12.5px;
-  font-family: inherit;
-  line-height: 1.4;
-  box-shadow: none;
-  transition:
-    background 140ms ease,
-    color 140ms ease;
-}
-
-.thinking-effort-trigger:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  border: none;
-  box-shadow: none;
-}
-
-.thinking-effort-trigger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.thinking-effort-model {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text);
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thinking-effort-sep {
-  flex-shrink: 0;
-  color: var(--faint);
-  font-weight: 500;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.thinking-effort-value {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-weight: 500;
-  font-size: 12px;
-  line-height: 1.4;
-  padding: 0;
-  background: transparent;
-}
-
-.thinking-effort-control.ultra-active .thinking-effort-value {
-  color: var(--violet);
-  background: color-mix(in srgb, var(--violet) 14%, transparent);
-}
-
-.thinking-effort-chevron {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  margin-left: 2px;
-  border-right: 1.5px solid var(--muted);
-  border-bottom: 1.5px solid var(--muted);
-  transform: translateY(-1px) rotate(45deg);
-  opacity: 0.75;
-  transition: transform 140ms ease;
-}
-
-.thinking-effort-trigger:hover .thinking-effort-chevron {
-  transform: translateY(0px) rotate(45deg);
-}
-
-/* Radix (ui-kit Popover) owns placement, portal, and layering; this rule only
-   sizes and skins the panel. Compound selector beats the later-imported
-   .ui-popover-content base for the properties it overrides. */
-.ui-popover-content.thinking-effort-popover {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  width: min(320px, calc(100vw - 24px));
-  padding: 14px;
-  border-radius: 14px;
-  border-color: var(--line-strong);
-  box-shadow:
-    0 12px 32px -6px rgba(0, 0, 0, 0.28),
-    0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.thinking-effort-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.thinking-effort-section-title {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--faint);
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.thinking-effort-active-tag {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--accent);
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.thinking-effort-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.thinking-effort-chip {
-  flex: 1 1 auto;
-  height: 26px;
-  min-width: 40px;
-  padding: 0 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 550;
-  line-height: 1;
-  display: grid;
-  place-items: center;
-  transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease,
-    box-shadow 120ms ease;
-}
-
-.thinking-effort-chip:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-}
-
-.thinking-effort-chip:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.thinking-effort-chip.is-active {
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-weight: 650;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-
-.thinking-effort-popover.ultra-active .thinking-effort-chip.is-active {
-  background: var(--violet);
-  /* Violet is mid-luminance on both themes — force light ink for contrast. */
-  color: #ffffff;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--violet) 35%, transparent);
-}
-
-.thinking-effort-model-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 2px;
-  margin: 0 -2px;
-  isolation: isolate;
-}
-
-.thinking-effort-model-option {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  transition:
-    background 120ms ease,
-    border-color 120ms ease;
-}
-
-.thinking-effort-model-icon {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-  color: var(--muted);
-  flex-shrink: 0;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-}
-
-.thinking-effort-model-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1;
-  min-width: 0;
-}
-
-.thinking-effort-model-provider-badge {
-  font-size: 9.5px;
-  font-weight: 500;
-  color: var(--faint);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.thinking-effort-model-option:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-  border-color: color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.thinking-effort-model-option:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.thinking-effort-model-option.is-selected {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-.thinking-effort-model-option.is-selected .thinking-effort-model-icon {
-  background: var(--accent);
-  color: var(--accent-fg);
-}
-
-.thinking-effort-model-option-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.thinking-effort-model-check {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-size: 10px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.thinking-effort-model-empty {
-  padding: 10px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.thinking-effort-model-search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--muted);
-  transition:
-    border-color 120ms ease,
-    background 120ms ease;
-}
-
-.thinking-effort-model-search:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-}
-
-.thinking-effort-model-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.4;
-  outline: none;
-}
-
-.thinking-effort-model-search input::placeholder {
-  color: var(--faint);
-}
-
-.thinking-effort-model-search-clear {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.thinking-effort-model-search-clear:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.thinking-effort-model-search-clear:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.thinking-effort-model-no-results {
-  padding: 10px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--muted);
-  font-size: 12px;
-  text-align: center;
-}
-
-/* ─── Context usage ring + popover ──────────────────────────────────── */
-
-.context-usage-ring-root {
-  position: relative;
-  display: inline-flex;
-}
-
-.context-usage-hover-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 0;
-  z-index: 1000;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--surface-overlay, #1f242d);
-  border: 1px solid color-mix(in srgb, var(--text, #fff) 12%, transparent);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  white-space: nowrap;
-  pointer-events: none;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--text, #e2e8f0);
-  animation: context-usage-hover-tooltip-in 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes context-usage-hover-tooltip-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.context-usage-hover-tooltip-used {
-  font-weight: 550;
-  color: var(--text, #f1f5f9);
-}
-
-.context-usage-hover-tooltip-cache {
-  font-weight: 400;
-  color: var(--muted, #94a3b8);
-  margin-top: 4px;
-}
-
-.context-usage-hover-tooltip-expired {
-  font-weight: 500;
-  color: #f97316;
-  margin-top: 4px;
-}
-
-.context-usage-ring {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.context-usage-ring:hover,
-.context-usage-ring.open {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.context-usage-ring-track {
-  stroke: color-mix(in srgb, var(--line) 80%, transparent);
-}
-
-.context-usage-ring-progress {
-  stroke: var(--accent);
-  transition: stroke-dashoffset 0.25s ease;
-}
-
-/* Deliberate literals below: usage-tone and breakdown chart palette shared
-   with inline row swatch colors in context-usage-ring.tsx. */
-.context-usage-ring.tone-warn .context-usage-ring-progress {
-  stroke: #fbbf24;
-}
-
-.context-usage-ring.tone-critical .context-usage-ring-progress {
-  stroke: #f87171;
-}
-
-/* Radix (ui-kit Popover) owns placement, portal, and layering; this rule only
-   sizes and skins the panel. Compound selector beats the later-imported
-   .ui-popover-content base for the properties it overrides. */
-.ui-popover-content.context-usage-popover {
-  width: min(320px, 70vw);
-  max-height: min(70vh, 420px);
-  overflow-y: auto;
-  padding: 12px;
-  border: none;
-  border-radius: 14px;
-  background: var(--panel);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent),
-    0 12px 40px rgba(0, 0, 0, 0.5);
-  animation: context-usage-popover-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes context-usage-popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .context-usage-popover {
-    animation: none;
-  }
-}
-
-.context-usage-popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.context-usage-popover-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-
-.context-usage-cache-estimate {
-  margin: 0 0 8px;
-  font-size: 11px;
-}
-
-.context-usage-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 650;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.context-usage-pill.tone-warn {
-  background: color-mix(in srgb, #fbbf24 20%, transparent);
-  color: #fbbf24;
-}
-
-.context-usage-pill.tone-critical {
-  background: color-mix(in srgb, #f87171 20%, transparent);
-  color: #f87171;
-}
-
-.context-usage-bar {
-  height: 6px;
-  margin-bottom: 10px;
-  border-radius: 999px;
-  background: var(--surface-hover);
-  overflow: hidden;
-}
-
-.context-usage-bar > i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #8eb0ff, #a78bfa, #f87171);
-}
-
-.context-usage-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.context-usage-rows li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12px;
-}
-
-.context-usage-row-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.context-usage-row-label > i {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-}
-
-.context-usage-popover-footer {
-  margin-top: 10px;
-  font-size: 11px;
-}
-
-.linkish-btn {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--accent);
-  cursor: pointer;
-  font: inherit;
-  text-decoration: underline;
-}
-
-/* Quiet workbench: floating composer card */
-.composer-dock .composer-card,
-.composer-dock .composer-v2-card,
-.composer-shell {
-  border-radius: 12px;
-  border: 1px solid var(--wb-line, var(--line));
-  box-shadow: none;
-  background: var(--canvas);
-}
-
-/* ─── At-Mention Menu (@mentions) ────────────────────────────────────── */
-
-.at-menu-root {
-  position: absolute;
-  bottom: 100%;
-  left: 12px;
-  right: 12px;
-  margin-bottom: 8px;
-  z-index: 100;
-}
-
-.at-menu {
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 6px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--card, #1e1e24);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-}
-
-.at-menu-empty {
-  padding: 12px;
-  text-align: center;
-  font-size: 13px;
-}
-
-.at-menu-section + .at-menu-section {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
-}
-
-.at-menu-section-title {
-  padding: 4px 8px;
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.at-menu-item {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-
-.at-menu-item:hover,
-.at-menu-item.active {
-  background: var(--hover);
-}
-
-.at-menu-item-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.at-menu-item-name {
-  font-size: 13px;
-  font-weight: 550;
-}
-
-.at-menu-item-badge {
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.at-menu-item-desc {
-  font-size: 11.5px;
-  line-height: 1.3;
-}
-
-/* ─── Dropzone Overlay ────────────────────────────────────────────────── */
-
-.composer-v2-drop-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--card) 85%, var(--accent));
-  border: 2px dashed var(--accent);
-  pointer-events: none;
-  animation: fadeIn 150ms ease;
-}
-
-.composer-v2-drop-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: 8px;
-  background: var(--card);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
-}
-
-.composer-v2-drop-text {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-/* ─── Expanded Modal Editor ───────────────────────────────────────────── */
-
-.composer-modal-editor {
-  display: flex;
-  flex-direction: column;
-  width: min(92vw, 840px);
-  height: min(80vh, 600px);
-  padding: 18px;
-  border-radius: 14px;
-  background: var(--card, #1c1c22);
-  color: var(--text);
-  border: 1px solid var(--line);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-}
-
-.composer-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-}
-
-.composer-modal-title {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.composer-modal-stats {
-  font-size: 12px;
-  font-weight: normal;
-}
-
-.composer-modal-close {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.composer-modal-close:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
-.composer-modal-body {
-  flex: 1;
-  padding: 12px 0;
-}
-
-.composer-modal-textarea {
-  width: 100%;
-  height: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  background: transparent;
-  color: var(--text);
-  font-family: var(--font-mono, monospace);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.composer-modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.composer-modal-hint {
-  font-size: 12px;
-}
-
-.composer-modal-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ─── Run Mode pill (ADR 0024) ─────────────────────────────────────── */
-
-.run-mode-control {
-  position: relative;
-  overflow: visible;
-  z-index: 3;
-}
-
-.run-mode-control.is-warning .run-mode-trigger {
-  color: var(--warning, #f59e0b);
-}
-
-.run-mode-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 2px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  line-height: 1.4;
-  transition:
-    background 140ms ease,
-    color 140ms ease;
-}
-
-.run-mode-trigger:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.run-mode-trigger:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.run-mode-value {
-  font-weight: 600;
-}
-
-.run-mode-chevron {
-  width: 0;
-  height: 0;
-  border-left: 3px solid transparent;
-  border-right: 3px solid transparent;
-  border-top: 4px solid currentColor;
-  opacity: 0.6;
-}
+/* ─── Run mode / orchestration popovers ───────────────────────────────── */
 
 .ui-popover-content.run-mode-popover {
   min-width: 260px;
-  padding: 8px;
+  padding: var(--s-4);
 }
 
 .run-mode-section {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--s-1);
 }
 
 .run-mode-section-title {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 600;
-  color: var(--muted);
-  padding: 4px 8px 6px;
+  color: var(--text-4);
+  padding: var(--s-2) var(--s-4) var(--s-3);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-micro);
 }
 
 .run-mode-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--s-4) var(--s-5);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--r-control);
   background: transparent;
-  color: var(--text);
+  color: var(--text-1);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-chrome);
   font-family: inherit;
   text-align: left;
-  transition: background 100ms ease;
+  transition: background-color var(--t-1) var(--ease-out);
 }
 
 .run-mode-option:hover:not(:disabled) {
-  background: var(--surface-hover);
+  background: var(--hover);
 }
 
 .run-mode-option:disabled {
-  opacity: 0.4;
+  color: var(--text-4);
   cursor: not-allowed;
 }
 
 .run-mode-option.is-selected {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--iris-wash);
 }
 
 .run-mode-option-label {
-  font-weight: 600;
+  font-weight: 560;
   min-width: 48px;
 }
 
 .run-mode-option-desc {
   flex: 1;
-  font-size: 11px;
-  color: var(--muted);
+  font-size: var(--fs-mono);
+  color: var(--text-3);
   line-height: 1.4;
 }
 
 .run-mode-option-warning {
-  color: var(--warning, #f59e0b);
+  color: var(--amber);
   font-size: 13px;
 }
 
 .run-mode-option-locked {
-  font-size: 13px;
-  opacity: 0.6;
+  color: var(--text-4);
+  font-size: var(--fs-mono);
 }
 
-.run-mode-footer {
+.run-mode-footer,
+.orchestration-scheme-footer {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px 2px;
-  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
-  margin-top: 4px;
+  justify-content: flex-end;
+  margin-top: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-1);
 }
 
-.run-mode-footer-btn {
-  border: none;
+.run-mode-footer-btn,
+.orchestration-scheme-footer-btn {
+  border: 0;
+  border-radius: var(--r-control);
+  padding: var(--s-2) var(--s-4);
   background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  font-family: inherit;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--fs-mono);
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
   transition:
-    color 100ms ease,
-    background 100ms ease;
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
 }
 
-.run-mode-footer-btn:hover {
-  color: var(--text);
-  background: var(--surface-hover);
+.run-mode-footer-btn:hover,
+.orchestration-scheme-footer-btn:hover {
+  background: var(--hover);
+  color: var(--text-1);
 }
 
-/* ORCH: orchestration scheme pill (mirrors run-mode-control) */
-.orchestration-scheme-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+/* Orchestration is "active" when a non-default scheme is pinned. */
+.orchestration-scheme-control.is-active .orchestration-scheme-trigger {
+  color: var(--iris-lift);
+  background: var(--iris-wash);
 }
+
+.orchestration-scheme-control.is-active .orchestration-scheme-value {
+  color: var(--iris-lift);
+}
+
+.ui-popover-content.orchestration-scheme-popover {
+  min-width: 280px;
+  max-width: 340px;
+  padding: var(--s-4);
+}
+
+.orchestration-scheme-section-title {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--text-4);
+  padding: var(--s-2) var(--s-4) var(--s-3);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-micro);
+}
+
+.orchestration-scheme-option {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-chrome);
+  text-align: left;
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.orchestration-scheme-option:hover {
+  background: var(--hover);
+}
+
+.orchestration-scheme-option.is-selected {
+  background: var(--iris-wash);
+}
+
+.orchestration-scheme-option-label {
+  font-weight: 560;
+  min-width: 56px;
+}
+
+.orchestration-scheme-option-desc {
+  flex: 1;
+  font-size: var(--fs-mono);
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
 .orchestration-scheme-unpinned-hint {
   border: 0;
   background: transparent;
-  color: inherit;
-  opacity: 0.65;
-  font-size: 11px;
-  line-height: 1.3;
-  max-width: 16em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text-4);
+  font: inherit;
+  font-size: var(--fs-mono);
   cursor: pointer;
-  padding: 0;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-control);
 }
+
 .orchestration-scheme-unpinned-hint:hover:not(:disabled) {
-  opacity: 0.95;
-  text-decoration: underline;
+  color: var(--text-2);
+  background: var(--hover);
 }
+
 .orchestration-scheme-unpinned-hint:disabled {
   cursor: default;
-}
-.orchestration-scheme-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 1px solid var(--piwin-border, rgba(255, 255, 255, 0.12));
-  background: transparent;
-  color: inherit;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.orchestration-scheme-control.is-active .orchestration-scheme-trigger {
-  border-color: var(--piwin-accent, #6ea8fe);
-  color: var(--piwin-accent, #6ea8fe);
-}
-.orchestration-scheme-prefix {
-  opacity: 0.7;
-}
-.orchestration-scheme-chevron::before {
-  content: '▾';
-  font-size: 10px;
-  opacity: 0.7;
-}
-.orchestration-scheme-popover {
-  min-width: 260px;
-  max-width: 340px;
-}
-.orchestration-scheme-section-title {
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  opacity: 0.8;
-}
-.orchestration-scheme-option {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  padding: 8px 10px;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.orchestration-scheme-option:hover,
-.orchestration-scheme-option.is-selected {
-  background: rgba(255, 255, 255, 0.06);
-}
-.orchestration-scheme-option-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-.orchestration-scheme-option-desc {
-  font-size: 11px;
-  opacity: 0.7;
-  line-height: 1.35;
-}
-.orchestration-scheme-footer {
-  margin-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 6px;
-}
-.orchestration-scheme-footer-btn {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  opacity: 0.8;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-/* ── Ink Wash Zen Artwork Frame & Frosted Dock ─────────────────────────── */
-
-.ink-wash-vignette-frame {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: min(320px, 40vw);
-  margin: 0 auto 12px;
-  padding: 0;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  transition: transform 0.24s ease;
-}
-
-.ink-wash-vignette-frame:hover {
-  transform: translateY(-2px);
-}
-
-.ink-wash-vignette-art-wrapper {
-  position: relative;
-  width: 100%;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.ink-wash-empty-vignette {
-  display: block;
-  width: 100%;
-  max-height: 100px;
-  object-fit: cover;
-  object-position: center;
-  border-radius: 8px;
-  opacity: 0.88;
-  pointer-events: none;
-  user-select: none;
-}
-
-.ink-wash-agent-seal-stamp {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 28px;
-  height: 28px;
-  object-fit: cover;
-  border-radius: 3px;
-  box-shadow:
-    0 3px 10px rgba(194, 47, 37, 0.45),
-    0 0 0 1px rgba(194, 77, 67, 0.5);
-  transform: rotate(3deg);
-  pointer-events: auto;
-  transition: transform 0.2s ease;
-}
-
-.ink-wash-agent-seal-stamp:hover {
-  transform: rotate(0deg) scale(1.08);
-}
-
-.ink-wash-poetic-badge {
-  display: inline-block;
-  margin-top: 6px;
-  font-size: 11px;
-  letter-spacing: 0.15em;
-  color: #9e988e;
-  opacity: 0.85;
-  user-select: none;
-  font-weight: 300;
-}
-
-/* Frameless Frosted Glass Composer Dock for Ink Wash visual style */
-html[data-theme-visual-style='ink-wash'] .composer-dock,
-html[data-theme-visual-style='ink-wash'] .composer-context-rail,
-html[data-theme-visual-style='ink-wash'] .composer-v2-toolbar,
-html[data-theme-visual-style='ink-wash'] .composer-footer-row,
-html[data-theme-visual-style='ink-wash'] .composer-v2-card-wrap,
-html[data-theme-visual-style='ink-wash'] .composer-v2-input-area,
-html[data-theme-visual-style='ink-wash'] .composer-v2-textarea,
-html[data-theme-visual-style='ink-wash'] .composer-v2-input,
-html[data-theme-visual-style='ink-wash'] .composer-textarea,
-html[data-theme-visual-style='ink-wash'] textarea {
-  background: transparent !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-card-v2 {
-  position: relative !important;
-  overflow: visible !important;
-  background-color: rgba(20, 22, 28, 0.92) !important;
-  background-image: linear-gradient(180deg, rgba(32, 34, 44, 0.94) 0%, rgba(18, 20, 26, 0.96) 100%) !important;
-  border: none !important;
-  border-radius: 18px !important;
-  padding: 0 !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 18px 50px rgba(0, 0, 0, 0.55) !important;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  isolation: isolate;
-}
-
-/*
- * Soft xuan-paper wash on top of the card fill.
- * Clip to the card radius so texture stays inside the frame.
- */
-html[data-theme-visual-style='ink-wash'] .composer-card-v2::before {
-  content: '' !important;
-  position: absolute !important;
-  inset: 0 !important;
-  border-radius: inherit !important;
-  background:
-    linear-gradient(
-      105deg,
-      transparent 0%,
-      rgba(214, 205, 190, 0.045) 38%,
-      transparent 68%
-    ),
-    radial-gradient(
-      80% 70% at 18% 100%,
-      rgba(194, 77, 67, 0.06) 0%,
-      transparent 55%
-    ) !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
-}
-
-/* 发送钮与工具条在纹理层之上 */
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn,
-html[data-theme-visual-style='ink-wash'] .composer-v2-action-slot {
-  position: relative !important;
-  z-index: 10 !important;
-  pointer-events: auto !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-card-v2:focus-within {
-  border: none !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 48px rgba(0, 0, 0, 0.62) !important;
-  outline: none !important;
-}
-
-/* Keep children above the paper wash layer; do not grow the textarea. */
-html[data-theme-visual-style='ink-wash'] .composer-attachment-shelf,
-html[data-theme-visual-style='ink-wash'] .composer-v2-attachments,
-html[data-theme-visual-style='ink-wash'] .composer-v2-input-area,
-html[data-theme-visual-style='ink-wash'] .composer-v2-toolbar {
-  position: relative !important;
-  z-index: 1 !important;
-  background: transparent !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-icon-btn {
-  color: #c8c2b8 !important;
-  background: transparent !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-icon-btn:hover:not(:disabled) {
-  color: #f0ebe3 !important;
-  background: rgba(214, 205, 190, 0.08) !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-textarea {
-  color: #e6e1d8 !important;
-  caret-color: #d6b98c !important;
-  background: transparent !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-textarea:focus,
-html[data-theme-visual-style='ink-wash'] .composer-textarea:focus,
-html[data-theme-visual-style='ink-wash'] textarea:focus,
-html[data-theme-visual-style='ink-wash'] input:focus {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-textarea::placeholder {
-  color: #d8d2c8;
-  opacity: 0.95;
-}
-
-/* 朱砂印章 Send Button */
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn {
-  background: #c24d43 !important;
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
-  transition:
-    opacity 0.12s ease,
-    filter 0.12s ease,
-    background-color 0.12s ease !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:hover:not(:disabled) {
-  background: #d6554a !important;
-  filter: brightness(1.06);
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:active:not(:disabled) {
-  background: #b7443a !important;
-  filter: brightness(0.96);
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn:disabled {
-  opacity: 0.35 !important;
-  cursor: default !important;
-  background: rgba(214, 205, 190, 0.1) !important;
-  color: rgba(214, 205, 190, 0.4) !important;
-  box-shadow: none !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-v2-send-btn.is-retry {
-  background: rgba(194, 77, 67, 0.24) !important;
-  color: #c24d43 !important;
-}
-
-/* 模型选择器 / 附件按钮 / 扩展选项 (Toolbar Pill Buttons & Model Selectors) */
-html[data-theme-visual-style='ink-wash'] .composer-model-picker-btn,
-html[data-theme-visual-style='ink-wash'] .composer-v2-pill-btn,
-html[data-theme-visual-style='ink-wash'] .composer-v2-tool-btn,
-html[data-theme-visual-style='ink-wash'] .composer-action-btn,
-html[data-theme-visual-style='ink-wash'] .orchestration-scheme-trigger {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: none !important;
-  color: #d8d3cb !important;
-  border-radius: 6px !important;
-  transition: background 0.18s ease, color 0.18s ease !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .composer-model-picker-btn:hover,
-html[data-theme-visual-style='ink-wash'] .composer-v2-pill-btn:hover,
-html[data-theme-visual-style='ink-wash'] .composer-v2-tool-btn:hover,
-html[data-theme-visual-style='ink-wash'] .composer-action-btn:hover,
-html[data-theme-visual-style='ink-wash'] .orchestration-scheme-trigger:hover {
-  background: rgba(112, 145, 156, 0.16) !important;
-  border: none !important;
-  color: #f8f6f0 !important;
-}
-
-/* 附加 Context 导轨 Chips */
-html[data-theme-visual-style='ink-wash'] .composer-context-chip,
-html[data-theme-visual-style='ink-wash'] .composer-attachment-item {
-  background: rgba(214, 205, 190, 0.06) !important;
-  border: none !important;
-  color: #d8d3cb !important;
-  border-radius: 6px !important;
-}
-
-/* Agent 中断卡片等浮浮层适配 */
-html[data-theme-visual-style='ink-wash'] .agent-interruption {
-  background: rgba(28, 29, 32, 0.92) !important;
-  border: 1px solid rgba(194, 77, 67, 0.25) !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6) !important;
-}
-
-/* 斜杠菜单 Slash Menu & 下拉 Menu 弹窗质感 */
-html[data-theme-visual-style='ink-wash'] .slash-command-menu,
-html[data-theme-visual-style='ink-wash'] .dropdown-menu-content {
-  background: rgba(26, 27, 30, 0.95) !important;
-  border: none !important;
-  border-radius: 10px !important;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65) !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .slash-command-item.selected,
-html[data-theme-visual-style='ink-wash'] .slash-command-item:hover,
-html[data-theme-visual-style='ink-wash'] .dropdown-menu-item:hover {
-  background: rgba(112, 145, 156, 0.18) !important;
-  color: #f8f6f0 !important;
-  border-radius: 6px !important;
-  position: relative !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .slash-command-item.selected::before {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  background: #c24d43;
-  border-radius: 2px;
-}
-
-/* ── Ink Wash Model Selector Popover (水墨模型选择器弹窗) ───────── */
-
-/* 1. 外框弹窗与背景质感 */
-html[data-theme-visual-style='ink-wash'] .ui-popover-content.thinking-effort-popover {
-  background-color: rgba(22, 23, 26, 0.95) !important;
-  background-image:
-    linear-gradient(180deg, rgba(34, 35, 39, 0.96) 0%, rgba(20, 21, 24, 0.95) 100%),
-    var(--ink-wash-conversation-texture, url('/ui/ink-wash/conversation-texture.jpg')) !important;
-  background-size: cover, cover !important;
-  background-position: center, center !important;
-  border: none !important;
-  border-radius: 16px !important;
-  padding: 16px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 24px 64px rgba(0, 0, 0, 0.85),
-    0 0 32px rgba(194, 77, 67, 0.08) !important;
-}
-
-/* 2. 标题规范 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-section-title {
-  color: rgba(214, 185, 140, 0.85) !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.08em !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-active-tag {
-  color: #d8b888 !important;
-  background: rgba(214, 185, 140, 0.18) !important;
-  border: none !important;
-}
-
-/* 3. THINKING 预算选择底座 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-chip-row {
-  background: rgba(14, 15, 17, 0.7) !important;
-  border: none !important;
-  border-radius: 10px !important;
-  padding: 4px !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-chip {
-  color: rgba(214, 205, 190, 0.7) !important;
-  border-radius: 8px !important;
-  font-weight: 600 !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-chip:hover:not(:disabled) {
-  color: #f8f6f0 !important;
-  background: rgba(214, 185, 140, 0.12) !important;
-}
-
-/* THINKING 预算选中按钮：金水墨宣纸沉淀高亮效果 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-chip.is-active {
-  background: linear-gradient(180deg, #d8b888 0%, #b89868 100%) !important;
-  color: #1a1712 !important;
-  font-weight: 750 !important;
-  border: none !important;
-  box-shadow: 0 4px 14px rgba(184, 152, 104, 0.4) !important;
-}
-
-/* 4. 搜索框风格 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search {
-  background: rgba(14, 15, 17, 0.7) !important;
-  border: none !important;
-  border-radius: 10px !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search:focus-within {
-  border: none !important;
-  box-shadow: 0 0 12px rgba(214, 185, 140, 0.15) !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search input {
-  color: #f8f6f0 !important;
-  font-family: inherit !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-search input::placeholder {
-  color: rgba(214, 205, 190, 0.4) !important;
-}
-
-/* 5. 模型列表条目 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: none !important;
-  border-radius: 12px !important;
-  padding: 8px 12px !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option:hover:not(:disabled) {
-  background: rgba(214, 185, 140, 0.08) !important;
-  border: none !important;
-}
-
-/* 选中态条目：微芒透光背景 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option.is-selected {
-  background: rgba(214, 185, 140, 0.14) !important;
-  border: none !important;
-}
-
-/* 图标样式 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-icon {
-  background: rgba(214, 185, 140, 0.12) !important;
-  color: #d8b888 !important;
-  border-radius: 8px !important;
-}
-
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-option.is-selected .thinking-effort-model-icon {
-  background: #d8b888 !important;
-  color: #1a1712 !important;
-}
-
-/* 选中勾选圈 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-check {
-  color: #d8b888 !important;
-  background: rgba(214, 185, 140, 0.25) !important;
-  border-radius: 50% !important;
-}
-
-/* Provider 角标 */
-html[data-theme-visual-style='ink-wash'] .thinking-effort-model-provider-badge {
-  color: rgba(214, 185, 140, 0.55) !important;
-  font-weight: 600 !important;
-}
-
-/* ── ActiveJobsStrip: 输入框上方“正在控制的程序”动态条 ─────────────── */
-.composer-active-jobs-strip {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
-  padding: 0 4px;
-  min-height: 0;
-  z-index: 2;
-}
-
-.composer-active-job {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 10px;
-  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.08));
-  background: var(--surface, rgba(255, 255, 255, 0.04));
-  overflow: hidden;
-}
-
-.composer-active-job-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 4px 4px 4px 8px;
-  border: none;
-  background: transparent;
-  color: var(--text, #ffffff);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.4;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-
-.composer-active-job-main:hover {
-  background: color-mix(in srgb, var(--text, #ffffff) 6%, transparent);
-}
-
-.composer-active-job-dot {
-  flex-shrink: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--muted, rgba(255, 255, 255, 0.6));
-}
-
-.composer-active-job-dot.is-running {
-  background: var(--accent, #4f8cff);
-  animation: composer-active-job-pulse 1.4s ease-in-out infinite;
-}
-
-.composer-active-job-dot.is-starting {
-  background: var(--muted, rgba(255, 255, 255, 0.6));
-  animation: composer-active-job-pulse 1.1s ease-in-out infinite;
-}
-
-.composer-active-job-dot.is-ready {
-  background: var(--ok, #10b981);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok, #10b981) 16%, transparent);
-}
-
-.composer-active-job-dot.is-stopping {
-  background: var(--muted, rgba(255, 255, 255, 0.6));
-  opacity: 0.5;
-}
-
-@keyframes composer-active-job-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-.composer-active-job-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 220px;
-  font-weight: 500;
-}
-
-.composer-active-job-meta {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.composer-active-job-stop {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--muted, rgba(255, 255, 255, 0.6));
-  cursor: pointer;
-  transition:
-    color 120ms ease,
-    background 120ms ease;
-}
-
-.composer-active-job-stop:hover {
-  color: var(--text, #ffffff);
-  background: color-mix(in srgb, var(--text, #ffffff) 8%, transparent);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .composer-active-job-dot.is-running,
-  .composer-active-job-dot.is-starting {
-    animation: none;
-  }
 }

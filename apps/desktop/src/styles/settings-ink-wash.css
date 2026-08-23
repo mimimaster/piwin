@@ -1,0 +1,63 @@
+/* Settings: ink-wash theme package overrides.
+   Split out of settings-resources.css (one region, split by responsibility
+   per AGENTS.md 3.2). */
+
+/* ── Ink Wash Settings Resources & Permission Page Customizations ───── */
+
+/* 容器全透明、去线框设计 (No wireframe borders, 100% transparent outer containers) */
+html[data-theme-visual-style='ink-wash'] .settings-section-card,
+html[data-theme-visual-style='ink-wash'] .settings-card,
+html[data-theme-visual-style='ink-wash'] .settings-section,
+html[data-theme-visual-style='ink-wash'] .settings-main .settings-section-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .ui-field-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  padding: 12px 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(214, 205, 190, 0.08) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .ui-field-row:last-child {
+  border-bottom: none !important;
+}
+
+/* 运行模式 Switcher 胶囊 (.permission-mode-pills, .permission-mode-pill) */
+html[data-theme-visual-style='ink-wash'] .permission-mode-pills {
+  background: transparent !important;
+  border: 1px solid rgba(214, 205, 190, 0.12) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .permission-mode-pill {
+  color: #9e988e !important;
+  background: transparent !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .permission-mode-pill:hover {
+  color: #f8f6f0 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .permission-mode-pill.is-active {
+  background: rgba(214, 205, 190, 0.14) !important;
+  color: #ffffff !important;
+  border-color: rgba(214, 205, 190, 0.3) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+html[data-theme-visual-style='ink-wash'] .permission-mode-pill.mode-yolo.is-active {
+  background: rgba(194, 77, 67, 0.28) !important;
+  border-color: rgba(194, 77, 67, 0.55) !important;
+  color: #ff9e96 !important;
+}

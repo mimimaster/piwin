@@ -1,0 +1,581 @@
+/* Region: sidebar tree scaffolding (project-session-sidebar.tsx).
+   Section headers, the unified project/conversation folder tree, and the
+   repository picker. Session rows themselves are region-sidebar-session.css. */
+
+/* ── Section headers ──────────────────────────────────────────────────
+   Small, wide-tracked, and dim: a label you read once to orient, never a
+   heading competing with session titles. */
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-height: 0;
+}
+
+.sidebar-section-label {
+  margin: var(--s-5) 0 var(--s-1);
+  min-height: 20px;
+  padding: 0 var(--s-3);
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-right: var(--s-1);
+}
+
+.sidebar-section-label-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.sidebar-section-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.sidebar-section-toggle:hover,
+.sidebar-section-toggle:focus-visible {
+  color: var(--text-2);
+  outline: none;
+}
+
+.sidebar-section-chevron {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  transition: transform var(--t-2) var(--ease-out);
+}
+
+.sidebar-section-toggle[aria-expanded='false'] .sidebar-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.sidebar-section-content[hidden] {
+  display: none;
+}
+
+.sidebar-section-count {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-conversations-section {
+  margin-top: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: none;
+}
+
+.sidebar-truncation-hint,
+.sidebar-empty-hint,
+.sessions-empty {
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  color: var(--text-4);
+  font-size: var(--fs-chrome);
+  font-style: italic;
+  list-style: none;
+}
+
+.sidebar-archive-toggle {
+  border: 0;
+  background: var(--hover);
+  color: var(--text-3);
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 560;
+  line-height: 1;
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.sidebar-archive-toggle:hover {
+  color: var(--text-1);
+  background: var(--active);
+}
+
+.sidebar-archive-toggle.active {
+  color: var(--iris-lift);
+  background: var(--iris-wash);
+}
+
+.sidebar-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-control);
+  color: var(--text-4);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.sidebar-icon-btn:hover {
+  color: var(--text-1);
+  background: var(--hover);
+}
+
+.sidebar-icon-btn svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+/* ── Folder tree ──────────────────────────────────────────────────────
+   Scrollbar is pulled flush to the panel edge so rows keep full width. */
+
+.sidebar-folder-tree,
+.sidebar-sessions {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-right: calc(var(--s-3) * -1);
+  padding: 0 0 0 var(--s-1);
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-folder-tree:hover,
+.sidebar-sessions:hover {
+  scrollbar-color: var(--line-2) transparent;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar,
+.sidebar-sessions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar-track,
+.sidebar-sessions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar-thumb,
+.sidebar-sessions::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-pill);
+}
+
+.sidebar-folder-tree:hover::-webkit-scrollbar-thumb,
+.sidebar-sessions:hover::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+}
+
+.sidebar-folder-tree-virtual-window {
+  position: relative;
+  width: 100%;
+}
+
+.sidebar-tree-virtual-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.sidebar-tree-row--project-session {
+  padding-left: 18px;
+}
+
+.tree-header-row {
+  margin-bottom: var(--s-1);
+}
+
+.tree-node-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: none;
+}
+
+/* ── Project folders ─────────────────────────────────────────────────── */
+
+.tree-folder-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-folder-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--h-md);
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--r-control);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.tree-folder-toggle,
+.tree-folder-toggle-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-folder-toggle {
+  border: 0;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-4);
+  cursor: pointer;
+  line-height: 0;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.tree-folder-toggle .tree-folder-icon {
+  display: block;
+}
+
+.tree-folder-toggle:hover,
+.tree-folder-toggle:focus-visible {
+  background: var(--hover);
+  color: var(--text-1);
+  outline: none;
+}
+
+.tree-folder-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: var(--h-md);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.tree-folder-main:hover,
+.tree-folder-main:focus-visible {
+  background: var(--hover);
+  color: var(--text-1);
+  outline: none;
+}
+
+.tree-folder-summary.active .tree-folder-main {
+  color: var(--text-1);
+  font-weight: 560;
+}
+
+.tree-folder-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-folder-icon {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  flex-shrink: 0;
+  color: var(--text-4);
+  transition: color var(--t-1) var(--ease-out);
+}
+
+.tree-folder-summary:hover .tree-folder-icon,
+.tree-folder-summary.active .tree-folder-icon {
+  color: var(--text-2);
+}
+
+.tree-folder-add-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out),
+    background-color var(--t-1) var(--ease-out);
+}
+
+.tree-folder-summary:hover .tree-folder-add-btn,
+.tree-folder-add-btn:focus-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* ── The thread line ──────────────────────────────────────────────────
+   Sessions belonging to a project hang off a single hairline dropped from
+   the folder toggle. It turns an indented list into a visible parent/child
+   relationship without boxing anything, and gives the active session a
+   place to put its iris cap (see region-sidebar-session.css). */
+
+.tree-session-list {
+  position: relative;
+  list-style: none;
+  margin: var(--s-1) 0 var(--s-4);
+  padding: 0 0 0 18px;
+  border-left: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tree-session-list:not(.conversations-list)::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 0;
+  bottom: var(--s-3);
+  width: 1px;
+  background: var(--line-1);
+  pointer-events: none;
+}
+
+/* Conversations are top level: no parent, so no thread. */
+.tree-session-list.conversations-list {
+  margin: var(--s-1) 0 var(--s-4);
+  padding: 0;
+}
+
+/* Project sessions keep their text hierarchy, but the interaction surface is
+   a full-width sidebar row. Pull the row back across the list's visual indent
+   and put that indent back into the button padding so the title does not move. */
+.tree-session-list:not(.conversations-list) > .session-row {
+  width: calc(100% + 18px);
+  margin-left: -18px;
+}
+
+.tree-session-list:not(.conversations-list) > .session-row .session-item {
+  padding-left: 26px;
+}
+
+/* ── Repository picker ────────────────────────────────────────────────── */
+
+.sidebar-projects-details {
+  /* Must shrink so the footer stays in the drawer viewport. */
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  overflow: auto;
+  padding: 0 var(--s-1);
+}
+
+.sidebar-projects-summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: var(--s-4);
+  border-radius: var(--r-control);
+  transition: background-color var(--t-1) var(--ease-out);
+}
+
+.sidebar-projects-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-projects-summary:hover {
+  background: var(--hover);
+}
+
+.sidebar-projects-details[open] .sidebar-projects-summary {
+  margin-bottom: var(--s-2);
+}
+
+.sidebar-projects-details .repository-row {
+  margin: 0 0 var(--s-1);
+}
+
+.repository-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  max-height: 150px;
+  overflow: auto;
+}
+
+.piwin-list-row.repository-row,
+.repository-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  width: 100%;
+  height: 26px;
+  padding: 0 var(--s-3);
+  border: none;
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background-color var(--t-1) var(--ease-out),
+    color var(--t-1) var(--ease-out);
+}
+
+.piwin-list-row.repository-row:hover:not(:disabled),
+.repository-row:hover {
+  background: var(--hover);
+  color: var(--text-1);
+}
+
+.piwin-list-row.repository-row.is-selected,
+.repository-row.active {
+  background: var(--active);
+  color: var(--text-1);
+}
+
+.repository-row > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--text-4);
+}
+
+.repository-row.active > svg {
+  color: var(--iris-lift);
+}
+
+.repository-row .proj-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.repository-row .count {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.repository-row-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.repository-row-copy > span,
+.repository-row-copy > small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-row-copy > span {
+  font-size: var(--fs-chrome);
+  font-weight: 500;
+}
+
+.repository-row-copy > small {
+  color: var(--text-4);
+  font-size: var(--fs-micro);
+}
+
+.repository-empty-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  min-height: var(--h-md);
+  padding: var(--s-3) var(--s-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text-4);
+  font: inherit;
+  font-size: var(--fs-chrome);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--t-2) var(--ease-out),
+    color var(--t-2) var(--ease-out),
+    background-color var(--t-2) var(--ease-out);
+}
+
+.repository-empty-btn:hover {
+  color: var(--text-2);
+  border-color: var(--iris);
+  background: var(--iris-wash);
+}
+
+/* Ink wash: the section mark becomes a cinnabar seal dot. */
+html[data-theme-visual-style='ink-wash'] .sidebar-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: var(--s-3);
+  vertical-align: 1px;
+  border-radius: 50%;
+  background: #c24d43;
+  box-shadow: 0 0 6px rgba(194, 77, 67, 0.6);
+}

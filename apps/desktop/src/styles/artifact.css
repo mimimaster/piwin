@@ -1,6 +1,8 @@
-/* ── Artifact frames (ArtifactFrame.tsx / MarkdownView.tsx) ─────────
-   Rendered inline in transcript markdown; moved from overlays-feedback.css
-   during R3. Semantic tokens only. */
+/* Artifact frames (ArtifactFrame.tsx / MarkdownView.tsx).
+   Rendered inline in transcript markdown.
+
+   Deck rule: floating controls are a flyout — surface-4, elev-4, no border.
+   Placeholder and launcher surfaces recess to void with inset hairlines. */
 
 .artifact-with-source {
   position: relative;
@@ -9,9 +11,6 @@
   max-width: 100%;
 }
 
-/*
- * Open preview: SVG/HTML surface takes 100% width with floating action controls in top-right corner.
- */
 .artifact-with-source--preview {
   position: relative;
   display: block;
@@ -30,31 +29,28 @@
 
 .artifact-floating-actions {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: var(--s-4);
+  right: var(--s-4);
   z-index: 10;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px;
-  border-radius: 6px;
-  background: var(--surface-raised, #1c1d22);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  gap: var(--s-2);
+  padding: var(--s-1);
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--surface-4);
+  box-shadow: var(--elev-4);
   opacity: 0.35;
   pointer-events: auto;
   transition:
-    opacity 0.15s ease,
-    background 0.15s ease,
-    border-color 0.15s ease;
+    opacity var(--t-2) var(--ease-out),
+    background var(--t-1) var(--ease-out);
 }
 
 .artifact-with-source--preview:hover .artifact-floating-actions,
 .artifact-with-source--preview:focus-within .artifact-floating-actions,
 .artifact-floating-actions:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--surface-raised, #1c1d22) 95%, transparent);
-  border-color: var(--border, rgba(255, 255, 255, 0.2));
 }
 
 .artifact-floating-action-button.piwin-icon-button {
@@ -64,29 +60,28 @@
   min-height: 24px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
-  color: var(--muted, #888);
+  border-radius: var(--r-chip);
+  color: var(--text-3);
   background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition:
-    color 0.12s ease,
-    background 0.12s ease;
+    color var(--t-1) var(--ease-out),
+    background var(--t-1) var(--ease-out);
 }
 
 .artifact-floating-action-button.piwin-icon-button:hover:not(:disabled),
 .artifact-floating-action-button.piwin-icon-button:focus-visible {
-  color: var(--text, #fff);
-  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-1);
+  background: var(--hover);
 }
 
 .artifact-side-rail {
   display: none;
 }
 
-/* Legacy class kept as no-op alias so older markup cannot reintroduce bleed. */
 .artifact-with-source--full-bleed {
   width: 100%;
   max-width: 100%;
@@ -113,14 +108,10 @@
   max-width: 100%;
 }
 
-/*
- * Fallback when a frame still hosts an action via extraHeaderAction (tests /
- * flashcard edge). Prefer .artifact-with-source--preview side rail in product UI.
- */
 .artifact-frame.has-artifact-action {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 10px;
+  column-gap: var(--s-5);
   align-items: start;
 }
 
@@ -133,11 +124,11 @@
 }
 
 .artifact-frame.blocked {
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-  border-radius: 8px;
+  border: 0;
+  border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--coral) 45%, transparent);
 }
 
-/* Sheen shared by the recycled "paused to save memory" placeholder. */
 .artifact-preparing-sheen {
   position: absolute;
   inset: 0;
@@ -145,8 +136,8 @@
   background: linear-gradient(
     112deg,
     transparent 26%,
-    color-mix(in srgb, var(--accent) 12%, transparent) 44%,
-    color-mix(in srgb, var(--text) 8%, transparent) 50%,
+    color-mix(in srgb, var(--iris) 12%, transparent) 44%,
+    color-mix(in srgb, var(--text-1) 8%, transparent) 50%,
     transparent 68%
   );
   transform: translateX(-115%);
@@ -166,7 +157,6 @@
 }
 
 .artifact-frame-actions {
-  /* Never absolute: absolute top-right overlays the SVG/HTML surface. */
   position: static;
   grid-column: 2;
   grid-row: 1;
@@ -175,10 +165,10 @@
   display: flex;
   flex-direction: column;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: var(--s-3);
   align-items: flex-end;
-  margin-top: 4px;
-  padding: 0 2px 0 0;
+  margin-top: var(--s-2);
+  padding: 0 var(--s-1) 0 0;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -191,22 +181,21 @@
 .artifact-frame-actions .artifact-frame-text-action {
   min-height: 0;
   height: auto;
-  padding: 2px 0;
+  padding: var(--s-1) 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
   line-height: 1.4;
   white-space: nowrap;
 }
 
 .artifact-frame-actions .artifact-frame-text-action:hover:not(:disabled),
 .artifact-frame-actions .artifact-frame-text-action:focus-visible {
-  border-color: transparent;
   background: transparent;
-  color: var(--text);
+  color: var(--text-1);
   box-shadow: none;
 }
 
@@ -216,8 +205,8 @@
   }
 
   .artifact-floating-actions {
-    top: 6px;
-    right: 6px;
+    top: var(--s-3);
+    right: var(--s-3);
   }
 
   .artifact-frame.has-artifact-action {
@@ -235,7 +224,7 @@
     flex-direction: row;
     justify-content: flex-end;
     margin-top: 0;
-    margin-bottom: 6px;
+    margin-bottom: var(--s-3);
   }
 }
 
@@ -245,13 +234,12 @@
 }
 
 .artifact-inline-incompatible {
-  margin: 8px 12px 10px;
-  color: var(--muted);
-  font-size: 12px;
+  margin: var(--s-4) var(--s-5) var(--s-5);
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
   line-height: 1.45;
 }
 
-/* Live-budget recycled Inline artifact: keep height + offer click-to-load. */
 .artifact-iframe-placeholder {
   position: relative;
   display: grid;
@@ -260,12 +248,13 @@
   max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--card, var(--panel)) 70%, transparent);
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
 }
 
 .artifact-iframe-placeholder--recycled {
-  border: 1px dashed color-mix(in srgb, var(--line) 55%, transparent);
+  border: 0;
+  box-shadow: inset 0 0 0 1px dashed color-mix(in srgb, var(--line-2) 55%, transparent);
   pointer-events: auto;
 }
 
@@ -275,29 +264,31 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 16px;
+  gap: var(--s-5);
+  padding: var(--s-6);
 }
 
 .artifact-iframe-placeholder-copy {
-  color: var(--muted);
-  font-size: 12.5px;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
 }
 
 .artifact-iframe-load-btn {
   appearance: none;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-  color: var(--text);
-  font-size: 12.5px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--iris) 12%, var(--surface-3));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--iris) 35%, var(--line-2));
+  color: var(--text-1);
+  font-size: var(--fs-chrome);
   font-weight: 600;
-  padding: 6px 12px;
+  padding: var(--s-3) var(--s-5);
   cursor: pointer;
+  transition: background var(--t-1) var(--ease-out);
 }
 
 .artifact-iframe-load-btn:hover {
-  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  background: color-mix(in srgb, var(--iris) 18%, var(--surface-3));
 }
 
 .artifact-iframe-stage {
@@ -308,7 +299,6 @@
 }
 
 .artifact-iframe {
-  /* Block layout avoids inline baseline gap that can look like a shift. */
   display: block;
   margin: 0;
   width: 100%;
@@ -321,10 +311,11 @@
 }
 
 .artifact-canvas-launcher {
-  padding: 10px 12px;
-  border: 1px solid var(--line-soft, var(--border));
-  border-radius: 10px;
-  background: var(--surface-inset, var(--surface));
+  padding: var(--s-5) var(--s-5);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--void);
+  box-shadow: inset 0 0 0 1px var(--line-1);
 }
 
 .artifact-canvas-launcher-head,
@@ -332,7 +323,7 @@
 .artifact-canvas-launcher-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s-4);
 }
 
 .artifact-canvas-launcher-head {
@@ -341,9 +332,9 @@
 }
 
 .artifact-canvas-launcher-intent {
-  margin: 4px 0 0;
+  margin: var(--s-2) 0 0;
 }
 
 .artifact-canvas-launcher-source {
-  margin-top: 8px;
+  margin-top: var(--s-4);
 }

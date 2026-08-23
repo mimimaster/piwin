@@ -13,6 +13,8 @@ import {
   PIWIN_APPEARANCE_LIGHT,
   applyAppearanceToDocument,
 } from './appearance-tokens';
+import { PIWIN_APPEARANCE_OBSIDIAN } from './theme/deck-palette';
+import { DEFAULT_DARK_THEME_SETTINGS } from './ui-preferences';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -67,7 +69,19 @@ describe('DesktopThemeRoot', () => {
     const documentRoot = document.documentElement;
     expect(documentRoot.dataset.themeId).toBe('piwin-dark-appearance');
     expect(documentRoot.dataset.themeMode).toBe('dark');
-    expect(documentRoot.style.getPropertyValue('--canvas')).toBe('#101010');
+    // The Appearance background is the *field* the deck floats over, not the
+    // panels themselves: panels come from the palette one step above it. At
+    // default settings that field is Obsidian's own void, so a stock install
+    // renders the authored face rather than an approximation of it.
+    expect(documentRoot.style.getPropertyValue('--void')).toBe(
+      DEFAULT_DARK_THEME_SETTINGS.background,
+    );
+    expect(documentRoot.style.getPropertyValue('--void').toLowerCase()).toBe(
+      PIWIN_APPEARANCE_OBSIDIAN.deck?.void,
+    );
+    expect(documentRoot.style.getPropertyValue('--surface-1')).toBe(
+      PIWIN_APPEARANCE_OBSIDIAN.deck?.surface1,
+    );
   });
 
   it('starts with the cached library theme so cold start matches last session', () => {
@@ -94,10 +108,11 @@ describe('DesktopThemeRoot', () => {
     });
 
     const documentRoot = document.documentElement;
-    expect(documentRoot.dataset.themeId).toBe('piwin-light');
+    expect(documentRoot.dataset.themeId).toBe('piwin-bone');
     expect(documentRoot.dataset.themeMode).toBe('light');
-    expect(documentRoot.style.getPropertyValue('--canvas')).toBe(PIWIN_APPEARANCE_LIGHT.tokens.bg);
-    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-light');
+    // `bg` is the Deck field the panels float on, projected as --void.
+    expect(documentRoot.style.getPropertyValue('--void')).toBe(PIWIN_APPEARANCE_LIGHT.tokens.bg);
+    expect(localStorage.getItem('piwin.desktop.lastThemeId')).toBe('piwin-bone');
 
     // App receives the exact same resolved manifest projected to the document.
     const rerendered = capturedProps as unknown as AppProps;
@@ -144,8 +159,8 @@ describe('DesktopThemeRoot', () => {
 
     const rerendered = capturedProps as unknown as AppProps;
     expect(rerendered.activeTheme).toBe(PIWIN_APPEARANCE_LIGHT);
-    expect(document.documentElement.style.getPropertyValue('--canvas')).toBe(
-      PIWIN_APPEARANCE_LIGHT.tokens.bg,
-    );
+    const field = document.documentElement.style.getPropertyValue('--void');
+    expect(field).toBe(PIWIN_APPEARANCE_LIGHT.tokens.bg);
+    expect(field).not.toBe('#123456');
   });
 });
