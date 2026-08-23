@@ -310,11 +310,17 @@ export async function handleKnowledgeCommand(
       });
     }
     case 'doccards/scan-folder': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/scan-folder', 'folderPath is required');
+      }
       const rag = await context.getFolderRag();
       const result = await rag.scanFolder(command.folderPath);
       return ok(requestId, 'doccards/scan-folder', result);
     }
     case 'doccards/index-folder': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/index-folder', 'folderPath is required');
+      }
       if (!context.ingestionJobs) {
         return fail(requestId, 'doccards/index-folder', 'ingestion jobs are not available');
       }
@@ -334,6 +340,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/index-folder', started.accepted);
     }
     case 'doccards/index-status': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/index-status', 'folderPath is required');
+      }
       if (!context.ingestionJobs) {
         return fail(requestId, 'doccards/index-status', 'ingestion jobs are not available');
       }
@@ -343,6 +352,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/index-status', { job: job ?? null, documents });
     }
     case 'doccards/cancel-index': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/cancel-index', 'folderPath is required');
+      }
       if (!context.ingestionJobs) {
         return fail(requestId, 'doccards/cancel-index', 'ingestion jobs are not available');
       }
@@ -353,6 +365,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/cancel-index', { job: result });
     }
     case 'doccards/generate': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/generate', 'folderPath is required');
+      }
       if (!context.generationJobs || (!context.draftCards && !context.completeJson)) {
         return fail(requestId, 'doccards/generate', 'GENERATION_MODEL_NOT_CONFIGURED');
       }
@@ -378,6 +393,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/generate', started.accepted);
     }
     case 'doccards/generation-status': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/generation-status', 'folderPath is required');
+      }
       if (!context.generationJobs) {
         return fail(requestId, 'doccards/generation-status', 'generation jobs are not available');
       }
@@ -385,6 +403,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/generation-status', { job: job ?? null });
     }
     case 'doccards/cancel-generation': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/cancel-generation', 'folderPath is required');
+      }
       if (!context.generationJobs) {
         return fail(requestId, 'doccards/cancel-generation', 'generation jobs are not available');
       }
@@ -395,6 +416,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/cancel-generation', { job: result });
     }
     case 'doccards/retrieve': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/retrieve', 'folderPath is required');
+      }
       const rag = await context.getFolderRag();
       const canonical = await canonicalizeFolderPath(command.folderPath);
       const chunks = await rag.retrieve(command.folderPath, command.query, {
@@ -409,6 +433,13 @@ export async function handleKnowledgeCommand(
       });
     }
     case 'doccards/list-by-folder': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return ok(requestId, 'doccards/list-by-folder', {
+          records: [],
+          folderExists: false,
+          canonicalPath: '',
+        });
+      }
       const store = await context.getCardStore();
       const canonical = await canonicalizeFolderPath(command.folderPath);
       const records = await store.list(
@@ -431,6 +462,9 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/rebind-folder', result);
     }
     case 'doccards/forget-folder': {
+      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+        return fail(requestId, 'doccards/forget-folder', 'folderPath is required');
+      }
       const store = await context.getCardStore();
       const canonical = await canonicalizeFolderPath(command.folderPath);
       const result = await store.deleteBySourceFolder(canonical ?? command.folderPath);

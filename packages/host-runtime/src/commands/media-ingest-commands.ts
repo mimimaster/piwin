@@ -1,20 +1,30 @@
 /**
- * preview/read-local-file — local-Host user-gesture file preview
- * (ADR 0052 Slice 4).
+ * Local-Host user-gesture preview / export commands (ADR 0052 Slice 4 + Save As).
  *
- * Raster images are ingested into the session media vault; text is returned
- * inline. Remote host-server rejects this command; only the local sidecar
- * JSONL transport may invoke it.
+ * - preview/read-local-file: raster → media vault; text inline
+ * - preview/export-local-file: whole-file base64 for Desktop Save As
+ *
+ * Remote host-server rejects both; only the local sidecar JSONL transport
+ * may invoke them.
  */
-import type { HostCommand, HostResponse, LocalFilePreviewData } from '@piwin/contracts';
+import type {
+  HostCommand,
+  HostResponse,
+  LocalFileExportData,
+  LocalFilePreviewData,
+} from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { loadPiwinConfig } from '../config-store.js';
+import { exportLocalFile } from '../local-file-export.js';
 import { previewLocalFile } from '../local-file-preview.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 
-const TYPES = new Set<HostCommand['type']>(['preview/read-local-file']);
+const TYPES = new Set<HostCommand['type']>([
+  'preview/read-local-file',
+  'preview/export-local-file',
+]);
 
 export function isMediaIngestCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
@@ -25,7 +35,23 @@ export async function handleMediaIngestCommand(
   requestId: string | undefined,
   context: HostCommandContext,
 ): Promise<HostResponse | null> {
-  if (!isMediaIngestCommand(command) || command.type !== 'preview/read-local-file') {
+  if (!isMediaIngestCommand(command)) {
+    return null;
+  }
+
+  if (command.type === 'preview/export-local-file') {
+    try {
+      const data: LocalFileExportData = await exportLocalFile({
+        absolutePath: command.input.absolutePath,
+        ...(command.input.maxBytes !== undefined ? { maxBytes: command.input.maxBytes } : {}),
+      });
+      return ok(requestId, 'preview/export-local-file', data);
+    } catch (error) {
+      return fail(requestId, 'preview/export-local-file', formatError(error));
+    }
+  }
+
+  if (command.type !== 'preview/read-local-file') {
     return null;
   }
 

@@ -8,9 +8,8 @@ import {
   modeToPreset,
   resolvePermissionPreset,
   resolvePreset,
+  resolvePromptPermissionMode,
   mergeAgentModeIntoPrompt,
-  type AgentModeId,
-  type PermissionMode,
   type PermissionPreset,
 } from './permission.js';
 
@@ -111,6 +110,56 @@ describe('resolvePermissionPreset', () => {
     expect(resolvePermissionPreset({ mode: 'auto' })).toBe('auto');
     expect(resolvePermissionPreset(undefined)).toBe('yolo');
     expect(resolvePermissionPreset(null)).toBe('yolo');
+  });
+});
+
+describe('resolvePromptPermissionMode', () => {
+  it('applies composer Ask even when config is YOLO', () => {
+    expect(
+      resolvePromptPermissionMode({
+        permissionPreset: 'ask',
+        agentMode: 'agent',
+        configPreset: 'yolo',
+      }),
+    ).toBe('ask-all');
+  });
+
+  it('applies composer Auto without raising the Plan/Ask floor', () => {
+    expect(
+      resolvePromptPermissionMode({
+        permissionPreset: 'auto',
+        agentMode: 'agent',
+        configPreset: 'yolo',
+      }),
+    ).toBe('auto');
+  });
+
+  it('clears the session override when composer did not send a preset', () => {
+    expect(
+      resolvePromptPermissionMode({
+        agentMode: 'agent',
+        configPreset: 'yolo',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('still raises ask-all for Plan mode under Auto config', () => {
+    expect(
+      resolvePromptPermissionMode({
+        agentMode: 'plan',
+        configPreset: 'auto',
+      }),
+    ).toBe('ask-all');
+  });
+
+  it('keeps YOLO under Plan when the composer preset is yolo (warn, not block)', () => {
+    expect(
+      resolvePromptPermissionMode({
+        permissionPreset: 'yolo',
+        agentMode: 'plan',
+        configPreset: 'auto',
+      }),
+    ).toBe('bypass');
   });
 });
 

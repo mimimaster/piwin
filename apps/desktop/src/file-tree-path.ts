@@ -1,6 +1,13 @@
-/** Resolve a project-relative file-tree path using the host platform separator. */
-export function resolveProjectEntryAbsolutePath(projectPath: string, relativePath: string): string {
-  const separator = projectPath.includes('\\') ? '\\' : '/';
+import type { HostPathStyle } from '@piwin/contracts';
+
+/** Resolve a project-relative file-tree path using the Host path style. */
+export function resolveProjectEntryAbsolutePath(
+  projectPath: string,
+  relativePath: string,
+  pathStyle?: HostPathStyle,
+): string {
+  const separator =
+    pathStyle === 'windows' ? '\\' : pathStyle === 'posix' ? '/' : projectPath.includes('\\') ? '\\' : '/';
   const normalizedProjectPath = projectPath.replace(/[\\/]+$/, '');
   const normalizedRelativePath = relativePath
     .replace(/^[\\/]+/, '')

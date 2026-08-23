@@ -1,4 +1,5 @@
 import type { AgentMessageRole, HostMode, PermissionDecision, ToolPresentation } from './host.js';
+import type { HostOsFamily, HostPathStyle } from './host-platform.js';
 import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
 import type { QueuedTurnRecord } from './queued-turn.js';
@@ -170,6 +171,13 @@ export type RemoteCapabilitySummary = {
   logicalProjectRefs?: boolean;
   /** Host can hydrate activity/run state for reconnecting shells. */
   activityHydration?: boolean;
+  /**
+   * OS family of the Host process (`process.platform`). Shells use this for
+   * Host-path placeholders and joins — never the client OS.
+   */
+  platform?: HostOsFamily;
+  /** Filesystem path style on the Host. Derived from `platform`. */
+  pathStyle?: HostPathStyle;
 };
 
 export type HostHello = {

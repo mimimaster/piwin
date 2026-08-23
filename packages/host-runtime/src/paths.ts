@@ -43,6 +43,14 @@ export function getPiwinRoot(override?: string): string {
   return join(homedir(), '.piwin');
 }
 
+/** Pi native agent dir (`~/.pi/agent`). Inventory is read-only from here. */
+export function getPiAgentDir(override?: string): string {
+  if (override && override.trim().length > 0) {
+    return override;
+  }
+  return join(homedir(), '.pi', 'agent');
+}
+
 export function getPiwinConfigPath(rootDir: string): string {
   return join(rootDir, 'config.json');
 }

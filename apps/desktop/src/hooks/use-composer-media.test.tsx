@@ -1136,7 +1136,7 @@ describe('useComposerMedia session transitions', () => {
       if (captured === undefined) throw new Error('hook not rendered');
       return captured;
     };
-    act(() => latest().setComposer('/plan focus on the failing test'));
+    act(() => latest().setComposer('/goal focus on the failing test'));
     await act(async () => {
       await latest().handleSend();
     });
@@ -1145,7 +1145,7 @@ describe('useComposerMedia session transitions', () => {
       input: { text: string; agentMode?: string };
     };
     expect(command.type).toBe('session/queued-turn-submit');
-    expect(command.input).toMatchObject({ text: 'focus on the failing test', agentMode: 'plan' });
+    expect(command.input).toMatchObject({ text: 'focus on the failing test', agentMode: 'goal' });
     expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'user/send' }));
     await act(async () => {
       await Promise.resolve();

@@ -3,10 +3,11 @@
  * View, search, filter, restore, and permanently delete archived sessions across all scopes.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { SessionListData, SessionSummary } from '@piwin/contracts';
+import type { SessionSummary } from '@piwin/contracts';
 import { Button, IconButton, Select, Spinner, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useConfirmDialog } from '../../use-confirm-dialog';
+import { archivedSessionsFromListData } from './archive-session-list';
 import {
   IconArchive,
   IconChat,
@@ -66,9 +67,7 @@ export function ArchivePage(): ReactElement {
           setError(response.error);
           return;
         }
-        const data = response.data as SessionListData | undefined;
-        const allSessions = data?.sessions ?? [];
-        const archivedOnly = allSessions.filter((session) => session.isArchived === true);
+        const archivedOnly = archivedSessionsFromListData(response.data);
         setSessions(archivedOnly);
         // Prune any selected ids that no longer exist
         setSelectedIds((prev) => {

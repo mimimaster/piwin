@@ -42,6 +42,20 @@ describe('folder-rag', () => {
     rag.close();
   });
 
+  it('skips build artifact directories like target and dist-host', async () => {
+    await mkdir(join(sourceFolder, 'target', 'debug'), { recursive: true });
+    await mkdir(join(sourceFolder, 'dist-host'), { recursive: true });
+    await mkdir(join(sourceFolder, 'playwright-report'), { recursive: true });
+    await writeFile(join(sourceFolder, 'target', 'debug', 'x.ts'), 'export const x = 1;');
+    await writeFile(join(sourceFolder, 'dist-host', 'host.mjs'), 'export {};');
+    await writeFile(join(sourceFolder, 'playwright-report', 'trace.js'), 'export {};');
+    await writeFile(join(sourceFolder, 'notes.md'), '# Notes');
+    const rag = createFolderRag({ piwinRoot });
+    const result = await rag.scanFolder(sourceFolder);
+    expect(result.files.map((f) => f.relativePath)).toEqual(['notes.md']);
+    rag.close();
+  });
+
   it('indexFolder then retrieve returns relevant chunks (FTS-only)', async () => {
     await writeFile(
       join(sourceFolder, 'srs.md'),

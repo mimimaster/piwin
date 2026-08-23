@@ -158,6 +158,45 @@ describe('buildHostFilesystemTools', () => {
     );
   });
 
+  it('prompts for in-project writes in ask-all mode', async () => {
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const tools = buildHostFilesystemTools({ cwd: '/tmp' });
+    const writeFileTool = requireTool(tools, 'write_file');
+    const tmpPath = `piwin-test-ask-write-${Date.now()}.txt`;
+    const result = outputOf(
+      await executeThroughAdmission(
+        writeFileTool,
+        { path: tmpPath, content: 'ask' },
+        () => 'ask-all',
+        requestPermission,
+      ),
+    );
+    expect(result).toContain('Wrote');
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'file-write' }),
+    );
+    const { unlink } = await import('node:fs/promises');
+    const { resolve } = await import('node:path');
+    await unlink(resolve('/tmp', tmpPath));
+  });
+
+  it('prompts for unmatched bash in ask-all mode', async () => {
+    const requestPermission = vi.fn(async () => 'allow' as const);
+    const tools = buildHostFilesystemTools({ cwd: '/tmp' });
+    const bashTool = requireTool(tools, 'bash');
+    await expect(
+      executeThroughAdmission(
+        bashTool,
+        { command: 'echo ask-all-prompt' },
+        () => 'ask-all',
+        requestPermission,
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    expect(requestPermission).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'bash' }),
+    );
+  });
+
   it('reads permission mode at execution time', async () => {
     let permissionMode: PermissionMode = 'auto';
     const tools = buildHostFilesystemTools({ cwd: '/tmp' });

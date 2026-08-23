@@ -1,10 +1,9 @@
 /**
  * Desktop helpers for PathChip file actions: resolve, save-as, reveal folder.
  *
- * Save As prefers a direct byte read (asset protocol / File System Access).
- * Workspace files outside the Tauri asset scope fall back to: copy absolute
- * path + open the parent folder so the user can drag/copy manually.
- * Reveal uses plugin-shell `open` on the parent folder (macOS + Windows).
+ * Save As prefers asset-protocol fetch, then Host `preview/export-local-file`
+ * for workspace paths outside the Tauri asset scope. Last resort: copy path +
+ * open the parent folder. Reveal uses plugin-shell `open` (macOS + Windows).
  */
 
 export function fileNameFromLocalPath(path: string): string {
@@ -51,6 +50,17 @@ export function resolveLocalFileAbsolutePath(
   return `${root}/${relative}`.replace(/\\/g, '/');
 }
 
+export type ExportedLocalFileBytes = {
+  fileName: string;
+  mimeType: string;
+  bytes: Uint8Array;
+};
+
+/** Optional Host-backed reader for paths outside the Tauri asset scope. */
+export type LocalFileBytesReader = (
+  absolutePath: string,
+) => Promise<ExportedLocalFileBytes | null>;
+
 function triggerBlobDownload(blob: Blob, fileName: string): void {
   if (typeof document === 'undefined') {
     return;
@@ -83,54 +93,86 @@ async function tryReadLocalFileBlob(absolutePath: string): Promise<Blob | null> 
   }
 }
 
+function bytesToBlob(exported: ExportedLocalFileBytes): Blob {
+  const copy = new Uint8Array(exported.bytes.byteLength);
+  copy.set(exported.bytes);
+  return new Blob([copy.buffer], { type: exported.mimeType || 'application/octet-stream' });
+}
+
+async function offerBlobDownload(blob: Blob, fileName: string): Promise<'downloaded' | 'cancelled'> {
+  const picker = (
+    globalThis as unknown as {
+      showSaveFilePicker?: (options: {
+        suggestedName?: string;
+      }) => Promise<{
+        createWritable: () => Promise<{
+          write: (data: Blob) => Promise<void>;
+          close: () => Promise<void>;
+        }>;
+      }>;
+    }
+  ).showSaveFilePicker;
+
+  if (typeof picker === 'function') {
+    try {
+      const handle = await picker({ suggestedName: fileName });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return 'downloaded';
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return 'cancelled';
+      }
+    }
+  }
+
+  triggerBlobDownload(blob, fileName);
+  return 'downloaded';
+}
+
 export type SaveLocalFileAsResult =
   | { kind: 'downloaded' }
   | { kind: 'cancelled' }
   | { kind: 'revealed-fallback' }
   | { kind: 'failed' };
 
+export type SaveLocalFileAsOptions = {
+  /** Host `preview/export-local-file` (or test double). */
+  readBytes?: LocalFileBytesReader;
+};
+
 /**
- * Offer the file to the user as a download. When the webview cannot read the
- * path (outside asset-protocol scope), fall back to reveal + clipboard.
+ * Offer the file to the user as a download.
+ * Order: asset protocol → Host export → reveal + clipboard fallback.
  */
-export async function saveLocalFileAs(absolutePath: string): Promise<SaveLocalFileAsResult> {
+export async function saveLocalFileAs(
+  absolutePath: string,
+  options?: SaveLocalFileAsOptions,
+): Promise<SaveLocalFileAsResult> {
   const fileName = fileNameFromLocalPath(absolutePath);
-  const blob = await tryReadLocalFileBlob(absolutePath);
 
-  if (blob) {
-    const picker = (
-      globalThis as unknown as {
-        showSaveFilePicker?: (options: {
-          suggestedName?: string;
-        }) => Promise<{
-          createWritable: () => Promise<{
-            write: (data: Blob) => Promise<void>;
-            close: () => Promise<void>;
-          }>;
-        }>;
-      }
-    ).showSaveFilePicker;
-
-    if (typeof picker === 'function') {
-      try {
-        const handle = await picker({ suggestedName: fileName });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return { kind: 'downloaded' };
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return { kind: 'cancelled' };
-        }
-      }
-    }
-
-    triggerBlobDownload(blob, fileName);
-    return { kind: 'downloaded' };
+  const assetBlob = await tryReadLocalFileBlob(absolutePath);
+  if (assetBlob) {
+    const offered = await offerBlobDownload(assetBlob, fileName);
+    return { kind: offered };
   }
 
-  // Workspace / Host paths are outside the asset-protocol allowlist. Copy the
-  // absolute path and open the folder so the user can take the file manually.
+  if (options?.readBytes) {
+    try {
+      const exported = await options.readBytes(absolutePath);
+      if (exported) {
+        const offered = await offerBlobDownload(
+          bytesToBlob(exported),
+          exported.fileName || fileName,
+        );
+        return { kind: offered };
+      }
+    } catch {
+      // Fall through to reveal fallback.
+    }
+  }
+
   try {
     await navigator.clipboard.writeText(absolutePath);
   } catch {

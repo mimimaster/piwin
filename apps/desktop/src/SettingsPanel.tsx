@@ -3,7 +3,7 @@
  * host-request callbacks; renders the SettingsShell. All sections render
  * through the section registry (settings/pages).
  */
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ModelDiscoveryResult,
   ModelProviderConfig,
@@ -25,8 +25,13 @@ import { useDesktopLocale } from './desktop-locale-context';
 import type { DesktopPreferences } from './ui-preferences';
 import { type SettingsSectionId } from './settings/section-registry';
 import { webToDraft, draftToWeb, preserveWebCliLaunchers, type DraftWeb } from './settings/web-draft';
+import { hostFailureNotice } from './host-problem-copy.js';
 import { isRemoteCommandGapError } from './remote-command-gap.js';
-import { interpretSettingsLoadResponse } from './settings/settings-view-config';
+import {
+  configFromSettingsWriteResponse,
+  interpretSettingsLoadResponse,
+  knowledgeWriteRetained,
+} from './settings/settings-view-config';
 import { SettingsShell } from './settings/settings-shell';
 import type { SettingsConfigRequest, SettingsContextValue } from './settings/settings-context';
 import './styles/settings.css';
@@ -96,7 +101,9 @@ export const SettingsPanel = memo(function SettingsPanel({
   onSectionChange,
 }: SettingsPanelProps) {
   const { locale } = useDesktopLocale();
-  const [config, setConfig] = useState<PiwinConfig | null>(null);
+  const seedConfigRef = useRef(seedConfig);
+  seedConfigRef.current = seedConfig;
+  const [config, setConfig] = useState<PiwinConfig | null>(seedConfig ?? null);
   const [root, setRoot] = useState('~/.piwin');
   const [error, setErrorState] = useState<string | null>(null);
   const [info, setInfoMessage] = useState<string | null>(null);
@@ -123,14 +130,17 @@ export const SettingsPanel = memo(function SettingsPanel({
     }
   }, []);
 
-  // Escape is owned by useShellLayout so focus returns to the opener.
+  // Load once per Host connection. `seedConfig` updates after save must not
+  // refetch and clobber the form (reranker/extras looked "unsaved").
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       const remote = hostClient?.getTransport?.() === 'remote';
       const canReadSettings = hostClient?.supportsCommand?.('settings/get') !== false;
       try {
         const response =
           remote && !canReadSettings ? undefined : await request({ type: 'config/get' });
+        if (cancelled) return;
         const loaded = interpretSettingsLoadResponse({
           remote,
           canReadSettings,
@@ -138,9 +148,10 @@ export const SettingsPanel = memo(function SettingsPanel({
         });
         if (loaded.kind === 'error') {
           setError(loaded.error);
-          if (seedConfig) {
-            setConfig(seedConfig);
-            setWebDraft(webToDraft(seedConfig.web ?? createDefaultWebConfig()));
+          const seed = seedConfigRef.current;
+          if (seed) {
+            setConfig(seed);
+            setWebDraft(webToDraft(seed.web ?? createDefaultWebConfig()));
           }
           return;
         }
@@ -148,9 +159,11 @@ export const SettingsPanel = memo(function SettingsPanel({
         setRoot(loaded.root);
         setWebDraft(webToDraft(loaded.config.web ?? createDefaultWebConfig()));
       } catch (loadError) {
-        if (seedConfig) {
-          setConfig(seedConfig);
-          setWebDraft(webToDraft(seedConfig.web ?? createDefaultWebConfig()));
+        if (cancelled) return;
+        const seed = seedConfigRef.current;
+        if (seed) {
+          setConfig(seed);
+          setWebDraft(webToDraft(seed.web ?? createDefaultWebConfig()));
         } else {
           const loaded = interpretSettingsLoadResponse({
             remote,
@@ -167,7 +180,10 @@ export const SettingsPanel = memo(function SettingsPanel({
         setError(loadError instanceof Error ? loadError.message : String(loadError));
       }
     })();
-  }, [hostClient, request, seedConfig, setError]);
+    return () => {
+      cancelled = true;
+    };
+  }, [hostClient, request, setError]);
 
   useEffect(() => {
     if (initialSection) {
@@ -226,17 +242,26 @@ export const SettingsPanel = memo(function SettingsPanel({
       try {
         const response = await request({ type: 'config/set', config: next });
         if (!response.success) {
-          setError(response.error);
+          setError(hostFailureNotice(response, locale) || response.error);
           return false;
         }
-        setConfig(next);
-        onSaved?.(next);
+        const stored = configFromSettingsWriteResponse(response, next);
+        if (!knowledgeWriteRetained(next, stored)) {
+          setError(
+            locale === 'zh-CN'
+              ? '当前 Host 没有保存重排 / 解析 / 专用模型。更新并重启 Host 后再保存，表单先留着。'
+              : 'This Host did not persist reranker, parsers, or dedicated models. Update and restart the Host, then save again. Your form was kept.',
+          );
+          return false;
+        }
+        setConfig(stored);
+        onSaved?.(stored);
         return true;
       } finally {
         setSaving(false);
       }
     },
-    [onSaved, request, setError, setInfo],
+    [locale, onSaved, request, setError, setInfo],
   );
 
   const discoverProviderModels = useCallback(

@@ -11,7 +11,10 @@ import {
 } from '@piwin/contracts';
 import { settingsMutationsForHostApply } from './host-request-adapters';
 import { hostFailureNotice } from './host-problem-copy.js';
-import { settingsApplyInputFromSnapshot } from './settings-apply-input.js';
+import {
+  settingsApplyInputFromSnapshot,
+  settingsMutationsAdmittedByRemoteSnapshot,
+} from './settings-apply-input.js';
 import type { DesktopLocale } from './desktop-locale';
 
 export type SettingsGetSnapshot = {
@@ -65,10 +68,18 @@ export function planSettingsSave(input: {
   if (!snapshot) {
     return { kind: 'missing-snapshot', message: 'Settings read returned no snapshot' };
   }
-  const mutations = settingsMutationsForHostApply(
+  const requested = settingsMutationsForHostApply(
     input.buildMutations(snapshot.config),
     input.transport,
   );
+  const mutations =
+    input.transport === 'remote'
+      ? settingsMutationsAdmittedByRemoteSnapshot(
+          requested,
+          snapshot.domainRevisions,
+          snapshot.config.notes,
+        )
+      : requested;
   if (mutations.length === 0) {
     return { kind: 'empty-mutations' };
   }

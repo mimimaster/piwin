@@ -8,6 +8,7 @@ import { useCallback } from 'react';
 import type {
   AgentModeId,
   ModelRef,
+  PermissionPreset,
   PromptAttachment,
   PromptContextRef,
   ThinkingLevel,
@@ -23,6 +24,7 @@ export type ComposerPromptRequestInput = {
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
   agentMode?: AgentModeId;
+  permissionPreset?: PermissionPreset;
   orchestrationSchemeId?: string;
   clientMessageId?: string;
   skillId?: string;
@@ -68,6 +70,9 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
       };
       if (args.conversationChat !== true) {
         input.agentMode = params.agentMode;
+        if (args.permissionPreset) {
+          input.permissionPreset = args.permissionPreset;
+        }
       }
       if (params.clientMessageId && params.clientMessageId.trim().length > 0) {
         input.clientMessageId = params.clientMessageId.trim();
@@ -108,6 +113,7 @@ export function useComposerPromptInput(args: UseComposerMediaArgs) {
       args.selectedModelKey,
       args.thinkingLevel,
       args.conversationChat,
+      args.permissionPreset,
       resolveTurnModel,
     ],
   );

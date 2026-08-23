@@ -41,13 +41,19 @@ network allowlist ships (Phase 3).
 
 ### 2. Agent mode ≠ Run Mode
 
-Agent mode (`Agent` / `Plan` / `Debug` / `Ask` via composer `+` menu) is
-collaboration intent. Run Mode is tool execution. Keep them orthogonal.
+Agent mode is collaboration intent. Run Mode is tool execution. Keep them
+orthogonal.
 
-**Soft link**: when Agent mode is `plan` or `ask`, host raises a read-only
-floor (sandbox `read-only`, mutators always ask) even under `auto`. User can
-still pick `yolo` while in Plan/Ask — UI shows a one-line warning, host does
-not hard-block (locked).
+**Amendment (2026-08-23):** Desktop composer entries are `Agent` and `Goal`
+only. Plan / Ask were removed from the `+` menu and slash catalog. Do not
+describe them as current UI. Host may still honor a leftover `agentMode:
+'plan' | 'ask'` on a prompt (read-only floor under Auto); that is not a
+user-facing switch.
+
+**Soft link** (legacy `plan` / `ask` ids only): when those agent modes are
+present on a prompt, host raises a read-only floor (sandbox `read-only`,
+mutators always ask) even under `auto`. User can still pick `yolo` —
+UI shows a one-line warning, host does not hard-block (locked).
 
 The read-only floor applies to the project workspace, not Host-owned product
 state. Planning tools may write the validated SessionPlan under

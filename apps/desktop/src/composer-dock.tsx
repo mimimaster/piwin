@@ -33,7 +33,6 @@ import { getAgentMode, type AgentModeId } from './agent-mode';
 import { isFailedMediaAttachment, type PendingComposerAttachment } from './media-utils';
 import {
   ComposerAttachmentShelf,
-  nextComposerShelfPop,
 } from './composer-attachment-shelf';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
@@ -300,6 +299,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const onlyFailedAttachments = failedAttachments.length > 0 && !hasSendableContentBesidesFailures;
   const canQueueStreamingText =
     props.composer.trim().length > 0 && props.pendingAttachments.length === 0;
+  const canKeyboardSend =
+    props.composer.trim().length > 0 || props.hasCarryContent === true;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
@@ -835,46 +836,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
-    // Empty textarea + caret at 0: Backspace pops the last shelf card.
-    if (
-      event.key === 'Backspace' &&
-      !event.nativeEvent.isComposing &&
-      !isComposingRef.current &&
-      composerValue.length === 0 &&
-      (event.currentTarget.selectionStart ?? 0) === 0
-    ) {
-      const pop = nextComposerShelfPop({
-        attachments: props.pendingAttachments,
-        contextRefs: props.pendingContextRefs ?? [],
-        hasDocComments: Boolean(props.docCommentsAttachment),
-      });
-      if (pop) {
-        event.preventDefault();
-        if (pop.kind === 'attachment') {
-          props.onRemoveAttachment(pop.localId);
-        } else if (pop.kind === 'context-ref') {
-          props.onRemoveContextRef?.(pop.key);
-        } else {
-          props.onRemoveDocComments?.();
-        }
-        return;
-      }
-    }
-
     // 4. ⌘Enter submits a run intervention (bypasses IME protection).
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
       if (isPaused) {
         return;
       }
-      if (hasContent) {
-        if (isStreamingRun) {
-          if (props.composer.trim().length > 0) {
-            triggerSteer();
-          }
-        } else {
-          triggerSend();
+      if (isStreamingRun) {
+        if (props.composer.trim().length > 0) {
+          triggerSteer();
         }
+      } else if (canKeyboardSend) {
+        triggerSend();
       }
       return;
     }
@@ -893,14 +866,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       if (isPaused) {
         return;
       }
-      if (hasContent) {
-        if (isStreamingRun) {
-          if (canQueueStreamingText) {
-            triggerFollowUp();
-          }
-        } else {
-          triggerSend();
+      if (isStreamingRun) {
+        if (canQueueStreamingText) {
+          triggerFollowUp();
         }
+      } else if (canKeyboardSend) {
+        triggerSend();
       }
     }
   }

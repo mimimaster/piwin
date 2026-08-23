@@ -195,11 +195,6 @@ export type DesktopCopy = {
     stopping: string;
     stopJob: string;
     viewJobLogsTitle: (label: string) => string;
-    pause: string;
-    pausing: string;
-    /** Tooltip unused for live interrupt; kept for paused-state / CLI copy. */
-    pauseHint: string;
-    continueRun: string;
     hostConnecting: string;
     hostStatus: (mode: string, isMock: boolean) => string;
     hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
@@ -754,10 +749,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       stopping: '正在停止…',
       stopJob: '停止程序',
       viewJobLogsTitle: (label) => `查看「${label}」日志`,
-      pause: '暂停',
-      pausing: '正在暂停…',
-      pauseHint: '暂停并保存检查点（CLI / Host）',
-      continueRun: '继续运行',
       hostConnecting: 'Host：正在连接…',
       hostStatus: (mode, isMock) => `Host：${mode}${isMock ? '（模拟）' : ''}`,
       hostTooltip: (mode, isMock, ready, transport) =>
@@ -1072,10 +1063,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       stopping: 'Stopping…',
       stopJob: 'Stop program',
       viewJobLogsTitle: (label) => `View logs for ${label}`,
-      pause: 'Pause',
-      pausing: 'Pausing…',
-      pauseHint: 'Pause and save a checkpoint (CLI / Host)',
-      continueRun: 'Continue run',
       hostConnecting: 'Host: Connecting…',
       hostStatus: (mode, isMock) => `Host: ${mode}${isMock ? ' (mock)' : ''}`,
       hostTooltip: (mode, isMock, ready, transport) =>

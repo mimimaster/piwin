@@ -471,6 +471,7 @@ export const ChatMessageRow = memo(
                     ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
                     : {})}
                   {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+                  {...(props.projectPath ? { projectPath: props.projectPath } : {})}
                 />
               ) : null}
               {message.searchEvidence !== undefined ? (

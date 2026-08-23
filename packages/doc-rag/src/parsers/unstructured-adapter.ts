@@ -1,9 +1,21 @@
 /**
- * Unstructured HTTP adapter. Maps structured JSON elements to ParsedBlock.
- * Does not parse DOC binaries. Disabled unless configured.
+ * Unstructured HTTP adapter. Maps structured JSON elements, or POSTs the
+ * original file to a configured Unstructured API (`POST /general/v0/general`).
+ * Does not parse DOC binaries locally.
  */
 import type { ParsedBlock, ParsedBlockType, ParsedDocument } from '@piwin/contracts';
 import { UNSTRUCTURED_EXTENSIONS, fileExtension } from './extensions.js';
+import {
+  DEFAULT_UNSTRUCTURED_PARSE_PATH,
+  DEFAULT_UNSTRUCTURED_TIMEOUT_MS,
+  extractUnstructuredElements,
+  joinParserEndpoint,
+  parserFileName,
+  parserInputBytes,
+  parserMimeType,
+  postParserFile,
+  type ParserHttpClientOptions,
+} from './parser-http.js';
 import type { DocumentParser, ParserInput } from './types.js';
 
 export type UnstructuredElement = {
@@ -13,6 +25,11 @@ export type UnstructuredElement = {
     page_number?: number;
     filename?: string;
   };
+};
+
+export type UnstructuredAdapterOptions = {
+  enabled: boolean;
+  http?: ParserHttpClientOptions;
 };
 
 const TYPE_MAP: Record<string, ParsedBlockType> = {
@@ -46,33 +63,74 @@ export function mapUnstructuredElements(elements: UnstructuredElement[]): Parsed
   return blocks;
 }
 
-export function createUnstructuredAdapter(enabled: boolean): DocumentParser {
+export function createUnstructuredAdapter(
+  options: boolean | UnstructuredAdapterOptions,
+): DocumentParser {
+  const enabled = typeof options === 'boolean' ? options : options.enabled;
+  const http = typeof options === 'boolean' ? undefined : options.http;
+  const endpoint = http?.baseUrl?.trim()
+    ? joinParserEndpoint(http.baseUrl, DEFAULT_UNSTRUCTURED_PARSE_PATH)
+    : '';
+
   return {
     id: 'unstructured-v1',
     version: '1',
     supports(input) {
-      if (!enabled) return false;
+      if (!enabled || !endpoint) return false;
       return UNSTRUCTURED_EXTENSIONS.includes(
         (input.extension || fileExtension(input.relativePath)) as (typeof UNSTRUCTURED_EXTENSIONS)[number],
       );
     },
-    async parse(input: ParserInput): Promise<ParsedDocument> {
+    async parse(input: ParserInput, signal?: AbortSignal): Promise<ParsedDocument> {
       if (!enabled) {
         throw new Error('UNSTRUCTURED_NOT_CONFIGURED');
       }
-      let elements: UnstructuredElement[];
-      try {
-        const parsed: unknown = JSON.parse(input.content);
-        elements = Array.isArray(parsed) ? (parsed as UnstructuredElement[]) : [];
-      } catch {
+      const fromJson = tryMapUnstructuredJson(input.content);
+      if (fromJson) {
+        return toParsedDocument(input, mapUnstructuredElements(fromJson));
+      }
+      if (!endpoint) {
+        throw new Error('UNSTRUCTURED_NOT_CONFIGURED');
+      }
+      const payload = await postParserFile({
+        endpoint,
+        fieldName: 'files',
+        fileName: parserFileName(input.relativePath),
+        mimeType: parserMimeType(input.extension || fileExtension(input.relativePath)),
+        bytes: parserInputBytes(input),
+        extraFields: { strategy: 'auto' },
+        timeoutMs: http?.timeoutMs ?? DEFAULT_UNSTRUCTURED_TIMEOUT_MS,
+        fetchImpl: http?.fetchImpl ?? fetch,
+        ...(http?.apiKey ? { apiKey: http.apiKey } : {}),
+        ...(signal ? { signal } : {}),
+      });
+      const blocks = mapUnstructuredElements(
+        extractUnstructuredElements(payload) as UnstructuredElement[],
+      );
+      if (blocks.length === 0) {
         throw new Error('PARSER_FAILED');
       }
-      return {
-        documentId: input.documentId,
-        relativePath: input.relativePath,
-        blocks: mapUnstructuredElements(elements),
-        parser: { id: 'unstructured-v1', version: '1' },
-      };
+      return toParsedDocument(input, blocks);
     },
+  };
+}
+
+function tryMapUnstructuredJson(content: string): UnstructuredElement[] | null {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+  try {
+    const elements = extractUnstructuredElements(JSON.parse(trimmed) as unknown) as UnstructuredElement[];
+    return elements.length > 0 ? elements : null;
+  } catch {
+    return null;
+  }
+}
+
+function toParsedDocument(input: ParserInput, blocks: ParsedBlock[]): ParsedDocument {
+  return {
+    documentId: input.documentId,
+    relativePath: input.relativePath,
+    blocks,
+    parser: { id: 'unstructured-v1', version: '1' },
   };
 }

@@ -5,6 +5,7 @@
 import { type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { DocumentManifest, ScannedDocFile, ScannedFileV2 } from '@piwin/contracts';
+import { DEFAULT_MAX_FILES } from '@piwin/contracts';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 
 export type KnowledgeFileChecklistProps = {
@@ -42,7 +43,10 @@ export function KnowledgeFileChecklist(props: KnowledgeFileChecklistProps): Reac
     props.documents.filter((document) => document.status === 'READY').map((document) => document.relativePath),
   );
   const selectedSet = new Set(props.selected);
-  const allSelected = props.files.length > 0 && props.files.every((file) => selectedSet.has(file.relativePath));
+  const selectAllTargets = props.files.slice(0, DEFAULT_MAX_FILES);
+  const allSelected =
+    selectAllTargets.length > 0 &&
+    selectAllTargets.every((file) => selectedSet.has(file.relativePath));
 
   function toggle(relativePath: string, checked: boolean): void {
     if (checked) {
@@ -62,7 +66,7 @@ export function KnowledgeFileChecklist(props: KnowledgeFileChecklistProps): Reac
         <Button
           size="compact"
           variant="ghost"
-          onClick={() => props.onChange(props.files.map((file) => file.relativePath))}
+          onClick={() => props.onChange(selectAllTargets.map((file) => file.relativePath))}
           disabled={props.disabled || allSelected}
         >
           {t('Select all', '全选')}

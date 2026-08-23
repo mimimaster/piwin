@@ -1,6 +1,7 @@
 import type { Dispatch } from 'react';
 import type {
   ForegroundRunMismatchProblem,
+  PermissionPreset,
   PromptContextRef,
   ThinkingLevel,
 } from '@piwin/contracts';
@@ -16,6 +17,8 @@ export type UseComposerMediaArgs = {
   dispatchNotification?: Dispatch<import('../notification-queue').NotificationAction>;
   agentMode: AgentModeId;
   onAgentModeChange?: (mode: AgentModeId) => void;
+  /** Composer Run Mode for this session; sent on each prompt so Host can gate tools. */
+  permissionPreset?: PermissionPreset;
   /** Skills available for `/name` send intercept. */
   menuSkills?: Array<{ id: string; name: string; enabled: boolean }>;
   onCompact?: (customInstructions?: string) => Promise<void>;

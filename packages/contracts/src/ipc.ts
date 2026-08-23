@@ -27,7 +27,11 @@ import type {
   SavedMediaAsset,
   SaveMediaInput,
 } from './media.js';
-import type { LocalFilePreviewCommandInput, TrustedTextReadCommandInput } from './preview.js';
+import type {
+  LocalFileExportCommandInput,
+  LocalFilePreviewCommandInput,
+  TrustedTextReadCommandInput,
+} from './preview.js';
 import type { SpeechTranscribeInput } from './speech.js';
 import type { SessionListOrder, SessionListPageQuery } from './session-list-page.js';
 import type {
@@ -460,6 +464,11 @@ export type HostCommand =
    * (ADR 0052 Slice 4). Remote host-server rejects this command.
    */
   | { id?: string; type: 'preview/read-local-file'; input: LocalFilePreviewCommandInput }
+  /**
+   * Local-Host only. Returns file bytes for Desktop Save As (user gesture).
+   * Remote host-server rejects this command.
+   */
+  | { id?: string; type: 'preview/export-local-file'; input: LocalFileExportCommandInput }
   /**
    * Transient Desktop audio. Unlike media/save, Host must not write this input
    * to ~/.piwin/media, transcript, prompt attachments, or logs.

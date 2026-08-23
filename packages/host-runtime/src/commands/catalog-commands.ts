@@ -16,7 +16,9 @@ import {
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
 import { createExtensionRevisionStore } from '@piwin/extensions';
-import { ensureBundledSkillsInstalled, readSkillPreview, scanSkills } from '@piwin/skills';
+import { ensureBundledSkillsInstalled, readSkillPreview } from '@piwin/skills';
+import { loadDiscoveredResources } from '../discovered-resources.js';
+import { getPiAgentDir } from '../paths.js';
 import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
 import {
   getActiveTheme,
@@ -36,9 +38,7 @@ import {
 } from '@piwin/pet';
 import { loadPiwinConfig, savePiwinConfig } from '../config-store.js';
 import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
-import { scanExtensions } from '../extension-scanner.js';
 import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
-import { scanPrompts } from '../prompt-scanner.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
 import {
   mergeProviderSecretSource,
@@ -232,18 +232,8 @@ export async function handleCatalogCommand(
     case 'skills/list': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       await ensureBundledSkillsInstalled(rootDir);
-      const config = await loadPiwinConfig(rootDir);
-      const scanOptions: Parameters<typeof scanSkills>[0] = {
-        piwinRoot: rootDir,
-      };
-      if (config.skills) {
-        scanOptions.skillsConfig = config.skills;
-      }
-      if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
-        scanOptions.projectPath = command.projectPath;
-      }
-      const skills = await scanSkills(scanOptions);
-      return ok(requestId, 'skills/list', { skills });
+      const discovered = await loadCatalogResources(rootDir, command.projectPath);
+      return ok(requestId, 'skills/list', { skills: discovered.skills });
     }
     case 'skills/read': {
       const rootDir = getPiwinRoot(context.piwinRoot);
@@ -261,6 +251,7 @@ export async function handleCatalogCommand(
         typeof command.projectPath === 'string' && command.projectPath.trim()
           ? command.projectPath.trim()
           : undefined;
+      const discovered = await loadCatalogResources(rootDir, projectPath);
       const data = await readSkillPreview({
         piwinRoot: rootDir,
         ...(config.skills ? { skillsConfig: config.skills } : {}),
@@ -268,6 +259,8 @@ export async function handleCatalogCommand(
         ...(legacyPath ? { legacyPath } : {}),
         ...(projectPath ? { projectPath } : {}),
         ...(typeof command.maxBytes === 'number' ? { maxBytes: command.maxBytes } : {}),
+        discoveredSkills: discovered.skills,
+        additionalAuthorizedRoots: [getPiAgentDir()],
       });
       return ok(requestId, 'skills/read', data);
     }
@@ -314,18 +307,8 @@ export async function handleCatalogCommand(
     case 'extensions/list': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       await ensureBundledExtensionsInstalled(rootDir);
-      const config = await loadPiwinConfig(rootDir);
-      const scanOptions: Parameters<typeof scanExtensions>[0] = {
-        piwinRoot: rootDir,
-      };
-      if (config.extensions) {
-        scanOptions.extensionsConfig = config.extensions;
-      }
-      if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
-        scanOptions.projectPath = command.projectPath;
-      }
-      const extensions = await scanExtensions(scanOptions);
-      return ok(requestId, 'extensions/list', { extensions });
+      const discovered = await loadCatalogResources(rootDir, command.projectPath);
+      return ok(requestId, 'extensions/list', { extensions: discovered.extensions });
     }
     case 'extensions/set_enabled': {
       const rootDir = getPiwinRoot(context.piwinRoot);
@@ -395,18 +378,8 @@ export async function handleCatalogCommand(
     case 'prompts/list': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       await ensureBundledPromptsInstalled(rootDir);
-      const config = await loadPiwinConfig(rootDir);
-      const scanOptions: Parameters<typeof scanPrompts>[0] = {
-        piwinRoot: rootDir,
-      };
-      if (config.prompts) {
-        scanOptions.promptsConfig = config.prompts;
-      }
-      if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
-        scanOptions.projectPath = command.projectPath;
-      }
-      const prompts = await scanPrompts(scanOptions);
-      return ok(requestId, 'prompts/list', { prompts });
+      const discovered = await loadCatalogResources(rootDir, command.projectPath);
+      return ok(requestId, 'prompts/list', { prompts: discovered.prompts });
     }
     case 'prompts/set_enabled': {
       const rootDir = getPiwinRoot(context.piwinRoot);
@@ -834,21 +807,29 @@ export async function handleCatalogCommand(
   }
 }
 
+async function loadCatalogResources(rootDir: string, projectPath?: string) {
+  const config = await loadPiwinConfig(rootDir);
+  const path = typeof projectPath === 'string' && projectPath.trim() ? projectPath.trim() : undefined;
+  return loadDiscoveredResources({
+    piwinRoot: rootDir,
+    ...(path ? { projectPath: path } : {}),
+    ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
+    ...(config.skills ? { skillsConfig: config.skills } : {}),
+    ...(config.prompts ? { promptsConfig: config.prompts } : {}),
+  });
+}
+
 async function pushExtensionCatalog(
   context: HostCommandContext,
   rootDir: string,
   registryRevision: string,
 ): Promise<void> {
-  const config = await loadPiwinConfig(rootDir);
   await ensureBundledExtensionsInstalled(rootDir);
-  const extensions = await scanExtensions({
-    piwinRoot: rootDir,
-    ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
-  });
+  const discovered = await loadCatalogResources(rootDir);
   context.push({
     type: 'extension/catalog-updated',
     registryRevision,
-    extensions,
+    extensions: discovered.extensions,
   });
 }
 

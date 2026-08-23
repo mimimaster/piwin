@@ -81,6 +81,7 @@ export const RUNTIME_STALE_DOMAINS: ReadonlySet<SettingsDomain> = new Set<Settin
   'process',
   'notes',
   'flashcards',
+  'knowledge',
   'permissions',
   'subagents',
 ]);
@@ -92,6 +93,7 @@ export const IMMEDIATE_TIGHTENING_DOMAINS: ReadonlySet<SettingsDomain> = new Set
   'process',
   'notes',
   'flashcards',
+  'knowledge',
   'subagents',
 ]);
 

@@ -263,10 +263,20 @@ export function useComposerSend(params: UseComposerSendArgs) {
         notifyError(hostReconnectNotice(locale));
         return;
       }
-      // Paused checkpoint is a first-class composer state: Continue / discard,
-      // not a silent abort-then-send.
       if (args.state.runTerminal.kind === 'paused') {
-        return;
+        const sessionId = args.state.activeSessionId;
+        if (!sessionId) {
+          return;
+        }
+        const clearPause = await args.hostClient.request({
+          type: 'session/abort',
+          sessionId,
+        });
+        if (!clearPause.success) {
+          notifyError(hostFailureNotice(clearPause, locale));
+          return;
+        }
+        args.dispatch({ type: 'run/terminal-dismiss' });
       }
 
       const promptRefsSnapshot = args.getPendingContextRefTokens?.() ?? null;

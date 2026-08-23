@@ -19,8 +19,19 @@ describe('parser registry', () => {
     );
   });
 
-  it('supports markdown and pdf when MinerU is enabled', () => {
+  it('keeps pdf unsupported when MinerU is on without a Base URL', () => {
     const registry = createParserRegistry({ mineruEnabled: true });
+    expect(registry.classify({ relativePath: 'a.pdf', sizeBytes: 1 }).unsupportedReason).toBe(
+      'MINERU_NOT_CONFIGURED',
+    );
+    expect(registry.getSupportedExtensions()).not.toContain('.pdf');
+  });
+
+  it('supports markdown and pdf when MinerU has an HTTP endpoint', () => {
+    const registry = createParserRegistry({
+      mineruEnabled: true,
+      mineru: { baseUrl: 'http://127.0.0.1:8000' },
+    });
     expect(registry.classify({ relativePath: 'a.md', sizeBytes: 1 }).support).toBe('supported');
     expect(registry.classify({ relativePath: 'a.pdf', sizeBytes: 1 }).support).toBe('supported');
     expect(registry.getSupportedExtensions()).toContain('.pdf');

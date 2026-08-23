@@ -29,8 +29,14 @@ export function createParserRegistry(options: ParserRegistryOptions = {}): Parse
     createMarkdownParser(),
     createTextParser(),
     createCodeParser(),
-    createUnstructuredAdapter(unstructuredEnabled),
-    createMineruAdapter(mineruEnabled),
+    createUnstructuredAdapter({
+      enabled: unstructuredEnabled,
+      ...(options.unstructured ? { http: options.unstructured } : {}),
+    }),
+    createMineruAdapter({
+      enabled: mineruEnabled,
+      ...(options.mineru ? { http: options.mineru } : {}),
+    }),
   ];
 
   function findParser(input: { relativePath: string; extension: string }): DocumentParser | undefined {

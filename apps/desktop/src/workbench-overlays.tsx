@@ -31,7 +31,8 @@ import {
   type SessionNamedDraft,
   type SessionRenameDraft,
 } from './hooks/use-session-list-chrome';
-import { mergeSessionsForLookup } from './session-list-lookup';
+import { isRemoteDesktopTransport } from './remote-session-hydrate';
+import { collectSessionsForLookup } from './session-list-lookup';
 import { SessionColdRestoreDialog } from './session-cold-restore-dialog';
 import type { SessionRowMenuAction } from './session-row-menu';
 import type { SettingsSectionId } from './settings/section-registry';
@@ -51,7 +52,6 @@ export type WorkbenchOverlaysProps = {
   onTrustProject: (trust: boolean) => void | Promise<void>;
   sessionMenu: { sessionId: string; x: number; y: number } | null;
   closeSessionMenu: () => void;
-  showArchivedSessions: boolean;
   onSessionMenuAction: (sessionId: string, action: SessionRowMenuAction) => void | Promise<void>;
   requestDeleteSession: (sessionId: string, sessionName: string) => void;
   requestContinueInProject: (sessionId: string, sessionName: string) => void;
@@ -119,7 +119,12 @@ export type WorkbenchSettingsOverlayProps = {
 };
 
 export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
-  const sessions = mergeSessionsForLookup(props.state.sessions, props.state.generalSessions);
+  const sessions = collectSessionsForLookup({
+    sessions: props.state.sessions,
+    generalSessions: props.state.generalSessions,
+    projectSessionsByPath: props.state.projectSessionsByPath,
+  });
+  const hostOsFamily = props.hostClient.getRemoteCapabilities()?.platform;
   return (
     <>
       <AppDialogs
@@ -134,13 +139,18 @@ export function WorkbenchOverlays(props: WorkbenchOverlaysProps): ReactElement {
           }
         }}
         onBrowseProject={() => void props.onBrowseProject()}
+        {...(isRemoteDesktopTransport(props.hostClient.getTransport())
+          ? {
+              hostWorkspacePicker: true,
+              ...(hostOsFamily === undefined ? {} : { hostOsFamily }),
+            }
+          : {})}
         projectPath={props.state.projectPath}
         trustDialogOpen={props.state.trustDialogOpen}
         onTrustProject={(trust) => void props.onTrustProject(trust)}
         sessionMenu={props.sessionMenu}
         onCloseSessionMenu={props.closeSessionMenu}
         sessions={sessions}
-        showArchivedSessions={props.showArchivedSessions}
         onSessionMenuAction={(sessionId, action) => {
           routeSessionChromeMenuAction({
             sessionId,

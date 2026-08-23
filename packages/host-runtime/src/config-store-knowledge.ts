@@ -2,7 +2,12 @@
  * Normalize optional `PiwinConfig.knowledge`. Kept out of config-store.ts
  * (already over the line cap).
  */
-import type { KnowledgeConfig, KnowledgeEmbeddingConfig, PiwinConfig } from '@piwin/contracts';
+import type {
+  KnowledgeConfig,
+  KnowledgeEmbeddingConfig,
+  NotesKnowledgeExtras,
+  PiwinConfig,
+} from '@piwin/contracts';
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
@@ -46,6 +51,17 @@ function normalizeEmbedding(value: unknown): KnowledgeEmbeddingConfig | undefine
   return Object.keys(embedding).length > 0 ? embedding : undefined;
 }
 
+export function normalizeNotesKnowledgeExtras(value: unknown): NotesKnowledgeExtras | undefined {
+  const extras = asKnowledgePartial(asRecord(value) ?? {});
+  delete extras.embedding;
+  const bag: NotesKnowledgeExtras = {};
+  if (extras.parser) bag.parser = extras.parser;
+  if (extras.reranker) bag.reranker = extras.reranker;
+  if (extras.extractionLlm) bag.extractionLlm = extras.extractionLlm;
+  if (extras.flashcardLlm) bag.flashcardLlm = extras.flashcardLlm;
+  return Object.keys(bag).length > 0 ? bag : undefined;
+}
+
 export function normalizeKnowledgeConfig(
   value: unknown,
   notes: PiwinConfig['notes'],
@@ -55,6 +71,15 @@ export function normalizeKnowledgeConfig(
   if (!knowledge.embedding) {
     const mapped = mapNotesEmbedding(notes);
     if (mapped) knowledge.embedding = mapped;
+  }
+  const mirrored = notes?.knowledgeExtras;
+  if (!knowledge.parser && mirrored?.parser) knowledge.parser = mirrored.parser;
+  if (!knowledge.reranker && mirrored?.reranker) knowledge.reranker = mirrored.reranker;
+  if (!knowledge.extractionLlm && mirrored?.extractionLlm) {
+    knowledge.extractionLlm = mirrored.extractionLlm;
+  }
+  if (!knowledge.flashcardLlm && mirrored?.flashcardLlm) {
+    knowledge.flashcardLlm = mirrored.flashcardLlm;
   }
   return Object.keys(knowledge).length > 0 ? knowledge : undefined;
 }

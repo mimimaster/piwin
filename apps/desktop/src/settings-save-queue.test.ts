@@ -92,6 +92,32 @@ describe('planSettingsSave', () => {
       },
     });
   });
+
+  it('drops knowledge on remote apply when the Host snapshot has no knowledge hash', () => {
+    const knowledge: SettingsMutation = {
+      kind: 'replace-domain',
+      domain: 'knowledge',
+      value: { embedding: { enabled: true } },
+    };
+    const notes: SettingsMutation = {
+      kind: 'replace-domain',
+      domain: 'notes',
+      value: { embedding: { provider: 'openai-compatible', baseUrl: 'https://x', model: 'm' } },
+    };
+    const plan = planSettingsSave({
+      getResponse: okGet({
+        config,
+        revision: 'rev-2',
+        domainRevisions: { notes: 'hash-n' },
+      }),
+      buildMutations: () => [knowledge, notes],
+      transport: 'remote',
+    });
+    expect(plan.kind).toBe('apply');
+    if (plan.kind !== 'apply') return;
+    expect(plan.mutations.map((item) => item.domain)).toEqual(['notes']);
+    expect(settingsApplyCommand(plan).input.expectedDomainRevisions).toEqual({ notes: 'hash-n' });
+  });
 });
 
 describe('settingsSaveApplyFailureNotice', () => {

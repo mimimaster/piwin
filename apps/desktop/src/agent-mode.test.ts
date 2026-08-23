@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { applyAgentModeToPrompt, getAgentMode } from './agent-mode';
+import { AGENT_MODES, applyAgentModeToPrompt, getAgentMode } from './agent-mode';
 
 describe('agent-mode', () => {
+  it('exposes only Agent and Goal as composer modes', () => {
+    expect(AGENT_MODES.map((mode) => mode.id)).toEqual(['agent', 'goal']);
+  });
+
   it('prefixes agent mode with a compact generation-contract marker', () => {
     const out = applyAgentModeToPrompt('agent', 'hello');
     expect(out).toBe('[piwin-mode:agent]\nUser:\nhello');
     expect(out).not.toContain('Operating contract');
   });
 
-  it('prefixes plan mode with non-mutating constraints', () => {
-    const out = applyAgentModeToPrompt('plan', 'build auth');
-    expect(out).toContain('[piwin-mode:plan]');
-    expect(out).toContain('Plan Mode');
-    expect(out).toContain('build auth');
-    expect(getAgentMode('plan').description).toMatch(/implementation plan/i);
+  it('still resolves retired Plan/Ask ids for leftover session chips', () => {
+    expect(getAgentMode('plan').id).toBe('plan');
+    expect(getAgentMode('ask').id).toBe('ask');
   });
 
   it('prefixes goal mode with autonomous iteration constraints', () => {

@@ -350,6 +350,85 @@ describe('activateProjectOnHost', () => {
       trusted: true,
     });
   });
+
+  it('trusts an untrusted remote projectId when autoTrust is on', async () => {
+    const calls: HostCommand['type'][] = [];
+    const result = await activateProjectOnHost(
+      async (command) => {
+        calls.push(command.type);
+        if (command.type === 'project/list') {
+          return {
+            type: 'response',
+            command: 'project/list',
+            success: true,
+            data: {
+              projects: [
+                {
+                  projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+                  displayName: 'piwin',
+                  trust: 'untrusted',
+                },
+              ],
+            },
+          };
+        }
+        if (command.type === 'project/trust') {
+          expect(command.path).toBe('project-aaaaaaaaaaaaaaaaaaaaaaaa');
+          return {
+            type: 'response',
+            command: 'project/trust',
+            success: true,
+            data: {
+              projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+              trusted: true,
+              trust: 'trusted',
+            },
+          };
+        }
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      },
+      'remote',
+      'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    expect(calls).toEqual(['project/list', 'project/trust']);
+    expect(result).toEqual({
+      ok: true,
+      path: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+      trusted: true,
+    });
+  });
+
+  it('opens a Host path on remote and keeps the opaque projectId, not the Host filesystem path', async () => {
+    const calls: HostCommand['type'][] = [];
+    const result = await activateProjectOnHost(
+      async (command) => {
+        calls.push(command.type);
+        if (command.type === 'project/open') {
+          expect(command.path).toBe('/home/host/work/app');
+          return {
+            type: 'response',
+            command: 'project/open',
+            success: true,
+            data: {
+              path: '/home/host/work/app',
+              projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+              trusted: true,
+              trust: 'trusted',
+            },
+          };
+        }
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      },
+      'remote',
+      '/home/host/work/app',
+    );
+    expect(calls).toEqual(['project/open']);
+    expect(result).toEqual({
+      ok: true,
+      path: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+      trusted: true,
+    });
+  });
 });
 
 describe('sessionCreateInputForTransport', () => {

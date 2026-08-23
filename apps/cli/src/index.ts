@@ -11,9 +11,8 @@ import {
   initPiwinConfig,
   loadPiwinConfig,
   ensureBundledExtensionsInstalled,
-  scanExtensions,
   ensureBundledPromptsInstalled,
-  scanPrompts,
+  loadDiscoveredResources,
   createSecretResolver,
   getPiwinSessionIndexPath,
   getPiwinSessionsDir,
@@ -408,44 +407,30 @@ async function commandDoctor(args: string[] = []): Promise<void> {
     `- web search: ${web?.searchProvider ?? '(default)'} [${sourceSummary}] strategy=${web?.searchStrategy?.mode ?? 'parallel'}`,
   );
   try {
-    const { scanSkills, ensureBundledSkillsInstalled } = await import('@piwin/skills');
+    const { ensureBundledSkillsInstalled } = await import('@piwin/skills');
     await ensureBundledSkillsInstalled(root);
-    const skills = await scanSkills({
+    await ensureBundledExtensionsInstalled(root);
+    await ensureBundledPromptsInstalled(root);
+    const discovered = await loadDiscoveredResources({
       piwinRoot: root,
       ...(config.skills ? { skillsConfig: config.skills } : {}),
-    });
-    console.log(
-      `- skills: ${skills.length} (extraPaths=${(config.skills?.extraPaths ?? []).length})`,
-    );
-  } catch (error) {
-    console.log(`- skills: (unavailable: ${formatError(error)})`);
-  }
-  try {
-    await ensureBundledExtensionsInstalled(root);
-    const extensions = await scanExtensions({
-      piwinRoot: root,
       ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
-    });
-    const enabledCount = extensions.filter((item) => item.enabled).length;
-    console.log(
-      `- extensions: ${extensions.length} (${enabledCount} enabled; extraPaths=${(config.extensions?.extraPaths ?? []).length})`,
-    );
-    console.log('- extensions security: third-party modules run with full process privileges');
-  } catch (error) {
-    console.log(`- extensions: (unavailable: ${formatError(error)})`);
-  }
-  try {
-    await ensureBundledPromptsInstalled(root);
-    const prompts = await scanPrompts({
-      piwinRoot: root,
       ...(config.prompts ? { promptsConfig: config.prompts } : {}),
     });
-    const enabledCount = prompts.filter((item) => item.enabled).length;
     console.log(
-      `- prompts: ${prompts.length} (${enabledCount} enabled; extraPaths=${(config.prompts?.extraPaths ?? []).length})`,
+      `- skills: ${discovered.skills.length} (extraPaths=${(config.skills?.extraPaths ?? []).length})`,
+    );
+    const enabledExtensions = discovered.extensions.filter((item) => item.enabled).length;
+    console.log(
+      `- extensions: ${discovered.extensions.length} (${enabledExtensions} enabled; extraPaths=${(config.extensions?.extraPaths ?? []).length})`,
+    );
+    console.log('- extensions security: third-party modules run with full process privileges');
+    const enabledPrompts = discovered.prompts.filter((item) => item.enabled).length;
+    console.log(
+      `- prompts: ${discovered.prompts.length} (${enabledPrompts} enabled; extraPaths=${(config.prompts?.extraPaths ?? []).length})`,
     );
   } catch (error) {
-    console.log(`- prompts: (unavailable: ${formatError(error)})`);
+    console.log(`- skills/extensions/prompts: (unavailable: ${formatError(error)})`);
   }
   console.log(`- mock env: ${process.env.PIWIN_MOCK === '1' ? 'on' : 'off'}`);
   console.log('- Pi kernel: via @piwin/agent-host only (apps must not import Pi)');
@@ -1420,8 +1405,12 @@ async function commandSkill(argv: string[]): Promise<void> {
     if (config.skills) {
       scanOptions.skillsConfig = config.skills;
     }
-    const skills = await scanSkills(scanOptions);
-    const visibleSkills = skills.filter((s) => s.hidden !== true);
+    const discovered = await loadDiscoveredResources({
+      piwinRoot: root,
+      projectPath: scanOptions.projectPath,
+      ...(config.skills ? { skillsConfig: config.skills } : {}),
+    });
+    const visibleSkills = discovered.skills.filter((s) => s.hidden !== true);
     if (visibleSkills.length === 0) {
       console.log('(no skills found)');
       return;
@@ -1495,16 +1484,14 @@ async function commandExtension(argv: string[]): Promise<void> {
 
   if (sub === 'list') {
     await ensureBundledExtensionsInstalled(root);
-    const scanOptions: Parameters<typeof scanExtensions>[0] = {
+    const discovered = await loadDiscoveredResources({
       piwinRoot: root,
       projectPath: parseProject(argv),
-    };
-    if (config.extensions) {
-      scanOptions.extensionsConfig = config.extensions;
-    }
-    const extensions = await scanExtensions(scanOptions);
+      ...(config.extensions ? { extensionsConfig: config.extensions } : {}),
+    });
+    const extensions = discovered.extensions;
     if (extensions.length === 0) {
-      console.log('(no extensions found under ~/.piwin/extensions)');
+      console.log('(no extensions found under ~/.piwin/extensions or Pi packages)');
       return;
     }
     for (const extension of extensions) {
@@ -1569,16 +1556,14 @@ async function commandPrompt(argv: string[]): Promise<void> {
 
   if (sub === 'list') {
     await ensureBundledPromptsInstalled(root);
-    const scanOptions: Parameters<typeof scanPrompts>[0] = {
+    const discovered = await loadDiscoveredResources({
       piwinRoot: root,
       projectPath: parseProject(argv),
-    };
-    if (config.prompts) {
-      scanOptions.promptsConfig = config.prompts;
-    }
-    const prompts = await scanPrompts(scanOptions);
+      ...(config.prompts ? { promptsConfig: config.prompts } : {}),
+    });
+    const prompts = discovered.prompts;
     if (prompts.length === 0) {
-      console.log('(no prompt templates under ~/.piwin/prompts)');
+      console.log('(no prompt templates under ~/.piwin/prompts or Pi packages)');
       return;
     }
     for (const prompt of prompts) {

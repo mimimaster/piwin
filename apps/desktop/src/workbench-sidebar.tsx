@@ -12,7 +12,7 @@ import type { HostClient } from './host-client';
 import type { UseSidebarResizeResult } from './hooks/use-sidebar-resize';
 import { resolveSessionDisplayName } from './hooks/use-session-list-chrome';
 import { ProjectSessionSidebar } from './project-session-sidebar';
-import { mergeSessionsForLookup } from './session-list-lookup';
+import { collectSessionsForLookup } from './session-list-lookup';
 import type { SessionTimeGroup } from './session-groups';
 import type { SessionRowMenuAction } from './session-row-menu';
 import type { ShellSettingsSection } from './shell-navigation';
@@ -194,7 +194,11 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
           sessionId,
           resolveSessionDisplayName(
             sessionId,
-            mergeSessionsForLookup(state.sessions, state.generalSessions),
+            collectSessionsForLookup({
+              sessions: state.sessions,
+              generalSessions: state.generalSessions,
+              projectSessionsByPath: state.projectSessionsByPath,
+            }),
           ),
         );
       }}

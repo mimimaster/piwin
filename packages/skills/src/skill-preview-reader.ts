@@ -33,6 +33,9 @@ export type SkillPreviewReadInput = {
   skillId?: string;
   legacyPath?: string;
   maxBytes?: number;
+  /** Precomputed catalog (includes Pi-native skills). */
+  discoveredSkills?: SkillSummary[];
+  additionalAuthorizedRoots?: string[];
 };
 
 /**
@@ -57,8 +60,11 @@ export async function readSkillPreview(input: SkillPreviewReadInput): Promise<Sk
   if (input.projectPath?.trim()) scanOptions.projectPath = input.projectPath.trim();
   if (input.bundledRoot) scanOptions.bundledRoot = input.bundledRoot;
 
-  const discovered = await scanSkills(scanOptions);
-  const authorizedRoots = await collectAuthorizedSkillRoots(scanOptions);
+  const discovered = input.discoveredSkills ?? (await scanSkills(scanOptions));
+  const authorizedRoots = [
+    ...(await collectAuthorizedSkillRoots(scanOptions)),
+    ...(input.additionalAuthorizedRoots ?? []),
+  ];
 
   let skillId = skillIdRaw ? safeNormalizeId(skillIdRaw) : null;
   if (!skillId && legacyPath) {
@@ -330,6 +336,8 @@ function originFromSource(source: SkillSource): SkillResourceOrigin {
       return 'project';
     case 'mapped':
       return 'mapped';
+    case 'pi-native':
+      return 'pi-native';
     default:
       return 'unknown';
   }

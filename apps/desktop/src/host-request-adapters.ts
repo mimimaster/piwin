@@ -15,7 +15,10 @@ import { partitionRemoteSettingsMutations, type SettingsMutation } from '@piwin/
 import type { HostClient } from './host-client';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { sessionListCommandForTransport } from './remote-session-hydrate';
-import { settingsApplyInputFromSnapshot } from './settings-apply-input.js';
+import {
+  settingsApplyInputFromSnapshot,
+  settingsMutationsAdmittedByRemoteSnapshot,
+} from './settings-apply-input.js';
 import { settingsMutationsFromViewDraft } from './settings/settings-view-config.js';
 
 export type HostRequestAdapters = {
@@ -330,25 +333,36 @@ async function applyConfigDraft(
     };
   }
   const requested = settingsMutationsFromViewDraft(data.snapshot.config, nextConfig);
-  const mutations =
-    hostClient.getTransport() === 'remote'
-      ? allowedRemoteSettingsMutations(requested)
-      : requested;
-  if (mutations === undefined) {
-    return {
-      type: 'response',
-      command: 'settings/apply',
-      success: true,
-      data: { snapshot: data.snapshot, changedDomains: [] },
-    };
+  const emptyApply = {
+    type: 'response' as const,
+    command: 'settings/apply' as const,
+    success: true as const,
+    data: { snapshot: data.snapshot, changedDomains: [] },
+  };
+  let mutations: SettingsMutation[];
+  if (hostClient.getTransport() === 'remote') {
+    const admitted = allowedRemoteSettingsMutations(requested);
+    if (admitted === undefined) {
+      return emptyApply;
+    }
+    mutations = settingsMutationsAdmittedByRemoteSnapshot(
+      admitted,
+      data.snapshot.domainRevisions,
+      data.snapshot.config.notes,
+    );
+    if (admitted.length > 0 && mutations.length === 0) {
+      return {
+        type: 'response',
+        command: 'settings/apply',
+        success: false,
+        error: 'Remote Host does not accept these settings domains yet',
+      };
+    }
+  } else {
+    mutations = requested;
   }
   if (mutations.length === 0) {
-    return {
-      type: 'response',
-      command: 'settings/apply',
-      success: true,
-      data: { snapshot: data.snapshot, changedDomains: [] },
-    };
+    return emptyApply;
   }
   return hostClient.request(
     {

@@ -2039,6 +2039,27 @@ export class MockHostBackend {
           },
         };
       }
+      case 'preview/export-local-file': {
+        const fileName = command.input.absolutePath.split(/[\\/]/).pop() || 'download.bin';
+        const mockBytes = new TextEncoder().encode(`mock-export:${command.input.absolutePath}`);
+        let binary = '';
+        for (const byte of mockBytes) {
+          binary += String.fromCharCode(byte);
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'preview/export-local-file',
+          success: true,
+          data: {
+            status: 'ready',
+            fileName,
+            mimeType: 'application/octet-stream',
+            byteSize: mockBytes.byteLength,
+            base64Data: btoa(binary),
+          },
+        };
+      }
       case 'preview/read-local-file': {
         const fileName = command.input.absolutePath.split(/[\\/]/).pop() || 'preview';
         if (/\.(png|jpe?g|gif|webp)$/i.test(fileName)) {

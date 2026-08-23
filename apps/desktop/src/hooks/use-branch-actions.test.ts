@@ -101,6 +101,19 @@ describe('buildBranchPromptInput', () => {
     });
     expect(input.attachments).toBeUndefined();
   });
+
+  it('sends composer Ask run mode so Host can prompt before tools', () => {
+    const input = buildBranchPromptInput({
+      text: 'try again',
+      branchFromMessageId: 'u2',
+      clientMessageId: 'client-1',
+      agentMode: 'agent',
+      selectedModelKey: 'openai::gpt',
+      modelOptions: [],
+      permissionPreset: 'ask',
+    });
+    expect(input.permissionPreset).toBe('ask');
+  });
 });
 
 describe('branchResend (Edit this turn / revert)', () => {

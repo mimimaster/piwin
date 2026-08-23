@@ -1100,6 +1100,18 @@ describe('chatUiReducer', () => {
     expect(state.streaming).toBe(false);
   });
 
+  it('re-enables a live run after Stop fails to reach Host', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'go' });
+    expect(state.runPhase).toBe('streaming');
+    state = chatUiReducer(state, { type: 'run/aborting' });
+    expect(state.runPhase).toBe('aborting');
+    state = chatUiReducer(state, { type: 'run/abort-failed' });
+    expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
+  });
+
   it('turns a model error into an actionable failed terminal state', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

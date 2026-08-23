@@ -76,17 +76,59 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
         ? (fallback.web as WebConfig)
         : ({ ...(fallback.web as WebConfig), ...(webRecord as Record<string, unknown>) } as WebConfig),
   };
-  if (record.subagents && typeof record.subagents === 'object') {
-    result.subagents = {
-      ...fallback.subagents,
-      ...(record.subagents as NonNullable<PiwinConfig['subagents']>),
-    };
+  if (typeof record.defaultProviderId === 'string') {
+    result.defaultProviderId = record.defaultProviderId;
   }
-  if (record.permissions && typeof record.permissions === 'object') {
-    result.permissions = {
-      ...fallback.permissions,
-      ...(record.permissions as NonNullable<PiwinConfig['permissions']>),
-    };
+  if (typeof record.defaultModelId === 'string') {
+    result.defaultModelId = record.defaultModelId;
+  }
+  if (record.thinking && typeof record.thinking === 'object') {
+    result.thinking = record.thinking as NonNullable<PiwinConfig['thinking']>;
+  }
+  if (record.desktop && typeof record.desktop === 'object') {
+    result.desktop = record.desktop as NonNullable<PiwinConfig['desktop']>;
+  }
+  if (record.skills && typeof record.skills === 'object') {
+    result.skills = record.skills as NonNullable<PiwinConfig['skills']>;
+  }
+  if (record.extensions && typeof record.extensions === 'object') {
+    result.extensions = record.extensions as NonNullable<PiwinConfig['extensions']>;
+  }
+  if (record.prompts && typeof record.prompts === 'object') {
+    result.prompts = record.prompts as NonNullable<PiwinConfig['prompts']>;
+  }
+  if (record.compaction && typeof record.compaction === 'object') {
+    result.compaction = record.compaction as NonNullable<PiwinConfig['compaction']>;
+  }
+  if (record.process && typeof record.process === 'object') {
+    result.process = record.process as NonNullable<PiwinConfig['process']>;
+  }
+  if (record.session && typeof record.session === 'object') {
+    result.session = record.session as NonNullable<PiwinConfig['session']>;
+  }
+  if (record.notes && typeof record.notes === 'object') {
+    result.notes = record.notes as NonNullable<PiwinConfig['notes']>;
+  }
+  if (record.flashcards && typeof record.flashcards === 'object') {
+    result.flashcards = record.flashcards as NonNullable<PiwinConfig['flashcards']>;
+  }
+  if (record.knowledge && typeof record.knowledge === 'object') {
+    result.knowledge = record.knowledge as NonNullable<PiwinConfig['knowledge']>;
+  }
+  if (record.automation && typeof record.automation === 'object') {
+    result.automation = record.automation as NonNullable<PiwinConfig['automation']>;
+  }
+  if (record.marketplace && typeof record.marketplace === 'object') {
+    result.marketplace = record.marketplace as NonNullable<PiwinConfig['marketplace']>;
+  }
+  if (record.imageGeneration && typeof record.imageGeneration === 'object') {
+    result.imageGeneration = record.imageGeneration as NonNullable<PiwinConfig['imageGeneration']>;
+  }
+  if (record.videoGeneration && typeof record.videoGeneration === 'object') {
+    result.videoGeneration = record.videoGeneration as NonNullable<PiwinConfig['videoGeneration']>;
+  }
+  if (record.speech && typeof record.speech === 'object') {
+    result.speech = record.speech as NonNullable<PiwinConfig['speech']>;
   }
   if (record.visionDelegation && typeof record.visionDelegation === 'object') {
     result.visionDelegation = record.visionDelegation as NonNullable<
@@ -95,6 +137,24 @@ export function mergeSettingsViewConfig(partial: unknown): PiwinConfig {
   }
   if (record.replyWriter && typeof record.replyWriter === 'object') {
     result.replyWriter = record.replyWriter as NonNullable<PiwinConfig['replyWriter']>;
+  }
+  if (record.permissions && typeof record.permissions === 'object') {
+    result.permissions = {
+      ...fallback.permissions,
+      ...(record.permissions as NonNullable<PiwinConfig['permissions']>),
+    };
+  }
+  if (record.walkthrough && typeof record.walkthrough === 'object') {
+    result.walkthrough = record.walkthrough as NonNullable<PiwinConfig['walkthrough']>;
+  }
+  if (record.subagents && typeof record.subagents === 'object') {
+    result.subagents = {
+      ...fallback.subagents,
+      ...(record.subagents as NonNullable<PiwinConfig['subagents']>),
+    };
+  }
+  if (record.remote && typeof record.remote === 'object') {
+    result.remote = record.remote as NonNullable<PiwinConfig['remote']>;
   }
   return result;
 }
@@ -145,6 +205,71 @@ export function interpretSettingsLoadResponse(input: {
         ? 'Remote Host'
         : '~/.piwin';
   return { kind: 'ok', config, root };
+}
+
+/** Host `settings/apply` returns a snapshot; legacy `config/set` returned `config`. */
+export function configFromSettingsWriteResponse(
+  response: HostResponse,
+  fallback: PiwinConfig,
+): PiwinConfig {
+  if (!response.success) {
+    return fallback;
+  }
+  const data = asRecord(response.data);
+  const snapshot = asRecord(data?.snapshot);
+  if (snapshot?.config !== undefined) {
+    return mergeSettingsViewConfig(snapshot.config);
+  }
+  if (data?.config !== undefined) {
+    return mergeSettingsViewConfig(data.config);
+  }
+  return fallback;
+}
+
+/**
+ * Remote Hosts that predate `knowledge` may ACK a notes write and then drop
+ * reranker / parser / LLM extras during normalize. Treat that as a failed save
+ * so the form is not cleared as if it stuck.
+ */
+export function knowledgeWriteRetained(sent: PiwinConfig, stored: PiwinConfig): boolean {
+  const sentKnowledge = sent.knowledge;
+  const storedKnowledge = stored.knowledge;
+  const sentExtras = sent.notes?.knowledgeExtras;
+  const storedExtras = stored.notes?.knowledgeExtras;
+  if (sentKnowledge?.reranker?.enabled === true) {
+    if (
+      storedKnowledge?.reranker?.enabled !== true &&
+      storedExtras?.reranker?.enabled !== true
+    ) {
+      return false;
+    }
+  }
+  if (sentExtras?.reranker?.enabled === true && sentKnowledge?.reranker?.enabled !== true) {
+    if (storedExtras?.reranker?.enabled !== true && storedKnowledge?.reranker?.enabled !== true) {
+      return false;
+    }
+  }
+  if (sentKnowledge?.parser?.mineru?.enabled === true) {
+    if (
+      storedKnowledge?.parser?.mineru?.enabled !== true &&
+      storedExtras?.parser?.mineru?.enabled !== true
+    ) {
+      return false;
+    }
+  }
+  if (sentKnowledge?.extractionLlm?.modelRef || sentKnowledge?.flashcardLlm?.modelRef) {
+    const storedExtraction =
+      storedKnowledge?.extractionLlm?.modelRef ?? storedExtras?.extractionLlm?.modelRef;
+    const storedFlashcard =
+      storedKnowledge?.flashcardLlm?.modelRef ?? storedExtras?.flashcardLlm?.modelRef;
+    if (sentKnowledge.extractionLlm?.modelRef && !storedExtraction) {
+      return false;
+    }
+    if (sentKnowledge.flashcardLlm?.modelRef && !storedFlashcard) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**

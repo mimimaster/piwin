@@ -60,7 +60,10 @@ import {
   canonicalizeUltraCodeSchemeSettings,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
-import { normalizeKnowledgeConfig } from './config-store-knowledge.js';
+import {
+  normalizeKnowledgeConfig,
+  normalizeNotesKnowledgeExtras,
+} from './config-store-knowledge.js';
 import {
   isBlockingValidationIssue,
   sanitizeProvidersForSave,
@@ -595,6 +598,10 @@ function normalizeNotesConfig(value: unknown): PiwinConfig['notes'] {
     if (Object.keys(searchConfig).length > 0) {
       notes.search = searchConfig;
     }
+  }
+  const knowledgeExtras = normalizeNotesKnowledgeExtras(record.knowledgeExtras);
+  if (knowledgeExtras) {
+    notes.knowledgeExtras = knowledgeExtras;
   }
   return Object.keys(notes).length > 0 ? notes : undefined;
 }

@@ -76,7 +76,6 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     handleSessionMenuAction,
     confirmDeleteSession,
     handleAbort,
-    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,
@@ -99,6 +98,27 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     onSessionComposerProfileRestored: (profile) => {
       sessionComposerProfileRestoredRef.current(profile);
     },
+  });
+
+  const { saveSettingsInOrder } = useSettingsSaveQueue({
+    hostClient,
+    desktopLocale,
+    dispatchNotification: host.dispatchNotification,
+  });
+  const {
+    effectiveRunMode,
+    handleRunModeChange,
+    handleRunModeSetDefault,
+    handleSettingsSaved,
+    handleSettingsPreferencesChange,
+  } = useWorkbenchDesktopConfig({
+    config: host.config,
+    setConfig: host.setConfig,
+    setSelectedModelKey,
+    setPreferences,
+    saveSettingsInOrder,
+    activeSessionId: state.activeSessionId,
+    activeScope: state.activeScope,
   });
 
   const {
@@ -128,6 +148,7 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     modelOptions: host.modelOptions,
     thinkingLevel,
     agentMode,
+    permissionPreset: effectiveRunMode,
     orchestrationSchemeId,
     delegationDisabled,
     confirmForegroundReplace,
@@ -149,11 +170,6 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     state.userMessageIndexEpoch,
   ]);
 
-  const { saveSettingsInOrder } = useSettingsSaveQueue({
-    hostClient,
-    desktopLocale,
-    dispatchNotification: host.dispatchNotification,
-  });
   const { recentProjects, handleRemoveProjectFromSidebar } = useWorkbenchSessionLifecycle({
     hostClient,
     hostReady: state.hostReady,
@@ -189,22 +205,6 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     void handleResumeSessionRef.current(sessionId);
   }, []);
 
-  const {
-    effectiveRunMode,
-    handleRunModeChange,
-    handleRunModeSetDefault,
-    handleSettingsSaved,
-    handleSettingsPreferencesChange,
-  } = useWorkbenchDesktopConfig({
-    config: host.config,
-    setConfig: host.setConfig,
-    setSelectedModelKey,
-    setPreferences,
-    saveSettingsInOrder,
-    activeSessionId: state.activeSessionId,
-    activeScope: state.activeScope,
-  });
-
   return {
     hydrateSessions,
     transcriptHistoryLoading,
@@ -229,7 +229,6 @@ export function useWorkbenchSessionRuntime(args: UseWorkbenchSessionRuntimeArgs)
     handleSessionMenuAction,
     confirmDeleteSession,
     handleAbort,
-    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,

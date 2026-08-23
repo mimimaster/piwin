@@ -32,6 +32,11 @@ export function hostFailureNotice(response: HostResponse, locale: DesktopLocale)
 }
 
 function remoteAdmissionNotice(error: string, locale: DesktopLocale): string | undefined {
+  if (error === 'Remote Host does not accept these settings domains yet') {
+    return locale === 'zh-CN'
+      ? '当前 Host 还不支持这些设置项。更新 Host 后再保存。'
+      : 'This Host does not accept these settings domains yet. Update the Host and save again.';
+  }
   if (error.startsWith('Remote command is not enabled yet:')) {
     return locale === 'zh-CN'
       ? '当前 Host 还没开放这条远程命令'

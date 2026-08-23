@@ -41,6 +41,18 @@ describe('buildSlashCatalog — write-plan alias', () => {
   });
 });
 
+describe('buildSlashCatalog — composer modes', () => {
+  it('lists Agent and Goal only — not Plan or Ask', () => {
+    const catalog = buildSlashCatalog({
+      skills,
+      hasActiveSession: true,
+      projectTrusted: true,
+    });
+    const modeIds = catalog.filter((item) => item.kind === 'mode').map((item) => item.name);
+    expect(modeIds).toEqual(['agent', 'goal']);
+  });
+});
+
 describe('buildSlashCatalog — Conversation chat', () => {
   it('keeps compact/stop and omits modes, skills, and orchestration', () => {
     const catalog = buildSlashCatalog({

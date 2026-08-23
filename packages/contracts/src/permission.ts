@@ -42,7 +42,13 @@ export type SandboxProfileName = 'read-only' | 'workspace' | 'none';
 
 /**
  * Agent collaboration mode for Desktop / host prompt preparation.
- * Used by {@link resolvePreset} (Plan/Ask floor) and {@link mergeAgentModeIntoPrompt}.
+ *
+ * Composer currently exposes `agent` and `goal`. `plan` and `ask` remain in
+ * this union for Host / transcript compatibility; they are not Desktop
+ * entries (no + menu item, no slash catalog row).
+ *
+ * Used by {@link resolvePreset} (legacy Plan/Ask floor) and
+ * {@link mergeAgentModeIntoPrompt}.
  */
 export type AgentModeId = 'agent' | 'plan' | 'ask' | 'goal';
 
@@ -273,6 +279,31 @@ export function resolvePermissionPreset(
     return modeToPreset(mode);
   }
   return DEFAULT_PERMISSION_PRESET;
+}
+
+/**
+ * Session-scoped approval mode for one prompt (ADR 0024 composer pill).
+ *
+ * Composer Run Mode is session-level and must reach Host even when
+ * `config.permissions` is still YOLO. Plan/Ask agent modes still raise the
+ * floor through {@link resolvePreset}. `undefined` means: clear the session
+ * override and fall back to CLI / config.
+ */
+export function resolvePromptPermissionMode(input: {
+  permissionPreset?: PermissionPreset;
+  agentMode?: AgentModeId;
+  configPreset: PermissionPreset;
+}): PermissionMode | undefined {
+  const agentMode = normalizeAgentModeId(input.agentMode);
+  if (
+    input.permissionPreset === undefined &&
+    agentMode !== 'plan' &&
+    agentMode !== 'ask'
+  ) {
+    return undefined;
+  }
+  const preset = input.permissionPreset ?? input.configPreset;
+  return resolvePreset(preset, agentMode).mode;
 }
 
 export function createEmptyRuleSet(): PermissionRuleSet {

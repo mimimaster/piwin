@@ -66,22 +66,30 @@ describe('parseComposerSlashSubmit', () => {
     });
   });
 
-  it('parses modes', () => {
-    expect(parseComposerSlashSubmit('/plan', skills)).toEqual({
+  it('parses composer modes (Agent / Goal only)', () => {
+    expect(parseComposerSlashSubmit('/agent', skills)).toEqual({
       kind: 'mode',
-      modeId: 'plan',
-      name: 'plan',
+      modeId: 'agent',
+      name: 'agent',
       args: '',
-    });
-    expect(parseComposerSlashSubmit('/ask about auth', skills)).toMatchObject({
-      kind: 'mode',
-      modeId: 'ask',
-      args: 'about auth',
     });
     expect(parseComposerSlashSubmit('/goal finish feature', skills)).toMatchObject({
       kind: 'mode',
       modeId: 'goal',
       args: 'finish feature',
+    });
+  });
+
+  it('does not treat retired /plan or /ask as modes', () => {
+    expect(parseComposerSlashSubmit('/plan', skills)).toEqual({
+      kind: 'unknown',
+      name: 'plan',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/ask about auth', skills)).toEqual({
+      kind: 'unknown',
+      name: 'ask',
+      args: 'about auth',
     });
   });
 

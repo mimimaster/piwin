@@ -126,4 +126,43 @@ describe('project commands', () => {
       error: 'path escapes project root via symlink',
     });
   });
+
+  it('lists a directory when projectPath is the Host-issued projectId', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-listdir-id-'));
+    const projectPath = join(rootDir, 'workspace');
+    await mkdir(join(projectPath, 'src'), { recursive: true });
+    await writeFile(join(projectPath, 'src', 'main.ts'), 'export {}\n', 'utf8');
+
+    await handleProjectCommand({ type: 'project/open', path: projectPath }, 'open', rootDir);
+    const { createRemoteProjectId } = await import('../remote-project-id.js');
+    const projectId = createRemoteProjectId(projectPath);
+
+    const listed = await handleProjectCommand(
+      { type: 'project/list-dir', projectPath: projectId, relativePath: 'src' },
+      'list-id',
+      rootDir,
+    );
+    expect(listed?.success).toBe(true);
+    expect(listed && 'data' in listed ? listed.data : null).toMatchObject({
+      relativePath: 'src',
+      entries: [{ name: 'main.ts', relativePath: 'src/main.ts', kind: 'file' }],
+    });
+  });
+
+  it('rejects an unknown projectId for list-dir', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-project-listdir-unknown-'));
+    const listed = await handleProjectCommand(
+      {
+        type: 'project/list-dir',
+        projectPath: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+        relativePath: '',
+      },
+      'list-unknown',
+      rootDir,
+    );
+    expect(listed).toMatchObject({
+      success: false,
+      error: 'unknown-project',
+    });
+  });
 });

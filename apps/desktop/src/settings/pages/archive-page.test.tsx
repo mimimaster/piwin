@@ -198,6 +198,64 @@ describe('ArchivePage', () => {
     expect(container?.textContent).toContain('SQL connection pool issue resolved.');
   });
 
+  it('renders archived rows from a remote session/list projection', async () => {
+    const request = vi.fn(async (cmd) => {
+      if (cmd.type === 'session/list') {
+        return {
+          type: 'response' as const,
+          command: 'session/list',
+          success: true as const,
+          data: {
+            sessions: [
+              {
+                sessionId: 's-archived-1',
+                name: 'Build React Website',
+                scope: 'general',
+                updatedAt: '2026-08-15T12:00:00.000Z',
+                archived: true,
+                messageCount: 10,
+                lastPreview: 'I have finished setting up the Vite project.',
+              },
+              {
+                sessionId: 's-active-3',
+                name: 'Active Chat Session',
+                scope: 'general',
+                updatedAt: '2026-08-16T09:00:00.000Z',
+                archived: false,
+                messageCount: 2,
+              },
+            ],
+            totalCount: 2,
+            truncated: false,
+          },
+        };
+      }
+      return {
+        type: 'response' as const,
+        command: 'test',
+        success: true as const,
+      };
+    });
+
+    const contextValue = createContextValue(request);
+
+    await act(async () => {
+      root?.render(
+        <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <SettingsProvider value={contextValue}>
+              <ArchivePage />
+            </SettingsProvider>
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
+      );
+    });
+
+    expect(container?.querySelector('[data-testid="archive-item-s-archived-1"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="archive-item-s-active-3"]')).toBeNull();
+    expect(container?.textContent).toContain('Build React Website');
+  });
+
   it('renders empty state when there are no archived sessions', async () => {
     const request = vi.fn(async (cmd) => {
       if (cmd.type === 'session/list') {

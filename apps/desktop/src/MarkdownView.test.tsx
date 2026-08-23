@@ -635,6 +635,21 @@ describe('MarkdownView file references', () => {
     });
   });
 
+  it('resolves relative deliverable chips against projectPath', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text="[cropped-portraits-16.zip](cropped-portraits-16.zip)"
+        renderingPhase="completed"
+        projectPath="/Users/me/proj"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    const chip = container.querySelector<HTMLElement>('.md-doc-chip');
+    expect(chip?.getAttribute('data-full-path')).toBe(
+      '/Users/me/proj/cropped-portraits-16.zip',
+    );
+  });
+
   it('opens absolute zip links via path chips (file: stripped)', () => {
     const onOpenDocument = vi.fn();
     const { container } = renderMarkdown(

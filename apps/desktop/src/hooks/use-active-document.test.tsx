@@ -13,17 +13,35 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 type HostRequestCall = {
   type: string;
+  projectPath?: string;
+  relativePath?: string;
   input?: { sessionId?: string; assetId?: string; absolutePath?: string };
 };
 
-function createHostClientFake(): { client: HostClient; request: ReturnType<typeof vi.fn> } {
+function createHostClientFake(options?: {
+  projectRead?:
+    | { success: true; isBinary?: boolean; content?: string }
+    | { success: false };
+}): { client: HostClient; request: ReturnType<typeof vi.fn> } {
   const request = vi.fn(async (command: HostRequestCall) => {
     if (command.type === 'project/read-file') {
+      if (options?.projectRead?.success === false) {
+        return {
+          type: 'response' as const,
+          command,
+          success: false,
+          error: { message: 'cannot stat file' },
+        };
+      }
+      const isBinary = options?.projectRead?.isBinary === true;
       return {
         type: 'response' as const,
         command,
         success: true,
-        data: { content: '# file body', isBinary: false },
+        data: {
+          content: isBinary ? '' : (options?.projectRead?.content ?? '# file body'),
+          isBinary,
+        },
       };
     }
     if (command.type === 'media/read') {
@@ -49,6 +67,18 @@ function createHostClientFake(): { client: HostClient; request: ReturnType<typeo
           command,
           success: true,
           data: { status: 'unavailable', reason: 'not-found' },
+        };
+      }
+      if (/\.(zip|bin)$/i.test(absolutePath)) {
+        return {
+          type: 'response' as const,
+          command,
+          success: true,
+          data: {
+            status: 'unavailable',
+            reason: 'binary',
+            suggestion: '该文件不是可预览的文本或图片。',
+          },
         };
       }
       if (/\.(png|jpe?g|gif|webp)$/i.test(absolutePath)) {
@@ -311,6 +341,49 @@ describe('useActiveDocument', () => {
     if (latest.activeDocument?.status === 'ready') {
       expect(latest.activeDocument.content).toBe('{"ok":true}\n');
       expect(latest.activeDocument.provenance).toBe('trusted-config');
+      expect(latest.activeDocument.readOnly).toBe(true);
+    }
+  });
+
+  it('does not report not-found when a project zip is binary', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      projectRead: { success: true, isBinary: true },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'out.zip', path: 'cropped-portraits-16.zip' });
+    });
+
+    expect(request.mock.calls.some((call) => call[0]?.type === 'preview/read-local-file')).toBe(
+      true,
+    );
+    expect(latest.activeDocument?.status).toBe('unavailable');
+    if (latest.activeDocument?.status === 'unavailable') {
+      expect(latest.activeDocument.reason).toBe('binary');
+      expect(latest.activeDocument.reason).not.toBe('not-found');
+    }
+  });
+
+  it('falls back to local preview when project/read-file fails', async () => {
+    reveal = vi.fn();
+    const { client, request } = createHostClientFake({
+      projectRead: { success: false },
+    });
+    renderHarness(client);
+
+    await act(async () => {
+      latest.openDocument({ title: 'notes.md', path: 'notes.md' });
+    });
+
+    expect(request.mock.calls.map((call) => call[0]?.type)).toEqual([
+      'project/read-file',
+      'preview/read-local-file',
+    ]);
+    expect(latest.activeDocument?.status).toBe('ready');
+    if (latest.activeDocument?.status === 'ready') {
+      expect(latest.activeDocument.content).toBe('# local file\n');
       expect(latest.activeDocument.readOnly).toBe(true);
     }
   });

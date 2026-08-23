@@ -33,6 +33,11 @@ describe('paths', () => {
       expect(canonicalizeFolderPathSync('/foo/bar/')).toBe('/foo/bar');
       expect(canonicalizeFolderPathSync('/foo/bar')).toBe('/foo/bar');
     });
+    it('handles undefined, null, and empty input safely', () => {
+      expect(canonicalizeFolderPathSync(undefined)).toBe('');
+      expect(canonicalizeFolderPathSync(null)).toBe('');
+      expect(canonicalizeFolderPathSync('')).toBe('');
+    });
   });
 
   describe('canonicalizeFolderPath', () => {
@@ -41,6 +46,12 @@ describe('paths', () => {
     it('returns null for missing path', async () => {
       const result = await canonicalizeFolderPath(join(tmpdir(), 'does-not-exist-xyz'));
       expect(result).toBeNull();
+    });
+    it('returns null for undefined, null, or empty input without throwing', async () => {
+      expect(await canonicalizeFolderPath(undefined)).toBeNull();
+      expect(await canonicalizeFolderPath(null)).toBeNull();
+      expect(await canonicalizeFolderPath('')).toBeNull();
+      expect(await canonicalizeFolderPath('   ')).toBeNull();
     });
     it('resolves real path for existing folder', async () => {
       tmp = await mkdtemp(join(tmpdir(), 'piwin-paths-'));

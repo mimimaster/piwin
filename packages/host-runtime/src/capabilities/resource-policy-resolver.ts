@@ -47,6 +47,7 @@ function defaultSources(projectTrusted: boolean): ResourceSource[] {
     sources.push('project');
   }
   sources.push('mapped');
+  sources.push('pi-native');
   return sources;
 }
 

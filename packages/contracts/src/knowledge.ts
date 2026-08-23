@@ -5,6 +5,10 @@
  * Secrets stay as env/ref names, never inline keys.
  */
 
+/** Default upper bound on files scanned/indexed per document folder. */
+export const DEFAULT_MAX_FILES = 2_000;
+export const DEFAULT_MAX_DOC_FILES = 2_000;
+
 /**
  * Generic embedding port for notes + doc-rag.
  * Implementations live in `@piwin/notes`; Host injects them.

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  configFromSettingsWriteResponse,
   createSettingsViewConfig,
   interpretSettingsLoadResponse,
+  knowledgeWriteRetained,
   mergeSettingsViewConfig,
   settingsMutationsFromViewDraft,
 } from './settings-view-config.js';
@@ -137,5 +139,88 @@ describe('settings view config', () => {
       kind: 'error',
       error: 'settings/get returned no snapshot',
     });
+  });
+
+  it('keeps and diffs knowledge and notes settings', () => {
+    const snapshot = {
+      notes: { embedding: { provider: 'openai-compatible' as const, baseUrl: 'https://api.openai.com/v1', model: 'text-embedding-3-small' } },
+      knowledge: {
+        embedding: { enabled: true, provider: 'openai-compatible' as const, baseUrl: 'https://api.openai.com/v1', model: 'text-embedding-3-small' },
+        reranker: { enabled: true, provider: 'openai-compatible', baseUrl: 'https://api.example.com/v1', model: 'rerank-v1' },
+      },
+    };
+    const merged = mergeSettingsViewConfig(snapshot);
+    expect(merged.notes?.embedding?.model).toBe('text-embedding-3-small');
+    expect(merged.knowledge?.embedding?.model).toBe('text-embedding-3-small');
+    expect(merged.knowledge?.reranker?.model).toBe('rerank-v1');
+
+    const next = {
+      ...merged,
+      notes: { embedding: { provider: 'ollama' as const, baseUrl: 'http://127.0.0.1:11434/v1', model: 'nomic-embed-text' } },
+      knowledge: {
+        ...merged.knowledge,
+        embedding: { enabled: true, provider: 'ollama' as const, baseUrl: 'http://127.0.0.1:11434/v1', model: 'nomic-embed-text' },
+      },
+    };
+    const mutations = settingsMutationsFromViewDraft(snapshot, next);
+    expect(mutations.map((m) => m.domain)).toEqual(['notes', 'knowledge']);
+  });
+
+  it('hydrates reranker extras mirrored on notes', () => {
+    const merged = mergeSettingsViewConfig({
+      notes: {
+        knowledgeExtras: {
+          reranker: {
+            enabled: true,
+            provider: 'openai-compatible',
+            baseUrl: 'https://api.example.com/v1',
+            model: 'Qwen/Qwen3-Reranker-8B',
+          },
+        },
+      },
+    });
+    expect(merged.notes?.knowledgeExtras?.reranker?.model).toBe('Qwen/Qwen3-Reranker-8B');
+  });
+
+  it('treats a Host ACK that dropped reranker extras as a lost write', () => {
+    const sent = mergeSettingsViewConfig({
+      knowledge: {
+        reranker: {
+          enabled: true,
+          provider: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          model: 'Qwen/Qwen3-Reranker-8B',
+        },
+      },
+    });
+    expect(knowledgeWriteRetained(sent, mergeSettingsViewConfig({}))).toBe(false);
+    expect(knowledgeWriteRetained(sent, sent)).toBe(true);
+    expect(
+      knowledgeWriteRetained(sent, {
+        ...mergeSettingsViewConfig({}),
+        notes: {
+          knowledgeExtras: {
+            reranker: { enabled: true, model: 'Qwen/Qwen3-Reranker-8B' },
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('reads apply snapshot config from the write response', () => {
+    const stored = mergeSettingsViewConfig({
+      knowledge: { reranker: { enabled: true, model: 'kept' } },
+    });
+    expect(
+      configFromSettingsWriteResponse(
+        {
+          type: 'response',
+          command: 'settings/apply',
+          success: true,
+          data: { snapshot: { config: stored, revision: 'rev-1' } },
+        },
+        createSettingsViewConfig(),
+      ).knowledge?.reranker?.model,
+    ).toBe('kept');
   });
 });

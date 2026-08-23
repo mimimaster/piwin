@@ -1,7 +1,7 @@
 /**
  * Minimal app for the pet overlay window: renders only the PetSprite,
- * subscribes to pet/state pushes from the host, supports dragging, and
- * resizes the OS window tightly around the sprite (+ bubble band when active).
+ * asks the main window for pet snapshots (no Host sidecar), supports dragging,
+ * and resizes the OS window tightly around the sprite (+ bubble band when active).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
@@ -14,6 +14,10 @@ import {
 import { loadDesktopLocale, type DesktopLocale } from './desktop-locale.js';
 import { petToActivityInput } from './pet-activity-mapper.js';
 import { persistPetOverlayWindowPosition } from './pet-overlay-position.js';
+import {
+  listenPetOverlayState,
+  requestPetOverlayState,
+} from './pet-overlay-state-bridge.js';
 import {
   applyPetOverlayVisibility,
   loadPetOverlayVisibility,
@@ -61,53 +65,25 @@ export function PetOverlayApp() {
     let retryTimer: number | undefined;
     let unlisten: (() => void) | undefined;
 
-    async function fetchInitialPet(): Promise<boolean> {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const response = (await invoke('host_request', {
-          command: { type: 'pet/get-active' },
-          timeoutMs: 5000,
-        })) as { success: boolean; data?: { pet?: PetRuntimeSnapshot } };
-        if (response.success && response.data?.pet) {
-          if (!disposed && !receivedPush) {
-            setPet(response.data.pet);
-          }
-          return true;
-        }
-      } catch {
-        // host not ready yet — will pick up state from push
-      }
-      return false;
-    }
-
-    async function loadPet(): Promise<void> {
-      if (disposed) return;
-      const loaded = await fetchInitialPet();
-      if (!loaded && !disposed) {
-        retryTimer = window.setTimeout(() => void loadPet(), 250);
+    async function requestUntilLoaded(): Promise<void> {
+      if (disposed || receivedPush) return;
+      await requestPetOverlayState();
+      if (!disposed && !receivedPush) {
+        retryTimer = window.setTimeout(() => void requestUntilLoaded(), 250);
       }
     }
 
     void (async () => {
-      try {
-        const { listen } = await import('@tauri-apps/api/event');
-        const removeListener = await listen<{ pet: PetRuntimeSnapshot }>(
-          'pet-state-push',
-          (event) => {
-            if (disposed || !event.payload?.pet) return;
-            receivedPush = true;
-            setPet(event.payload.pet);
-          },
-        );
-        if (disposed) {
-          removeListener();
-        } else {
-          unlisten = removeListener;
-        }
-      } catch {
-        // Tauri event API not available in mock mode
+      unlisten = await listenPetOverlayState((nextPet) => {
+        if (disposed) return;
+        receivedPush = true;
+        setPet(nextPet);
+      });
+      if (disposed) {
+        unlisten();
+        return;
       }
-      await loadPet();
+      await requestUntilLoaded();
     })();
 
     return () => {
@@ -115,7 +91,7 @@ export function PetOverlayApp() {
       if (retryTimer !== undefined) {
         window.clearTimeout(retryTimer);
       }
-      void unlisten?.();
+      unlisten?.();
     };
   }, []);
 

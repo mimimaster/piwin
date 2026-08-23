@@ -6,6 +6,7 @@ import type { ThemeManifest } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 import { useWorkbenchHostClient } from './use-workbench-host-client';
 import { MediaPreviewReadProvider } from './media-preview-read-context';
+import { LocalFileActionsProvider } from './local-file-actions-context';
 import type { HostLogEntry } from './HostLogPanel';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { DesktopContextMenuProvider } from './context-menu';
@@ -251,6 +252,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
 
   return (
     <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
+      <LocalFileActionsProvider request={(command) => hostClient.request(command)}>
       <MediaPreviewReadProvider sessionId={state.activeSessionId} readMedia={readTranscriptMedia}>
       <DesktopContextMenuProvider value={desktopContextMenuValue}>
       <SubagentInspectorProvider toggle={subagentInspectorToggle} panel={subagentInspectorPanel}>
@@ -264,7 +266,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
           data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
         >
           <WorkspaceShell
-            workspaceClassName={settingsOpen ? 'settings-workspace-suspended' : undefined}
+            workspaceClassName={settingsOpen || knowledgeOpen ? 'settings-workspace-suspended' : undefined}
             sidebar={
               <WorkbenchSidebar
                 state={state}
@@ -338,21 +340,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
               ]
                 .filter(Boolean)
                 .join(' ') || undefined
-            }
-            knowledgePanel={
-              knowledgeOpen ? (
-                <WorkbenchKnowledgeStage
-                  locale={desktopLocale}
-                  projectPath={state.projectPath}
-                  recentProjects={recentProjects}
-                  request={requestKnowledgeCenter}
-                  onOpenSession={handleResumeSession}
-                  onOpenCardsPanel={handleOpenCardsPanel}
-                  onConfigureEmbedding={() => openSettingsSection('knowledge')}
-                  setKnowledgeOpen={setKnowledgeOpen}
-                  setComposer={setComposer}
-                />
-              ) : undefined
             }
             transcript={
               <WorkbenchTranscript
@@ -521,7 +508,6 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
             onTrustProject={handleTrustProject}
             sessionMenu={sessionMenu}
             closeSessionMenu={closeSessionMenu}
-            showArchivedSessions={showArchivedSessions}
             onSessionMenuAction={handleSessionMenuAction}
             requestDeleteSession={requestDeleteSession}
             requestContinueInProject={requestContinueInProject}
@@ -555,6 +541,21 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
           />
 
         </div>
+        <WorkbenchKnowledgeStage
+          knowledgeOpen={knowledgeOpen}
+          locale={desktopLocale}
+          projectPath={state.projectPath}
+          recentProjects={recentProjects}
+          request={requestKnowledgeCenter}
+          onOpenSession={handleResumeSession}
+          onOpenCardsPanel={handleOpenCardsPanel}
+          onConfigureEmbedding={() => {
+            setKnowledgeOpen(false);
+            openSettingsSection('knowledge');
+          }}
+          setKnowledgeOpen={setKnowledgeOpen}
+          setComposer={setComposer}
+        />
         <WorkbenchSettingsOverlay
           settingsOpen={settingsOpen}
           locale={desktopLocale}
@@ -585,6 +586,7 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
       </SubagentInspectorProvider>
       </DesktopContextMenuProvider>
       </MediaPreviewReadProvider>
+      </LocalFileActionsProvider>
     </DesktopLocaleProvider>
   );
 }

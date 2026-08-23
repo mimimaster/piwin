@@ -6,6 +6,7 @@
  * Invariant: markdown files under `~/.piwin/notes/` are the source of truth;
  * any sqlite index is a rebuildable cache.
  */
+import type { KnowledgeConfig } from './knowledge.js';
 
 /** Persisted note (markdown + frontmatter projection). */
 export type NoteRecord = {
@@ -125,6 +126,11 @@ export type NotesEmbeddingConfig = {
   dimensions?: number;
 };
 
+export type NotesKnowledgeExtras = Pick<
+  KnowledgeConfig,
+  'parser' | 'reranker' | 'extractionLlm' | 'flashcardLlm'
+>;
+
 export type NotesConfig = {
   /** Default true. */
   enabled?: boolean;
@@ -137,4 +143,9 @@ export type NotesConfig = {
     /** RRF constant; default 60. */
     rrfK?: number;
   };
+  /**
+   * Doc Cards extras mirrored onto notes so remote Hosts that predate the
+   * `knowledge` settings domain still persist reranker / parsers / LLMs.
+   */
+  knowledgeExtras?: NotesKnowledgeExtras;
 };

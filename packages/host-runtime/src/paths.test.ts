@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getPiAgentDir,
   getPiwinConfigPath,
   getPiwinRoot,
   getPiwinSessionDir,
@@ -9,6 +10,10 @@ import {
 describe('paths', () => {
   it('uses override root', () => {
     expect(getPiwinRoot('/tmp/piwin-test')).toBe('/tmp/piwin-test');
+  });
+
+  it('uses override Pi agent dir', () => {
+    expect(getPiAgentDir('/tmp/pi-agent')).toBe('/tmp/pi-agent');
   });
 
   it('builds config path', () => {

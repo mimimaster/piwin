@@ -224,6 +224,29 @@ describe('ComposerDock host status', () => {
     expect(handleAbort).toHaveBeenCalledTimes(1);
   });
 
+  it('greys Stop only while abort is in flight', () => {
+    const handleAbort = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="aborting"
+        onAbort={handleAbort}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const stopBtn = container.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
+    expect(stopBtn).not.toBeNull();
+    expect(stopBtn.disabled).toBe(true);
+
+    act(() => {
+      stopBtn.click();
+    });
+    expect(handleAbort).not.toHaveBeenCalled();
+  });
+
   it('keeps a single Stop control while streaming (no Pause button beside it)', () => {
     const handleAbort = vi.fn();
     const rendered = renderDock(
@@ -300,24 +323,15 @@ describe('ComposerDock host status', () => {
     expect(container.querySelectorAll('[data-testid="stop-btn"]').length).toBe(1);
   });
 
-  it('renders continue action for a paused run', () => {
-    const handleResume = vi.fn();
-    const rendered = renderDock(
-      <ComposerDock {...baseProps} paused={true} onResume={handleResume} />,
-    );
+  it('does not render pause or resume controls when idle', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} />);
     root = rendered.root;
     container = rendered.container;
 
-    const resumeBtn = container.querySelector(
-      '[data-testid="resume-run-btn"]',
-    ) as HTMLButtonElement;
-    expect(resumeBtn).not.toBeNull();
-    expect(container.querySelector('[data-testid="discard-pause-btn"]')).not.toBeNull();
-
-    act(() => {
-      resumeBtn.click();
-    });
-    expect(handleResume).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="resume-run-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="discard-pause-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).not.toBeNull();
   });
 
   it('reuses the Composer textarea for Other input and keeps Stop instead of Steer', () => {
@@ -600,7 +614,7 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="composer-attachment-shelf"]')).toBeNull();
   });
 
-  it('pops the last diverted card with Backspace when the textarea is empty', () => {
+  it('does not pop shelf cards with Backspace when the textarea is empty', () => {
     const onRemoveAttachment = vi.fn();
     const onRemoveContextRef = vi.fn();
     const rendered = renderDock(
@@ -644,8 +658,86 @@ describe('ComposerDock host status', () => {
         new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }),
       );
     });
-    expect(onRemoveAttachment).toHaveBeenCalledWith('local-1');
+    expect(onRemoveAttachment).not.toHaveBeenCalled();
     expect(onRemoveContextRef).not.toHaveBeenCalled();
+  });
+
+  it('does not send on Enter when textarea is empty even if attachments or context refs are present', () => {
+    const onSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer=""
+        onSend={onSend}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+        pendingContextRefs={[
+          {
+            token: 'tok-1',
+            key: 'file:/p:src/a.ts::',
+            ref: { kind: 'file', projectPath: '/p', relativePath: 'src/a.ts', label: 'src/a.ts' },
+            label: 'src/a.ts',
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends on Enter when textarea has non-empty text', () => {
+    const onSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="fix this bug"
+        onSend={onSend}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const input = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+    expect(onSend).toHaveBeenCalledTimes(1);
   });
 
   it('does not pop a shelf card when Backspace deletes composer text', () => {

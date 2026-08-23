@@ -87,6 +87,67 @@ describe('isSafeRemoteSettingsApply', () => {
     ).toBe(true);
   });
 
+  it('admits notes and knowledge embedding writes', () => {
+    expect(
+      isSafeRemoteSettingsApply({
+        type: 'settings/apply',
+        input: {
+          expectedRevision: 'rev-1',
+          expectedDomainRevisions: { notes: 'hash-n', knowledge: 'hash-k' },
+          mutations: [
+            {
+              kind: 'replace-domain',
+              domain: 'notes',
+              value: {
+                embedding: {
+                  provider: 'openai-compatible',
+                  baseUrl: 'https://api.example.com/v1',
+                  model: 'Qwen/Qwen3-Embedding-8B',
+                },
+              },
+            },
+            {
+              kind: 'replace-domain',
+              domain: 'knowledge',
+              value: {
+                embedding: {
+                  enabled: true,
+                  provider: 'openai-compatible',
+                  baseUrl: 'https://api.example.com/v1',
+                  model: 'Qwen/Qwen3-Embedding-8B',
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects a knowledge write when the CAS hash is missing', () => {
+    expect(
+      isSafeRemoteSettingsApply({
+        type: 'settings/apply',
+        input: {
+          expectedRevision: 'rev-1',
+          expectedDomainRevisions: { notes: 'hash-n' },
+          mutations: [
+            {
+              kind: 'replace-domain',
+              domain: 'notes',
+              value: {},
+            },
+            {
+              kind: 'replace-domain',
+              domain: 'knowledge',
+              value: { embedding: { enabled: true } },
+            },
+          ],
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('rejects provider rows that carry raw apiKey', () => {
     expect(
       isSafeRemoteSettingsApply({

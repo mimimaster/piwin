@@ -17,4 +17,13 @@ describe('resolveProjectEntryAbsolutePath', () => {
   it('handles a filesystem root without adding a duplicate separator', () => {
     expect(resolveProjectEntryAbsolutePath('/', 'README.md')).toBe('/README.md');
   });
+
+  it('uses Host pathStyle when the project key is an opaque remote id', () => {
+    expect(
+      resolveProjectEntryAbsolutePath('project-aaaaaaaaaaaaaaaaaaaaaaaa', 'src/index.ts', 'windows'),
+    ).toBe('project-aaaaaaaaaaaaaaaaaaaaaaaa\\src\\index.ts');
+    expect(
+      resolveProjectEntryAbsolutePath('project-aaaaaaaaaaaaaaaaaaaaaaaa', 'src\\index.ts', 'posix'),
+    ).toBe('project-aaaaaaaaaaaaaaaaaaaaaaaa/src/index.ts');
+  });
 });

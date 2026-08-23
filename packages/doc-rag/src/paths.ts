@@ -25,6 +25,9 @@ export function getDocRagRoot(piwinRoot: string = getDefaultPiwinRoot()): string
  * absolute path so two distinct folders never collide.
  */
 export function folderKey(canonicalAbsPath: string): string {
+  if (!canonicalAbsPath || typeof canonicalAbsPath !== 'string') {
+    return '0000000000000000';
+  }
   return sha256Hex(canonicalAbsPath).slice(0, 16);
 }
 
@@ -58,9 +61,12 @@ export function documentIdFor(folderKeyValue: string, relativePath: string): str
  *
  * Returns null when the path does not exist (caller surfaces "missing").
  */
-export async function canonicalizeFolderPath(input: string): Promise<string | null> {
-  const resolved = resolve(input);
+export async function canonicalizeFolderPath(input?: string | null): Promise<string | null> {
+  if (!input || typeof input !== 'string' || input.trim().length === 0) {
+    return null;
+  }
   try {
+    const resolved = resolve(input.trim());
     const { realpath } = await import('node:fs/promises');
     const real = await realpath(resolved);
     return stripTrailingSep(real);
@@ -70,8 +76,11 @@ export async function canonicalizeFolderPath(input: string): Promise<string | nu
 }
 
 /** Synchronous variant for tests that already hold a realpath. */
-export function canonicalizeFolderPathSync(input: string): string {
-  return stripTrailingSep(resolve(input));
+export function canonicalizeFolderPathSync(input?: string | null): string {
+  if (!input || typeof input !== 'string' || input.trim().length === 0) {
+    return '';
+  }
+  return stripTrailingSep(resolve(input.trim()));
 }
 
 function stripTrailingSep(path: string): string {
@@ -84,8 +93,10 @@ function stripTrailingSep(path: string): string {
  * Reject relative paths, `..` segments, absolute paths, and backslash
  * escapes. Used for `sourceFile` and `fileAllowlist` validation.
  */
-export function isSafeRelativePath(relativePath: string): boolean {
-  if (relativePath.length === 0 || relativePath.length > 1024) return false;
+export function isSafeRelativePath(relativePath?: string | null): boolean {
+  if (!relativePath || typeof relativePath !== 'string' || relativePath.length === 0 || relativePath.length > 1024) {
+    return false;
+  }
   if (relativePath.startsWith('/')) return false;
   if (relativePath.startsWith('\\')) return false;
   // Reject any segment that is `..` (posix or win).
@@ -103,12 +114,20 @@ export function isSafeRelativePath(relativePath: string): boolean {
  * Spec §7.1 confinement.
  */
 export async function isPathConfined(
-  folderRoot: string,
-  relativePath: string,
+  folderRoot?: string | null,
+  relativePath?: string | null,
 ): Promise<boolean> {
-  if (!isSafeRelativePath(relativePath)) return false;
-  const absolute = resolve(folderRoot, relativePath);
+  if (
+    !folderRoot ||
+    typeof folderRoot !== 'string' ||
+    !relativePath ||
+    typeof relativePath !== 'string' ||
+    !isSafeRelativePath(relativePath)
+  ) {
+    return false;
+  }
   try {
+    const absolute = resolve(folderRoot, relativePath);
     const { realpath } = await import('node:fs/promises');
     const realFile = await realpath(absolute);
     const realRoot = await realpath(folderRoot);
