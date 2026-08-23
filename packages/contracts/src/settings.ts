@@ -8,11 +8,13 @@ import type { ModelProviderConfig } from './config.js';
 import type { NotesConfig } from './notes.js';
 import type { PermissionConfig } from './permission.js';
 import type { PromptsConfig } from './prompts.js';
+import type { KnowledgeConfig } from './knowledge.js';
 import type { RemoteConfig } from './remote.js';
 import type {
   SessionConfig,
   SpeechConfig,
   SubagentConfig,
+  VideoGenerationConfig,
   VisionDelegationConfig,
 } from './config.js';
 import type { ReplyWriterConfig } from './reply-writer.js';
@@ -43,9 +45,11 @@ export type SettingsDomain =
   | 'session'
   | 'notes'
   | 'flashcards'
+  | 'knowledge'
   | 'automation'
   | 'marketplace'
   | 'imageGeneration'
+  | 'videoGeneration'
   | 'speech'
   | 'visionDelegation'
   | 'replyWriter'
@@ -75,9 +79,11 @@ export type SettingsDomainValueMap = {
   session: SessionConfig | undefined;
   notes: NotesConfig | undefined;
   flashcards: FlashcardsConfig | undefined;
+  knowledge: KnowledgeConfig | undefined;
   automation: AutomationConfig | undefined;
   marketplace: MarketplaceConfig | undefined;
   imageGeneration: ImageGenerationConfig | undefined;
+  videoGeneration: VideoGenerationConfig | undefined;
   speech: SpeechConfig | undefined;
   visionDelegation: VisionDelegationConfig | undefined;
   replyWriter: ReplyWriterConfig | undefined;
@@ -136,9 +142,11 @@ export const REMOTE_SETTINGS_APPLY_DOMAINS = [
   'session',
   'notes',
   'flashcards',
+  'knowledge',
   'automation',
   'marketplace',
   'imageGeneration',
+  'videoGeneration',
   'speech',
   'visionDelegation',
   'replyWriter',
@@ -278,9 +286,11 @@ export const SETTINGS_DOMAINS = [
   'session',
   'notes',
   'flashcards',
+  'knowledge',
   'automation',
   'marketplace',
   'imageGeneration',
+  'videoGeneration',
   'speech',
   'visionDelegation',
   'replyWriter',
@@ -310,9 +320,11 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   session: true,
   notes: true,
   flashcards: true,
+  knowledge: true,
   automation: true,
   marketplace: true,
   imageGeneration: true,
+  videoGeneration: true,
   speech: true,
   visionDelegation: true,
   replyWriter: true,

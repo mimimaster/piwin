@@ -45,7 +45,6 @@ describe('filterSlashItems', () => {
     const filtered = filterSlashItems(catalog(), '');
     const names = filtered.map((item) => item.name);
     expect(names).toContain('compact');
-    expect(names).toContain('plan');
     expect(names).toContain('create-skill');
   });
 

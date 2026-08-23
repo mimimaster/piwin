@@ -70,10 +70,16 @@ export function formatCatalogToolDescription(
   brief?: McpCapabilityBrief,
 ): string {
   const targets = hostTargetNames.length > 0 ? hostTargetNames.join(', ') : '(none)';
-  const parts = [
-    `Host+MCP catalog. Host targets: ${targets}.`,
-    'Known Host ids may describe/call; else search then call (top hits include schema).',
-  ];
+  const hasBrowserTargets = hostTargetNames.some((name) => name.startsWith('browser_'));
+  const parts = hasBrowserTargets
+    ? [
+        'Right sidebar Browser: browser_*. First describe(target), then call(target, arguments); snapshot gives refs; find uses text.',
+        `Host+MCP catalog. Host targets: ${targets}.`,
+      ]
+    : [
+        `Host+MCP catalog. Host targets: ${targets}.`,
+        'Known Host ids may describe/call; else search then call (top hits include schema).',
+      ];
 
   if (brief && brief.enabledServerCount > 0) {
     const sampleSelectors = brief.servers

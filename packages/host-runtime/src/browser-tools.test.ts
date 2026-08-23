@@ -481,6 +481,15 @@ describe('createBrowserToolDefinitions — execute paths', () => {
     expect((JSON.parse(raw) as { count: number }).count).toBe(1);
   });
 
+  it('browser_find accepts the legacy query alias through the Host router', async () => {
+    const session = createMockSession();
+    const tools = createBrowserToolDefinitions(session);
+    const find = tools.find((t) => t.descriptor.name === 'browser_find');
+    if (!find) throw new Error('browser_find missing');
+    const result = await executeThroughAdmission(find, { query: 'Submit' });
+    expect((JSON.parse(outputOf(result)) as { count: number }).count).toBe(1);
+  });
+
   it('browser_wait delegates to session.wait', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);

@@ -17,7 +17,7 @@ export type IngestFileResult = {
   error?: string;
 };
 
-export function hashContent(content: string): string {
+export function hashContent(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
@@ -68,8 +68,9 @@ export async function ingestSelectedFiles(input: {
       continue;
     }
     const absolute = join(input.canonicalPath, relativePath);
-    const content = await readFile(absolute, 'utf8');
-    const fileHash = hashContent(content);
+    const bytes = await readFile(absolute);
+    const content = bytes.toString('utf8');
+    const fileHash = hashContent(bytes);
     const configHash = ingestionConfigHash({
       parserId: parser.id,
       parserVersion: parser.version,
@@ -96,7 +97,7 @@ export async function ingestSelectedFiles(input: {
         currentFile: relativePath,
         stage: 'parsing',
       });
-      const parsed = await parser.parse({ relativePath, extension, content, documentId });
+      const parsed = await parser.parse({ relativePath, extension, content, documentId, bytes });
       input.onProgress?.({
         completedFiles: results.length,
         totalFiles: input.relativePaths.length,

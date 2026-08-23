@@ -20,6 +20,7 @@ import type {
   HostResponse,
   ModelRef,
   ThinkingLevel,
+  PermissionPreset,
   PiwinConfig,
   PromptInput,
   QueuedTurnRecord,
@@ -44,8 +45,9 @@ import {
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_AFTER_ITEMS,
   SESSION_TRANSCRIPT_WINDOW_DEFAULT_BEFORE_ITEMS,
   formatError,
+  DEFAULT_PERMISSION_PRESET,
   resolvePermissionPreset,
-  resolvePreset,
+  resolvePromptPermissionMode,
   mergeAgentModeIntoPrompt,
   resolveOrchestrationScheme,
   mergeOrchestrationSchemeIntoPrompt,
@@ -406,6 +408,31 @@ export async function preparePromptInput(
   return userMessageId === undefined ? { promptInput } : { promptInput, userMessageId };
 }
 
+/** Apply composer Run Mode + agent-mode floor to the session admission gate. */
+export function applyPromptPermissionOverride(
+  context: Pick<
+    SessionLiveContext,
+    'setSessionPermissionOverride' | 'clearSessionPermissionOverride'
+  >,
+  input: {
+    sessionId: string;
+    permissionPreset?: PromptInput['permissionPreset'];
+    agentMode?: PromptInput['agentMode'];
+    configPreset: PermissionPreset;
+  },
+): void {
+  const mode = resolvePromptPermissionMode({
+    configPreset: input.configPreset,
+    ...(input.permissionPreset !== undefined ? { permissionPreset: input.permissionPreset } : {}),
+    ...(input.agentMode !== undefined ? { agentMode: input.agentMode } : {}),
+  });
+  if (mode === undefined) {
+    context.clearSessionPermissionOverride(input.sessionId);
+    return;
+  }
+  context.setSessionPermissionOverride(input.sessionId, mode);
+}
+
 /**
  * Project / Side Chat increments: permission floor, agent-mode contract,
  * orchestration preamble, active plan, and files-touched. Conversation
@@ -418,20 +445,28 @@ async function applyAgentPromptContext(
   assembly: ModelPromptAssembly,
   promptInput: PromptInput,
 ): Promise<void> {
-  // Agent mode permission floor: when plan/ask mode is active, raise the
-  // permission floor to ask-all + read-only so parent-owned registrations enforce it.
+  // Composer Run Mode (permissionPreset) is session-level and must override
+  // config YOLO. Plan/Ask agent modes still raise the floor via resolvePreset.
   const agentMode = command.input.agentMode;
-  if (agentMode === 'plan' || agentMode === 'ask') {
-    try {
-      const config = await context.loadConfig();
-      const preset = resolvePermissionPreset(config.permissions);
-      const resolved = resolvePreset(preset, agentMode);
-      context.setSessionPermissionOverride(command.sessionId, resolved.mode);
-    } catch {
-      // Best-effort: config load failure should not block the prompt.
+  try {
+    const config = await context.loadConfig();
+    applyPromptPermissionOverride(context, {
+      sessionId: command.sessionId,
+      configPreset: resolvePermissionPreset(config.permissions),
+      ...(command.input.permissionPreset !== undefined
+        ? { permissionPreset: command.input.permissionPreset }
+        : {}),
+      ...(agentMode !== undefined ? { agentMode } : {}),
+    });
+  } catch {
+    if (command.input.permissionPreset !== undefined) {
+      applyPromptPermissionOverride(context, {
+        sessionId: command.sessionId,
+        permissionPreset: command.input.permissionPreset,
+        configPreset: DEFAULT_PERMISSION_PRESET,
+        ...(agentMode !== undefined ? { agentMode } : {}),
+      });
     }
-  } else {
-    context.clearSessionPermissionOverride(command.sessionId);
   }
 
   // Agent mode operating contract: model-facing only. Transcript already

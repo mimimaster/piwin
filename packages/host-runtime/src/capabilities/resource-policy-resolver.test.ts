@@ -94,6 +94,45 @@ describe('resolveResourceActivations', () => {
     expect(result.activeEntries.map((item) => item.resourceId)).toEqual(['user-skill']);
   });
 
+  it('allows pi-native resources even when the project is untrusted', () => {
+    const result = resolveResourceActivations(
+      policyInput({
+        projectTrusted: false,
+        catalog: catalog([
+          entry({ resourceId: 'pi-pack', kind: 'extension', source: 'pi-native' }),
+          entry({ resourceId: 'project-skill', source: 'project' }),
+        ]),
+      }),
+    );
+    const byId = new Map(result.activations.map((item) => [item.resourceId, item]));
+    expect(byId.get('pi-pack')?.effectiveEnabled).toBe(true);
+    expect(byId.get('project-skill')?.effectiveEnabled).toBe(false);
+  });
+
+  it('user source shadows pi-native with the same id', () => {
+    const result = resolveResourceActivations(
+      policyInput({
+        catalog: catalog([
+          entry({
+            resourceId: 'hello',
+            kind: 'extension',
+            source: 'pi-native',
+            path: '/pi/hello.ts',
+          }),
+          entry({
+            resourceId: 'hello',
+            kind: 'extension',
+            source: 'user',
+            path: '/piwin/hello.ts',
+          }),
+        ]),
+      }),
+    );
+    expect(result.activeEntries).toEqual([
+      expect.objectContaining({ resourceId: 'hello', source: 'user', path: '/piwin/hello.ts' }),
+    ]);
+  });
+
   it('trusted project includes project resources', () => {
     const result = resolveResourceActivations(
       policyInput({

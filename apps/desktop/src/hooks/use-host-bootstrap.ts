@@ -41,6 +41,7 @@ import {
 } from '../remote-session-hydrate';
 import { readConfiguredChatModelsData } from '../model-options';
 import { resolveBootstrapSelectedModelKey } from '../composer-model-selection-policy.js';
+import { publishPetOverlayState } from '../pet-overlay-state-bridge.js';
 import { readProjectedHostConfig } from '../remote-settings-hydrate.js';
 import { mergeSettingsViewConfig } from '../settings/settings-view-config.js';
 import {
@@ -230,7 +231,14 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const [configuredChatModels, setConfiguredChatModels] = useState<ConfiguredChatModelsData>({
     models: [],
   });
-  const [activePet, setActivePet] = useState<PetRuntimeSnapshot | null>(null);
+  const [activePet, setActivePetState] = useState<PetRuntimeSnapshot | null>(null);
+  const setActivePet = useCallback((update: SetStateAction<PetRuntimeSnapshot | null>) => {
+    setActivePetState((previous) => {
+      const next = typeof update === 'function' ? update(previous) : update;
+      publishPetOverlayState(next);
+      return next;
+    });
+  }, []);
   const [plansBySessionId, setPlansBySessionId] = useState<
     Record<string, SessionPlan | null>
   >({});
@@ -579,17 +587,8 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'pet/state') {
+        // Overlay has no Host connection; the setter publishes to it.
         setActivePet(message.pet);
-        // Forward to the pet overlay window so it can update its sprite
-        // without its own host connection.
-        void (async () => {
-          try {
-            const { emit } = await import('@tauri-apps/api/event');
-            await emit('pet-state-push', { pet: message.pet });
-          } catch {
-            // overlay window not open or not in Tauri — ignore
-          }
-        })();
         return;
       }
       if (message.type === 'host/log') {

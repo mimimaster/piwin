@@ -1,7 +1,11 @@
 import { useMemo, type ReactElement } from 'react';
 import type { PromptContextRef } from '@piwin/contracts';
 import { FileTypeIcon } from '@piwin/ui-kit';
-import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
+import {
+  ContextMenuFromCatalog,
+  useDesktopContextMenu,
+  type ContextMenuDispatchers,
+} from './context-menu';
 import type { DesktopLocale } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import {
@@ -9,6 +13,7 @@ import {
   resolveLocalFileAbsolutePath,
   saveLocalFileAs,
 } from './local-file-actions.js';
+import { useLocalFileActions } from './local-file-actions-context.js';
 
 export type PathChipProps = {
   fullPath: string;
@@ -61,12 +66,16 @@ export function PathChip({
   onNotify,
 }: PathChipProps): ReactElement {
   const { locale } = useDesktopLocale();
+  const localFileActions = useLocalFileActions();
+  const desktopMenu = useDesktopContextMenu();
   const displayText = label ?? fileNameFromPath(fullPath);
   const absolutePath = resolveLocalFileAbsolutePath(fullPath, projectPath);
   const resolvedRelative =
     relativePath ??
     (projectPath ? relativePathFromFull(absolutePath, projectPath) : fullPath);
-  const hasProjectContext = Boolean(projectPath && onAddContextRef);
+  const addContextRef = onAddContextRef ?? desktopMenu?.dispatchers.addToChat;
+  const notify = onNotify ?? desktopMenu?.dispatchers.notify;
+  const hasProjectContext = Boolean(projectPath && addContextRef);
   // Absolute host paths (or project-resolved) can reveal / save-as.
   const canActOnDisk =
     absolutePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(absolutePath);
@@ -74,7 +83,7 @@ export function PathChip({
   const dispatchers: ContextMenuDispatchers = useMemo(
     () => ({
       addToChat: (ref) => {
-        onAddContextRef?.(ref);
+        addContextRef?.(ref);
       },
       focusComposer: () => {
         const textarea = document.querySelector<HTMLTextAreaElement>(
@@ -89,7 +98,7 @@ export function PathChip({
       revealPath: (path) => {
         void revealLocalFileInFolder(path).then((ok) => {
           if (!ok) {
-            onNotify?.(
+            notify?.(
               locale === 'zh-CN' ? '无法在文件管理器中打开' : 'Could not show in file manager',
               'error',
             );
@@ -97,14 +106,15 @@ export function PathChip({
         });
       },
       savePathAs: (path) => {
-        void saveLocalFileAs(path)
+        const save = localFileActions?.saveAs ?? ((target) => saveLocalFileAs(target));
+        void save(path)
           .then((result) => {
             if (result.kind === 'downloaded') {
-              onNotify?.(locale === 'zh-CN' ? '已开始另存为' : 'Save As started', 'success');
+              notify?.(locale === 'zh-CN' ? '已开始另存为' : 'Save As started', 'success');
               return;
             }
             if (result.kind === 'revealed-fallback') {
-              onNotify?.(
+              notify?.(
                 locale === 'zh-CN'
                   ? '已复制完整路径并打开所在文件夹，请手动拷贝文件'
                   : 'Path copied and folder opened — copy the file manually',
@@ -113,14 +123,14 @@ export function PathChip({
               return;
             }
             if (result.kind === 'failed') {
-              onNotify?.(
+              notify?.(
                 locale === 'zh-CN' ? '另存为失败' : 'Save As failed',
                 'error',
               );
             }
           })
           .catch(() => {
-            onNotify?.(
+            notify?.(
               locale === 'zh-CN' ? '另存为失败' : 'Save As failed',
               'error',
             );
@@ -129,10 +139,10 @@ export function PathChip({
       copyText: (value) => {
         void navigator.clipboard.writeText(value).then(
           () => {
-            onNotify?.(locale === 'zh-CN' ? '已复制' : 'Copied', 'success');
+            notify?.(locale === 'zh-CN' ? '已复制' : 'Copied', 'success');
           },
           () => {
-            onNotify?.(locale === 'zh-CN' ? '复制失败' : 'Could not copy', 'error');
+            notify?.(locale === 'zh-CN' ? '复制失败' : 'Could not copy', 'error');
           },
         );
       },
@@ -141,10 +151,10 @@ export function PathChip({
       forkMessage: () => undefined,
       openSideChat: () => undefined,
       notify: (message, level) => {
-        onNotify?.(message, level);
+        notify?.(message, level);
       },
     }),
-    [locale, onAddContextRef, onNotify, onOpen],
+    [addContextRef, locale, localFileActions, notify, onOpen],
   );
 
   const caps = {

@@ -1632,6 +1632,9 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
       // ADR 0052 Slice 4: host-absolute path preview is local-sidecar only.
       // Remote clients must not send this command even as the operator.
       return false;
+    case 'preview/export-local-file':
+      // Save As byte export is local-sidecar only (same boundary as Slice 4).
+      return false;
     case 'media/save':
       return (
         (command.input.source === 'file-picker' ||

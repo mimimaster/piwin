@@ -23,6 +23,7 @@
 @import './styles/region-flashcards.css';
 @import './styles/region-notes.css';
 @import './styles/region-knowledge.css';
+@import './styles/region-knowledge-wiki.css';
 @import './styles/run-activity.css';
 @import './styles/region-inspector.css';
 @import './styles/browser-session.css';

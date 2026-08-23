@@ -93,10 +93,14 @@ export function collectExtensionEntryPaths(options: {
 }): string[] {
   const disabled = new Set((options.disabledIds ?? []).map((id) => id.toLowerCase()));
   const paths: string[] = [];
+  const seenIds = new Set<string>();
   for (const extension of options.discovered) {
     if (!extension.enabled || (!extension.managed && disabled.has(extension.id.toLowerCase()))) {
       continue;
     }
+    const id = extension.id.toLowerCase();
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
     paths.push(extension.path);
   }
   return [...new Set(paths)];

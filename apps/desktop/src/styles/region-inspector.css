@@ -2450,26 +2450,6 @@
 
 /* ── Knowledge Center (right-panel sub-tabbed entry) ──────────────── */
 
-/* Stage overlay: Knowledge Center occupies the workspace stage when the
-   sidebar toggle is active. Sits over the chat-column as a sibling. */
-.knowledge-stage {
-  position: absolute;
-  inset: 0;
-  z-index: var(--layer-drawer, 30);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--canvas);
-  overflow: hidden;
-}
-
-/* Hide the chat column when the knowledge overlay is open so it doesn't
-   capture focus / scroll behind the overlay. */
-.app-shell.knowledge-open .chat-column {
-  visibility: hidden;
-  pointer-events: none;
-}
-
 .knowledge-center-panel {
   display: flex;
   flex-direction: column;

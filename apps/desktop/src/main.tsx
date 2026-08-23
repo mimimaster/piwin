@@ -6,6 +6,7 @@ import { installDevelopmentPerformanceTimelineGuard } from './development-perfor
 import { installArtifactMemoryBridge } from './artifact-memory-bridge';
 import { installMemoryParking } from './memory-parking';
 import { installMemoryPressureBridge } from './memory-pressure';
+import { installPetOverlayStateRelay } from './pet-overlay-state-bridge';
 import { installPetOverlayRestore } from './pet-overlay-visibility';
 import 'katex/dist/katex.min.css';
 import './styles.css';
@@ -20,6 +21,7 @@ applyAppearanceToDocument(resolveStartupAppearance());
 installMemoryPressureBridge();
 installMemoryParking();
 installArtifactMemoryBridge();
+void installPetOverlayStateRelay();
 installPetOverlayRestore();
 
 // Install before createRoot/render. React development instrumentation can

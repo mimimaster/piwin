@@ -37,4 +37,15 @@ describe('pet overlay entry boundary', () => {
     expect(overlayEntry).not.toContain('installPetOverlayRestore');
     expect(overlayEntry).not.toContain('StrictMode');
   });
+
+  it('gets the active pet from the main window instead of a sidecar host_request', () => {
+    const overlayApp = readSource('./pet-overlay-app.tsx');
+    const bootstrap = readSource('./hooks/use-host-bootstrap.ts');
+    const main = readSource('./main.tsx');
+    expect(overlayApp).not.toContain("type: 'pet/get-active'");
+    expect(overlayApp).not.toContain("'host_request'");
+    expect(overlayApp).toContain('requestPetOverlayState');
+    expect(bootstrap).toContain('publishPetOverlayState');
+    expect(main).toContain('installPetOverlayStateRelay');
+  });
 });

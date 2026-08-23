@@ -37,9 +37,10 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'stop',
   'abort',
   'agent',
+  'goal',
+  // Retired composer modes — keep reserved so a skill cannot claim the tokens.
   'plan',
   'ask',
-  'goal',
   'scheme',
   'ultra-code',
   'knowledge',

@@ -1293,6 +1293,25 @@ describe('HostServer', () => {
       code: 'command-not-allowed',
     });
 
+    socket.send(
+      encodeHostWireMessage({
+        type: 'command',
+        requestId: 'export-local-rejected',
+        command: {
+          type: 'preview/export-local-file',
+          id: 'export-local-rejected',
+          input: { absolutePath: '/tmp/out.zip' },
+        },
+      }),
+    );
+    const exportRejected = await inbox.waitFor(
+      (message) => message.type === 'error' && message.requestId === 'export-local-rejected',
+    );
+    expect(exportRejected).toMatchObject({
+      type: 'error',
+      code: 'command-not-allowed',
+    });
+
     socket.close();
     await server.stop();
   });

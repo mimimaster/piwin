@@ -106,6 +106,29 @@ describe('formatCatalogSystemPrompt', () => {
 });
 
 describe('formatCatalogToolDescription', () => {
+  it('identifies browser targets as the shared right sidebar and gives the call order', () => {
+    const description = formatCatalogToolDescription([
+      'browser_back',
+      'browser_fill_form',
+      'browser_find',
+      'browser_snapshot',
+      'browser_click',
+      'browser_forward',
+      'browser_lock',
+      'browser_navigate',
+      'browser_screenshot',
+      'browser_scroll',
+      'browser_type',
+      'browser_wait',
+      'process_start',
+      'image_gen',
+    ]);
+    expect(description).toContain('Right sidebar Browser');
+    expect(description).toContain('First describe(target), then call(target, arguments)');
+    expect(description).toContain('find uses text');
+    expect(description.length).toBeLessThanOrEqual(MODEL_TOOL_DESCRIPTION_MAX_CHARS);
+  });
+
   it('lists Host targets and MCP inventory in the model-visible budget', () => {
     const brief = buildMcpCapabilityBrief({
       config: createConfig({ docs: { command: 'node' } }),

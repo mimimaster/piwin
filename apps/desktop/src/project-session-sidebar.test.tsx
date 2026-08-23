@@ -402,6 +402,41 @@ it('renders the three-dot service indicator in preference to the working spinner
   expect(container.querySelector('.session-row-actions')).not.toBeNull();
 });
 
+it('opens the overflow menu for the clicked row, not the first session', () => {
+  const onOpenSessionMenu = vi.fn();
+  const onArchiveSession = vi.fn();
+  const sessions = createMockSessions(3);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    activeSessionId: 'session-1',
+    onOpenSessionMenu,
+    onArchiveSession,
+  });
+
+  const menuButtons = container.querySelectorAll<HTMLButtonElement>(
+    '[data-testid="session-menu-btn"]',
+  );
+  const archiveButtons = container.querySelectorAll<HTMLButtonElement>(
+    '[data-testid="session-archive-btn"]',
+  );
+  expect(menuButtons).toHaveLength(3);
+  expect(archiveButtons).toHaveLength(3);
+
+  act(() => {
+    menuButtons[1]?.click();
+    archiveButtons[2]?.click();
+  });
+
+  expect(onOpenSessionMenu).toHaveBeenCalledTimes(1);
+  expect(onOpenSessionMenu).toHaveBeenCalledWith(
+    'session-2',
+    expect.any(Number),
+    expect.any(Number),
+  );
+  expect(onArchiveSession).toHaveBeenCalledTimes(1);
+  expect(onArchiveSession).toHaveBeenCalledWith('session-3');
+});
+
 it('exposes the selected session as an explicit active row', () => {
   const sessions = createMockSessions(2);
   const { container } = renderSidebar({

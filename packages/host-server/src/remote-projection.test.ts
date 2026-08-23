@@ -96,6 +96,40 @@ describe('remote settings projection', () => {
     expect(serialized).not.toContain('"remote"');
   });
 
+  it('keeps knowledge reranker and notes extras in the settings projection', () => {
+    const projected = projectRemoteSettingsData({
+      snapshot: {
+        schemaVersion: 2,
+        revision: 'rev-1',
+        runtimeRevision: 'rev-1',
+        domainRevisions: { knowledge: 'hash-k', notes: 'hash-n' },
+        config: {
+          knowledge: {
+            reranker: {
+              enabled: true,
+              provider: 'openai-compatible',
+              baseUrl: 'https://api.example.com/v1',
+              model: 'Qwen/Qwen3-Reranker-8B',
+              apiKeyRef: 'keychain:knowledge-reranker',
+            },
+          },
+          notes: {
+            knowledgeExtras: {
+              reranker: {
+                enabled: true,
+                model: 'Qwen/Qwen3-Reranker-8B',
+                apiKeyRef: 'keychain:knowledge-reranker',
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(projected)).toContain('Qwen/Qwen3-Reranker-8B');
+    expect(JSON.stringify(projected)).toContain('[stored-secret]');
+    expect(JSON.stringify(projected)).not.toContain('keychain:knowledge-reranker');
+  });
+
   it('keeps a CLI search source visible without leaking its Host launcher', () => {
     const projected = projectRemoteSettingsData({
       snapshot: {
@@ -359,6 +393,38 @@ describe('remote session/list projection', () => {
       ],
     });
   });
+
+  it('projects project/open onto an opaque projectId and drops the Host path', () => {
+    const projected = projectRemoteResponse(
+      { type: 'project/open', path: '/home/host/work/app' },
+      {
+        type: 'response',
+        command: 'project/open',
+        success: true,
+        data: {
+          path: '/home/host/work/app',
+          projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+          trusted: true,
+          trust: 'trusted',
+        },
+      },
+      {
+        hostInstanceId: 'host-1',
+        mode: 'sdk',
+        capabilities: createRemoteCapabilities(),
+      },
+    );
+    expect(projected.success).toBe(true);
+    if (!projected.success) {
+      throw new Error(projected.error);
+    }
+    expect(JSON.stringify(projected.data)).not.toContain('/home/host');
+    expect(projected.data).toEqual({
+      projectId: 'project-aaaaaaaaaaaaaaaaaaaaaaaa',
+      trusted: true,
+      trust: 'trusted',
+    });
+  });
 });
 
 describe('remote models/configured projection', () => {
@@ -533,6 +599,14 @@ describe('remote skills/read + tool-output projection', () => {
       trustedTextPreview: true,
       contextSummary: true,
     });
+  });
+
+  it('advertises the Host OS path style, not the connecting shell OS', () => {
+    const caps = createRemoteCapabilities();
+    expect(caps.platform === 'darwin' || caps.platform === 'linux' || caps.platform === 'win32' || caps.platform === 'other').toBe(
+      true,
+    );
+    expect(caps.pathStyle).toBe(caps.platform === 'win32' ? 'windows' : 'posix');
   });
 
   it('passes media/read base64 payloads through untouched', () => {

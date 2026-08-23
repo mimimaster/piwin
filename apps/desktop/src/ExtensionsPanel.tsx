@@ -63,7 +63,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   const projectPath = props.projectPath;
   const loadRequestSequenceRef = useRef(0);
 
-  const loadExtensions = useCallback(async () => {
+  const loadExtensions = useCallback(async (applyToSession = false) => {
     const requestSequence = loadRequestSequenceRef.current + 1;
     loadRequestSequenceRef.current = requestSequence;
     setLoading(true);
@@ -85,7 +85,27 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
     }
     const data = response.data as ExtensionsListData;
     setExtensions(data.extensions ?? []);
-  }, [projectPath, requestExtensions]);
+    if (!applyToSession || !props.sessionId) {
+      return;
+    }
+    const applyResponse = await requestExtensions({
+      type: 'extensions/apply',
+      sessionId: props.sessionId,
+      when: 'after-current-run',
+    });
+    if (requestSequence !== loadRequestSequenceRef.current) {
+      return;
+    }
+    if (!applyResponse.success) {
+      setError(applyResponse.error);
+      return;
+    }
+    setInfo(
+      isChinese
+        ? '已从磁盘同步扩展，并请求应用到当前会话。'
+        : 'Synced extensions from disk and requested apply on the current session.',
+    );
+  }, [isChinese, projectPath, props.sessionId, requestExtensions]);
 
   useEffect(() => {
     void loadExtensions();
@@ -226,7 +246,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
           <Button
             size="compact"
             variant="ghost"
-            onClick={() => void loadExtensions()}
+            onClick={() => void loadExtensions(true)}
             data-testid="extensions-refresh"
           >
             {isChinese ? '刷新' : 'Refresh'}

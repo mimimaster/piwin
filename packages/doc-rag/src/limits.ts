@@ -11,7 +11,12 @@ export const SKIP_DIR_NAMES = new Set([
   'node_modules',
   '.git',
   'dist',
+  'dist-host',
   'build',
+  'target',
+  'coverage',
+  'playwright-report',
+  'test-results',
   '.svn',
   '__pycache__',
 ]);

@@ -64,6 +64,17 @@ describe('host problem copy', () => {
         'zh-CN',
       ),
     ).toMatch(/不是系统权限/);
+    expect(
+      hostFailureNotice(
+        {
+          type: 'response',
+          command: 'settings/apply',
+          success: false,
+          error: 'Remote Host does not accept these settings domains yet',
+        },
+        'zh-CN',
+      ),
+    ).toMatch(/还不支持这些设置项/);
   });
 
   it('maps a dropped Host socket to reconnecting copy', () => {

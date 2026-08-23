@@ -1,6 +1,6 @@
 /** Prompt template registry (Pi prompt templates under ~/.piwin/prompts). */
 
-export type PromptTemplateSource = 'bundled' | 'user' | 'project' | 'mapped';
+export type PromptTemplateSource = 'bundled' | 'user' | 'project' | 'mapped' | 'pi-native';
 
 export type PromptTemplateSummary = {
   id: string;

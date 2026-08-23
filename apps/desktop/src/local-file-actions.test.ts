@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment happy-dom
+import { describe, expect, it, vi } from 'vitest';
 import {
   fileNameFromLocalPath,
   parentDirectoryOf,
   resolveLocalFileAbsolutePath,
+  saveLocalFileAs,
 } from './local-file-actions.js';
 
 describe('resolveLocalFileAbsolutePath', () => {
@@ -34,5 +36,31 @@ describe('fileNameFromLocalPath', () => {
   it('returns the basename', () => {
     expect(fileNameFromLocalPath('/Users/me/a.zip')).toBe('a.zip');
     expect(fileNameFromLocalPath('cropped-portraits/')).toBe('cropped-portraits');
+  });
+});
+
+describe('saveLocalFileAs with Host reader', () => {
+  it('downloads bytes from the Host reader when asset protocol is unavailable', async () => {
+    const click = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      const element = originalCreateElement(tagName);
+      if (tagName === 'a') {
+        Object.defineProperty(element, 'click', { value: click });
+      }
+      return element;
+    });
+
+    const result = await saveLocalFileAs('/Users/me/proj/out.zip', {
+      readBytes: async () => ({
+        fileName: 'out.zip',
+        mimeType: 'application/zip',
+        bytes: new Uint8Array([1, 2, 3, 4]),
+      }),
+    });
+
+    expect(result).toEqual({ kind: 'downloaded' });
+    expect(click).toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });

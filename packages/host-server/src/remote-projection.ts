@@ -21,9 +21,15 @@ import type {
   RemoteTranscriptMessage,
   QueuedTurnRecord,
 } from '@piwin/contracts';
-import { readActivitySummaryData, REDACTED_STORED_SECRET } from '@piwin/contracts';
-import { parseSessionStorageInfo, projectRemoteSessionStorage } from '@piwin/contracts';
-import { createRemoteProjectId } from '@piwin/host-runtime';
+import {
+  hostOsFamilyFromNodePlatform,
+  hostPathStyleFromOsFamily,
+  parseSessionStorageInfo,
+  projectRemoteSessionStorage,
+  readActivitySummaryData,
+  REDACTED_STORED_SECRET,
+} from '@piwin/contracts';
+import { createRemoteProjectId, isRemoteProjectId } from '@piwin/host-runtime';
 import { projectConfiguredChatModelsResponse } from './remote-configured-models.js';
 import { redactRemoteHostPaths } from './remote-redact.js';
 import { projectRemoteTranscriptTools } from './remote-transcript-tool-projection.js';
@@ -59,6 +65,12 @@ export function projectRemoteResponse(
     return {
       ...response,
       data: { projects: projectProjects(response.data) },
+    };
+  }
+  if (command.type === 'project/open' || command.type === 'project/trust') {
+    return {
+      ...response,
+      data: projectProjectMutation(response.data),
     };
   }
 
@@ -203,10 +215,13 @@ export function projectRemoteResponse(
 export function createRemoteCapabilities(
   allowedCommands?: Iterable<HostCommand['type']>,
 ): RemoteCapabilitySummary {
+  const platform = hostOsFamilyFromNodePlatform(process.platform);
   return {
     ...(allowedCommands === undefined
       ? {}
       : { allowedCommands: [...new Set(allowedCommands)].sort() }),
+    platform,
+    pathStyle: hostPathStyleFromOsFamily(platform),
     pushSequencing: true,
     replay: true,
     snapshot: true,
@@ -289,6 +304,27 @@ function projectRemoteMediaSaveData(data: unknown): RemoteMediaSaveData {
     projected.asset.contentKind = asset.contentKind;
   }
   return projected;
+}
+
+function projectProjectMutation(data: unknown): {
+  projectId: string;
+  trusted: boolean;
+  trust: 'trusted' | 'untrusted';
+} {
+  const record = asRecord(data);
+  const issuedId = typeof record?.projectId === 'string' ? record.projectId : '';
+  const hostPath = typeof record?.path === 'string' ? record.path : '';
+  const projectId = isRemoteProjectId(issuedId)
+    ? issuedId
+    : hostPath
+      ? createRemoteProjectId(hostPath)
+      : '';
+  const trusted = record?.trusted === true || record?.trust === 'trusted';
+  return {
+    projectId,
+    trusted,
+    trust: trusted ? 'trusted' : 'untrusted',
+  };
 }
 
 function projectProjects(data: unknown): RemoteProjectSummary[] {

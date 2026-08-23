@@ -89,6 +89,39 @@ export type LocalFilePreviewData =
     };
 
 /**
+ * Local-Host user-gesture export of a clicked path for Desktop Save As.
+ * Returns whole-file bytes (base64). Remote clients must not send this.
+ * Unlike preview/read-local-file, binary files are allowed up to the byte cap.
+ */
+export type LocalFileExportCommandInput = {
+  /** Host-absolute path. Local sidecar only; never accepted from remote. */
+  absolutePath: string;
+  /** Soft cap in bytes; Host enforces a hard max. */
+  maxBytes?: number;
+};
+
+export type LocalFileExportFailureReason =
+  | 'not-found'
+  | 'not-a-file'
+  | 'too-large'
+  | 'denied-location'
+  | 'invalid-request';
+
+export type LocalFileExportData =
+  | {
+      status: 'ready';
+      fileName: string;
+      mimeType: string;
+      byteSize: number;
+      base64Data: string;
+    }
+  | {
+      status: 'unavailable';
+      reason: LocalFileExportFailureReason;
+      suggestion?: string;
+    };
+
+/**
  * Result of the local image-ingest command. Unlike LocalFilePreviewData, this
  * command is intentionally image-only and returns the saved asset directly.
  */

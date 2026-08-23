@@ -115,3 +115,34 @@ describe('handleMediaIngestCommand preview/read-local-file', () => {
     });
   });
 });
+
+describe('handleMediaIngestCommand preview/export-local-file', () => {
+  it('exports zip bytes for Save As', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-export-cmd-'));
+    const source = join(rootDir, 'faces.zip');
+    const bytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x11, 0x22]);
+    await writeFile(source, bytes);
+
+    const response = await handleMediaIngestCommand(
+      {
+        type: 'preview/export-local-file',
+        input: { absolutePath: source },
+      },
+      'export-ok',
+      createMinimalContext(rootDir),
+    );
+
+    expect(response).toMatchObject({
+      id: 'export-ok',
+      success: true,
+      command: 'preview/export-local-file',
+      data: {
+        status: 'ready',
+        fileName: 'faces.zip',
+        byteSize: bytes.byteLength,
+      },
+    });
+    const data = (response as { data?: { base64Data?: string } } | null)?.data;
+    expect(Buffer.from(data?.base64Data ?? '', 'base64')).toEqual(bytes);
+  });
+});

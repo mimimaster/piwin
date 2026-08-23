@@ -23,7 +23,6 @@
   "dependencies": {
     "@piwin/artifact": "workspace:*",
     "@piwin/contracts": "workspace:*",
-    "@piwin/doc-rag": "workspace:*",
     "@piwin/flashcards": "workspace:*",
     "@piwin/host-client": "workspace:*",
     "@piwin/host-transport": "workspace:*",

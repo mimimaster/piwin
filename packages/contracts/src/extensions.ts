@@ -75,7 +75,7 @@ export type ExtensionRegistryDocument = {
   extensions: Record<string, InstalledExtensionRecord>;
 };
 
-export type ExtensionSource = 'bundled' | 'user' | 'project' | 'mapped';
+export type ExtensionSource = 'bundled' | 'user' | 'project' | 'mapped' | 'pi-native';
 
 /**
  * Metadata for list/enable UI. Host never executes the module for listing —

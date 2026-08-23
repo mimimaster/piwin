@@ -550,6 +550,7 @@ export type ChatUiAction =
     }
   | { type: 'user/send-rollback'; clientMessageId: string }
   | { type: 'run/aborting' }
+  | { type: 'run/abort-failed' }
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
   | { type: 'run/updated'; run: ExecutionRunRecord }
   | { type: 'run/terminal'; run: ExecutionRunRecord }
@@ -1986,6 +1987,16 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       return {
         ...state,
         runPhase: 'aborting',
+        streaming: true,
+      };
+    case 'run/abort-failed':
+      if (state.runPhase !== 'aborting') {
+        return state;
+      }
+      // Abort request failed — run is still live. Re-enable Stop.
+      return {
+        ...state,
+        runPhase: 'streaming',
         streaming: true,
       };
     case 'run/accepted':

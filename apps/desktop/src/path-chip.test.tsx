@@ -7,6 +7,11 @@ import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { PathChip } from './path-chip';
 import type { PromptContextRef } from '@piwin/contracts';
+import {
+  DesktopContextMenuProvider,
+  type ContextMenuDispatchers,
+  type DesktopContextMenuValue,
+} from './context-menu';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -30,6 +35,16 @@ function openContextMenu(trigger: HTMLElement): void {
       new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );
   });
+}
+
+function isMenuItemDisabled(element: HTMLElement | null): boolean {
+  if (!element) {
+    return false;
+  }
+  return (
+    element.getAttribute('aria-disabled') === 'true' ||
+    element.getAttribute('data-disabled') === 'true'
+  );
 }
 
 describe('PathChip context menu (CM-06)', () => {
@@ -140,6 +155,80 @@ describe('PathChip context menu (CM-06)', () => {
       kind: 'file',
       projectPath: '/p',
       relativePath: 'src/a.ts',
+    });
+  });
+
+  it('disables Add to Chat when no add handler is available', () => {
+    const rendered = renderPathChip(
+      <PathChip
+        fullPath="/p/src/a.ts"
+        label="a.ts"
+        projectPath="/p"
+        relativePath="src/a.ts"
+        data-testid="path-chip-a"
+        onOpen={() => undefined}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    openContextMenu(container.querySelector('[data-testid="path-chip-a"]') as HTMLElement);
+    const addItem = menuItem('context-menu-add-to-chat');
+    expect(addItem).not.toBeNull();
+    expect(isMenuItemDisabled(addItem)).toBe(true);
+  });
+
+  it('uses the desktop context menu to Add to Chat without an onAddContextRef prop', () => {
+    const addToChat = vi.fn();
+    const dispatchers: ContextMenuDispatchers = {
+      addToChat,
+      focusComposer: vi.fn(),
+      sendPreset: vi.fn(),
+      openPath: vi.fn(),
+      revealPath: vi.fn(),
+      copyText: vi.fn(),
+      quoteInComposer: vi.fn(),
+      retryMessage: vi.fn(),
+      forkMessage: vi.fn(),
+      openSideChat: vi.fn(),
+      notify: vi.fn(),
+    };
+    const menuValue: DesktopContextMenuValue = {
+      caps: {
+        hasProject: true,
+        canReveal: false,
+        sideChatAvailable: false,
+        applyAvailable: true,
+        locale: 'en',
+      },
+      dispatchers,
+    };
+    const rendered = renderPathChip(
+      <DesktopContextMenuProvider value={menuValue}>
+        <PathChip
+          fullPath="cropped-portraits-16.zip"
+          label="cropped-portraits-16.zip"
+          projectPath="/p"
+          data-testid="path-chip-a"
+          onOpen={() => undefined}
+        />
+      </DesktopContextMenuProvider>,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    openContextMenu(container.querySelector('[data-testid="path-chip-a"]') as HTMLElement);
+    const addItem = menuItem('context-menu-add-to-chat') as HTMLElement | null;
+    expect(addItem).not.toBeNull();
+    expect(isMenuItemDisabled(addItem)).toBe(false);
+    act(() => {
+      addItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(addToChat).toHaveBeenCalledTimes(1);
+    expect(addToChat.mock.calls[0]?.[0]).toMatchObject({
+      kind: 'file',
+      projectPath: '/p',
+      relativePath: 'cropped-portraits-16.zip',
     });
   });
 

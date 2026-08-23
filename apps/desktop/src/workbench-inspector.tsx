@@ -175,6 +175,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     onSwitchBranch,
     streaming,
   } = props;
+  const hostPathStyle = hostClient.getRemoteCapabilities()?.pathStyle;
 
   return (
       <>
@@ -251,6 +252,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
               <DeferredFileTreePanel
                 projectPath={projectPath}
                 request={requestFileTree}
+                {...(hostPathStyle === undefined ? {} : { pathStyle: hostPathStyle })}
                 onAddContextRef={(ref) => {
                   const result = addContextRef(ref);
                   if (!result.ok) {
@@ -393,7 +395,7 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
             )
           }
           terminalContent={
-            hostClient.supportsCommand('pty/open') ? (
+            hostClient.getTransport() !== 'remote' && hostClient.supportsCommand('pty/open') ? (
               <DeferredTerminalDock
                 projectPath={projectPath}
                 projectTrusted={projectTrusted}

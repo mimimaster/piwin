@@ -21,6 +21,7 @@ import { formatError } from '@piwin/contracts';
 import type {
   GitFileStatusCode,
   GitStatusData,
+  HostPathStyle,
   HostResponse,
   ProjectDirEntry,
   ProjectListDirData,
@@ -94,6 +95,8 @@ export type FileTreePanelProps = {
   onOpenFile?: (absolutePath: string, relativePath: string) => void;
   /** Desktop locale for locale-aware UI strings. */
   locale?: DesktopLocale;
+  /** Host filesystem style. Required when `projectPath` is an opaque remote id. */
+  pathStyle?: HostPathStyle;
 };
 
 type FilePreviewState = {
@@ -418,7 +421,10 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
 
   function absoluteFor(relativePath: string): string {
     if (!props.projectPath) return relativePath;
-    return resolveProjectEntryAbsolutePath(props.projectPath, relativePath);
+    if (props.pathStyle === undefined) {
+      return resolveProjectEntryAbsolutePath(props.projectPath, relativePath);
+    }
+    return resolveProjectEntryAbsolutePath(props.projectPath, relativePath, props.pathStyle);
   }
 
   const contextMenuDispatchers: ContextMenuDispatchers = {

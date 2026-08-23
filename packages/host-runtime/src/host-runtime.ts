@@ -649,6 +649,7 @@ export class HostRuntime {
   /** Unsubscribe for the browser session push wiring. */
   private browserSessionUnsubscribe: (() => void) | null = null;
   private folderRag: import('@piwin/doc-rag').FolderRag | null = null;
+  private folderRagKey: string | null = null;
   private notesServices: {
     store: import('@piwin/notes').NoteStore;
     index: import('@piwin/notes').NoteIndex;
@@ -1252,6 +1253,15 @@ export class HostRuntime {
         // best-effort shutdown
       }
       this.notesServices = null;
+    }
+    if (this.folderRag) {
+      try {
+        this.folderRag.close();
+      } catch {
+        // best-effort shutdown
+      }
+      this.folderRag = null;
+      this.folderRagKey = null;
     }
     if (this.browserSessionUnsubscribe) {
       try {
@@ -2539,46 +2549,99 @@ export class HostRuntime {
   }
 
   private async getFolderRag(): Promise<import('@piwin/doc-rag').FolderRag> {
-    if (!this.folderRag) {
-      const rootDir = getPiwinRoot(this.options.piwinRoot);
-      const config = await loadPiwinConfig(rootDir);
-      const { createFolderRag, createHttpReranker, createParserRegistry } = await import('@piwin/doc-rag');
-      const { createEmbeddingProvider } = await import('@piwin/notes');
-      const { resolveKnowledgeHttpApiKey, resolveNotesEmbeddingApiKey } = await import(
-        './notes-embedding-secret.js'
-      );
-      let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
-      if (config.notes?.embedding) {
-        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
-        const provider = createEmbeddingProvider({
-          config: config.notes.embedding,
-          ...(apiKey ? { apiKey } : {}),
-        });
-        if (provider) embeddingProvider = provider;
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    const mineruConfig = config.knowledge?.parser?.mineru;
+    const unstructuredConfig = config.knowledge?.parser?.unstructured;
+    const mineruEnabled =
+      mineruConfig?.enabled === true && Boolean(mineruConfig.baseUrl?.trim());
+    const unstructuredEnabled =
+      unstructuredConfig?.enabled === true && Boolean(unstructuredConfig.baseUrl?.trim());
+    const ragKey = JSON.stringify({
+      mineruEnabled,
+      mineruUrl: mineruConfig?.baseUrl ?? '',
+      mineruRef: mineruConfig?.apiKeyRef ?? '',
+      unstructuredEnabled,
+      unstructuredUrl: unstructuredConfig?.baseUrl ?? '',
+      unstructuredRef: unstructuredConfig?.apiKeyRef ?? '',
+      embed: config.notes?.embedding?.model ?? '',
+      rerank: config.knowledge?.reranker?.enabled === true,
+      rerankUrl: config.knowledge?.reranker?.baseUrl ?? '',
+    });
+    if (this.folderRag && this.folderRagKey === ragKey) {
+      return this.folderRag;
+    }
+    if (this.folderRag) {
+      try {
+        this.folderRag.close();
+      } catch {
+        // recreate below
       }
-      let reranker: import('@piwin/contracts').SharedReranker | undefined;
-      const rerankConfig = config.knowledge?.reranker;
-      if (rerankConfig?.enabled === true && rerankConfig.baseUrl && rerankConfig.model) {
-        const apiKey = await resolveKnowledgeHttpApiKey(rerankConfig);
-        reranker = createHttpReranker({
-          providerId: rerankConfig.provider ?? 'openai-compatible',
-          modelId: rerankConfig.model,
-          baseUrl: rerankConfig.baseUrl,
-          ...(apiKey ? { apiKey } : {}),
-          ...(typeof rerankConfig.topK === 'number' ? { topK: rerankConfig.topK } : {}),
-          ...(typeof rerankConfig.timeoutMs === 'number' ? { timeoutMs: rerankConfig.timeoutMs } : {}),
-        });
-      }
-      this.folderRag = createFolderRag({
-        piwinRoot: rootDir,
-        ...(embeddingProvider ? { embeddingProvider } : {}),
-        ...(reranker ? { reranker } : {}),
-        parserRegistry: createParserRegistry({
-          mineruEnabled: config.knowledge?.parser?.mineru?.enabled === true,
-          unstructuredEnabled: config.knowledge?.parser?.unstructured?.enabled === true,
-        }),
+      this.folderRag = null;
+    }
+    const { createFolderRag, createHttpReranker, createParserRegistry } = await import('@piwin/doc-rag');
+    const { createEmbeddingProvider } = await import('@piwin/notes');
+    const { resolveKnowledgeHttpApiKey, resolveNotesEmbeddingApiKey } = await import(
+      './notes-embedding-secret.js'
+    );
+    let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
+    if (config.notes?.embedding) {
+      const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+      const provider = createEmbeddingProvider({
+        config: config.notes.embedding,
+        ...(apiKey ? { apiKey } : {}),
+      });
+      if (provider) embeddingProvider = provider;
+    }
+    let reranker: import('@piwin/contracts').SharedReranker | undefined;
+    const rerankConfig = config.knowledge?.reranker;
+    if (rerankConfig?.enabled === true && rerankConfig.baseUrl && rerankConfig.model) {
+      const apiKey = await resolveKnowledgeHttpApiKey(rerankConfig);
+      reranker = createHttpReranker({
+        providerId: rerankConfig.provider ?? 'openai-compatible',
+        modelId: rerankConfig.model,
+        baseUrl: rerankConfig.baseUrl,
+        ...(apiKey ? { apiKey } : {}),
+        ...(typeof rerankConfig.topK === 'number' ? { topK: rerankConfig.topK } : {}),
+        ...(typeof rerankConfig.timeoutMs === 'number' ? { timeoutMs: rerankConfig.timeoutMs } : {}),
       });
     }
+    const mineruKey = mineruEnabled ? await resolveKnowledgeHttpApiKey(mineruConfig) : undefined;
+    const unstructuredKey = unstructuredEnabled
+      ? await resolveKnowledgeHttpApiKey(unstructuredConfig)
+      : undefined;
+    this.folderRag = createFolderRag({
+      piwinRoot: rootDir,
+      ...(embeddingProvider ? { embeddingProvider } : {}),
+      ...(reranker ? { reranker } : {}),
+      parserRegistry: createParserRegistry({
+        mineruEnabled,
+        unstructuredEnabled,
+        ...(mineruEnabled && mineruConfig?.baseUrl
+          ? {
+              mineru: {
+                baseUrl: mineruConfig.baseUrl,
+                ...(mineruKey ? { apiKey: mineruKey } : {}),
+                ...(typeof mineruConfig.timeoutMs === 'number'
+                  ? { timeoutMs: mineruConfig.timeoutMs }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(unstructuredEnabled && unstructuredConfig?.baseUrl
+          ? {
+              unstructured: {
+                baseUrl: unstructuredConfig.baseUrl,
+                ...(unstructuredKey ? { apiKey: unstructuredKey } : {}),
+                ...(typeof unstructuredConfig.timeoutMs === 'number'
+                  ? { timeoutMs: unstructuredConfig.timeoutMs }
+                  : {}),
+              },
+            }
+          : {}),
+      }),
+    });
+    this.folderRagKey = ragKey;
     return this.folderRag;
   }
 

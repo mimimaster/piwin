@@ -11,7 +11,7 @@ import type {
 import type { CompactionFileOps } from './compaction-fileops.js';
 import type { PromptAttachment } from './browser.js';
 import type { AttachmentContentKind } from './attachment.js';
-import type { AgentModeId } from './permission.js';
+import type { AgentModeId, PermissionPreset } from './permission.js';
 import type { CreateSessionOptions, NativeContextEntry } from './session-seed.js';
 import type { SearchEvidence } from './web.js';
 
@@ -164,6 +164,13 @@ export type PromptInput = {
    *   preset.
    */
   agentMode?: AgentModeId;
+  /**
+   * Composer Run Mode for this prompt (ADR 0024). Session-level: the pill is
+   * the primary control and must override `config.permissions` for the
+   * following tool calls. Omit from CLI / older clients so Host falls back to
+   * CLI flag + config. Conversation chat should omit this.
+   */
+  permissionPreset?: PermissionPreset;
   /**
    * Per-send orchestration scheme id (ORCH). Omit or 'off' means no scheme
    * injection. Unknown id fails the prompt — never silent Off.

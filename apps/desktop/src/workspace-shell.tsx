@@ -21,7 +21,6 @@ export type WorkspaceShellProps = {
   composerDock: ReactNode;
   statusBar: ReactNode;
   rightPanel: ReactNode;
-  knowledgePanel?: ReactNode | undefined;
   workspaceClassName?: string | undefined;
   chatColumnClassName?: string | undefined;
 };
@@ -45,7 +44,6 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
           </div>
           {props.statusBar}
         </section>
-        {props.knowledgePanel !== undefined ? props.knowledgePanel : null}
       </div>
       {props.rightPanel}
     </>

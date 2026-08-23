@@ -58,10 +58,14 @@ export function collectPromptEntryPaths(options: {
 }): string[] {
   const disabled = new Set((options.disabledIds ?? []).map((id) => id.toLowerCase()));
   const paths: string[] = [];
+  const seenIds = new Set<string>();
   for (const prompt of options.discovered) {
-    if (disabled.has(prompt.id.toLowerCase())) {
+    if (!prompt.enabled || disabled.has(prompt.id.toLowerCase())) {
       continue;
     }
+    const id = prompt.id.toLowerCase();
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
     paths.push(prompt.path);
   }
   return [...new Set(paths)];

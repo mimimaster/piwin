@@ -41,6 +41,7 @@ import { forgetTranscriptScrollPosition } from '../transcript-scroll-memory';
 import { transcriptOwnerBlocksDangerousAction } from '../transcript-owner-guard';
 import { desktopSessionListMaxItems } from '../session-list-policy';
 import { sessionScopeKey } from '../session-scope-key';
+import { findSessionForLookup } from '../session-list-lookup';
 import { requestSessionTranscriptPage } from '../session-transcript-page-request';
 import {
   activateProjectOnHost,
@@ -52,7 +53,7 @@ import {
 } from '../remote-session-hydrate';
 import { isWorkbenchHostTeardownError } from '../workbench-host-teardown.js';
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
-import { hostReconnectNotice } from '../host-problem-copy.js';
+import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { useDesktopLocale } from '../desktop-locale-context';
 import { findAdjacentSessionId } from '../session-navigation';
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
@@ -887,6 +888,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   );
 
   const handleOpenWorkspaceClick = useCallback(async (): Promise<void> => {
+    if (isRemoteDesktopTransport(hostClient.getTransport())) {
+      setProjectPickerOpen(true);
+      return;
+    }
     const defaultPath = state.projectPath?.trim() || projectInput.trim() || undefined;
     const selected = await pickProjectDirectory({
       ...(defaultPath ? { defaultPath } : {}),
@@ -899,9 +904,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     if (!isDesktopShellRuntime()) {
       setProjectPickerOpen(true);
     }
-  }, [handleOpenProject, projectInput, setProjectPickerOpen, state.projectPath]);
+  }, [handleOpenProject, hostClient, projectInput, setProjectPickerOpen, state.projectPath]);
 
   const handleBrowseProject = useCallback(async (): Promise<void> => {
+    if (isRemoteDesktopTransport(hostClient.getTransport())) {
+      return;
+    }
     const defaultPath = state.projectPath?.trim() || projectInput.trim() || undefined;
     const selected = await pickProjectDirectory({
       ...(defaultPath ? { defaultPath } : {}),
@@ -914,7 +922,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     if (!isDesktopShellRuntime()) {
       setProjectPickerOpen(true);
     }
-  }, [handleOpenProject, projectInput, setProjectPickerOpen, state.projectPath]);
+  }, [handleOpenProject, hostClient, projectInput, setProjectPickerOpen, state.projectPath]);
 
   const handleTrustProject = useCallback(
     async (trust: boolean): Promise<void> => {
@@ -934,18 +942,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         return;
       }
       const projectPath = state.projectPath;
-      if (
-        isRemoteDesktopTransport(hostClient.getTransport()) &&
-        isOpaqueRemoteProjectId(projectPath)
-      ) {
-        dispatch({ type: 'project/trust-dialog', open: false });
-        dispatch({
-          type: 'error',
-          message:
-            'Remote shells cannot change project trust. Trust this project in Settings on the machine running the Host.',
-        });
-        return;
-      }
       const response = await hostClient.request({
         type: 'project/trust',
         path: projectPath,
@@ -1066,11 +1062,17 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         pinnedAt?: string;
       };
       const session = data.session;
-      const existing = state.sessions.find((item) => item.id === sessionId);
+      const existing = findSessionForLookup(sessionId, {
+        sessions: state.sessions,
+        generalSessions: state.generalSessions,
+        projectSessionsByPath: state.projectSessionsByPath,
+      });
       const nextSession: SessionListItemUi = {
         id: sessionId,
         name: session?.name ?? existing?.name ?? sessionId.slice(0, 8),
       };
+      if (session?.scope) nextSession.scope = session.scope;
+      else if (existing?.scope) nextSession.scope = existing.scope;
       if (session?.lastPreview) nextSession.lastPreview = session.lastPreview;
       else if (existing?.lastPreview) nextSession.lastPreview = existing.lastPreview;
       if (typeof session?.messageCount === 'number') {
@@ -1345,7 +1347,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleSessionMenuAction = useCallback(
     async (sessionId: string, action: SessionRowMenuAction): Promise<void> => {
-      const session = state.sessions.find((item) => item.id === sessionId);
+      const session = findSessionForLookup(sessionId, {
+        sessions: state.sessions,
+        generalSessions: state.generalSessions,
+        projectSessionsByPath: state.projectSessionsByPath,
+      });
       switch (action) {
         case 'pin':
           await handleTogglePin(sessionId, false);
@@ -1408,6 +1414,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       handleUnarchiveSession,
       setRenameDraft,
       state.activeSessionId,
+      state.generalSessions,
+      state.projectSessionsByPath,
       state.sessions,
     ],
   );
@@ -1416,8 +1424,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     if (!state.activeSessionId || state.runPhase === 'aborting') {
       return;
     }
-    const hasActiveRun = state.activeRunId !== null;
-    if (hasActiveRun || state.streaming) {
+    if (shouldBlockRemoteHostGesture(hostClient)) {
+      dispatchNotification(pushInfo(hostReconnectNotice(locale)));
+      return;
+    }
+    const live = state.activeRunId !== null || state.streaming;
+    if (live) {
       dispatch({ type: 'run/aborting' });
     }
     const response = await hostClient.request(
@@ -1429,79 +1441,32 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       { idempotencyKey: createGestureIdempotencyKey() },
     );
     if (!response.success) {
-      dispatchNotification(pushError(response.error));
+      if (live) {
+        dispatch({ type: 'run/abort-failed' });
+      }
+      dispatchNotification(pushError(hostFailureNotice(response, locale)));
       return;
     }
-    const data = response.data as { cancelled?: boolean; reason?: string } | undefined;
+    const data = response.data as { cancelled?: boolean } | undefined;
     if (data?.cancelled === true) {
-      dispatchNotification(
-        pushInfo(
-          'Run stopped — in-flight tools were cancelled. The model should re-run them if needed.',
-        ),
-      );
-    } else if (!hasActiveRun && state.runTerminal.kind === 'paused') {
+      return;
+    }
+    // Host had nothing to cancel (or only a leftover checkpoint). Leave idle.
+    if (live) {
+      dispatch({ type: 'run/stale-clear', sessionId: state.activeSessionId });
+    } else {
       dispatch({ type: 'run/terminal-dismiss' });
     }
   }, [
     dispatch,
     dispatchNotification,
     hostClient,
+    locale,
     state.activeRunId,
     state.activeSessionId,
     state.runPhase,
-    state.runTerminal.kind,
     state.streaming,
   ]);
-
-  const handlePause = useCallback(async (): Promise<void> => {
-    if (!state.activeSessionId || state.runPhase === 'aborting') {
-      return;
-    }
-    dispatch({ type: 'run/aborting' });
-    const response = await hostClient.request({
-      type: 'session/pause',
-      sessionId: state.activeSessionId,
-      ...(state.activeRunId ? { runId: state.activeRunId } : {}),
-    });
-    if (!response.success) {
-      dispatchNotification(pushError(response.error));
-      return;
-    }
-    const data = response.data as { state?: string } | undefined;
-    if (data?.state === 'pausing') {
-      dispatchNotification(pushInfo('Run is pausing and saving a resumable checkpoint…'));
-    }
-  }, [
-    dispatch,
-    dispatchNotification,
-    hostClient,
-    state.activeRunId,
-    state.activeSessionId,
-    state.runPhase,
-  ]);
-
-  const handleResumeRun = useCallback(async (): Promise<void> => {
-    if (!state.activeSessionId || state.runTerminal.kind !== 'paused') {
-      return;
-    }
-    const response = await hostClient.request({
-      type: 'session/resume-run',
-      sessionId: state.activeSessionId,
-      ...(state.runTerminal.checkpointId ? { checkpointId: state.runTerminal.checkpointId } : {}),
-    });
-    if (!response.success) {
-      dispatchNotification(pushError(response.error));
-      return;
-    }
-    const data = response.data as { runId?: string; acceptedAt?: string } | undefined;
-    if (typeof data?.runId === 'string') {
-      dispatch({
-        type: 'run/accepted',
-        runId: data.runId,
-        ...(data.acceptedAt ? { acceptedAt: data.acceptedAt } : {}),
-      });
-    }
-  }, [dispatch, dispatchNotification, hostClient, state.activeSessionId, state.runTerminal]);
 
   const handleCompact = useCallback(
     async (customInstructions?: string): Promise<void> => {
@@ -1602,8 +1567,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleForkSession,
     handleSessionMenuAction,
     handleAbort,
-    handlePause,
-    handleResumeRun,
     handleCompact,
     handleCompactAbort,
     handlePermission,

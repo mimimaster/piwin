@@ -1,6 +1,6 @@
 /** Skill registry contracts */
 
-export type SkillSource = 'bundled' | 'user' | 'project' | 'mapped';
+export type SkillSource = 'bundled' | 'user' | 'project' | 'mapped' | 'pi-native';
 
 export type SkillSummary = {
   id: string;
@@ -87,6 +87,7 @@ export type SkillResourceOrigin =
   | 'user-installed'
   | 'project'
   | 'mapped'
+  | 'pi-native'
   | 'unknown';
 
 export type SkillsReadData =

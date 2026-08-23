@@ -129,6 +129,18 @@ describe('ipc types', () => {
     }
   });
 
+  it('accepts preview/export-local-file command shape', () => {
+    const command: HostCommand = {
+      type: 'preview/export-local-file',
+      input: { absolutePath: '/tmp/out.zip', maxBytes: 1024 },
+    };
+    expect(command.type).toBe('preview/export-local-file');
+    if (command.type === 'preview/export-local-file') {
+      expect(command.input.absolutePath).toBe('/tmp/out.zip');
+      expect(command.input.maxBytes).toBe(1024);
+    }
+  });
+
   it('accepts CE process/session command shapes', () => {
     const jobStart: HostCommand = {
       type: 'job/start',
@@ -523,6 +535,18 @@ describe('ipc types', () => {
         },
       };
       expect(prompt.type).toBe('session/prompt');
+    });
+
+    it('accepts PromptInput.permissionPreset from the composer Run Mode pill', () => {
+      const prompt: HostCommand = {
+        type: 'session/prompt',
+        sessionId: 's1',
+        input: {
+          text: 'edit the file',
+          permissionPreset: 'ask',
+        },
+      };
+      expect(prompt.input.permissionPreset).toBe('ask');
     });
   });
 });

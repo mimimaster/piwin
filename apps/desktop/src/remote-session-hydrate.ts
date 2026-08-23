@@ -48,29 +48,62 @@ export async function activateProjectOnHost(
   options?: { autoTrust?: boolean },
 ): Promise<ProjectActivationResult> {
   if (isRemoteDesktopTransport(transport)) {
-    if (!isOpaqueRemoteProjectId(projectKey)) {
+    if (isOpaqueRemoteProjectId(projectKey)) {
+      const listed = await request({ type: 'project/list' });
+      if (!listed.success) {
+        return { ok: false, error: listed.error };
+      }
+      const record = mapListedProjects(listed.data).find((project) => project.path === projectKey);
+      let trusted = record?.trust === 'trusted';
+      if (!trusted && options?.autoTrust !== false) {
+        const trustResponse = await request({ type: 'project/trust', path: projectKey });
+        if (!trustResponse.success) {
+          return { ok: false, error: trustResponse.error };
+        }
+        trusted = true;
+      }
+      if (!trusted) {
+        return {
+          ok: false,
+          error: 'This project is not trusted on the Host.',
+        };
+      }
+      return { ok: true, path: projectKey, trusted: true };
+    }
+    const openResponse = await request({ type: 'project/open', path: projectKey });
+    if (!openResponse.success) {
+      return { ok: false, error: openResponse.error };
+    }
+    const openPayload = openResponse.data as {
+      projectId?: string;
+      path?: string;
+      trusted?: boolean;
+      trust?: string;
+    };
+    const projectId =
+      typeof openPayload.projectId === 'string' && isOpaqueRemoteProjectId(openPayload.projectId)
+        ? openPayload.projectId
+        : typeof openPayload.path === 'string' && isOpaqueRemoteProjectId(openPayload.path)
+          ? openPayload.path
+          : '';
+    if (!projectId) {
       return {
         ok: false,
-        error:
-          'Remote Host cannot open a folder from this computer. Pick a project already registered on the Host.',
+        error: 'Host did not return a project id for this workspace.',
       };
     }
-    const listed = await request({ type: 'project/list' });
-    if (!listed.success) {
-      return { ok: false, error: listed.error };
+    let trusted = openPayload.trusted === true || openPayload.trust === 'trusted';
+    if (!trusted && options?.autoTrust !== false) {
+      const trustResponse = await request({ type: 'project/trust', path: projectId });
+      if (!trustResponse.success) {
+        return { ok: false, error: trustResponse.error };
+      }
+      trusted = true;
     }
-    const record = mapListedProjects(listed.data).find((project) => project.path === projectKey);
-    const trusted = record?.trust === 'trusted';
     if (!trusted) {
-      return {
-        ok: false,
-        error:
-          options?.autoTrust === false
-            ? 'This project is not trusted on the Host.'
-            : 'This project is not trusted on the Host yet. Trust it in Settings on the machine running the Host.',
-      };
+      return { ok: true, path: projectId, trusted: false };
     }
-    return { ok: true, path: projectKey, trusted: true };
+    return { ok: true, path: projectId, trusted: true };
   }
 
   const openResponse = await request({ type: 'project/open', path: projectKey });

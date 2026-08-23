@@ -52,6 +52,7 @@ export {
   savePiwinConfig,
 } from './config-store.js';
 export {
+  getPiAgentDir,
   getPiwinRoot,
   getPiwinConfigPath,
   getPiwinMediaDir,
@@ -111,6 +112,8 @@ export {
   extensionIdFromPath,
   promptIdFromPath,
 } from './pi-resource-loader.js';
+export { loadDiscoveredResources } from './discovered-resources.js';
+export { loadPiNativeInventory } from './pi-package-inventory.js';
 export { scanExtensions, collectExtensionEntryPaths } from './extension-scanner.js';
 export { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 export { scanPrompts, collectPromptEntryPaths } from './prompt-scanner.js';

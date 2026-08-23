@@ -480,6 +480,56 @@ describe('KnowledgeCenterPanel', () => {
     expect(container.querySelector<HTMLInputElement>('input[data-path="a.md"]')?.checked).toBe(true);
   });
 
+  it('unsticks partial index by selecting READY files and showing ready sidebar status', async () => {
+    const files = Array.from({ length: 3 }, (_, index) => ({
+      relativePath: `f${index}.md`,
+      sizeBytes: 10,
+      language: 'markdown',
+    }));
+    const request = vi.fn(async (cmd: { type: string }) => {
+      if (cmd.type === 'doccards/scan-folder') {
+        return { success: true, data: { files, unsupported: [] } };
+      }
+      if (cmd.type === 'doccards/list-by-folder') {
+        return { success: true, data: { records: [] } };
+      }
+      if (cmd.type === 'doccards/index-status') {
+        return {
+          success: true,
+          data: {
+            job: {
+              status: 'COMPLETED',
+              completedFiles: 2,
+              totalFiles: 2,
+              warnings: [{ file: '', code: 'INDEX_WARNING', message: 'Reached max files (2); stopping.' }],
+            },
+            documents: [
+              { status: 'READY', relativePath: 'f0.md' },
+              { status: 'READY', relativePath: 'f1.md' },
+            ],
+          },
+        };
+      }
+      return { success: true, data: {} };
+    });
+    seedRecent('/docs/partial');
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel projectPath="/docs" request={request as any} />
+        </PiwinUiProvider>,
+      );
+    });
+    // Ready stage (selected ⊆ READY) — checklist is hidden; generate is primary.
+    expect(container.querySelector('[data-testid="generate-cards-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="knowledge-file-checklist"]')).toBeNull();
+    expect(container.textContent).toContain('2 个文件');
+    expect(container.textContent).not.toContain('未索引');
+    expect(container.querySelector('[data-testid="knowledge-action-error"]')?.textContent).toContain(
+      'Reached max files (2)',
+    );
+  });
+
   it('asks for a folder when none is selected', async () => {
     await act(async () => {
       root.render(
@@ -537,4 +587,48 @@ describe('KnowledgeCenterPanel', () => {
     });
     expect(onConfigureEmbedding).toHaveBeenCalledTimes(1);
   });
+
+  it('renders top-left back button and closes on click and on Escape, with no top-right close cross', async () => {
+    const onClose = vi.fn();
+    seedRecent('/Users/test/piwin');
+    const mockReq = vi.fn(async () => ({ success: true, data: {} }));
+
+    await act(async () => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <KnowledgeCenterPanel
+            projectPath="/Users/test/piwin"
+            request={mockReq as any}
+            onClose={onClose}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    // Top-left back button exists
+    const backBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="knowledge-back-button"]',
+    );
+    expect(backBtn).not.toBeNull();
+    expect(backBtn?.textContent).toContain('返回工作区');
+
+    // Titlebar drag region exists
+    expect(container.querySelector('[data-testid="knowledge-titlebar-drag"]')).not.toBeNull();
+
+    // Top-right close cross button is removed
+    expect(container.querySelector('[data-testid="knowledge-stage-close-btn"]')).toBeNull();
+
+    // Click back button
+    await act(async () => {
+      backBtn?.click();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    // Press Escape
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
 });
+

@@ -112,7 +112,6 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSteer: composer.handleSteer,
     onFollowUp: composer.handleFollowUp,
     onAbort: session.handleAbort,
-    onResume: session.handleResumeRun,
     onCompact: session.handleCompact,
     onOpenProject: session.handleOpenProject,
     onExtensionUiResolve: handleExtensionUiResolve,

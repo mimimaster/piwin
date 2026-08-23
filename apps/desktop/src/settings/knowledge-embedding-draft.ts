@@ -20,6 +20,7 @@ export type KnowledgeEmbeddingDraft = {
   model: string;
   apiKeyEnv: string;
   apiKeyRef: string;
+  apiKeyInput?: string;
   dimension: string;
 };
 
@@ -38,6 +39,7 @@ export function emptyKnowledgeEmbeddingDraft(): KnowledgeEmbeddingDraft {
     model: '',
     apiKeyEnv: '',
     apiKeyRef: '',
+    apiKeyInput: '',
     dimension: '',
   };
 }
@@ -172,7 +174,8 @@ export function knowledgeEmbeddingDirty(
     left.model.trim() !== right.model.trim() ||
     left.apiKeyEnv.trim() !== right.apiKeyEnv.trim() ||
     left.apiKeyRef.trim() !== right.apiKeyRef.trim() ||
-    left.dimension.trim() !== right.dimension.trim()
+    left.dimension.trim() !== right.dimension.trim() ||
+    (left.apiKeyInput?.trim() ?? '') !== (right.apiKeyInput?.trim() ?? '')
   );
 }
 

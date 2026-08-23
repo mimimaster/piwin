@@ -13,7 +13,6 @@
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import type {
   CreateSessionInput,
   ModelProviderConfig,
@@ -56,7 +55,7 @@ import {
   type SerializableBlueprint,
   type SerializableProviderRuntime,
 } from '@piwin/agent-host';
-import { getPiwinRoot } from './paths.js';
+import { getPiAgentDir, getPiwinRoot } from './paths.js';
 import { buildMcpCapabilityBrief, type McpCapabilityBrief } from './mcp-capability-brief.js';
 import { formatCatalogSystemPrompt } from './tool-catalog/catalog-brief.js';
 import { buildHostToolboxDescriptor } from './tool-catalog/catalog-tool.js';
@@ -314,7 +313,7 @@ async function compileAgentCapabilityPlan(
   const contextManifest = await discoverContextManifest({
     scope: location.scope,
     workingDirectory: agentCwd,
-    agentDir: join(homedir(), '.pi', 'agent'),
+    agentDir: getPiAgentDir(),
     policy: contextPolicy,
   });
 
@@ -750,7 +749,6 @@ function computeExtensionSetRevision(
 async function discoverResourcesDefault(
   options: DiscoverResourcesOptions,
 ): Promise<DiscoveredResources> {
-  const agentDir = join(homedir(), '.pi', 'agent');
   const extraSkillPaths = options.config.skills?.extraPaths ?? [];
   const disabledSkillIds = options.config.skills?.disabledIds ?? [];
   const extraExtensionPaths = options.config.extensions?.extraPaths ?? [];
@@ -761,7 +759,7 @@ async function discoverResourcesDefault(
   const { skillPaths, extensionPaths, promptPaths, resourceCatalog } = await createPiResourceLoader(
     {
       cwd: options.cwd,
-      agentDir,
+      agentDir: getPiAgentDir(),
       piwinRoot: options.piwinRoot,
       scope: options.scope,
       ...(options.scope.kind === 'project' ? { projectPath: options.scope.projectPath } : {}),

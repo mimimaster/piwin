@@ -1,7 +1,8 @@
 /**
- * Agent collaboration modes — interaction model aligned with Cursor Agent
- * (Plan / Ask from composer + menu) and Codex plan.md constraints
- * for the Plan mode body. Not a side panel form.
+ * Composer collaboration modes. The live Desktop entries are Agent and Goal.
+ * Plan / Ask were removed from the + menu and slash catalog; they are not
+ * composer modes anymore. Host still understands the legacy ids if a prompt
+ * carries them.
  *
  * Mode operating contracts are owned by `@piwin/contracts` and injected by
  * the host on the model-facing path only. Desktop must send clean user text
@@ -37,6 +38,18 @@ export const AGENT_MODES: readonly AgentModeDefinition[] = [
     placeholder: 'Plan, search, build anything',
   },
   {
+    id: 'goal',
+    label: 'Goal',
+    title: 'Goal Mode',
+    description: 'Autonomous goal execution loop (@narumitw/pi-goal)',
+    systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.goal,
+    placeholder: 'Set an objective & acceptance criteria to run autonomously…',
+  },
+] as const;
+
+/** Retired composer modes. Lookup-only so a leftover session chip can dismiss. */
+const LEGACY_AGENT_MODES: readonly AgentModeDefinition[] = [
+  {
     id: 'plan',
     label: 'Plan',
     title: 'Plan Mode',
@@ -52,18 +65,14 @@ export const AGENT_MODES: readonly AgentModeDefinition[] = [
     systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.ask,
     placeholder: 'Ask anything about this project…',
   },
-  {
-    id: 'goal',
-    label: 'Goal',
-    title: 'Goal Mode',
-    description: 'Autonomous goal execution loop (@narumitw/pi-goal)',
-    systemPreamble: AGENT_MODE_SYSTEM_PREAMBLES.goal,
-    placeholder: 'Set an objective & acceptance criteria to run autonomously…',
-  },
-] as const;
+];
 
 export function getAgentMode(modeId: AgentModeId): AgentModeDefinition {
-  return AGENT_MODES.find((mode) => mode.id === modeId) ?? AGENT_MODES[0]!;
+  return (
+    AGENT_MODES.find((mode) => mode.id === modeId) ??
+    LEGACY_AGENT_MODES.find((mode) => mode.id === modeId) ??
+    AGENT_MODES[0]!
+  );
 }
 
 /**

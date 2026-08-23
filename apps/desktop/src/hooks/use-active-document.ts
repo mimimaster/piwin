@@ -371,6 +371,21 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
                 return;
               }
             }
+            const previewPath = localPreviewPathForPlan(
+              planDocumentOpenPath({ path: relativePath, projectPath }),
+            );
+            if (previewPath && activeSessionId) {
+              await loadLocalFilePreviewDocument({
+                hostClient,
+                sessionId: activeSessionId,
+                absolutePath: previewPath,
+                title: cleanTitle,
+                displayRef: displayRef || relativePath,
+                requestId,
+                applyDocument,
+              });
+              return;
+            }
           }
           const msgFallback = searchInMessages();
           if (msgFallback) {
@@ -525,19 +540,19 @@ export function useActiveDocument(input: UseActiveDocumentInput): UseActiveDocum
               });
               return;
             }
-            const previewPath = localPreviewPathForPlan(openPlan);
-            if (fileData.isBinary === true && previewPath && activeSessionId) {
-              await loadLocalFilePreviewDocument({
-                hostClient,
-                sessionId: activeSessionId,
-                absolutePath: previewPath,
-                title: cleanTitle,
-                displayRef: cleanPath,
-                requestId,
-                applyDocument,
-              });
-              return;
-            }
+          }
+          const previewPath = localPreviewPathForPlan(openPlan);
+          if (previewPath && activeSessionId) {
+            await loadLocalFilePreviewDocument({
+              hostClient,
+              sessionId: activeSessionId,
+              absolutePath: previewPath,
+              title: cleanTitle,
+              displayRef: cleanPath,
+              requestId,
+              applyDocument,
+            });
+            return;
           }
           const msgFallback = searchInMessages();
           if (msgFallback) {
@@ -862,13 +877,18 @@ async function loadLocalFilePreviewDocument(input: {
       return;
     }
     if (previewData.status === 'unavailable') {
+      const suggestion =
+        previewData.suggestion ||
+        (previewData.reason === 'binary'
+          ? '该文件无法作为文档预览。请右键路径芯片选择另存为，或在文件管理器中显示。'
+          : undefined);
       input.applyDocument({
         status: 'unavailable',
         requestId: input.requestId,
         title: input.title,
         displayRef: input.displayRef,
         reason: previewData.reason || 'not-found',
-        ...(previewData.suggestion ? { suggestion: previewData.suggestion } : {}),
+        ...(suggestion ? { suggestion } : {}),
       });
       return;
     }

@@ -81,6 +81,7 @@ export * from './walkthrough-artifact.js';
 export * from './plugin.js';
 export * from './remote.js';
 export * from './remote-protocol.js';
+export * from './host-platform.js';
 export * from './remote-idempotency.js';
 export * from './speech.js';
 export * from './settings.js';

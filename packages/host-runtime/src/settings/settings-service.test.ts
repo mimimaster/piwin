@@ -691,6 +691,88 @@ describe('SettingsService', () => {
     expect(parsed.schemaVersion).toBe(PIWIN_SETTINGS_SCHEMA_VERSION);
     expect(parsed.automation?.enabled).toBe(true);
   });
+
+  it('persists knowledge domain mutations atomically', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const before = await service.getSnapshot();
+    const result = await service.apply({
+      expectedRevision: before.revision,
+      mutations: [
+        {
+          kind: 'replace-domain',
+          domain: 'knowledge',
+          value: {
+            embedding: {
+              enabled: true,
+              provider: 'openai-compatible',
+              baseUrl: 'https://api.openai.com/v1',
+              model: 'text-embedding-3-small',
+            },
+            reranker: {
+              enabled: true,
+              provider: 'openai-compatible',
+              baseUrl: 'https://api.example.com/v1',
+              model: 'rerank-v1',
+            },
+          },
+        },
+      ],
+    });
+    expect(result.snapshot.config.knowledge?.embedding).toMatchObject({
+      enabled: true,
+      model: 'text-embedding-3-small',
+    });
+    expect(result.snapshot.config.knowledge?.reranker).toMatchObject({
+      enabled: true,
+      model: 'rerank-v1',
+    });
+    const raw = await readFile(getPiwinConfigPath(piwinRoot), 'utf8');
+    const parsed = JSON.parse(raw) as {
+      knowledge?: {
+        embedding?: { model?: string };
+        reranker?: { model?: string };
+      };
+    };
+    expect(parsed.knowledge?.embedding?.model).toBe('text-embedding-3-small');
+    expect(parsed.knowledge?.reranker?.model).toBe('rerank-v1');
+  });
+
+  it('lifts notes.knowledgeExtras into knowledge when applying notes', async () => {
+    const service = new SettingsService({ piwinRoot });
+    const before = await service.getSnapshot();
+    const result = await service.apply({
+      expectedRevision: before.revision,
+      mutations: [
+        {
+          kind: 'replace-domain',
+          domain: 'notes',
+          value: {
+            embedding: {
+              provider: 'openai-compatible',
+              baseUrl: 'https://api.openai.com/v1',
+              model: 'text-embedding-3-small',
+            },
+            knowledgeExtras: {
+              reranker: {
+                enabled: true,
+                provider: 'openai-compatible',
+                baseUrl: 'https://api.example.com/v1',
+                model: 'Qwen/Qwen3-Reranker-8B',
+              },
+            },
+          },
+        },
+      ],
+    });
+    expect(result.snapshot.config.notes?.knowledgeExtras?.reranker).toMatchObject({
+      enabled: true,
+      model: 'Qwen/Qwen3-Reranker-8B',
+    });
+    expect(result.snapshot.config.knowledge?.reranker).toMatchObject({
+      enabled: true,
+      model: 'Qwen/Qwen3-Reranker-8B',
+    });
+  });
 });
 
 describe('migrateSettingsDocument', () => {

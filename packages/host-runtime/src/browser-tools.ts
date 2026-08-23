@@ -11,6 +11,7 @@
  */
 import { resolve as resolvePath } from 'node:path';
 import type {
+  HostToolArgumentPreparation,
   HostToolDescriptor,
   HostToolExecutionContext,
   HostToolExecutor,
@@ -203,6 +204,43 @@ function permissionSpec(action: string, projectRoot = process.cwd()): HostToolPe
     rememberable: false,
     subjectBuilder: () => ({ kind: 'tool', action }),
   };
+}
+
+/**
+ * Keep routed browser calls tolerant of the common `query` spelling while
+ * preserving the canonical model-facing schema (`text`).
+ */
+function prepareBrowserFindArgs(
+  rawArguments: Record<string, unknown>,
+  _context: HostToolExecutionContext,
+  signal: AbortSignal,
+): HostToolArgumentPreparation {
+  if (signal.aborted) {
+    return {
+      ok: false,
+      result: { ok: false, code: 'aborted', message: 'tool preparation aborted' },
+    };
+  }
+
+  const directText = rawArguments.text;
+  const legacyQuery = rawArguments.query;
+  const text =
+    typeof directText === 'string' && directText.trim().length > 0
+      ? directText
+      : typeof legacyQuery === 'string'
+        ? legacyQuery
+        : undefined;
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    return {
+      ok: false,
+      result: { ok: false, code: 'invalid-input', message: 'text is required' },
+    };
+  }
+
+  const canonicalArguments = Object.fromEntries(
+    Object.entries(rawArguments).filter(([key]) => key !== 'query'),
+  );
+  return { ok: true, arguments: { ...canonicalArguments, text } };
 }
 
 function normalizeScreenshotPath(value: unknown, projectRoot: string): string | undefined {
@@ -534,6 +572,7 @@ export function createBrowserToolDefinitions(
       const result = await session.find(text, { signal });
       return success(result);
     },
+    prepareBrowserFindArgs,
   );
 
   const back = createBrowserRegistration(

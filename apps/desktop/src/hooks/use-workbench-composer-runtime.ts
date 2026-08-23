@@ -114,6 +114,7 @@ export function useWorkbenchComposerRuntime(args: UseWorkbenchComposerRuntimeArg
     dispatch,
     dispatchNotification: host.dispatchNotification,
     agentMode,
+    permissionPreset: session.effectiveRunMode,
     orchestrationSchemeId,
     onOrchestrationSchemeChange: setOrchestrationSchemeId,
     onAgentModeChange: setAgentMode,

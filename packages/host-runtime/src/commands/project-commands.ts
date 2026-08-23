@@ -15,11 +15,14 @@ import {
   isRegisteredProjectRoot,
   normalizeProjectRootPath,
   resolveInsideRootWithRealpath,
+  resolveProjectPathById,
   revokeRememberedPermission,
   setProjectTrust,
 } from '@piwin/project';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinProjectsPath, getPiwinRoot } from '../paths.js';
+import { bindProjectLocator } from '../project-locator.js';
+import { createRemoteProjectId, isRemoteProjectId } from '../remote-project-id.js';
 
 const PROJECT_TYPES = new Set<HostCommand['type']>([
   'project/list',
@@ -54,16 +57,25 @@ export async function handleProjectCommand(
       return ok(requestId, 'project/list', { projects });
     }
     case 'project/open': {
-      const project = await openOrCreateProject(projectsPath, command.path);
+      const openPath = await resolveOpenProjectPath(projectsPath, command.path, requestId);
+      if (!openPath.ok) {
+        return openPath.response;
+      }
+      const project = await openOrCreateProject(projectsPath, openPath.path);
       return ok(requestId, 'project/open', {
         path: project.path,
+        projectId: createRemoteProjectId(project.path),
         trusted: project.trust === 'trusted',
         trust: project.trust,
         project,
       });
     }
     case 'project/remove': {
-      const project = await removeProject(projectsPath, command.path);
+      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects);
+      if (!bound.ok) {
+        return fail(requestId, 'project/remove', bound.error);
+      }
+      const project = await removeProject(projectsPath, bound.path);
       if (!project) {
         return fail(requestId, 'project/remove', `Project not found: ${command.path}`);
       }
@@ -73,9 +85,14 @@ export async function handleProjectCommand(
       });
     }
     case 'project/trust': {
-      const project = await setProjectTrust(projectsPath, command.path, 'trusted');
+      const bound = bindProjectLocator(command.path, (await loadProjectStore(projectsPath)).projects);
+      if (!bound.ok) {
+        return fail(requestId, 'project/trust', bound.error);
+      }
+      const project = await setProjectTrust(projectsPath, bound.path, 'trusted');
       return ok(requestId, 'project/trust', {
         path: project.path,
+        projectId: createRemoteProjectId(project.path),
         trusted: true,
         trust: project.trust,
         project,
@@ -210,7 +227,7 @@ async function listProjectDirectory(
   });
 
   return ok(requestId, 'project/list-dir', {
-    projectPath: rootAbsolute,
+    projectPath,
     relativePath: relativeNormalized,
     entries,
   });
@@ -335,14 +352,41 @@ async function requireRegisteredProjectRoot(
     };
   }
   const document = await loadProjectStore(projectsPath);
+  const bound = bindProjectLocator(trimmed, document.projects);
+  if (!bound.ok) {
+    return {
+      ok: false,
+      response: fail(requestId, commandType, bound.error),
+    };
+  }
   const registeredRoots = document.projects.map((project) => project.path);
-  if (!isRegisteredProjectRoot(registeredRoots, trimmed)) {
+  if (!isRegisteredProjectRoot(registeredRoots, bound.path)) {
     return {
       ok: false,
       response: fail(requestId, commandType, 'project-root-not-registered'),
     };
   }
-  return { ok: true, rootAbsolute: normalizeProjectRootPath(trimmed) };
+  return { ok: true, rootAbsolute: normalizeProjectRootPath(bound.path) };
+}
+
+async function resolveOpenProjectPath(
+  projectsPath: string,
+  locator: string,
+  requestId: string | undefined,
+): Promise<{ ok: true; path: string } | { ok: false; response: HostResponse }> {
+  const trimmed = locator.trim();
+  if (!trimmed) {
+    return { ok: false, response: fail(requestId, 'project/open', 'project-root-required') };
+  }
+  if (!isRemoteProjectId(trimmed)) {
+    return { ok: true, path: trimmed };
+  }
+  const document = await loadProjectStore(projectsPath);
+  const path = resolveProjectPathById(document.projects, trimmed);
+  if (path === undefined) {
+    return { ok: false, response: fail(requestId, 'project/open', 'unknown-project') };
+  }
+  return { ok: true, path };
 }
 
 async function authorizeTerminalCwd(
@@ -380,8 +424,12 @@ async function authorizeTerminalCwd(
     });
   }
 
-  const absoluteProject = path.resolve(trimmedProject);
   const document = await loadProjectStore(projectsPath);
+  const bound = bindProjectLocator(trimmedProject, document.projects);
+  if (!bound.ok) {
+    return fail(requestId, 'project/authorize-terminal', bound.error);
+  }
+  const absoluteProject = path.resolve(bound.path);
   const record = document.projects.find((item) => item.path === absoluteProject);
   if (!record || record.trust !== 'trusted') {
     return fail(requestId, 'project/authorize-terminal', 'project is not opened and trusted');

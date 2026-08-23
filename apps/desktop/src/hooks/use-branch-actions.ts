@@ -15,6 +15,7 @@ import type {
   SessionTranscriptMessage,
   SessionTranscriptPageInfo,
   ThinkingLevel,
+  PermissionPreset,
   WorkspaceWrites,
 } from '@piwin/contracts';
 import type { TranscriptBranchPoint } from '@piwin/contracts';
@@ -55,6 +56,7 @@ export type UseBranchActionsArgs = {
   modelOptions: ModelOption[];
   thinkingLevel?: ThinkingLevel;
   agentMode: AgentModeId;
+  permissionPreset?: PermissionPreset;
   orchestrationSchemeId?: string;
   delegationDisabled?: boolean;
   confirmForegroundReplace?: (problem: ForegroundRunMismatchProblem) => Promise<boolean>;
@@ -77,6 +79,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     modelOptions,
     thinkingLevel,
     agentMode,
+    permissionPreset,
     orchestrationSchemeId,
     delegationDisabled,
     confirmForegroundReplace,
@@ -264,6 +267,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(contextRefs && contextRefs.length > 0 ? { contextRefs } : {}),
         ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+        ...(permissionPreset !== undefined ? { permissionPreset } : {}),
         ...(orchestrationSchemeId !== undefined ? { orchestrationSchemeId } : {}),
         ...(delegationDisabled !== undefined ? { delegationDisabled } : {}),
       });
@@ -301,6 +305,7 @@ export function useBranchActions(args: UseBranchActionsArgs) {
     [
       activeSessionId,
       agentMode,
+      permissionPreset,
       confirmForegroundReplace,
       delegationDisabled,
       dispatch,
@@ -407,6 +412,7 @@ export function buildBranchPromptInput(input: {
   attachments?: PromptAttachment[];
   contextRefs?: PromptContextRef[];
   thinkingLevel?: ThinkingLevel;
+  permissionPreset?: PermissionPreset;
   orchestrationSchemeId?: string;
   delegationDisabled?: boolean;
 }): PromptInput {
@@ -416,6 +422,9 @@ export function buildBranchPromptInput(input: {
     clientMessageId: input.clientMessageId,
     branchFromMessageId: input.branchFromMessageId,
   };
+  if (input.permissionPreset) {
+    prompt.permissionPreset = input.permissionPreset;
+  }
   if (input.attachments && input.attachments.length > 0) {
     prompt.attachments = input.attachments;
   }

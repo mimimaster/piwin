@@ -5,9 +5,15 @@
  */
 import type { ReactElement } from 'react';
 import type {
+  HostOsFamily,
   PermissionDecision,
   PermissionRememberScope,
   ProjectRecord,
+} from '@piwin/contracts';
+import {
+  hostPathStyleFromOsFamily,
+  hostWorkspacePathExample,
+  looksLikeHostAbsolutePath,
 } from '@piwin/contracts';
 import { Button, ConfirmDialog, Dialog } from '@piwin/ui-kit';
 import { Field } from '@piwin/ui-kit';
@@ -30,7 +36,6 @@ export type AppDialogsProps = {
   sessionMenu: { sessionId: string; x: number; y: number } | null;
   onCloseSessionMenu: () => void;
   sessions: ChatUiState['sessions'];
-  showArchivedSessions: boolean;
   onSessionMenuAction: (sessionId: string, action: SessionRowMenuAction) => void;
   sessionMenuCanExport?: boolean;
   sessionMenuCanDuplicate?: boolean;
@@ -51,9 +56,36 @@ export type AppDialogsProps = {
   onContinueInProjectOpenChange: (open: boolean) => void;
   onContinueInProject: (projectPath: string) => void;
   onCancelContinueInProject: () => void;
+  /** Remote shells type a Host path; they must not pick a folder from this computer. */
+  hostWorkspacePicker?: boolean;
+  /** Host OS from hello capabilities. Drives path placeholder and validation. */
+  hostOsFamily?: HostOsFamily;
 };
 
 export function AppDialogs(props: AppDialogsProps): ReactElement {
+  const sessionMenu = props.sessionMenu;
+  const menuSession = sessionMenu
+    ? props.sessions.find((item) => item.id === sessionMenu.sessionId)
+    : undefined;
+  const menuStorageState = menuSession?.storage?.state;
+  const hostOsFamily = props.hostOsFamily ?? 'other';
+  const hostPathStyle = hostPathStyleFromOsFamily(hostOsFamily);
+  const hostPathExample = hostWorkspacePathExample(hostOsFamily);
+  const hostOsLabel =
+    hostOsFamily === 'darwin'
+      ? 'macOS'
+      : hostOsFamily === 'linux'
+        ? 'Linux'
+        : hostOsFamily === 'win32'
+          ? 'Windows'
+          : 'Host';
+  const typedHostPath = props.projectInput.trim();
+  const hostPathLooksWrong =
+    props.hostWorkspacePicker === true &&
+    typedHostPath.length > 0 &&
+    !looksLikeHostAbsolutePath(typedHostPath, hostPathStyle);
+  const isChinese = props.locale === 'zh-CN';
+
   return (
     <>
       <Dialog
@@ -65,13 +97,22 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
       >
         <h3>Open workspace</h3>
         <p className="muted">
-          Browser preview cannot open the system folder picker. Enter an absolute path, or run the
-          desktop app for the native chooser.
+          {props.hostWorkspacePicker === true
+            ? isChinese
+              ? `壳连的是 ${hostOsLabel} Host。填那台机器上的绝对路径，不是这台电脑上的文件夹。`
+              : `This shell talks to a ${hostOsLabel} Host. Enter an absolute path that exists on that machine, not a folder on this computer.`
+            : 'Browser preview cannot open the system folder picker. Enter an absolute path, or run the desktop app for the native chooser.'}
         </p>
         <Field
           label="Workspace path"
           required
-          description="Absolute path to a local repository or folder"
+          description={
+            props.hostWorkspacePicker === true
+              ? isChinese
+                ? `${hostOsLabel} 路径，例如 ${hostPathExample}`
+                : `${hostOsLabel} path, for example ${hostPathExample}`
+              : 'Absolute path to a local repository or folder'
+          }
         >
           <input
             className="project-path-input"
@@ -84,16 +125,27 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
                 props.onOpenProject();
               }
             }}
-            placeholder="/absolute/path/to/repo"
+            placeholder={
+              props.hostWorkspacePicker === true ? hostPathExample : '/absolute/path/to/repo'
+            }
             spellCheck={false}
             autoFocus
           />
         </Field>
+        {hostPathLooksWrong ? (
+          <p className="muted" data-testid="host-path-style-hint">
+            {isChinese
+              ? `这台 Host 用的是 ${hostPathStyle === 'windows' ? 'Windows' : 'POSIX'} 路径。`
+              : `This Host expects a ${hostPathStyle === 'windows' ? 'Windows' : 'POSIX'} path.`}
+          </p>
+        ) : null}
         <div className="modal-actions">
           <Button variant="ghost" onClick={() => props.onProjectPickerOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={() => props.onBrowseProject()}>Choose folder…</Button>
+          {props.hostWorkspacePicker === true ? null : (
+            <Button onClick={() => props.onBrowseProject()}>Choose folder…</Button>
+          )}
           <Button
             variant="primary"
             data-testid="open-project-btn"
@@ -136,7 +188,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
         </Dialog>
       ) : null}
 
-      {props.sessionMenu ? (
+      {sessionMenu ? (
         <>
           <button
             type="button"
@@ -146,32 +198,19 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
             onClick={props.onCloseSessionMenu}
           />
           <SessionRowMenu
-            sessionId={props.sessionMenu.sessionId}
-            isPinned={
-              props.sessions.find((item) => item.id === props.sessionMenu?.sessionId)?.isPinned ===
-              true
-            }
-            isArchived={
-              props.sessions.find((item) => item.id === props.sessionMenu?.sessionId)
-                ?.isArchived === true || props.showArchivedSessions
-            }
-            {...(() => {
-              const storageState = props.sessions.find(
-                (item) => item.id === props.sessionMenu?.sessionId,
-              )?.storage?.state;
-              return storageState ? { storageState } : {};
-            })()}
+            sessionId={sessionMenu.sessionId}
+            isPinned={menuSession?.isPinned === true}
+            isArchived={menuSession?.isArchived === true}
+            {...(menuStorageState ? { storageState: menuStorageState } : {})}
             {...(props.sessionMenuCanExport === false ? { canExport: false } : {})}
             {...(props.sessionMenuCanDuplicate === false ? { canDuplicate: false } : {})}
             {...(props.sessionMenuCanContinueInProject === false
               ? { canContinueInProject: false }
               : {})}
-            position={{ x: props.sessionMenu.x, y: props.sessionMenu.y }}
+            position={{ x: sessionMenu.x, y: sessionMenu.y }}
             onClose={props.onCloseSessionMenu}
             onAction={(action) => {
-              if (props.sessionMenu) {
-                props.onSessionMenuAction(props.sessionMenu.sessionId, action);
-              }
+              props.onSessionMenuAction(sessionMenu.sessionId, action);
             }}
           />
         </>

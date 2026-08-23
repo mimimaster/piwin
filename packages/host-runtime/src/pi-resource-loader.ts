@@ -7,11 +7,13 @@ import type {
   SessionScope,
 } from '@piwin/contracts';
 import { normalizeResourceId } from '@piwin/contracts';
-import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
-import { collectExtensionEntryPaths, scanExtensions } from './extension-scanner.js';
+import { ensureBundledSkillsInstalled } from '@piwin/skills';
+import { collectExtensionEntryPaths } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
-import { collectPromptEntryPaths, scanPrompts } from './prompt-scanner.js';
+import { collectPromptEntryPaths } from './prompt-scanner.js';
 import { ensureBundledPromptsInstalled } from './ensure-bundled-prompts.js';
+import { loadDiscoveredResources } from './discovered-resources.js';
+import { skillLoaderPath } from './pi-package-inventory.js';
 import { getPiwinSkillsDir } from './paths.js';
 
 export type CreatePiResourceLoaderOptions = {
@@ -57,27 +59,30 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
   await ensureBundledPromptsInstalled(options.piwinRoot);
   await ensureBundledSkillsInstalled(options.piwinRoot);
 
-  const discoveredExtensions = await scanExtensions({
+  const discovered = await loadDiscoveredResources({
     piwinRoot: options.piwinRoot,
+    agentDir: options.agentDir,
     ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
     extensionsConfig: {
       extraPaths: options.extraExtensionPaths ?? [],
       disabledIds: options.disabledExtensionIds ?? [],
     },
-  });
-  const extensionPaths = collectExtensionEntryPaths({
-    piwinRoot: options.piwinRoot,
-    discovered: discoveredExtensions,
-    ...(options.disabledExtensionIds ? { disabledIds: options.disabledExtensionIds } : {}),
-  });
-
-  const discoveredPrompts = await scanPrompts({
-    piwinRoot: options.piwinRoot,
-    ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
+    skillsConfig: {
+      extraPaths: options.extraSkillPaths ?? [],
+      disabledIds: options.disabledSkillIds ?? [],
+    },
     promptsConfig: {
       extraPaths: options.extraPromptPaths ?? [],
       disabledIds: options.disabledPromptIds ?? [],
     },
+  });
+  const discoveredExtensions = discovered.extensions;
+  const discoveredSkills = discovered.skills;
+  const discoveredPrompts = discovered.prompts;
+  const extensionPaths = collectExtensionEntryPaths({
+    piwinRoot: options.piwinRoot,
+    discovered: discoveredExtensions,
+    ...(options.disabledExtensionIds ? { disabledIds: options.disabledExtensionIds } : {}),
   });
   const promptPaths = collectPromptEntryPaths({
     discovered: discoveredPrompts,
@@ -91,15 +96,20 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
     }
     return allowedSkillIds.size === 0 || allowedSkillIds.has(resourceId);
   });
-
-  const discoveredSkills = await scanSkills({
-    piwinRoot: options.piwinRoot,
-    ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
-    skillsConfig: {
-      extraPaths: options.extraSkillPaths ?? [],
-      disabledIds: options.disabledSkillIds ?? [],
-    },
-  });
+  for (const skill of discoveredSkills) {
+    if (!skill.enabled) continue;
+    if (allowedSkillIds.size > 0 && !allowedSkillIds.has(skill.id.toLowerCase())) continue;
+    if (skill.source !== 'pi-native' && skill.source !== 'project') continue;
+    const loaderPath = skillLoaderPath(skill.path);
+    if (
+      filteredSkillPaths.some(
+        (root) => loaderPath === root || loaderPath.startsWith(`${root}/`) || loaderPath.startsWith(`${root}\\`),
+      )
+    ) {
+      continue;
+    }
+    filteredSkillPaths.push(loaderPath);
+  }
   const resourceEntries: ResourceCatalogEntry[] = [
     ...discoveredSkills.map((resource) => ({
       resourceId: normalizeResourceId(resource.id),

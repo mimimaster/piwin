@@ -7,11 +7,12 @@ import {
   DeferredKnowledgeCenterPanel,
   DeferredSurfaceBoundary,
 } from './deferred-desktop-surfaces';
-import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
+import type { DesktopLocale } from './desktop-locale';
 import type { KnowledgeCenterPanelProps } from './KnowledgeCenterPanel';
 import { insetComposerText } from './workbench-chrome-assembly';
 
 export type WorkbenchKnowledgeStageProps = {
+  knowledgeOpen?: boolean;
   locale: DesktopLocale;
   projectPath: string | null;
   recentProjects: ProjectRecord[];
@@ -25,36 +26,35 @@ export type WorkbenchKnowledgeStageProps = {
 
 export function WorkbenchKnowledgeStage(
   props: WorkbenchKnowledgeStageProps,
-): ReactElement {
-  const desktopCopy = getDesktopCopy(props.locale);
+): ReactElement | null {
+  if (props.knowledgeOpen === false) {
+    return null;
+  }
   return (
-    <section
-      className="knowledge-stage"
-      data-testid="knowledge-stage"
-      aria-label={desktopCopy.knowledgeCenter}
+    <DeferredSurfaceBoundary
+      label={props.locale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
     >
-      <DeferredSurfaceBoundary
-        label={props.locale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
-      >
-        <DeferredKnowledgeCenterPanel
-          projectPath={props.projectPath}
-          recentProjects={props.recentProjects}
-          request={props.request}
-          onClose={() => props.setKnowledgeOpen(false)}
-          onOpenSession={(sessionId) => void props.onOpenSession(sessionId)}
-          onOpenCardsPanel={props.onOpenCardsPanel}
-          onConfigureEmbedding={props.onConfigureEmbedding}
-          onSendToChat={(text) => {
-            props.setKnowledgeOpen(false);
-            props.setComposer((prev) => insetComposerText(prev, text));
-            window.setTimeout(() => {
-              document
-                .querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')
-                ?.focus();
-            }, 50);
-          }}
-        />
-      </DeferredSurfaceBoundary>
-    </section>
+      <DeferredKnowledgeCenterPanel
+        projectPath={props.projectPath}
+        recentProjects={props.recentProjects}
+        request={props.request}
+        onClose={() => props.setKnowledgeOpen(false)}
+        onOpenSession={(sessionId) => {
+          props.setKnowledgeOpen(false);
+          void props.onOpenSession(sessionId);
+        }}
+        onOpenCardsPanel={props.onOpenCardsPanel}
+        onConfigureEmbedding={props.onConfigureEmbedding}
+        onSendToChat={(text) => {
+          props.setKnowledgeOpen(false);
+          props.setComposer((prev) => insetComposerText(prev, text));
+          window.setTimeout(() => {
+            document
+              .querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')
+              ?.focus();
+          }, 50);
+        }}
+      />
+    </DeferredSurfaceBoundary>
   );
 }

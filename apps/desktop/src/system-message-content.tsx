@@ -25,6 +25,8 @@ function SystemFileReferenceView(props: {
         label={reference.label}
         className="system-file-link"
         data-testid="system-file-link"
+        {...(props.projectPath ? { projectPath: props.projectPath } : {})}
+        {...(resolved.relativePath ? { relativePath: resolved.relativePath } : {})}
         onOpen={() => props.onOpenFile?.(resolved.absolutePath, resolved.relativePath)}
       />
     );
