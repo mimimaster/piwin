@@ -30,6 +30,14 @@ describe('session-scope resolution', () => {
     expect(resolveSessionScopeFromInput({})).toEqual({ kind: 'general' });
   });
 
+  it('does not throw when a project scope is missing projectPath', () => {
+    expect(() =>
+      resolveSessionScopeFromInput({
+        scope: { kind: 'project' } as { kind: 'project'; projectPath: string },
+      }),
+    ).toThrow(/project scope requires a non-empty projectPath/);
+  });
+
   it('treats bare projectPath as project scope', () => {
     expect(resolveSessionScopeFromInput({ projectPath: '/tmp/demo' })).toEqual({
       kind: 'project',

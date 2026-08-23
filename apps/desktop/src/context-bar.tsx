@@ -1,8 +1,10 @@
 /**
- * ContextBar — stage-local chrome (no full-window topbar).
+ * ContextBar — the full-window titleband, placed by region-shell.css above the
+ * deck so it shares its line with the macOS traffic lights.
  *
- * Lives only in the middle column. Left: sidebar + history + title.
- * Right: theme / more / work-panel. Middle flex is the drag region.
+ * Left: sidebar toggle + history + title. Right: theme / more / work-panel.
+ * Middle flex is the drag region. The window controls are permanent — they do
+ * not migrate between here and the sidebar as the sidebar opens and closes.
  *
  * Data-testids:
  *   - "workspace-context-header"
@@ -148,50 +150,44 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         role="group"
         aria-label={titlebarCopy.shellNavigation}
       >
-        {props.onToggleSessions && !props.sessionsExpanded ? (
+        {props.onToggleSessions ? (
           <IconButton
             className="context-bar-sessions-toggle"
             data-testid="rail-chats-btn"
-            label={titlebarCopy.expandSidebar}
-            aria-expanded={false}
+            label={
+              props.sessionsExpanded ? titlebarCopy.collapseSidebar : titlebarCopy.expandSidebar
+            }
+            aria-expanded={props.sessionsExpanded === true}
             onClick={props.onToggleSessions}
           >
             <IconPanelLeft />
           </IconButton>
         ) : null}
 
-        {!props.sessionsExpanded ? (
-          <div className="context-bar-history">
-            <IconButton
-              className="context-bar-history-btn"
-              data-testid="titlebar-back-btn"
-              label={titlebarCopy.back}
-              disabled={!canGoBack}
-              aria-disabled={!canGoBack}
-              onClick={() => {
-                if (canGoBack) {
-                  props.onGoBack?.();
-                }
-              }}
-            >
-              <IconChevronLeft />
-            </IconButton>
-            <IconButton
-              className="context-bar-history-btn"
-              data-testid="titlebar-forward-btn"
-              label={titlebarCopy.forward}
-              disabled={!canGoForward}
-              aria-disabled={!canGoForward}
-              onClick={() => {
-                if (canGoForward) {
-                  props.onGoForward?.();
-                }
-              }}
-            >
-              <IconChevronRight />
-            </IconButton>
-          </div>
-        ) : null}
+        <div className="context-bar-history">
+          <IconButton
+            className="context-bar-history-btn"
+            data-testid="titlebar-back-btn"
+            label={titlebarCopy.back}
+            disabled={!canGoBack}
+            onClick={() => {
+              props.onGoBack?.();
+            }}
+          >
+            <IconChevronLeft />
+          </IconButton>
+          <IconButton
+            className="context-bar-history-btn"
+            data-testid="titlebar-forward-btn"
+            label={titlebarCopy.forward}
+            disabled={!canGoForward}
+            onClick={() => {
+              props.onGoForward?.();
+            }}
+          >
+            <IconChevronRight />
+          </IconButton>
+        </div>
       </div>
 
       <div className="context-bar-identity">

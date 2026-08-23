@@ -233,6 +233,26 @@ describe('ThinkingEffortControl', () => {
     expect(document.querySelector('[data-testid="thinking-level-xhigh"]')).toBeNull();
   });
 
+  it('does not persist a coerced thinking level through onChange', () => {
+    const onChange = vi.fn();
+    render(
+      createBaseProps({
+        value: 'max',
+        onChange,
+        models: [
+          {
+            key: 'acme:gpt-test',
+            label: 'Acme / gpt-test',
+            thinkingLevels: ['off', 'low', 'medium'],
+            reasoning: true,
+          },
+        ],
+      }),
+      root,
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('moves focus across level chips with the keyboard and selects one', () => {
     const onChange = vi.fn();
     render(createBaseProps({ onChange }), root);

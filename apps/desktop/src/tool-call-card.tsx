@@ -23,6 +23,7 @@ import {
   looksLikeArgsDumpSummary,
   recoverSummaryFromInputPreview,
   resolveFetchRequestPreview,
+  resolveMcpHeaderPreview,
   resolveToolCallHeaderPreview,
   toolHasExpandableBody,
 } from './tool-call-head';
@@ -422,10 +423,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     : undefined;
   const shellHeaderSummary =
     baseBehaviorId === 'shell' ? (extractCommandDescription(command) ?? summary) : summary;
-  const headerSummary =
-    isMcpBehavior && displayName !== 'MCP gateway' && displayName !== tool.toolName
-      ? displayName
-      : shellHeaderSummary;
+  const headerSummary = isMcpBehavior
+    ? resolveMcpHeaderPreview({
+        displayName,
+        toolName: tool.toolName,
+        summary: shellHeaderSummary,
+        ...(inputPreview !== undefined ? { inputPreview } : {}),
+      })
+    : shellHeaderSummary;
   const baseDisplayActionVerb =
     isFetchStyle && baseBehaviorId === 'shell' && locale === 'en' ? 'Ran' : actionVerb;
   const displayActionVerb =
@@ -444,6 +449,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     expanded,
     hasDetailInBody: isFetchStyle ? false : hasDetailInBody,
     isArgsDumpSummary: isMcpBehavior ? false : isArgsDumpSummary,
+    keepTitlePreview: isMcpBehavior,
   });
   const previewClassName =
     isQueryLike || baseBehaviorId === 'shell' ? 'tool-call-preview is-query' : 'tool-call-preview';

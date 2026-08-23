@@ -7,6 +7,10 @@ export function hostReconnectNotice(locale: DesktopLocale): string {
   return getDesktopCopy(locale).composer.hostConnecting;
 }
 
+export function isSettingsRevisionConflict(response: HostResponse): boolean {
+  return response.success === false && response.problem?.code === 'settings-revision-conflict';
+}
+
 /** Map a Host problem to Desktop copy. Callers still branch on `problem.code`. */
 export function hostFailureNotice(response: HostResponse, locale: DesktopLocale): string {
   if (response.success) {

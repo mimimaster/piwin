@@ -88,6 +88,9 @@ function truncateAtWordBoundary(text: string): string {
  * otherwise strip piwin directive blocks and keep remaining prose.
  */
 export function extractUserFacingBody(text: string): string {
+  if (typeof text !== 'string' || text.length === 0) {
+    return '';
+  }
   const userSection = text.split(USER_SECTION_SPLIT_PATTERN);
   if (userSection.length > 1) {
     return (userSection[userSection.length - 1] ?? '').trim();

@@ -278,7 +278,7 @@ export function createBrowserToolDefinitions(
     {
       name: 'browser_navigate',
       description:
-        'Navigate the browser to a URL. Use after browser_snapshot to inspect the page. Only http(s) URLs are allowed.' +
+        'Navigate the shared right-sidebar Browser to a URL. Use after browser_snapshot to inspect the page. Only http(s) URLs are allowed.' +
         USER_CONTROL_HINT,
       parameters: {
         type: 'object',

@@ -90,7 +90,8 @@
   gap: var(--s-2);
   height: var(--titleband-height);
   min-height: var(--titleband-height);
-  padding-left: 78px; /* Clearance for macOS Overlay traffic lights */
+  /* Full-window overlay, so it clears the traffic lights at full width. */
+  padding-left: var(--traffic-light-clearance);
   padding-right: var(--s-4);
   box-sizing: border-box;
   background: transparent;

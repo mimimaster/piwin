@@ -374,7 +374,7 @@ async function resolveOpenProjectPath(
   locator: string,
   requestId: string | undefined,
 ): Promise<{ ok: true; path: string } | { ok: false; response: HostResponse }> {
-  const trimmed = locator.trim();
+  const trimmed = typeof locator === 'string' ? locator.trim() : '';
   if (!trimmed) {
     return { ok: false, response: fail(requestId, 'project/open', 'project-root-required') };
   }

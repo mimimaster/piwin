@@ -1460,6 +1460,18 @@ describe('chatUiReducer', () => {
     expect(state.messages[1]?.text).toBe('ok');
   });
 
+  it('mapTranscriptMessagesToUi does not throw when a user row is missing text', () => {
+    const [userMessage] = mapTranscriptMessagesToUi([
+      {
+        id: 'u-missing-text',
+        role: 'user',
+        createdAt: '2026-08-23T00:00:00.000Z',
+        status: 'done',
+      } as import('@piwin/contracts').SessionTranscriptMessage,
+    ]);
+    expect(userMessage?.text).toBe('');
+  });
+
   it('mapTranscriptMessagesToUi keeps assistant text raw and strips user wrappers', () => {
     const [userMessage, assistantMessage] = mapTranscriptMessagesToUi([
       {

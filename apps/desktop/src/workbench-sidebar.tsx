@@ -28,13 +28,10 @@ export type WorkbenchSidebarHydrateSessions = (
   },
 ) => Promise<unknown>;
 
+/** Window controls live in the titleband, so the sidebar only needs to close
+ *  its own compact-drawer presentation. */
 type SidebarShell = {
   closeOverlay: () => void;
-  toggleSessions: () => void;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  goBack: () => void;
-  goForward: () => void;
 };
 
 export type WorkbenchSidebarProps = {
@@ -75,7 +72,6 @@ export type WorkbenchSidebarProps = {
   locale: DesktopLocale;
   sidebarResize: UseSidebarResizeResult;
   backendServiceSessionIds: Record<string, true>;
-  sessionsExpanded: boolean;
   shell: SidebarShell;
 };
 
@@ -116,7 +112,6 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
     locale,
     sidebarResize,
     backendServiceSessionIds,
-    sessionsExpanded,
     shell,
   } = props;
 
@@ -227,18 +222,6 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
       completedAttentionSessionIds={state.completedAttentionSessionIds}
       onDismissCompletedAttention={(sessionId) => {
         dispatch({ type: 'session/attention-dismiss', sessionId });
-      }}
-      sessionsExpanded={sessionsExpanded}
-      onToggleSessions={() => {
-        shell.toggleSessions();
-      }}
-      canGoBack={shell.canGoBack}
-      canGoForward={shell.canGoForward}
-      onGoBack={() => {
-        shell.goBack();
-      }}
-      onGoForward={() => {
-        shell.goForward();
       }}
     />
   );

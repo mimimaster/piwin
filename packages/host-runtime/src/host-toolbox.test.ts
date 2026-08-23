@@ -37,9 +37,13 @@ describe('Host toolbox model projection', () => {
     const descriptors = descriptorsFromTools([direct, process, browser, toolbox]);
     const names = descriptors.map((descriptor) => descriptor.name);
 
-    expect(names).toEqual(['mcp__fast_context__fast_context_search', HOST_TOOLBOX_NAME]);
+    expect(names).toEqual([
+      'mcp__fast_context__fast_context_search',
+      'browser_snapshot',
+      HOST_TOOLBOX_NAME,
+    ]);
     expect(toolbox.descriptor.description).toContain('process_start');
-    expect(toolbox.descriptor.description).toContain('browser_snapshot');
+    expect(toolbox.descriptor.description).not.toContain('browser_snapshot');
     expect(toolbox.descriptor.description).not.toContain('fast_context_search');
   });
 });

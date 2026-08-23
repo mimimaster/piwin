@@ -36,18 +36,15 @@ import {
   IconButton,
 } from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
-import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import {
   IconBook,
   IconChat,
   IconCheck,
   IconChevronDown,
-  IconChevronLeft,
   IconChevronRight,
   IconFolder,
   IconFolderOpen,
   IconFolderPlus,
-  IconPanelLeft,
   IconPlus,
   IconPaperPlane,
   IconSearch,
@@ -131,12 +128,6 @@ export type ProjectSessionSidebarProps = {
   onToggleKnowledge?: () => void;
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
-  sessionsExpanded?: boolean;
-  onToggleSessions?: () => void;
-  canGoBack?: boolean | undefined;
-  canGoForward?: boolean | undefined;
-  onGoBack?: (() => void) | undefined;
-  onGoForward?: (() => void) | undefined;
   locale?: DesktopLocale;
   sessionMenu?: { sessionId: string; x: number; y: number } | null | undefined;
   /** Desktop: live sidebar width for aria + resize handle. */
@@ -695,65 +686,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           onDoubleClick={props.onResizeReset}
         />
       ) : null}
-      <div
-        className="sidebar-header sidebar-titlebar-box"
-        data-testid="sidebar-titlebar"
-        data-tauri-drag-region
-        onMouseDown={handleNativeWindowDragMouseDown}
-      >
-        <div className="sidebar-header-left" data-no-window-drag>
-          {props.onToggleSessions ? (
-            <IconButton
-              className="sidebar-sessions-toggle"
-              data-testid="rail-chats-btn"
-              label={
-                props.sessionsExpanded ? copy.titlebar.collapseSidebar : copy.titlebar.expandSidebar
-              }
-              aria-expanded={props.sessionsExpanded}
-              onClick={props.onToggleSessions}
-            >
-              <IconPanelLeft />
-            </IconButton>
-          ) : null}
-        </div>
-
-        <WindowDragRegion
-          className="sidebar-titlebar-drag"
-          data-testid="sidebar-titlebar-drag"
-          aria-label={copy.titlebar.dragWindow}
-        />
-
-        <div className="sidebar-header-right sidebar-history" data-no-window-drag>
-          <IconButton
-            className="sidebar-history-btn"
-            data-testid="sidebar-back-btn"
-            label={copy.titlebar.back}
-            disabled={!props.canGoBack}
-            aria-disabled={!props.canGoBack}
-            onClick={() => {
-              if (props.canGoBack) {
-                props.onGoBack?.();
-              }
-            }}
-          >
-            <IconChevronLeft />
-          </IconButton>
-          <IconButton
-            className="sidebar-history-btn"
-            data-testid="sidebar-forward-btn"
-            label={copy.titlebar.forward}
-            disabled={!props.canGoForward}
-            aria-disabled={!props.canGoForward}
-            onClick={() => {
-              if (props.canGoForward) {
-                props.onGoForward?.();
-              }
-            }}
-          >
-            <IconChevronRight />
-          </IconButton>
-        </div>
-      </div>
       <div className="sidebar-top">
         {props.isOverlayPresentation ? (
           <div className="sidebar-overlay-header">

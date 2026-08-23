@@ -1,16 +1,20 @@
 /**
  * Run-mode override, lastSession persist, and settings-panel config callbacks.
  */
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   resolvePermissionPreset,
   resolvePreset,
   type PermissionPreset,
   type PiwinConfig,
   type SessionScope,
-  type SettingsMutation,
 } from '@piwin/contracts';
-import { lastSessionPersistUnchanged } from '../workbench-session-lifecycle';
+import type { SaveSettingsInOrder } from './use-settings-save-queue';
+import {
+  lastSessionPersistUnchanged,
+  planLastSessionPersist,
+  type LastSessionPointer,
+} from '../workbench-session-lifecycle';
 import { saveDesktopPreferences, type DesktopPreferences } from '../ui-preferences';
 
 export type UseWorkbenchDesktopConfigArgs = {
@@ -18,9 +22,7 @@ export type UseWorkbenchDesktopConfigArgs = {
   setConfig: Dispatch<SetStateAction<PiwinConfig | null>>;
   setSelectedModelKey: Dispatch<SetStateAction<string>>;
   setPreferences: Dispatch<SetStateAction<DesktopPreferences>>;
-  saveSettingsInOrder: (
-    buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[],
-  ) => Promise<void>;
+  saveSettingsInOrder: SaveSettingsInOrder;
   activeSessionId: string | null;
   activeScope: SessionScope;
 };
@@ -84,32 +86,53 @@ export function useWorkbenchDesktopConfig(args: UseWorkbenchDesktopConfigArgs): 
     [setConfig],
   );
 
+  const lastPersistedSessionRef = useRef<LastSessionPointer | null>(null);
+
   useEffect(() => {
-    if (!config || !activeSessionId) {
+    const plan = planLastSessionPersist({
+      config,
+      activeSessionId,
+      activeScope,
+      alreadyPersisted: lastPersistedSessionRef.current,
+    });
+    if (plan.kind === 'skip') {
       return;
     }
-    const lastSession = {
-      sessionId: activeSessionId,
-      scope: activeScope,
-    };
-    if (lastSessionPersistUnchanged(config.desktop, lastSession)) {
+    lastPersistedSessionRef.current = plan.lastSession;
+    if (plan.kind === 'mark-synced' || !config) {
       return;
     }
+    const lastSession = plan.lastSession;
     const nextConfig: PiwinConfig = {
       ...config,
       desktop: { ...config.desktop, lastSession },
     };
     setConfig(nextConfig);
-    void saveSettingsInOrder((currentConfig) => [
-      {
-        kind: 'replace-domain',
-        domain: 'desktop',
-        value: {
-          ...currentConfig.desktop,
+    void saveSettingsInOrder(
+      (currentConfig) => [
+        {
+          kind: 'replace-domain',
+          domain: 'desktop',
+          value: {
+            ...currentConfig.desktop,
+            lastSession,
+          } as NonNullable<PiwinConfig['desktop']>,
+        },
+      ],
+      { notify: false },
+    ).then((ok) => {
+      if (
+        !ok &&
+        lastSessionPersistUnchanged(
+          lastPersistedSessionRef.current === null
+            ? undefined
+            : { lastSession: lastPersistedSessionRef.current },
           lastSession,
-        } as NonNullable<PiwinConfig['desktop']>,
-      },
-    ]);
+        )
+      ) {
+        lastPersistedSessionRef.current = null;
+      }
+    });
   }, [activeScope, activeSessionId, config, saveSettingsInOrder, setConfig]);
 
   return {

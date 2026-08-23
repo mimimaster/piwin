@@ -36,6 +36,7 @@ import type { PtyOutputLine } from './terminal-dock';
 import type { DesktopLocale } from './desktop-locale';
 import type { NotificationAction } from './notification-queue';
 import type { HostRequestAdapters } from './host-request-adapters';
+import { useBrowserInspectorReveal } from './hooks/use-browser-inspector-reveal';
 import type { NotesPanelProps } from './NotesPanel';
 import type { FlashcardsPanelProps } from './FlashcardsPanel';
 import type { FileTreeRequest } from './file-tree-panel';
@@ -175,6 +176,9 @@ export function WorkbenchInspector(props: WorkbenchInspectorProps): ReactElement
     onSwitchBranch,
     streaming,
   } = props;
+  useBrowserInspectorReveal(hostClient, (tab) => {
+    shell.openInspector(tab);
+  });
   const hostPathStyle = hostClient.getRemoteCapabilities()?.pathStyle;
 
   return (

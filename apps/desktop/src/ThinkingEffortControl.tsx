@@ -89,13 +89,6 @@ export function ThinkingEffortControl({
     return undefined;
   }, [open]);
 
-  useEffect(() => {
-    if (!levels.includes(value) && value !== effectiveValue) {
-      onChange(effectiveValue);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- levels derived from selectedModel/ultra
-  }, [effectiveValue, onChange, value, levels]);
-
   // Radix owns outside-pointer dismissal, Escape, and focus return to the trigger.
   return (
     <div className={isUltra ? 'thinking-effort-control ultra-active' : 'thinking-effort-control'}>

@@ -182,7 +182,10 @@ describe('ToolCallCard openable file paths', () => {
       'behavior-mcp-active',
     );
     expect(card?.getAttribute('data-activity-animation')).toBe('breath-dot');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('github / search');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('piwin');
     expect(card?.querySelector('.tool-call-preview')?.textContent).not.toContain('query');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).not.toContain('{');
   });
 
   it('uses a terminal MCP behavior id and past-tense label after completion', () => {
@@ -207,7 +210,36 @@ describe('ToolCallCard openable file paths', () => {
     const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
     expect(card?.getAttribute('data-activity-id')).toBe('mcp.call.done');
     expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Called');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toContain('github / search');
     expect(card?.getAttribute('data-activity-animation')).toBe('none');
+  });
+
+  it('shows a collapsed MCP identity instead of a bare 已调用', () => {
+    const mcpTool: ToolCardUi = {
+      toolCallId: 'mcp-memory-1',
+      toolName: 'mcp__agent-memory__agent_memory_get_context',
+      status: 'done',
+      output: '{}',
+      presentation: {
+        title: 'agent-memory / agent_memory_get_context',
+        kind: 'mcp',
+        actionVerb: 'MCP (agent-memory)',
+        summary: 'agent_memory_get_context',
+        inputPreview: '{"project":"piwin"}',
+        output: { text: '{}' },
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={mcpTool} density="compact" locale="zh-CN" />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('已调用');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toBe(
+      'agent-memory / agent_memory_get_context',
+    );
+    expect(card?.querySelector('.tool-call-preview')?.textContent).not.toContain('project');
   });
 
   it('keeps raw execution errors out of the summary row', () => {

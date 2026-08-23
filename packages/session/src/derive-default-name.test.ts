@@ -102,6 +102,11 @@ describe('deriveDefaultNameFromMessage', () => {
 });
 
 describe('extractUserFacingBody', () => {
+  it('returns an empty string when the transcript body is missing', () => {
+    expect(extractUserFacingBody(undefined as unknown as string)).toBe('');
+    expect(extractUserFacingBody('')).toBe('');
+  });
+
   it('returns plain user text unchanged', () => {
     expect(extractUserFacingBody('Fix the login bug')).toBe('Fix the login bug');
   });

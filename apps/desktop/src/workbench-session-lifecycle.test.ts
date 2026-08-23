@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PiwinConfig, SessionScope } from '@piwin/contracts';
 import {
   lastSessionPersistUnchanged,
+  planLastSessionPersist,
   planLastSessionRestore,
   resolveSessionScopeHintFromSearchHits,
   planRecentProjectSessionHydration,
@@ -287,5 +288,62 @@ describe('lastSessionPersistUnchanged', () => {
         { sessionId: 'sess-2', scope: general },
       ),
     ).toBe(false);
+  });
+});
+
+describe('planLastSessionPersist', () => {
+  const general: SessionScope = { kind: 'general' };
+  const pointer = { sessionId: 'sess-1', scope: general };
+
+  it('skips until config and an active session both exist', () => {
+    expect(
+      planLastSessionPersist({
+        config: null,
+        activeSessionId: 'sess-1',
+        activeScope: general,
+        alreadyPersisted: null,
+      }),
+    ).toEqual({ kind: 'skip' });
+    expect(
+      planLastSessionPersist({
+        config: emptyConfig,
+        activeSessionId: null,
+        activeScope: general,
+        alreadyPersisted: null,
+      }),
+    ).toEqual({ kind: 'skip' });
+  });
+
+  it('does not re-queue after a settings/updated flap that dropped lastSession', () => {
+    expect(
+      planLastSessionPersist({
+        config: emptyConfig,
+        activeSessionId: 'sess-1',
+        activeScope: general,
+        alreadyPersisted: pointer,
+      }),
+    ).toEqual({ kind: 'skip' });
+  });
+
+  it('marks a Host snapshot that already holds the pointer as synced', () => {
+    expect(
+      planLastSessionPersist({
+        config: configWithLastGeneral,
+        activeSessionId: 'sess-1',
+        activeScope: general,
+        alreadyPersisted: null,
+      }),
+    ).toEqual({ kind: 'mark-synced', lastSession: pointer });
+  });
+
+  it('persists when the pointer is new', () => {
+    expect(
+      planLastSessionPersist({
+        config: emptyConfig,
+        activeSessionId: 'sess-1',
+        activeScope: general,
+        alreadyPersisted: null,
+      }),
+    ).toEqual({ kind: 'persist', lastSession: pointer });
   });
 });

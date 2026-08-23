@@ -22,6 +22,7 @@ const TYPES = new Set<HostCommand['type']>([
   'browser/input',
   'browser/lock',
   'browser/unlock',
+  'browser/resize',
 ]);
 
 function failFromBrowserError(
@@ -127,6 +128,18 @@ export async function handleBrowserCommand(
         const state =
           command.owner === 'user' ? await session.giveBack() : await session.unlock('agent');
         return ok(requestId, 'browser/unlock', { state });
+      } catch (error) {
+        return failFromBrowserError(requestId, command.type, error);
+      }
+    }
+
+    case 'browser/resize': {
+      try {
+        const viewport = await session.setViewport({
+          width: command.width,
+          height: command.height,
+        });
+        return ok(requestId, 'browser/resize', { viewport });
       } catch (error) {
         return failFromBrowserError(requestId, command.type, error);
       }

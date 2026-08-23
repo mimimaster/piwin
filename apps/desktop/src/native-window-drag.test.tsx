@@ -12,9 +12,9 @@ describe('native-window-drag', () => {
   it('blocks real controls but allows empty drag strips', () => {
     const host = document.createElement('div');
     host.innerHTML = `
-      <div class="sidebar-titlebar-box">
+      <div class="context-titlebar-box">
         <button id="btn">x</button>
-        <div id="strip" class="sidebar-titlebar-drag"></div>
+        <div id="strip" class="context-bar-drag"></div>
         <span id="title">Session</span>
       </div>
     `;
@@ -30,7 +30,7 @@ describe('native-window-drag', () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     act(() => {
-      root.render(<WindowDragRegion className="sidebar-titlebar-drag" data-testid="drag" />);
+      root.render(<WindowDragRegion className="drag-fixture" data-testid="drag" />);
     });
     const node = container.querySelector('[data-testid="drag"]');
     expect(node).not.toBeNull();

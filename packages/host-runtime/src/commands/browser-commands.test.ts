@@ -32,6 +32,7 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
       boundingRect: { x, y, width: 50, height: 30 },
     }),
     dispatchInput: async () => {},
+    setViewport: async (size) => size,
     takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),
     giveBack: async () => ({ owner: 'agent' as const, agentWantsLock: true }),
     lock: async (owner) => ({ owner, agentWantsLock: owner === 'agent' }),
@@ -101,6 +102,7 @@ describe('isBrowserCommand', () => {
     expect(isBrowserCommand({ type: 'browser/input', events: [] })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/lock', owner: 'user' })).toBe(true);
     expect(isBrowserCommand({ type: 'browser/unlock', owner: 'user' })).toBe(true);
+    expect(isBrowserCommand({ type: 'browser/resize', width: 640, height: 900 })).toBe(true);
   });
 
   it('rejects non-browser commands', () => {
@@ -297,5 +299,21 @@ describe('handleBrowserCommand', () => {
     );
     expect(giveBack).toHaveBeenCalled();
     expect(result).toMatchObject({ success: true, command: 'browser/unlock' });
+  });
+
+  it('browser/resize maps the panel box onto the Playwright viewport', async () => {
+    const setViewport = vi.fn().mockResolvedValue({ width: 640, height: 900 });
+    const session = createMockSession({ setViewport });
+    const result = await handleBrowserCommand(
+      { type: 'browser/resize', width: 640, height: 900 },
+      'req-1',
+      createContext(session),
+    );
+    expect(setViewport).toHaveBeenCalledWith({ width: 640, height: 900 });
+    expect(result).toMatchObject({
+      success: true,
+      command: 'browser/resize',
+      data: { viewport: { width: 640, height: 900 } },
+    });
   });
 });

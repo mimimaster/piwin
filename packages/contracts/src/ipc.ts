@@ -945,6 +945,7 @@ export type HostCommand =
   | { id?: string; type: 'browser/input'; events: BrowserInputEvent[] }
   | { id?: string; type: 'browser/lock'; owner: 'agent' | 'user' }
   | { id?: string; type: 'browser/unlock'; owner: 'agent' | 'user' }
+  | { id?: string; type: 'browser/resize'; width: number; height: number }
   | {
       id?: string;
       type: 'walkthrough/list';

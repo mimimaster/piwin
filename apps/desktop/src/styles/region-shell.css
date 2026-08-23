@@ -5,13 +5,19 @@
 
 /* ── The field ─────────────────────────────────────────────────────
    Panels float on the void with a uniform inset; the gap between them and
-   the window edge is the same value, so the frame reads as one object. */
+   the window edge is the same value, so the frame reads as one object.
+
+   There is no top inset: every column runs to the window top, so the gap
+   between them reads as one continuous seam from the top edge to the bottom.
+   The titleband does not take a grid row — it overlays the columns' top strip
+   (see below), which is what keeps the frame reading as three columns rather
+   than as a band stacked on top of three columns. */
 
 .app-shell {
   --workspace-control-height: 30px;
   height: 100%;
   display: grid;
-  padding: var(--deck-inset);
+  padding: 0 var(--deck-inset) var(--deck-inset);
   gap: var(--deck-gap);
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
@@ -22,16 +28,7 @@
   transition: none;
 }
 
-.app-shell.has-right-panel {
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
-  grid-template-areas: 'nav stage signal';
-}
-
-.app-shell[data-layout='desktop'] {
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-areas: 'nav stage';
-}
-
+.app-shell.has-right-panel,
 .app-shell[data-layout='desktop'].has-right-panel {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
   grid-template-areas: 'nav stage signal';
@@ -47,30 +44,11 @@
   grid-template-areas: 'stage signal';
 }
 
+/* Compact collapses to a single stage column; the sidebar becomes a drawer. */
 .app-shell[data-layout='compact'],
 .app-shell[data-layout='compact'].has-right-panel {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
   grid-template-areas: 'stage';
-}
-
-@media (max-width: 1050px) {
-  .app-shell[data-layout='desktop'] {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-areas: 'nav stage';
-  }
-  .app-shell[data-layout='desktop'].has-right-panel {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
-    grid-template-areas: 'nav stage signal';
-  }
-  .app-shell[data-layout='desktop']:not(.nav-open) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'stage';
-  }
-  .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
-    grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
-    grid-template-areas: 'stage signal';
-  }
 }
 
 /* ── Panel treatment ───────────────────────────────────────────────
@@ -85,10 +63,30 @@
   min-width: 0;
   min-height: 0;
   border: 0;
-  border-radius: var(--r-panel);
+  /* Square at the top: the columns are flush with the window edge there, so
+     macOS's own corner rounding is the only rounding that belongs. */
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
   box-shadow: var(--elev-2);
   /* Panels clip their own contents so scroll edges follow the corner radius. */
   overflow: hidden;
+}
+
+/* The titleband is an overlay, not a row. It sits on the columns' top strip so
+   the window controls land on the sidebar's surface and the title lands on the
+   stage's, with the deck gap showing through between them — three columns, not
+   a band over three columns.
+   `align-self: start` gives it its own height inside the full-height row;
+   spanning to `-2` when a right panel is open leaves the inspector to own its
+   own top strip, so its tab row sits on the same line under its own surface. */
+.app-shell > .context-bar {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: start;
+  z-index: 3;
+}
+
+.app-shell.has-right-panel > .context-bar {
+  grid-column: 1 / -2;
 }
 
 .app-shell > .sidebar {
@@ -143,6 +141,8 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  /* Clears the titleband overlay, which covers this column's top strip. */
+  padding-top: var(--titleband-height);
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
   transition: none;
 }
@@ -204,9 +204,10 @@
   background: transparent;
 }
 
-/* A new session is composer-first: no landing page, just the prompt card. */
+/* A new session is composer-first: no landing page, just the prompt card.
+   Does not reset padding: the column's top padding is structural clearance for
+   the titleband overlay, and it owns no other padding to reset. */
 .chat-column-empty {
-  padding: 0;
   overflow: hidden;
 }
 

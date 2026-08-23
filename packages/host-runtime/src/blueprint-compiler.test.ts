@@ -870,6 +870,7 @@ describe('compileBlueprintForWorker', () => {
     expect(compiledNames).toContain('piwin_plan_set_step');
     expect(compiledNames).toContain('piwin_subagent_run');
     expect(compiledNames).toContain('piwin_toolbox');
+    expect(compiledNames).toContain('browser_navigate');
     expect(compiledNames).not.toContain('flashcard_create');
     expect(compiledNames).not.toContain('image_gen');
     expect(compiledNames).not.toContain('note_search');

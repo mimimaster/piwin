@@ -82,6 +82,10 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
     dispatchInput: async (events) => {
       calls.push({ method: 'dispatchInput', args: [events] });
     },
+    setViewport: async (size) => {
+      calls.push({ method: 'setViewport', args: [size] });
+      return size;
+    },
     takeOver: async () => ({ owner: 'user' as const, agentWantsLock: true }),
     giveBack: async () => ({ owner: 'agent' as const, agentWantsLock: true }),
     lock: async (owner) => ({

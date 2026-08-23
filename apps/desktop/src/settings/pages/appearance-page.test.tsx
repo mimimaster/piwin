@@ -208,7 +208,7 @@ describe('AppearancePage', () => {
     expect(contextValue.request).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'theme/set-active',
-        themeId: 'piwin-bone',
+        themeId: 'piwin-light',
       }),
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
@@ -255,7 +255,7 @@ describe('AppearancePage', () => {
     expect(contextValue.request).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'theme/set-active',
-        themeId: 'piwin-obsidian',
+        themeId: 'piwin-dark',
       }),
     );
     expect(contextValue.onThemeApplied).toHaveBeenCalledWith(
@@ -367,6 +367,49 @@ describe('AppearancePage', () => {
     });
 
     expect(contextValue.onPreferencesChange).not.toHaveBeenCalled();
+    expect(contextValue.onThemeApplied).not.toHaveBeenCalled();
+  });
+
+  it('does not surface raw Host ENOENT when restoring system appearance', async () => {
+    const contextValue = createContextValue({
+      activeTheme: PIWIN_APPEARANCE_INK_WASH,
+      preferences: createPreferences({ appearanceMode: 'light' }),
+    });
+    contextValue.request = vi.fn(async (cmd) => {
+      if (cmd.type === 'theme/list') {
+        return {
+          id: '1',
+          type: 'response' as const,
+          command: 'theme/list',
+          success: true as const,
+          data: { themes: [], activeThemeId: 'piwin-ink-wash' },
+        };
+      }
+      return {
+        id: '2',
+        type: 'response' as const,
+        command: 'theme/set-active',
+        success: false as const,
+        error: "ENOENT: no such file or directory, open '[host-path]'",
+      };
+    });
+
+    await renderPage(contextValue);
+
+    const select = container.querySelector<HTMLSelectElement>(
+      '[data-testid="theme-library-select"]',
+    );
+    expect(select).not.toBeNull();
+    if (!select) return;
+
+    await act(async () => {
+      select.value = 'system';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(contextValue.setError).toHaveBeenCalledWith(
+      '这个主题 Host 上还没有，还停在当前主题。',
+    );
     expect(contextValue.onThemeApplied).not.toHaveBeenCalled();
   });
 });

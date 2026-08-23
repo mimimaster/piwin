@@ -29,10 +29,18 @@
   --code-font-size: 12px;
   --code-wrap: unset;
 
+  /* Dead space the macOS Overlay traffic lights occupy, measured from the
+     *window* edge (see trafficLightPosition in tauri.conf.json). Any row that
+     shares the window's top line must start after this; panels floating in the
+     deck subtract their own --deck-inset. */
+  --traffic-light-clearance: 78px;
+
   /* ── Band heights ─────────────────────────────────────────────── */
   --topbar-height: 40px;
-  /* Must fit titleband controls (≥28px) under Overlay traffic lights. */
-  --titleband-height: 40px;
+  /* Twice the traffic lights' fixed centre offset (~16px from the window top),
+     so a titleband flush with the window top puts its controls on exactly that
+     line. Also the smallest height that still fits a 28px control. */
+  --titleband-height: 32px;
   --workspace-header-height: 40px;
   --statusline-height: 26px;
 

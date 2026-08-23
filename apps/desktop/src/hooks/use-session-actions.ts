@@ -341,7 +341,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const handleResumeSession = useCallback(
     async (
       sessionId: string,
-      context?: { scope?: SessionScope },
+      context?: { scope?: SessionScope; quiet?: boolean },
     ): Promise<void> => {
       if (shouldBlockRemoteHostGesture(hostClient)) {
         dispatchNotification(pushInfo(hostReconnectNotice(locale)));
@@ -417,13 +417,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         sessionId,
       });
       if (!resumed.success) {
-        dispatchNotification(
-          pushError(
-            isWorkbenchHostTeardownError(resumed.error)
-              ? hostReconnectNotice(locale)
-              : `${resumed.error} — start a New session to continue in this process.`,
-          ),
-        );
+        if (context?.quiet !== true) {
+          dispatchNotification(
+            pushError(
+              isWorkbenchHostTeardownError(resumed.error)
+                ? hostReconnectNotice(locale)
+                : `${resumed.error} — start a New session to continue in this process.`,
+            ),
+          );
+        }
         // Clear the painted previous transcript and exit awaitingTranscript so
         // the UI does not stay stuck showing another session's rows.
         dispatch({
@@ -827,7 +829,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const handleOpenProject = useCallback(
     async (
       path: string,
-      options?: { autoTrust?: boolean; resumeSessionId?: string; switchSession?: boolean },
+      options?: {
+        autoTrust?: boolean;
+        resumeSessionId?: string;
+        switchSession?: boolean;
+        quiet?: boolean;
+      },
     ): Promise<void> => {
       const resumeSessionId = options?.resumeSessionId;
       const openOptions =
@@ -839,7 +846,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         openOptions,
       );
       if (!activation.ok) {
-        dispatchNotification(pushError(activation.error));
+        if (options?.quiet !== true) {
+          dispatchNotification(pushError(activation.error));
+        }
         return;
       }
       if (!activation.trusted) {
@@ -865,6 +874,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (resumeSessionId) {
         await handleResumeSession(resumeSessionId, {
           scope: { kind: 'project', projectPath: openedPath },
+          ...(options?.quiet === true ? { quiet: true } : {}),
         });
       } else if (options?.switchSession) {
         if (sessions[0]) {

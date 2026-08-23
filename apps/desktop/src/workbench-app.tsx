@@ -304,11 +304,10 @@ export function AppWorkbench({ activeTheme, onThemeApplied }: AppProps) {
                 locale={desktopLocale}
                 sidebarResize={sidebarResize}
                 backendServiceSessionIds={backendServiceSessionIds}
-                sessionsExpanded={navDrawerOpen}
                 shell={shell}
               />
             }
-            contextBar={
+            titlebar={
               <WorkbenchContextBar
                 state={state}
                 recentProjects={recentProjects}

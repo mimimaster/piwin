@@ -20,6 +20,7 @@ import {
   isBuiltinAppearanceId,
   migrateThemeId,
   resolveBuiltinAppearance,
+  toHostCatalogThemeId,
   resolveDesktopAppearance,
 } from './appearance-tokens';
 import type { AppearanceThemeSettings } from './ui-preferences';
@@ -452,6 +453,13 @@ describe('theme identity and migration', () => {
     expect(migrateThemeId('piwin-orange-white')).toBe('piwin-bone');
     expect(migrateThemeId('piwin-ink-wash')).toBe('piwin-ink-wash');
     expect(migrateThemeId('some-installed-theme')).toBe('some-installed-theme');
+  });
+
+  it('sends Host catalog ids so Deck faces do not ENOENT missing theme folders', () => {
+    expect(toHostCatalogThemeId('piwin-obsidian')).toBe('piwin-dark');
+    expect(toHostCatalogThemeId('piwin-bone')).toBe('piwin-light');
+    expect(toHostCatalogThemeId('piwin-ink-wash')).toBe('piwin-ink-wash');
+    expect(toHostCatalogThemeId('piwin-dark')).toBe('piwin-dark');
   });
 
   it('resolves retired ids to their replacement manifest', () => {

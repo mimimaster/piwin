@@ -23,6 +23,8 @@ export {
 } from './browser-session.js';
 export type { BrowserControllerState, AcquireResult } from './controller.js';
 export type { RunExclusive } from './mutex.js';
+export { clampBrowserViewport, BROWSER_VIEWPORT_MIN_PX } from './viewport.js';
+export type { BrowserViewportSize } from './viewport.js';
 export { getBrowserInstallStatus } from './install-status.js';
 export type { BrowserInstallStatus } from './install-status.js';
 export { renderPageHtml, FetchRenderUnavailableError } from './render-page.js';

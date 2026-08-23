@@ -11,7 +11,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { PiwinConfig, ProjectRecord, SessionListOrder } from '@piwin/contracts';
+import type { PiwinConfig, ProjectRecord, SessionListOrder, SessionScope } from '@piwin/contracts';
 import type { ChatUiAction } from '../chat-reducer';
 import type { HostClient } from '../host-client';
 import { pushError, type NotificationAction } from '../notification-queue';
@@ -47,14 +47,20 @@ export type UseWorkbenchSessionLifecycleArgs = {
   hydrateSessions: WorkbenchHydrateSessions;
   handleOpenProject: (
     path: string,
-    options?: { autoTrust?: boolean; resumeSessionId?: string; switchSession?: boolean },
+    options?: {
+      autoTrust?: boolean;
+      resumeSessionId?: string;
+      switchSession?: boolean;
+      quiet?: boolean;
+    },
   ) => Promise<void>;
-  handleResumeSession: (sessionId: string) => void | Promise<void>;
+  handleResumeSession: (
+    sessionId: string,
+    context?: { scope?: SessionScope; quiet?: boolean },
+  ) => void | Promise<void>;
   showArchivedSessions: boolean;
   remoteCatchUpEpoch: number;
-  saveSettingsInOrder: (
-    buildMutations: (currentConfig: PiwinConfig) => import('@piwin/contracts').SettingsMutation[],
-  ) => Promise<void>;
+  saveSettingsInOrder: import('./use-settings-save-queue').SaveSettingsInOrder;
 };
 
 export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleArgs): {
@@ -202,16 +208,21 @@ export function useWorkbenchSessionLifecycle(args: UseWorkbenchSessionLifecycleA
       return;
     }
     void (async () => {
-      if (plan.kind === 'restore-project') {
-        await handleOpenProject(plan.projectPath, {
-          autoTrust: false,
-          resumeSessionId: plan.sessionId,
-        });
-        return;
+      try {
+        if (plan.kind === 'restore-project') {
+          await handleOpenProject(plan.projectPath, {
+            autoTrust: false,
+            resumeSessionId: plan.sessionId,
+            quiet: true,
+          });
+          return;
+        }
+        dispatch({ type: 'project/clear' });
+        await hydrateSessions({ kind: 'general' }, { includeArchived: false });
+        await handleResumeSession(plan.sessionId, { quiet: true });
+      } catch (error) {
+        console.warn('last session restore failed', error);
       }
-      dispatch({ type: 'project/clear' });
-      await hydrateSessions({ kind: 'general' }, { includeArchived: false });
-      await handleResumeSession(plan.sessionId);
     })();
   }, [config, dispatch, handleOpenProject, handleResumeSession, hydrateSessions, hostReady]);
 
