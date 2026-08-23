@@ -14,6 +14,31 @@ const BUNDLED_THEME_IDS = new Set([
   'piwin-ink-wash',
 ]);
 
+/**
+ * Desktop Deck faces keep new ids (`piwin-obsidian` / `piwin-bone`). Host still
+ * ships the pre-Deck directories. Map before any `themes/<id>/theme.json` read
+ * so `theme/set-active` does not ENOENT a folder that never existed on disk.
+ */
+const DECK_FACE_ON_DISK_IDS: Record<string, string> = {
+  'piwin-obsidian': 'piwin-dark',
+  'piwin-bone': 'piwin-light',
+};
+
+export function resolveOnDiskThemeId(themeId: string): string {
+  return DECK_FACE_ON_DISK_IDS[themeId] ?? themeId;
+}
+
+export class ThemeNotFoundError extends Error {
+  readonly name = 'ThemeNotFoundError';
+  constructor(readonly themeId: string) {
+    super(`theme not installed: ${themeId}`);
+  }
+}
+
+function isNodeErrno(error: unknown, code: string): error is NodeJS.ErrnoException {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === code;
+}
+
 export function getThemesDir(piwinRoot: string): string {
   return join(piwinRoot, 'themes');
 }
@@ -153,8 +178,17 @@ export async function loadThemeManifest(
   themeId: string,
 ): Promise<ThemeManifest> {
   await ensureBundledThemesInstalled(piwinRoot);
-  const themePath = join(getThemesDir(piwinRoot), themeId, 'theme.json');
-  const raw = await readFile(themePath, 'utf8');
+  const onDiskId = resolveOnDiskThemeId(themeId);
+  const themePath = join(getThemesDir(piwinRoot), onDiskId, 'theme.json');
+  let raw: string;
+  try {
+    raw = await readFile(themePath, 'utf8');
+  } catch (error) {
+    if (isNodeErrno(error, 'ENOENT')) {
+      throw new ThemeNotFoundError(themeId);
+    }
+    throw error;
+  }
   const validated = validateThemeManifest(JSON.parse(raw));
   if (!validated.ok) {
     throw new Error(

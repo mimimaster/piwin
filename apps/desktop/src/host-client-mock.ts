@@ -4383,6 +4383,14 @@ export class MockHostBackend {
         });
         return { id, type: 'response', command: 'browser/unlock', success: true, data: null };
       }
+      case 'browser/resize':
+        return {
+          id,
+          type: 'response',
+          command: 'browser/resize',
+          success: true,
+          data: { viewport: { width: command.width, height: command.height } },
+        };
 
       // --- Walkthrough commands (spec §12) ---------------------------------
       case 'walkthrough/list': {

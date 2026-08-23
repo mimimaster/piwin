@@ -20,7 +20,6 @@ import {
   type ContextUsageSnapshot,
   type ModelRef,
   type PiwinConfig,
-  type SettingsMutation,
   type ThinkingLevel,
 } from '@piwin/contracts';
 import { composerProfileSettingsMutations } from '../host-request-adapters';
@@ -60,9 +59,7 @@ export type UseComposerModelControllerArgs = {
   compacting: boolean;
   dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
-  saveSettingsInOrder: (
-    buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[],
-  ) => Promise<void>;
+  saveSettingsInOrder: import('./use-settings-save-queue').SaveSettingsInOrder;
   sessionComposerProfileRestoredRef: MutableRefObject<
     (profile: ComposerModelRestoreProfile) => void
   >;
@@ -149,6 +146,27 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
     },
     [config?.thinking?.ultraEnabled, modelOptions, setSelectedModelKey, setThinkingLevel],
   );
+
+  // Keep the in-memory thinking level legal for the selected model. Do not
+  // persist: the control used to call onChange on every catalog/config refresh,
+  // which replaced `desktop` and CAS-conflicted with lastSession persist.
+  useEffect(() => {
+    const selected = findComposerModelByKey(modelOptions, selectedModelKey);
+    const resolved = resolveThinkingLevelForModel(
+      selected,
+      thinkingLevel,
+      config?.thinking?.ultraEnabled === true,
+    );
+    if (resolved !== undefined && resolved !== thinkingLevel) {
+      setThinkingLevel(resolved);
+    }
+  }, [
+    config?.thinking?.ultraEnabled,
+    modelOptions,
+    selectedModelKey,
+    setThinkingLevel,
+    thinkingLevel,
+  ]);
 
   // Resolve the effective model selection. Priority:
   //   1. active session last-used model (session index / resume)
@@ -267,6 +285,13 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
           },
         },
       };
+      if (
+        JSON.stringify(config.desktop?.composerProfile ?? null) ===
+        JSON.stringify(nextConfig.desktop?.composerProfile ?? null)
+      ) {
+        setConfig(nextConfig);
+        return;
+      }
       setConfig(nextConfig);
       void saveSettingsInOrder((currentConfig) =>
         composerProfileSettingsMutations({
@@ -368,10 +393,13 @@ export function useComposerModelController(args: UseComposerModelControllerArgs)
 
   const handleThinkingLevelChange = useCallback(
     (nextThinkingLevel: ThinkingLevel): void => {
+      if (nextThinkingLevel === thinkingLevel) {
+        return;
+      }
       setThinkingLevel(nextThinkingLevel);
       persistComposerProfile(selectedModelKey, nextThinkingLevel);
     },
-    [persistComposerProfile, selectedModelKey, setThinkingLevel],
+    [persistComposerProfile, selectedModelKey, setThinkingLevel, thinkingLevel],
   );
 
   const described = useMemo(

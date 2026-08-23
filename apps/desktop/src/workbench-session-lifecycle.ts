@@ -122,12 +122,51 @@ export function resolveSessionScopeHintFromSearchHits(
   return undefined;
 }
 
+export type LastSessionPointer = { sessionId: string; scope: SessionScope };
+
 export function lastSessionPersistUnchanged(
   current: PiwinConfig['desktop'] | undefined,
-  next: { sessionId: string; scope: SessionScope },
+  next: LastSessionPointer,
 ): boolean {
   return (
     current?.lastSession?.sessionId === next.sessionId &&
     JSON.stringify(current.lastSession.scope) === JSON.stringify(next.scope)
   );
+}
+
+export type LastSessionPersistPlan =
+  | { kind: 'skip' }
+  | { kind: 'mark-synced'; lastSession: LastSessionPointer }
+  | { kind: 'persist'; lastSession: LastSessionPointer };
+
+/**
+ * Persist the restore pointer once per session/scope. `settings/updated` refetches
+ * the whole document and used to re-queue a `desktop` replace, which CAS-conflicts
+ * with composer-profile saves and toasts as "another client changed settings".
+ */
+export function planLastSessionPersist(input: {
+  config: PiwinConfig | null;
+  activeSessionId: string | null;
+  activeScope: SessionScope;
+  alreadyPersisted: LastSessionPointer | null;
+}): LastSessionPersistPlan {
+  if (!input.config || !input.activeSessionId) {
+    return { kind: 'skip' };
+  }
+  const lastSession: LastSessionPointer = {
+    sessionId: input.activeSessionId,
+    scope: input.activeScope,
+  };
+  if (
+    lastSessionPersistUnchanged(
+      input.alreadyPersisted === null ? undefined : { lastSession: input.alreadyPersisted },
+      lastSession,
+    )
+  ) {
+    return { kind: 'skip' };
+  }
+  if (lastSessionPersistUnchanged(input.config.desktop, lastSession)) {
+    return { kind: 'mark-synced', lastSession };
+  }
+  return { kind: 'persist', lastSession };
 }

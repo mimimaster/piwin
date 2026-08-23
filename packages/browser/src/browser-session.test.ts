@@ -32,6 +32,7 @@ function buildPage() {
     title: vi.fn().mockResolvedValue('Example'),
     goto: vi.fn().mockResolvedValue(null),
     viewportSize: vi.fn().mockReturnValue({ width: 1280, height: 800 }),
+    setViewportSize: vi.fn().mockResolvedValue(undefined),
     screenshot: vi.fn().mockResolvedValue(Buffer.from('jpegbytes')),
     locator: vi.fn().mockReturnValue({
       ariaSnapshot: vi.fn().mockResolvedValue('- document [ref=e1]'),
@@ -251,6 +252,20 @@ describe('subscribe / frames', () => {
 });
 
 describe('session operations', () => {
+  it('setViewport clamps to the panel box and updates Playwright', async () => {
+    const { page } = installWorkingBrowser();
+    page.setViewportSize.mockImplementation(async (size: { width: number; height: number }) => {
+      page.viewportSize.mockReturnValue(size);
+    });
+    const session = createBrowserSession();
+    const applied = await session.setViewport({ width: 640, height: 900 });
+    expect(applied).toEqual({ width: 640, height: 900 });
+    expect(page.setViewportSize).toHaveBeenCalledWith({ width: 640, height: 900 });
+
+    await session.setViewport({ width: 640, height: 900 });
+    expect(page.setViewportSize).toHaveBeenCalledTimes(1);
+  });
+
   it('type targets an aria ref, then types text', async () => {
     const { page } = installWorkingBrowser();
     const session = createBrowserSession();

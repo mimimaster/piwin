@@ -1,7 +1,11 @@
 /** Settings → Appearance: chat preferences and editable light/dark themes. */
 import { useEffect, useState, type ReactElement } from 'react';
 import { Button, ColorInput, Select, SegmentedControl, Switch } from '@piwin/ui-kit';
-import { buildAppearanceTheme, resolveSystemThemeMode } from '../../appearance-tokens';
+import {
+  buildAppearanceTheme,
+  resolveSystemThemeMode,
+  toHostCatalogThemeId,
+} from '../../appearance-tokens';
 import { getDesktopCopy, type DesktopCopy } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import {
@@ -20,6 +24,19 @@ import { settingsHostSupportsCommand, useSettings } from '../settings-context';
 
 type ThemeMode = 'light' | 'dark';
 type ThemeColorKey = keyof Pick<AppearanceThemeSettings, 'background' | 'foreground' | 'accent'>;
+
+function themeHostFailureNotice(error: string, isChinese: boolean): string {
+  if (
+    error.includes('ENOENT') ||
+    error.includes('[host-path]') ||
+    error.includes('theme not installed')
+  ) {
+    return isChinese
+      ? '这个主题 Host 上还没有，还停在当前主题。'
+      : 'That theme is not installed on the Host. Staying on the current theme.';
+  }
+  return error;
+}
 
 function updatePreference<K extends keyof DesktopPreferences>(
   prefs: DesktopPreferences,
@@ -196,10 +213,12 @@ function ThemeLibraryCard(): ReactElement {
         preferences.appearanceMode === 'system'
           ? resolveSystemThemeMode()
           : preferences.appearanceMode;
-      const baseThemeId = activeMode === 'light' ? 'piwin-bone' : 'piwin-obsidian';
+      const baseThemeId = toHostCatalogThemeId(
+        activeMode === 'light' ? 'piwin-bone' : 'piwin-obsidian',
+      );
       const response = await request({ type: 'theme/set-active', themeId: baseThemeId });
       if (!response.success) {
-        setError(response.error);
+        setError(themeHostFailureNotice(response.error, isChinese));
         return;
       }
       onThemeApplied(
@@ -211,9 +230,12 @@ function ThemeLibraryCard(): ReactElement {
       );
       return;
     }
-    const response = await request({ type: 'theme/set-active', themeId: targetValue });
+    const response = await request({
+      type: 'theme/set-active',
+      themeId: toHostCatalogThemeId(targetValue),
+    });
     if (!response.success) {
-      setError(response.error);
+      setError(themeHostFailureNotice(response.error, isChinese));
       return;
     }
     const data = response.data as { theme?: import('@piwin/contracts').ThemeManifest } | undefined;

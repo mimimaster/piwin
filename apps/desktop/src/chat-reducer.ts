@@ -70,6 +70,7 @@ import {
   removeWarmSessionSnapshot,
   type WarmSessionCache,
 } from './session-warm-cache';
+import { markLatestAssistantFailure } from './run-failure-message';
 
 const MAX_RETAINED_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
@@ -736,10 +737,15 @@ export function mapTranscriptMessagesToUi(
     // Legacy transcripts may still store mode/skill wrappers that were once
     // sent as input.text. Project only the human-authored body for display;
     // attachments stay untouched so vision media still renders as originals.
-    text: message.role === 'user' ? extractUserFacingBody(message.text) : message.text,
+    text:
+      message.role === 'user'
+        ? extractUserFacingBody(typeof message.text === 'string' ? message.text : '')
+        : (message.text ?? ''),
     thinking: message.thinking ?? '',
     tools: (message.tools ?? []).map((tool) => {
-      const output = createBoundedToolOutput(tool.presentation?.output?.text ?? tool.output);
+      const output = createBoundedToolOutput(
+        tool.presentation?.output?.text ?? tool.output ?? '',
+      );
       return {
         toolCallId: tool.toolCallId,
         toolName: tool.toolName,
@@ -2276,11 +2282,15 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ...state,
         messages: [...state.messages, nextMessage],
         userMessageIndex:
-          action.message.role === 'user' && action.message.text.trim().length > 0
+          action.message.role === 'user' &&
+          typeof action.message.text === 'string' &&
+          action.message.text.trim().length > 0
             ? null
             : state.userMessageIndex,
         userMessageIndexEpoch:
-          action.message.role === 'user' && action.message.text.trim().length > 0
+          action.message.role === 'user' &&
+          typeof action.message.text === 'string' &&
+          action.message.text.trim().length > 0
             ? state.userMessageIndexEpoch + 1
             : state.userMessageIndexEpoch,
       });
@@ -3476,30 +3486,14 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       {
         const errorMessage = event.message.trim() || 'Run failed';
         const targetRunId = event.runId ?? state.activeRunId ?? state.lastTerminalRunId;
-        let stampedAssistant = false;
-        const nextMessages = state.messages.map((message) => {
-          const tools = message.tools.map((tool) => ({
-            ...tool,
-            status: tool.status === 'running' ? ('error' as const) : tool.status,
-          }));
-          if (message.role !== 'assistant') {
-            return { ...message, tools };
-          }
-          const matchesRun =
-            targetRunId !== null && message.runId !== undefined && message.runId === targetRunId;
-          if (matchesRun || message.status === 'streaming') {
-            stampedAssistant = true;
-            return {
-              ...message,
-              status: 'error' as const,
-              error: errorMessage,
-              tools,
-            };
-          }
-          return { ...message, tools };
-        });
-        let messages = nextMessages;
-        if (!stampedAssistant) {
+        const failureProjection = markLatestAssistantFailure(
+          state.messages,
+          targetRunId,
+          errorMessage,
+          true,
+        );
+        let messages = failureProjection.messages;
+        if (!failureProjection.stamped) {
           let lastAssistantIndex = -1;
           for (let index = messages.length - 1; index >= 0; index -= 1) {
             if (messages[index]?.role === 'assistant') {
@@ -3661,20 +3655,15 @@ function applyRunRecord(
     outcome === 'failed' ? (run.error?.trim() || 'Run failed') : undefined;
   let messages = state.messages;
   if (errorMessage !== undefined) {
-    let stamped = false;
-    messages = state.messages.map((message) => {
-      if (message.role !== 'assistant') return message;
-      if (message.runId !== undefined && message.runId === run.runId) {
-        stamped = true;
-        return {
-          ...message,
-          status: 'error' as const,
-          error: message.error ?? errorMessage,
-        };
-      }
-      return message;
-    });
-    if (!stamped) {
+    const failureProjection = markLatestAssistantFailure(
+      state.messages,
+      run.runId,
+      errorMessage,
+      false,
+      true,
+    );
+    messages = failureProjection.messages;
+    if (!failureProjection.stamped) {
       let lastAssistantIndex = -1;
       for (let index = messages.length - 1; index >= 0; index -= 1) {
         if (messages[index]?.role === 'assistant') {

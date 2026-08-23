@@ -1,7 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { hostFailureNotice, hostProblemNotice } from './host-problem-copy';
+import { hostFailureNotice, hostProblemNotice, isSettingsRevisionConflict } from './host-problem-copy';
 
 describe('host problem copy', () => {
+  it('detects a typed settings revision conflict', () => {
+    expect(
+      isSettingsRevisionConflict({
+        type: 'response',
+        command: 'settings/apply',
+        success: false,
+        error: 'settings-revision-conflict',
+        problem: { code: 'settings-revision-conflict' },
+      }),
+    ).toBe(true);
+    expect(
+      isSettingsRevisionConflict({
+        type: 'response',
+        command: 'settings/apply',
+        success: false,
+        error: 'settings-revision-conflict',
+      }),
+    ).toBe(false);
+    expect(
+      isSettingsRevisionConflict({
+        type: 'response',
+        command: 'settings/apply',
+        success: true,
+      }),
+    ).toBe(false);
+  });
+
   it('maps stable problem codes to locale strings', () => {
     expect(hostProblemNotice({ code: 'session-busy' }, 'en')).toMatch(/compacting or deleting/i);
     expect(hostProblemNotice({ code: 'notes-revision-conflict' }, 'zh-CN')).toMatch(/笔记/);

@@ -19,7 +19,9 @@
   flex-direction: column;
   min-height: 0;
   gap: 0;
-  padding: 0 var(--s-3) var(--s-3);
+  /* Top padding clears the titleband overlay, which covers this column's top
+     strip and carries the traffic lights plus the window controls. */
+  padding: var(--titleband-height) var(--s-3) var(--s-3);
   font-family: var(--font);
   text-rendering: optimizeLegibility;
   backface-visibility: hidden;
@@ -68,7 +70,8 @@
 
 /* ── Compact drawer ──────────────────────────────────────────────────
    The one sidebar state that overlays the stage, so it keeps a full-height
-   frame and its own shadow instead of the deck inset. */
+   frame and its own shadow instead of the deck inset. The base rule's top
+   padding already clears the traffic lights, which it covers here. */
 
 .app-shell[data-layout='compact'] > .sidebar {
   position: fixed;
@@ -97,102 +100,10 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
-/* ── Titleband ────────────────────────────────────────────────────────
-   Same height as the stage titleband so the two read as one band across
-   the deck gap. Left padding clears the macOS traffic lights. */
-
-.sidebar-header,
-.sidebar-titlebar-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-1);
-  height: var(--titleband-height);
-  min-height: var(--titleband-height);
-  margin-bottom: var(--s-2);
-  padding-left: 74px;
-  padding-right: var(--s-1);
-  box-sizing: border-box;
-}
-
-.sidebar-titlebar-box {
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-
-.sidebar-titlebar-drag {
-  flex: 1 1 auto;
-  align-self: stretch;
-  min-width: var(--s-8);
-  min-height: 100%;
-  cursor: default;
-  -webkit-app-region: drag;
-  app-region: drag;
-}
-
-.sidebar-titlebar-box [data-no-window-drag],
-.sidebar-titlebar-box button,
-.sidebar-titlebar-box a,
-.sidebar-titlebar-box input,
-.sidebar-titlebar-box .piwin-icon-button,
-.sidebar-titlebar-box .sidebar-header-left,
-.sidebar-titlebar-box .sidebar-header-right,
-.sidebar-titlebar-box .sidebar-history {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
-.sidebar-header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
-}
-
-.sidebar-header-right,
-.sidebar-history {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-}
-
-.sidebar-history-btn,
-.sidebar-sessions-toggle {
-  width: var(--h-sm);
-  height: var(--h-sm);
-  border-radius: var(--r-control);
-  color: var(--text-3);
-  display: grid;
-  place-items: center;
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  transition:
-    color var(--t-1) var(--ease-out),
-    background-color var(--t-1) var(--ease-out);
-}
-
-.sidebar-history-btn:hover,
-.sidebar-sessions-toggle:hover {
-  color: var(--text-1) !important;
-  background: var(--hover) !important;
-}
-
-.sidebar-history-btn:disabled,
-.sidebar-history-btn[aria-disabled='true'] {
-  color: var(--text-4);
-  background: transparent !important;
-  cursor: default;
-  pointer-events: none;
-}
-
-.sidebar-titlebar-box .piwin-icon-button svg,
-.sidebar-sessions-toggle svg,
-.sidebar-history-btn svg {
-  width: var(--icon-size-md);
-  height: var(--icon-size-md);
-}
-
-/* ── Primary actions ─────────────────────────────────────────────────── */
+/* ── Primary actions ───────────────────────────────────────────────────
+   The panel has no titleband of its own: the window controls sit on this
+   column's top strip but belong to the titleband overlay (region-shell.css),
+   so the first thing the sidebar itself owns is its first action. */
 
 .sidebar-top {
   position: relative;

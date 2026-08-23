@@ -1,6 +1,6 @@
 /**
  * Serialized settings/apply. Policy is pure so tests can drive skip/apply/
- * failure without standing up App. The hook only owns the in-order queue.
+ * failure without standing up App. The process-wide chain serializes writers.
  */
 import {
   formatError,
@@ -10,7 +10,7 @@ import {
   type SettingsSnapshot,
 } from '@piwin/contracts';
 import { settingsMutationsForHostApply } from './host-request-adapters';
-import { hostFailureNotice } from './host-problem-copy.js';
+import { hostFailureNotice, isSettingsRevisionConflict } from './host-problem-copy.js';
 import {
   settingsApplyInputFromSnapshot,
   settingsMutationsAdmittedByRemoteSnapshot,
@@ -106,6 +106,58 @@ export function settingsSaveApplyFailureNotice(
 
 export function settingsSaveThrownNotice(error: unknown): string {
   return `Settings save failed: ${formatError(error)}`;
+}
+
+/** First CAS miss is retried against a fresh snapshot; a second miss is a real conflict. */
+export function shouldRetrySettingsApply(applyResponse: HostResponse, attempt: number): boolean {
+  return attempt === 0 && isSettingsRevisionConflict(applyResponse);
+}
+
+export type SettingsSaveCycleResult =
+  | { kind: 'ok' }
+  | { kind: 'empty' }
+  | { kind: 'failed'; message: string };
+
+/**
+ * One get→apply cycle with a single CAS retry. Callers serialize this on the
+ * process-wide settings apply chain so lastSession persist cannot race a draft.
+ */
+export async function executeSettingsSaveCycle(input: {
+  requestGet: () => Promise<HostResponse>;
+  requestApply: (
+    plan: Extract<SettingsSavePlan, { kind: 'apply' }>,
+  ) => Promise<HostResponse>;
+  buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[];
+  transport: string;
+  locale: DesktopLocale;
+}): Promise<SettingsSaveCycleResult> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const getResponse = await input.requestGet();
+    const plan = planSettingsSave({
+      getResponse,
+      buildMutations: input.buildMutations,
+      transport: input.transport,
+    });
+    if (plan.kind === 'read-failed' || plan.kind === 'missing-snapshot') {
+      return { kind: 'failed', message: plan.message };
+    }
+    if (plan.kind === 'empty-mutations') {
+      return { kind: 'empty' };
+    }
+    const applyResponse = await input.requestApply(plan);
+    if (applyResponse.success) {
+      return { kind: 'ok' };
+    }
+    if (shouldRetrySettingsApply(applyResponse, attempt)) {
+      continue;
+    }
+    const outcome = settingsSaveApplyFailureNotice(applyResponse, input.locale);
+    if (outcome.kind === 'notice') {
+      return { kind: 'failed', message: outcome.message };
+    }
+    return { kind: 'ok' };
+  }
+  return { kind: 'failed', message: 'settings-revision-conflict' };
 }
 
 export function settingsApplyCommand(plan: Extract<SettingsSavePlan, { kind: 'apply' }>): {

@@ -161,6 +161,9 @@ html[data-theme-visual-style='ink-wash'] .composer-v2-textarea {
   color: #e6e1d8 !important;
   caret-color: #d6b98c !important;
   background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
 }
 
 html[data-theme-visual-style='ink-wash'] .composer-v2-textarea:focus,

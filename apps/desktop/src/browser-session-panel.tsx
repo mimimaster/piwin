@@ -151,6 +151,34 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
     };
   }, []);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastWidth = 0;
+    let lastHeight = 0;
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.contentRect;
+      if (!box) return;
+      const width = Math.round(box.width);
+      const height = Math.round(box.height);
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        if (width < 1 || height < 1) return;
+        if (width === lastWidth && height === lastHeight) return;
+        lastWidth = width;
+        lastHeight = height;
+        void hostClient.browserResize(width, height);
+      }, 80);
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [hostClient]);
+
   const toViewport = useCallback(
     (displayX: number, displayY: number): { x: number; y: number } | null => {
       const img = imgRef.current;

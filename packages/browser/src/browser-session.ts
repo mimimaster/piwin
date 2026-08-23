@@ -33,6 +33,7 @@ import {
 } from './controller.js';
 import { startScreencast, type ScreencastHandle } from './screencast.js';
 import { dispatchBrowserInput, isMouseMoveOnly } from './input.js';
+import { clampBrowserViewport } from './viewport.js';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -113,6 +114,14 @@ export type BrowserSession = {
     options?: { signal?: AbortSignal; screenshotPath?: string },
   ): Promise<WebElementPickResult>;
   dispatchInput(events: BrowserInputEvent[], options?: { signal?: AbortSignal }): Promise<void>;
+  /**
+   * Fit the Playwright viewport to the desktop panel CSS box. Mirror chrome,
+   * not a page write — does not take the controller lock.
+   */
+  setViewport(
+    size: { width: number; height: number },
+    options?: { signal?: AbortSignal },
+  ): Promise<{ width: number; height: number }>;
   takeOver(): Promise<BrowserControllerState>;
   giveBack(): Promise<BrowserControllerState>;
   lock(owner: BrowserActor, options?: BrowserOpOptions): Promise<BrowserControllerState>;
@@ -794,6 +803,22 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       if (moveOnly) return operate();
       return withAbort(operate, options?.signal);
     },
+
+    setViewport: (size, options) =>
+      withAbort(async () => {
+        const next = clampBrowserViewport(size.width, size.height, maxDimension);
+        if (!next) {
+          return { width: 0, height: 0 };
+        }
+        const activePage = await getPage();
+        const current = activePage.viewportSize();
+        if (current && current.width === next.width && current.height === next.height) {
+          return next;
+        }
+        await activePage.setViewportSize(next);
+        await frameLoop.requestFrame();
+        return next;
+      }, options?.signal),
 
     takeOver: async () => {
       const previous = controller.snapshot();

@@ -170,6 +170,47 @@ function clipHeaderSummary(text: string): string {
 }
 
 /**
+ * Collapsed MCP head: tool identity, plus a short arg snippet (query/prompt)
+ * when one exists. Never dump raw JSON into the title row.
+ */
+export function resolveMcpHeaderPreview(input: {
+  displayName: string;
+  toolName: string;
+  summary: string;
+  inputPreview?: string;
+}): string {
+  const identity = mcpToolIdentity(input);
+  const snippet = recoverSummaryFromInputPreview(input.inputPreview);
+  if (!identity) {
+    return snippet && !looksLikeArgsDumpSummary(snippet) ? snippet : '';
+  }
+  if (!snippet || snippet === identity || identity.includes(snippet)) {
+    return identity;
+  }
+  return `${identity} · ${snippet}`;
+}
+
+function mcpToolIdentity(input: {
+  displayName: string;
+  toolName: string;
+  summary: string;
+}): string {
+  const title = input.displayName.trim();
+  if (title && title !== 'MCP gateway') {
+    return title;
+  }
+  const summary = input.summary.trim();
+  if (summary && !looksLikeArgsDumpSummary(summary)) {
+    return summary;
+  }
+  const raw = input.toolName.trim();
+  if (!raw || raw.toLowerCase() === 'mcp_gateway') {
+    return '';
+  }
+  return raw.replace(/^mcp__?/i, '').replace(/__/g, ' / ').trim();
+}
+
+/**
  * Header mono preview (query / command / path summary).
  * Detail payloads (shell command / MCP args) are shown only while collapsed —
  * expanded body already owns the full detail block.
@@ -186,6 +227,11 @@ export function resolveToolCallHeaderPreview(input: {
   hasDetailInBody: boolean;
   /** True when summary is just a raw args dump (same text as inputPreview). */
   isArgsDumpSummary?: boolean;
+  /**
+   * MCP verbs are generic ("Called" / "已调用"); the title *is* the preview.
+   * Keep a summary that repeats displayName in that case.
+   */
+  keepTitlePreview?: boolean;
 }): string {
   const {
     summary,
@@ -197,13 +243,16 @@ export function resolveToolCallHeaderPreview(input: {
     expanded,
     hasDetailInBody,
     isArgsDumpSummary = false,
+    keepTitlePreview = false,
   } = input;
-  if (!summary || summary === displayName) return '';
+  if (!summary) return '';
+  if (summary === displayName && !keepTitlePreview) return '';
   // Never promote raw JSON/args dumps into the title row (MCP legacy presentations).
   if (isArgsDumpSummary) return '';
   // Expanded body already renders the full detail — keep the head as verb-only
-  // so long shell/MCP lines do not wrap into a multi-line "title".
-  if (expanded && hasDetailInBody) return '';
+  // so long shell lines do not wrap into a multi-line "title". MCP identity is
+  // short and is the only label besides the generic 调用/已调用 verb.
+  if (expanded && hasDetailInBody && !keepTitlePreview) return '';
   if (showFilePill && pillLabel && (summary === pillLabel || summary === singleBasename)) {
     return '';
   }

@@ -54,6 +54,22 @@ const RETIRED_THEME_IDS: Record<string, string> = {
 /** Current id for a possibly-retired one. */
 export const migrateThemeId = (themeId: string): string => RETIRED_THEME_IDS[themeId] ?? themeId;
 
+/**
+ * Host still installs bundled dirs as `piwin-dark` / `piwin-light`. Send those
+ * on `theme/set-active` so an older Host (or a Host that has not remapped Deck
+ * faces) does not `open` a folder that is not on disk.
+ */
+export function toHostCatalogThemeId(themeId: string): string {
+  switch (themeId) {
+    case 'piwin-obsidian':
+      return 'piwin-dark';
+    case 'piwin-bone':
+      return 'piwin-light';
+    default:
+      return themeId;
+  }
+}
+
 /** True when the id names a theme the desktop bundle can paint without Host. */
 export function isBuiltinAppearanceId(themeId: string): boolean {
   const id = migrateThemeId(themeId);

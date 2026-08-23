@@ -11,6 +11,8 @@ export {
   ensureBundledThemesInstalled,
   listThemes,
   loadThemeManifest,
+  resolveOnDiskThemeId,
+  ThemeNotFoundError,
   getActiveTheme,
   setActiveTheme,
   installThemeFromLocalPath,

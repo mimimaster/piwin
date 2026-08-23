@@ -1,20 +1,22 @@
 /**
- * WorkspaceShell — pure layout for the three-column product shell.
+ * WorkspaceShell — pure layout for the product shell.
  *
- * No full-window topbar. Chrome (nav controls, title, tools) lives in the
- * stage column only via the contextBar slot.
+ * The titlebar is a full-window row above the deck, not a panel child. macOS
+ * pins the Overlay traffic lights to a fixed offset from the *window* top, so
+ * the only row that can share their line is one flush with the window top.
+ * Panels start below it and keep the deck inset.
  *
- * Columns (left → right):
- *   - Sidebar (collapsible)
- *   - Stage: contextBar + transcript/permission/composer + statusBar
- *   - Right panel / inspector (optional)
+ * Rows / columns:
+ *   - Titlebar: window controls, history, title, right tools (spans all columns)
+ *   - Sidebar (collapsible) | Stage (transcript/permission/composer + statusBar)
+ *     | Right panel / inspector (optional)
  */
 import type { ReactElement, ReactNode } from 'react';
 
 export type WorkspaceShellProps = {
   sidebar: ReactNode;
-  /** Stage-local chrome: sidebar toggle, history, title, right tools. */
-  contextBar: ReactNode;
+  /** Full-window titlebar: window controls, history, title, right tools. */
+  titlebar: ReactNode;
   transcript: ReactNode;
   activityDock?: ReactNode | undefined;
   permissionBar?: ReactNode | undefined;
@@ -28,6 +30,7 @@ export type WorkspaceShellProps = {
 export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
   return (
     <>
+      {props.titlebar}
       {props.sidebar}
       <div
         className={`workspace${props.workspaceClassName !== undefined ? ` ${props.workspaceClassName}` : ''}`}
@@ -35,7 +38,6 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
         <section
           className={`chat-column${props.chatColumnClassName !== undefined ? ` ${props.chatColumnClassName}` : ''}`}
         >
-          {props.contextBar}
           <div className="chat-stage">
             {props.transcript}
             {props.activityDock !== undefined ? props.activityDock : null}

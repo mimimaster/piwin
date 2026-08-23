@@ -14,6 +14,8 @@ import type {
 import { partitionRemoteSettingsMutations, type SettingsMutation } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 import { createGestureIdempotencyKey } from './gesture-idempotency.js';
+import { isSettingsRevisionConflict } from './host-problem-copy.js';
+import { enqueueSettingsApply } from './settings-apply-chain.js';
 import { sessionListCommandForTransport } from './remote-session-hydrate';
 import {
   settingsApplyInputFromSnapshot,
@@ -310,6 +312,19 @@ export function settingsMutationsForHostApply(
 }
 
 async function applyConfigDraft(
+  hostClient: HostClient,
+  nextConfig: PiwinConfig,
+): Promise<HostResponse> {
+  return enqueueSettingsApply(async () => {
+    const first = await applyConfigDraftOnce(hostClient, nextConfig);
+    if (!isSettingsRevisionConflict(first)) {
+      return first;
+    }
+    return applyConfigDraftOnce(hostClient, nextConfig);
+  });
+}
+
+async function applyConfigDraftOnce(
   hostClient: HostClient,
   nextConfig: PiwinConfig,
 ): Promise<HostResponse> {

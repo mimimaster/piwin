@@ -869,6 +869,10 @@ export class HostClient {
     return this.request({ type: 'browser/unlock', owner });
   }
 
+  async browserResize(width: number, height: number): Promise<HostResponse> {
+    return this.request({ type: 'browser/resize', width, height });
+  }
+
   // --- Side Chat commands (spec §8) -----------------------------------------
 
   /** Open a side chat from a main session. */

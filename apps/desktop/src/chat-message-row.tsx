@@ -68,6 +68,7 @@ import type { DocCardSequenceRequest } from './DocCardSequenceView';
 import { MessageEditCard } from './chat-message-edit-card';
 import { TurnErrorCard } from './turn-error-card';
 import { MessageBubbleContextMenu } from './message-bubble-context-menu';
+import { resolveTurnErrorMessage } from './turn-error-presentation';
 
 export type ChatMessageRowProps = {
   message: ChatMessageUi;
@@ -221,6 +222,14 @@ function getGenerationStatus(
 export const ChatMessageRow = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement | null {
     const { message } = props;
+    const errorMessage = resolveTurnErrorMessage({
+      messageStatus: message.status,
+      messageError: message.error,
+      runOutcome: props.runRecord?.outcome,
+      runTerminalMessage: props.runRecord?.terminalMessage,
+      isLastAssistantInTurn: props.isLastAssistantInTurn === true,
+      locale: props.locale,
+    });
     const imageGenerationStatus =
       message.role === 'assistant' ? getGenerationStatus(message, 'image') : null;
     const videoGenerationStatus =
@@ -648,21 +657,10 @@ export const ChatMessageRow = memo(
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
         ) : null}
-        {message.role === 'assistant' &&
-        (message.status === 'error' ||
-          Boolean(message.error) ||
-          props.runRecord?.outcome === 'failed') ? (
+        {message.role === 'assistant' && errorMessage !== null ? (
           <TurnErrorCard
             messageId={message.id}
-            error={
-              message.error ||
-              props.runRecord?.terminalMessage ||
-              (message.status === 'error'
-                ? props.locale === 'zh-CN'
-                  ? '生成失败'
-                  : 'Generation failed'
-                : null)
-            }
+            error={errorMessage}
             locale={props.locale}
             onRetry={() => {
               if (props.onRegenerate) {

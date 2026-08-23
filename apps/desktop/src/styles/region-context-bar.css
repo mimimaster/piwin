@@ -1,26 +1,24 @@
-/* Region: context bar — the stage titleband (no full-window topbar).
-   Layout: [sidebar][←][→] title …drag… [theme][more][panel]
+/* Region: context bar — the window titleband (region-shell.css places it).
+   Layout: [clearance][sidebar][←][→] title …drag… [theme][more][panel]
 
    Deck rule: the titleband is not a band. It has no fill and no bottom rule —
-   it is the top of the stage panel with the title floating in it. Separation
-   from the transcript comes from space, not from a line. */
-
-.chat-column > .context-bar {
-  /* Chrome is a stage child, never a grid topbar. */
-  position: relative;
-  z-index: 2;
-}
+   it is the window's top line with the title floating in it, and the void
+   shows through behind it. Separation from the panels comes from the deck gap. */
 
 .context-bar,
 .context-titlebar-box {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--s-1);
-  flex-shrink: 0;
   width: 100%;
   min-height: var(--titleband-height);
   height: var(--titleband-height);
-  padding: 0 var(--s-3) 0 var(--s-2);
+  /* Left padding is the traffic-light clearance in every layout, because this
+     row always starts at the window's leading edge. The grid already inset the
+     row by one deck inset, so it only owes the remainder. */
+  padding: 0 var(--s-3) 0 calc(var(--traffic-light-clearance) - var(--deck-inset));
   box-sizing: border-box;
   margin: 0;
   background: transparent;
@@ -29,12 +27,6 @@
   /* Titleband is the window drag surface; interactive children opt out. */
   -webkit-app-region: drag;
   app-region: drag;
-}
-
-/* Whenever the navigator is closed the stage sits beneath the macOS traffic
-   lights, so the leading cluster has to clear them. */
-.app-shell:not(.nav-open) .context-bar {
-  padding-left: 84px;
 }
 
 .context-bar [data-no-window-drag],
@@ -53,6 +45,17 @@
   flex: 0 0 auto;
   margin: 0;
   padding: 0;
+}
+
+/* The window controls belong over the sidebar; the title belongs over the
+   stage. With the sidebar open, hold the cluster to the sidebar's width so the
+   title starts at the seam instead of straddling it. Collapsed, there is no
+   seam and the title simply follows the arrows. */
+.app-shell.nav-open > .context-bar > .context-bar-leading {
+  min-width: calc(
+    var(--deck-inset) + var(--sidebar-width) + var(--deck-gap) -
+      var(--traffic-light-clearance)
+  );
 }
 
 /* Chrome icon buttons: recessive at rest, a real surface on hover. A hover

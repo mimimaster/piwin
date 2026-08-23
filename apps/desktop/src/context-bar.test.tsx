@@ -241,6 +241,29 @@ describe('ContextBar', () => {
     expect(container.querySelector('.context-bar-inspector-btn')).toBeNull();
   });
 
+  it('keeps window controls in the titleband whether the sidebar is open or not', () => {
+    for (const sessionsExpanded of [true, false]) {
+      renderContextBar(
+        createBaseProps({
+          runState: createIdleRunStatus(),
+          sessionsExpanded,
+          onToggleSessions: vi.fn(),
+          canGoBack: true,
+          canGoForward: false,
+          onGoBack: vi.fn(),
+          onGoForward: vi.fn(),
+        }),
+        root,
+      );
+
+      const toggle = container.querySelector('[data-testid="rail-chats-btn"]');
+      expect(toggle).not.toBeNull();
+      expect(toggle?.getAttribute('aria-expanded')).toBe(String(sessionsExpanded));
+      expect(container.querySelector('[data-testid="titlebar-back-btn"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="titlebar-forward-btn"]')).not.toBeNull();
+    }
+  });
+
   it('hosts shell chrome controls when titleband props are provided', () => {
     const onToggleSessions = vi.fn();
     const onToggleWorkPanel = vi.fn();

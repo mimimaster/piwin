@@ -22,7 +22,8 @@ import { createRemoteProjectId } from './remote-project-id.js';
 export function resolveSessionScopeFromInput(input: CreateSessionInput): SessionScope {
   if (input.scope) {
     if (input.scope.kind === 'project') {
-      const projectPath = input.scope.projectPath.trim();
+      const projectPath =
+        typeof input.scope.projectPath === 'string' ? input.scope.projectPath.trim() : '';
       if (!projectPath) {
         throw new Error('project scope requires a non-empty projectPath');
       }
@@ -81,7 +82,9 @@ async function bindProjectIdToScope(
     throw new Error('Unknown project');
   }
   const existingPath =
-    input.scope?.kind === 'project' ? input.scope.projectPath.trim() : input.projectPath?.trim();
+    input.scope?.kind === 'project'
+      ? (typeof input.scope.projectPath === 'string' ? input.scope.projectPath.trim() : '')
+      : input.projectPath?.trim();
   if (existingPath && existingPath !== match.path) {
     throw new Error('projectId cannot be combined with projectPath');
   }

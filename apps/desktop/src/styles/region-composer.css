@@ -191,9 +191,12 @@
   width: 100%;
   min-height: 26px;
   max-height: 200px;
+  margin: 0;
   padding: 0;
   border: none;
+  border-radius: 0;
   outline: none;
+  box-shadow: none;
   resize: none;
   background: transparent;
   color: var(--text-1);
@@ -201,6 +204,11 @@
   font-size: var(--chat-font-size);
   line-height: 1.55;
   letter-spacing: -0.011em;
+}
+
+.composer-v2-textarea:focus {
+  outline: none;
+  box-shadow: none;
 }
 
 .composer-v2-textarea::placeholder {

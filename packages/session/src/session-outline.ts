@@ -21,7 +21,9 @@ export function buildSessionOutline(
     id: message.id,
     role: message.role as AgentMessageRole,
     preview: buildPreview(
-      message.role === 'user' ? extractUserFacingBody(message.text) : message.text,
+      message.role === 'user'
+        ? extractUserFacingBody(typeof message.text === 'string' ? message.text : '')
+        : (message.text ?? ''),
     ),
     createdAt: message.createdAt,
   }));
@@ -185,6 +187,9 @@ function decodeOutlineCursor(value: string): OutlineCursorPayload {
 }
 
 function buildPreview(text: string): string {
+  if (typeof text !== 'string' || text.length === 0) {
+    return '';
+  }
   const collapsed = text.replace(/\s+/g, ' ').trim();
   if (collapsed.length <= PREVIEW_MAX_CHARS) {
     return collapsed;
