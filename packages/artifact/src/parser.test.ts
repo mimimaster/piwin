@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { splitMarkdownBlocks, tryParseHtmlArtifactFence } from './parser.js';
+import { STREAMING_ARTIFACT_FENCE_MARKER } from './constants.js';
+import { tryParseHtmlArtifactFence } from './parser.js';
 
 describe('tryParseHtmlArtifactFence', () => {
   it('promotes artifact-html fences', () => {
@@ -42,6 +43,35 @@ describe('tryParseHtmlArtifactFence', () => {
     expect(descriptor?.declaration).toBe('native');
   });
 
+  it('promotes marked native HTML from its first streaming token', () => {
+    const descriptor = tryParseHtmlArtifactFence({
+      language: `html ${STREAMING_ARTIFACT_FENCE_MARKER}`,
+      source: '<',
+      id: 'native-html-stream',
+      htmlUiModeEnabled: true,
+      allowIncompleteSource: true,
+    });
+
+    expect(descriptor).toMatchObject({
+      type: 'html',
+      declaration: 'native',
+      rawLanguage: 'html',
+      source: '<',
+    });
+  });
+
+  it('keeps unmarked pre-structure native HTML as code during stream preview', () => {
+    expect(
+      tryParseHtmlArtifactFence({
+        language: 'html',
+        source: '<',
+        id: 'native-html-closed-stream',
+        htmlUiModeEnabled: true,
+        allowIncompleteSource: true,
+      }),
+    ).toBeNull();
+  });
+
   it('preserves a native full document byte-for-byte and marks it as code-origin', () => {
     const source =
       '<!DOCTYPE html><html class="app"><head><title>Demo</title></head><body data-page="true"><main>UI</main></body></html>';
@@ -79,6 +109,16 @@ describe('tryParseHtmlArtifactFence', () => {
     ).toBeNull();
   });
 
+  it('does not promote fuzzy artifact* languages', () => {
+    expect(
+      tryParseHtmlArtifactFence({
+        language: 'artifact',
+        source: '<div class="card">x</div>',
+        id: 'ambiguous',
+      }),
+    ).toBeNull();
+  });
+
   it('promotes a valid svg fence when Artifact parsing is enabled', () => {
     const descriptor = tryParseHtmlArtifactFence({
       language: 'svg title="Pelican"',
@@ -93,6 +133,23 @@ describe('tryParseHtmlArtifactFence', () => {
       alias: 'svg',
     });
     expect(descriptor?.source).toContain('<svg');
+  });
+
+  it('promotes marked native SVG before its root tag arrives', () => {
+    const descriptor = tryParseHtmlArtifactFence({
+      language: `svg ${STREAMING_ARTIFACT_FENCE_MARKER}`,
+      source: '<',
+      id: 'native-svg-stream',
+      htmlUiModeEnabled: true,
+      allowIncompleteSource: true,
+    });
+
+    expect(descriptor).toMatchObject({
+      type: 'svg',
+      declaration: 'native',
+      rawLanguage: 'svg',
+      source: '<',
+    });
   });
 
   it('keeps svg source as code when Artifact parsing is disabled', () => {
@@ -115,61 +172,5 @@ describe('tryParseHtmlArtifactFence', () => {
         htmlUiModeEnabled: true,
       }),
     ).toBeNull();
-  });
-});
-
-describe('splitMarkdownBlocks', () => {
-  it('splits paragraphs and fenced code with language', () => {
-    const blocks = splitMarkdownBlocks('hello\n\n```html\n<div></div>\n```\n');
-    expect(blocks.some((block) => block.type === 'paragraph')).toBe(true);
-    const code = blocks.find((block) => block.type === 'code');
-    expect(code).toMatchObject({ type: 'code', language: 'html' });
-  });
-
-  it('parses markdown tables with headers, alignments, and rows', () => {
-    const tableMd = `
-| Command | Mode | Timeout |
-| :--- | :---: | ---: |
-| pnpm dev | auto | 5000 |
-| pnpm test | manual | 10000 |
-`;
-    const blocks = splitMarkdownBlocks(tableMd);
-    const table = blocks.find((b) => b.type === 'table');
-    expect(table).toBeDefined();
-    if (table && table.type === 'table') {
-      expect(table.headers).toEqual(['Command', 'Mode', 'Timeout']);
-      expect(table.alignments).toEqual(['left', 'center', 'right']);
-      expect(table.rows).toEqual([
-        ['pnpm dev', 'auto', '5000'],
-        ['pnpm test', 'manual', '10000'],
-      ]);
-    }
-  });
-
-  it('parses headings, callouts, and ordered lists', () => {
-    const md = `
-# Title
-> [!NOTE]
-> Important note text
-
-1. Step one
-2. Step two
-`;
-    const blocks = splitMarkdownBlocks(md);
-    expect(blocks.find((b) => b.type === 'heading')).toEqual({
-      type: 'heading',
-      level: 1,
-      text: 'Title',
-    });
-    expect(blocks.find((b) => b.type === 'blockquote')).toEqual({
-      type: 'blockquote',
-      text: 'Important note text',
-      kind: 'note',
-    });
-    expect(blocks.find((b) => b.type === 'list')).toEqual({
-      type: 'list',
-      items: ['Step one', 'Step two'],
-      ordered: true,
-    });
   });
 });

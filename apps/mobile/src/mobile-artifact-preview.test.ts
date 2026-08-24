@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { indexArtifactFences } from '@piwin/artifact';
 import { collectMobileArtifacts, mobileArtifactBlockedCopy } from './mobile-artifact-preview.js';
 
 describe('collectMobileArtifacts', () => {
@@ -15,6 +16,10 @@ describe('collectMobileArtifacts', () => {
     const items = collectMobileArtifacts(text);
     expect(items).toHaveLength(1);
     expect(items[0]?.title).toBe('Landing');
+    expect(indexArtifactFences(text).map((fence) => fence.source)).toEqual([
+      '<section><h1>Hello</h1></section>',
+      'export const x = 1;',
+    ]);
     expect(items[0]?.decision.kind).toBe('render');
     if (items[0]?.decision.kind === 'render') {
       expect(items[0].decision.srcdoc).toContain('<h1>Hello</h1>');

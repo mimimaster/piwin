@@ -10,10 +10,14 @@
  * ~/.piwin is introduced for Canvas state.
  */
 
-import type {
-  ArtifactDeclaration,
-  ArtifactDescriptor,
-  ArtifactDocumentKind,
+import {
+  evaluateCodeFence,
+  indexArtifactFences,
+  resolveArtifactPresentation,
+  type ArtifactDeclaration,
+  type ArtifactDescriptor,
+  type ArtifactDocumentKind,
+  type ArtifactPreviewDecision,
 } from '@piwin/artifact';
 
 export type ArtifactCanvasTarget = {
@@ -53,8 +57,8 @@ export function buildArtifactCanvasTargetId(
 
 /**
  * Construct a Canvas target from a parsed artifact descriptor plus origin
- * metadata. Opening Canvas is an explicit user action, so native/full-document
- * previews may enter this path even when the original fence defaulted Inline.
+ * metadata. Both live auto-reveal and the transcript launcher use this exact
+ * target shape, so reopening a completed Canvas preserves its stable identity.
  */
 export function createArtifactCanvasTarget(input: {
   sessionId: string;
@@ -77,6 +81,56 @@ export function createArtifactCanvasTarget(input: {
     rawLanguage: descriptor.rawLanguage,
     source: descriptor.source,
   };
+}
+
+/**
+ * Recover renderable Canvas declarations from a completed Assistant message.
+ * Uses the same fence index, security policy, surface router, and ordinal as
+ * MarkdownCodeFence so automatic reveal cannot create a second interpretation
+ * of model output.
+ */
+export function collectArtifactCanvasTargets(input: {
+  sessionId: string;
+  messageId: string;
+  markdown: string;
+  maxBytes?: number;
+}): ArtifactCanvasTarget[] {
+  const targets: ArtifactCanvasTarget[] = [];
+
+  for (const fence of indexArtifactFences(input.markdown)) {
+    const options: Parameters<typeof evaluateCodeFence>[0] = {
+      language: fence.info,
+      source: fence.source,
+      id: `${input.messageId}-artifact-${fence.ordinal}`,
+      htmlUiModeEnabled: true,
+      mode: 'interactive',
+    };
+    if (input.maxBytes !== undefined) {
+      options.maxBytes = input.maxBytes;
+    }
+    const decision: ArtifactPreviewDecision = evaluateCodeFence(options);
+    if (decision.kind !== 'render') {
+      continue;
+    }
+    const presentation = resolveArtifactPresentation({
+      descriptor: decision.descriptor,
+      mode: decision.mode,
+      source: decision.renderSource,
+    });
+    if (presentation.kind !== 'canvas') {
+      continue;
+    }
+    targets.push(
+      createArtifactCanvasTarget({
+        sessionId: input.sessionId,
+        messageId: input.messageId,
+        fenceIndex: fence.ordinal,
+        descriptor: decision.descriptor,
+      }),
+    );
+  }
+
+  return targets;
 }
 
 /**
