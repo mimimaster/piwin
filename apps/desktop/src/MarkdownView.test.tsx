@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import * as artifact from '@piwin/artifact';
 import { createDefaultArtifactTheme } from '@piwin/artifact';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
@@ -88,6 +89,7 @@ describe('MarkdownView artifact preview policy', () => {
 
   afterEach(() => {
     cleanupMountedMarkdownRenders();
+    vi.restoreAllMocks();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -154,6 +156,46 @@ describe('MarkdownView artifact preview policy', () => {
       element.getAttribute('data-artifact-id'),
     );
     expect(ids).toEqual(['message-two-artifact-0', 'message-two-artifact-1']);
+  });
+
+  it('does not materialize srcdoc until an inline frame or Canvas panel will mount', () => {
+    const spy = vi.spyOn(artifact, 'materializeArtifact');
+    renderMarkdown(
+      <MarkdownView
+        text={CANVAS_ARTIFACT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={vi.fn()}
+      />,
+    );
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockClear();
+
+    renderMarkdown(
+      <MarkdownView
+        text={FULL_HTML_DOCUMENT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-full', messageId: 'message-full' }}
+        onOpenArtifactCanvas={vi.fn()}
+      />,
+    );
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockClear();
+
+    renderMarkdown(
+      <MarkdownView
+        text={ARTIFACT_HTML_FENCE}
+        renderingPhase="completed"
+        artifactPreviewEnabled={false}
+      />,
+    );
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockClear();
+
+    renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactCodeFirst />,
+    );
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('routes an explicit Canvas fence to a launcher with stable message origin', () => {

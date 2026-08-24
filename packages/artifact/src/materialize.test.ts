@@ -123,6 +123,40 @@ describe('materializeArtifact', () => {
     expect(analysis.kind).toBe('code');
   });
 
+  it('keeps a viewport intent and uses canvas overflow CSS when the host is Canvas', () => {
+    const analysis = analyze(
+      'artifact-html',
+      '<main style="height:100vh">Workspace</main>',
+      { id: 'viewport-host' },
+    );
+    expect(analysis.kind).toBe('intent');
+    if (analysis.kind !== 'intent') return;
+    expect(analysis.intent.layout).toBe('viewport');
+    expect(analysis.intent.surface).toBe('inline');
+
+    const inlinePlan = materializeArtifact(analysis.intent, { mode: 'interactive' });
+    expect(inlinePlan.intent.layout).toBe('viewport');
+    expect(inlinePlan.intent.surface).toBe('inline');
+    expect(inlinePlan.frameMode).toBe('inline-viewport');
+    expect(inlinePlan.document.kind).toBe('sandbox');
+    if (inlinePlan.document.kind === 'sandbox') {
+      expect(inlinePlan.document.srcdoc).toContain('overflow-x: hidden !important');
+    }
+
+    const canvasPlan = materializeArtifact(analysis.intent, {
+      mode: 'interactive',
+      presentation: 'canvas',
+    });
+    expect(canvasPlan.intent.layout).toBe('viewport');
+    expect(canvasPlan.intent.surface).toBe('inline');
+    expect(canvasPlan.frameMode).toBe('canvas');
+    expect(canvasPlan.document.kind).toBe('sandbox');
+    if (canvasPlan.document.kind === 'sandbox') {
+      expect(canvasPlan.document.srcdoc).toContain('overflow-x: auto !important');
+      expect(canvasPlan.document.srcdoc).toContain('overflow-y: auto !important');
+    }
+  });
+
   it('renders a safe svg fence as static source', () => {
     const analysis = analyze(
       'svg',

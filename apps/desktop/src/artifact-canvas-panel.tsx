@@ -49,6 +49,7 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
     return materializeArtifact(activeTarget.intent, {
       mode: 'interactive',
       source: activeTarget.intent.descriptor.source,
+      presentation: 'canvas',
       ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
     });
   }, [activeTarget, props.artifactTheme]);
