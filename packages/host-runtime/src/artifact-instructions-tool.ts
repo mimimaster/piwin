@@ -1,6 +1,7 @@
 /** Lazy Artifact policy/runtime delivery for model turns that actually need it. */
 
 import {
+  ARTIFACT_EXPLICIT_ONLY_HINT,
   ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   formatArtifactInstructions,
   type ArtifactConfig,
@@ -10,8 +11,6 @@ import {
 
 const DEFAULT_AUTOMATIC_HINT =
   'Use an Artifact when dense, structured, visual, or interactive content is materially easier to use than Markdown.';
-const DEFAULT_EXPLICIT_HINT =
-  'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
 const MAX_TRACKED_INSTRUCTION_RUNS = 256;
 const ALREADY_LOADED_OUTPUT =
   'Artifact instructions are already loaded for this run. Reuse the previous result and produce the final response without calling this tool again.';
@@ -21,19 +20,27 @@ export function formatArtifactCapabilityPrompt(config: ArtifactConfig): string |
   if (!config.enabled) {
     return undefined;
   }
-  const configuredDecision =
-    config.decisionPrompt.mode === 'custom' && config.decisionPrompt.customPrompt.trim().length > 0
-      ? 'A custom Artifact decision policy is configured. Load it before deciding whenever an Artifact may be relevant.'
-      : config.triggerMode === 'explicit-only'
-        ? DEFAULT_EXPLICIT_HINT
+  const hasCustomDecision =
+    config.decisionPrompt.mode === 'custom' && config.decisionPrompt.customPrompt.trim().length > 0;
+  const triggerHint =
+    config.triggerMode === 'explicit-only'
+      ? ARTIFACT_EXPLICIT_ONLY_HINT
+      : hasCustomDecision
+        ? undefined
         : DEFAULT_AUTOMATIC_HINT;
+  const customHint = hasCustomDecision
+    ? 'A custom Artifact decision policy is configured. Load it before deciding whenever an Artifact may be relevant.'
+    : undefined;
   return [
     '[piwin-prompt-meta kind="artifact:capability" version="6" applies="generation"]',
     '## Artifact capability',
-    configuredDecision,
+    triggerHint,
+    customHint,
     `Before emitting an HTML or SVG Artifact, call \`${ARTIFACT_INSTRUCTIONS_TOOL_NAME}\` at most one load per run and reuse its successful result.`,
     'Use ordinary Markdown when an Artifact does not materially improve the result.',
-  ].join('\n');
+  ]
+    .filter((part): part is string => part !== undefined && part.length > 0)
+    .join('\n');
 }
 
 /** Compact routing hint only when the generation surface has a concrete executor. */

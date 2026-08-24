@@ -70,6 +70,10 @@ export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 /** Host tool that returns the decision policy + runtime contract on demand. */
 export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 
+/** Trigger constraint prefixed onto instructions whenever triggerMode is explicit-only. */
+export const ARTIFACT_EXPLICIT_ONLY_HINT =
+  'Use an Artifact only when the user explicitly requests an artifact, visualization, interactive page, prototype, or UI.';
+
 export function createDefaultArtifactConfig(): ArtifactConfig {
   return {
     enabled: true,
@@ -187,7 +191,14 @@ export const ARTIFACT_RUNTIME_CONTRACT = formatArtifactProtocol();
  * Full model-facing Artifact instructions: configured decision policy plus
  * the shared runtime protocol. `artifact_instructions` and any default
  * prompt path must call this instead of concatenating surface rules.
+ * Explicit-only is a product constraint, not part of the editable decision
+ * prompt, so it is prefixed whenever `triggerMode === 'explicit-only'`.
  */
 export function formatArtifactInstructions(config: ArtifactConfig): string {
-  return `${resolveArtifactDecisionPrompt(config)}\n\n${formatArtifactProtocol()}`;
+  const parts = [
+    config.triggerMode === 'explicit-only' ? ARTIFACT_EXPLICIT_ONLY_HINT : undefined,
+    resolveArtifactDecisionPrompt(config),
+    formatArtifactProtocol(),
+  ].filter((part): part is string => part !== undefined && part.length > 0);
+  return parts.join('\n\n');
 }

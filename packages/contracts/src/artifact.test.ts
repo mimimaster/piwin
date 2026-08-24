@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARTIFACT_EXPLICIT_ONLY_HINT,
   ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_RUNTIME_CONTRACT,
   CANONICAL_ARTIFACT_LANGUAGE,
@@ -101,5 +102,26 @@ describe('artifact protocol formatter', () => {
     expect(instructions).toContain('private custom sentinel');
     expect(instructions).toContain(formatArtifactProtocol());
     expect(instructions).not.toContain('## Artifact Decision Policy');
+    expect(instructions).not.toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+  });
+
+  it('prefixes the explicit-only constraint onto default and custom decision prompts', () => {
+    const defaultExplicit = createDefaultArtifactConfig();
+    defaultExplicit.triggerMode = 'explicit-only';
+    const defaultInstructions = formatArtifactInstructions(defaultExplicit);
+    expect(defaultInstructions.startsWith(ARTIFACT_EXPLICIT_ONLY_HINT)).toBe(true);
+    expect(defaultInstructions).toContain(resolveArtifactDecisionPrompt(defaultExplicit));
+    expect(defaultInstructions).toContain(formatArtifactProtocol());
+
+    const customExplicit = createDefaultArtifactConfig();
+    customExplicit.triggerMode = 'explicit-only';
+    customExplicit.decisionPrompt = { mode: 'custom', customPrompt: 'private custom sentinel' };
+    const customInstructions = formatArtifactInstructions(customExplicit);
+    expect(customInstructions).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+    expect(customInstructions).toContain('private custom sentinel');
+    expect(customInstructions).toContain(formatArtifactProtocol());
+    expect(customInstructions).toBe(
+      `${ARTIFACT_EXPLICIT_ONLY_HINT}\n\nprivate custom sentinel\n\n${formatArtifactProtocol()}`,
+    );
   });
 });
