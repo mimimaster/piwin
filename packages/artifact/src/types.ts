@@ -1,26 +1,8 @@
 /** Portable artifact types for piwin (no DOM / framework deps). */
 
-export type ArtifactStatus =
-  | 'idle'
-  | 'streaming'
-  | 'loading'
-  | 'ready'
-  | 'blocked-empty'
-  | 'blocked-too-large'
-  | 'blocked-external-resource'
-  | 'timeout'
-  | 'error'
-  | 'preparing';
+import type { ArtifactSurface } from '@piwin/contracts';
 
-export type ArtifactRenderPhase =
-  | 'generating'
-  | 'preparing'
-  | 'streaming-preview'
-  | 'rendering'
-  | 'measuring'
-  | 'ready'
-  | 'timeout'
-  | 'error';
+export type { ArtifactSurface };
 
 export type ArtifactRenderMode = 'interactive' | 'stream-preview';
 
@@ -41,9 +23,6 @@ export type ArtifactSecurityResult = {
   byteSize: number;
   externalResources: ExternalArtifactResource[];
 };
-
-/** Where an artifact is rendered in the product UI. */
-export type ArtifactSurface = 'inline' | 'canvas';
 
 /** Whether the model deliberately emitted an Artifact fence or ordinary code. */
 export type ArtifactDeclaration = 'explicit' | 'native';
@@ -221,11 +200,6 @@ export type ArtifactPreviewDecision =
       descriptor: ArtifactDescriptor;
       security: ArtifactSecurityResult;
       reason: ArtifactSecurityBlockReason;
-    }
-  | {
-      kind: 'preparing';
-      descriptor: ArtifactDescriptor;
-      message: string;
     }
   | {
       kind: 'code';

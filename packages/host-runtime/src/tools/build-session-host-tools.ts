@@ -28,6 +28,7 @@ import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
 import { buildImageGenTool } from '../image-gen-tool.js';
 import { buildVideoGenTool } from '../video-gen-tool.js';
+import { buildArtifactInstructionsTool } from '../artifact-instructions-tool.js';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
@@ -51,10 +52,7 @@ import type { ModelRef, PiwinConfig } from '@piwin/contracts';
 import { getPiwinSessionDir, getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
 import { getPiwinMediaDir } from '../paths.js';
 import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
-import {
-  buildMcpCapabilityBrief,
-  type McpCapabilityBrief,
-} from '../mcp-capability-brief.js';
+import { buildMcpCapabilityBrief, type McpCapabilityBrief } from '../mcp-capability-brief.js';
 import { compactModelToolDescriptor } from '../model-tool-descriptor.js';
 import { isHostToolboxTargetFamily } from '../host-toolbox.js';
 import { buildHostToolboxRegistration } from '../tool-catalog/catalog-tool.js';
@@ -228,9 +226,7 @@ export async function buildSessionHostTools(
   if (browserSession) {
     const mediaRoot = getPiwinMediaDir(rootDir);
     const primarySupportsImage = options.config
-      ? primaryModelSupportsImage(
-          findConfiguredModel(options.config, options.model)?.model.input,
-        )
+      ? primaryModelSupportsImage(findConfiguredModel(options.config, options.model)?.model.input)
       : false;
     const browserTools = createBrowserToolDefinitions(browserSession, {
       projectRoot: options.projectPath ?? rootDir ?? process.cwd(),
@@ -341,6 +337,11 @@ export async function buildSessionHostTools(
         ...(options.onPlanUpdated ? { onUpdated: options.onPlanUpdated } : {}),
       }),
     );
+  }
+
+  // --- Artifact instructions (full contract is lazy, not system-prompt resident) ---
+  if (options.config?.artifact.enabled) {
+    tools.push(buildArtifactInstructionsTool(options.config.artifact));
   }
 
   // --- Subagent run tool ---
