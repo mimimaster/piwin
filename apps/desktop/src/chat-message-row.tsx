@@ -121,8 +121,8 @@ export type ChatMessageRowProps = {
   subagentStreams?: Record<string, SubagentStreamState>;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  /** When false (default), MarkdownView hides the heavy Artifact path. */
-  artifactPreviewEnabled?: boolean;
+  /** Artifact capability. Always forwarded as a boolean. */
+  artifactPreviewEnabled: boolean;
   /** When true, MarkdownView displays source code first for artifact blocks. */
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to analyzeArtifactFence. */
@@ -406,7 +406,7 @@ export const ChatMessageRow = memo(
                   : null
               }
               isStreaming={props.streaming}
-              {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+              artifactPreviewEnabled={props.artifactPreviewEnabled}
               {...(props.artifactMaxBytes !== undefined
                 ? { artifactMaxBytes: props.artifactMaxBytes }
                 : {})}
@@ -468,7 +468,8 @@ export const ChatMessageRow = memo(
                   artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
                   showStreamingCaret={props.showStreamingCaret}
                   locale={props.locale ?? 'zh-CN'}
-                  {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+                  artifactPreviewEnabled={props.artifactPreviewEnabled}
+                  artifactCodeFirst={props.artifactCodeFirst ?? false}
                   {...(props.artifactMaxBytes !== undefined
                     ? { artifactMaxBytes: props.artifactMaxBytes }
                     : {})}

@@ -5,7 +5,7 @@
  * - Enable Artifact (master switch, stored in ~/.piwin/config.json)
  * - Trigger mode (automatic / explicit-only)
  * - Decision prompt (default / custom)
- * - Code-first display (localStorage preference)
+ * - Code-first display (Inline-only localStorage preference; Canvas still auto-opens)
  * - Max bytes (advanced)
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
@@ -234,8 +234,8 @@ export function ArtifactPage(): ReactElement {
               label={isZh ? '代码优先' : 'Code-first mode'}
               description={
                 isZh
-                  ? 'Artifact 默认展示源代码，并提供 Preview 切换。'
-                  : 'Display artifact source first with a Preview toggle.'
+                  ? '仅影响 Inline Artifact：默认展示源代码，并提供 Preview 切换。显式 Canvas 仍会在回复完成后自动打开。'
+                  : 'Inline only: show artifact source first with a Preview toggle. Explicit Canvas still auto-opens when the reply completes.'
               }
               testId="artifact-code-first-row"
             >

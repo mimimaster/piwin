@@ -133,7 +133,11 @@ export type ChatThreadProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /** Open a fence explicitly declared with surface="canvas". */
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  /** When false (default), MarkdownView hides the heavy Artifact path. */
+  /**
+   * Artifact capability from `config.artifact.enabled`. Workbench always
+   * passes this boolean; isolated tests may omit it (defaults to true).
+   * Never use a truthy spread that drops `false`.
+   */
   artifactPreviewEnabled?: boolean;
   /** When true, MarkdownView displays source code first for artifact blocks. */
   artifactCodeFirst?: boolean;
@@ -567,7 +571,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                     {...(props.onOpenArtifactCanvas
                       ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
                       : {})}
-                    {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+                    artifactPreviewEnabled={props.artifactPreviewEnabled ?? true}
                     {...(props.artifactCodeFirst !== undefined
                       ? { artifactCodeFirst: props.artifactCodeFirst }
                       : {})}

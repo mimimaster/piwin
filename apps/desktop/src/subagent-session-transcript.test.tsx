@@ -46,6 +46,7 @@ function renderTranscript(input: { root: Root; showThinking: boolean }): void {
         error={null}
         onRetry={() => undefined}
         locale="en"
+        artifactPreviewEnabled={true}
         showThinking={input.showThinking}
       />
     </PiwinUiProvider>,
@@ -121,6 +122,7 @@ describe('SubagentSessionTranscript thinking visibility', () => {
             error={null}
             onRetry={() => undefined}
             locale="en"
+            artifactPreviewEnabled={true}
           />
         </PiwinUiProvider>,
       );

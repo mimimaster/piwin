@@ -78,7 +78,6 @@ function createContextValue(
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: false,
       artifactCodeFirst: false,
       verboseAgentChat: true,
       conversationWidth: 'wide',

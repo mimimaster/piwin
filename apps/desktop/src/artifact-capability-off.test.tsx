@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 /**
  * Capability-off lock through the real ChatThread / Subagent chain.
- * Workbench currently spreads `{...(enabled ? { artifactPreviewEnabled: true } : {})}`,
- * which drops `false`. Target: source-only, never iframe / static / canvas launcher.
+ * `artifactPreviewEnabled={false}` is forwarded as a boolean (never a truthy
+ * spread). Target: source-only, never iframe / static / canvas launcher.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -240,7 +240,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it.fails('正文 agent: artifactPreviewEnabled={false} stays source-only', async () => {
+  it('正文 agent: artifactPreviewEnabled={false} stays source-only', async () => {
     const container = renderTree(
       workbenchChatThread(
         [userMessage('u-agent', 'show ui'), assistantMessage('a-agent', SCRIPT_MARKDOWN)],
@@ -251,7 +251,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     expectSourceOnly(container);
   });
 
-  it.fails('正文 conversation: artifactPreviewEnabled={false} stays source-only', async () => {
+  it('正文 conversation: artifactPreviewEnabled={false} stays source-only', async () => {
     const container = renderTree(
       workbenchChatThread(
         [userMessage('u-body', 'show ui'), assistantMessage('a-body', SCRIPT_MARKDOWN)],
@@ -262,7 +262,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     expectSourceOnly(container);
   });
 
-  it.fails('正文 conversation: canvas fence does not mount a launcher when capability is off', async () => {
+  it('正文 conversation: canvas fence does not mount a launcher when capability is off', async () => {
     const container = renderTree(
       workbenchChatThread(
         [userMessage('u-canvas', 'wide ui'), assistantMessage('a-canvas', CANVAS_MARKDOWN)],
@@ -273,7 +273,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     expectSourceOnly(container);
   });
 
-  it.fails(
+  it(
     'history: session/seek-messages hydrate in TranscriptViewport stays source-only when capability is off',
     async () => {
       const historyMessages = hydrateHistoryMessages();
@@ -298,7 +298,7 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     },
   );
 
-  it.fails('Subagent inspector transcript stays source-only when capability is off', async () => {
+  it('Subagent inspector transcript stays source-only when capability is off', async () => {
     const container = renderTree(
       <SubagentSessionTranscript
         historicalMessages={[assistantMessage('child-history', SCRIPT_MARKDOWN)]}

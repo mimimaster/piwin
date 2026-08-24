@@ -859,7 +859,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       always: '始终展开',
       collapsed: '默认收起',
       codeFirstMode: '代码优先',
-      codeFirstModeDescription: 'Artifact 默认展示源代码，并提供 Preview 切换。',
+      codeFirstModeDescription:
+        '仅影响 Inline Artifact：默认展示源代码，并提供 Preview 切换。显式 Canvas 仍会在回复完成后自动打开。',
       resetDefaults: '重置 Appearance 默认值',
     },
   },
@@ -1178,7 +1179,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       always: 'Always',
       collapsed: 'Collapsed',
       codeFirstMode: 'Code-first mode',
-      codeFirstModeDescription: 'Display Artifact source first with a Preview toggle.',
+      codeFirstModeDescription:
+        'Inline only: show artifact source first with a Preview toggle. Explicit Canvas still auto-opens when the reply completes.',
       resetDefaults: 'Reset Appearance defaults',
     },
   },

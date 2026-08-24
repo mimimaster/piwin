@@ -18,7 +18,6 @@ const preferences: DesktopPreferences = {
   toolDensity: 'comfortable',
   appearanceMode: 'dark',
   verboseAgentChat: false,
-  artifactPreviewEnabled: true,
   artifactCodeFirst: false,
   lightTheme: DEFAULT_LIGHT_THEME_SETTINGS,
   darkTheme: DEFAULT_DARK_THEME_SETTINGS,

@@ -34,7 +34,6 @@ function createPreferences(overrides?: Partial<DesktopPreferences>): DesktopPref
     codeWrap: false,
     toolDensity: 'comfortable',
     workDetailsExpanded: 'auto',
-    artifactPreviewEnabled: true,
     artifactCodeFirst: false,
     verboseAgentChat: true,
     conversationWidth: 'default',

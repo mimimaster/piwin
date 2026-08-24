@@ -5,6 +5,7 @@
 import { type Dispatch, type SetStateAction } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { HostLogEntry } from '../HostLogPanel';
+import { useArtifactCanvasAutoReveal } from './use-artifact-canvas-auto-reveal';
 import { useDocComments } from './use-doc-comments';
 import { useDesktopContextMenuValue } from './use-desktop-context-menu-value';
 import { useWorkbenchCommands } from './use-workbench-commands';
@@ -91,6 +92,17 @@ export function useWorkbenchAppModel(args: UseWorkbenchAppModelArgs) {
     extensionUiRequest: host.extensionUiRequest,
     clearExtensionUiRequest: host.clearExtensionUiRequest,
     handleAbort: session.handleAbort,
+  });
+  // Capability is the only master switch. artifactCodeFirst is Inline-only and
+  // must not suppress explicit Canvas auto-reveal.
+  useArtifactCanvasAutoReveal({
+    activeSessionId: state.activeSessionId,
+    messages: state.messages,
+    enabled: host.config?.artifact?.enabled ?? true,
+    onReveal: handleOpenArtifactCanvas,
+    ...(host.config?.artifact?.maxBytes !== undefined
+      ? { maxBytes: host.config.artifact.maxBytes }
+      : {}),
   });
   const desktopContextMenuValue = useDesktopContextMenuValue({
     projectPath: state.projectPath,

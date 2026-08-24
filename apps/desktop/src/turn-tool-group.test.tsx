@@ -294,6 +294,7 @@ describe('TurnToolGroup causal tool sequence', () => {
               onRetry: vi.fn(),
               onClose: vi.fn(),
               onWorktreeAction: async () => undefined,
+              artifactPreviewEnabled: true,
             }}
           >
             <TurnToolGroup

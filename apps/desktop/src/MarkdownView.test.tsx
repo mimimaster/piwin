@@ -227,6 +227,20 @@ describe('MarkdownView artifact preview policy', () => {
     );
   });
 
+  it('code-first does not hide an explicit Canvas launcher', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={CANVAS_ARTIFACT_FENCE}
+        renderingPhase="completed"
+        artifactCodeFirst
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
   it('keeps completed JavaScript content inside the sandbox iframe', async () => {
     const { container } = renderMarkdown(
       <MarkdownView text={INTERACTIVE_ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
