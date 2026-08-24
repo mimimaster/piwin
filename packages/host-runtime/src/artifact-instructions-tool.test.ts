@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARTIFACT_EXPLICIT_ONLY_HINT,
   ARTIFACT_INSTRUCTIONS_TOOL_NAME,
   createDefaultArtifactConfig,
   formatArtifactInstructions,
@@ -53,9 +54,22 @@ describe('Artifact instruction loading', () => {
 
   it('preserves explicit-only routing and disappears when disabled', () => {
     expect(formatArtifactCapabilityPrompt(config({ triggerMode: 'explicit-only' }))).toContain(
-      'only when the user explicitly requests',
+      ARTIFACT_EXPLICIT_ONLY_HINT,
     );
     expect(formatArtifactCapabilityPrompt(config({ enabled: false }))).toBeUndefined();
+  });
+
+  it('keeps explicit-only on the resident hint in custom-prompt mode', () => {
+    const prompt = formatArtifactCapabilityPrompt(
+      config({
+        triggerMode: 'explicit-only',
+        decisionPrompt: { mode: 'custom', customPrompt: 'private custom sentinel' },
+      }),
+    );
+
+    expect(prompt).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+    expect(prompt).toContain('A custom Artifact decision policy is configured');
+    expect(prompt).not.toContain('private custom sentinel');
   });
 
   it('stays off the resident prompt unless a concrete executor is present', () => {
@@ -150,6 +164,29 @@ describe('artifact_instructions golden', () => {
     expect(repeated.output).not.toContain('## HTML Artifact Runtime Contract');
     expect(repeated.output).toContain('already loaded for this run');
     expect(repeated.output.length).toBeLessThan(200);
+  });
+
+  it('includes the explicit-only constraint in tool output, including custom mode', async () => {
+    const artifactConfig = config({
+      triggerMode: 'explicit-only',
+      decisionPrompt: { mode: 'custom', customPrompt: 'private custom sentinel' },
+    });
+    const tool = buildArtifactInstructionsTool(artifactConfig);
+    const result = await tool.execute({}, new AbortController().signal, {
+      sessionId: 'session-1',
+      runtimeGenerationId: 'generation-1',
+      runId: 'run-1',
+      toolName: ARTIFACT_INSTRUCTIONS_TOOL_NAME,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(result.message);
+    }
+    expect(result.output).toBe(formatArtifactInstructions(artifactConfig));
+    expect(result.output).toContain(ARTIFACT_EXPLICIT_ONLY_HINT);
+    expect(result.output).toContain('private custom sentinel');
+    expect(result.output).toContain(formatArtifactProtocol());
   });
 
   it('loads the full contract again for another run or runtime generation', async () => {

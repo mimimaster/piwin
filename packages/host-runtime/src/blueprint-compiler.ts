@@ -350,8 +350,6 @@ async function compileAgentCapabilityPlan(
 
   const snapshot = compileSessionCapabilitySnapshot(compileInput);
 
-  // Keep only a compact routing hint resident. The full configurable decision
-  // policy + runtime contract is loaded through artifact_instructions on demand.
   const artifactAppendPrompt = formatResidentArtifactPrompt(
     config.artifact,
     snapshot.tools.hostTools,
@@ -566,8 +564,6 @@ function compileConversationPlan(
     searchRoute,
   });
 
-  // Keep only a compact routing hint resident. The full configurable decision
-  // policy + runtime contract is loaded through artifact_instructions on demand.
   const artifactAppendPrompt = formatResidentArtifactPrompt(
     config.artifact,
     snapshot.tools.hostTools,
