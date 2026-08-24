@@ -116,12 +116,6 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
         return;
       }
       if (
-        current.onArtifactAction &&
-        (action.action === 'flashcard/rate' || action.action === 'flashcard/open-source') &&
-        current.decision.descriptor.source.includes(`data-card-id="${action.payload.cardId}"`)
-      ) {
-        current.onArtifactAction(action);
-      } else if (
         current.presentation === 'canvas' &&
         current.onComposerProposal &&
         action.action === 'composer/propose-text'

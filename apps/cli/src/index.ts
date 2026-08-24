@@ -60,6 +60,7 @@ import { createJsonlStdioTransport } from './host-serve-transport.js';
 import { createSidecarMobileAccess, interceptSidecarMobileAccess } from './mobile-access-serve.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import { resolveCliChatPrompt } from './chat-prompt.js';
+import { formatCliFlashcardToolResult } from './flashcard-tool-result.js';
 import {
   runWalkthroughList,
   runWalkthroughGenerate,
@@ -341,6 +342,10 @@ function createAssistantCliDisplay() {
         case 'tool/end':
           if (event.isError) {
             return `\n[tool:error] ${event.toolCallId}\n`;
+          }
+          {
+            const flashcardText = formatCliFlashcardToolResult(event.presentation);
+            if (flashcardText) return `\n${flashcardText}\n`;
           }
           return '\n';
 
@@ -641,7 +646,6 @@ async function commandSession(argv: string[]): Promise<void> {
       }
     }
 
-
     if (sub === 'cold') {
       const action = argv[2] ?? 'status';
       try {
@@ -682,9 +686,7 @@ async function commandSession(argv: string[]): Promise<void> {
           const sessionId = argv[3];
           const packPath = readOption(argv, '--pack');
           if (!sessionId) {
-            console.error(
-              'Usage: piwin session cold restore <sessionId> [--pack <path>] [--mock]',
-            );
+            console.error('Usage: piwin session cold restore <sessionId> [--pack <path>] [--mock]');
             process.exitCode = 1;
             return;
           }
@@ -710,9 +712,7 @@ async function commandSession(argv: string[]): Promise<void> {
           return;
         }
         console.error(`Unknown cold action: ${action}`);
-        console.error(
-          'Usage: piwin session cold status|plan|execute|restore|import|reconcile',
-        );
+        console.error('Usage: piwin session cold status|plan|execute|restore|import|reconcile');
         process.exitCode = 1;
         return;
       } catch (error) {
@@ -1236,7 +1236,9 @@ async function commandChat(argv: string[]): Promise<void> {
     const attachedPromptTimeoutMs = 10 * 60 * 1000;
     const attachedTimeout = setTimeout(() => {
       rejectAttachedCompletion?.(
-        new Error(`Attached Host prompt timed out after ${attachedPromptTimeoutMs}ms waiting for run/terminal`),
+        new Error(
+          `Attached Host prompt timed out after ${attachedPromptTimeoutMs}ms waiting for run/terminal`,
+        ),
       );
     }, attachedPromptTimeoutMs);
     const attachedDisplay = createAssistantCliDisplay();
@@ -1256,9 +1258,7 @@ async function commandChat(argv: string[]): Promise<void> {
     try {
       const createResponse = await client.request({
         type: 'session/create',
-        input: projectPath
-          ? { projectId: projectPath }
-          : { scope: { kind: 'general' } },
+        input: projectPath ? { projectId: projectPath } : { scope: { kind: 'general' } },
       });
       if (!createResponse.success) {
         throw new Error(createResponse.error);
@@ -1275,7 +1275,8 @@ async function commandChat(argv: string[]): Promise<void> {
       }
       const schemeId = readOption(argv, '--scheme')?.trim();
       const refArgs = collectRefArgs(argv);
-      const refsResult = refArgs.length > 0 ? await buildCliContextRefs(projectPath, refArgs) : null;
+      const refsResult =
+        refArgs.length > 0 ? await buildCliContextRefs(projectPath, refArgs) : null;
       if (refsResult && !refsResult.ok) {
         console.error(`[ref] ${refsResult.reason}`);
         process.exitCode = 1;
@@ -1320,7 +1321,9 @@ async function commandChat(argv: string[]): Promise<void> {
   const localPromptTimeoutMs = 10 * 60 * 1000;
   const localPromptTimeout = setTimeout(() => {
     rejectPromptCompletion?.(
-      new Error(`Local Host prompt timed out after ${localPromptTimeoutMs}ms waiting for run/terminal`),
+      new Error(
+        `Local Host prompt timed out after ${localPromptTimeoutMs}ms waiting for run/terminal`,
+      ),
     );
   }, localPromptTimeoutMs);
   const display = createAssistantCliDisplay();
@@ -2468,7 +2471,18 @@ async function commandDocCards(argv: string[]): Promise<void> {
           process.exitCode = 1;
           return;
         }
-        const job = (status.data as { job?: { status: string; created?: number; skipped?: number; createdCardIds?: string[]; sessionId?: string; error?: string } | null }).job;
+        const job = (
+          status.data as {
+            job?: {
+              status: string;
+              created?: number;
+              skipped?: number;
+              createdCardIds?: string[];
+              sessionId?: string;
+              error?: string;
+            } | null;
+          }
+        ).job;
         if (job && ['COMPLETED', 'COMPLETED_DEGRADED', 'FAILED', 'CANCELED'].includes(job.status)) {
           if (job.status === 'FAILED' || job.status === 'CANCELED') {
             console.error(job.error ? `${job.status}: ${job.error}` : job.status);
@@ -2639,13 +2653,13 @@ async function commandHostServe(argv: string[]): Promise<void> {
   });
 
   await transport.start((command) => {
-    void interceptSidecarMobileAccess(mobileAccess, command, (message) => transport.send(message)).then(
-      (handled) => {
-        if (!handled) {
-          dispatcher.dispatch(command);
-        }
-      },
-    );
+    void interceptSidecarMobileAccess(mobileAccess, command, (message) =>
+      transport.send(message),
+    ).then((handled) => {
+      if (!handled) {
+        dispatcher.dispatch(command);
+      }
+    });
   });
 
   await shutdown();
@@ -3082,7 +3096,10 @@ async function commandSideChat(argv: string[]): Promise<void> {
 /**
  * Build a {@link SideChatHostClient} on the live Host, or an in-process runtime.
  */
-async function createSideChatHostClient(mode: HostMode, mock: boolean): Promise<SideChatHostClient> {
+async function createSideChatHostClient(
+  mode: HostMode,
+  mock: boolean,
+): Promise<SideChatHostClient> {
   const pushHandlers = new Set<(message: HostPush) => void>();
   const host = await openCliHost({
     mode,

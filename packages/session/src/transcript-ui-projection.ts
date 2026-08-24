@@ -50,6 +50,7 @@ export function slimToolPresentation(
   if (presentation.actionVerb !== undefined) slim.actionVerb = presentation.actionVerb;
   if (presentation.lineRange !== undefined) slim.lineRange = presentation.lineRange;
   if (presentation.countTag !== undefined) slim.countTag = presentation.countTag;
+  if (presentation.flashcard !== undefined) slim.flashcard = presentation.flashcard;
   if (isPreservedToolOutput(presentation.title, presentation.routedToolName)) {
     if (presentation.output !== undefined) {
       slim.output = presentation.output;
@@ -71,7 +72,8 @@ export function slimToolCardForUi(tool: SessionToolCardView): SessionToolCardVie
     toolName: tool.toolName,
     status: tool.status,
     // Empty output on hydrate: expanded cards show presentation/head only.
-    // Flashcard tool outputs are preserved to render interactive artifact cards in chat.
+    // Flashcard tool outputs are preserved so historical JSON without
+    // presentation.flashcard can still project structured cards.
     output: isPreserved ? tool.output : '',
   };
   if (tool.runId !== undefined) card.runId = tool.runId;

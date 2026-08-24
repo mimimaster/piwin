@@ -5,13 +5,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { ChatMessageUi } from './chat-reducer';
+import { ConversationResponseContent } from './conversation-response-content';
 import {
-  ConversationResponseContent,
   collectFlashcardToolsFromMessages,
-  extractFlashcardArtifactHtml,
   extractFlashcardRecords,
   messageHasFlashcardToolResult,
-} from './conversation-response-content';
+} from './flashcard-result-extract';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -48,7 +47,7 @@ describe('ConversationResponseContent', () => {
     mountedRenders.length = 0;
   });
 
-  it('extracts artifactHtml from flashcard tool output JSON', () => {
+  it('extracts structured display cards from flashcard tool output JSON', () => {
     const message: ChatMessageUi = {
       id: 'm-1',
       role: 'assistant',
@@ -61,7 +60,20 @@ describe('ConversationResponseContent', () => {
           status: 'done',
           output: JSON.stringify({
             card: { id: 'card-123', front: 'Q', back: 'A' },
-            artifactHtml: '<div class="piwin-flashcard" data-card-id="card-123">Card content</div>',
+            display: {
+              cards: [
+                {
+                  cardId: 'card-123',
+                  itemId: 'card-123',
+                  model: 'basic',
+                  ordinal: 1,
+                  deck: 'default',
+                  front: 'Q',
+                  back: 'A',
+                  createdAt: '2026-08-24T00:00:00.000Z',
+                },
+              ],
+            },
           }),
         },
       ],
@@ -70,11 +82,11 @@ describe('ConversationResponseContent', () => {
     };
 
     expect(messageHasFlashcardToolResult(message)).toBe(true);
-    const html = extractFlashcardArtifactHtml(message);
-    expect(html).toContain('data-card-id="card-123"');
-    expect(html).toContain('Q');
-    expect(html).toContain('A');
-    expect(html).toContain('fc-card-frame');
+    const cards = extractFlashcardRecords(message);
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.cardId).toBe('card-123');
+    expect(cards[0]?.front).toBe('Q');
+    expect(cards[0]?.back).toBe('A');
   });
 
   it('renders extracted flashcard artifact when message.text does not contain fence', () => {
@@ -90,8 +102,20 @@ describe('ConversationResponseContent', () => {
           status: 'done',
           output: JSON.stringify({
             card: { id: 'card-photo', front: '什么是光合作用？', back: '光能转化' },
-            artifactHtml:
-              '<div class="piwin-flashcard" data-card-id="card-photo"><h1>光合作用</h1></div>',
+            display: {
+              cards: [
+                {
+                  cardId: 'card-photo',
+                  itemId: 'card-photo',
+                  model: 'basic',
+                  ordinal: 1,
+                  deck: 'default',
+                  front: '什么是光合作用？',
+                  back: '光能转化',
+                  createdAt: '2026-08-24T00:00:00.000Z',
+                },
+              ],
+            },
           }),
         },
       ],
@@ -306,7 +330,6 @@ describe('ConversationResponseContent', () => {
         },
       ],
       skipped: [],
-      artifactHtml: '<div class="piwin-flashcard" data-card-id="card-f3dc5a95-msy8lzjt:c1"></div>',
     });
     const toolMessage: ChatMessageUi = {
       id: 'tool-msg',
@@ -529,6 +552,139 @@ describe('ConversationResponseContent', () => {
     });
     expect(cards).toHaveLength(1);
     expect(cards[0]?.front).toBe('线粒体是[…]的[…]。');
+  });
+
+  it('prefers presentation.flashcard over leftover artifactHtml', () => {
+    const cards = extractFlashcardRecords({
+      id: 'pres',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tc-pres',
+          toolName: 'flashcard_create',
+          status: 'done',
+          output: JSON.stringify({
+            artifactHtml: '<div class="piwin-flashcard" data-card-id="spoof">nope</div>',
+          }),
+          presentation: {
+            kind: 'other',
+            title: 'flashcard_create',
+            routedToolName: 'flashcard_create',
+            flashcard: {
+              cards: [
+                {
+                  cardId: 'card-trusted',
+                  itemId: 'card-trusted',
+                  model: 'basic',
+                  ordinal: 1,
+                  deck: 'default',
+                  front: 'Trusted front',
+                  back: 'Trusted back',
+                  createdAt: '2026-08-24T00:00:00.000Z',
+                },
+              ],
+            },
+          },
+        },
+      ],
+      attachments: [],
+      status: 'done',
+    });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.cardId).toBe('card-trusted');
+    expect(cards[0]?.front).toBe('Trusted front');
+  });
+
+  it('renders one structured card when leftover HTML with data-card-id is in the reply', () => {
+    const message: ChatMessageUi = {
+      id: 'm-html',
+      role: 'assistant',
+      text: '```html\n<div class="piwin-flashcard" data-card-id="card-photo"></div>\n```\nAfter artifact',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tc-html',
+          toolName: 'flashcard_create',
+          status: 'done',
+          output: JSON.stringify({
+            card: { id: 'card-photo', front: '什么是光合作用？', back: '光能转化' },
+            display: {
+              cards: [
+                {
+                  cardId: 'card-photo',
+                  itemId: 'card-photo',
+                  model: 'basic',
+                  ordinal: 1,
+                  deck: 'default',
+                  front: '什么是光合作用？',
+                  back: '光能转化',
+                  createdAt: '2026-08-24T00:00:00.000Z',
+                },
+              ],
+            },
+          }),
+        },
+      ],
+      attachments: [],
+      status: 'done',
+    };
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+      />,
+    );
+    expect(
+      container.querySelectorAll('[data-testid="conversation-extracted-flashcard"]'),
+    ).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="chat-flashcard"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="flashcard-preview-card"]')).toBeNull();
+  });
+
+  it('does not project leftover artifactHtml as a flashcard UI', () => {
+    const message: ChatMessageUi = {
+      id: 'm-html-only',
+      role: 'assistant',
+      text: 'done',
+      thinking: '',
+      tools: [
+        {
+          toolCallId: 'tc-html-only',
+          toolName: 'flashcard_create',
+          status: 'done',
+          output: JSON.stringify({
+            artifactHtml: '<div class="piwin-flashcard" data-card-id="card-123">Card content</div>',
+          }),
+        },
+      ],
+      attachments: [],
+      status: 'done',
+    };
+    expect(extractFlashcardRecords(message)).toEqual([]);
+    const { container } = renderContent(
+      <ConversationResponseContent
+        message={message}
+        messageIndex={0}
+        showStreamingCaret={false}
+        activeTheme={null}
+        artifactThemeKey="default"
+        runRecordsById={{}}
+        activeRunId={null}
+        locale="zh-CN"
+        artifactPreviewEnabled={true}
+      />,
+    );
+    expect(container.querySelector('[data-testid="conversation-extracted-flashcard"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-flashcard"]')).toBeNull();
   });
 
   it('omits the identity header for a continuation completion', () => {

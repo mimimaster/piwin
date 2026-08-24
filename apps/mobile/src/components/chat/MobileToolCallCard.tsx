@@ -11,6 +11,10 @@ import {
 } from '@piwin/ui-kit';
 import { MobileDiffViewer } from './MobileDiffViewer.js';
 import type { MobileToolCall } from '../../hooks/use-mobile-host.js';
+import {
+  formatMobileFlashcardResult,
+  resolveMobileFlashcardDisplay,
+} from '../../mobile-flashcard-result.js';
 
 export type MobileToolCallCardProps = {
   tool: MobileToolCall;
@@ -19,10 +23,20 @@ export type MobileToolCallCardProps = {
 
 export function resolveToolIcon(name: string): (props: { size?: number | string }) => ReactElement {
   const lower = name.toLowerCase();
-  if (lower.includes('bash') || lower.includes('command') || lower.includes('exec') || lower.includes('terminal')) {
+  if (
+    lower.includes('bash') ||
+    lower.includes('command') ||
+    lower.includes('exec') ||
+    lower.includes('terminal')
+  ) {
     return IconTerminal;
   }
-  if (lower.includes('read') || lower.includes('write') || lower.includes('edit') || lower.includes('file')) {
+  if (
+    lower.includes('read') ||
+    lower.includes('write') ||
+    lower.includes('edit') ||
+    lower.includes('file')
+  ) {
     return IconFile;
   }
   if (lower.includes('search') || lower.includes('grep') || lower.includes('find')) {
@@ -37,9 +51,11 @@ export function resolveToolIcon(name: string): (props: { size?: number | string 
 export function resolveToolVerb(name: string, actionVerb?: string): string {
   if (actionVerb) return actionVerb;
   const lower = name.toLowerCase();
-  if (lower.includes('bash') || lower.includes('command') || lower.includes('exec')) return '执行命令';
+  if (lower.includes('bash') || lower.includes('command') || lower.includes('exec'))
+    return '执行命令';
   if (lower.includes('read')) return '读取文件';
-  if (lower.includes('write') || lower.includes('edit') || lower.includes('replace')) return '编辑文件';
+  if (lower.includes('write') || lower.includes('edit') || lower.includes('replace'))
+    return '编辑文件';
   if (lower.includes('search') || lower.includes('grep')) return '搜索代码';
   if (lower.includes('web')) return 'Web 搜索';
   if (lower.includes('subagent')) return '子代理任务';
@@ -52,7 +68,10 @@ export function formatDuration(durationMs?: number): string | null {
   return `${(durationMs / 1000).toFixed(1)}s`;
 }
 
-export function MobileToolCallCard({ tool, defaultExpanded = false }: MobileToolCallCardProps): ReactElement {
+export function MobileToolCallCard({
+  tool,
+  defaultExpanded = false,
+}: MobileToolCallCardProps): ReactElement {
   const [expanded, setExpanded] = useState(defaultExpanded || tool.status === 'running');
   const [copied, setCopied] = useState(false);
 
@@ -61,6 +80,8 @@ export function MobileToolCallCard({ tool, defaultExpanded = false }: MobileTool
   const durationText = formatDuration(tool.durationMs);
 
   const primaryTarget = tool.targetPaths?.[0] ?? tool.command ?? tool.summary ?? tool.name;
+  const flashcardDisplay = resolveMobileFlashcardDisplay(tool);
+  const flashcardText = flashcardDisplay ? formatMobileFlashcardResult(flashcardDisplay) : null;
 
   const handleCopyOutput = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -145,8 +166,14 @@ export function MobileToolCallCard({ tool, defaultExpanded = false }: MobileTool
             </div>
           ) : null}
 
+          {flashcardText ? (
+            <pre className="mobile-tool-output-pre" data-testid="mobile-flashcard-result">
+              {flashcardText}
+            </pre>
+          ) : null}
+
           {/* Terminal Output */}
-          {tool.output || tool.error ? (
+          {!flashcardText && (tool.output || tool.error) ? (
             <div className="mobile-tool-terminal-wrapper">
               <div className="mobile-tool-terminal-header">
                 <span className="mobile-tool-terminal-label">
@@ -158,14 +185,12 @@ export function MobileToolCallCard({ tool, defaultExpanded = false }: MobileTool
                   onClick={handleCopyOutput}
                   aria-label="复制输出"
                 >
-                  {copied ? (
-                    <span className="copied-tag">已复制 ✓</span>
-                  ) : (
-                    <IconCopy size={12} />
-                  )}
+                  {copied ? <span className="copied-tag">已复制 ✓</span> : <IconCopy size={12} />}
                 </button>
               </div>
-              {tool.output && (tool.output.includes('@@') || (tool.output.includes('\n+') && tool.output.includes('\n-'))) ? (
+              {tool.output &&
+              (tool.output.includes('@@') ||
+                (tool.output.includes('\n+') && tool.output.includes('\n-'))) ? (
                 <MobileDiffViewer diffText={tool.output} />
               ) : (
                 <pre className={`mobile-tool-output-pre ${tool.error ? 'has-error' : ''}`}>

@@ -46,13 +46,9 @@ import {
   shouldRenderGenerationProgress,
   type GenerationToolKind,
 } from './generation-tool-kind.js';
-import {
-  ConversationResponseContent,
-  extractFlashcardRecords,
-  extractFlashcardArtifactHtml,
-} from './conversation-response-content.js';
-import { isFlashcardArtifactSource } from './flashcard-artifact.js';
-import { FlashcardStackView } from './FlashcardView.js';
+import { ConversationResponseContent } from './conversation-response-content.js';
+import { extractFlashcardRecords } from './flashcard-result-extract.js';
+import { FlashcardResultProjection } from './FlashcardResultProjection.js';
 import type { AgentLocatorAnimation, ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import type { ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
@@ -487,64 +483,11 @@ export const ChatMessageRow = memo(
               {message.searchEvidence !== undefined ? (
                 <CitationCards evidence={message.searchEvidence} />
               ) : null}
-              {(() => {
-                const extractedCards = extractFlashcardRecords(message);
-                const flashcardArtifactHtml = extractFlashcardArtifactHtml(message);
-                const textHasFlashcard = isFlashcardArtifactSource(message.text);
-                const shouldRender = Boolean(
-                  (extractedCards.length > 0 || flashcardArtifactHtml) && !textHasFlashcard,
-                );
-                if (!shouldRender) return null;
-                if (extractedCards.length > 0) {
-                  return (
-                    <div
-                      className="conversation-extracted-flashcard"
-                      data-testid="conversation-extracted-flashcard"
-                    >
-                      <FlashcardStackView
-                        cards={extractedCards}
-                        locale={props.locale ?? 'zh-CN'}
-                        {...(props.onArtifactAction ? { onAction: props.onArtifactAction } : {})}
-                      />
-                    </div>
-                  );
-                }
-                if (flashcardArtifactHtml) {
-                  return (
-                    <div
-                      className="conversation-extracted-flashcard"
-                      data-testid="conversation-extracted-flashcard"
-                    >
-                      <MarkdownView
-                        text={`\`\`\`html\n${flashcardArtifactHtml}\n\`\`\``}
-                        renderingPhase="completed"
-                        artifactTheme={mapThemeToArtifactVariables(props.activeTheme)}
-                        initPriorityBase={props.messageIndex * 10 + 1}
-                        artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
-                        showStreamingCaret={false}
-                        locale={props.locale ?? 'zh-CN'}
-                        artifactPreviewEnabled={true}
-                        {...(props.artifactMaxBytes !== undefined
-                          ? { artifactMaxBytes: props.artifactMaxBytes }
-                          : {})}
-                        {...(props.onArtifactAction
-                          ? { onArtifactAction: props.onArtifactAction }
-                          : {})}
-                        {...(props.sessionId
-                          ? {
-                              artifactOrigin: { sessionId: props.sessionId, messageId: message.id },
-                            }
-                          : {})}
-                        {...(props.onOpenArtifactCanvas
-                          ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas }
-                          : {})}
-                        {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-                      />
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+              <FlashcardResultProjection
+                cards={extractFlashcardRecords(message)}
+                locale={props.locale ?? 'zh-CN'}
+                {...(props.onArtifactAction ? { onAction: props.onArtifactAction } : {})}
+              />
             </TurnWorkDetails>
           )
         ) : null}
