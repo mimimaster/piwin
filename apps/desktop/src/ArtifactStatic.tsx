@@ -1,11 +1,10 @@
 import { useLayoutEffect, useMemo, useRef, type ReactElement } from 'react';
-import type { ArtifactPreviewDecision, ArtifactThemeVariables } from '@piwin/artifact';
+import type { ArtifactThemeVariables } from '@piwin/artifact';
 import { sanitizeStaticArtifactSource } from './artifact-static-sanitizer.js';
 
-type StaticDecision = Extract<ArtifactPreviewDecision, { kind: 'render' }>;
-
 export type ArtifactStaticProps = {
-  decision: StaticDecision;
+  source: string;
+  type: 'html' | 'svg';
   theme?: ArtifactThemeVariables;
 };
 
@@ -93,14 +92,11 @@ function buildThemeCss(theme: ArtifactThemeVariables | undefined): string {
 
 /**
  * Render inert Artifact markup in normal transcript flow. Shadow DOM isolates
- * model CSS; DOMPurify is defense-in-depth after the pure route classifier.
+ * model CSS; DOMPurify is defense-in-depth after the render plan chooses static.
  */
-export function ArtifactStatic({ decision, theme }: ArtifactStaticProps): ReactElement {
+export function ArtifactStatic({ source, type, theme }: ArtifactStaticProps): ReactElement {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const sanitizedSource = useMemo(
-    () => sanitizeStaticArtifactSource(decision.renderSource),
-    [decision.renderSource],
-  );
+  const sanitizedSource = useMemo(() => sanitizeStaticArtifactSource(source), [source]);
   const themeCss = useMemo(() => buildThemeCss(theme), [theme]);
 
   useLayoutEffect(() => {
@@ -121,7 +117,7 @@ export function ArtifactStatic({ decision, theme }: ArtifactStaticProps): ReactE
       ref={hostRef}
       className="artifact-static"
       data-testid="artifact-static"
-      data-artifact-type={decision.descriptor.type}
+      data-artifact-type={type}
     />
   );
 }

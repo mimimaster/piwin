@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
-import { ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE, type ArtifactPreviewDecision } from '@piwin/artifact';
+import {
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  type ArtifactDescriptor,
+  type ArtifactRenderMode,
+} from '@piwin/artifact';
 
-type RenderDecision = Extract<ArtifactPreviewDecision, { kind: 'render' }>;
+export type ArtifactSandboxView = {
+  mode: ArtifactRenderMode;
+  descriptor: ArtifactDescriptor;
+  renderSource: string;
+  srcdoc: string;
+};
 
 const ARTIFACT_STREAM_RENDER_THROTTLE_MS = 300;
 
@@ -26,7 +35,7 @@ export function buildArtifactDocumentDataUrl(srcdoc: string): string {
  * A stream keeps its first iframe document through completion. Direct final
  * renders get their own immutable document URL.
  */
-export function useArtifactDocument(decision: RenderDecision): ArtifactDocument {
+export function useArtifactDocument(decision: ArtifactSandboxView): ArtifactDocument {
   const streamLifecycleRef = useRef(decision.mode === 'stream-preview');
   if (decision.mode === 'stream-preview') {
     streamLifecycleRef.current = true;
@@ -50,7 +59,7 @@ export function useArtifactDocument(decision: RenderDecision): ArtifactDocument 
 
 type StreamPublisherInput = {
   channelId: string;
-  decision: RenderDecision;
+  decision: ArtifactSandboxView;
   iframeRef: RefObject<HTMLIFrameElement | null>;
   enabled: boolean;
   streamLifecycle: boolean;

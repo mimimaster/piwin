@@ -1,7 +1,7 @@
 import { useRef, type ReactElement } from 'react';
 import type {
   ArtifactActionMessage,
-  ArtifactPreviewDecision,
+  ArtifactRenderPlan,
   ArtifactThemeVariables,
 } from '@piwin/artifact';
 import {
@@ -9,21 +9,25 @@ import {
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   estimateSvgFenceHeight,
-  findArtifactInlineCompatibilityIssues,
-  resolveArtifactRenderTarget,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
 import { getBehaviorActivitySpec } from './behavior-activity.js';
 import { useArtifactFrameBridge } from './artifact-frame-bridge.js';
 import { useArtifactFrameHost } from './artifact-frame-host.js';
-import { useArtifactDocument, useArtifactStreamPublisher } from './artifact-frame-stream.js';
+import {
+  useArtifactDocument,
+  useArtifactStreamPublisher,
+  type ArtifactSandboxView,
+} from './artifact-frame-stream.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 import { ArtifactStatic } from './ArtifactStatic.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
+export type ArtifactFramePlan = Extract<ArtifactRenderPlan, { kind: 'render' } | { kind: 'blocked' }>;
+
 export type ArtifactFrameProps = {
-  decision: Extract<ArtifactPreviewDecision, { kind: 'render' } | { kind: 'blocked' }>;
+  plan: ArtifactFramePlan;
   initPriority?: number;
   presentation?: 'inline' | 'canvas';
   onArtifactAction?: (action: ArtifactActionMessage) => void;
@@ -33,17 +37,24 @@ export type ArtifactFrameProps = {
   locale?: 'zh-CN' | 'en';
 };
 
-type RenderDecision = Extract<ArtifactPreviewDecision, { kind: 'render' }>;
+type SandboxPlan = Extract<ArtifactRenderPlan, { kind: 'render' }> & {
+  document: { kind: 'sandbox'; srcdoc: string; csp: string };
+};
 
-function resolveBootstrapHeight(
-  decision: RenderDecision,
-  presentation: 'inline' | 'canvas',
-): number {
-  if (presentation === 'canvas' || decision.descriptor.type !== 'svg') {
+function sandboxViewFromPlan(plan: SandboxPlan): ArtifactSandboxView {
+  return {
+    mode: plan.mode,
+    descriptor: plan.intent.descriptor,
+    renderSource: plan.renderSource,
+    srcdoc: plan.document.srcdoc,
+  };
+}
+
+function resolveBootstrapHeight(plan: SandboxPlan, presentation: 'inline' | 'canvas'): number {
+  if (presentation === 'canvas' || plan.intent.descriptor.type !== 'svg') {
     return ARTIFACT_BOOTSTRAP_HEIGHT;
   }
-  const source =
-    decision.mode === 'stream-preview' ? decision.renderSource : decision.descriptor.source;
+  const source = plan.mode === 'stream-preview' ? plan.renderSource : plan.intent.descriptor.source;
   const viewportWidth =
     typeof window === 'undefined' ? 640 : Math.max(280, Math.min(window.innerWidth - 120, 780));
   return estimateSvgFenceHeight({
@@ -56,7 +67,7 @@ function resolveBootstrapHeight(
 }
 
 export function ArtifactFrame({
-  decision,
+  plan,
   initPriority = 0,
   presentation = 'inline',
   onArtifactAction,
@@ -65,8 +76,8 @@ export function ArtifactFrame({
   theme,
   locale = 'en',
 }: ArtifactFrameProps): ReactElement {
-  if (decision.kind === 'blocked') {
-    const contentLabel = decision.descriptor.type === 'svg' ? 'SVG' : 'HTML UI';
+  if (plan.kind === 'blocked') {
+    const contentLabel = plan.descriptor.type === 'svg' ? 'SVG' : 'HTML UI';
     return (
       <div
         data-testid="artifact-frame"
@@ -80,43 +91,17 @@ export function ArtifactFrame({
           <div className="artifact-frame-actions">{extraHeaderAction}</div>
         ) : null}
         <p className="muted">
-          Cannot preview this {contentLabel}: <code>{decision.reason}</code>
-          {decision.security.externalResources.length > 0
-            ? ` (${decision.security.externalResources.length} external resource(s))`
+          Cannot preview this {contentLabel}: <code>{plan.reason}</code>
+          {plan.capabilities.externalResources.length > 0
+            ? ` (${plan.capabilities.externalResources.length} external resource(s))`
             : ''}
         </p>
       </div>
     );
   }
 
-  const inlineCompatibilityIssues =
-    presentation === 'inline'
-      ? findArtifactInlineCompatibilityIssues(decision.descriptor, decision.renderSource)
-      : [];
-  if (inlineCompatibilityIssues.length > 0) {
-    return (
-      <div
-        data-testid="artifact-frame"
-        data-artifact-renderer="inline-incompatible"
-        data-artifact-layout="inline"
-        data-tool-status="error"
-        className="artifact-frame blocked"
-      >
-        <p className="muted" data-testid="artifact-inline-incompatible">
-          This HTML requires a page viewport and cannot be measured as an Inline component.
-        </p>
-      </div>
-    );
-  }
-
-  if (
-    presentation === 'inline' &&
-    resolveArtifactRenderTarget({
-      descriptor: decision.descriptor,
-      mode: decision.mode,
-      source: decision.renderSource,
-    }) === 'static-flow'
-  ) {
+  const document = plan.document;
+  if (document.kind === 'static-source') {
     return (
       <div
         data-testid="artifact-frame"
@@ -130,15 +115,20 @@ export function ArtifactFrame({
         {extraHeaderAction ? (
           <div className="artifact-frame-actions">{extraHeaderAction}</div>
         ) : null}
-        <ArtifactStatic decision={decision} {...(theme ? { theme } : {})} />
+        <ArtifactStatic
+          source={document.source}
+          type={plan.intent.descriptor.type}
+          {...(theme ? { theme } : {})}
+        />
       </div>
     );
   }
 
+  const sandboxPlan: SandboxPlan = { ...plan, document };
   return (
     <ArtifactRenderFrame
-      key={decision.descriptor.id}
-      decision={decision}
+      key={plan.intent.descriptor.id}
+      plan={sandboxPlan}
       initPriority={initPriority}
       presentation={presentation}
       locale={locale}
@@ -150,7 +140,7 @@ export function ArtifactFrame({
 }
 
 function ArtifactRenderFrame(props: {
-  decision: RenderDecision;
+  plan: SandboxPlan;
   initPriority: number;
   presentation: 'inline' | 'canvas';
   locale: 'zh-CN' | 'en';
@@ -159,20 +149,21 @@ function ArtifactRenderFrame(props: {
   extraHeaderAction?: ReactElement;
 }): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const channelId = props.decision.descriptor.id;
-  const document = useArtifactDocument(props.decision);
+  const view = sandboxViewFromPlan(props.plan);
+  const channelId = view.descriptor.id;
+  const document = useArtifactDocument(view);
   const host = useArtifactFrameHost({
     channelId,
     initPriority: props.initPriority,
     presentation: props.presentation,
-    streaming: props.decision.mode === 'stream-preview',
+    streaming: view.mode === 'stream-preview',
   });
   const scrollPort = useTranscriptScrollPort();
-  const bootstrapHeight = resolveBootstrapHeight(props.decision, props.presentation);
+  const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation);
   const bridge = useArtifactFrameBridge({
     channelId,
     documentKey: document.documentKey,
-    decision: props.decision,
+    decision: view,
     iframeRef,
     enabled: host.hostIframe && host.initGranted,
     measureHeight: props.presentation === 'inline',
@@ -184,7 +175,7 @@ function ArtifactRenderFrame(props: {
   });
   const streamPublisher = useArtifactStreamPublisher({
     channelId,
-    decision: props.decision,
+    decision: view,
     iframeRef,
     enabled: host.hostIframe && host.initGranted,
     streamLifecycle: document.streamLifecycle,
@@ -253,7 +244,7 @@ function ArtifactRenderFrame(props: {
             <iframe
               ref={iframeRef}
               className="artifact-iframe"
-              title={props.decision.descriptor.title}
+              title={view.descriptor.title}
               src={document.documentUrl}
               sandbox="allow-scripts"
               referrerPolicy="no-referrer"

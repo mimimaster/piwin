@@ -2,39 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { ArtifactPreviewDecision } from '@piwin/artifact';
 import { ArtifactStatic } from './ArtifactStatic.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
-}
-
-function decision(source: string): Extract<ArtifactPreviewDecision, { kind: 'render' }> {
-  return {
-    kind: 'render',
-    mode: 'interactive',
-    descriptor: {
-      id: 'static-artifact-test',
-      type: 'html',
-      title: 'Static Artifact',
-      source,
-      rawLanguage: 'artifact-html',
-      alias: 'artifact-html',
-      declaration: 'explicit',
-      documentKind: 'fragment',
-      surface: 'inline',
-    },
-    security: {
-      canRender: true,
-      blockReason: null,
-      byteSize: source.length,
-      externalResources: [],
-    },
-    srcdoc: '',
-    csp: "default-src 'none'",
-    renderSource: source,
-    themeRepairs: [],
-  };
 }
 
 describe('ArtifactStatic', () => {
@@ -60,9 +31,8 @@ describe('ArtifactStatic', () => {
     act(() => {
       root.render(
         <ArtifactStatic
-          decision={decision(
-            '<style>.card{padding:12px}</style><section class="card"><h1>Hello</h1></section>',
-          )}
+          type="html"
+          source='<style>.card{padding:12px}</style><section class="card"><h1>Hello</h1></section>'
         />,
       );
     });
@@ -80,9 +50,8 @@ describe('ArtifactStatic', () => {
     act(() => {
       root.render(
         <ArtifactStatic
-          decision={decision(
-            '<img src="data:image/png;base64,AA==" onerror="alert(1)"><script>alert(2)</script>',
-          )}
+          type="html"
+          source='<img src="data:image/png;base64,AA==" onerror="alert(1)"><script>alert(2)</script>'
         />,
       );
     });

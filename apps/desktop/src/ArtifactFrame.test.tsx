@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { ArtifactPreviewDecision } from '@piwin/artifact';
+import type { ArtifactCapabilityReport, ArtifactRenderPlan } from '@piwin/artifact';
 import {
   resetArtifactInitQueueForTests,
   resetArtifactLiveHostRegistryForTests,
@@ -22,57 +22,80 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render' }> {
+const EMPTY_CAPABILITIES: ArtifactCapabilityReport = {
+  scripts: true,
+  events: false,
+  form: false,
+  iframe: false,
+  externalUrl: false,
+  cssUrl: false,
+  shadowHost: false,
+  viewportDependency: false,
+  isolation: false,
+  blockReason: null,
+  byteSize: 42,
+  externalResources: [],
+};
+
+function makeRenderPlan(): Extract<ArtifactRenderPlan, { kind: 'render' }> {
+  const source = '<div class="diagram">wide content</div><script>window.ready = true</script>';
+  const descriptor = {
+    id: 'artifact-test-1',
+    type: 'html' as const,
+    title: 'piwin architecture (simplified)',
+    rawLanguage: 'artifact-html',
+    alias: 'artifact-html',
+    declaration: 'explicit' as const,
+    documentKind: 'fragment' as const,
+    surface: 'inline' as const,
+    source,
+  };
   return {
     kind: 'render',
-    mode: 'interactive',
-    descriptor: {
-      id: 'artifact-test-1',
-      type: 'html',
-      title: 'piwin architecture (simplified)',
-      rawLanguage: 'artifact-html',
-      alias: 'artifact-html',
-      declaration: 'explicit',
-      documentKind: 'fragment',
+    intent: {
+      descriptor,
+      capabilities: EMPTY_CAPABILITIES,
       surface: 'inline',
-      source: '<div class="diagram">wide content</div><script>window.ready = true</script>',
+      layout: 'flow',
+      renderer: 'sandbox',
     },
-    security: {
-      canRender: true,
-      blockReason: null,
-      byteSize: 42,
-      externalResources: [],
+    frameMode: 'inline-flow',
+    mode: 'interactive',
+    renderSource: source,
+    document: {
+      kind: 'sandbox',
+      srcdoc:
+        '<!DOCTYPE html><html><body><div class="diagram">wide content</div><script>window.ready = true</script></body></html>',
+      csp: "default-src 'none'",
     },
-    srcdoc:
-      '<!DOCTYPE html><html><body><div class="diagram">wide content</div><script>window.ready = true</script></body></html>',
-    renderSource: '<div class="diagram">wide content</div><script>window.ready = true</script>',
-    csp: "default-src 'none'",
-    themeRepairs: [],
   };
 }
 
-function makeStreamDecision(
+function makeStreamPlan(
   source: string,
   srcdoc: string,
-): Extract<ArtifactPreviewDecision, { kind: 'render' }> {
-  const decision = makeRenderDecision();
+): Extract<ArtifactRenderPlan, { kind: 'render' }> {
+  const plan = makeRenderPlan();
   return {
-    ...decision,
+    ...plan,
     mode: 'stream-preview',
-    descriptor: {
-      ...decision.descriptor,
-      source,
+    intent: {
+      ...plan.intent,
+      descriptor: {
+        ...plan.intent.descriptor,
+        source,
+      },
+      renderer: 'sandbox',
     },
-    srcdoc,
-    streamSource: source,
     renderSource: source,
+    document: { kind: 'sandbox', srcdoc, csp: "default-src 'none'" },
   };
 }
 
-type FrameDecision = Extract<ArtifactPreviewDecision, { kind: 'render' } | { kind: 'blocked' }>;
+type FramePlan = Extract<ArtifactRenderPlan, { kind: 'render' } | { kind: 'blocked' }>;
 
 function renderFrame(
-  decision: FrameDecision = makeRenderDecision(),
+  plan: FramePlan = makeRenderPlan(),
   presentation: 'inline' | 'canvas' = 'inline',
   extraHeaderAction?: ReactElement,
   locale: 'zh-CN' | 'en' = 'en',
@@ -85,7 +108,7 @@ function renderFrame(
       (
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <ArtifactFrame
-            decision={decision}
+            plan={plan}
             presentation={presentation}
             locale={locale}
             {...(extraHeaderAction ? { extraHeaderAction } : {})}
@@ -148,7 +171,7 @@ describe('ArtifactFrame chrome', () => {
 
   it('removes the permanent title bar and keeps only a floating action layer', async () => {
     const { container, root } = renderFrame(
-      makeRenderDecision(),
+      makeRenderPlan(),
       'inline',
       <Button size="compact">Show code</Button>,
     );
@@ -166,7 +189,7 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('lets an Inline frame grow past the legacy 900px scrollport', async () => {
-    const decision = makeRenderDecision();
+    const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision);
     instances.push({ container, root });
 
@@ -183,7 +206,7 @@ describe('ArtifactFrame chrome', () => {
           source: iframe?.contentWindow ?? null,
           data: {
             type: 'piwin-artifact:size',
-            channelId: decision.descriptor.id,
+            channelId: decision.intent.descriptor.id,
             height: 1_480,
             viewportHeight: 80,
             revision: 0,
@@ -204,7 +227,7 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('rejects browser height messages from a foreign window', async () => {
-    const decision = makeRenderDecision();
+    const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision);
     instances.push({ container, root });
 
@@ -219,7 +242,7 @@ describe('ArtifactFrame chrome', () => {
           source: window,
           data: {
             type: 'piwin-artifact:size',
-            channelId: decision.descriptor.id,
+            channelId: decision.intent.descriptor.id,
             height: 920,
             viewportHeight: 80,
             revision: 0,
@@ -233,24 +256,30 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('seeds SVG stage height from viewBox so the first paint is not an 80px strip', async () => {
-    const base = makeRenderDecision();
-    const decision: Extract<ArtifactPreviewDecision, { kind: 'render' }> = {
+    const base = makeRenderPlan();
+    const svgSource =
+      '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>';
+    const decision: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
       ...base,
       mode: 'stream-preview',
-      descriptor: {
-        ...base.descriptor,
-        id: 'svg-seed-1',
-        type: 'svg',
-        rawLanguage: 'svg',
-        alias: 'svg',
-        source:
-          '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
+      intent: {
+        ...base.intent,
+        descriptor: {
+          ...base.intent.descriptor,
+          id: 'svg-seed-1',
+          type: 'svg',
+          rawLanguage: 'svg',
+          alias: 'svg',
+          source: svgSource,
+        },
+        renderer: 'sandbox',
       },
-      renderSource:
-        '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
-      streamSource:
-        '<svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg"><rect width="800" height="400"/></svg>',
-      srcdoc: '<!DOCTYPE html><html><body><svg viewBox="0 0 800 400"></svg></body></html>',
+      renderSource: svgSource,
+      document: {
+        kind: 'sandbox',
+        srcdoc: '<!DOCTYPE html><html><body><svg viewBox="0 0 800 400"></svg></body></html>',
+        csp: "default-src 'none'",
+      },
     };
     const { container, root } = renderFrame(decision);
     instances.push({ container, root });
@@ -281,7 +310,7 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('keeps one iframe and pushes throttled DOM snapshots while output is streaming', async () => {
-    const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>initial stream</html>');
+    const initial = makeStreamPlan('<div><p>Hel</p></div>', '<html>initial stream</html>');
     const { container, root } = renderFrame(initial);
     instances.push({ container, root });
 
@@ -294,7 +323,7 @@ describe('ArtifactFrame chrome', () => {
     expect(iframe).not.toBeNull();
     const initialDocumentUrl = iframe?.getAttribute('src');
     const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
-    const next = makeStreamDecision(
+    const next = makeStreamPlan(
       '<div><p>Hello</p><section>Next</section></div>',
       '<html>replacement must not mount</html>',
     );
@@ -302,7 +331,7 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ArtifactFrame decision={next} />
+          <ArtifactFrame plan={next} />
         </PiwinUiProvider>,
       );
     });
@@ -325,7 +354,7 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('commits final DOM in place and does not replace the stream document', async () => {
-    const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>stable stream shell</html>');
+    const initial = makeStreamPlan('<div><p>Hel</p></div>', '<html>stable stream shell</html>');
     const { container, root } = renderFrame(initial);
     instances.push({ container, root });
 
@@ -340,20 +369,28 @@ describe('ArtifactFrame chrome', () => {
     const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
     const finalSource =
       '<div><p>Hello</p><button>Done</button></div><script>window.done=true</script>';
-    const finalDecision: Extract<ArtifactPreviewDecision, { kind: 'render' }> = {
-      ...makeRenderDecision(),
-      descriptor: {
-        ...makeRenderDecision().descriptor,
-        source: finalSource,
+    const baseFinal = makeRenderPlan();
+    const finalDecision: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
+      ...baseFinal,
+      intent: {
+        ...baseFinal.intent,
+        descriptor: {
+          ...baseFinal.intent.descriptor,
+          source: finalSource,
+        },
       },
-      srcdoc: '<html>replacement final document must not mount</html>',
       renderSource: finalSource,
+      document: {
+        kind: 'sandbox',
+        srcdoc: '<html>replacement final document must not mount</html>',
+        csp: "default-src 'none'",
+      },
     };
 
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ArtifactFrame decision={finalDecision} />
+          <ArtifactFrame plan={finalDecision} />
         </PiwinUiProvider>,
       );
     });
@@ -378,7 +415,7 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ArtifactFrame decision={{ ...finalDecision }} />
+          <ArtifactFrame plan={{ ...finalDecision }} />
         </PiwinUiProvider>,
       );
     });
@@ -389,7 +426,7 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('applies every valid observed height through streaming and completion', async () => {
-    const initial = makeStreamDecision('<div>Growing</div>', '<html>stream shell</html>');
+    const initial = makeStreamPlan('<div>Growing</div>', '<html>stream shell</html>');
     const { container, root } = renderFrame(initial);
     instances.push({ container, root });
     await act(async () => {
@@ -418,11 +455,11 @@ describe('ArtifactFrame chrome', () => {
     const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
     expect(stage?.style.height).toBe('180px');
 
-    const finalDecision = makeRenderDecision();
+    const finalDecision = makeRenderPlan();
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ArtifactFrame decision={finalDecision} />
+          <ArtifactFrame plan={finalDecision} />
         </PiwinUiProvider>,
       );
     });
@@ -454,7 +491,7 @@ describe('ArtifactFrame chrome', () => {
       return () => undefined;
     });
 
-    const decision = makeRenderDecision();
+    const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision);
     instances.push({ container, root });
     await act(async () => {
@@ -467,7 +504,7 @@ describe('ArtifactFrame chrome', () => {
       const handler = nativeHandler as ((payload: unknown) => void) | null;
       handler?.({
         type: 'piwin-artifact:size',
-        channelId: decision.descriptor.id,
+        channelId: decision.intent.descriptor.id,
         height: 684,
         viewportHeight: 80,
         revision: 0,
@@ -511,7 +548,7 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('applies the canvas presentation class without expand chrome', async () => {
-    const { container, root } = renderFrame(makeRenderDecision(), 'canvas');
+    const { container, root } = renderFrame(makeRenderPlan(), 'canvas');
     instances.push({ container, root });
 
     // Init queue is async; wait for grant + frame.
@@ -530,7 +567,7 @@ describe('ArtifactFrame chrome', () => {
 
   it('ignores composer/propose-text from an Inline frame (Canvas-only action)', async () => {
     const onComposerProposal = vi.fn();
-    const decision = makeRenderDecision();
+    const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision, 'inline');
     instances.push({ container, root });
     // Override with the proposal handler via a second render.
@@ -539,7 +576,7 @@ describe('ArtifactFrame chrome', () => {
         (
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <ArtifactFrame
-              decision={decision}
+              plan={decision}
               presentation="inline"
               onComposerProposal={onComposerProposal}
             />
@@ -570,7 +607,7 @@ describe('ArtifactFrame chrome', () => {
 
   it('forwards composer/propose-text to onComposerProposal in Canvas presentation', async () => {
     const onComposerProposal = vi.fn();
-    const decision = makeRenderDecision();
+    const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision, 'canvas');
     instances.push({ container, root });
     act(() => {
@@ -578,7 +615,7 @@ describe('ArtifactFrame chrome', () => {
         (
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <ArtifactFrame
-              decision={decision}
+              plan={decision}
               presentation="canvas"
               onComposerProposal={onComposerProposal}
             />
@@ -628,10 +665,10 @@ describe('ArtifactFrame chrome', () => {
   });
 
   it('keeps the painted frame when a parent re-render rebuilds an equivalent decision', async () => {
-    // Clicking the composer re-renders the transcript; evaluateCodeFence builds
-    // a fresh (but byte-equivalent) decision each render. The frame must not
+    // Clicking the composer re-renders the transcript; materializeArtifact
+    // builds a fresh (but byte-equivalent) plan each render. The frame must not
     // reset its height or jump back to a waiting state.
-    const decision = makeRenderDecision();
+    const decision = makeRenderPlan();
     const { container, root } = renderFrame(decision);
     instances.push({ container, root });
 
@@ -648,7 +685,7 @@ describe('ArtifactFrame chrome', () => {
           source: iframe?.contentWindow ?? null,
           data: {
             type: 'piwin-artifact:size',
-            channelId: decision.descriptor.id,
+            channelId: decision.intent.descriptor.id,
             height: 640,
             viewportHeight: 80,
             revision: 0,
@@ -663,7 +700,7 @@ describe('ArtifactFrame chrome', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ArtifactFrame decision={makeRenderDecision()} />
+          <ArtifactFrame plan={makeRenderPlan()} />
         </PiwinUiProvider>,
       );
     });

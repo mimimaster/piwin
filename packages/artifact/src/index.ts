@@ -53,7 +53,12 @@ export type {
   FlashcardOpenSourceActionPayload,
   ComposerProposeTextActionPayload,
   ArtifactDownloadUnsupportedPayload,
-  ArtifactPreviewDecision,
+  ArtifactLayoutIntent,
+  ArtifactFrameMode,
+  ArtifactCapabilityReport,
+  ArtifactRenderIntent,
+  ArtifactRenderPlan,
+  ArtifactFenceAnalysis,
 } from './types.js';
 
 export {
@@ -72,10 +77,10 @@ export {
   classifyArtifactSecurity,
 } from './security.js';
 
-export { tryParseHtmlArtifactFence, parseArtifactFenceRecord } from './parser.js';
+export { parseArtifactFenceRecord } from './parser.js';
 export type { ParseArtifactFenceInput } from './parser.js';
 
-export { indexArtifactFences } from './fence-index.js';
+export { indexArtifactFences, createArtifactFenceRecord } from './fence-index.js';
 export type { ArtifactFenceRecord } from './fence-index.js';
 
 export { projectArtifactMarkdownForRender } from './markdown-projection.js';
@@ -95,18 +100,6 @@ export type { BuildHtmlArtifactSrcdocInput } from './srcdoc.js';
 export { parseArtifactBridgeMessage, parseArtifactActionMessage } from './bridge-protocol.js';
 
 export { normalizeArtifactHeight, clampArtifactHeight } from './height-policy.js';
-
-export { resolveArtifactRenderTarget } from './render-route.js';
-export type { ArtifactRenderTarget, ResolveArtifactRenderTargetInput } from './render-route.js';
-
-export {
-  findArtifactInlineCompatibilityIssues,
-  resolveArtifactPresentation,
-} from './presentation-policy.js';
-export type {
-  ArtifactInlineCompatibilityIssue,
-  ArtifactPresentationDecision,
-} from './presentation-policy.js';
 
 export { parseSvgFenceIntrinsicSize, estimateSvgFenceHeight } from './svg-intrinsic-size.js';
 export type { EstimateSvgFenceHeightInput } from './svg-intrinsic-size.js';
@@ -138,9 +131,8 @@ export { buildStreamableArtifactPreview } from './streamable-preview.js';
 
 export { applyArtifactThemeContract } from './theme-contract.js';
 
-export {
-  evaluateCodeFence,
-  evaluateArtifactDescriptor,
-  evaluateHtmlArtifactDescriptor,
-} from './evaluate.js';
-export type { EvaluateCodeFenceOptions, EvaluateDescriptorOptions } from './evaluate.js';
+export { analyzeArtifactFence } from './render-intent.js';
+export type { AnalyzeArtifactFenceOptions } from './render-intent.js';
+
+export { materializeArtifact } from './materialize.js';
+export type { MaterializeArtifactOptions } from './materialize.js';

@@ -14,6 +14,27 @@ export type ArtifactFenceRecord = {
   open: boolean;
 };
 
+/** Build a record for analysis when the caller is not indexing Markdown. */
+export function createArtifactFenceRecord(input: {
+  info: string;
+  source: string;
+  ordinal?: number;
+  startOffset?: number;
+  open?: boolean;
+}): ArtifactFenceRecord {
+  const open = input.open === true;
+  const startOffset = input.startOffset ?? 0;
+  return {
+    ordinal: input.ordinal ?? 0,
+    startOffset,
+    endOffset: open ? null : startOffset,
+    info: input.info,
+    language: getFenceLanguageToken(input.info),
+    source: input.source,
+    open,
+  };
+}
+
 type MarkdownLine = {
   start: number;
   text: string;

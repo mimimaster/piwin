@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { tryParseHtmlArtifactFence } from './parser.js';
-import { evaluateCodeFence } from './evaluate.js';
+import { createArtifactFenceRecord } from './fence-index.js';
+import { parseArtifactFenceRecord } from './parser.js';
+import { analyzeArtifactFence } from './render-intent.js';
 
 /**
  * Probe matrix: which "prompts" (fence language + source) materialize an artifact.
@@ -107,31 +108,36 @@ const PROBES: Array<{
 describe('artifact materialization probes', () => {
   for (const probe of PROBES) {
     it(`${probe.expectMaterialized ? 'materializes' : 'stays code'}: ${probe.label}`, () => {
-      const descriptor = tryParseHtmlArtifactFence({
-        language: probe.language,
-        source: probe.source,
-        id: 'probe',
-        htmlUiModeEnabled: probe.htmlUiModeEnabled ?? false,
-      });
+      const descriptor = parseArtifactFenceRecord(
+        createArtifactFenceRecord({ info: probe.language, source: probe.source }),
+        {
+          id: 'probe',
+          htmlUiModeEnabled: probe.htmlUiModeEnabled ?? false,
+        },
+      );
       const materialized = descriptor !== null;
       expect(materialized).toBe(probe.expectMaterialized);
     });
   }
 
-  it('evaluateCodeFence end-to-end: artifact-html → renderable decision', () => {
-    const decision = evaluateCodeFence({
-      language: 'artifact-html title="Counter"',
-      source:
-        '<button id="b">0</button><script>const b=document.getElementById("b");b.onclick=()=>b.textContent=String(+b.textContent+1);</script>',
-    });
-    expect(decision.kind).toBe('render');
+  it('analyzeArtifactFence end-to-end: artifact-html → intent', () => {
+    const analysis = analyzeArtifactFence(
+      createArtifactFenceRecord({
+        info: 'artifact-html title="Counter"',
+        source:
+          '<button id="b">0</button><script>const b=document.getElementById("b");b.onclick=()=>b.textContent=String(+b.textContent+1);</script>',
+      }),
+    );
+    expect(analysis.kind).toBe('intent');
   });
 
-  it('evaluateCodeFence end-to-end: ts fence → code (no materialization)', () => {
-    const decision = evaluateCodeFence({
-      language: 'ts',
-      source: 'const x: number = 1;',
-    });
-    expect(decision.kind).toBe('code');
+  it('analyzeArtifactFence end-to-end: ts fence → code (no materialization)', () => {
+    const analysis = analyzeArtifactFence(
+      createArtifactFenceRecord({
+        info: 'ts',
+        source: 'const x: number = 1;',
+      }),
+    );
+    expect(analysis.kind).toBe('code');
   });
 });

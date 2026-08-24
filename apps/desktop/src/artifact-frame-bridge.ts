@@ -9,11 +9,9 @@ import {
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
   type ArtifactActionMessage,
-  type ArtifactPreviewDecision,
 } from '@piwin/artifact';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
-
-type RenderDecision = Extract<ArtifactPreviewDecision, { kind: 'render' }>;
+import type { ArtifactSandboxView } from './artifact-frame-stream.js';
 export type ArtifactBridgeStatus = 'loading' | 'streaming' | 'ready' | 'fallback';
 
 export type ArtifactFrameBridge = {
@@ -25,7 +23,7 @@ export type ArtifactFrameBridge = {
 type BridgeInput = {
   channelId: string;
   documentKey: string;
-  decision: RenderDecision;
+  decision: ArtifactSandboxView;
   iframeRef: RefObject<HTMLIFrameElement | null>;
   enabled: boolean;
   measureHeight: boolean;

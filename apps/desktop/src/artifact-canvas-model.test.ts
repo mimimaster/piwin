@@ -9,7 +9,7 @@ import {
   appendComposerProposal,
   type ArtifactCanvasTarget,
 } from './artifact-canvas-model';
-import type { ArtifactDescriptor } from '@piwin/artifact';
+import type { ArtifactDescriptor, ArtifactRenderIntent } from '@piwin/artifact';
 
 function makeDescriptor(overrides: Partial<ArtifactDescriptor> = {}): ArtifactDescriptor {
   return {
@@ -24,6 +24,30 @@ function makeDescriptor(overrides: Partial<ArtifactDescriptor> = {}): ArtifactDe
     surface: 'canvas',
     ...overrides,
   } as ArtifactDescriptor;
+}
+
+function makeIntent(overrides: Partial<ArtifactDescriptor> = {}): ArtifactRenderIntent {
+  const descriptor = makeDescriptor(overrides);
+  return {
+    descriptor,
+    capabilities: {
+      scripts: false,
+      events: false,
+      form: false,
+      iframe: false,
+      externalUrl: false,
+      cssUrl: false,
+      shadowHost: false,
+      viewportDependency: false,
+      isolation: false,
+      blockReason: null,
+      byteSize: descriptor.source.length,
+      externalResources: [],
+    },
+    surface: descriptor.surface,
+    layout: descriptor.surface === 'canvas' ? 'canvas' : 'flow',
+    renderer: descriptor.surface === 'canvas' ? 'sandbox' : 'static',
+  };
 }
 
 describe('buildArtifactCanvasTargetId', () => {
@@ -43,11 +67,12 @@ describe('buildArtifactCanvasTargetId', () => {
 
 describe('createArtifactCanvasTarget', () => {
   it('carries raw source and origin metadata only (no srcdoc/height/theme)', () => {
+    const intent = makeIntent();
     const target = createArtifactCanvasTarget({
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 2,
-      descriptor: makeDescriptor(),
+      intent,
     });
     expect(target).toEqual<ArtifactCanvasTarget>({
       id: 'canvas:s1:m1:2',
@@ -62,6 +87,7 @@ describe('createArtifactCanvasTarget', () => {
       documentKind: 'fragment',
       rawLanguage: 'artifact-html',
       source: '<div>config</div>',
+      intent,
     });
   });
 
@@ -70,7 +96,7 @@ describe('createArtifactCanvasTarget', () => {
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 0,
-      descriptor: makeDescriptor(),
+      intent: makeIntent(),
     });
     expect('srcdoc' in target).toBe(false);
     expect('height' in target).toBe(false);
@@ -82,7 +108,7 @@ describe('createArtifactCanvasTarget', () => {
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 0,
-      descriptor: makeDescriptor({ surface: 'canvas', type: 'svg' }),
+      intent: makeIntent({ surface: 'canvas', type: 'svg' }),
     });
     expect(target.surface).toBe('canvas');
     expect(target.type).toBe('svg');
@@ -119,10 +145,16 @@ describe('collectArtifactCanvasTargets', () => {
 
     expect(mobile).toHaveLength(2);
     expect(mobile.map((item) => item.title)).toEqual(['Inline card', 'Workspace']);
-    expect(mobile.map((item) => item.decision.descriptor.source)).toEqual(
-      fences.map((fence) => fence.source),
-    );
-    expect(mobile.map((item) => item.decision.descriptor.surface)).toEqual(['inline', 'canvas']);
+    expect(
+      mobile.map((item) =>
+        item.plan.kind === 'render' ? item.plan.intent.descriptor.source : '',
+      ),
+    ).toEqual(fences.map((fence) => fence.source));
+    expect(
+      mobile.map((item) =>
+        item.plan.kind === 'render' ? item.plan.intent.descriptor.surface : 'inline',
+      ),
+    ).toEqual(['inline', 'canvas']);
 
     expect(canvas).toHaveLength(1);
     expect(canvas[0]).toMatchObject({
@@ -193,13 +225,13 @@ describe('isSameCanvasTarget', () => {
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 1,
-      descriptor: makeDescriptor({ source: '<div>v1</div>' }),
+      intent: makeIntent({ source: '<div>v1</div>' }),
     });
     const b = createArtifactCanvasTarget({
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 1,
-      descriptor: makeDescriptor({ source: '<div>v2 regenerated</div>' }),
+      intent: makeIntent({ source: '<div>v2 regenerated</div>' }),
     });
     expect(isSameCanvasTarget(a, b)).toBe(true);
   });
@@ -209,13 +241,13 @@ describe('isSameCanvasTarget', () => {
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 1,
-      descriptor: makeDescriptor(),
+      intent: makeIntent(),
     });
     const b = createArtifactCanvasTarget({
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 2,
-      descriptor: makeDescriptor(),
+      intent: makeIntent(),
     });
     expect(isSameCanvasTarget(a, b)).toBe(false);
   });
@@ -225,7 +257,7 @@ describe('isSameCanvasTarget', () => {
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 0,
-      descriptor: makeDescriptor(),
+      intent: makeIntent(),
     });
     expect(isSameCanvasTarget(null, candidate)).toBe(false);
   });

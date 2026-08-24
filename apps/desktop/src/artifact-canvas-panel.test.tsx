@@ -7,9 +7,16 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import {
+  analyzeArtifactFence,
+  createArtifactFenceRecord,
+  COMPOSER_PROPOSE_TEXT_ACTION,
+  ARTIFACT_BRIDGE_ACTION_TYPE,
+  type ArtifactRenderIntent,
+} from '@piwin/artifact';
 import { ArtifactCanvasPanel } from './artifact-canvas-panel';
+import { ArtifactFrame } from './ArtifactFrame';
 import type { ArtifactCanvasTarget } from './artifact-canvas-model';
-import { COMPOSER_PROPOSE_TEXT_ACTION, ARTIFACT_BRIDGE_ACTION_TYPE } from '@piwin/artifact';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -17,7 +24,23 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+function makeIntent(source = '<div class="config">stack</div>'): ArtifactRenderIntent {
+  const analysis = analyzeArtifactFence(
+    createArtifactFenceRecord({
+      info: 'artifact-html title="Deployment configurator" surface="canvas"',
+      source,
+    }),
+    { id: 'artifact-s1-m1-0', htmlUiModeEnabled: true },
+  );
+  if (analysis.kind !== 'intent') {
+    throw new Error(`expected canvas intent, got ${analysis.kind}`);
+  }
+  return analysis.intent;
+}
+
 function makeTarget(overrides: Partial<ArtifactCanvasTarget> = {}): ArtifactCanvasTarget {
+  const source = overrides.source ?? '<div class="config">stack</div>';
+  const intent = overrides.intent ?? makeIntent(source);
   return {
     id: 'canvas:s1:m1:0',
     sessionId: 's1',
@@ -30,7 +53,8 @@ function makeTarget(overrides: Partial<ArtifactCanvasTarget> = {}): ArtifactCanv
     declaration: 'explicit',
     documentKind: 'fragment',
     rawLanguage: 'artifact-html',
-    source: '<div class="config">stack</div>',
+    source,
+    intent,
     ...overrides,
   };
 }
@@ -110,13 +134,29 @@ describe('ArtifactCanvasPanel', () => {
     expect(iframe?.style.width).toBe('100%');
   });
 
-  it('renders a blocked target without mounting an iframe', () => {
-    // External resource → security block.
-    const target = makeTarget({
-      source: '<iframe src="https://evil.example.com/"></iframe>',
-    });
-    const { container, root } = renderPanel({ activeTarget: target });
+  it('renders a blocked analysis without mounting an iframe', () => {
+    const analysis = analyzeArtifactFence(
+      createArtifactFenceRecord({
+        info: 'artifact-html title="Remote" surface="canvas"',
+        source: '<iframe src="https://evil.example.com/"></iframe>',
+      }),
+      { id: 'artifact-s1-m1-0' },
+    );
+    expect(analysis.kind).toBe('blocked');
+    if (analysis.kind !== 'blocked') return;
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
     instances.push({ container, root });
+    act(() => {
+      root.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ArtifactFrame plan={analysis} presentation="canvas" />
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
     expect(container.querySelector('.artifact-frame.blocked')).not.toBeNull();
     expect(container.querySelector('iframe')).toBeNull();
     expect(container.textContent).toContain('blocked');

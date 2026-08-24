@@ -10,6 +10,7 @@ import { useTts } from '../../hooks/use-tts.js';
 import {
   collectMobileArtifacts,
   mobileArtifactBlockedCopy,
+  mobileArtifactSrcdoc,
 } from '../../mobile-artifact-preview.js';
 import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
@@ -168,10 +169,10 @@ export function MobileMessageItem({ message }: MobileMessageItemProps): ReactEle
             isOpen={openArtifact !== undefined}
             onClose={() => setOpenArtifactId(undefined)}
             title={openArtifact?.title}
-            srcdoc={openArtifact?.decision.kind === 'render' ? openArtifact.decision.srcdoc : undefined}
+            srcdoc={openArtifact ? mobileArtifactSrcdoc(openArtifact.plan) : undefined}
             blockedReason={
-              openArtifact?.decision.kind === 'blocked'
-                ? mobileArtifactBlockedCopy(openArtifact.decision.reason)
+              openArtifact?.plan.kind === 'blocked'
+                ? mobileArtifactBlockedCopy(openArtifact.plan.reason)
                 : undefined
             }
           />

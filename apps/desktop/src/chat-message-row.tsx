@@ -125,7 +125,7 @@ export type ChatMessageRowProps = {
   artifactPreviewEnabled?: boolean;
   /** When true, MarkdownView displays source code first for artifact blocks. */
   artifactCodeFirst?: boolean;
-  /** Security byte cap forwarded to evaluateCodeFence. */
+  /** Security byte cap forwarded to analyzeArtifactFence. */
   artifactMaxBytes?: number;
   /** Callback when clicking a search result file or file link. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;

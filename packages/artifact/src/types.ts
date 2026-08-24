@@ -175,28 +175,56 @@ export type ArtifactActionMessage =
       payload: ArtifactDownloadUnsupportedPayload;
     };
 
-export type ArtifactPreviewDecision =
-  | {
-      kind: 'render';
-      mode: ArtifactRenderMode;
-      descriptor: ArtifactDescriptor;
-      security: ArtifactSecurityResult;
-      srcdoc: string;
-      csp: string;
-      /** Repaired body used for direct render or the final in-place stream commit. */
-      renderSource: string;
-      /** Sanitized/repaired body snapshot used only for in-place stream updates. */
-      streamSource?: string;
-      themeRepairs: ArtifactThemeContractRepair[];
-    }
+/** Semantic layout from one fence analysis. Overflow is a runtime frame mode (Phase 5). */
+export type ArtifactLayoutIntent = 'flow' | 'viewport' | 'canvas';
+
+/** Runtime frame chrome. Analyzer/materializer never emit `inline-overflow`. */
+export type ArtifactFrameMode = 'inline-flow' | 'inline-viewport' | 'inline-overflow' | 'canvas';
+
+/** Observed source facts plus the security block reason. Not a routing decision. */
+export type ArtifactCapabilityReport = {
+  scripts: boolean;
+  events: boolean;
+  form: boolean;
+  iframe: boolean;
+  externalUrl: boolean;
+  cssUrl: boolean;
+  shadowHost: boolean;
+  viewportDependency: boolean;
+  /** Isolation tags (`base`/`meta`/`link`) that need a browsing context. */
+  isolation: boolean;
+  blockReason: ArtifactSecurityBlockReason | null;
+  byteSize: number;
+  externalResources: ExternalArtifactResource[];
+};
+
+export type ArtifactRenderIntent = {
+  descriptor: ArtifactDescriptor;
+  capabilities: ArtifactCapabilityReport;
+  surface: ArtifactSurface;
+  layout: ArtifactLayoutIntent;
+  renderer: 'static' | 'sandbox';
+};
+
+export type ArtifactRenderPlan =
+  | { kind: 'code'; language: string; source: string }
   | {
       kind: 'blocked';
       descriptor: ArtifactDescriptor;
-      security: ArtifactSecurityResult;
+      capabilities: ArtifactCapabilityReport;
       reason: ArtifactSecurityBlockReason;
     }
   | {
-      kind: 'code';
-      language: string;
-      source: string;
+      kind: 'render';
+      intent: ArtifactRenderIntent;
+      frameMode: ArtifactFrameMode;
+      mode: ArtifactRenderMode;
+      renderSource: string;
+      document:
+        | { kind: 'static-source'; source: string }
+        | { kind: 'sandbox'; srcdoc: string; csp: string };
     };
+
+export type ArtifactFenceAnalysis =
+  | Extract<ArtifactRenderPlan, { kind: 'code' } | { kind: 'blocked' }>
+  | { kind: 'intent'; intent: ArtifactRenderIntent };

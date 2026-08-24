@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import {
-  evaluateCodeFence,
-  resolveArtifactPresentation,
+  analyzeArtifactFence,
+  createArtifactFenceRecord,
+  materializeArtifact,
   type ArtifactActionMessage,
-  type ArtifactPreviewDecision,
+  type ArtifactRenderPlan,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { Button, IconButton, IconCode } from '@piwin/ui-kit';
@@ -223,6 +224,42 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
     setArtifactPreviewOpen(false);
   };
 
+  const analysis = useMemo(() => {
+    if (boundFenceIndex === null || stickyFenceId === null) return null;
+    return analyzeArtifactFence(
+      createArtifactFenceRecord({
+        info: props.fenceInfo,
+        source: props.source,
+        ordinal: boundFenceIndex,
+        open: streamMode,
+      }),
+      {
+        id: stickyFenceId,
+        htmlUiModeEnabled: props.htmlUiModeEnabled,
+        mode: streamMode ? 'stream-preview' : 'interactive',
+        ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
+      },
+    );
+  }, [
+    boundFenceIndex,
+    stickyFenceId,
+    props.fenceInfo,
+    props.source,
+    streamMode,
+    props.htmlUiModeEnabled,
+    props.artifactMaxBytes,
+  ]);
+
+  const plan = useMemo((): ArtifactRenderPlan | null => {
+    if (!analysis) return null;
+    if (analysis.kind !== 'intent') return analysis;
+    return materializeArtifact(analysis.intent, {
+      mode: streamMode ? 'stream-preview' : 'interactive',
+      source: props.source,
+      ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
+    });
+  }, [analysis, streamMode, props.source, props.artifactTheme]);
+
   if (isMermaidFenceLanguage(props.language)) {
     if (streamMode) {
       return (
@@ -238,7 +275,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
     return <MathView tex={props.source} display />;
   }
 
-  if (boundFenceIndex === null || stickyFenceId === null) {
+  if (boundFenceIndex === null || stickyFenceId === null || plan === null) {
     return (
       <SourceCodeBlock
         language={props.language}
@@ -249,27 +286,9 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
     );
   }
 
-  const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
-    language: props.fenceInfo,
-    source: props.source,
-    id: stickyFenceId,
-    htmlUiModeEnabled: props.htmlUiModeEnabled,
-    mode: streamMode ? 'stream-preview' : 'interactive',
-  };
-  if (props.artifactMaxBytes !== undefined) evaluateOptions.maxBytes = props.artifactMaxBytes;
-  if (props.artifactTheme) evaluateOptions.theme = props.artifactTheme;
-
-  const decision: ArtifactPreviewDecision = evaluateCodeFence(evaluateOptions);
-  const presentation =
-    decision.kind === 'render'
-      ? resolveArtifactPresentation({
-          descriptor: decision.descriptor,
-          mode: decision.mode,
-          source: decision.renderSource,
-        })
-      : null;
+  const layout = plan.kind === 'render' ? plan.intent.layout : null;
   const isFlashcard = isFlashcardArtifactSource(props.source);
-  const decisionLanguage = decision.kind === 'code' ? decision.language : undefined;
+  const decisionLanguage = plan.kind === 'code' ? plan.language : undefined;
   const isShell = isShellLanguage(props.language || decisionLanguage);
 
   if (streamMode) {
@@ -277,8 +296,9 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
       props.artifactPreviewEnabled &&
       artifactPreviewOpen &&
       !artifactCodeFirst &&
-      presentation?.kind === 'inline-sandbox' &&
-      decision.kind === 'render'
+      plan.kind === 'render' &&
+      layout === 'flow' &&
+      plan.document.kind === 'sandbox'
     ) {
       return (
         <div
@@ -289,7 +309,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
           <div className="artifact-preview-surface">
             <ArtifactFrame
               key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
-              decision={decision}
+              plan={plan}
               initPriority={props.initPriority}
               locale={props.locale}
               {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
@@ -340,59 +360,55 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
     );
   }
 
-  if (decision.kind === 'render' || decision.kind === 'blocked') {
+  if (plan.kind === 'render' || plan.kind === 'blocked') {
     if (!props.artifactPreviewEnabled) {
       return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
     }
 
     if (
-      decision.kind === 'render' &&
-      presentation?.kind === 'canvas' &&
+      plan.kind === 'render' &&
+      layout === 'canvas' &&
       props.artifactOrigin &&
       props.onOpenArtifactCanvas
     ) {
       const target = createArtifactCanvasTarget({
         ...props.artifactOrigin,
         fenceIndex: boundFenceIndex,
-        descriptor: decision.descriptor,
+        intent: plan.intent,
       });
       return (
         <ArtifactCanvasLauncher
-          title={decision.descriptor.title}
-          source={decision.descriptor.source}
-          rawLanguage={decision.descriptor.rawLanguage}
+          title={plan.intent.descriptor.title}
+          source={plan.intent.descriptor.source}
+          rawLanguage={plan.intent.descriptor.rawLanguage}
           onOpenCanvas={() => props.onOpenArtifactCanvas?.(target)}
         />
       );
     }
 
-    const previewInCanvas =
-      presentation?.kind === 'inline-incompatible' ||
-      (presentation?.kind === 'source' && presentation.previewSurface === 'canvas');
-    const canPreviewInline =
-      presentation?.kind === 'inline-static' ||
-      presentation?.kind === 'inline-sandbox' ||
-      (presentation?.kind === 'source' && presentation.previewSurface === 'inline');
+    const previewInCanvas = layout === 'viewport';
+    const canPreviewInline = layout === 'flow';
     const openCanvasPreview = (): void => {
-      if (!props.artifactOrigin || !props.onOpenArtifactCanvas) return;
+      if (!props.artifactOrigin || !props.onOpenArtifactCanvas || plan.kind !== 'render') return;
       props.onOpenArtifactCanvas(
         createArtifactCanvasTarget({
           ...props.artifactOrigin,
           fenceIndex: boundFenceIndex,
-          descriptor: decision.descriptor,
+          intent: plan.intent,
         }),
       );
     };
-    const previewLabel = decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview';
+    const previewLabel =
+      plan.kind === 'render' && plan.intent.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview';
 
-    if (decision.kind === 'blocked') {
+    if (plan.kind === 'blocked') {
       return (
         <div className="artifact-with-source">
           <SourceCodeBlock
             language={props.language}
             source={props.source}
             isShell={isShell}
-            blockedReason={decision.reason}
+            blockedReason={plan.reason}
           />
         </div>
       );
@@ -412,7 +428,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
             <div className="artifact-preview-surface">
               <ArtifactFrame
                 key={`${props.artifactThemeKey ?? 'default'}:${stickyFenceId}`}
-                decision={decision}
+                plan={plan}
                 initPriority={props.initPriority}
                 locale={props.locale}
                 {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
@@ -449,7 +465,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
                 {previewInCanvas ? 'Preview in Canvas' : previewLabel}
               </Button>
             }
-            incompatible={presentation?.kind === 'inline-incompatible'}
+            incompatible={layout === 'viewport'}
           />
         )}
       </div>
@@ -544,49 +560,54 @@ function FlashcardPreviewCard(props: {
     );
   }
 
-  const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
-    language: props.language,
-    source: props.source,
-    id: `flashcard-${props.initPriority}`,
-    htmlUiModeEnabled: true,
-    mode: 'interactive',
-  };
-  if (props.artifactMaxBytes !== undefined) evaluateOptions.maxBytes = props.artifactMaxBytes;
-  if (props.artifactTheme) evaluateOptions.theme = props.artifactTheme;
-  const decision = evaluateCodeFence(evaluateOptions);
+  const analysis = analyzeArtifactFence(
+    createArtifactFenceRecord({ info: props.language, source: props.source }),
+    {
+      id: `flashcard-${props.initPriority}`,
+      htmlUiModeEnabled: true,
+      mode: 'interactive',
+      ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
+    },
+  );
+  const plan: ArtifactRenderPlan =
+    analysis.kind === 'intent'
+      ? materializeArtifact(analysis.intent, {
+          mode: 'interactive',
+          source: props.source,
+          ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
+        })
+      : analysis;
   return (
     <div className="artifact-with-source artifact-with-source--preview">
-      {decision.kind === 'render' ? (
+      {plan.kind === 'render' || plan.kind === 'blocked' ? (
         <>
           <div className="artifact-preview-surface">
             <ArtifactFrame
-              key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
-              decision={decision}
+              key={`${props.artifactThemeKey ?? 'default'}:${plan.kind === 'render' ? plan.intent.descriptor.id : plan.descriptor.id}`}
+              plan={plan}
               initPriority={props.initPriority}
               {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
             />
           </div>
-          <div className="artifact-floating-actions">
-            <IconButton
-              label="Show code"
-              title="Show code"
-              className="artifact-floating-action-button"
-              data-testid="flashcard-preview-card"
-              aria-expanded
-              onClick={() => {
-                setSourceExpanded(true);
-                setOpen(false);
-              }}
-            >
-              <IconCode size={14} />
-            </IconButton>
-          </div>
+          {plan.kind === 'render' ? (
+            <div className="artifact-floating-actions">
+              <IconButton
+                label="Show code"
+                title="Show code"
+                className="artifact-floating-action-button"
+                data-testid="flashcard-preview-card"
+                aria-expanded
+                onClick={() => {
+                  setSourceExpanded(true);
+                  setOpen(false);
+                }}
+              >
+                <IconCode size={14} />
+              </IconButton>
+            </div>
+          ) : null}
         </>
-      ) : decision.kind === 'blocked' ? (
-        <div className="artifact-blocked muted" data-testid="artifact-blocked" role="status">
-          Artifact blocked{`: ${decision.reason}`}
-        </div>
       ) : null}
     </div>
   );
