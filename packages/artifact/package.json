@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./fixtures": {
+      "types": "./fixtures/index.ts",
+      "import": "./fixtures/index.ts",
+      "default": "./fixtures/index.ts"
     }
   },
   "scripts": {

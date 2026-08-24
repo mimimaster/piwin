@@ -138,6 +138,7 @@ describe('ArtifactFrame chrome', () => {
 
     const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
     expect(frame).not.toBeNull();
+    expect(frame?.getAttribute('data-artifact-layout')).toBe('inline');
     expect(frame?.classList.contains('is-expanded')).toBe(false);
     expect(frame?.hasAttribute('data-expanded')).toBe(false);
     // Source lives behind Show code from MarkdownView; no expand height toggle.
@@ -479,6 +480,7 @@ describe('ArtifactFrame chrome', () => {
 
   it('keeps the iframe visible in a bounded fallback viewport when height transport times out', async () => {
     vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { container, root } = renderFrame();
     instances.push({ container, root });
 
@@ -505,6 +507,7 @@ describe('ArtifactFrame chrome', () => {
     expect(
       container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-tool-status'),
     ).toBe('done');
+    expect(warn).toHaveBeenCalled();
   });
 
   it('applies the canvas presentation class without expand chrome', async () => {

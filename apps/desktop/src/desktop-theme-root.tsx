@@ -8,6 +8,7 @@ import type { ThemeManifest } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
+import { ArtifactGallery } from './e2e/artifact-gallery';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
 import {
   buildAppearanceTheme,
@@ -29,13 +30,22 @@ import { loadDesktopPreferences } from './ui-preferences';
  * undefined, so the gallery can never render from product navigation.
  */
 const E2E_PRIMITIVE_GALLERY_HASH = '#/e2e/primitives';
+const E2E_ARTIFACT_GALLERY_HASH = '#/e2e/artifacts';
+
+function isE2eFixtureRoute(prefix: string): boolean {
+  if (import.meta.env.VITE_PIWIN_E2E_FIXTURES !== 'true' || typeof window === 'undefined') {
+    return false;
+  }
+  const hash = window.location.hash;
+  return hash === prefix || hash.startsWith(`${prefix}?`);
+}
 
 function isPrimitiveGalleryRoute(): boolean {
-  return (
-    import.meta.env.VITE_PIWIN_E2E_FIXTURES === 'true' &&
-    typeof window !== 'undefined' &&
-    window.location.hash === E2E_PRIMITIVE_GALLERY_HASH
-  );
+  return isE2eFixtureRoute(E2E_PRIMITIVE_GALLERY_HASH);
+}
+
+function isArtifactGalleryRoute(): boolean {
+  return isE2eFixtureRoute(E2E_ARTIFACT_GALLERY_HASH);
 }
 
 export function DesktopThemeRoot() {
@@ -91,6 +101,8 @@ export function DesktopThemeRoot() {
       <AppErrorBoundary>
         {isPrimitiveGalleryRoute() ? (
           <PrimitiveGallery onApplyTheme={applyResolvedTheme} />
+        ) : isArtifactGalleryRoute() ? (
+          <ArtifactGallery />
         ) : (
           <App activeTheme={activeTheme} onThemeApplied={applyResolvedTheme} />
         )}
