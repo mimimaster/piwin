@@ -6,7 +6,7 @@ import {
   releaseArtifactInit,
   requestArtifactInit,
   resetArtifactInitQueueForTests,
-} from './init-queue.js';
+} from './artifact-init-queue.js';
 
 describe('artifact init queue', () => {
   beforeEach(() => {

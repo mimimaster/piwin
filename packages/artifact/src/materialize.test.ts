@@ -37,7 +37,8 @@ describe('materializeArtifact', () => {
     expect(plan.frameMode).toBe('canvas');
     expect(plan.document.kind).toBe('sandbox');
     if (plan.document.kind === 'sandbox') {
-      expect(plan.document.srcdoc).toContain('overflow-x: auto !important');
+      expect(plan.document.srcdoc).toContain('data-frame-mode="canvas"');
+      expect(plan.document.srcdoc).toContain('html[data-frame-mode="canvas"]');
       expect(plan.document.srcdoc).toContain('overflow-y: auto !important');
     }
   });
@@ -140,6 +141,7 @@ describe('materializeArtifact', () => {
     expect(inlinePlan.frameMode).toBe('inline-viewport');
     expect(inlinePlan.document.kind).toBe('sandbox');
     if (inlinePlan.document.kind === 'sandbox') {
+      expect(inlinePlan.document.srcdoc).toContain('data-frame-mode="inline-viewport"');
       expect(inlinePlan.document.srcdoc).toContain('overflow-x: hidden !important');
     }
 
@@ -152,7 +154,7 @@ describe('materializeArtifact', () => {
     expect(canvasPlan.frameMode).toBe('canvas');
     expect(canvasPlan.document.kind).toBe('sandbox');
     if (canvasPlan.document.kind === 'sandbox') {
-      expect(canvasPlan.document.srcdoc).toContain('overflow-x: auto !important');
+      expect(canvasPlan.document.srcdoc).toContain('data-frame-mode="canvas"');
       expect(canvasPlan.document.srcdoc).toContain('overflow-y: auto !important');
     }
   });

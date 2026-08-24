@@ -11,7 +11,11 @@ export {
   ARTIFACT_BOOTSTRAP_HEIGHT,
   ARTIFACT_FALLBACK_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
+  ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT,
+  ARTIFACT_INLINE_VIEWPORT_MAX_HEIGHT,
+  ARTIFACT_INLINE_VIEWPORT_HEIGHT_VH,
   ARTIFACT_READY_TIMEOUT_MS,
+  ARTIFACT_FRAME_MODES,
   MAX_CONCURRENT_ARTIFACT_INITS,
   ARTIFACT_LIVE_PRIORITY_VISIBLE,
   ARTIFACT_LIVE_PRIORITY_STREAM,
@@ -55,6 +59,7 @@ export type {
   ArtifactDownloadUnsupportedPayload,
   ArtifactLayoutIntent,
   ArtifactFrameMode,
+  ArtifactRenderSnapshot,
   ArtifactCapabilityReport,
   ArtifactRenderIntent,
   ArtifactRenderPlan,
@@ -97,35 +102,22 @@ export {
 } from './srcdoc.js';
 export type { BuildHtmlArtifactSrcdocInput } from './srcdoc.js';
 
-export { parseArtifactBridgeMessage, parseArtifactActionMessage } from './bridge-protocol.js';
+export {
+  parseArtifactBridgeMessage,
+  parseArtifactActionMessage,
+  parseArtifactRenderSnapshot,
+} from './bridge-protocol.js';
 
-export { normalizeArtifactHeight, clampArtifactHeight } from './height-policy.js';
+export { advanceArtifactFrameMode } from './frame-mode.js';
+
+export {
+  normalizeArtifactHeight,
+  clampArtifactHeight,
+  resolveArtifactViewportFrameHeight,
+} from './height-policy.js';
 
 export { parseSvgFenceIntrinsicSize, estimateSvgFenceHeight } from './svg-intrinsic-size.js';
 export type { EstimateSvgFenceHeightInput } from './svg-intrinsic-size.js';
-
-export {
-  requestArtifactInit,
-  cancelArtifactInit,
-  releaseArtifactInit,
-  getActiveArtifactInitCount,
-  getQueuedArtifactInitCount,
-  resetArtifactInitQueueForTests,
-} from './init-queue.js';
-
-export {
-  MAX_LIVE_ARTIFACT_IFRAMES,
-  claimArtifactLiveHost,
-  requestArtifactLiveHost,
-  evictNonForceKeepArtifactHosts,
-  releaseArtifactLiveHost,
-  getLiveArtifactHostCount,
-  getWaitingArtifactHostCount,
-  getLiveArtifactHostIdsForTests,
-  getWaitingArtifactHostIdsForTests,
-  resetArtifactLiveHostRegistryForTests,
-} from './live-host-registry.js';
-export type { ArtifactLiveHostRegistration } from './live-host-registry.js';
 
 export { buildStreamableArtifactPreview } from './streamable-preview.js';
 

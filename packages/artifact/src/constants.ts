@@ -26,12 +26,22 @@ export const ARTIFACT_FALLBACK_HEIGHT = 640;
  * must not be able to request an effectively unbounded iframe height.
  */
 export const MAX_ARTIFACT_INLINE_FLOW_HEIGHT = 16_384;
+/** Host-owned Inline viewport / overflow chrome. Not a second size protocol. */
+export const ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT = 360;
+export const ARTIFACT_INLINE_VIEWPORT_MAX_HEIGHT = 760;
+export const ARTIFACT_INLINE_VIEWPORT_HEIGHT_VH = 0.72;
 export const ARTIFACT_READY_TIMEOUT_MS = 5000;
+export const ARTIFACT_FRAME_MODES = [
+  'inline-flow',
+  'inline-viewport',
+  'inline-overflow',
+  'canvas',
+] as const;
 
 /** Max concurrent historical artifact iframe inits (srcdoc assignment). */
 export const MAX_CONCURRENT_ARTIFACT_INITS = 1;
 
-/** Priority bands for the live-host registry (higher = keep). */
+/** Priority bands for Desktop live-host admission (higher = keep). */
 export const ARTIFACT_LIVE_PRIORITY_VISIBLE = 100;
 export const ARTIFACT_LIVE_PRIORITY_STREAM = 1_000;
 export const ARTIFACT_LIVE_PRIORITY_CANVAS = 1_000;

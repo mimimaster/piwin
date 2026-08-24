@@ -3,7 +3,7 @@
  * Critical pressure evicts non-forceKeep iframes; moderate does not.
  * Returning to normal does not remount — the user clicks Load preview.
  */
-import { evictNonForceKeepArtifactHosts } from '@piwin/artifact';
+import { evictNonForceKeepArtifactHosts } from './artifact-live-host-registry.js';
 import { globalMemoryGovernor } from './memory-governor';
 
 let installed = false;

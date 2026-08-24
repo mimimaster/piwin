@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { ARTIFACT_BRIDGE_SIZE_TYPE, ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE } from './constants.js';
+import {
+  ARTIFACT_BRIDGE_SIZE_TYPE,
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  ARTIFACT_FRAME_MODES,
+} from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import {
   buildArtifactBridgeBootstrapScript,
   buildHtmlArtifactSrcdoc,
   buildStrictArtifactCsp,
 } from './srcdoc.js';
+import type { ArtifactFrameMode } from './types.js';
 
 describe('buildStrictArtifactCsp', () => {
   it('blocks network and limits frame-src to allowlist origins', () => {
@@ -50,7 +55,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('post(actionType, { action: action, payload: payload || {} })');
     expect(srcdoc).toContain("parent.postMessage(message, '*')");
     expect(srcdoc).toContain('window.ResizeObserver');
-    expect(srcdoc).toContain('observer.observe(root)');
+    expect(srcdoc).toContain('heightObserver.observe(root)');
     expect(srcdoc).toContain('root.getBoundingClientRect().height');
     expect(srcdoc).toContain('revision: sizeRevision');
     expect(srcdoc).toContain('height === lastReportedHeight');
@@ -68,9 +73,9 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
     expect(srcdoc).toContain('syncChildren(root, template.content)');
-    expect(srcdoc).toContain("window.removeEventListener('message', onStreamUpdate)");
+    expect(srcdoc).toContain("window.removeEventListener('message', onRenderCommand)");
     expect(srcdoc).toContain('scheduleHeight();');
-    expect(srcdoc).toContain('interactive scripts may change normal-flow size later');
+    expect(srcdoc).toContain('activateFinalScripts(root)');
     expect(srcdoc).not.toContain('MutationObserver');
   });
 
@@ -83,10 +88,12 @@ describe('buildHtmlArtifactSrcdoc', () => {
       surface: 'inline',
     });
 
+    expect(srcdoc).toContain('data-frame-mode="inline-flow"');
+    expect(srcdoc).toContain('html[data-frame-mode="inline-flow"]');
     expect(srcdoc).toContain('overflow-y: hidden !important');
     expect(srcdoc).toContain('overflow-x: hidden !important');
     expect(srcdoc).toContain('container-type: inline-size');
-    expect(srcdoc.indexOf('data-piwin-artifact-surface-policy')).toBeGreaterThan(
+    expect(srcdoc.indexOf('data-piwin-artifact-frame-mode-policy')).toBeGreaterThan(
       srcdoc.indexOf(modelSource),
     );
   });
@@ -101,14 +108,14 @@ describe('buildHtmlArtifactSrcdoc', () => {
       documentKind: 'document',
     });
 
-    expect(srcdoc).toContain('<html class="app">');
+    expect(srcdoc).toContain('<html class="app" data-frame-mode="canvas">');
     expect(srcdoc).toContain('<body data-app="ink"><main>Workspace</main></body>');
     expect(srcdoc.match(/<html\b/gi)).toHaveLength(1);
+    expect(srcdoc).toContain('html[data-frame-mode="canvas"]');
     expect(srcdoc).toContain('overflow-y: auto !important');
-    expect(srcdoc).toContain('overflow-x: auto !important');
+    expect(srcdoc).toContain('overflow: hidden !important');
     expect(srcdoc).not.toContain('<div class="piwin-artifact-root">');
-    expect(srcdoc).not.toContain('window.ResizeObserver');
-    expect(srcdoc).not.toContain(ARTIFACT_BRIDGE_SIZE_TYPE);
+    expect(srcdoc).toContain("currentFrameMode !== 'canvas'");
   });
 
   it('hosts a body-only document without nesting a second body', () => {
@@ -133,12 +140,23 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).not.toContain('data-piwin-artifact-bridge-bootstrap');
   });
 
-  it('emits syntactically valid bridges for Inline and Canvas', () => {
-    for (const measureHeight of [true, false]) {
-      const source = buildArtifactBridgeBootstrapScript('syntax-channel', false, measureHeight);
+  it('emits syntactically valid bridges for every frame mode', () => {
+    for (const frameMode of ARTIFACT_FRAME_MODES) {
+      const source = buildArtifactBridgeBootstrapScript('syntax-channel', true, frameMode);
       const script = source.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
       expect(script).toBeDefined();
       expect(() => new Function(script ?? '')).not.toThrow();
+    }
+  });
+
+  it('embeds all four frame-mode CSS contracts in every sandbox document', () => {
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: '<section>Card</section>',
+      channelId: 'modes',
+      frameMode: 'inline-flow',
+    });
+    for (const frameMode of ARTIFACT_FRAME_MODES) {
+      expect(srcdoc).toContain(`html[data-frame-mode="${frameMode}"]`);
     }
   });
 
@@ -176,6 +194,37 @@ describe('buildHtmlArtifactSrcdoc', () => {
     session.remeasure();
     expect(session.messages.at(-1)).toMatchObject({ height: 360, revision: 1 });
   });
+
+  it('switches flow to viewport: data-frame-mode, observer disconnect, one size', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root, { enableRenderCommand: true });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
+    expect(session.observerCount()).toBe(1);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 0,
+      source: '<div>next</div>',
+      frameMode: 'inline-viewport',
+      final: false,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-viewport');
+    expect(session.observerCount()).toBe(0);
+
+    session.remeasure();
+    expect(session.observerCount()).toBe(0);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 1,
+      source: '<div>back</div>',
+      frameMode: 'inline-flow',
+      final: false,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-viewport');
+  });
 });
 
 type MeasuredRoot = {
@@ -199,36 +248,78 @@ function createMeasuredRoot(height: number): MeasuredRoot {
   return root;
 }
 
-function runBridgeSession(root: MeasuredRoot): {
+function runBridgeSession(
+  root: MeasuredRoot,
+  options: { enableRenderCommand?: boolean; frameMode?: ArtifactFrameMode } = {},
+): {
   messages: SizeMessage[];
+  documentElement: { attributes: Record<string, string> };
+  observerCount: () => number;
   remeasure: () => void;
+  dispatchRenderCommand: (data: unknown) => void;
 } {
   const messages: SizeMessage[] = [];
-  const resizeCallbacks: Array<() => void> = [];
+  const resizeCallbacks = new Set<() => void>();
   const animationCallbacks: Array<() => void> = [];
+  const messageListeners: Array<(event: { data: unknown }) => void> = [];
+  const documentElement = {
+    attributes: {} as Record<string, string>,
+    setAttribute(name: string, value: string): void {
+      this.attributes[name] = value;
+    },
+  };
   const windowObject = {
     innerHeight: 80,
-    addEventListener: () => undefined,
+    addEventListener: (type: string, listener: (event: { data: unknown }) => void) => {
+      if (type === 'message') messageListeners.push(listener);
+    },
+    removeEventListener: (type: string, listener: (event: { data: unknown }) => void) => {
+      if (type !== 'message') return;
+      const index = messageListeners.indexOf(listener);
+      if (index >= 0) messageListeners.splice(index, 1);
+    },
     ResizeObserver: class {
+      callback: () => void;
       constructor(callback: () => void) {
-        resizeCallbacks.push(callback);
+        this.callback = callback;
       }
       observe(): void {
-        return undefined;
+        resizeCallbacks.add(this.callback);
+      }
+      disconnect(): void {
+        resizeCallbacks.delete(this.callback);
       }
     },
   };
+  const fragmentRoot = {
+    ...root,
+    firstChild: null as unknown,
+    querySelectorAll: () => [],
+  };
   const documentObject = {
     readyState: 'complete',
-    querySelector: (selector: string) => (selector === '.piwin-artifact-root' ? root : null),
+    documentElement,
+    querySelector: (selector: string) =>
+      selector === '.piwin-artifact-root' ? fragmentRoot : null,
     addEventListener: () => undefined,
+    createElement: (tag: string) => {
+      if (tag === 'template') {
+        return { innerHTML: '', content: { firstChild: null } };
+      }
+      return { attributes: [], textContent: '', setAttribute: () => undefined };
+    },
+    dispatchEvent: () => undefined,
   };
   const parentObject = {
     postMessage: (data: unknown): void => {
       if (isSizeMessage(data)) messages.push(data);
     },
   };
-  const source = buildArtifactBridgeBootstrapScript('test-channel');
+  const source = buildArtifactBridgeBootstrapScript(
+    'test-channel',
+    options.enableRenderCommand !== false,
+    options.frameMode ?? 'inline-flow',
+  );
   const script = source.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
   if (!script) throw new Error('bridge script missing');
 
@@ -266,8 +357,14 @@ function runBridgeSession(root: MeasuredRoot): {
 
   return {
     messages,
+    documentElement,
+    observerCount: () => resizeCallbacks.size,
     remeasure: (): void => {
-      for (const callback of resizeCallbacks) callback();
+      for (const callback of [...resizeCallbacks]) callback();
+      flushAnimationFrames();
+    },
+    dispatchRenderCommand: (data: unknown): void => {
+      for (const listener of [...messageListeners]) listener({ data });
       flushAnimationFrames();
     },
   };

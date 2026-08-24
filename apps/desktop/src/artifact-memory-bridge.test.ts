@@ -3,7 +3,7 @@ import {
   claimArtifactLiveHost,
   getLiveArtifactHostIdsForTests,
   resetArtifactLiveHostRegistryForTests,
-} from '@piwin/artifact';
+} from './artifact-live-host-registry.js';
 import {
   installArtifactMemoryBridge,
   uninstallArtifactMemoryBridge,

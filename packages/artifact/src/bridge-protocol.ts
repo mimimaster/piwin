@@ -2,8 +2,20 @@
  * Parent-side validation for artifact iframe postMessage payloads.
  * Pure — no DOM. Desktop checks event.source separately.
  */
-import { ARTIFACT_BRIDGE_ACTION_TYPE, ARTIFACT_BRIDGE_SIZE_TYPE } from './constants.js';
-import type { ArtifactActionMessage, ArtifactBridgeMessage } from './types.js';
+import { getUtf8ByteSize } from './security.js';
+import {
+  ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_BRIDGE_SIZE_TYPE,
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  ARTIFACT_FRAME_MODES,
+  DEFAULT_MAX_ARTIFACT_BYTES,
+} from './constants.js';
+import type {
+  ArtifactActionMessage,
+  ArtifactBridgeMessage,
+  ArtifactFrameMode,
+  ArtifactRenderSnapshot,
+} from './types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -47,6 +59,51 @@ export function parseArtifactBridgeMessage(data: unknown): ArtifactBridgeMessage
     height: Math.max(0, Math.ceil(rawHeight)),
     viewportHeight: Math.max(0, Math.ceil(rawViewportHeight)),
     revision,
+  };
+}
+
+function isArtifactFrameMode(value: unknown): value is ArtifactFrameMode {
+  return (ARTIFACT_FRAME_MODES as readonly string[]).includes(value as string);
+}
+
+/**
+ * Parse a parent → iframe render snapshot. Strict size and enum checks.
+ * Returns null when the payload is not a valid revisioned render command.
+ */
+export function parseArtifactRenderSnapshot(data: unknown): ArtifactRenderSnapshot | null {
+  if (!isRecord(data)) {
+    return null;
+  }
+  if (data['type'] !== ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE) {
+    return null;
+  }
+  const channelId = data['channelId'];
+  if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
+    return null;
+  }
+  const revision = data['revision'];
+  if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) {
+    return null;
+  }
+  const source = data['source'];
+  if (typeof source !== 'string' || getUtf8ByteSize(source) > DEFAULT_MAX_ARTIFACT_BYTES) {
+    return null;
+  }
+  const frameMode = data['frameMode'];
+  if (!isArtifactFrameMode(frameMode)) {
+    return null;
+  }
+  const final = data['final'];
+  if (typeof final !== 'boolean') {
+    return null;
+  }
+  return {
+    type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+    channelId,
+    revision,
+    source,
+    frameMode,
+    final,
   };
 }
 

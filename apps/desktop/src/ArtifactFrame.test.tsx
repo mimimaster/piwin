@@ -5,10 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ArtifactCapabilityReport, ArtifactRenderPlan } from '@piwin/artifact';
-import {
-  resetArtifactInitQueueForTests,
-  resetArtifactLiveHostRegistryForTests,
-} from '@piwin/artifact';
+import { resetArtifactInitQueueForTests } from './artifact-init-queue.js';
+import { resetArtifactLiveHostRegistryForTests } from './artifact-live-host-registry.js';
 import { Button, PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ArtifactFrame } from './ArtifactFrame.js';
@@ -37,10 +35,12 @@ const EMPTY_CAPABILITIES: ArtifactCapabilityReport = {
   externalResources: [],
 };
 
-function makeRenderPlan(): Extract<ArtifactRenderPlan, { kind: 'render' }> {
+function makeRenderPlan(
+  id = 'artifact-test-1',
+): Extract<ArtifactRenderPlan, { kind: 'render' }> {
   const source = '<div class="diagram">wide content</div><script>window.ready = true</script>';
   const descriptor = {
-    id: 'artifact-test-1',
+    id,
     type: 'html' as const,
     title: 'piwin architecture (simplified)',
     rawLanguage: 'artifact-html',
@@ -347,7 +347,10 @@ describe('ArtifactFrame chrome', () => {
       {
         type: 'piwin-artifact:stream-update',
         channelId: 'artifact-test-1',
+        revision: expect.any(Number),
         source: next.renderSource,
+        frameMode: 'inline-flow',
+        final: false,
       },
       '*',
     );
@@ -405,7 +408,9 @@ describe('ArtifactFrame chrome', () => {
       {
         type: 'piwin-artifact:stream-update',
         channelId: 'artifact-test-1',
+        revision: expect.any(Number),
         source: finalSource,
+        frameMode: 'inline-flow',
         final: true,
       },
       '*',
@@ -423,6 +428,76 @@ describe('ArtifactFrame chrome', () => {
       await new Promise((resolve) => setTimeout(resolve, 320));
     });
     expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  it('upgrades inline-flow to inline-viewport on the same iframe', async () => {
+    const initial = makeStreamPlan('<div><p>Hel</p></div>', '<html>initial stream</html>');
+    const { container, root } = renderFrame(initial);
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(frame?.getAttribute('data-frame-mode')).toBe('inline-flow');
+    expect(iframe?.getAttribute('data-frame-mode')).toBe('inline-flow');
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    const viewportPlan: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
+      ...initial,
+      frameMode: 'inline-viewport',
+      intent: {
+        ...initial.intent,
+        layout: 'viewport',
+      },
+      renderSource: '<div><p>Hello viewport</p></div>',
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame plan={viewportPlan} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const upgraded = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(upgraded).toBe(iframe);
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-viewport');
+    expect(upgraded?.getAttribute('data-frame-mode')).toBe('inline-viewport');
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'piwin-artifact:stream-update',
+        frameMode: 'inline-viewport',
+        final: false,
+      }),
+      '*',
+    );
+
+    const backToFlow: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
+      ...viewportPlan,
+      frameMode: 'inline-flow',
+      intent: { ...viewportPlan.intent, layout: 'flow' },
+    };
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame plan={backToFlow} />
+        </PiwinUiProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-viewport');
+    expect(
+      container.querySelector('iframe.artifact-iframe')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-viewport');
   });
 
   it('applies every valid observed height through streaming and completion', async () => {
@@ -715,7 +790,7 @@ describe('ArtifactFrame chrome', () => {
 
   it('offers Load preview when the live budget rejects the frame', async () => {
     const { MAX_LIVE_ARTIFACT_IFRAMES, claimArtifactLiveHost, releaseArtifactLiveHost } =
-      await import('@piwin/artifact');
+      await import('./artifact-live-host-registry.js');
     // Fill the budget with forceKeep hosts so the next claim is denied.
     for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
       claimArtifactLiveHost({
