@@ -5,7 +5,12 @@
  * using the same @piwin/artifact pipeline the chat uses — no model required.
  */
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
-import { evaluateCodeFence, type ArtifactPreviewDecision } from '@piwin/artifact';
+import {
+  analyzeArtifactFence,
+  createArtifactFenceRecord,
+  materializeArtifact,
+  type ArtifactRenderPlan,
+} from '@piwin/artifact';
 import { Button, TextArea } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { mapThemeToArtifactVariables } from '../../artifact-theme-map';
@@ -54,39 +59,45 @@ export function ArtifactPlaygroundPage(): ReactElement {
   const { activeTheme } = useSettings();
 
   const [source, setSource] = useState<string>(SAMPLE_HTML);
-  const [decision, setDecision] = useState<ArtifactPreviewDecision | null>(null);
+  const [plan, setPlan] = useState<ArtifactRenderPlan | null>(null);
   const [renderKey, setRenderKey] = useState<number>(0);
 
   const themeVariables = useMemo(() => mapThemeToArtifactVariables(activeTheme), [activeTheme]);
 
   const handleRender = useCallback((): void => {
-    const result = evaluateCodeFence({
-      language: 'artifact-html',
-      source,
-      id: `playground-${renderKey}`,
-      theme: themeVariables,
-    });
-    setDecision(result);
+    const analysis = analyzeArtifactFence(
+      createArtifactFenceRecord({ info: 'artifact-html', source }),
+      { id: `playground-${renderKey}` },
+    );
+    const nextPlan: ArtifactRenderPlan =
+      analysis.kind === 'intent'
+        ? materializeArtifact(analysis.intent, {
+            mode: 'interactive',
+            source,
+            theme: themeVariables,
+          })
+        : analysis;
+    setPlan(nextPlan);
     setRenderKey((key) => key + 1);
   }, [source, themeVariables, renderKey]);
 
   const handleClear = useCallback((): void => {
     setSource('');
-    setDecision(null);
+    setPlan(null);
   }, []);
 
   const handleLoadSample = useCallback((): void => {
     setSource(SAMPLE_HTML);
-    setDecision(null);
+    setPlan(null);
   }, []);
 
-  const renderableDecision = useMemo(() => {
-    if (!decision) return null;
-    if (decision.kind === 'render' || decision.kind === 'blocked') {
-      return decision;
+  const renderablePlan = useMemo(() => {
+    if (!plan) return null;
+    if (plan.kind === 'render' || plan.kind === 'blocked') {
+      return plan;
     }
     return null;
-  }, [decision]);
+  }, [plan]);
 
   return (
     <div className="settings-card" data-testid="settings-artifact-playground">
@@ -136,7 +147,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
         </div>
 
         {/* Preview area */}
-        {renderableDecision ? (
+        {renderablePlan ? (
           <div data-testid="playground-preview-area">
             <div
               style={{
@@ -147,7 +158,7 @@ export function ArtifactPlaygroundPage(): ReactElement {
               }}
             >
               <strong style={{ fontSize: '0.9em' }}>{isZh ? '预览' : 'Preview'}</strong>
-              {renderableDecision.kind === 'blocked' ? (
+              {renderablePlan.kind === 'blocked' ? (
                 <span className="pill" style={{ fontSize: '0.75em' }}>
                   {isZh ? '已拦截' : 'blocked'}
                 </span>
@@ -155,12 +166,12 @@ export function ArtifactPlaygroundPage(): ReactElement {
             </div>
             <ArtifactFrame
               key={`playground-${renderKey}`}
-              decision={renderableDecision}
+              plan={renderablePlan}
               presentation="inline"
               initPriority={0}
             />
           </div>
-        ) : decision?.kind === 'code' ? (
+        ) : plan?.kind === 'code' ? (
           <p className="muted" style={{ fontSize: '0.85em' }}>
             {isZh
               ? '无法识别为 Artifact。请确保使用 HTML 代码。'

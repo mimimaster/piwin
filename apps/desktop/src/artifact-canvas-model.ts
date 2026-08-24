@@ -1,23 +1,21 @@
 /**
  * Desktop-local Artifact Canvas target model.
  *
- * A Canvas target carries only raw model source plus stable origin metadata.
- * It deliberately excludes srcdoc, measured height, and theme output — those
- * are rederived from `source` under the current theme/security policy by
- * `ArtifactFrame` so a restored tab never shows stale rendered output.
+ * A Canvas target carries the original render intent plus stable origin
+ * metadata. It deliberately excludes srcdoc, measured height, and theme
+ * output — those are rederived by `materializeArtifact` under the current
+ * theme so a restored tab never shows stale rendered output.
  *
  * Canvas is message-backed and ephemeral (ADR 0029): no persistence path under
  * ~/.piwin is introduced for Canvas state.
  */
 
 import {
-  evaluateCodeFence,
+  analyzeArtifactFence,
   indexArtifactFences,
-  resolveArtifactPresentation,
   type ArtifactDeclaration,
-  type ArtifactDescriptor,
   type ArtifactDocumentKind,
-  type ArtifactPreviewDecision,
+  type ArtifactRenderIntent,
 } from '@piwin/artifact';
 
 export type ArtifactCanvasTarget = {
@@ -40,6 +38,8 @@ export type ArtifactCanvasTarget = {
   rawLanguage: string;
   /** Raw model source — never the wrapped srcdoc. */
   source: string;
+  /** Original analysis. Panel materializes with the current theme only. */
+  intent: ArtifactRenderIntent;
 };
 
 /**
@@ -56,7 +56,7 @@ export function buildArtifactCanvasTargetId(
 }
 
 /**
- * Construct a Canvas target from a parsed artifact descriptor plus origin
+ * Construct a Canvas target from a parsed artifact intent plus origin
  * metadata. Both live auto-reveal and the transcript launcher use this exact
  * target shape, so reopening a completed Canvas preserves its stable identity.
  */
@@ -64,9 +64,10 @@ export function createArtifactCanvasTarget(input: {
   sessionId: string;
   messageId: string;
   fenceIndex: number;
-  descriptor: ArtifactDescriptor;
+  intent: ArtifactRenderIntent;
 }): ArtifactCanvasTarget {
-  const { sessionId, messageId, fenceIndex, descriptor } = input;
+  const { sessionId, messageId, fenceIndex, intent } = input;
+  const { descriptor } = intent;
   return {
     id: buildArtifactCanvasTargetId(sessionId, messageId, fenceIndex),
     sessionId,
@@ -80,6 +81,7 @@ export function createArtifactCanvasTarget(input: {
     documentKind: descriptor.documentKind,
     rawLanguage: descriptor.rawLanguage,
     source: descriptor.source,
+    intent,
   };
 }
 
@@ -98,26 +100,13 @@ export function collectArtifactCanvasTargets(input: {
   const targets: ArtifactCanvasTarget[] = [];
 
   for (const fence of indexArtifactFences(input.markdown)) {
-    const options: Parameters<typeof evaluateCodeFence>[0] = {
-      language: fence.info,
-      source: fence.source,
+    const analysis = analyzeArtifactFence(fence, {
       id: `${input.messageId}-artifact-${fence.ordinal}`,
       htmlUiModeEnabled: true,
       mode: 'interactive',
-    };
-    if (input.maxBytes !== undefined) {
-      options.maxBytes = input.maxBytes;
-    }
-    const decision: ArtifactPreviewDecision = evaluateCodeFence(options);
-    if (decision.kind !== 'render') {
-      continue;
-    }
-    const presentation = resolveArtifactPresentation({
-      descriptor: decision.descriptor,
-      mode: decision.mode,
-      source: decision.renderSource,
+      ...(input.maxBytes !== undefined ? { maxBytes: input.maxBytes } : {}),
     });
-    if (presentation.kind !== 'canvas') {
+    if (analysis.kind !== 'intent' || analysis.intent.layout !== 'canvas') {
       continue;
     }
     targets.push(
@@ -125,7 +114,7 @@ export function collectArtifactCanvasTargets(input: {
         sessionId: input.sessionId,
         messageId: input.messageId,
         fenceIndex: fence.ordinal,
-        descriptor: decision.descriptor,
+        intent: analysis.intent,
       }),
     );
   }

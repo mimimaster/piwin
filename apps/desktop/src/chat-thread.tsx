@@ -137,7 +137,7 @@ export type ChatThreadProps = {
   artifactPreviewEnabled?: boolean;
   /** When true, MarkdownView displays source code first for artifact blocks. */
   artifactCodeFirst?: boolean;
-  /** Security byte cap forwarded to evaluateCodeFence. */
+  /** Security byte cap forwarded to analyzeArtifactFence. */
   artifactMaxBytes?: number;
   /** Global composer configuration so the in-place edit card matches the bottom dock. */
   composerCard: ComposerDockProps;

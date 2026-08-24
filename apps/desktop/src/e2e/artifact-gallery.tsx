@@ -3,7 +3,7 @@
  * fixture route in DesktopThemeRoot (`VITE_PIWIN_E2E_FIXTURES` + `#/e2e/artifacts`).
  */
 import { useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import { evaluateCodeFence } from '@piwin/artifact';
+import { analyzeArtifactFence, createArtifactFenceRecord } from '@piwin/artifact';
 import {
   ARTIFACT_FIXTURES,
   STREAMING_DELTA_STEPS,
@@ -50,17 +50,16 @@ function readGallerySelection(): string | null {
 }
 
 function canvasTargetFor(fixture: ArtifactFixture): ArtifactCanvasTarget | null {
-  const decision = evaluateCodeFence({
-    language: fixture.language,
-    source: fixture.source,
-    id: `${ARTIFACT_GALLERY_SESSION}-${fixture.id}`,
-  });
-  if (decision.kind !== 'render') return null;
+  const analysis = analyzeArtifactFence(
+    createArtifactFenceRecord({ info: fixture.language, source: fixture.source }),
+    { id: `${ARTIFACT_GALLERY_SESSION}-${fixture.id}` },
+  );
+  if (analysis.kind !== 'intent') return null;
   return createArtifactCanvasTarget({
     sessionId: ARTIFACT_GALLERY_SESSION,
     messageId: fixture.id,
     fenceIndex: 0,
-    descriptor: decision.descriptor,
+    intent: analysis.intent,
   });
 }
 

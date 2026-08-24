@@ -39,7 +39,7 @@ type MarkdownViewProps = {
   text: string;
   /**
    * Parser flag: when false, native `html`/`htm` fences are not promoted to
-   * artifact descriptors by `evaluateCodeFence`. When omitted, mirrors
+   * artifact descriptors by `analyzeArtifactFence`. When omitted, mirrors
    * `artifactPreviewEnabled` (design §5.2) so language/source normalization
    * stays byte-stable across capability toggles.
    */
@@ -80,7 +80,7 @@ type MarkdownViewProps = {
    * When false (default), artifact blocks immediately render dynamic UI.
    */
   artifactCodeFirst?: boolean;
-  /** Security byte cap forwarded to evaluateCodeFence when heavy path runs. */
+  /** Security byte cap forwarded to analyzeArtifactFence when heavy path runs. */
   artifactMaxBytes?: number;
   /** Locale for Artifact frame copy (recycled preview placeholder). */
   locale?: 'zh-CN' | 'en';

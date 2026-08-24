@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateCodeFence } from '../src/evaluate.js';
-import { resolveArtifactPresentation } from '../src/presentation-policy.js';
+import { createArtifactFenceRecord } from '../src/fence-index.js';
+import { analyzeArtifactFence } from '../src/render-intent.js';
 import {
   ARTIFACT_FIXTURE_IDS,
   ARTIFACT_TRAILING_MARKDOWN,
@@ -101,44 +101,33 @@ describe('artifact rendering fixtures', () => {
     expect(STREAMING_DELTA_STEPS[0]?.text.includes('```\n')).toBe(false);
   });
 
-  it('keeps current evaluate/presentation routing stable for each HTML shape', () => {
+  it('keeps current analyze routing stable for each HTML shape', () => {
     const routing: Record<string, string> = {};
     for (const id of REQUIRED_IDS) {
       const fixture = getArtifactFixture(id);
       if (id === 'flashcard-tool-result') continue;
-      const decision = evaluateCodeFence({
-        language: fixture.language,
-        source: fixture.source,
-        id: `fixture-${id}`,
-      });
-      if (decision.kind !== 'render') {
+      const analysis = analyzeArtifactFence(
+        createArtifactFenceRecord({ info: fixture.language, source: fixture.source }),
+        { id: `fixture-${id}`, htmlUiModeEnabled: true },
+      );
+      if (analysis.kind !== 'intent') {
         routing[id] =
-          decision.kind === 'blocked' ? `blocked:${decision.reason}` : decision.kind;
+          analysis.kind === 'blocked' ? `blocked:${analysis.reason}` : analysis.kind;
         continue;
       }
-      const presentation = resolveArtifactPresentation({
-        descriptor: decision.descriptor,
-        mode: decision.mode,
-        source: decision.renderSource,
-      });
-      routing[id] =
-        presentation.kind === 'source'
-          ? `source:${presentation.previewSurface}`
-          : presentation.kind === 'inline-incompatible'
-            ? `inline-incompatible:${presentation.issues.join(',')}`
-            : presentation.kind;
+      routing[id] = `${analysis.intent.layout}:${analysis.intent.renderer}`;
     }
 
-    expect(routing['inert-fragment']).toBe('inline-static');
-    expect(routing['script-fragment']).toBe('inline-sandbox');
-    expect(routing['native-svg']).toBe('source:inline');
-    expect(routing['full-html-document']).toBe('source:canvas');
-    expect(routing['viewport-100vh']).toMatch(/^inline-incompatible:/);
-    expect(routing['local-fixed-toast']).toMatch(/^inline-incompatible:/);
-    expect(routing['four-edge-fixed-shell']).toMatch(/^inline-incompatible:/);
-    expect(routing['flow-6000']).toBe('inline-sandbox');
-    expect(routing['overflow-20000']).toBe('inline-sandbox');
-    expect(routing['explicit-canvas']).toBe('canvas');
+    expect(routing['inert-fragment']).toBe('flow:static');
+    expect(routing['script-fragment']).toBe('flow:sandbox');
+    expect(routing['native-svg']).toBe('flow:static');
+    expect(routing['full-html-document']).toBe('viewport:sandbox');
+    expect(routing['viewport-100vh']).toBe('viewport:sandbox');
+    expect(routing['local-fixed-toast']).toBe('flow:static');
+    expect(routing['four-edge-fixed-shell']).toBe('viewport:sandbox');
+    expect(routing['flow-6000']).toBe('flow:sandbox');
+    expect(routing['overflow-20000']).toBe('flow:sandbox');
+    expect(routing['explicit-canvas']).toBe('canvas:sandbox');
     expect(routing['blocked-external']).toBe('blocked:blocked-external-resource');
   });
 });

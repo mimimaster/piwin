@@ -5,6 +5,7 @@
 import { isFullHtmlDocument } from './html-document.js';
 import type { ArtifactFenceRecord } from './fence-index.js';
 import {
+  STREAMING_ARTIFACT_FENCE_MARKER,
   getFenceAlias,
   hasStreamingArtifactMarker,
   isExplicitArtifactAlias,
@@ -45,7 +46,7 @@ export type ParseArtifactFenceInput = {
  * Decide whether a fenced code block should become an HTML or SVG artifact.
  * When htmlUiMode is false, never promote native ```html``` or ```svg``` fences.
  */
-export function tryParseArtifactFence(input: ParseArtifactFenceInput): ArtifactDescriptor | null {
+function parseArtifactFence(input: ParseArtifactFenceInput): ArtifactDescriptor | null {
   const htmlUiModeEnabled = input.htmlUiModeEnabled !== false;
   const streamDeclaredNativeArtifact =
     input.allowIncompleteSource === true && hasStreamingArtifactMarker(input.language);
@@ -109,12 +110,6 @@ export function tryParseArtifactFence(input: ParseArtifactFenceInput): ArtifactD
   return null;
 }
 
-export function tryParseHtmlArtifactFence(
-  input: ParseArtifactFenceInput,
-): ArtifactDescriptor | null {
-  return tryParseArtifactFence(input);
-}
-
 export function parseArtifactFenceRecord(
   record: ArtifactFenceRecord,
   options: {
@@ -123,16 +118,24 @@ export function parseArtifactFenceRecord(
     allowIncompleteSource?: boolean;
   },
 ): ArtifactDescriptor | null {
+  const allowIncompleteSource = options.allowIncompleteSource === true;
+  let language = stripFenceInfo(record.info);
+  if (
+    allowIncompleteSource &&
+    record.open &&
+    !hasStreamingArtifactMarker(language) &&
+    (isNativeHtmlLanguage(language) || isNativeSvgLanguage(language))
+  ) {
+    language = `${language} ${STREAMING_ARTIFACT_FENCE_MARKER}`;
+  }
   const input: ParseArtifactFenceInput = {
-    language: stripFenceInfo(record.info),
+    language,
     source: record.source,
     id: options.id,
+    allowIncompleteSource,
   };
   if (options.htmlUiModeEnabled !== undefined) {
     input.htmlUiModeEnabled = options.htmlUiModeEnabled;
   }
-  if (options.allowIncompleteSource !== undefined) {
-    input.allowIncompleteSource = options.allowIncompleteSource;
-  }
-  return tryParseHtmlArtifactFence(input);
+  return parseArtifactFence(input);
 }

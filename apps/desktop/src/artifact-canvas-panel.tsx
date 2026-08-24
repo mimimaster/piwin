@@ -15,8 +15,7 @@
 
 import { useMemo, useState, type ReactElement } from 'react';
 import {
-  evaluateArtifactDescriptor,
-  type ArtifactPreviewDecision,
+  materializeArtifact,
   type ArtifactThemeVariables,
   type ComposerProposeTextActionPayload,
 } from '@piwin/artifact';
@@ -32,7 +31,7 @@ export type ArtifactCanvasPanelProps = {
   artifactTheme?: ArtifactThemeVariables;
   /** Bumped on theme switch so ArtifactFrame remounts with new tokens. */
   artifactThemeKey?: string | number;
-  /** Security byte cap forwarded to evaluateArtifactDescriptor. */
+  /** Security byte cap forwarded when the stored intent is materialized. */
   artifactMaxBytes?: number;
   /**
    * Insert the accepted proposal into the Composer. The caller appends using
@@ -45,31 +44,14 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
   const { activeTarget } = props;
   const [pendingProposal, setPendingProposal] = useState<ArtifactCanvasProposal | null>(null);
 
-  const decision: ArtifactPreviewDecision | null = useMemo(() => {
+  const plan = useMemo(() => {
     if (!activeTarget) return null;
-    const descriptor = {
-      id: activeTarget.channelId,
-      type: activeTarget.type,
-      title: activeTarget.title,
-      source: activeTarget.source,
-      rawLanguage: activeTarget.rawLanguage,
-      alias: activeTarget.rawLanguage,
-      declaration: activeTarget.declaration,
-      documentKind: activeTarget.documentKind,
-      surface: activeTarget.surface,
-    } as const;
-    const options: Parameters<typeof evaluateArtifactDescriptor>[1] = {
+    return materializeArtifact(activeTarget.intent, {
       mode: 'interactive',
-      renderSurface: 'canvas',
-    };
-    if (props.artifactMaxBytes !== undefined) {
-      options.maxBytes = props.artifactMaxBytes;
-    }
-    if (props.artifactTheme) {
-      options.theme = props.artifactTheme;
-    }
-    return evaluateArtifactDescriptor(descriptor, options);
-  }, [activeTarget, props.artifactMaxBytes, props.artifactTheme]);
+      source: activeTarget.intent.descriptor.source,
+      ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
+    });
+  }, [activeTarget, props.artifactTheme]);
 
   function handleInsert(): void {
     if (pendingProposal && props.onInsertProposal) {
@@ -127,10 +109,10 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
           </div>
         </div>
       ) : null}
-      {decision && (decision.kind === 'render' || decision.kind === 'blocked') ? (
+      {plan && (plan.kind === 'render' || plan.kind === 'blocked') ? (
         <ArtifactFrame
           key={`${props.artifactThemeKey ?? 'default'}:${activeTarget.id}`}
-          decision={decision}
+          plan={plan}
           presentation="canvas"
           initPriority={0}
           onComposerProposal={setPendingProposal}
