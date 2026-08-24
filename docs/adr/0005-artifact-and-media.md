@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-07-19; amended 2026-08-22)
+Accepted (2026-07-19; amended 2026-08-24)
 
 ## Context
 
@@ -55,29 +55,10 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 
 ## Amendment (2026-07-30): Artifact preview opt-in on Desktop
 
-- Desktop chat now defaults to **Markdown + ordinary code fences**. The heavy
-  HTML Artifact path (sandbox iframe + bridge) is **opt-in** via a single
-  Appearance preference `artifactPreviewEnabled` (default `false`,
-  localStorage `piwin.desktop.artifactPreviewEnabled`).
-- When the preference is off, `evaluateCodeFence` still runs with
-  `htmlUiModeEnabled: false` so language/source normalization stays
-  byte-stable; native `html`/`htm` fences fall through to `code`. No Preview
-  button, no iframe.
-- When the preference is on, the existing source-first + per-fence
-  `Preview artifact` behavior is preserved. Streaming remains source-only.
-- **Flashcard exception:** a fence whose source contains `data-card-id="..."`
-  gets a one-click **Preview card** even when the global preference is off,
-  so interactive rating stays usable without hunting settings. This does
-  not flip the global preference.
-- Host config `artifact.htmlUiModeDefault` default lowered from `true` to
-  `false` for consistency. Desktop v1 ignores it (R1); the field remains as
-  a backward-compat seed for non-Desktop clients.
-- `artifact.maxBytes` is now wired from `PiwinConfig.artifact` into
-  `evaluateCodeFence` on Desktop.
-- Future Cherry-style **light** fence renderers (svg, html-preview, …) are
-  reserved for a separate fence registry and are NOT gated by this switch.
-- See `docs/superpowers/specs/2026-07-30-artifact-preview-opt-in-design.md`
-  for the full design.
+**Superseded by the 2026-08-24 amendment.** The live switch is
+`config.artifact.enabled`, not a Desktop localStorage preference.
+`evaluateCodeFence` and the flashcard `data-card-id` Preview-card exception
+are deleted.
 
 ## Amendment (2026-07-31): SVG fences use the heavy Artifact path
 
@@ -192,3 +173,31 @@ fences as if the model had explicitly declared an Artifact, and it narrows the
   bounded at 4000px and is distrusted when implausible. This prevents the outer
   row from truncating a correctly measured tall Artifact without making stale
   cache entries reserve large blank regions.
+
+## Amendment (2026-08-24): Rendering convergence
+
+Supersedes the 2026-07-30 opt-in preference, `evaluateCodeFence` /
+`splitMarkdownBlocks` as live APIs, the flashcard HTML exception, and any
+remaining “streaming is always source-only” reading of earlier clauses when
+Artifact capability is on.
+
+- **Master switch:** `PiwinConfig.artifact.enabled`. Desktop forwards it as
+  `artifactPreviewEnabled`. Leftover `piwin.desktop.artifactPreviewEnabled`
+  localStorage keys are ignored.
+- **Unique routing:** `indexArtifactFences` is the only fence index.
+  `analyzeArtifactFence` produces a `RenderIntent`; `materializeArtifact` is
+  the only theme/srcdoc path. MarkdownView uses `renderingPhase` only
+  (`streamComplete` is deleted).
+- **Code-first is Inline-only.** Explicit Canvas still auto-reveals once on
+  live completion when capability is on.
+- **Streaming:** ordinary code and Mermaid stay source. HTML/SVG may
+  stream-preview in one sandbox iframe with sticky fence identity. Canvas
+  fences stay source until completion.
+- **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
+  enters `inline-overflow`. Content is not silently cropped.
+- **Theme:** preview repairs apply to `renderSource` only. Copy/export keep
+  original model source.
+- **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
+  Generic Artifact does not special-case `data-card-id`.
+- See ADR 0029 and
+  `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-07-19 |
+| Date | 2026-08-24 |
 | Source A | `~/Projects/openwebui_m` HTML artifact system |
 | Source B | openwebui product design v1.1 |
 | Source C | Codex-style image chat UX (product reference) |
@@ -10,28 +10,43 @@
 
 ---
 
+## 0. Current implementation (2026-08-24)
+
+Authoritative plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
+ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surface-routing.md).
+
+- **Master switch:** `PiwinConfig.artifact.enabled`. Desktop workbench forwards
+  it as `artifactPreviewEnabled`. There is no `localStorage` opt-in key.
+- **One fence index:** `indexArtifactFences` + `projectArtifactMarkdownForRender`.
+  Streamdown adapters bind by projected start offset → ordinal. Do not parse
+  fences a second time in Canvas or MarkdownView.
+- **One analysis:** `analyzeArtifactFence` returns `RenderIntent` (or code /
+  blocked). `materializeArtifact` is the only theme/srcdoc path. Preview
+  repairs (stream sanitization, theme contract) apply to `renderSource` only;
+  copy/export use original model source.
+- **Code-first is Inline-only.** Explicit `surface="canvas"` still auto-reveals
+  once on live completion when capability is on.
+- **Streaming:** ordinary code and Mermaid stay source. HTML/SVG may
+  stream-preview in one sandbox iframe; identity is sticky
+  (`<messageId>-artifact-<ordinal>`). Canvas launchers stay source while
+  streaming.
+- **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
+  enters `inline-overflow` (host-owned viewport + hint). No silent crop.
+- **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
+  Generic Artifact does not special-case `data-card-id`.
+- **Deleted live APIs:** `evaluateCodeFence`, `splitMarkdownBlocks`,
+  `MarkdownView.streamComplete`, DesktopPreferences `artifactPreviewEnabled`.
+
+Desktop modules: `MarkdownView` (Streamdown adapter), `markdown-code-fence`
+(dispatcher), `artifact-fence-controller`, `artifact-inline-preview`,
+`artifact-sandbox-frame`, `artifact-frame-lifecycle`, `ArtifactStatic`.
+
+`@piwin/artifact` stays policy/srcdoc/bridge parsers. Init queue and live-host
+registry live in Desktop.
+
 ## 1. What openwebui_m already solved
 
-## 0. piwin coding-agent rendering policy
-
-The artifact security model remains independent from the chat presentation
-phase. In the coding-agent transcript:
-
-- `streaming` keeps ordinary code and Mermaid source-only. When Artifact preview
-  is enabled, HTML/SVG may materialize in one sandboxed iframe from sanitized
-  structural snapshots. The iframe document remains mounted; later snapshots
-  reconcile DOM/text nodes in place rather than replacing `srcdoc`.
-- `completed` may render normal Markdown and the final interactive Artifact
-  according to the Desktop preview preference. Source inspection remains an
-  explicit action and never appears beside the rendered UI.
-- `explicit-artifact-review` is the same source-first policy with an explicit
-  review intent; it does not bypass the security classifier or CSP.
-- Thinking, tool output, permission waits, and process activity belong in the
-  run timeline/cards rather than becoming HTML artifacts.
-
-Copy actions always copy raw model source, never an iframe `srcdoc` wrapper.
-The stream-update payload is also sanitized preview source, never raw model
-source, and is accepted only from the parent for the matching channel id.
+Historical extraction notes. Live piwin names are in §0.
 
 Path: `src/lib/components/chat/Messages/Artifacts/`
 
@@ -135,9 +150,10 @@ apps/desktop UI adapter (React/WebView)
 | Concern | Decision |
 |---------|----------|
 | Default body | Markdown (GFM-ish) |
-| Code fences | Always show source |
-| HTML fence | If UI-like + mode enabled → artifact preview under/beside source |
-| SVG | standard `svg` fences use the existing sandboxed Artifact iframe when Artifact preview is enabled; a light parent-document SVG renderer remains deferred |
+| Ordinary code | Always source + Copy |
+| Explicit `artifact-html` | RenderIntent; compatible Inline may auto-preview when capability is on and code-first is off |
+| Native `html`/`svg` | Source-first; Preview after user action when capability is on |
+| Canvas | Explicit `surface="canvas"` launcher; auto-reveal on live complete |
 
 ---
 
@@ -225,33 +241,36 @@ dimensions: 1280x720
 
 ## P2 polish landed (2026-07-20)
 
-Module map in `@piwin/artifact` after polish:
+Historical. Current module map (2026-08-24):
 
 | File | Role |
 |------|------|
-| `presentation-policy.ts` | Source / Static Inline / Sandbox Inline / Canvas routing and compatibility |
-| `bridge-protocol.ts` | Parent parse/validate of the single revisioned `piwin-artifact:size` message |
-| `height-policy.ts` | Pure normalization + defensive Inline clamp only |
-| `init-queue.ts` | Serialize iframe srcdoc assignment |
-| `streaming.ts` | Open fence detect + synthetic close while streaming |
+| `fence-index.ts` | Unique fence index + ordinals |
+| `fence-parser.ts` | Descriptor from `ArtifactFenceRecord` |
+| `render-intent.ts` | `analyzeArtifactFence` → RenderIntent |
+| `materialize.ts` | Theme contract + stream sanitization + srcdoc/static source |
+| `bridge-protocol.ts` | Parent parse/validate of size, action, and revisioned render snapshots |
+| `height-policy.ts` | Pure normalization + 16 384 px defensive clamp |
 | `streamable-preview.ts` | Script-stripped partial HTML preview |
-| `theme-contract.ts` | Soft-repair hard-coded light surfaces for preview |
-| `srcdoc.ts` | CSP + theme CSS + bridge bootstrap script |
+| `theme-contract.ts` | Soft-repair hard-coded light surfaces for **preview source only** |
+| `srcdoc.ts` / `srcdoc-css.ts` / `srcdoc-bridge.ts` | CSP + theme CSS + frame-mode CSS + bridge bootstrap |
 
-Desktop: `ArtifactFrame` (height + init queue), `MarkdownView` (`streamComplete`), `artifact-theme-map.ts`.
+Desktop schedulers (`artifact-init-queue.ts`, `artifact-live-host-registry.ts`)
+are not `@piwin/artifact` exports. MarkdownView uses `renderingPhase` only.
 
-Residual: D-ART-05..08 in `todo-deferred.md`.
+## Height and routing (2026-08-24)
 
-## Height-chain correction landed (2026-08-22)
+The 2026-08-22 height-chain notes and the 2026-08-24 overlay/streaming/canvas
+amendments are superseded by the convergence plan. Current contract:
 
-- Native `html`/`htm`/`svg` fences and explicit Artifact declarations are now
-  distinct descriptor inputs. Native source never auto-mounts a page.
-- Full documents are preserved and previewed only in Canvas after user action.
-  Inline accepts content-sized fragments only; viewport units/scripts and fixed
-  page shells are rejected rather than regex-repaired.
-- Canvas has no height bridge. Sandboxed Inline observes one root rectangle and
-  emits one revisioned size stream. Scene heuristics, ready/resize phases,
-  viewport listeners, and settle windows were deleted.
-- Transcript mounted-row measurement is exact; only cache/estimates keep the
-  4000px anti-blank ceiling. See ADR 0005, ADR 0029, and
-  `docs/plans/2026-08-22-artifact-height-chain-v2.md`.
+- Native `html`/`htm`/`svg` vs explicit `artifact-html` is recorded as
+  `declaration`. Native source stays source-first; compatible fragments preview
+  Inline after user action (or auto-preview when code-first is off and the
+  fence is explicit + flow).
+- Full documents and viewport-coupled source preview in Canvas after user
+  action; explicit `surface="canvas"` auto-reveals once on live completion.
+- Canvas has no Inline height bridge. Sandboxed Inline observes one root
+  rectangle and emits one revisioned size stream. Overflow above 16 384 px
+  switches to `inline-overflow` with a host-owned viewport — content is not
+  silently cropped.
+- Theme/CSS repairs never rewrite stored descriptor source.

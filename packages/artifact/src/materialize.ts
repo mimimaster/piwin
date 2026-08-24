@@ -1,5 +1,7 @@
 /**
- * Theme + stream sanitization + document construction.
+ * One theme/srcdoc materialization path.
+ * Stream sanitization and theme-contract repairs apply to `renderSource`
+ * only. Copy/export must use `intent.descriptor.source`, never srcdoc.
  * Does not re-classify security or layout.
  */
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';

@@ -36,6 +36,7 @@ export type ArtifactFrameLease = {
   requestHost: () => void;
 };
 
+/** Live streaming Inline and Canvas stay pinned; completed Inline may recycle. */
 export function shouldForceKeepArtifactHost(
   presentation: 'inline' | 'canvas',
   streaming: boolean,
