@@ -10,6 +10,7 @@ import {
   clampArtifactHeight,
   normalizeArtifactHeight,
   resolveArtifactViewportFrameHeight,
+  shouldEnterArtifactInlineOverflow,
 } from './height-policy.js';
 
 describe('artifact height policy', () => {
@@ -42,5 +43,25 @@ describe('artifact height policy', () => {
     expect(resolveArtifactViewportFrameHeight(500)).toBe(ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT);
     expect(resolveArtifactViewportFrameHeight(1_000)).toBe(720);
     expect(resolveArtifactViewportFrameHeight(2_000)).toBe(ARTIFACT_INLINE_VIEWPORT_MAX_HEIGHT);
+  });
+
+  it('enters overflow only above the 16,384px flow cap, not at the cap', () => {
+    expect(shouldEnterArtifactInlineOverflow(MAX_ARTIFACT_INLINE_FLOW_HEIGHT)).toBe(false);
+    expect(shouldEnterArtifactInlineOverflow(MAX_ARTIFACT_INLINE_FLOW_HEIGHT + 1)).toBe(true);
+    expect(shouldEnterArtifactInlineOverflow(20_000)).toBe(true);
+    expect(shouldEnterArtifactInlineOverflow(Number.NaN)).toBe(false);
+  });
+
+  it('keeps the flow clamp distinct from overflow chrome', () => {
+    expect(
+      clampArtifactHeight(
+        20_000,
+        MIN_ARTIFACT_IFRAME_HEIGHT,
+        MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
+        ARTIFACT_BOOTSTRAP_HEIGHT,
+      ),
+    ).toBe(MAX_ARTIFACT_INLINE_FLOW_HEIGHT);
+    expect(shouldEnterArtifactInlineOverflow(20_000)).toBe(true);
+    expect(resolveArtifactViewportFrameHeight(1_000)).toBe(720);
   });
 });

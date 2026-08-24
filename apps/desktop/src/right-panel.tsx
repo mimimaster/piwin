@@ -391,6 +391,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                 role="tabpanel"
                 hidden={tab !== active}
                 id={`inspector-panel-${tab}`}
+                data-right-panel-tab={tab}
                 data-testid={tab === 'terminal' ? 'terminal-panel' : undefined}
               >
                 {content === undefined ? (

@@ -235,6 +235,7 @@ html[data-frame-mode="canvas"] body {
   height: 100% !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
+  overscroll-behavior: contain !important;
 }
 html[data-frame-mode="inline-viewport"] .piwin-artifact-root,
 html[data-frame-mode="inline-overflow"] .piwin-artifact-root,

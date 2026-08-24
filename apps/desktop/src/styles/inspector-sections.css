@@ -171,6 +171,15 @@
   gap: var(--s-2);
 }
 
+.right-panel-body[data-right-panel-tab='canvas'] {
+  overflow: hidden;
+}
+
+.right-panel-body[data-right-panel-tab='canvas'] > .right-panel-section {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .right-panel-section {
   display: flex;
   flex-direction: column;

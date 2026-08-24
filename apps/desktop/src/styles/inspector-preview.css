@@ -20,8 +20,21 @@
   height: 100%;
 }
 
-.artifact-canvas-panel > .artifact-frame,
-.artifact-canvas-panel > .artifact-frame > .artifact-iframe {
+.artifact-canvas-panel > .artifact-frame {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.artifact-canvas-panel > .artifact-overflow-hint,
+.artifact-canvas-panel .artifact-overflow-hint {
+  flex: 0 0 auto;
+}
+
+.artifact-canvas-panel .artifact-iframe-stage,
+.artifact-canvas-panel .artifact-iframe {
   flex: 1;
   min-height: 0;
   height: 100%;

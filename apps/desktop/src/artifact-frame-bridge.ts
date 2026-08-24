@@ -9,6 +9,7 @@ import {
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
   resolveArtifactViewportFrameHeight,
+  shouldEnterArtifactInlineOverflow,
   type ArtifactActionMessage,
   type ArtifactFrameMode,
 } from '@piwin/artifact';
@@ -18,6 +19,9 @@ export type ArtifactBridgeStatus = 'loading' | 'streaming' | 'ready' | 'fallback
 
 export type ArtifactFrameBridge = {
   height: number;
+  /** Unclamped root box from the iframe. Used to detect overflow. */
+  contentHeight: number;
+  overflowsInlineFlow: boolean;
   status: ArtifactBridgeStatus;
   onIframeLoad: () => void;
 };
@@ -60,6 +64,8 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       : 'loading'
     : 'ready';
   const [height, setHeight] = useState(() => resolveStageHeight(input));
+  const [contentHeight, setContentHeight] = useState(input.bootstrapHeight);
+  const [overflowsInlineFlow, setOverflowsInlineFlow] = useState(false);
   const [status, setStatus] = useState<ArtifactBridgeStatus>(initialStatus);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -139,13 +145,26 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       return;
     }
     lastRevisionRef.current = message.revision;
+    const rawHeight = message.height;
+    setContentHeight(rawHeight);
+    clearReadyTimer();
+    if (shouldEnterArtifactInlineOverflow(rawHeight)) {
+      const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
+      const chromeHeight = resolveArtifactViewportFrameHeight(viewportHeight);
+      const grew = chromeHeight > heightRef.current;
+      heightRef.current = chromeHeight;
+      setOverflowsInlineFlow(true);
+      setHeight(chromeHeight);
+      setStatus(current.decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+      if (grew) current.onContentGrew?.();
+      return;
+    }
     const measuredHeight = clampArtifactHeight(
-      message.height,
+      rawHeight,
       MIN_ARTIFACT_IFRAME_HEIGHT,
       MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
       ARTIFACT_BOOTSTRAP_HEIGHT,
     );
-    clearReadyTimer();
     const grew = measuredHeight > heightRef.current;
     heightRef.current = measuredHeight;
     setHeight(measuredHeight);
@@ -166,6 +185,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     lastRevisionRef.current = -1;
     setHeight(nextHeight);
     setStatus(initialStatus);
+    if (!hostOwnsViewport(input.frameMode)) {
+      setOverflowsInlineFlow(false);
+      setContentHeight(input.bootstrapHeight);
+    }
 
     const onWindowMessage = (event: MessageEvent): void => {
       const iframeWindow = latestRef.current.iframeRef.current?.contentWindow;
@@ -194,5 +217,5 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     };
   }, [clearReadyTimer, input.documentKey, input.enabled, input.frameMode]);
 
-  return { height, status, onIframeLoad };
+  return { height, contentHeight, overflowsInlineFlow, status, onIframeLoad };
 }

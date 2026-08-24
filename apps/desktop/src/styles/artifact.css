@@ -310,6 +310,41 @@
   border-radius: 0;
 }
 
+.artifact-iframe--scroll-owner {
+  overscroll-behavior: contain;
+}
+
+.artifact-overflow-hint {
+  margin: 0 0 var(--s-3);
+  padding: 0;
+  color: var(--text-3);
+  font-size: var(--fs-chrome);
+  line-height: 1.45;
+}
+
+.artifact-static-overflow-shell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  overscroll-behavior: contain;
+}
+
+.artifact-frame.presentation-canvas {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.artifact-frame.presentation-canvas > .artifact-iframe-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .artifact-canvas-launcher {
   padding: var(--s-5) var(--s-5);
   border: 0;

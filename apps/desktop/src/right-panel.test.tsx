@@ -266,6 +266,38 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="terminal-body"]')).not.toBeNull();
   });
 
+  it('marks the canvas tab body so CSS can hide a competing scrollport', () => {
+    const rendered = renderPanel({ open: false, activeTab: null });
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab="canvas"
+            onTabChange={() => {}}
+            panelWidthPx={320}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+            canvasContent={<div data-testid="canvas-body">canvas</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const body = container.querySelector('#inspector-panel-canvas');
+    expect(body?.getAttribute('data-right-panel-tab')).toBe('canvas');
+    expect(container.querySelector('[data-testid="canvas-body"]')).not.toBeNull();
+  });
+
   it('renders expand button and positions + button before tabs', () => {
     writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
     let expandToggled = false;

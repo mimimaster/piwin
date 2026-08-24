@@ -102,12 +102,8 @@ export function buildArtifactBridgeBootstrapScript(
     heightFrame = null;
     if (!sizeEnabled || currentFrameMode === 'canvas') return;
     var root = document.querySelector('.piwin-artifact-root');
-    var height = 0;
-    if (root && root.getBoundingClientRect) {
-      height = readHeight(root.getBoundingClientRect().height);
-    } else if (document.body && document.body.getBoundingClientRect) {
-      height = readHeight(document.body.getBoundingClientRect().height);
-    }
+    if (!root || !root.getBoundingClientRect) return;
+    var height = readHeight(root.getBoundingClientRect().height);
     if (height === lastReportedHeight) return;
     lastReportedHeight = height;
     post(sizeType, {
