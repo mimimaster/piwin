@@ -111,6 +111,11 @@ export type BuildHtmlArtifactSrcdocInput = {
   includeBridge?: boolean;
   /** Accept sanitized parent snapshots without replacing the iframe document. */
   enableStreamUpdates?: boolean;
+  /**
+   * Interactive srcdocs already ran their scripts on load. Freeze source so
+   * later render commands only change frameMode.
+   */
+  freezeSource?: boolean;
 };
 
 /**
@@ -136,7 +141,12 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
   const channelAttr = escapeHtmlAttribute(channelId);
   const frameModeAttr = escapeHtmlAttribute(frameMode);
   const bridge = includeBridge
-    ? buildArtifactBridgeBootstrapScript(channelId, enableRenderCommand, frameMode)
+    ? buildArtifactBridgeBootstrapScript(
+        channelId,
+        enableRenderCommand,
+        frameMode,
+        input.freezeSource === true,
+      )
     : '';
 
   const hostHeadPrefix = `
