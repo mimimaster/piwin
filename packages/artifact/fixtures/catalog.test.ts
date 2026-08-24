@@ -84,6 +84,9 @@ describe('artifact rendering fixtures', () => {
     expect(parsed.duplicate).toBe(false);
     expect(parsed.artifactHtml).toContain('piwin-flashcard');
     expect(parsed.artifactHtml).toContain(`data-card-id="${parsed.card.id}"`);
+    expect(parsed.artifactHtml).toContain('fc-card-frame');
+    expect(parsed.artifactHtml).toContain("postAction('flashcard/rate'");
+    expect(parsed.artifactHtml).toContain('What is an Artifact?');
     expect(getArtifactFixture('flashcard-tool-result').source).toBe(parsed.artifactHtml);
   });
 
