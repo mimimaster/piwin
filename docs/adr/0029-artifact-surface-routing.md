@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-22; amended 2026-08-24)
+Accepted (2026-08-03; amended 2026-08-24)
 
 ## Context
 
@@ -57,8 +57,8 @@ export type ArtifactSurface = 'inline' | 'canvas';
 - Canvas fences render a compact launcher in the transcript and do not mount
   an inline iframe.
 - Inline fences do not receive a generic "Open in Canvas" action.
-- Canvas does not auto-open while a response is streaming. Streaming remains
-  source-only under ADR 0005.
+- Canvas does not auto-open while a response is streaming. Canvas fences stay
+  source until completion; Inline HTML/SVG may stream-preview (ADR 0005).
 - A completed explicit `surface="canvas"` fence auto-opens the Canvas tab once
   for the live message that was observed streaming. Hydrated history and
   session switches do not rearrange the shell. Code-first is Inline-only and
@@ -180,8 +180,9 @@ Runtime guarantees:
   classification, iframe sandbox, CSP, theme injection, external-resource
   policy, and action validation remain mandatory and identical. Canvas does not
   participate in Inline sizing or its bounded load-fallback lifecycle.
-- **Streaming stays source-only** (ADR 0005). A completed live explicit Canvas
-  fence auto-opens once; hydrated history does not.
+- **Canvas stays source while streaming.** A completed live explicit Canvas
+  fence auto-opens once; hydrated history does not. Code-first is Inline-only
+  and does not suppress that auto-reveal.
 
 ### 7. Composer proposal capability
 
@@ -233,7 +234,26 @@ region before later Markdown.
 Canvas preserves full document structure and owns both axes of scrolling. It
 does not install or emit the Inline size stream. Compatible sandboxed Inline
 fragments emit one revisioned root-box size stream; the parent applies the latest
-trusted revision with the existing 16384px defensive clamp.
+trusted revision with the existing 16384px defensive clamp. Height above that
+ceiling enters `inline-overflow` (host-owned viewport + hint); the runtime does
+not silently crop.
+
+`config.artifact.enabled` is the only product capability switch. Surface
+routing is `indexArtifactFences` → `analyzeArtifactFence` → `RenderIntent`
+(`layout: flow | viewport | canvas`). Desktop MarkdownView, Canvas auto-reveal,
+and Mobile collectors share that path. There is no second parser
+(`evaluateCodeFence` / `splitMarkdownBlocks` are deleted).
+
+### Historical plans superseded (2026-08-24)
+
+Do not amend the following; the convergence plan is current:
+
+- `docs/plans/2026-08-22-artifact-height-chain-v2.md`
+- `docs/plans/2026-08-24-inline-artifact-fixed-overlay-height.md`
+- `docs/plans/2026-08-24-inline-artifact-first-token-streaming.md`
+- `docs/plans/2026-08-24-artifact-canvas-active-reveal.md`
+
+Canonical plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
 
 ## Consequences
 
@@ -251,5 +271,6 @@ trusted revision with the existing 16384px defensive clamp.
 
 ## References
 
-- ADR 0005 (Artifact sandbox, streaming source-only, media/image policy)
-- Plan: `docs/plans/2026-08-03-artifact-surface-routing-canvas-shell.md`
+- ADR 0005 (Artifact sandbox, streaming preview, media/image policy)
+- Plan: `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`
+- Earlier Canvas-shell notes: `docs/plans/2026-08-03-artifact-surface-routing-canvas-shell.md`

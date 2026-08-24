@@ -454,7 +454,7 @@ performed.
 | `@piwin/git` | Status, diff, commit graph model |
 | `@piwin/theme` | Theme packages install/apply |
 | `@piwin/pet` | Codex pet adapter + state machine |
-| `@piwin/artifact` | Markdown helpers + HTML artifact runtime (from openwebui_m) |
+| `@piwin/artifact` | Fence index, RenderIntent, security, srcdoc/theme policy (Desktop owns iframe scheduling) |
 | `@piwin/browser` | Playwright-driven browser session (agent tools + panel mirror + element pick) |
 | `@piwin/process` | Non-interactive Job registry, process-tree supervision, logs, readiness |
 | `@piwin/media` | Paste store and previews; PromptPreparation validates model-facing media refs |
@@ -511,12 +511,21 @@ Host translates config into Pi model/provider registration.
 
 ```text
 Assistant message
-  → Markdown renderer (default)
-  → Fence detector
-      → plain code block
-      → HTML artifact candidate → artifact runtime (security → srcdoc → iframe)
+  → MarkdownView (Streamdown adapter, renderingPhase)
+  → projectArtifactMarkdownForRender + indexArtifactFences (one ordinal index)
+  → MarkdownCodeFence dispatcher
+      → ordinary code / math / mermaid
+      → analyzeArtifactFence → RenderIntent
+          → materializeArtifact (theme repair on renderSource only)
+          → ArtifactInlinePreview → static Shadow DOM or sandbox iframe
+          → Canvas launcher (explicit surface="canvas")
   → Image attachments → media preview components
 ```
+
+`config.artifact.enabled` is the master switch. Code-first is Inline-only.
+Flashcard tool results are structured transcript projections, not HTML fences.
+Copy/export use original model source, never srcdoc. See
+[artifact-research.md](./artifact-research.md) and ADR 0005 / 0029.
 
 User composer:
 

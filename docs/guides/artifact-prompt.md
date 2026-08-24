@@ -3,7 +3,10 @@
 > 用于测试 piwin artifact 具现功能。只包含运行时**没有**兜底、去掉就真的会坏的规则。
 > 其余约束（主题修复、外部资源阻断、嵌入 guard、桥接测量）已由运行时处理，不重复塞进 prompt。
 >
-> 与 `ARTIFACT_RUNTIME_CONTRACT` 保持同构：成功标准 + 必要约束，少流程/少示例。
+> 与 `formatArtifactProtocol()` / `ARTIFACT_RUNTIME_CONTRACT` 保持同构。
+> 生产路径：`config.artifact.enabled` 打开时，模型按需调用只读 Host 工具
+> `artifact_instructions` 加载决策策略 + 本契约。不要把 `evaluateCodeFence`
+> 或 `splitMarkdownBlocks` 写进 prompt。
 
 ## 最小可用的 system prompt 片段
 
@@ -19,6 +22,12 @@ A self-contained artifact fence that renders correctly in the chat column sandbo
 <!-- body fragment: HTML/CSS + optional small inline JS -->
 ```
 
+Canvas (app prototype / multi-step workspace):
+
+```artifact-html title="Short descriptive title" surface="canvas"
+<!-- self-contained HTML/CSS + optional small inline JS -->
+```
+
 SVG: ```svg title="Short descriptive title"``` — self-contained, no external refs.
 
 ## Constraints (break without these)
@@ -31,6 +40,10 @@ SVG: ```svg title="Short descriptive title"``` — self-contained, no external r
 - Main content is static HTML; JS only enhances. Content remains if JS fails.
 - No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper.
 ```
+
+Flashcards are structured tool results (`display.cards`), not `artifact-html`
+fences. Code-first is an Inline preview preference and does not change Canvas
+routing.
 
 ---
 
@@ -62,4 +75,11 @@ var(--piwin-artifact-surface)，文字用 var(--piwin-artifact-text)。
 ```
 用 artifact 做一个迷你仪表盘：4 个指标卡片（数字 + 标签），
 下面是两张对比表。全部用主题变量配色。
+```
+
+### 用例 5：Canvas 工作区
+
+```
+用 surface="canvas" 的 artifact-html 做一个可配置的部署表单，
+需要把结果写回 Composer。
 ```
