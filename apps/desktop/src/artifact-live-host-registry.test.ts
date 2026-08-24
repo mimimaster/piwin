@@ -10,7 +10,7 @@ import {
   releaseArtifactLiveHost,
   requestArtifactLiveHost,
   resetArtifactLiveHostRegistryForTests,
-} from './live-host-registry.js';
+} from './artifact-live-host-registry.js';
 
 describe('artifact live host registry', () => {
   afterEach(() => {

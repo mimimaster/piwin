@@ -10,8 +10,8 @@ export const MAX_LIVE_ARTIFACT_IFRAMES = 3;
 export type ArtifactLiveHostRegistration = {
   id: string;
   /**
-   * Stream-preview / Canvas must not be evicted for budget.
-   * They can push the live count above the soft cap briefly.
+   * Live streaming previews and the active Canvas must not be evicted for
+   * budget. They can push the live count above the soft cap briefly.
    */
   forceKeep?: boolean;
   /** Higher wins when choosing whom to keep or promote from the wait queue. */
@@ -143,7 +143,6 @@ function promoteWaiters(): void {
     if (!next) {
       return;
     }
-    // Re-check: forceKeep can always enter even if we somehow over-count.
     if (hosts.size >= MAX_LIVE_ARTIFACT_IFRAMES && !next.forceKeep) {
       return;
     }
@@ -193,7 +192,7 @@ export function claimArtifactLiveHost(
 
 /**
  * Critical-pressure lifeboat: drop every live iframe that is not forceKeep
- * (canvas / stream preview). Does not promote waiters — recovery must not
+ * (canvas / live stream preview). Does not promote waiters — recovery must not
  * remount hosts by itself.
  */
 export function evictNonForceKeepArtifactHosts(): number {
@@ -201,8 +200,6 @@ export function evictNonForceKeepArtifactHosts(): number {
   for (const victim of victims) {
     evictEntry(victim);
   }
-  // Drop the wait queue too. A later forceKeep release must not remount
-  // ordinary hosts while we are still under critical pressure.
   waiters.clear();
   return victims.length;
 }

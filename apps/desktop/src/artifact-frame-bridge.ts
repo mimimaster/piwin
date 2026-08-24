@@ -8,7 +8,9 @@ import {
   clampArtifactHeight,
   parseArtifactActionMessage,
   parseArtifactBridgeMessage,
+  resolveArtifactViewportFrameHeight,
   type ArtifactActionMessage,
+  type ArtifactFrameMode,
 } from '@piwin/artifact';
 import { subscribeNativeArtifactBridge } from './artifact-native-bridge.js';
 import type { ArtifactSandboxView } from './artifact-frame-stream.js';
@@ -28,11 +30,27 @@ type BridgeInput = {
   enabled: boolean;
   measureHeight: boolean;
   bootstrapHeight: number;
+  frameMode: ArtifactFrameMode;
   presentation: 'inline' | 'canvas';
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   onContentGrew?: () => void;
 };
+
+function hostOwnsViewport(frameMode: ArtifactFrameMode): boolean {
+  return frameMode === 'inline-viewport' || frameMode === 'inline-overflow';
+}
+
+function resolveStageHeight(input: BridgeInput): number {
+  if (input.presentation === 'canvas') {
+    return input.bootstrapHeight;
+  }
+  if (hostOwnsViewport(input.frameMode)) {
+    const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
+    return resolveArtifactViewportFrameHeight(viewportHeight);
+  }
+  return input.bootstrapHeight;
+}
 
 /** Owns the revisioned Inline size stream and whitelisted Artifact actions. */
 export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge {
@@ -41,7 +59,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       ? 'streaming'
       : 'loading'
     : 'ready';
-  const [height, setHeight] = useState(input.bootstrapHeight);
+  const [height, setHeight] = useState(() => resolveStageHeight(input));
   const [status, setStatus] = useState<ArtifactBridgeStatus>(initialStatus);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -113,6 +131,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     if (
       !trustedSource ||
       !current.measureHeight ||
+      hostOwnsViewport(current.frameMode) ||
       !message ||
       message.channelId !== current.channelId ||
       message.revision <= lastRevisionRef.current
@@ -142,9 +161,10 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
     if (!input.enabled) {
       return;
     }
-    heightRef.current = input.bootstrapHeight;
+    const nextHeight = resolveStageHeight(input);
+    heightRef.current = nextHeight;
     lastRevisionRef.current = -1;
-    setHeight(input.bootstrapHeight);
+    setHeight(nextHeight);
     setStatus(initialStatus);
 
     const onWindowMessage = (event: MessageEvent): void => {
@@ -172,7 +192,7 @@ export function useArtifactFrameBridge(input: BridgeInput): ArtifactFrameBridge 
       unlistenNative?.();
       clearReadyTimer();
     };
-  }, [clearReadyTimer, input.documentKey, input.enabled]);
+  }, [clearReadyTimer, input.documentKey, input.enabled, input.frameMode]);
 
   return { height, status, onIframeLoad };
 }

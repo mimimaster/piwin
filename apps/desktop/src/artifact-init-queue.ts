@@ -1,8 +1,8 @@
 /**
  * Serialize artifact iframe srcdoc assignment for history performance.
- * Ported from openwebui_m artifactInitQueue.
+ * Desktop-only resource scheduler — not part of @piwin/artifact policy.
  */
-import { MAX_CONCURRENT_ARTIFACT_INITS } from './constants.js';
+import { MAX_CONCURRENT_ARTIFACT_INITS } from '@piwin/artifact';
 
 type InitRequest = {
   id: string;

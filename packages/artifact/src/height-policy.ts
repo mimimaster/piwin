@@ -1,4 +1,9 @@
 /** Pure height normalization for Inline artifact iframes. */
+import {
+  ARTIFACT_INLINE_VIEWPORT_HEIGHT_VH,
+  ARTIFACT_INLINE_VIEWPORT_MAX_HEIGHT,
+  ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT,
+} from './constants.js';
 
 export function normalizeArtifactHeight(
   height: number,
@@ -17,4 +22,15 @@ export function clampArtifactHeight(
 ): number {
   const normalized = normalizeArtifactHeight(height, minHeight, bootstrapHeight);
   return Math.min(maxHeight, normalized);
+}
+
+/** Host chrome for inline-viewport / inline-overflow. Size still travels on the existing size message. */
+export function resolveArtifactViewportFrameHeight(viewportHeight: number): number {
+  const raw = viewportHeight * ARTIFACT_INLINE_VIEWPORT_HEIGHT_VH;
+  return Math.round(
+    Math.min(
+      ARTIFACT_INLINE_VIEWPORT_MAX_HEIGHT,
+      Math.max(ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT, raw),
+    ),
+  );
 }

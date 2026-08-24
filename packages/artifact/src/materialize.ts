@@ -82,8 +82,9 @@ export function materializeArtifact(
     theme,
     iframePolicy,
     surface: presentation,
+    frameMode,
     includeBridge: true,
-    enableStreamUpdates: mode === 'stream-preview',
+    enableStreamUpdates: true,
     documentKind: intent.descriptor.documentKind,
   });
 

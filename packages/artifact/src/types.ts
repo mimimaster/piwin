@@ -181,6 +181,16 @@ export type ArtifactLayoutIntent = 'flow' | 'viewport' | 'canvas';
 /** Runtime frame chrome. Analyzer/materializer never emit `inline-overflow`. */
 export type ArtifactFrameMode = 'inline-flow' | 'inline-viewport' | 'inline-overflow' | 'canvas';
 
+/** Parent → iframe revisioned render command (source and/or frameMode). */
+export type ArtifactRenderSnapshot = {
+  type: 'piwin-artifact:stream-update';
+  channelId: string;
+  revision: number;
+  source: string;
+  frameMode: ArtifactFrameMode;
+  final: boolean;
+};
+
 /** Observed source facts plus the security block reason. Not a routing decision. */
 export type ArtifactCapabilityReport = {
   scripts: boolean;

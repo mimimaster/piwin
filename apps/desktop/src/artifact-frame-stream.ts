@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+  parseArtifactRenderSnapshot,
   type ArtifactDescriptor,
+  type ArtifactFrameMode,
   type ArtifactRenderMode,
 } from '@piwin/artifact';
 
@@ -10,6 +12,7 @@ export type ArtifactSandboxView = {
   descriptor: ArtifactDescriptor;
   renderSource: string;
   srcdoc: string;
+  frameMode: ArtifactFrameMode;
 };
 
 const ARTIFACT_STREAM_RENDER_THROTTLE_MS = 300;
@@ -60,6 +63,7 @@ export function useArtifactDocument(decision: ArtifactSandboxView): ArtifactDocu
 type StreamPublisherInput = {
   channelId: string;
   decision: ArtifactSandboxView;
+  frameMode: ArtifactFrameMode;
   iframeRef: RefObject<HTMLIFrameElement | null>;
   enabled: boolean;
   streamLifecycle: boolean;
@@ -72,22 +76,27 @@ type StreamPublisher = {
 function postStreamSnapshot(
   iframe: HTMLIFrameElement | null,
   channelId: string,
+  revision: number,
   source: string,
+  frameMode: ArtifactFrameMode,
   final: boolean,
 ): boolean {
   const target = iframe?.contentWindow;
   if (!target) {
     return false;
   }
-  target.postMessage(
-    {
-      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
-      channelId,
-      source,
-      ...(final ? { final: true } : {}),
-    },
-    '*',
-  );
+  const snapshot = parseArtifactRenderSnapshot({
+    type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+    channelId,
+    revision,
+    source,
+    frameMode,
+    final,
+  });
+  if (!snapshot) {
+    return false;
+  }
+  target.postMessage(snapshot, '*');
   return true;
 }
 
@@ -98,7 +107,9 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
   const postedOnceRef = useRef(false);
   const lastPostAtRef = useRef(0);
   const lastFinalSourceRef = useRef<string | undefined>(undefined);
+  const lastPostedFrameModeRef = useRef<ArtifactFrameMode | undefined>(undefined);
   const pendingSourceRef = useRef<string | undefined>(undefined);
+  const revisionRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = useCallback((): void => {
@@ -115,12 +126,25 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
     }
     const final = current.decision.mode !== 'stream-preview';
     const source = current.decision.renderSource;
-    if (!force && final && lastFinalSourceRef.current === source) {
+    const frameMode = current.frameMode;
+    const frameModeChanged = lastPostedFrameModeRef.current !== frameMode;
+    if (!force && final && lastFinalSourceRef.current === source && !frameModeChanged) {
       return;
     }
-    if (postStreamSnapshot(current.iframeRef.current, current.channelId, source, final)) {
+    if (
+      postStreamSnapshot(
+        current.iframeRef.current,
+        current.channelId,
+        revisionRef.current,
+        source,
+        frameMode,
+        final,
+      )
+    ) {
+      revisionRef.current += 1;
       postedOnceRef.current = true;
       lastPostAtRef.current = Date.now();
+      lastPostedFrameModeRef.current = frameMode;
       if (final) {
         lastFinalSourceRef.current = source;
       }
@@ -162,6 +186,7 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
     input.decision.mode,
     input.decision.renderSource,
     input.enabled,
+    input.frameMode,
     input.streamLifecycle,
     postCurrent,
   ]);
