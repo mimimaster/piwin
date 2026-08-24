@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import { useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import {
   ARTIFACT_BOOTSTRAP_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
@@ -99,9 +99,10 @@ export function ArtifactSandboxFrame(props: {
   const channelId = view.descriptor.id;
   const nextFrameMode = requestedFrameMode(props.plan, props.presentation);
   const [runtimeFrameMode, setRuntimeFrameMode] = useState(nextFrameMode);
-  useEffect(() => {
-    setRuntimeFrameMode((current) => advanceArtifactFrameMode(current, nextFrameMode));
-  }, [nextFrameMode]);
+  const plannedFrameMode = advanceArtifactFrameMode(runtimeFrameMode, nextFrameMode);
+  if (plannedFrameMode !== runtimeFrameMode) {
+    setRuntimeFrameMode(plannedFrameMode);
+  }
   const document = useArtifactDocument(view);
   const lease = useArtifactFrameLease({
     channelId,
@@ -112,7 +113,7 @@ export function ArtifactSandboxFrame(props: {
   const scrollPort = useTranscriptScrollPort();
   const bootstrapHeight = resolveBootstrapHeight(props.plan, props.presentation);
   const measureHeight =
-    props.presentation === 'inline' && runtimeFrameMode === 'inline-flow';
+    props.presentation === 'inline' && plannedFrameMode === 'inline-flow';
   const bridge = useArtifactFrameBridge({
     channelId,
     documentKey: document.documentKey,
@@ -121,29 +122,29 @@ export function ArtifactSandboxFrame(props: {
     enabled: lease.hostIframe && lease.initGranted,
     measureHeight,
     bootstrapHeight,
-    frameMode: runtimeFrameMode,
+    frameMode: plannedFrameMode,
     presentation: props.presentation,
     ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
     ...(props.onComposerProposal ? { onComposerProposal: props.onComposerProposal } : {}),
     ...(scrollPort ? { onContentGrew: scrollPort.notifyContentGrew } : {}),
   });
-  useEffect(() => {
-    if (!bridge.overflowsInlineFlow) {
-      return;
-    }
-    setRuntimeFrameMode((current) => advanceArtifactFrameMode(current, 'inline-overflow'));
-  }, [bridge.overflowsInlineFlow]);
+  const appliedFrameMode = bridge.overflowsInlineFlow
+    ? advanceArtifactFrameMode(plannedFrameMode, 'inline-overflow')
+    : plannedFrameMode;
+  if (appliedFrameMode !== runtimeFrameMode) {
+    setRuntimeFrameMode(appliedFrameMode);
+  }
   const streamPublisher = useArtifactStreamPublisher({
     channelId,
     decision: view,
-    frameMode: runtimeFrameMode,
+    frameMode: appliedFrameMode,
     iframeRef,
     enabled: lease.hostIframe && lease.initGranted,
     streamLifecycle: document.streamLifecycle,
   });
   const canvas = props.presentation === 'canvas';
-  const viewportChrome = hostOwnsViewport(runtimeFrameMode, bridge.overflowsInlineFlow);
-  const showOverflowHint = !canvas && viewportChrome && runtimeFrameMode !== 'inline-viewport';
+  const viewportChrome = hostOwnsViewport(appliedFrameMode, bridge.overflowsInlineFlow);
+  const showOverflowHint = !canvas && appliedFrameMode === 'inline-overflow';
   const toolStatus = bridge.status === 'ready' || bridge.status === 'fallback' ? 'done' : 'running';
   const pausedLabel =
     props.locale === 'zh-CN' ? '预览已暂停以节省内存' : 'Preview paused to save memory';
@@ -159,7 +160,7 @@ export function ArtifactSandboxFrame(props: {
       data-artifact-height-status={bridge.status}
       data-artifact-renderer="sandbox"
       data-artifact-layout={canvas ? 'canvas' : 'inline'}
-      data-frame-mode={runtimeFrameMode}
+      data-frame-mode={appliedFrameMode}
       data-content-height={String(bridge.contentHeight)}
       className={`artifact-frame${canvas ? ' presentation-canvas' : ''}${props.extraHeaderAction ? ' has-artifact-action' : ''}${lease.hostIframe ? '' : ' is-recycled'}`}
     >
@@ -215,7 +216,7 @@ export function ArtifactSandboxFrame(props: {
                     overflow: 'hidden',
                     overscrollBehavior: 'contain',
                   }
-                : inlineStageStyle(bridge.height, runtimeFrameMode, bridge.overflowsInlineFlow)
+                : inlineStageStyle(bridge.height, appliedFrameMode, bridge.overflowsInlineFlow)
             }
           >
             {lease.initGranted ? (
@@ -226,7 +227,7 @@ export function ArtifactSandboxFrame(props: {
                 src={document.documentUrl}
                 sandbox="allow-scripts"
                 referrerPolicy="no-referrer"
-                data-frame-mode={runtimeFrameMode}
+                data-frame-mode={appliedFrameMode}
                 onLoad={() => {
                   lease.markIframeLoaded();
                   bridge.onIframeLoad();

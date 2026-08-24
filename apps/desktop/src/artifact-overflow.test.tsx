@@ -76,6 +76,36 @@ function makeRenderPlan(
   };
 }
 
+function makeStreamPlan(
+  source: string,
+  srcdoc = '<html>stream shell</html>',
+): Extract<ArtifactRenderPlan, { kind: 'render' }> {
+  const plan = makeRenderPlan();
+  return {
+    ...plan,
+    mode: 'stream-preview',
+    intent: {
+      ...plan.intent,
+      descriptor: { ...plan.intent.descriptor, source },
+      renderer: 'sandbox',
+    },
+    renderSource: source,
+    document: { kind: 'sandbox', srcdoc, csp: "default-src 'none'" },
+  };
+}
+
+function isSnapshotPost(data: unknown): data is Record<string, unknown> {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const record = data as Record<string, unknown>;
+  return record['type'] === 'piwin-artifact:stream-update';
+}
+
+function snapshotPosts(postMessage: ReturnType<typeof vi.spyOn>): Array<Record<string, unknown>> {
+  return postMessage.mock.calls.map((call) => call[0]).filter(isSnapshotPost);
+}
+
 function renderFrame(
   plan: Extract<ArtifactRenderPlan, { kind: 'render' }> = makeRenderPlan(),
   locale: 'zh-CN' | 'en' = 'en',
@@ -176,7 +206,6 @@ describe('artifact overflow reachability', () => {
     act(() => {
       dispatchSize(iframe, plan.intent.descriptor.id, 20_000, 0);
     });
-    await flushFrame();
 
     const frame = container.querySelector('[data-testid="artifact-frame"]');
     const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
@@ -200,6 +229,81 @@ describe('artifact overflow reachability', () => {
       }),
       '*',
     );
+  });
+
+  it('posts the overflow snapshot in the same turn as the chrome clamp, not 300ms later', async () => {
+    const plan = makeStreamPlan('<div>growing</div>');
+    const { container, root } = renderFrame(plan);
+    instances.push({ container, root });
+    await flushFrame();
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    act(() => {
+      dispatchSize(iframe, plan.intent.descriptor.id, 8_000, 0);
+      dispatchSize(iframe, plan.intent.descriptor.id, 20_000, 1);
+    });
+    const snapshots = snapshotPosts(postMessage);
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-overflow');
+    expect(snapshots.some((snapshot) => snapshot['frameMode'] === 'inline-overflow')).toBe(true);
+    expect(postMessage.mock.calls.length).toBeLessThan(4);
+  });
+
+  it('soaks coalesced growth through 16,384 without a flow-hidden crop or revision runaway', async () => {
+    const initial = makeStreamPlan('<div>delta-0</div>', '<html>stable stream</html>');
+    const { container, root } = renderFrame(initial);
+    instances.push({ container, root });
+    await flushFrame();
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    const chrome = resolveArtifactViewportFrameHeight(window.innerHeight);
+
+    act(() => {
+      dispatchSize(iframe, initial.intent.descriptor.id, 1_200, 0);
+      dispatchSize(iframe, initial.intent.descriptor.id, 8_000, 1);
+      dispatchSize(iframe, initial.intent.descriptor.id, MAX_ARTIFACT_INLINE_FLOW_HEIGHT, 2);
+    });
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-flow');
+
+    act(() => {
+      dispatchSize(iframe, initial.intent.descriptor.id, MAX_ARTIFACT_INLINE_FLOW_HEIGHT + 1, 3);
+    });
+    const frame = container.querySelector('[data-testid="artifact-frame"]');
+    const stage = container.querySelector<HTMLElement>('.artifact-iframe-stage');
+    expect(frame?.getAttribute('data-frame-mode')).toBe('inline-overflow');
+    expect(iframe?.getAttribute('data-frame-mode')).toBe('inline-overflow');
+    expect(stage?.style.height).toBe(`${chrome}px`);
+    expect(snapshotPosts(postMessage).filter((snapshot) => snapshot['frameMode'] === 'inline-overflow')).toHaveLength(1);
+
+    act(() => {
+      dispatchSize(iframe, initial.intent.descriptor.id, 20_000, 4);
+      dispatchSize(iframe, initial.intent.descriptor.id, 120, 5);
+      dispatchSize(iframe, initial.intent.descriptor.id, 24_000, 6);
+    });
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame plan={makeStreamPlan('<div>delta-1</div>', '<html>stable stream</html>')} />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const snapshots = snapshotPosts(postMessage);
+    const overflowIndex = snapshots.findIndex((snapshot) => snapshot['frameMode'] === 'inline-overflow');
+    expect(overflowIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      snapshots.slice(overflowIndex).every((snapshot) => snapshot['frameMode'] === 'inline-overflow'),
+    ).toBe(true);
+    expect(frame?.getAttribute('data-frame-mode')).toBe('inline-overflow');
+    expect(stage?.style.height).toBe(`${chrome}px`);
+    const revisions = snapshots
+      .map((snapshot) => snapshot['revision'])
+      .filter((revision): revision is number => typeof revision === 'number');
+    expect(Math.max(...revisions) - Math.min(...revisions)).toBeLessThan(8);
+    expect(snapshots.length).toBeLessThan(6);
   });
 
   it('does not oscillate back to flow after a later shorter height', async () => {
