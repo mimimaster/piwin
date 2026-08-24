@@ -107,7 +107,7 @@ export type {
   PiShellExecOptions,
 } from './pi-tool-factories.js';
 
-export { ARTIFACT_RUNTIME_CONTRACT } from './artifact-runtime-contract.js';
+export { ARTIFACT_RUNTIME_CONTRACT, formatArtifactProtocol } from './artifact-runtime-contract.js';
 
 export type {
   PiSessionBackend,

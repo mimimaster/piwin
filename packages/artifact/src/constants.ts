@@ -1,21 +1,15 @@
-/** Artifact policy constants (ported from openwebui_m, renamed for piwin). */
+/** Artifact policy constants. Canonical fence languages live in @piwin/contracts. */
 
-export const ARTIFACT_LANGUAGE_ALIASES = [
-  'artifact-html',
-  'artifact_html',
-  'ui-html',
-  'ui_html',
-  'html-artifact',
-] as const;
+export {
+  ARTIFACT_LANGUAGE_ALIASES,
+  CANONICAL_ARTIFACT_LANGUAGE,
+  NATIVE_HTML_ARTIFACT_LANGUAGES,
+  NATIVE_SVG_ARTIFACT_LANGUAGES,
+  DEFAULT_MAX_ARTIFACT_BYTES,
+} from '@piwin/contracts';
 
 /** Fence languages that need HTML-like source heuristics before promotion. */
 export const AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES = ['artifact', 'artifact-'] as const;
-
-export const NATIVE_HTML_ARTIFACT_LANGUAGES = ['html', 'htm'] as const;
-
-export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
-
-export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
 export const MIN_ARTIFACT_IFRAME_HEIGHT = 40;
 /** Temporary paint size while the sandbox reports its real content height. */

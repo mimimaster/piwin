@@ -2,6 +2,7 @@
 
 export {
   ARTIFACT_LANGUAGE_ALIASES,
+  CANONICAL_ARTIFACT_LANGUAGE,
   AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES,
   NATIVE_HTML_ARTIFACT_LANGUAGES,
   NATIVE_SVG_ARTIFACT_LANGUAGES,
@@ -24,8 +25,6 @@ export {
 } from './constants.js';
 
 export type {
-  ArtifactStatus,
-  ArtifactRenderPhase,
   ArtifactRenderMode,
   ArtifactSecurityBlockReason,
   ExternalArtifactResourceKind,

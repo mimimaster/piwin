@@ -1,6 +1,6 @@
 /**
- * Artifact constants, configuration types, and default decision prompt
- * shared across packages. Full runtime lives in @piwin/artifact.
+ * Artifact constants, configuration types, and model-facing protocol
+ * shared across packages. Renderer runtime lives in @piwin/artifact.
  */
 
 // ---------------------------------------------------------------------------
@@ -25,6 +25,9 @@ export type ArtifactTriggerMode = 'automatic' | 'explicit-only';
  */
 export type ArtifactPromptMode = 'default' | 'custom';
 
+/** Where an artifact is rendered in the product UI. Declared in the fence. */
+export type ArtifactSurface = 'inline' | 'canvas';
+
 /**
  * Product-level artifact configuration stored under `~/.piwin/config.json`.
  */
@@ -47,8 +50,11 @@ export type ArtifactConfig = {
 // Artifact language aliases and runtime constants
 // ---------------------------------------------------------------------------
 
+/** Canonical model-output fence language. Parser-input aliases are not prompt-facing. */
+export const CANONICAL_ARTIFACT_LANGUAGE = 'artifact-html' as const;
+
 export const ARTIFACT_LANGUAGE_ALIASES = [
-  'artifact-html',
+  CANONICAL_ARTIFACT_LANGUAGE,
   'artifact_html',
   'ui-html',
   'ui_html',
@@ -60,6 +66,9 @@ export const NATIVE_HTML_ARTIFACT_LANGUAGES = ['html', 'htm'] as const;
 export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
 
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
+
+/** Host tool that returns the decision policy + runtime contract on demand. */
+export const ARTIFACT_INSTRUCTIONS_TOOL_NAME = 'artifact_instructions' as const;
 
 export function createDefaultArtifactConfig(): ArtifactConfig {
   return {
@@ -80,8 +89,8 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
 /**
  * The canonical artifact decision prompt. This is the *configurable* part
  * that tells the model when to choose Markdown vs. artifact, and when to
- * choose inline vs. canvas. The runtime contract (theme variables, layout
- * constraints, fence format) is maintained separately and always injected.
+ * choose inline vs. canvas. Surface rules (theme, layout, fence format)
+ * come from `formatArtifactProtocol` and must not be restated here.
  *
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
@@ -135,43 +144,50 @@ export function resolveArtifactDecisionPrompt(config: ArtifactConfig): string {
 }
 
 // ---------------------------------------------------------------------------
-// Runtime artifact types
+// Model-facing runtime protocol (fence format, theme, layout)
 // ---------------------------------------------------------------------------
 
-export type ArtifactStatus =
-  | 'idle'
-  | 'streaming'
-  | 'loading'
-  | 'ready'
-  | 'blocked-empty'
-  | 'blocked-too-large'
-  | 'blocked-external-resource'
-  | 'timeout'
-  | 'error';
+/**
+ * Canonical output-surface rules. The only HTML fence language this formatter
+ * may emit is `artifact-html`. Parser-input aliases stay out of prompts.
+ */
+export function formatArtifactProtocol(): string {
+  return [
+    '[piwin-prompt-meta kind="artifact:runtime" version="3" applies="artifacts-enabled"]',
+    '## HTML Artifact Runtime Contract',
+    '',
+    '## Success',
+    'A self-contained artifact fence that renders correctly in the chat column sandbox.',
+    '',
+    `\`\`\`${CANONICAL_ARTIFACT_LANGUAGE} title="Short descriptive title"`,
+    '<!-- body fragment: HTML/CSS + optional small inline JS -->',
+    '```',
+    '',
+    'SVG: ```svg title="Short descriptive title"``` — self-contained, no external refs.',
+    '',
+    '## Constraints (break without these)',
+    '- Colors: for proactive artifacts, use only `--piwin-artifact-*` theme vars (`surface`, `text`, `muted`, `accent`, `border`, `bg`) to adapt to host theme; for user-specified requests (e.g. custom SVG, HTML pages, or explicit UI designs), style freely with custom colors.',
+    '- Outermost wrapper background: transparent; surface colors on inner cards only.',
+    '- Layout for 360–760px chat column; fluid grids; not a full-page landing.',
+    '- Inline grows with its content: no page-level or nested vertical scroll regions; let the conversation own vertical scrolling.',
+    '- If the UI fundamentally needs horizontal scrolling or a wide workspace, declare `surface="canvas"`; never add horizontal scrolling to Inline.',
+    '- Repeated cards/items are siblings — no card-in-card.',
+    '- Main content is static HTML; JS only enhances. Content remains if JS fails.',
+    '- No viewport-filling height (`100vh`/`100%`) or page-level overflow on html/body/outer wrapper.',
+  ].join('\n');
+}
 
-export type ArtifactDescriptorBase = {
-  id: string;
-  title: string;
-  source: string;
-  rawLanguage: string;
-  alias: string;
-};
+/**
+ * Fixed artifact runtime contract injected alongside the configurable
+ * decision prompt. Always produced by `formatArtifactProtocol`.
+ */
+export const ARTIFACT_RUNTIME_CONTRACT = formatArtifactProtocol();
 
-export type HtmlArtifactDescriptor = ArtifactDescriptorBase & {
-  type: 'html';
-};
-
-export type SvgArtifactDescriptor = ArtifactDescriptorBase & {
-  type: 'svg';
-};
-
-export type ArtifactDescriptor = HtmlArtifactDescriptor | SvgArtifactDescriptor;
-
-export type ArtifactSecurityBlockReason =
-  'blocked-empty' | 'blocked-too-large' | 'blocked-external-resource';
-
-export type ArtifactSecurityResult = {
-  canRender: boolean;
-  blockReason: ArtifactSecurityBlockReason | null;
-  byteSize: number;
-};
+/**
+ * Full model-facing Artifact instructions: configured decision policy plus
+ * the shared runtime protocol. `artifact_instructions` and any default
+ * prompt path must call this instead of concatenating surface rules.
+ */
+export function formatArtifactInstructions(config: ArtifactConfig): string {
+  return `${resolveArtifactDecisionPrompt(config)}\n\n${formatArtifactProtocol()}`;
+}

@@ -74,7 +74,7 @@ import { createBundledRuleSet } from './permission-defaults.js';
 import { computePermissionRulesRevision } from './permission-rule-revision.js';
 import { createSettingsSnapshot } from './settings/settings-service.js';
 import { discoverContextManifest } from './context-manifest-discovery.js';
-import { formatArtifactCapabilityPrompt } from './artifact-instructions-tool.js';
+import { formatResidentArtifactPrompt } from './artifact-instructions-tool.js';
 import { HOST_TOOLBOX_NAME, isHostToolboxTargetFamily } from './host-toolbox.js';
 
 export type CompiledBlueprint = {
@@ -350,10 +350,12 @@ async function compileAgentCapabilityPlan(
 
   const snapshot = compileSessionCapabilitySnapshot(compileInput);
 
-  // Inject the configured Artifact decision policy and runtime contract directly.
-  const artifactAppendPrompt = config.artifact?.enabled
-    ? formatArtifactCapabilityPrompt(config.artifact)
-    : undefined;
+  // Keep only a compact routing hint resident. The full configurable decision
+  // policy + runtime contract is loaded through artifact_instructions on demand.
+  const artifactAppendPrompt = formatResidentArtifactPrompt(
+    config.artifact,
+    snapshot.tools.hostTools,
+  );
 
   // MCP guidance is part of the model-visible contract only when the compiled
   // Host surface includes the catalog shell and the MCP family is enabled.
@@ -564,10 +566,12 @@ function compileConversationPlan(
     searchRoute,
   });
 
-  // Inject the configured Artifact decision policy and runtime contract directly.
-  const artifactAppendPrompt = config.artifact?.enabled
-    ? formatArtifactCapabilityPrompt(config.artifact)
-    : undefined;
+  // Keep only a compact routing hint resident. The full configurable decision
+  // policy + runtime contract is loaded through artifact_instructions on demand.
+  const artifactAppendPrompt = formatResidentArtifactPrompt(
+    config.artifact,
+    snapshot.tools.hostTools,
+  );
   const searchRouteAppendPrompt = formatSearchRouteCapabilityBrief(searchRoute);
 
   const appendSystemPromptParts = [
@@ -600,9 +604,7 @@ function projectModelHostTools(
 ): HostToolDescriptor[] {
   const toolboxPresent = effectiveToolNames.includes(HOST_TOOLBOX_NAME);
   const hiddenBehindToolbox = toolboxPresent ? new Set(hostToolboxTargetNames) : new Set<string>();
-  const modelVisibleToolNames = effectiveToolNames.filter(
-    (name) => !hiddenBehindToolbox.has(name),
-  );
+  const modelVisibleToolNames = effectiveToolNames.filter((name) => !hiddenBehindToolbox.has(name));
   return buildHostToolsForPolicy(modelVisibleToolNames, hostToolDescriptors).map((descriptor) =>
     descriptor.name === HOST_TOOLBOX_NAME
       ? buildHostToolboxDescriptor(hostToolboxTargetNames, mcpBrief)
@@ -635,11 +637,12 @@ function compileConversationToolPolicy(
   const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
   const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
   const flashcardsEnabled = config.flashcards?.enabled !== false;
-  const flashcardsAccess = input.presentation?.kind === 'doccard-sequence'
-    ? 'agent-read'
-    : flashcardsEnabled
-      ? 'agent-create'
-      : 'off';
+  const flashcardsAccess =
+    input.presentation?.kind === 'doccard-sequence'
+      ? 'agent-read'
+      : flashcardsEnabled
+        ? 'agent-create'
+        : 'off';
 
   const resolvedToolPolicy = resolveToolPolicyDetails({
     webSearch: webSearchReady,

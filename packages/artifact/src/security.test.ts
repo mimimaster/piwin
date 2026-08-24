@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAX_ARTIFACT_BYTES } from './constants.js';
+import {
+  ARTIFACT_LANGUAGE_ALIASES as CONTRACT_LANGUAGE_ALIASES,
+  DEFAULT_MAX_ARTIFACT_BYTES as CONTRACT_MAX_BYTES,
+} from '@piwin/contracts';
+import { ARTIFACT_LANGUAGE_ALIASES, DEFAULT_MAX_ARTIFACT_BYTES } from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import {
   classifyArtifactSecurity,
@@ -105,34 +109,26 @@ describe('classifyArtifactSecurity — inline XSS vectors (sandbox-mitigated)', 
   // change or sandbox weakening is caught.
 
   it('allows inline onerror handler (sandbox-mitigated)', () => {
-    const result = classifyArtifactSecurity(
-      '<img src="x" onerror="alert(1)">',
-    );
+    const result = classifyArtifactSecurity('<img src="x" onerror="alert(1)">');
     expect(result.canRender).toBe(true);
     expect(result.blockReason).toBe(null);
     expect(result.externalResources).toEqual([]);
   });
 
   it('allows svg onload handler (sandbox-mitigated)', () => {
-    const result = classifyArtifactSecurity(
-      '<svg onload="alert(1)"><circle r="10"/></svg>',
-    );
+    const result = classifyArtifactSecurity('<svg onload="alert(1)"><circle r="10"/></svg>');
     expect(result.canRender).toBe(true);
     expect(result.blockReason).toBe(null);
   });
 
   it('allows javascript: URL in href (sandbox-mitigated)', () => {
-    const result = classifyArtifactSecurity(
-      '<a href="javascript:alert(1)">click</a>',
-    );
+    const result = classifyArtifactSecurity('<a href="javascript:alert(1)">click</a>');
     expect(result.canRender).toBe(true);
     expect(result.blockReason).toBe(null);
   });
 
   it('allows nested iframe srcdoc (sandbox-mitigated, no external src)', () => {
-    const result = classifyArtifactSecurity(
-      '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
-    );
+    const result = classifyArtifactSecurity('<iframe srcdoc="<script>alert(1)</script>"></iframe>');
     expect(result.canRender).toBe(true);
     expect(result.blockReason).toBe(null);
   });
@@ -140,10 +136,15 @@ describe('classifyArtifactSecurity — inline XSS vectors (sandbox-mitigated)', 
   it('allows javascript: URL in img src (not detected as external, sandbox-mitigated)', () => {
     // javascript: is not https?:// so not detected as external resource,
     // but this documents that the classifier does NOT catch it — sandbox does.
-    const result = classifyArtifactSecurity(
-      '<img src="javascript:alert(1)">',
-    );
+    const result = classifyArtifactSecurity('<img src="javascript:alert(1)">');
     expect(result.canRender).toBe(true);
     expect(result.blockReason).toBe(null);
+  });
+});
+
+describe('canonical constants', () => {
+  it('re-exports the contracts definition rather than a local copy', () => {
+    expect(ARTIFACT_LANGUAGE_ALIASES).toBe(CONTRACT_LANGUAGE_ALIASES);
+    expect(DEFAULT_MAX_ARTIFACT_BYTES).toBe(CONTRACT_MAX_BYTES);
   });
 });
