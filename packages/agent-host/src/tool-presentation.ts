@@ -6,6 +6,7 @@
  *   [icon] [actionVerb] [path pill | query preview] [countTag] … [status] [duration]
  */
 import type { ToolErrorView, ToolKind, ToolOutputView, ToolPresentation } from '@piwin/contracts';
+import { attachFlashcardPresentation } from './flashcard-presentation.js';
 
 function looksLikeCancelledToolOutput(text: string): boolean {
   const normalized = text.trim().toLowerCase();
@@ -300,7 +301,11 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.summary = 'Cancelled before completion';
   }
 
-  return presentation;
+  return attachFlashcardPresentation(presentation, {
+    toolName: input.toolName,
+    ...(input.routedToolName !== undefined ? { routedToolName: input.routedToolName } : {}),
+    ...(input.outputText !== undefined ? { outputText: input.outputText } : {}),
+  });
 }
 
 function resolveActionFamily(toolName: string): ToolActionFamily {
@@ -852,8 +857,7 @@ function extractActionDetails(input: {
     const limit = toFiniteNumber(record.limit ?? record.line_limit ?? record.lines);
     if (offset !== undefined) {
       const from = offset < 1 ? 1 : offset;
-      lineRange =
-        limit !== undefined && limit > 0 ? `L${from}-${from + limit - 1}` : `L${from}`;
+      lineRange = limit !== undefined && limit > 0 ? `L${from}-${from + limit - 1}` : `L${from}`;
     }
   }
 

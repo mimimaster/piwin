@@ -10,8 +10,6 @@ import { join } from 'node:path';
 import type { HostCommand, HostResponse, PiwinConfig } from '@piwin/contracts';
 import {
   buildReviewQueue,
-  buildFlashcardArtifactHtml,
-  buildFlashcardBatchArtifactHtml,
   displayCardsFromBatchResult,
   exportCardsToTsv,
   parseReviewCardId,
@@ -259,12 +257,8 @@ export async function handleKnowledgeCommand(
       const config = await context.loadConfig();
       const maxBatchSize = config.flashcards?.maxBatchSize ?? 40;
       const result = await store.batchCreate(command.input, maxBatchSize);
-      const displayCards = displayCardsFromBatchResult(result);
-      const artifactHtml =
-        displayCards.length === 1 && displayCards[0]
-          ? buildFlashcardArtifactHtml(displayCards[0])
-          : buildFlashcardBatchArtifactHtml(displayCards);
-      return ok(requestId, 'flashcards/batch-create', { ...result, artifactHtml });
+      const display = { cards: displayCardsFromBatchResult(result) };
+      return ok(requestId, 'flashcards/batch-create', { ...result, display });
     }
     case 'flashcards/delete': {
       const store = await context.getCardStore();
@@ -310,7 +304,11 @@ export async function handleKnowledgeCommand(
       });
     }
     case 'doccards/scan-folder': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/scan-folder', 'folderPath is required');
       }
       const rag = await context.getFolderRag();
@@ -318,7 +316,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/scan-folder', result);
     }
     case 'doccards/index-folder': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/index-folder', 'folderPath is required');
       }
       if (!context.ingestionJobs) {
@@ -340,7 +342,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/index-folder', started.accepted);
     }
     case 'doccards/index-status': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/index-status', 'folderPath is required');
       }
       if (!context.ingestionJobs) {
@@ -352,7 +358,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/index-status', { job: job ?? null, documents });
     }
     case 'doccards/cancel-index': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/cancel-index', 'folderPath is required');
       }
       if (!context.ingestionJobs) {
@@ -365,7 +375,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/cancel-index', { job: result });
     }
     case 'doccards/generate': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/generate', 'folderPath is required');
       }
       if (!context.generationJobs || (!context.draftCards && !context.completeJson)) {
@@ -393,7 +407,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/generate', started.accepted);
     }
     case 'doccards/generation-status': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/generation-status', 'folderPath is required');
       }
       if (!context.generationJobs) {
@@ -403,7 +421,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/generation-status', { job: job ?? null });
     }
     case 'doccards/cancel-generation': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/cancel-generation', 'folderPath is required');
       }
       if (!context.generationJobs) {
@@ -416,7 +438,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/cancel-generation', { job: result });
     }
     case 'doccards/retrieve': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/retrieve', 'folderPath is required');
       }
       const rag = await context.getFolderRag();
@@ -433,7 +459,11 @@ export async function handleKnowledgeCommand(
       });
     }
     case 'doccards/list-by-folder': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return ok(requestId, 'doccards/list-by-folder', {
           records: [],
           folderExists: false,
@@ -462,7 +492,11 @@ export async function handleKnowledgeCommand(
       return ok(requestId, 'doccards/rebind-folder', result);
     }
     case 'doccards/forget-folder': {
-      if (!command.folderPath || typeof command.folderPath !== 'string' || !command.folderPath.trim()) {
+      if (
+        !command.folderPath ||
+        typeof command.folderPath !== 'string' ||
+        !command.folderPath.trim()
+      ) {
         return fail(requestId, 'doccards/forget-folder', 'folderPath is required');
       }
       const store = await context.getCardStore();

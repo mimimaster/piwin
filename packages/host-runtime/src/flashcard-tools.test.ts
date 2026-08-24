@@ -50,6 +50,13 @@ describe('buildFlashcardTools', () => {
     ]);
   });
 
+  it('does not tell the model to emit HTML fences', () => {
+    const tools = buildFlashcardTools({ store, enabled: true });
+    for (const tool of tools) {
+      expect(tool.descriptor.description).not.toMatch(/artifactHtml|```html/);
+    }
+  });
+
   it('flashcard_create persists sourceFolder/sourceFile/sourceLine', async () => {
     const tools = buildFlashcardTools({ store, enabled: true });
     const create = tools.find((t) => t.descriptor.name === 'flashcard_create');
@@ -73,7 +80,7 @@ describe('buildFlashcardTools', () => {
     expect(result.card.sourceLine).toBe(42);
   });
 
-  it('flashcard_batch_create creates multiple cards and returns artifactHtml', async () => {
+  it('flashcard_batch_create creates multiple cards and returns structured display', async () => {
     const tools = buildFlashcardTools({ store, enabled: true });
     const batch = tools.find((t) => t.descriptor.name === 'flashcard_batch_create');
     if (!batch) throw new Error('flashcard_batch_create missing');
@@ -102,11 +109,14 @@ describe('buildFlashcardTools', () => {
     const result = JSON.parse(raw) as {
       created: unknown[];
       skipped: unknown[];
-      artifactHtml: string;
+      display: { cards: Array<{ front: string; back: string; cardId: string }> };
+      artifactHtml?: unknown;
     };
     expect(result.created).toHaveLength(2);
     expect(result.skipped).toHaveLength(0);
-    expect(result.artifactHtml).toContain('piwin-flashcard-batch');
+    expect(result.artifactHtml).toBeUndefined();
+    expect(result.display.cards).toHaveLength(2);
+    expect(result.display.cards.map((card) => card.front)).toEqual(['q1', 'q2']);
   });
 
   it('flashcard_batch_create skips duplicates (partial success)', async () => {
@@ -125,14 +135,17 @@ describe('buildFlashcardTools', () => {
     const result = JSON.parse(raw) as {
       created: unknown[];
       skipped: Array<{ reason: string; existing?: { id: string; front?: string } }>;
-      artifactHtml?: string;
+      display: { cards: Array<{ front: string }> };
+      artifactHtml?: unknown;
     };
     expect(result.created).toHaveLength(1);
     expect(result.skipped).toHaveLength(1);
     expect(result.skipped[0]?.reason).toBe('duplicate');
     expect(result.skipped[0]?.existing?.front).toBe('dup');
-    expect(result.artifactHtml).toContain('dup');
-    expect(result.artifactHtml).toContain('unique');
+    expect(result.artifactHtml).toBeUndefined();
+    expect(result.display.cards.map((card) => card.front)).toEqual(
+      expect.arrayContaining(['dup', 'unique']),
+    );
   });
 
   it('flashcard_create returns the existing card when the text is a duplicate', async () => {
@@ -154,11 +167,14 @@ describe('buildFlashcardTools', () => {
     const result = JSON.parse(raw) as {
       card: { id: string };
       duplicate: boolean;
-      artifactHtml: string;
+      display: { cards: Array<{ front: string; cardId: string }> };
+      artifactHtml?: unknown;
     };
     expect(result.duplicate).toBe(true);
     expect(result.card.id).toBe(first.id);
-    expect(result.artifactHtml).toContain('[…]');
+    expect(result.artifactHtml).toBeUndefined();
+    expect(result.display.cards[0]?.cardId).toBe(first.id);
+    expect(result.display.cards[0]?.front).toContain('[…]');
   });
 
   it('flashcard_batch_create respects maxBatchSize', async () => {
@@ -213,12 +229,18 @@ describe('buildFlashcardTools', () => {
         deck: 'bio',
       }),
     );
-    const created = JSON.parse(createdRaw) as { card: { id: string; model: string }; artifactHtml: string };
+    const created = JSON.parse(createdRaw) as {
+      card: { id: string; model: string };
+      display: { cards: Array<{ cardId: string; front: string; ordinal: number }> };
+      artifactHtml?: unknown;
+    };
     expect(created.card.model).toBe('cloze');
-    expect(created.artifactHtml).toContain("cardId: '" + created.card.id + "'");
-    expect(created.artifactHtml).not.toContain("cardId: '" + created.card.id + ":c1'");
-    expect(created.artifactHtml).not.toContain("cardId: '" + created.card.id + ":c2'");
-    expect(created.artifactHtml).toContain('[…]');
+    expect(created.artifactHtml).toBeUndefined();
+    expect(created.display.cards).toHaveLength(1);
+    expect(created.display.cards[0]?.cardId).toBe(created.card.id);
+    expect(created.display.cards[0]?.cardId).not.toContain(':c1');
+    expect(created.display.cards[0]?.cardId).not.toContain(':c2');
+    expect(created.display.cards[0]?.front).toContain('[…]');
 
     const listed = JSON.parse(outputOf(await executeTool(list, { deck: 'bio' }))) as Array<{
       id: string;

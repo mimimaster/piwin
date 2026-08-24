@@ -441,6 +441,8 @@ export type ToolPresentation = {
   targetPaths?: string[];
   /** Product-openable logical refs; does not rewrite targetPaths. */
   documentTargets?: import('./skills.js').DocumentTargetRef[];
+  /** Structured flashcard create/batch-create display; not Generic Artifact HTML. */
+  flashcard?: import('./flashcards.js').FlashcardDisplayPayload;
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;
@@ -581,7 +583,9 @@ export interface SessionHandle {
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   /** Arm a literal instruction for this exact active Run's next safe checkpoint. */
-  armRunIntervention?(intervention: import('./run-intervention.js').BackendRunIntervention): Promise<void>;
+  armRunIntervention?(
+    intervention: import('./run-intervention.js').BackendRunIntervention,
+  ): Promise<void>;
   /** Remove an intervention that is still staged and has not been claimed. */
   cancelRunIntervention?(interventionId: string, expectedRevision: number): Promise<boolean>;
   /** Backend intervention lifecycle; deliberately separate from AgentEvent. */

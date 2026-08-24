@@ -1,5 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { HostPush, MediaAttachmentRef, RemoteTranscriptMessage } from '@piwin/contracts';
+import {
+  parseFlashcardDisplayPayload,
+  type FlashcardDisplayPayload,
+  type HostPush,
+  type MediaAttachmentRef,
+  type RemoteTranscriptMessage,
+} from '@piwin/contracts';
 
 export type MobileMediaAttachment = MediaAttachmentRef;
 
@@ -16,6 +22,7 @@ export type MobileToolCall = {
   output?: string | undefined;
   error?: string | undefined;
   durationMs?: number | undefined;
+  flashcard?: FlashcardDisplayPayload | undefined;
 };
 
 export type MobileTranscriptMessage = RemoteTranscriptMessage & {
@@ -24,7 +31,10 @@ export type MobileTranscriptMessage = RemoteTranscriptMessage & {
   attachments?: MobileMediaAttachment[] | undefined;
 };
 
-export function readSessionMessages(response: { success: boolean; data?: unknown }): MobileTranscriptMessage[] {
+export function readSessionMessages(response: {
+  success: boolean;
+  data?: unknown;
+}): MobileTranscriptMessage[] {
   if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.messages)) {
     return [];
   }
@@ -139,10 +149,12 @@ export function handleRemotePush(
       command: event.presentation?.command,
       targetPaths: event.presentation?.targetPaths,
       durationMs: event.presentation?.durationMs,
+      flashcard: event.presentation?.flashcard,
     };
     setMessages((current) => {
       const msgId =
-        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+        event.responseMessageId ??
+        current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -159,7 +171,8 @@ export function handleRemotePush(
   } else if (event.type === 'tool/update') {
     setMessages((current) => {
       const msgId =
-        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+        event.responseMessageId ??
+        current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -171,6 +184,7 @@ export function handleRemotePush(
             actionVerb: event.presentation?.actionVerb ?? item.actionVerb,
             command: event.presentation?.command ?? item.command,
             output: event.presentation?.output?.text ?? `${item.output ?? ''}${event.delta}`,
+            flashcard: event.presentation?.flashcard ?? item.flashcard,
           };
         });
         return { ...message, toolCalls: updated };
@@ -179,7 +193,8 @@ export function handleRemotePush(
   } else if (event.type === 'tool/end') {
     setMessages((current) => {
       const msgId =
-        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+        event.responseMessageId ??
+        current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -195,6 +210,7 @@ export function handleRemotePush(
             output: event.presentation?.output?.text ?? item.output,
             error: event.presentation?.error?.message ?? (event.isError ? '执行失败' : undefined),
             durationMs: event.presentation?.durationMs ?? item.durationMs,
+            flashcard: event.presentation?.flashcard ?? item.flashcard,
           };
         });
         return { ...message, toolCalls: updated };
@@ -215,7 +231,10 @@ function projectTranscriptMessage(raw: unknown): MobileTranscriptMessage {
         const outputPres = pres && isRecord(pres.output) ? (pres.output.text as string) : undefined;
         const errorPres = pres && isRecord(pres.error) ? (pres.error.message as string) : undefined;
         return {
-          id: typeof tool.toolCallId === 'string' ? tool.toolCallId : String(tool.id || Math.random()),
+          id:
+            typeof tool.toolCallId === 'string'
+              ? tool.toolCallId
+              : String(tool.id || Math.random()),
           name:
             typeof tool.toolName === 'string'
               ? tool.toolName
@@ -223,9 +242,7 @@ function projectTranscriptMessage(raw: unknown): MobileTranscriptMessage {
                 ? tool.name
                 : 'tool',
           status: (tool.status === 'running' || tool.status === 'error' ? tool.status : 'done') as
-            | 'running'
-            | 'done'
-            | 'error',
+            'running' | 'done' | 'error',
           summary:
             typeof pres?.summary === 'string'
               ? pres.summary
@@ -257,6 +274,7 @@ function projectTranscriptMessage(raw: unknown): MobileTranscriptMessage {
               : typeof tool.durationMs === 'number'
                 ? tool.durationMs
                 : undefined,
+          flashcard: pres ? (parseFlashcardDisplayPayload(pres.flashcard) ?? undefined) : undefined,
         };
       })
     : undefined;

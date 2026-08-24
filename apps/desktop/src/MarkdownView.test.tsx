@@ -371,7 +371,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('iframe')).toBeNull();
   });
 
-  it('capability off + flashcard source: shows Preview card affordance', () => {
+  it('ordinary HTML with data-card-id does not hijack capability-off source rendering', () => {
     const { container } = renderMarkdown(
       <MarkdownView
         text={FLASHCARD_FENCE}
@@ -379,13 +379,19 @@ describe('MarkdownView artifact preview policy', () => {
         artifactPreviewEnabled={false}
       />,
     );
-    expect(container.querySelector('[data-testid="flashcard-preview-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="flashcard-preview-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-flashcard"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
-  it('capability on + native flashcard HTML stays source-first', () => {
+  it('ordinary HTML with data-card-id follows native html source-first when capability is on', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" />,
     );
+    expect(container.querySelector('[data-testid="flashcard-preview-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="chat-flashcard"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
   });
@@ -736,9 +742,7 @@ describe('MarkdownView file references', () => {
       />,
     );
     const chip = container.querySelector<HTMLElement>('.md-doc-chip');
-    expect(chip?.getAttribute('data-full-path')).toBe(
-      '/Users/me/proj/cropped-portraits-16.zip',
-    );
+    expect(chip?.getAttribute('data-full-path')).toBe('/Users/me/proj/cropped-portraits-16.zip');
   });
 
   it('opens absolute zip links via path chips (file: stripped)', () => {

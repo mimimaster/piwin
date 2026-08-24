@@ -73,21 +73,23 @@ describe('artifact rendering fixtures', () => {
     expect(getArtifactFixture('explicit-canvas').language.startsWith('artifact-html')).toBe(true);
   });
 
-  it('records the current flashcard tool-result artifactHtml payload', () => {
+  it('records the current flashcard tool-result structured payload', () => {
     expect(FLASHCARD_TOOL_RESULT.ok).toBe(true);
     const parsed = JSON.parse(FLASHCARD_TOOL_RESULT.output) as {
       card: { id: string };
       duplicate: boolean;
-      artifactHtml: string;
+      display: { cards: Array<{ cardId: string; front: string; back: string }> };
+      artifactHtml?: unknown;
     };
     expect(parsed.card.id).toBe(FLASHCARD_TOOL_RESULT.parsed.card.id);
     expect(parsed.duplicate).toBe(false);
-    expect(parsed.artifactHtml).toContain('piwin-flashcard');
-    expect(parsed.artifactHtml).toContain(`data-card-id="${parsed.card.id}"`);
-    expect(parsed.artifactHtml).toContain('fc-card-frame');
-    expect(parsed.artifactHtml).toContain("postAction('flashcard/rate'");
-    expect(parsed.artifactHtml).toContain('What is an Artifact?');
-    expect(getArtifactFixture('flashcard-tool-result').source).toBe(parsed.artifactHtml);
+    expect(parsed.artifactHtml).toBeUndefined();
+    expect(parsed.display.cards).toHaveLength(1);
+    expect(parsed.display.cards[0]?.cardId).toBe(parsed.card.id);
+    expect(parsed.display.cards[0]?.front).toBe('What is an Artifact?');
+    expect(parsed.display.cards[0]?.back).toBe('Untrusted HTML rendered in a sandbox.');
+    expect(getArtifactFixture('flashcard-tool-result').source).toBe(FLASHCARD_TOOL_RESULT.output);
+    expect(getArtifactFixture('flashcard-tool-result').language).toBe('json');
   });
 
   it('records streaming deltas from partial tokens to a final fenced document', () => {
@@ -111,8 +113,7 @@ describe('artifact rendering fixtures', () => {
         { id: `fixture-${id}`, htmlUiModeEnabled: true },
       );
       if (analysis.kind !== 'intent') {
-        routing[id] =
-          analysis.kind === 'blocked' ? `blocked:${analysis.reason}` : analysis.kind;
+        routing[id] = analysis.kind === 'blocked' ? `blocked:${analysis.reason}` : analysis.kind;
         continue;
       }
       routing[id] = `${analysis.intent.layout}:${analysis.intent.renderer}`;

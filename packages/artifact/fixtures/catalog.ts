@@ -13,11 +13,7 @@ import {
   VIEWPORT_100VH_HTML,
 } from './html.js';
 import { wrapArtifactMarkdown } from './markdown.js';
-import {
-  ARTIFACT_FIXTURE_IDS,
-  type ArtifactFixture,
-  type ArtifactFixtureId,
-} from './types.js';
+import { ARTIFACT_FIXTURE_IDS, type ArtifactFixture, type ArtifactFixtureId } from './types.js';
 
 function fixture(
   id: ArtifactFixtureId,
@@ -117,8 +113,8 @@ const FIXTURES: Record<ArtifactFixtureId, ArtifactFixture> = {
     'flashcard-tool-result',
     'Flashcard tool result',
     'tool-result',
-    'html',
-    FLASHCARD_TOOL_RESULT.parsed.artifactHtml,
+    'json',
+    FLASHCARD_TOOL_RESULT.output,
     false,
   ),
 };

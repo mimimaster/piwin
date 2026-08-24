@@ -49,10 +49,21 @@ export type FlashcardToolResultCard = {
   createdAt: string;
 };
 
+export type FlashcardToolResultDisplayCard = {
+  cardId: string;
+  itemId: string;
+  model: 'basic';
+  ordinal: number;
+  deck: string;
+  front: string;
+  back: string;
+  createdAt: string;
+};
+
 export type FlashcardToolResultPayload = {
   card: FlashcardToolResultCard;
   duplicate: false;
-  artifactHtml: string;
+  display: { cards: FlashcardToolResultDisplayCard[] };
 };
 
 export type FlashcardToolResultFixture = {

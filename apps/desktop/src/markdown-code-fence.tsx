@@ -15,7 +15,6 @@ import { CodeBlockContextMenu } from './code-block-context-menu.js';
 import { CollapsibleContentBlock } from './collapsible-content-block';
 import { computeDiffLineNumbers } from './diff-line-numbers';
 import { parseUnifiedDiff } from './diff-view';
-import { isFlashcardArtifactSource } from './flashcard-artifact';
 import { isMathFenceLanguage, isMermaidFenceLanguage, renderKatex } from './markdown-math';
 import { MermaidBlock } from './MermaidBlock';
 import { normalizeLanguage, TokenSpans, useHighlight, type TokenLine } from './syntax-highlight';
@@ -294,7 +293,6 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
     );
   }
 
-  const isFlashcard = isFlashcardArtifactSource(props.source);
   const decisionLanguage = analysis.kind === 'code' ? analysis.language : undefined;
   const isShell = isShellLanguage(props.language || decisionLanguage);
 
@@ -338,24 +336,6 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
         source={props.source}
         isShell={isShell}
         streaming
-      />
-    );
-  }
-
-  if (!props.artifactPreviewEnabled && isFlashcard) {
-    return (
-      <FlashcardPreviewCard
-        language={props.language}
-        source={props.source}
-        initPriority={props.initPriority}
-        {...(props.artifactThemeKey !== undefined
-          ? { artifactThemeKey: props.artifactThemeKey }
-          : {})}
-        {...(props.artifactTheme ? { artifactTheme: props.artifactTheme } : {})}
-        {...(props.artifactMaxBytes !== undefined
-          ? { artifactMaxBytes: props.artifactMaxBytes }
-          : {})}
-        {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
       />
     );
   }
@@ -518,87 +498,6 @@ function SourceCodeBlock(props: {
         <p className="artifact-inline-incompatible" data-testid="artifact-inline-incompatible">
           Full-page or viewport-sized HTML cannot use Inline sizing. Preview it in Canvas.
         </p>
-      ) : null}
-    </div>
-  );
-}
-
-function FlashcardPreviewCard(props: {
-  language: string;
-  source: string;
-  artifactTheme?: ArtifactThemeVariables;
-  artifactThemeKey?: string;
-  initPriority: number;
-  artifactMaxBytes?: number;
-  onArtifactAction?: (action: ArtifactActionMessage) => void;
-}): ReactElement {
-  const [open, setOpen] = useState(false);
-  const [sourceExpanded, setSourceExpanded] = useState(false);
-  if (!open) {
-    return (
-      <SourceCodeBlock
-        language={props.language}
-        source={props.source}
-        isShell={false}
-        defaultCollapsed={!sourceExpanded}
-        previewAction={
-          <Button size="compact" data-testid="flashcard-preview-card" onClick={() => setOpen(true)}>
-            Preview card
-          </Button>
-        }
-      />
-    );
-  }
-
-  const analysis = analyzeArtifactFence(
-    createArtifactFenceRecord({ info: props.language, source: props.source }),
-    {
-      id: `flashcard-${props.initPriority}`,
-      htmlUiModeEnabled: true,
-      mode: 'interactive',
-      ...(props.artifactMaxBytes !== undefined ? { maxBytes: props.artifactMaxBytes } : {}),
-    },
-  );
-  const plan: ArtifactRenderPlan =
-    analysis.kind === 'intent'
-      ? materializeArtifact(analysis.intent, {
-          mode: 'interactive',
-          source: props.source,
-          presentation: 'inline',
-          ...(props.artifactTheme ? { theme: props.artifactTheme } : {}),
-        })
-      : analysis;
-  return (
-    <div className="artifact-with-source artifact-with-source--preview">
-      {plan.kind === 'render' || plan.kind === 'blocked' ? (
-        <>
-          <div className="artifact-preview-surface">
-            <ArtifactFrame
-              key={`${props.artifactThemeKey ?? 'default'}:${plan.kind === 'render' ? plan.intent.descriptor.id : plan.descriptor.id}`}
-              plan={plan}
-              initPriority={props.initPriority}
-              {...(props.artifactTheme ? { theme: props.artifactTheme } : {})}
-              {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-            />
-          </div>
-          {plan.kind === 'render' ? (
-            <div className="artifact-floating-actions">
-              <IconButton
-                label="Show code"
-                title="Show code"
-                className="artifact-floating-action-button"
-                data-testid="flashcard-preview-card"
-                aria-expanded
-                onClick={() => {
-                  setSourceExpanded(true);
-                  setOpen(false);
-                }}
-              >
-                <IconCode size={14} />
-              </IconButton>
-            </div>
-          ) : null}
-        </>
       ) : null}
     </div>
   );

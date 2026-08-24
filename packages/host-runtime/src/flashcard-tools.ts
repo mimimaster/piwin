@@ -7,14 +7,14 @@
  */
 import type {
   FlashcardCreateInput,
+  FlashcardCreateResult,
+  FlashcardDisplayPayload,
   FlashcardItem,
   HostToolRegistration,
   ToolResult,
 } from '@piwin/contracts';
 import { DuplicateCardError, type CardStore } from '@piwin/flashcards';
 import {
-  buildFlashcardArtifactHtml,
-  buildFlashcardBatchArtifactHtml,
   displayCardsFromBatchResult,
   displayCardsFromItems,
   itemPreviewText,
@@ -33,16 +33,19 @@ function invalidFlashcardInput(message: string): ToolResult {
   return { ok: false, code: 'invalid-input', message };
 }
 
+function flashcardDisplay(
+  cards: ReturnType<typeof displayCardsFromItems>,
+): FlashcardDisplayPayload {
+  return { cards };
+}
+
 function flashcardCreateSuccess(card: FlashcardItem, duplicate: boolean): ToolResult {
-  const displayCards = displayCardsFromItems([card]);
-  const artifactHtml =
-    displayCards.length === 1 && displayCards[0]
-      ? buildFlashcardArtifactHtml(displayCards[0])
-      : buildFlashcardBatchArtifactHtml(displayCards);
+  const display = flashcardDisplay(displayCardsFromItems([card]));
+  const result: FlashcardCreateResult = { card, duplicate, display };
   return {
     ok: true,
-    output: JSON.stringify({ card, duplicate, artifactHtml }, null, 2),
-    details: { cardId: card.id, duplicate },
+    output: JSON.stringify(result, null, 2),
+    details: { cardId: card.id, duplicate, flashcard: display },
   };
 }
 
@@ -57,7 +60,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_create',
         description:
-          'Create a flashcard item in the user card library. model is "basic" (front/back Q&A, default) or "cloze" (text with {{cN::answer}} markers). Conversation shows one flip card per item; FSRS still schedules each cloze ordinal separately. Call flashcard_list first to avoid duplicates. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. The result includes artifactHtml — to show interactive flip cards in chat, output it inside a ```html fence verbatim.',
+          'Create a flashcard item in the user card library. model is "basic" (front/back Q&A, default) or "cloze" (text with {{cN::answer}} markers). Conversation shows one structured flip card per item from the tool result; FSRS still schedules each cloze ordinal separately. Call flashcard_list first to avoid duplicates. When generating from a note, pass sourceNoteId and a short sourceExcerpt. When generating from a folder (RAG-sourced), pass sourceFolder, sourceFile, sourceLine, and sourceExcerpt. Do not emit HTML fences for the card.',
         parameters: {
           type: 'object',
           properties: {
@@ -115,7 +118,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
       descriptor: {
         name: 'flashcard_batch_create',
         description:
-          'Create multiple flashcard items in one call (preferred for batch generation). Each item may be model "basic" (front/back) or "cloze" (text with {{cN::answer}}). Call flashcard_list first to avoid duplicates. Each item may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, artifactHtml }. Duplicates are skipped (not fatal) but skipped[].existing is the already-stored item and artifactHtml still includes that physical card.',
+          'Create multiple flashcard items in one call (preferred for batch generation). Each item may be model "basic" (front/back) or "cloze" (text with {{cN::answer}}). Call flashcard_list first to avoid duplicates. Each item may carry sourceFolder/sourceFile/sourceLine/sourceExcerpt for folder-sourced cards, or sourceNoteId/sourceExcerpt for note-sourced cards, or no source fields for open-knowledge cards. Returns { created, skipped, display }. Duplicates are skipped (not fatal) but skipped[].existing is the already-stored item and display still includes that physical card. Do not emit HTML fences for the cards.',
         parameters: {
           type: 'object',
           properties: {
@@ -157,15 +160,15 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
         const cards = args.cards;
         const inputs = cards.map((card) => parseCardInput(card as Record<string, unknown>));
         const result = await store.batchCreate({ cards: inputs }, maxBatchSize);
-        const displayCards = displayCardsFromBatchResult(result);
-        const artifactHtml =
-          displayCards.length === 1 && displayCards[0]
-            ? buildFlashcardArtifactHtml(displayCards[0])
-            : buildFlashcardBatchArtifactHtml(displayCards);
+        const display = flashcardDisplay(displayCardsFromBatchResult(result));
         return {
           ok: true,
-          output: JSON.stringify({ ...result, artifactHtml }, null, 2),
-          details: { created: result.created.length, skipped: result.skipped.length },
+          output: JSON.stringify({ ...result, display }, null, 2),
+          details: {
+            created: result.created.length,
+            skipped: result.skipped.length,
+            flashcard: display,
+          },
         };
       },
     },
@@ -265,7 +268,9 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
 
 function validateCreateInput(input: FlashcardCreateInput): string | null {
   if (input.model === 'cloze') {
-    return (input.text ?? '').trim() ? null : 'cloze items require text with {{cN::answer}} markers';
+    return (input.text ?? '').trim()
+      ? null
+      : 'cloze items require text with {{cN::answer}} markers';
   }
   if (!(input.front ?? '').trim() || !(input.back ?? '').trim()) {
     return 'basic items require front and back';
