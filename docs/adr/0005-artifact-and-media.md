@@ -13,10 +13,29 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 1. Default chat rendering = **Markdown**
 2. HTML artifact runtime = **port pure logic** from `openwebui_m` into `@piwin/artifact`
 3. Images: preview in chat; paste saves under `~/.piwin/media/...`; host passes native image content to Pi by default (see amendment 2026-08-01)
-4. **Coding-agent phase policy (2026-07-25 amendment):**
-   - While an assistant message is **streaming**, render safe Markdown only: incomplete fences stay source, Mermaid does not execute, and Artifact iframes are not mounted.
-   - When a message is **completed**, normal code fences remain source-first with copy affordances.
-   - An HTML/UI Artifact is **source-first** and only mounts an iframe after an explicit user **Preview artifact** action (or an explicit-artifact-review mode), and only when security classification allows it.
+4. **Render contract (2026-08-24).** The 2026-07-25 source-only streaming /
+   Preview-only iframe policy is superseded.
+   - **Master switch:** `PiwinConfig.artifact.enabled`. Desktop forwards it as
+     `artifactPreviewEnabled`. Leftover `piwin.desktop.artifactPreviewEnabled`
+     localStorage keys are ignored.
+   - **Streaming Inline:** native and explicit HTML/SVG fences stream into
+     preview from the first recognizable fence (no source flash). Ordinary
+     code and Mermaid stay source. Canvas fences stay source until completion.
+   - **Completed Inline:** compatible inert flow may render in a sanitized
+     Shadow DOM; sandboxed content uses one height stream. Native `html`/`svg`
+     stays source-first with an explicit Preview action; explicit compatible
+     `artifact-html` may auto-preview. `artifactCodeFirst` is Inline-only.
+   - **Canvas:** `surface="canvas"` auto-opens once on live completion when
+     capability is on. Hydrated history does not rearrange the shell.
+   - **Overflow:** 16,384 px is a defensive ceiling that enters
+     `inline-overflow` (host-owned viewport + hint). Content is not silently
+     cropped.
+   - **Routing:** `indexArtifactFences` → `analyzeArtifactFence` →
+     `RenderIntent`; `materializeArtifact` is the only theme/srcdoc path.
+     Preview repairs apply to `renderSource` only; copy/export keep original
+     source. MarkdownView uses `renderingPhase` only.
+   - **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
+     Generic Artifact does not special-case `data-card-id`.
    - Thinking/tool work uses timeline/cards, not Artifacts.
 
 ## Consequences
@@ -62,10 +81,10 @@ are deleted.
 
 ## Amendment (2026-07-31): SVG fences use the heavy Artifact path
 
-- Desktop recognizes valid-root `svg` fences as `SvgArtifactDescriptor` values when `artifactPreviewEnabled` is on.
-- SVG preview reuses the existing sandbox iframe, strict CSP, external-resource classifier, theme contract, height bridge, and init queue; it is not inserted into the parent chat document.
-- Capability-off and streaming behavior remain source-only.
-- A separate light/native SVG renderer with pan/zoom is still deferred and must not share the heavy Artifact switch implicitly.
+**Superseded by the 2026-08-24 amendment** for streaming and the capability
+switch. SVG still uses the same Artifact sandbox as HTML (not a parent-document
+renderer). A separate light pan/zoom SVG renderer remains deferred. Streaming
+is not source-only when capability is on; see the lead Decision.
 
 ## Amendment (2026-08-09): Stable streaming Artifact materialization
 
@@ -176,28 +195,11 @@ fences as if the model had explicitly declared an Artifact, and it narrows the
 
 ## Amendment (2026-08-24): Rendering convergence
 
-Supersedes the 2026-07-30 opt-in preference, `evaluateCodeFence` /
-`splitMarkdownBlocks` as live APIs, the flashcard HTML exception, and any
-remaining “streaming is always source-only” reading of earlier clauses when
-Artifact capability is on.
+This amendment **is the lead Decision**. It supersedes the 2026-07-25
+source-only streaming / Preview-only iframe policy, the 2026-07-30 opt-in
+preference, the 2026-07-31 “streaming remains source-only” claim,
+`evaluateCodeFence` / `splitMarkdownBlocks` as live APIs, the flashcard HTML
+exception, and `MarkdownView.streamComplete`.
 
-- **Master switch:** `PiwinConfig.artifact.enabled`. Desktop forwards it as
-  `artifactPreviewEnabled`. Leftover `piwin.desktop.artifactPreviewEnabled`
-  localStorage keys are ignored.
-- **Unique routing:** `indexArtifactFences` is the only fence index.
-  `analyzeArtifactFence` produces a `RenderIntent`; `materializeArtifact` is
-  the only theme/srcdoc path. MarkdownView uses `renderingPhase` only
-  (`streamComplete` is deleted).
-- **Code-first is Inline-only.** Explicit Canvas still auto-reveals once on
-  live completion when capability is on.
-- **Streaming:** ordinary code and Mermaid stay source. HTML/SVG may
-  stream-preview in one sandbox iframe with sticky fence identity. Canvas
-  fences stay source until completion.
-- **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
-  enters `inline-overflow`. Content is not silently cropped.
-- **Theme:** preview repairs apply to `renderSource` only. Copy/export keep
-  original model source.
-- **Flashcards:** structured `FlashcardDisplayPayload` in tool presentation.
-  Generic Artifact does not special-case `data-card-id`.
-- See ADR 0029 and
-  `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
+See the lead Decision for the live contract. Details: ADR 0029 and
+`docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.
