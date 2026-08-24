@@ -13,7 +13,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { AgentEvent, ExecutionRunRecord, TranscriptBranchPoint } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { ChatThread, shouldCollapseTurnToolHistory } from './chat-thread';
+import { ChatThread, shouldCollapseTurnToolHistory, type ChatThreadProps } from './chat-thread';
 import { RightPanel } from './right-panel';
 import {
   chatUiReducer,
@@ -30,6 +30,16 @@ import { createStreamEventBuffer, type StreamEventBuffer } from './stream-event-
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+/** Isolated ChatThread tests default capability on. Production must pass the boolean. */
+function ChatThreadHarness({
+  artifactPreviewEnabled = true,
+  ...props
+}: Omit<ChatThreadProps, 'artifactPreviewEnabled'> & {
+  artifactPreviewEnabled?: boolean;
+}): ReactElement {
+  return <ChatThread {...props} artifactPreviewEnabled={artifactPreviewEnabled} />;
 }
 
 const composerCard: ComposerDockProps = {
@@ -263,7 +273,7 @@ function ChatThreadRenderHarness(props: ChatThreadRenderHarnessProps): ReactElem
 
   return (
     <>
-      <ChatThread
+      <ChatThreadHarness
         messages={chatState.messages}
         streaming={chatState.streaming}
         editingMessageId={null}
@@ -572,7 +582,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage]}
             streaming={true}
             activeRunId={null}
@@ -602,7 +612,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage]}
             streaming={true}
             activeRunId="run-1"
@@ -632,7 +642,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[]}
             streaming={true}
             activeRunId="run-empty"
@@ -664,7 +674,7 @@ describe('ChatThread render isolation (E1)', () => {
       act(() => {
         root.render(
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <ChatThread
+            <ChatThreadHarness
               messages={messages}
               streaming={true}
               activeRunId="run-1"
@@ -707,7 +717,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage, toolAssistant]}
             streaming={true}
             activeRunId="run-1"
@@ -756,7 +766,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage, answerMessage, emptyLifecycleMessage]}
             streaming={true}
             editingMessageId={null}
@@ -848,7 +858,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[
               userMessage,
               readStep('a-flow-read-1', 'tool-read-1', 'src/a.ts'),
@@ -931,7 +941,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage, firstAssistant, thinkingOnlyAssistant, finalAssistant]}
             streaming={false}
             editingMessageId={null}
@@ -987,7 +997,7 @@ describe('ChatThread render isolation (E1)', () => {
       act(() => {
         root.render(
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <ChatThread
+            <ChatThreadHarness
               messages={messages}
               streaming={false}
               editingMessageId={null}
@@ -1083,7 +1093,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage, owner, ...toolOnlySteps, finalReply]}
             streaming={false}
             editingMessageId={null}
@@ -1119,7 +1129,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage]}
             streaming={true}
             activeRunId="run-1"
@@ -1153,7 +1163,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage]}
             streaming={true}
             editingMessageId={null}
@@ -1178,7 +1188,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessage]}
             streaming={false}
             editingMessageId={null}
@@ -1206,7 +1216,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[assistantMessage]}
             streaming={true}
             editingMessageId={null}
@@ -1247,7 +1257,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMsg]}
             streaming={false}
             editingMessageId={null}
@@ -1323,7 +1333,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMsg]}
             streaming={false}
             editingMessageId={null}
@@ -1375,7 +1385,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMsg]}
             streaming={true}
             editingMessageId={null}
@@ -1431,7 +1441,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[queuedMessage]}
             streaming={true}
             editingMessageId={null}
@@ -1456,7 +1466,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[{
               ...queuedMessage,
               instructionDelivery: {
@@ -1511,7 +1521,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[userMessageWithImage]}
             streaming={false}
             editingMessageId={null}
@@ -1593,7 +1603,7 @@ describe('ChatThread render isolation (E1)', () => {
       act(() => {
         root.render(
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <ChatThread
+            <ChatThreadHarness
               messages={[message]}
               streaming={message.status === 'streaming'}
               editingMessageId={null}
@@ -1661,7 +1671,7 @@ describe('ChatThread render isolation (E1)', () => {
       act(() => {
         root.render(
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <ChatThread
+            <ChatThreadHarness
               messages={[message]}
               streaming={message.status === 'streaming'}
               editingMessageId={null}
@@ -1767,7 +1777,7 @@ describe('ChatThread render isolation (E1)', () => {
       act(() => {
         root.render(
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-            <ChatThread
+            <ChatThreadHarness
               messages={[message]}
               streaming={false}
               editingMessageId={null}
@@ -1822,7 +1832,7 @@ describe('ChatThread render isolation (E1)', () => {
     function renderThread(showThinking: boolean): void {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[assistantMessage]}
             streaming={false}
             editingMessageId={null}
@@ -1882,7 +1892,7 @@ describe('ChatThread render isolation (E1)', () => {
     function renderThread(activeRunId: string | null, endedAt: number | null): void {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[assistantMessage]}
             streaming={activeRunId !== null}
             editingMessageId={null}
@@ -1938,7 +1948,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[activeMessage]}
             streaming
             editingMessageId={null}
@@ -1974,7 +1984,7 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={[createUserMessage('u-goal', 'Ship it')]}
             streaming
             editingMessageId={null}
@@ -2044,7 +2054,7 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ChatThread
+          <ChatThreadHarness
             messages={messages}
             streaming={false}
             editingMessageId={null}
