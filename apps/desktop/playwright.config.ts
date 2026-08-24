@@ -40,8 +40,9 @@ export default defineConfig({
     deviceScaleFactor: 1,
   },
   webServer: {
-    // VITE_PIWIN_E2E_FIXTURES compiles in the #/e2e/primitives gallery route;
-    // it is supplied only here, never in a checked-in env file.
+    // VITE_PIWIN_E2E_FIXTURES compiles in the #/e2e/primitives and
+    // #/e2e/artifacts gallery routes; it is supplied only here, never in a
+    // checked-in env file.
     command: `VITE_PIWIN_E2E_FIXTURES=true pnpm exec vite --port ${port} --strictPort --host 127.0.0.1`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,

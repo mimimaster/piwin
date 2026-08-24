@@ -71,6 +71,13 @@ function cleanupMountedMarkdownRenders(): void {
   }
 }
 
+async function flushMarkdownEffects(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe('MarkdownView artifact preview policy', () => {
   let previousActEnvironment: boolean | undefined;
 
@@ -193,15 +200,16 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('streaming mode materializes live Artifact preview (owi-style)', () => {
+  it('streaming mode materializes live Artifact preview (owi-style)', async () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" />,
     );
+    await flushMarkdownEffects();
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
   });
 
-  it('keeps the same Artifact frame across real Markdown streaming deltas', () => {
+  it('keeps the same Artifact frame across real Markdown streaming deltas', async () => {
     const firstText = [
       '```artifact-html',
       '<style>.card { padding: 12px; }</style><div class="card"><p>Hel',
@@ -218,6 +226,7 @@ describe('MarkdownView artifact preview policy', () => {
         artifactOrigin={{ sessionId: 's1', messageId: 'm-stream-stable' }}
       />,
     );
+    await flushMarkdownEffects();
     const firstHost = container.querySelector<HTMLElement>('[data-testid="artifact-stream-live"]');
     const firstId = firstHost?.getAttribute('data-artifact-id');
     expect(firstHost).not.toBeNull();
@@ -235,13 +244,14 @@ describe('MarkdownView artifact preview policy', () => {
         </PiwinUiProvider>,
       );
     });
+    await flushMarkdownEffects();
 
     const secondHost = container.querySelector<HTMLElement>('[data-testid="artifact-stream-live"]');
     expect(secondHost).toBe(firstHost);
     expect(secondHost?.getAttribute('data-artifact-id')).toBe('m-stream-stable-artifact-0');
   });
 
-  it('replaces the temporary streaming sandbox with static natural flow on completion', () => {
+  it('replaces the temporary streaming sandbox with static natural flow on completion', async () => {
     const streamingText = [
       '```artifact-html',
       '<style>.card { padding: 12px; }</style><div class="card"><p>Hel',
@@ -258,6 +268,7 @@ describe('MarkdownView artifact preview policy', () => {
         artifactOrigin={{ sessionId: 's1', messageId: 'm-stream-final' }}
       />,
     );
+    await flushMarkdownEffects();
     const streamingFrame = container.querySelector<HTMLElement>('.artifact-frame');
     expect(streamingFrame).not.toBeNull();
 
@@ -272,6 +283,7 @@ describe('MarkdownView artifact preview policy', () => {
         </PiwinUiProvider>,
       );
     });
+    await flushMarkdownEffects();
 
     const completedFrame = container.querySelector<HTMLElement>('.artifact-frame');
     expect(completedFrame).not.toBe(streamingFrame);

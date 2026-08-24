@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['e2e/**', 'node_modules/**'],
+    setupFiles: ['./src/setupTests.ts'],
   },
 
   plugins: [react()],

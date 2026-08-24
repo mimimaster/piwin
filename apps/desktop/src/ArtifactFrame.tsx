@@ -73,6 +73,7 @@ export function ArtifactFrame({
         data-activity-id="artifact"
         data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
         data-tool-status="error"
+        data-artifact-layout={presentation}
         className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}
       >
         {extraHeaderAction ? (
@@ -97,6 +98,7 @@ export function ArtifactFrame({
       <div
         data-testid="artifact-frame"
         data-artifact-renderer="inline-incompatible"
+        data-artifact-layout="inline"
         data-tool-status="error"
         className="artifact-frame blocked"
       >
@@ -122,6 +124,7 @@ export function ArtifactFrame({
         data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
         data-tool-status="done"
         data-artifact-renderer="static-flow"
+        data-artifact-layout="inline"
         className={`artifact-frame artifact-frame--static${extraHeaderAction ? ' has-artifact-action' : ''}`}
       >
         {extraHeaderAction ? (
@@ -200,6 +203,7 @@ function ArtifactRenderFrame(props: {
       data-artifact-host={host.hostIframe ? 'live' : 'recycled'}
       data-artifact-height-status={bridge.status}
       data-artifact-renderer="sandbox"
+      data-artifact-layout={canvas ? 'canvas' : 'inline'}
       className={`artifact-frame${canvas ? ' presentation-canvas' : ''}${props.extraHeaderAction ? ' has-artifact-action' : ''}${host.hostIframe ? '' : ' is-recycled'}`}
     >
       {props.extraHeaderAction ? (
