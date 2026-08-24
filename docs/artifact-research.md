@@ -76,8 +76,8 @@ From `artifactTypes.ts`:
 - Height: completed inert Inline HTML/SVG uses sanitized Shadow DOM and follows
   parent-document flow with no height protocol. Active/embedded or streaming
   Inline content uses one ResizeObserver measurement stream; the transcript
-  owns vertical scrolling and a 16384px defensive ceiling rejects runaway
-  iframe height requests. Canvas owns its internal scrollport.
+  owns vertical scrolling. A 16384px defensive ceiling enters overflow mode
+  rather than silently cropping. Canvas owns its internal scrollport.
 - `ARTIFACT_READY_TIMEOUT_MS = 5000`
 - `MAX_CONCURRENT_ARTIFACT_INITS = 1` (history)
 
