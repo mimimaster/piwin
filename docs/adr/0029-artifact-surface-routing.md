@@ -209,34 +209,41 @@ Rules:
   needed).
 - Insertion never auto-sends and never silently destroys existing draft text.
 
-### 8. Native source and Inline compatibility boundary (2026-08-22 amendment)
+### 8. Native source, Inline viewport, and Canvas (2026-08-24 amendment)
 
 The declared `surface` remains authoritative for explicit Artifact fences.
+`layout: viewport` is an Inline presentation (`inline-viewport`): Host
+`clamp(360px, 72vh, 760px)` chrome and a unique iframe document scrollport.
+Canvas is only for explicit `surface="canvas"`. Runtime measurements, full
+documents, `100vh`, and four-edge fixed shells do **not** auto-promote Inline
+to Canvas.
+
 Ordinary `html`/`htm`/`svg` fences are not declarations, so they stay source-first:
 
 - a native component fragment may be previewed Inline after user action;
-- a native full document or viewport-coupled page may be previewed only in Canvas;
+- a native full document or viewport-coupled page is Previewed as
+  `inline-viewport` in the transcript, not Canvas;
 - this is a user command, not runtime auto-promotion; native fences never
   auto-open Canvas (explicit `surface="canvas"` still auto-reveals on live
   completion);
-- an explicit `surface="inline"` fence that violates the Inline component
-  contract remains source with a diagnostic. The UI may offer a deliberate
-  Canvas preview, but runtime does not mutate the descriptor or silently reroute.
+- an explicit `surface="inline"` fence that needs a page viewport uses
+  `inline-viewport` rather than a Canvas reroute. The runtime does not mutate
+  the descriptor or silently change `surface`.
 
 Inline compatibility is conservative and deterministic. Full documents,
 viewport-height CSS units, JavaScript that reads viewport height, and fixed page
-shells are rejected before an Inline iframe mounts. The runtime no longer
-repairs `100vh`/`min-height` declarations or guesses whether a canvas/video is a
-viewport-filling scene. Those mechanisms fed parent iframe height back into
-child viewport layout and could ratchet a single response into a large blank
-region before later Markdown.
+shells mount `inline-viewport` instead of using parent-driven flow height. The
+runtime no longer repairs `100vh`/`min-height` declarations or guesses whether a
+canvas/video is a viewport-filling scene. Those mechanisms fed parent iframe
+height back into child viewport layout and could ratchet a single response into
+a large blank region before later Markdown.
 
 Canvas preserves full document structure and owns both axes of scrolling. It
 does not install or emit the Inline size stream. Compatible sandboxed Inline
-fragments emit one revisioned root-box size stream; the parent applies the latest
-trusted revision with the existing 16384px defensive clamp. Height above that
-ceiling enters `inline-overflow` (host-owned viewport + hint); the runtime does
-not silently crop.
+flow fragments emit one revisioned root-box size stream; `inline-viewport` and
+`inline-overflow` use the Host clamp and a unique iframe scrollport. Height
+above the 16384px ceiling enters `inline-overflow`; the runtime does not
+silently crop.
 
 `config.artifact.enabled` is the only product capability switch. Surface
 routing is `indexArtifactFences` → `analyzeArtifactFence` → `RenderIntent`

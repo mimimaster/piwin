@@ -286,6 +286,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       root.render(
         <PiwinUiProvider manifest={MOBILE_THEME}>
           <MobileMessageItem
+            htmlUiModeEnabled
             message={{
               id: 'msg-1',
               role: 'assistant',
@@ -305,6 +306,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       root.render(
         <PiwinUiProvider manifest={MOBILE_THEME}>
           <MobileMessageItem
+            htmlUiModeEnabled
             message={{
               id: 'msg-2',
               role: 'user',
@@ -344,6 +346,7 @@ describe('Mobile Shell Navigation & Surfaces', () => {
             errorMessage="foreground-run-mismatch: session is busy"
             pendingReplaceRunId="run-a"
             onReplaceAndSend={onReplaceAndSend}
+            htmlUiModeEnabled
           />
         </PiwinUiProvider>,
       );

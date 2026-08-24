@@ -2,39 +2,42 @@ import { describe, expect, it } from 'vitest';
 import { parseArtifactActionMessage } from './bridge-protocol.js';
 import { ARTIFACT_BRIDGE_ACTION_TYPE } from './constants.js';
 
-const VALID = {
-  type: ARTIFACT_BRIDGE_ACTION_TYPE,
-  channelId: 'fence-1',
-  action: 'flashcard/rate',
-  payload: { cardId: 'card-abc12345-xyz', rating: 'good' },
-};
-
 describe('parseArtifactActionMessage', () => {
-  it('accepts a valid flashcard/rate action', () => {
-    const parsed = parseArtifactActionMessage(VALID);
-    expect(parsed).toEqual(VALID);
-  });
-
-  it('accepts all four ratings', () => {
-    for (const rating of ['again', 'hard', 'good', 'easy']) {
-      const parsed = parseArtifactActionMessage({
-        ...VALID,
-        payload: { ...VALID.payload, rating },
-      });
-      if (parsed?.action === 'flashcard/rate') {
-        expect(parsed.payload.rating).toBe(rating);
-      } else {
-        expect.fail('expected flashcard/rate action');
-      }
-    }
+  it('rejects leftover flashcard iframe actions', () => {
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'flashcard/rate',
+        payload: { cardId: 'card-abc12345-xyz', rating: 'good' },
+      }),
+    ).toBeNull();
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'flashcard/open-source',
+        payload: { cardId: 'card-abc12345-xyz' },
+      }),
+    ).toBeNull();
   });
 
   it('rejects unknown actions (whitelist)', () => {
     expect(
-      parseArtifactActionMessage({ ...VALID, action: 'fs/write' }),
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'fs/write',
+        payload: {},
+      }),
     ).toBeNull();
     expect(
-      parseArtifactActionMessage({ ...VALID, action: 'flashcard/delete' }),
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'flashcard/delete',
+        payload: {},
+      }),
     ).toBeNull();
   });
 
@@ -65,40 +68,59 @@ describe('parseArtifactActionMessage', () => {
     });
   });
 
+  it('accepts composer/propose-text', () => {
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'composer/propose-text',
+        payload: { text: 'Use React.', label: 'Stack' },
+      }),
+    ).toEqual({
+      type: ARTIFACT_BRIDGE_ACTION_TYPE,
+      channelId: 'fence-1',
+      action: 'composer/propose-text',
+      payload: { text: 'Use React.', label: 'Stack' },
+    });
+  });
+
   it('rejects wrong type / non-object payloads', () => {
     expect(parseArtifactActionMessage(null)).toBeNull();
     expect(parseArtifactActionMessage('str')).toBeNull();
-    expect(parseArtifactActionMessage({ ...VALID, type: 'piwin-artifact:ready' })).toBeNull();
-    expect(parseArtifactActionMessage({ ...VALID, payload: 'nope' })).toBeNull();
-  });
-
-  it('rejects malformed card ids (injection surface)', () => {
-    for (const cardId of [
-      'not-a-card-id',
-      'card-../../etc',
-      'card-' + 'x'.repeat(100),
-      '',
-      42,
-    ]) {
-      expect(
-        parseArtifactActionMessage({ ...VALID, payload: { cardId, rating: 'good' } }),
-      ).toBeNull();
-    }
-  });
-
-  it('rejects invalid ratings', () => {
     expect(
       parseArtifactActionMessage({
-        ...VALID,
-        payload: { cardId: VALID.payload.cardId, rating: 'amazing' },
+        type: 'piwin-artifact:ready',
+        channelId: 'fence-1',
+        action: 'composer/propose-text',
+        payload: { text: 'Use React.' },
+      }),
+    ).toBeNull();
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'fence-1',
+        action: 'composer/propose-text',
+        payload: 'nope',
       }),
     ).toBeNull();
   });
 
   it('rejects missing or oversized channelId', () => {
-    expect(parseArtifactActionMessage({ ...VALID, channelId: '' })).toBeNull();
     expect(
-      parseArtifactActionMessage({ ...VALID, channelId: 'x'.repeat(201) }),
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: '',
+        action: 'composer/propose-text',
+        payload: { text: 'Use React.' },
+      }),
+    ).toBeNull();
+    expect(
+      parseArtifactActionMessage({
+        type: ARTIFACT_BRIDGE_ACTION_TYPE,
+        channelId: 'x'.repeat(201),
+        action: 'composer/propose-text',
+        payload: { text: 'Use React.' },
+      }),
     ).toBeNull();
   });
 });

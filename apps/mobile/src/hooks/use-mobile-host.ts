@@ -24,6 +24,7 @@ import {
 import {
   applyConfiguredModels,
   applyHostStatus,
+  readArtifactEnabled,
   readPauseCheckpointId,
   readProjects,
   readRemoteMediaAsset,
@@ -91,6 +92,7 @@ export function useMobileHost() {
   const [defaultProviderId, setDefaultProviderId] = useState<string | undefined>();
   const [defaultModelId, setDefaultModelId] = useState<string | undefined>();
   const [activityItems, setActivityItems] = useState<ActivitySummaryItem[]>([]);
+  const [artifactEnabled, setArtifactEnabled] = useState(true);
 
   const clientRef = useRef<HostClient | undefined>(undefined);
   const activeSessionRef = useRef<string | undefined>(undefined);
@@ -144,6 +146,16 @@ export function useMobileHost() {
       setSessions(sessionList);
       applyConfiguredModels(modelsResponse, setConfiguredModels, setDefaultProviderId, setDefaultModelId);
       setActivityItems(activitySummary.items);
+      try {
+        const settingsResponse = await client.request({ type: 'settings/get' });
+        if (clientRef.current === client) {
+          setArtifactEnabled(readArtifactEnabled(settingsResponse));
+        }
+      } catch {
+        if (clientRef.current === client) {
+          setArtifactEnabled(true);
+        }
+      }
 
       let targetSessionId = activeSessionRef.current;
       if (targetSessionId === undefined && sessionList.length > 0 && sessionList[0] !== undefined) {
@@ -184,6 +196,7 @@ export function useMobileHost() {
     setErrorMessage(undefined);
     setPendingReplaceRunId(undefined);
     setHostStatus(undefined);
+    setArtifactEnabled(true);
     setProjects([]);
     setSessions([]);
     setActivityItems([]);
@@ -276,6 +289,7 @@ export function useMobileHost() {
     disposeClient(clientRef, unsubscribeRef, activityRefreshTimerRef);
     setConnectionState({ kind: 'disconnected' });
     setHostStatus(undefined);
+    setArtifactEnabled(true);
     setProjects([]);
     setSessions([]);
     setActivityItems([]);
@@ -617,6 +631,7 @@ export function useMobileHost() {
     setExpectedHostInstanceId,
     connectionState,
     hostStatus,
+    artifactEnabled,
     projects,
     sessions,
     activityItems,

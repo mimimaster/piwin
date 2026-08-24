@@ -15,12 +15,21 @@ export type MobileArtifactPreview = {
   plan: Extract<ArtifactRenderPlan, { kind: 'render' } | { kind: 'blocked' }>;
 };
 
-/** Fence → card data. External resources stay blocked (iframe policy disabled). */
-export function collectMobileArtifacts(text: string): MobileArtifactPreview[] {
+/**
+ * Fence → card data. `htmlUiModeEnabled` is `config.artifact.enabled`.
+ * External resources stay blocked (iframe policy disabled).
+ */
+export function collectMobileArtifacts(
+  text: string,
+  htmlUiModeEnabled: boolean,
+): MobileArtifactPreview[] {
+  if (!htmlUiModeEnabled) {
+    return [];
+  }
   const previews: MobileArtifactPreview[] = [];
   for (const fence of indexArtifactFences(text)) {
     const analysis = analyzeArtifactFence(fence, {
-      htmlUiModeEnabled: true,
+      htmlUiModeEnabled,
       iframePolicy: MOBILE_ARTIFACT_IFRAME_POLICY,
     });
     if (analysis.kind === 'code') {

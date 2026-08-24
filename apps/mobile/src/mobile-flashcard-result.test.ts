@@ -34,7 +34,7 @@ describe('Mobile flashcard tool-result degradation', () => {
       '<div class="piwin-flashcard" data-card-id="card-abc12345-xyz">Card</div>',
       '```',
     ].join('\n');
-    const items = collectMobileArtifacts(text);
+    const items = collectMobileArtifacts(text, true);
     expect(items.every((item) => item.title !== 'Preview card')).toBe(true);
     expect(
       resolveMobileFlashcardDisplay({

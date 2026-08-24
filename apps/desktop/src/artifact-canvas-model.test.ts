@@ -104,14 +104,28 @@ describe('createArtifactCanvasTarget', () => {
   });
 
   it('preserves the descriptor surface (canvas stays canvas)', () => {
+    const intent = makeIntent({ surface: 'canvas', type: 'svg' });
     const target = createArtifactCanvasTarget({
       sessionId: 's1',
       messageId: 'm1',
       fenceIndex: 0,
-      intent: makeIntent({ surface: 'canvas', type: 'svg' }),
+      intent,
     });
     expect(target.surface).toBe('canvas');
     expect(target.type).toBe('svg');
+    expect(target.intent).toBe(intent);
+    expect(target.intent.surface).toBe('canvas');
+  });
+
+  it('does not rewrite an inline/viewport intent into a Canvas target', () => {
+    expect(() =>
+      createArtifactCanvasTarget({
+        sessionId: 's1',
+        messageId: 'm1',
+        fenceIndex: 0,
+        intent: makeIntent({ surface: 'inline' }),
+      }),
+    ).toThrow(/layout "canvas"/);
   });
 });
 
@@ -127,7 +141,7 @@ describe('collectArtifactCanvasTargets', () => {
       '```',
     ].join('\n');
     const fences = indexArtifactFences(markdown);
-    const mobile = collectMobileArtifacts(markdown);
+    const mobile = collectMobileArtifacts(markdown, true);
     const canvas = collectArtifactCanvasTargets({
       sessionId: 's1',
       messageId: 'm1',

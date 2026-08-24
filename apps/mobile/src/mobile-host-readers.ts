@@ -110,6 +110,23 @@ export function readPauseCheckpointId(value: unknown): string | undefined {
     : undefined;
 }
 
+/** `config.artifact.enabled` from `settings/get`. Missing config keeps previews on. */
+export function readArtifactEnabled(response: HostResponse): boolean {
+  if (!response.success || !isRecord(response.data)) {
+    return true;
+  }
+  const snapshot = isRecord(response.data.snapshot) ? response.data.snapshot : undefined;
+  const config = isRecord(snapshot?.config)
+    ? snapshot.config
+    : isRecord(response.data.config)
+      ? response.data.config
+      : undefined;
+  if (!isRecord(config) || !isRecord(config.artifact)) {
+    return true;
+  }
+  return config.artifact.enabled !== false;
+}
+
 export function readRemoteMediaAsset(value: unknown): RemoteMediaAsset | undefined {
   if (!isRecord(value) || !isRecord(value.asset)) {
     return undefined;
