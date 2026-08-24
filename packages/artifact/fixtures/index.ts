@@ -32,3 +32,4 @@ export { wrapArtifactMarkdown } from './markdown.js';
 export { ARTIFACT_FIXTURES, getArtifactFixture } from './catalog.js';
 export { STREAMING_DELTA_STEPS } from './streaming.js';
 export { FLASHCARD_TOOL_RESULT } from './flashcard.js';
+export { FLASHCARD_ARTIFACT_HTML } from './flashcard-artifact-html.js';

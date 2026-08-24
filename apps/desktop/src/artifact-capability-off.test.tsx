@@ -15,9 +15,14 @@ import { getArtifactFixture } from '@piwin/artifact/fixtures';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { ChatThread } from './chat-thread';
-import type { ChatMessageUi } from './chat-reducer';
+import {
+  chatUiReducer,
+  createInitialChatUiState,
+  type ChatMessageUi,
+} from './chat-reducer';
 import type { ComposerDockProps } from './composer-dock';
 import { SubagentSessionTranscript } from './subagent-session-transcript';
+import { TranscriptViewport } from './transcript-viewport';
 
 vi.mock('./artifact-native-bridge.js', () => ({
   subscribeNativeArtifactBridge: vi.fn(async () => () => undefined),
@@ -129,6 +134,66 @@ function expectSourceOnly(container: HTMLElement): void {
   expect(container.querySelector('[data-testid="artifact-canvas-panel"]')).toBeNull();
 }
 
+function hydrateHistoryMessages(): ChatMessageUi[] {
+  let state = createInitialChatUiState();
+  state = chatUiReducer(state, { type: 'session/set', sessionId: 'session-capability-off' });
+  state = chatUiReducer(state, {
+    type: 'session/load-messages',
+    sessionId: 'session-capability-off',
+    messages: [
+      {
+        id: 'tail-user',
+        role: 'user',
+        text: 'latest request',
+        createdAt: '2026-08-12T00:10:00.000Z',
+        status: 'done',
+      },
+      {
+        id: 'tail-assistant',
+        role: 'assistant',
+        text: 'latest live answer',
+        createdAt: '2026-08-12T00:10:01.000Z',
+        status: 'done',
+      },
+    ],
+  });
+  state = chatUiReducer(state, {
+    type: 'session/seek-messages',
+    sessionId: 'session-capability-off',
+    epoch: state.userMessageIndexEpoch,
+    messages: [
+      {
+        id: 'u-history',
+        role: 'user',
+        text: 'old turn',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        status: 'done',
+      },
+      {
+        id: 'a-history',
+        role: 'assistant',
+        text: SCRIPT_MARKDOWN,
+        createdAt: '2026-08-01T00:00:01.000Z',
+        status: 'done',
+      },
+    ],
+    window: {
+      revision: 'history-revision',
+      totalCount: 40,
+      startIndex: 0,
+      endIndex: 2,
+      messageBytes: 256,
+      anchorMessageId: 'u-history',
+      anchorOffset: 0,
+    },
+  });
+  const historyMessages = state.historyView?.messages;
+  if (!historyMessages) {
+    throw new Error('expected session/seek-messages to populate historyView');
+  }
+  return historyMessages;
+}
+
 function workbenchChatThread(messages: ChatMessageUi[], conversation: boolean): ReactElement {
   return (
     <ChatThread
@@ -210,16 +275,30 @@ describe('artifact capability off (workbench / subagent / history)', () => {
     expectSourceOnly(container);
   });
 
-  it.fails('history: hydrated completed messages stay source-only when capability is off', async () => {
-    const container = renderTree(
-      workbenchChatThread(
-        [userMessage('u-history', 'old turn'), assistantMessage('a-history', SCRIPT_MARKDOWN)],
-        true,
-      ),
-    );
-    await flushFrame();
-    expectSourceOnly(container);
-  });
+  it.fails(
+    'history: session/seek-messages hydrate in TranscriptViewport stays source-only when capability is off',
+    async () => {
+      const historyMessages = hydrateHistoryMessages();
+      expect(historyMessages.map((message) => message.id)).toEqual(['u-history', 'a-history']);
+      const container = renderTree(
+        <TranscriptViewport
+          sessionId="session-capability-off"
+          messageCount={historyMessages.length}
+          activitySignal="history-view"
+          messages={historyMessages}
+          locale="en"
+          historyViewActive
+          liveTurnId={null}
+        >
+          {workbenchChatThread(historyMessages, true)}
+        </TranscriptViewport>,
+      );
+      await flushFrame();
+      expect(container.querySelector('[data-testid="jump-to-latest-btn"]')).not.toBeNull();
+      expect(container.textContent).not.toContain('latest live answer');
+      expectSourceOnly(container);
+    },
+  );
 
   it.fails('Subagent inspector transcript stays source-only when capability is off', async () => {
     const container = renderTree(
