@@ -305,6 +305,78 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-overflow');
   });
+
+  it('applies overflow CSS on the snapshot immediately after an over-cap size', () => {
+    const root = createMeasuredRoot(12_000);
+    const session = runBridgeSession(root, { enableRenderCommand: true });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
+
+    root.height = 20_000;
+    session.remeasure();
+    expect(session.messages.at(-1)).toMatchObject({ height: 20_000 });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 0,
+      source: '<div>tall</div>',
+      frameMode: 'inline-overflow',
+      final: false,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-overflow');
+    expect(session.observerCount()).toBe(0);
+  });
+
+  it('soaks coalesced growth through 16,384 without oscillating or running away', () => {
+    const root = createMeasuredRoot(4_000);
+    const session = runBridgeSession(root, { enableRenderCommand: true });
+    const sizeCountAtStart = session.messages.length;
+
+    for (const height of [8_000, 16_384, 20_000]) {
+      root.height = height;
+      session.observeWithoutFlush();
+    }
+    session.flushAnimationFrames();
+    expect(session.messages.at(-1)).toMatchObject({ height: 20_000 });
+    expect(session.messages.length - sizeCountAtStart).toBe(1);
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 0,
+      source: '<div>delta-a</div>',
+      frameMode: 'inline-overflow',
+      final: false,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-overflow');
+    expect(session.observerCount()).toBe(0);
+    const sizeCountAfterOverflow = session.messages.length;
+
+    root.height = 120;
+    session.remeasure();
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 1,
+      source: '<div>delta-b</div>',
+      frameMode: 'inline-flow',
+      final: false,
+    });
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 2,
+      source: '<div>delta-c</div>',
+      frameMode: 'inline-overflow',
+      final: true,
+    });
+
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-overflow');
+    expect(session.observerCount()).toBe(0);
+    expect(session.messages.length - sizeCountAfterOverflow).toBeLessThanOrEqual(1);
+  });
 });
 
 type MeasuredRoot = {

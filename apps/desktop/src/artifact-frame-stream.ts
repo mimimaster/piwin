@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import {
   ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   parseArtifactRenderSnapshot,
@@ -100,7 +100,7 @@ function postStreamSnapshot(
   return true;
 }
 
-/** Push stream DOM at most every 300ms; final source commits immediately. FrameMode stays live. */
+/** Push stream DOM at most every 300ms; final source commits immediately. FrameMode posts unthrottled. */
 export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamPublisher {
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -155,15 +155,22 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!input.enabled) {
       return;
     }
+    const frameModeChanged = lastPostedFrameModeRef.current !== input.frameMode;
     if (!input.streamLifecycle) {
       postCurrent();
       return;
     }
     if (input.decision.mode !== 'stream-preview') {
+      clearTimer();
+      pendingSourceRef.current = undefined;
+      postCurrent();
+      return;
+    }
+    if (frameModeChanged) {
       clearTimer();
       pendingSourceRef.current = undefined;
       postCurrent();
