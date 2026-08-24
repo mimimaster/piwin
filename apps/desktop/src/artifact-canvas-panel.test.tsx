@@ -121,6 +121,42 @@ describe('ArtifactCanvasPanel', () => {
     expect(container.querySelector('details')).toBeNull();
   });
 
+  it('materializes a viewport intent with canvas overflow CSS without rewriting layout', async () => {
+    const analysis = analyzeArtifactFence(
+      createArtifactFenceRecord({
+        info: 'artifact-html',
+        source: '<main style="height:100vh">Workspace</main>',
+      }),
+      { id: 'artifact-s1-m1-0' },
+    );
+    expect(analysis.kind).toBe('intent');
+    if (analysis.kind !== 'intent') return;
+    expect(analysis.intent.layout).toBe('viewport');
+    expect(analysis.intent.surface).toBe('inline');
+
+    const { container, root } = renderPanel({
+      activeTarget: makeTarget({
+        intent: analysis.intent,
+        source: analysis.intent.descriptor.source,
+        documentKind: 'fragment',
+      }),
+    });
+    instances.push({ container, root });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    const src = iframe?.getAttribute('src') ?? '';
+    const encoded = src.slice(src.indexOf('base64,') + 'base64,'.length);
+    const srcdoc = atob(encoded);
+    expect(srcdoc).toContain('overflow-x: auto !important');
+    expect(srcdoc).toContain('overflow-y: auto !important');
+    expect(analysis.intent.layout).toBe('viewport');
+    expect(analysis.intent.surface).toBe('inline');
+  });
+
   it('does not mount an inline-style iframe (canvas fills the panel body)', async () => {
     const { container, root } = renderPanel({ activeTarget: makeTarget() });
     instances.push({ container, root });

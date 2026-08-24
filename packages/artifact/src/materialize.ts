@@ -13,6 +13,7 @@ import type {
   ArtifactRenderIntent,
   ArtifactRenderMode,
   ArtifactRenderPlan,
+  ArtifactSurface,
   ArtifactThemeVariables,
 } from './types.js';
 
@@ -21,10 +22,19 @@ export type MaterializeArtifactOptions = {
   mode: ArtifactRenderMode;
   source?: string;
   iframePolicy?: ArtifactIframePolicy;
+  /**
+   * Host chrome that will display the document. Defaults from `intent.surface`.
+   * Canvas hosts pass `'canvas'` so srcdoc overflow is a panel scrollport
+   * without rewriting the stored intent.
+   */
+  presentation?: ArtifactSurface;
 };
 
-function frameModeFor(intent: ArtifactRenderIntent): ArtifactFrameMode {
-  if (intent.layout === 'canvas') {
+function frameModeFor(
+  intent: ArtifactRenderIntent,
+  presentation: ArtifactSurface,
+): ArtifactFrameMode {
+  if (presentation === 'canvas') {
     return 'canvas';
   }
   if (intent.layout === 'viewport') {
@@ -38,6 +48,7 @@ export function materializeArtifact(
   options: MaterializeArtifactOptions,
 ): Extract<ArtifactRenderPlan, { kind: 'render' }> {
   const mode = options.mode;
+  const presentation: ArtifactSurface = options.presentation ?? intent.surface;
   let bodySource = options.source ?? intent.descriptor.source;
 
   if (mode === 'stream-preview') {
@@ -49,8 +60,9 @@ export function materializeArtifact(
     bodySource = contract.source;
   }
 
-  const frameMode = frameModeFor(intent);
-  const useStatic = intent.renderer === 'static' && mode === 'interactive';
+  const frameMode = frameModeFor(intent, presentation);
+  const useStatic =
+    intent.renderer === 'static' && mode === 'interactive' && presentation !== 'canvas';
   if (useStatic) {
     return {
       kind: 'render',
@@ -69,7 +81,7 @@ export function materializeArtifact(
     channelId: intent.descriptor.id,
     theme,
     iframePolicy,
-    surface: intent.surface,
+    surface: presentation,
     includeBridge: true,
     enableStreamUpdates: mode === 'stream-preview',
     documentKind: intent.descriptor.documentKind,
