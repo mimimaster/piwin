@@ -86,13 +86,15 @@ async function markerIntersectsIframeViewport(
   return overlapY > 1 && overlapX > 1;
 }
 
-async function openGalleryCanvasStage(section: Locator): Promise<Locator> {
-  await section.getByTestId('artifact-preview-toggle').click();
-  const stage = section.getByTestId('artifact-gallery-canvas-stage');
-  await expect(stage).toBeVisible();
-  await expect(stage.getByTestId('artifact-frame')).toHaveAttribute('data-artifact-layout', 'canvas');
-  await expect(stage.locator('iframe.artifact-iframe')).toBeVisible({ timeout: 15_000 });
-  return stage;
+async function waitForInlineViewport(section: Locator): Promise<Locator> {
+  const frame = section.getByTestId('artifact-frame');
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute('data-artifact-renderer', 'sandbox');
+  await expect(frame).toHaveAttribute('data-artifact-layout', 'inline');
+  await expect(frame).toHaveAttribute('data-frame-mode', 'inline-viewport', { timeout: 15_000 });
+  const iframe = section.locator('iframe.artifact-iframe');
+  await expect(iframe).toBeVisible();
+  return iframe;
 }
 
 test('artifact gallery mounts behind the e2e fixture gate', async ({ page }) => {
@@ -181,54 +183,57 @@ test('20,000px overflow: end marker intersects the iframe viewport after a user-
   ).toBe(true);
 });
 
-test('full HTML document stays source-first with trailing Markdown visible', async ({ page }) => {
+test('full HTML document Preview mounts an inline-viewport iframe with a unique inner scrollport', async ({
+  page,
+}) => {
   const section = await openFixture(page, 'full-html-document');
   await expect(section.getByTestId('code-fence-source')).toBeVisible();
-  await expect(section.locator('iframe.artifact-iframe')).toHaveCount(0);
-  await expect(section.getByTestId('artifact-preview-toggle')).toContainText('Preview in Canvas');
-  const after = section.getByText(ARTIFACT_TRAILING_MARKDOWN, { exact: true });
-  await after.scrollIntoViewIfNeeded();
-  await expect(after).toBeVisible();
+  await section.getByTestId('artifact-preview-toggle').click();
+  await waitForInlineViewport(section);
+  const chromePx = `${String(resolveArtifactViewportFrameHeight(840))}px`;
+  await expect(section.locator('.artifact-iframe-stage')).toHaveCSS('height', chromePx);
+  const css = iframeCss('full-html-document', false);
+  await expect(page.frameLocator(css).locator('html')).toHaveAttribute(
+    'data-frame-mode',
+    'inline-viewport',
+    { timeout: 15_000 },
+  );
+  const scroll = await userScrollIframeToBottom(page, css);
+  expect(scroll.htmlOverflowY).toBe('hidden');
+  expect(scroll.overflowY).toBe('auto');
+  expect(
+    await markerIntersectsIframeViewport(page, css, '[data-artifact-end="full-html-document"]'),
+  ).toBe(true);
+  await expect(section.getByTestId('artifact-gallery-canvas-stage')).toHaveCount(0);
+  const gap = await trailingGapPx(section, section.getByTestId('artifact-frame'));
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(MAX_TRAILING_GAP_PX);
 });
 
-test(
-  'full HTML document Canvas stage: end marker intersects the iframe viewport after a user-like scroll',
-  async ({ page }) => {
-    const section = await openFixture(page, 'full-html-document');
-    await openGalleryCanvasStage(section);
-    const css = iframeCss('full-html-document', true);
-    const scroll = await userScrollIframeToBottom(page, css);
-    expect(scroll.overflowY).toBe('auto');
-    expect(
-      await markerIntersectsIframeViewport(page, css, '[data-artifact-end="full-html-document"]'),
-    ).toBe(true);
-  },
-);
-
-test('viewport-100vh stays source-first instead of inventing an Inline iframe', async ({
+test('viewport-100vh mounts an inline-viewport iframe with a unique inner scrollport', async ({
   page,
 }) => {
   const section = await openFixture(page, 'viewport-100vh');
-  await expect(section.getByTestId('code-fence-source')).toBeVisible();
-  await expect(section.locator('iframe.artifact-iframe')).toHaveCount(0);
-  const after = section.getByText(ARTIFACT_TRAILING_MARKDOWN, { exact: true });
-  await after.scrollIntoViewIfNeeded();
-  await expect(after).toBeVisible();
+  await waitForInlineViewport(section);
+  const chromePx = `${String(resolveArtifactViewportFrameHeight(840))}px`;
+  await expect(section.locator('.artifact-iframe-stage')).toHaveCSS('height', chromePx);
+  const css = iframeCss('viewport-100vh', false);
+  await expect(page.frameLocator(css).locator('html')).toHaveAttribute(
+    'data-frame-mode',
+    'inline-viewport',
+    { timeout: 15_000 },
+  );
+  const scroll = await userScrollIframeToBottom(page, css);
+  expect(scroll.htmlOverflowY).toBe('hidden');
+  expect(scroll.overflowY).toBe('auto');
+  expect(
+    await markerIntersectsIframeViewport(page, css, '[data-artifact-end="viewport-100vh"]'),
+  ).toBe(true);
+  await expect(section.getByTestId('artifact-gallery-canvas-stage')).toHaveCount(0);
+  const gap = await trailingGapPx(section, section.getByTestId('artifact-frame'));
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(MAX_TRAILING_GAP_PX);
 });
-
-test(
-  'viewport-100vh Canvas stage: end marker intersects the iframe viewport after a user-like scroll',
-  async ({ page }) => {
-    const section = await openFixture(page, 'viewport-100vh');
-    await openGalleryCanvasStage(section);
-    const css = iframeCss('viewport-100vh', true);
-    const scroll = await userScrollIframeToBottom(page, css);
-    expect(scroll.overflowY).toBe('auto');
-    expect(
-      await markerIntersectsIframeViewport(page, css, '[data-artifact-end="viewport-100vh"]'),
-    ).toBe(true);
-  },
-);
 
 test('explicit Canvas hosts a canvas-sized stage whose last marker is reachable', async ({
   page,

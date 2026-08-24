@@ -65,11 +65,13 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   ]);
 
   const layout = analysis?.kind === 'intent' ? analysis.intent.layout : null;
+  const mountsInline = layout === 'flow' || layout === 'viewport';
+  // Keep a live stream-preview mounted when later tokens upgrade flow → viewport.
   const willMountInlineFrame =
     analysis?.kind === 'intent' &&
     props.artifactPreviewEnabled &&
     artifactPreviewOpen &&
-    layout === 'flow' &&
+    mountsInline &&
     !(streamMode && artifactCodeFirst);
 
   const plan = useMemo((): Extract<ArtifactRenderPlan, { kind: 'render' }> | null => {
@@ -145,46 +147,37 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
     );
   }
 
-  if (layout === 'canvas' && props.artifactOrigin && props.onOpenArtifactCanvas) {
-    const target = createArtifactCanvasTarget({
-      ...props.artifactOrigin,
-      fenceIndex: boundFenceIndex,
-      intent: analysis.intent,
-    });
-    return (
-      <ArtifactCanvasLauncher
-        title={analysis.intent.descriptor.title}
-        source={analysis.intent.descriptor.source}
-        rawLanguage={analysis.intent.descriptor.rawLanguage}
-        onOpenCanvas={() => props.onOpenArtifactCanvas?.(target)}
-      />
-    );
-  }
-
-  const previewInCanvas = layout === 'viewport';
-  const canPreviewInline = layout === 'flow';
-  const openCanvasPreview = (): void => {
-    if (!props.artifactOrigin || !props.onOpenArtifactCanvas) return;
-    props.onOpenArtifactCanvas(
-      createArtifactCanvasTarget({
+  if (layout === 'canvas') {
+    if (props.artifactOrigin && props.onOpenArtifactCanvas) {
+      const target = createArtifactCanvasTarget({
         ...props.artifactOrigin,
         fenceIndex: boundFenceIndex,
         intent: analysis.intent,
-      }),
-    );
-  };
+      });
+      return (
+        <ArtifactCanvasLauncher
+          title={analysis.intent.descriptor.title}
+          source={analysis.intent.descriptor.source}
+          rawLanguage={analysis.intent.descriptor.rawLanguage}
+          onOpenCanvas={() => props.onOpenArtifactCanvas?.(target)}
+        />
+      );
+    }
+    return <SourceCodeBlock language={props.language} source={props.source} isShell={isShell} />;
+  }
+
   const previewLabel = analysis.intent.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview';
 
   return (
     <div
       className={
-        artifactPreviewOpen && canPreviewInline
+        willMountInlineFrame && plan
           ? 'artifact-with-source artifact-with-source--preview'
           : 'artifact-with-source'
       }
       data-artifact-id={stickyFenceId}
     >
-      {artifactPreviewOpen && canPreviewInline && plan ? (
+      {willMountInlineFrame && plan ? (
         <ArtifactInlinePreview
           plan={plan}
           fenceId={stickyFenceId}
@@ -206,13 +199,11 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
               size="compact"
               data-testid="artifact-preview-toggle"
               aria-expanded={false}
-              onClick={previewInCanvas ? openCanvasPreview : () => setArtifactPreviewOpen(true)}
-              disabled={previewInCanvas && (!props.artifactOrigin || !props.onOpenArtifactCanvas)}
+              onClick={() => setArtifactPreviewOpen(true)}
             >
-              {previewInCanvas ? 'Preview in Canvas' : previewLabel}
+              {previewLabel}
             </Button>
           }
-          incompatible={layout === 'viewport'}
         />
       )}
     </div>

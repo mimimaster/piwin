@@ -103,10 +103,7 @@ mod macos {
                 payload.get("revision")?.as_u64()?;
             }
             "piwin-artifact:action" => match payload.get("action")?.as_str()? {
-                "flashcard/rate"
-                | "flashcard/open-source"
-                | "composer/propose-text"
-                | "artifact/download-unsupported" => {}
+                "composer/propose-text" | "artifact/download-unsupported" => {}
                 _ => return None,
             },
             _ => return None,
@@ -140,6 +137,14 @@ mod macos {
                 r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"artifact/download-unsupported","payload":{"filename":"demo.html"}}"#
             )
             .is_some());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"flashcard/rate","payload":{"cardId":"card-abc12345-xyz","rating":"good"}}"#
+            )
+            .is_none());
+            assert!(parse_artifact_bridge_message(
+                r#"{"type":"piwin-artifact:action","channelId":"artifact-1","action":"flashcard/open-source","payload":{"cardId":"card-abc12345-xyz"}}"#
+            )
+            .is_none());
         }
     }
 }

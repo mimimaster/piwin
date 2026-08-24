@@ -16,9 +16,13 @@ import type { MobileTranscriptMessage } from '../../hooks/use-mobile-host.js';
 
 type MobileMessageItemProps = {
   message: MobileTranscriptMessage;
+  htmlUiModeEnabled: boolean;
 };
 
-export function MobileMessageItem({ message }: MobileMessageItemProps): ReactElement | null {
+export function MobileMessageItem({
+  message,
+  htmlUiModeEnabled,
+}: MobileMessageItemProps): ReactElement | null {
   const [copied, setCopied] = useState(false);
   const haptics = useHaptics();
   const tts = useTts();
@@ -34,8 +38,9 @@ export function MobileMessageItem({ message }: MobileMessageItemProps): ReactEle
   const hasTools = Boolean(toolCalls && toolCalls.length > 0);
   const hasThinking = Boolean(thinking && thinking.trim().length > 0);
   const artifacts = useMemo(
-    () => (isAssistant && !isStreaming ? collectMobileArtifacts(message.text) : []),
-    [isAssistant, isStreaming, message.text],
+    () =>
+      isAssistant && !isStreaming ? collectMobileArtifacts(message.text, htmlUiModeEnabled) : [],
+    [htmlUiModeEnabled, isAssistant, isStreaming, message.text],
   );
   const [openArtifactId, setOpenArtifactId] = useState<string | undefined>();
   const openArtifact = artifacts.find((item) => item.id === openArtifactId);

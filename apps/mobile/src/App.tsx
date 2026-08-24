@@ -152,6 +152,7 @@ export function App(): ReactElement {
               activeSessionId={host.activeSessionId}
               sessions={host.sessions}
               messages={host.messages}
+              htmlUiModeEnabled={host.artifactEnabled}
               composerText={host.composerText}
               setComposerText={host.setComposerText}
               attachments={host.attachments}

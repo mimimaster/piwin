@@ -33,6 +33,7 @@ export type ConversationSurfaceProps = {
   pendingReplaceRunId?: string | undefined;
   onReplaceAndSend?: (() => void) | undefined;
   onSpeechError?: ((message: string) => void) | undefined;
+  htmlUiModeEnabled: boolean;
 };
 
 export function ConversationSurface({
@@ -58,6 +59,7 @@ export function ConversationSurface({
   pendingReplaceRunId,
   onReplaceAndSend,
   onSpeechError,
+  htmlUiModeEnabled,
 }: ConversationSurfaceProps): ReactElement {
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -105,7 +107,11 @@ export function ConversationSurface({
           />
         ) : (
           messages.map((message) => (
-            <MobileMessageItem key={message.id} message={message} />
+            <MobileMessageItem
+              key={message.id}
+              message={message}
+              htmlUiModeEnabled={htmlUiModeEnabled}
+            />
           ))
         )}
 

@@ -31,6 +31,11 @@ const FULL_HTML_DOCUMENT_FENCE = [
   '<!DOCTYPE html><html><head><title>Ink</title></head><body><main>App</main></body></html>',
   '```',
 ].join('\n');
+const VIEWPORT_ARTIFACT_FENCE = [
+  '```artifact-html',
+  '<div style="height:100vh">Stage</div>',
+  '```',
+].join('\n');
 const FLASHCARD_FENCE =
   '```html\n<div class="piwin-flashcard" data-card-id="card-abc12345-xyz"></div>\n```';
 const MERMAID_FENCE = '```mermaid\ngraph TD\nA-->B\n```';
@@ -443,7 +448,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
   });
 
-  it('offers a full native HTML document only through Canvas', () => {
+  it('previews a native full HTML document as inline-viewport, not Canvas', async () => {
     const onOpenArtifactCanvas = vi.fn();
     const { container } = renderMarkdown(
       <MarkdownView
@@ -459,16 +464,34 @@ describe('MarkdownView artifact preview policy', () => {
     const preview = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
     );
-    expect(preview?.textContent).toContain('Preview in Canvas');
+    expect(preview?.textContent).toContain('Preview');
+    expect(preview?.textContent).not.toContain('Canvas');
     act(() => preview?.click());
-    expect(onOpenArtifactCanvas).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: 'session-full',
-        messageId: 'message-full',
-        documentKind: 'document',
-        surface: 'canvas',
-      }),
+    await flushMarkdownEffects();
+    expect(onOpenArtifactCanvas).not.toHaveBeenCalled();
+    const frame = container.querySelector('[data-testid="artifact-frame"]');
+    expect(frame?.getAttribute('data-frame-mode')).toBe('inline-viewport');
+    expect(frame?.getAttribute('data-artifact-layout')).toBe('inline');
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+  });
+
+  it('mounts an explicit viewport artifact as inline-viewport in the transcript', async () => {
+    const onOpenArtifactCanvas = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={VIEWPORT_ARTIFACT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-vh', messageId: 'message-vh' }}
+        onOpenArtifactCanvas={onOpenArtifactCanvas}
+      />,
     );
+    await flushMarkdownEffects();
+    const frame = container.querySelector('[data-testid="artifact-frame"]');
+    expect(frame?.getAttribute('data-frame-mode')).toBe('inline-viewport');
+    expect(frame?.getAttribute('data-artifact-layout')).toBe('inline');
+    expect(container.querySelector('iframe.artifact-iframe')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).toBeNull();
+    expect(onOpenArtifactCanvas).not.toHaveBeenCalled();
   });
 
   it('streaming mode keeps the explicit code-first preference source-only', () => {

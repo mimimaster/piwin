@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { indexArtifactFences } from '@piwin/artifact';
 import { collectMobileArtifacts, mobileArtifactBlockedCopy } from './mobile-artifact-preview.js';
+import { readArtifactEnabled } from './mobile-host-readers.js';
 
 describe('collectMobileArtifacts', () => {
   it('promotes a safe html fence and leaves ordinary code alone', () => {
@@ -13,7 +14,7 @@ describe('collectMobileArtifacts', () => {
       'export const x = 1;',
       '```',
     ].join('\n');
-    const items = collectMobileArtifacts(text);
+    const items = collectMobileArtifacts(text, true);
     expect(items).toHaveLength(1);
     expect(items[0]?.title).toBe('Landing');
     expect(indexArtifactFences(text).map((fence) => fence.source)).toEqual([
@@ -42,7 +43,7 @@ describe('collectMobileArtifacts', () => {
       '```',
     ].join('\n');
     const fences = indexArtifactFences(text);
-    const items = collectMobileArtifacts(text);
+    const items = collectMobileArtifacts(text, true);
     expect(fences.map((fence) => fence.ordinal)).toEqual([0, 1]);
     expect(items).toHaveLength(2);
     expect(items.map((item) => item.title)).toEqual(['Inline card', 'Workspace']);
@@ -72,12 +73,40 @@ describe('collectMobileArtifacts', () => {
       '<script src="https://cdn.example.com/x.js"></script>',
       '```',
     ].join('\n');
-    const items = collectMobileArtifacts(text);
+    const items = collectMobileArtifacts(text, true);
     expect(items).toHaveLength(1);
     expect(items[0]?.plan.kind).toBe('blocked');
     if (items[0]?.plan.kind === 'blocked') {
       expect(items[0].plan.reason).toBe('blocked-external-resource');
       expect(mobileArtifactBlockedCopy(items[0].plan.reason)).toContain('外部资源');
     }
+  });
+
+  it('enabled false stays source-only: no iframe preview cards', () => {
+    const text = [
+      '```artifact-html title="Landing"',
+      '<section><h1>Hello</h1></section>',
+      '```',
+    ].join('\n');
+    expect(collectMobileArtifacts(text, false)).toEqual([]);
+    expect(
+      readArtifactEnabled({ type: 'response', command: 'settings/get', success: false, error: 'denied' }),
+    ).toBe(true);
+    expect(
+      readArtifactEnabled({
+        type: 'response',
+        command: 'settings/get',
+        success: true,
+        data: { snapshot: { config: { artifact: { enabled: false } } } },
+      }),
+    ).toBe(false);
+    expect(
+      readArtifactEnabled({
+        type: 'response',
+        command: 'settings/get',
+        success: true,
+        data: { snapshot: { config: { artifact: { enabled: true } } } },
+      }),
+    ).toBe(true);
   });
 });

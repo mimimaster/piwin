@@ -164,6 +164,38 @@ describe('Artifact streaming delta records', () => {
     expect(midSnap.flashingSource).toBe(false);
   });
 
+  it('keeps a live stream-preview iframe when later tokens flip layout to viewport', async () => {
+    const origin = { sessionId: 's-stream', messageId: 'm-stream-viewport' };
+    const start = ['```artifact-html', '<section><p>Hello</p></section>'].join('\n');
+    const upgraded = [
+      '```artifact-html',
+      '<section style="height:100vh"><p>Hello</p></section>',
+    ].join('\n');
+    const { container, root } = renderView(
+      <MarkdownView text={start} renderingPhase="streaming" artifactOrigin={origin} />,
+    );
+    await flushFrame();
+    const iframe = container.querySelector('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-flow');
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MarkdownView text={upgraded} renderingPhase="streaming" artifactOrigin={origin} />
+        </PiwinUiProvider>,
+      );
+    });
+    await flushFrame();
+    expect(container.querySelector('iframe.artifact-iframe')).toBe(iframe);
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-frame-mode'),
+    ).toBe('inline-viewport');
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+  });
+
   it.fails('keeps the same iframe node after the completed script fence', async () => {
     const first = STREAMING_DELTA_STEPS[0];
     if (!first) throw new Error('missing streaming fixture');

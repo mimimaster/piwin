@@ -54,7 +54,7 @@ function canvasTargetFor(fixture: ArtifactFixture): ArtifactCanvasTarget | null 
     createArtifactFenceRecord({ info: fixture.language, source: fixture.source }),
     { id: `${ARTIFACT_GALLERY_SESSION}-${fixture.id}` },
   );
-  if (analysis.kind !== 'intent') return null;
+  if (analysis.kind !== 'intent' || analysis.intent.layout !== 'canvas') return null;
   return createArtifactCanvasTarget({
     sessionId: ARTIFACT_GALLERY_SESSION,
     messageId: fixture.id,

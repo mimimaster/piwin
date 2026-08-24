@@ -106,6 +106,7 @@ describe('Mobile Tool Call Chain & Execution Cards', () => {
       root.render(
         <PiwinUiProvider manifest={MOBILE_THEME}>
           <MobileMessageItem
+            htmlUiModeEnabled
             message={{
               id: 'msg-causal',
               role: 'assistant',
@@ -140,6 +141,7 @@ describe('Mobile Tool Call Chain & Execution Cards', () => {
       root.render(
         <PiwinUiProvider manifest={MOBILE_THEME}>
           <MobileMessageItem
+            htmlUiModeEnabled
             message={{
               id: 'msg-artifact',
               role: 'assistant',
@@ -155,5 +157,28 @@ describe('Mobile Tool Call Chain & Execution Cards', () => {
     });
     expect(container.textContent).toContain('Landing');
     expect(container.querySelector('.artifact-preview-btn')).not.toBeNull();
+  });
+
+  it('capability off: completed html fence stays source-only', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <MobileMessageItem
+            htmlUiModeEnabled={false}
+            message={{
+              id: 'msg-artifact-off',
+              role: 'assistant',
+              text: ['```artifact-html title="Landing"', '<section><h1>Hi</h1></section>', '```'].join(
+                '\n',
+              ),
+              createdAt: '2026-08-16T12:00:00Z',
+              status: 'done',
+            }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('.artifact-preview-btn')).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
   });
 });

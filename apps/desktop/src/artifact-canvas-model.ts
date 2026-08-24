@@ -67,6 +67,11 @@ export function createArtifactCanvasTarget(input: {
   intent: ArtifactRenderIntent;
 }): ArtifactCanvasTarget {
   const { sessionId, messageId, fenceIndex, intent } = input;
+  if (intent.layout !== 'canvas') {
+    throw new Error(
+      'Canvas targets require layout "canvas"; inline/viewport stay in the transcript',
+    );
+  }
   const { descriptor } = intent;
   return {
     id: buildArtifactCanvasTargetId(sessionId, messageId, fenceIndex),

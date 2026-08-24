@@ -54,15 +54,14 @@ export const ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE = 'piwin-artifact:stream-update'
 export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
 
 /**
- * Allowed artifact action names. Extend deliberately — every entry is a
+ * Iframe-whitelist action names. Extend deliberately — every entry is a
  * capability the sandboxed (untrusted) HTML can invoke on the product.
+ * Flashcard rate/open-source stay on structured FlashcardView, not sandbox HTML.
  */
 export const COMPOSER_PROPOSE_TEXT_ACTION = 'composer/propose-text' as const;
 export const ARTIFACT_DOWNLOAD_UNSUPPORTED_ACTION = 'artifact/download-unsupported' as const;
 
 export const ARTIFACT_ACTION_NAMES = [
-  'flashcard/rate',
-  'flashcard/open-source',
   'composer/propose-text',
   'artifact/download-unsupported',
 ] as const;
