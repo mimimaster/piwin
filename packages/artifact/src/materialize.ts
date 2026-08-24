@@ -85,6 +85,7 @@ export function materializeArtifact(
     frameMode,
     includeBridge: true,
     enableStreamUpdates: true,
+    freezeSource: mode !== 'stream-preview',
     documentKind: intent.descriptor.documentKind,
   });
 

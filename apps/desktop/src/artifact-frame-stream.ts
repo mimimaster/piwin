@@ -100,7 +100,7 @@ function postStreamSnapshot(
   return true;
 }
 
-/** Push stream DOM at most every 300ms; final commits immediately and stops. */
+/** Push stream DOM at most every 300ms; final source commits immediately. FrameMode stays live. */
 export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamPublisher {
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -121,14 +121,18 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
 
   const postCurrent = useCallback((force = false): void => {
     const current = latestRef.current;
-    if (!current.enabled || !current.streamLifecycle) {
+    if (!current.enabled) {
       return;
     }
     const final = current.decision.mode !== 'stream-preview';
     const source = current.decision.renderSource;
     const frameMode = current.frameMode;
     const frameModeChanged = lastPostedFrameModeRef.current !== frameMode;
-    if (!force && final && lastFinalSourceRef.current === source && !frameModeChanged) {
+    if (!current.streamLifecycle) {
+      if (!frameModeChanged) {
+        return;
+      }
+    } else if (!force && final && lastFinalSourceRef.current === source && !frameModeChanged) {
       return;
     }
     if (
@@ -152,7 +156,11 @@ export function useArtifactStreamPublisher(input: StreamPublisherInput): StreamP
   }, []);
 
   useEffect(() => {
-    if (!input.enabled || !input.streamLifecycle) {
+    if (!input.enabled) {
+      return;
+    }
+    if (!input.streamLifecycle) {
+      postCurrent();
       return;
     }
     if (input.decision.mode !== 'stream-preview') {

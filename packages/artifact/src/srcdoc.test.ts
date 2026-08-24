@@ -65,7 +65,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).not.toContain('scheduleMeasureLadder');
   });
 
-  it('updates DOM only during streaming and removes the listener at final', () => {
+  it('updates DOM only during streaming and keeps the frameMode listener after final', () => {
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: '<div>streaming</div>',
       channelId: 'ch-stream',
@@ -73,7 +73,9 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
     expect(srcdoc).toContain('syncChildren(root, template.content)');
-    expect(srcdoc).toContain("window.removeEventListener('message', onRenderCommand)");
+    expect(srcdoc).toContain('sourceFrozen = true');
+    expect(srcdoc).toContain('if (sourceFrozen) return');
+    expect(srcdoc).not.toContain("window.removeEventListener('message', onRenderCommand)");
     expect(srcdoc).toContain('scheduleHeight();');
     expect(srcdoc).toContain('activateFinalScripts(root)');
     expect(srcdoc).not.toContain('MutationObserver');
@@ -225,6 +227,34 @@ describe('buildHtmlArtifactSrcdoc', () => {
     });
     expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-viewport');
   });
+
+  it('applies flow→viewport after final without replaying scripts', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root, { enableRenderCommand: true });
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 0,
+      source: '<div>done</div><script>window.ready=true</script>',
+      frameMode: 'inline-flow',
+      final: true,
+    });
+    expect(session.scriptActivateCount()).toBe(1);
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
+    expect(session.listenerCount()).toBe(1);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 1,
+      source: '<div>ignore</div><script>window.ready=2</script>',
+      frameMode: 'inline-viewport',
+      final: true,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-viewport');
+    expect(session.scriptActivateCount()).toBe(1);
+    expect(session.observerCount()).toBe(0);
+  });
 });
 
 type MeasuredRoot = {
@@ -255,6 +285,8 @@ function runBridgeSession(
   messages: SizeMessage[];
   documentElement: { attributes: Record<string, string> };
   observerCount: () => number;
+  listenerCount: () => number;
+  scriptActivateCount: () => number;
   remeasure: () => void;
   dispatchRenderCommand: (data: unknown) => void;
 } {
@@ -270,6 +302,7 @@ function runBridgeSession(
   };
   const windowObject = {
     innerHeight: 80,
+    dispatchEvent: () => undefined,
     addEventListener: (type: string, listener: (event: { data: unknown }) => void) => {
       if (type === 'message') messageListeners.push(listener);
     },
@@ -291,10 +324,14 @@ function runBridgeSession(
       }
     },
   };
+  let scriptActivations = 0;
   const fragmentRoot = {
     ...root,
     firstChild: null as unknown,
-    querySelectorAll: () => [],
+    querySelectorAll: (selector: string) =>
+      selector === 'script'
+        ? [{ attributes: [], textContent: '', replaceWith: () => undefined }]
+        : [],
   };
   const documentObject = {
     readyState: 'complete',
@@ -305,6 +342,9 @@ function runBridgeSession(
     createElement: (tag: string) => {
       if (tag === 'template') {
         return { innerHTML: '', content: { firstChild: null } };
+      }
+      if (tag === 'script') {
+        scriptActivations += 1;
       }
       return { attributes: [], textContent: '', setAttribute: () => undefined };
     },
@@ -359,6 +399,8 @@ function runBridgeSession(
     messages,
     documentElement,
     observerCount: () => resizeCallbacks.size,
+    listenerCount: () => messageListeners.length,
+    scriptActivateCount: () => scriptActivations,
     remeasure: (): void => {
       for (const callback of [...resizeCallbacks]) callback();
       flushAnimationFrames();

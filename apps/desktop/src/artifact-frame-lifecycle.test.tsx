@@ -13,7 +13,11 @@ import {
   getActiveArtifactInitCount,
   resetArtifactInitQueueForTests,
 } from './artifact-init-queue.js';
-import { resetArtifactLiveHostRegistryForTests } from './artifact-live-host-registry.js';
+import {
+  MAX_LIVE_ARTIFACT_IFRAMES,
+  claimArtifactLiveHost,
+  resetArtifactLiveHostRegistryForTests,
+} from './artifact-live-host-registry.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -34,7 +38,10 @@ const EMPTY_CAPABILITIES: ArtifactCapabilityReport = {
   externalResources: [],
 };
 
-function makePlan(id: string): Extract<ArtifactRenderPlan, { kind: 'render' }> {
+function makePlan(
+  id: string,
+  mode: 'interactive' | 'stream-preview' = 'interactive',
+): Extract<ArtifactRenderPlan, { kind: 'render' }> {
   const source = `<div>${id}</div><script>window.ready = true</script>`;
   return {
     kind: 'render',
@@ -56,7 +63,7 @@ function makePlan(id: string): Extract<ArtifactRenderPlan, { kind: 'render' }> {
       renderer: 'sandbox',
     },
     frameMode: 'inline-flow',
-    mode: 'interactive',
+    mode,
     renderSource: source,
     document: {
       kind: 'sandbox',
@@ -64,6 +71,13 @@ function makePlan(id: string): Extract<ArtifactRenderPlan, { kind: 'render' }> {
       csp: "default-src 'none'",
     },
   };
+}
+
+async function flush(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 }
 
 describe('artifact frame init lease timeout', () => {
@@ -139,5 +153,101 @@ describe('artifact frame init lease timeout', () => {
       await Promise.resolve();
     });
     expect(secondContainer.querySelector('iframe.artifact-iframe')).not.toBeNull();
+  });
+
+  it('keeps the completing sandbox iframe when the live set is full of forceKeep hosts', async () => {
+    for (let index = 0; index < MAX_LIVE_ARTIFACT_IFRAMES; index += 1) {
+      claimArtifactLiveHost({
+        id: `force-fill-${index}`,
+        forceKeep: true,
+        priority: 1_000,
+        evict: () => undefined,
+      });
+    }
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ container, root });
+    const streaming = makePlan('stream-complete', 'stream-preview');
+    act(() => {
+      root.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ArtifactFrame plan={streaming} />
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await flush();
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toBe('live');
+
+    const completed: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
+      ...streaming,
+      mode: 'interactive',
+    };
+    act(() => {
+      root.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ArtifactFrame plan={completed} />
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await flush();
+    expect(container.querySelector('iframe.artifact-iframe')).toBe(iframe);
+    expect(container.querySelector('[data-testid="artifact-iframe-placeholder"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.getAttribute('data-artifact-host'),
+    ).toBe('live');
+  });
+
+  it('posts a frameMode snapshot for a never-streamed sandbox', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ container, root });
+    const interactive = makePlan('never-streamed');
+    act(() => {
+      root.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ArtifactFrame plan={interactive} />
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await flush();
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    const postMessage = vi.spyOn(iframe?.contentWindow as Window, 'postMessage');
+    const viewport: Extract<ArtifactRenderPlan, { kind: 'render' }> = {
+      ...interactive,
+      frameMode: 'inline-viewport',
+      intent: { ...interactive.intent, layout: 'viewport' },
+    };
+    act(() => {
+      root.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ArtifactFrame plan={viewport} />
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await flush();
+    expect(iframe?.getAttribute('data-frame-mode')).toBe('inline-viewport');
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'piwin-artifact:stream-update',
+        frameMode: 'inline-viewport',
+      }),
+      '*',
+    );
   });
 });

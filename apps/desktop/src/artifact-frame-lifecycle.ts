@@ -135,12 +135,15 @@ export function useArtifactFrameLease(input: {
       everAdmittedRef.current = true;
     }
     setHostIframe(claim.admitted);
+  }, [forceKeep, input.channelId, priority]);
+
+  useEffect(() => {
     return () => {
       setClaimed(false);
       everAdmittedRef.current = false;
       releaseArtifactLiveHost(input.channelId);
     };
-  }, [forceKeep, input.channelId, priority]);
+  }, [input.channelId]);
 
   useEffect(() => {
     if (!hostIframe) {

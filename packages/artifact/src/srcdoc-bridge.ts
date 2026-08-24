@@ -15,6 +15,7 @@ export function buildArtifactBridgeBootstrapScript(
   channelId: string,
   enableRenderCommand = true,
   initialFrameMode: ArtifactFrameMode = 'inline-flow',
+  freezeSource = false,
 ): string {
   const serializedChannelId = JSON.stringify(channelId);
   const serializedFrameMode = JSON.stringify(initialFrameMode);
@@ -176,6 +177,8 @@ export function buildArtifactBridgeBootstrapScript(
       ? `var streamUpdateType = ${renderType};
   var maxSourceBytes = ${maxSourceBytes};
   var lastSnapshotRevision = -1;
+  var sourceFrozen = ${freezeSource ? 'true' : 'false'};
+  var scriptsActivated = sourceFrozen;
   var utf8Bytes = function (value) {
     if (window.TextEncoder) return new window.TextEncoder().encode(value).length;
     return value.length;
@@ -247,6 +250,7 @@ export function buildArtifactBridgeBootstrapScript(
     var nextMode = acceptFrameMode(data.frameMode);
     lastSnapshotRevision = data.revision;
     if (nextMode !== currentFrameMode) applyFrameMode(nextMode);
+    if (sourceFrozen) return;
     var root = document.querySelector('.piwin-artifact-root');
     if (root) {
       var template = document.createElement('template');
@@ -254,8 +258,11 @@ export function buildArtifactBridgeBootstrapScript(
       syncChildren(root, template.content);
     }
     if (data.final === true) {
-      window.removeEventListener('message', onRenderCommand);
-      if (root) activateFinalScripts(root);
+      sourceFrozen = true;
+      if (root && !scriptsActivated) {
+        activateFinalScripts(root);
+        scriptsActivated = true;
+      }
       setTimeout(function () {
         document.dispatchEvent(new Event('DOMContentLoaded'));
         window.dispatchEvent(new Event('load'));
