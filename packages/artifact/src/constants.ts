@@ -8,8 +8,12 @@ export {
   DEFAULT_MAX_ARTIFACT_BYTES,
 } from '@piwin/contracts';
 
-/** Fence languages that need HTML-like source heuristics before promotion. */
-export const AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES = ['artifact', 'artifact-'] as const;
+/**
+ * Internal Markdown metadata added only to an open native Artifact fence.
+ * It lets stream-preview mount before enough body tokens exist for the final
+ * native HTML/SVG classifier. The marker is stripped before descriptor output.
+ */
+export const STREAMING_ARTIFACT_FENCE_MARKER = 'piwin-stream-artifact' as const;
 
 export const MIN_ARTIFACT_IFRAME_HEIGHT = 40;
 /** Temporary paint size while the sandbox reports its real content height. */

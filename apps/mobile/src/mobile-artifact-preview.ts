@@ -1,7 +1,7 @@
 import {
   createDefaultArtifactIframePolicy,
   evaluateCodeFence,
-  splitMarkdownBlocks,
+  indexArtifactFences,
   type ArtifactPreviewDecision,
 } from '@piwin/artifact';
 
@@ -17,13 +17,10 @@ export type MobileArtifactPreview = {
 /** Fence → card data. External resources stay blocked (iframe policy disabled). */
 export function collectMobileArtifacts(text: string): MobileArtifactPreview[] {
   const previews: MobileArtifactPreview[] = [];
-  for (const block of splitMarkdownBlocks(text)) {
-    if (block.type !== 'code') {
-      continue;
-    }
+  for (const fence of indexArtifactFences(text)) {
     const decision = evaluateCodeFence({
-      language: block.language,
-      source: block.source,
+      language: fence.info,
+      source: fence.source,
       htmlUiModeEnabled: true,
       iframePolicy: MOBILE_ARTIFACT_IFRAME_POLICY,
     });
@@ -33,7 +30,7 @@ export function collectMobileArtifacts(text: string): MobileArtifactPreview[] {
     previews.push({
       id: decision.descriptor.id,
       title: decision.descriptor.title,
-      language: decision.descriptor.alias || block.language,
+      language: decision.descriptor.alias || fence.language,
       decision,
     });
   }

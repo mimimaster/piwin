@@ -33,18 +33,18 @@ const PROBES: Array<{
     source: '<section></section>',
     expectMaterialized: true,
   },
-  // 2. Ambiguous `artifact` alias — needs HTML-like or placeholder source.
+  // 2. Fuzzy `artifact*` languages are ordinary code (explicit aliases + native only).
   {
     label: 'artifact alias + html-like source',
     language: 'artifact',
     source: '<div class="card">x</div>',
-    expectMaterialized: true,
+    expectMaterialized: false,
   },
   {
     label: 'artifact alias + placeholder source',
     language: 'artifact',
     source: 'TODO',
-    expectMaterialized: true,
+    expectMaterialized: false,
   },
   {
     label: 'artifact alias + non-html source',

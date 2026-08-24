@@ -3,9 +3,9 @@
 export {
   ARTIFACT_LANGUAGE_ALIASES,
   CANONICAL_ARTIFACT_LANGUAGE,
-  AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES,
   NATIVE_HTML_ARTIFACT_LANGUAGES,
   NATIVE_SVG_ARTIFACT_LANGUAGES,
+  STREAMING_ARTIFACT_FENCE_MARKER,
   DEFAULT_MAX_ARTIFACT_BYTES,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   ARTIFACT_BOOTSTRAP_HEIGHT,
@@ -45,7 +45,6 @@ export type {
   ArtifactThemeContractRepair,
   ArtifactThemeContractResult,
   StreamablePreviewResult,
-  OpenArtifactFence,
   ArtifactBridgeMessageType,
   ArtifactBridgeMessage,
   ArtifactActionName,
@@ -73,8 +72,14 @@ export {
   classifyArtifactSecurity,
 } from './security.js';
 
-export { tryParseHtmlArtifactFence, splitMarkdownBlocks } from './parser.js';
-export type { MarkdownFenceBlock, ParsedMarkdownBlock, TableAlignment } from './parser.js';
+export { tryParseHtmlArtifactFence, parseArtifactFenceRecord } from './parser.js';
+export type { ParseArtifactFenceInput } from './parser.js';
+
+export { indexArtifactFences } from './fence-index.js';
+export type { ArtifactFenceRecord } from './fence-index.js';
+
+export { projectArtifactMarkdownForRender } from './markdown-projection.js';
+export type { ArtifactMarkdownProjection } from './markdown-projection.js';
 
 export { isFullHtmlDocument } from './html-document.js';
 
@@ -128,14 +133,6 @@ export {
   resetArtifactLiveHostRegistryForTests,
 } from './live-host-registry.js';
 export type { ArtifactLiveHostRegistration } from './live-host-registry.js';
-
-export {
-  findOpenArtifactFence,
-  findOpenAmbiguousArtifactFence,
-  normalizeAmbiguousArtifactFences,
-  normalizeArtifactTagBlocks,
-  normalizeStreamingArtifactFences,
-} from './streaming.js';
 
 export { buildStreamableArtifactPreview } from './streamable-preview.js';
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { indexArtifactFences } from '@piwin/artifact';
 import {
   buildArtifactCanvasTargetId,
+  collectArtifactCanvasTargets,
   createArtifactCanvasTarget,
   isSameCanvasTarget,
   appendComposerProposal,
@@ -83,6 +85,59 @@ describe('createArtifactCanvasTarget', () => {
     });
     expect(target.surface).toBe('canvas');
     expect(target.type).toBe('svg');
+  });
+});
+
+describe('collectArtifactCanvasTargets', () => {
+  it('uses the shared fence index ordinals and returns only explicit Canvas declarations', () => {
+    const markdown = [
+      '```ts',
+      'const answer = 42;',
+      '```',
+      '',
+      '```artifact-html title="Workspace" surface="canvas"',
+      '<main>workspace</main>',
+      '```',
+      '',
+      '```artifact-html title="Inline summary"',
+      '<section>summary</section>',
+      '```',
+    ].join('\n');
+    const indexed = indexArtifactFences(markdown);
+    const targets = collectArtifactCanvasTargets({
+      sessionId: 's1',
+      messageId: 'm1',
+      markdown,
+    });
+
+    expect(indexed.map((fence) => fence.ordinal)).toEqual([0, 1, 2]);
+    expect(indexed.map((fence) => fence.source)).toEqual([
+      'const answer = 42;',
+      '<main>workspace</main>',
+      '<section>summary</section>',
+    ]);
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      id: 'canvas:s1:m1:1',
+      channelId: 'm1-artifact-1',
+      title: 'Workspace',
+      fenceIndex: 1,
+      surface: 'canvas',
+    });
+  });
+
+  it('skips a Canvas declaration rejected by the shared security policy', () => {
+    const targets = collectArtifactCanvasTargets({
+      sessionId: 's1',
+      messageId: 'm1',
+      markdown: [
+        '```artifact-html title="Remote" surface="canvas"',
+        '<iframe src="https://example.com"></iframe>',
+        '```',
+      ].join('\n'),
+    });
+
+    expect(targets).toEqual([]);
   });
 });
 

@@ -104,12 +104,6 @@ export type StreamablePreviewResult = {
   previewSource: string;
 };
 
-export type OpenArtifactFence = {
-  startIndex: number;
-  info: string;
-  contentStartIndex: number;
-};
-
 export type ArtifactBridgeMessageType = 'piwin-artifact:size';
 
 export type ArtifactBridgeMessage = {

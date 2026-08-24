@@ -1,7 +1,6 @@
 import {
   cloneElement,
   isValidElement,
-  useCallback,
   useMemo,
   useRef,
   type ComponentProps,
@@ -12,7 +11,7 @@ import {
 import { cjk } from '@streamdown/cjk';
 import { createMathPlugin } from '@streamdown/math';
 import {
-  normalizeStreamingArtifactFences,
+  projectArtifactMarkdownForRender,
   type ArtifactActionMessage,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
@@ -94,6 +93,14 @@ const STREAMDOWN_PLUGINS = {
   math: createMathPlugin({ singleDollarTextMath: true }),
 };
 const MARKDOWN_LINK_SAFETY = { enabled: false };
+/**
+ * Streamdown streaming mode parses each marked block separately, so
+ * `node.position.start.offset` is block-relative (often 0). One document block
+ * keeps offsets on the projected markdown string used by the fence index.
+ */
+function parseStreamdownAsSingleDocument(markdown: string): string[] {
+  return [markdown];
+}
 const ARTIFACT_THEME_VARIABLES = [
   '--piwin-artifact-theme',
   '--piwin-artifact-bg',
@@ -151,12 +158,8 @@ type StreamdownRendererOptions = {
   locale: 'zh-CN' | 'en';
   onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined;
   projectPath: string | null | undefined;
-  /**
-   * owi-style fence ordinal keyed by the AST start position. Streamdown may
-   * invoke a renderer more than once without re-rendering MarkdownView, so a
-   * call counter alone eventually changes iframe identity.
-   */
-  allocateFenceOrdinal: (identity: string) => number;
+  /** Canonical fence ordinal keyed by Streamdown `node.position.start.offset`. */
+  ordinalByProjectedStartOffset: ReadonlyMap<number, number>;
 };
 
 type StreamdownElementProps<Tag extends keyof JSX.IntrinsicElements> = ComponentProps<Tag> &
@@ -351,14 +354,11 @@ function createStreamdownComponents(optionsRef: {
     const rawMetadata = node?.properties?.['metastring'];
     const metadata = typeof rawMetadata === 'string' ? rawMetadata.trim() : '';
     const fenceInfo = metadata ? `${language} ${metadata}` : language;
-    const startPosition = node?.position?.start;
-    const fenceIdentity =
-      typeof startPosition?.offset === 'number'
-        ? `offset:${startPosition.offset}`
-        : `line:${startPosition?.line ?? 0}:column:${startPosition?.column ?? 0}`;
-    // owi: `${rootId}-artifact-${ordinal}`. Cache by AST position because
-    // Streamdown can invoke this renderer multiple times for one parse.
-    const ordinal = options.allocateFenceOrdinal(fenceIdentity);
+    const startOffset = node?.position?.start?.offset;
+    const ordinal =
+      typeof startOffset === 'number'
+        ? (options.ordinalByProjectedStartOffset.get(startOffset) ?? 0)
+        : 0;
     const originKey = options.artifactOrigin?.messageId ?? 'local';
     const fenceProps: MarkdownCodeFenceProps = {
       language,
@@ -612,9 +612,12 @@ export function MarkdownView({
     [artifactOrigin?.sessionId, artifactOrigin?.messageId],
   );
 
-  const streamdownText = rewriteLocalFileMarkdownLinks(
-    normalizeStreamingArtifactFences(text, streamdownHtmlUiMode, !streamMode),
+  const artifactProjection = useMemo(
+    () =>
+      projectArtifactMarkdownForRender(rewriteLocalFileMarkdownLinks(text), !streamMode),
+    [text, streamMode],
   );
+  const streamdownText = artifactProjection.markdown;
   const shouldShowStreamingCaret = streamMode && showStreamingCaret && text.trim().length > 0;
   // Streamdown treats a trailing blank line as a separate streaming block.
   // That would put the caret on an otherwise empty line, so remove only the
@@ -631,25 +634,6 @@ export function MarkdownView({
     usedStreamingRendererRef.current = true;
   }
   const streamdownMode = usedStreamingRendererRef.current ? 'streaming' : 'static';
-  const fenceOrdinalMapRef = useRef(new Map<string, number>());
-  const nextFenceOrdinalRef = useRef(0);
-  const fenceOwnerKey = stableArtifactOrigin?.messageId ?? 'local';
-  const fenceOwnerKeyRef = useRef(fenceOwnerKey);
-  if (fenceOwnerKeyRef.current !== fenceOwnerKey) {
-    fenceOwnerKeyRef.current = fenceOwnerKey;
-    fenceOrdinalMapRef.current.clear();
-    nextFenceOrdinalRef.current = 0;
-  }
-  const allocateFenceOrdinal = useCallback((identity: string): number => {
-    const existing = fenceOrdinalMapRef.current.get(identity);
-    if (existing !== undefined) {
-      return existing;
-    }
-    const ordinal = nextFenceOrdinalRef.current;
-    nextFenceOrdinalRef.current += 1;
-    fenceOrdinalMapRef.current.set(identity, ordinal);
-    return ordinal;
-  }, []);
   const streamdownRendererOptionsRef = useRef<StreamdownRendererOptions>({
     phase,
     htmlUiModeEnabled: streamdownHtmlUiMode,
@@ -663,7 +647,7 @@ export function MarkdownView({
     artifactCodeFirst,
     artifactMaxBytes,
     locale,
-    allocateFenceOrdinal,
+    ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
     onOpenDocument,
     projectPath,
   });
@@ -680,7 +664,7 @@ export function MarkdownView({
     artifactCodeFirst,
     artifactMaxBytes,
     locale,
-    allocateFenceOrdinal,
+    ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
     onOpenDocument,
     projectPath,
   };
@@ -698,6 +682,7 @@ export function MarkdownView({
       // trees. A live message keeps its keyed block tree through completion;
       // completion only turns off repair, animation state and the caret.
       mode={streamdownMode}
+      parseMarkdownIntoBlocksFn={parseStreamdownAsSingleDocument}
       parseIncompleteMarkdown={streamMode}
       isAnimating={streamMode}
       animated={false}
