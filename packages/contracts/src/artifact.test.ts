@@ -69,6 +69,19 @@ describe('default artifact decision prompt', () => {
       expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain(alias);
     }
   });
+
+  it('routes short Markdown, dense Inline Artifact, and prototype Canvas', () => {
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
+      'Short explanations that fit in one or two paragraphs stay ordinary Markdown',
+    );
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
+      'an `artifact-html` fence without `surface="canvas"`',
+    );
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).toContain(
+      'App prototypes, multi-step local workflows, and coordinated workspaces declare `surface="canvas"`',
+    );
+    expect(DEFAULT_ARTIFACT_DECISION_PROMPT).not.toContain('```artifact-html');
+  });
 });
 
 describe('artifact protocol formatter', () => {
@@ -77,6 +90,9 @@ describe('artifact protocol formatter', () => {
     expect(protocol).toBe(ARTIFACT_RUNTIME_CONTRACT);
     expect(protocol).toContain('## HTML Artifact Runtime Contract');
     expect(protocol).toContain('```artifact-html title="Short descriptive title"');
+    expect(protocol).toContain(
+      '```artifact-html title="Short descriptive title" surface="canvas"',
+    );
     expect(protocol).toContain('surface="canvas"');
     expect(protocol).toContain('--piwin-artifact-');
     for (const alias of PARSER_ONLY_ALIASES) {

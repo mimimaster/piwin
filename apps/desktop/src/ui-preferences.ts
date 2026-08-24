@@ -120,11 +120,9 @@ export type DesktopPreferences = {
   codeWrap: boolean;
   toolDensity: ToolCallDensity;
   workDetailsExpanded: WorkDetailsExpanded;
-  /** Always enabled by default */
-  artifactPreviewEnabled: boolean;
   /**
-   * When true, artifact blocks display source code first with a preview toggle on hover.
-   * When false (default), artifact blocks immediately render dynamic UI.
+   * When true, Inline artifact blocks display source first with a Preview toggle.
+   * Explicit Canvas still auto-opens. Capability is `config.artifact.enabled`.
    */
   artifactCodeFirst: boolean;
   /** Keep intermediate Agent thinking in the transcript. */
@@ -150,7 +148,6 @@ const ASSISTANT_TEXT_SIZE_KEY = 'piwin.desktop.assistantTextSize';
 const CODE_TEXT_SIZE_KEY = 'piwin.desktop.codeTextSize';
 const CODE_WRAP_KEY = 'piwin.desktop.codeWrap';
 const WORK_DETAILS_EXPANDED_KEY = 'piwin.desktop.workDetailsExpanded';
-const ARTIFACT_PREVIEW_KEY = 'piwin.desktop.artifactPreviewEnabled';
 const ARTIFACT_CODE_FIRST_KEY = 'piwin.desktop.artifactCodeFirst';
 const VERBOSE_AGENT_CHAT_KEY = 'piwin.desktop.verboseAgentChat';
 const CONVERSATION_WIDTH_KEY = 'piwin.desktop.conversationWidth';
@@ -294,7 +291,6 @@ export function loadDesktopPreferences(): DesktopPreferences {
     codeWrap: readString(CODE_WRAP_KEY) === 'true',
     toolDensity: parseToolCallDensity(readString(TOOL_DENSITY_KEY)),
     workDetailsExpanded: parseWorkDetails(readString(WORK_DETAILS_EXPANDED_KEY)),
-    artifactPreviewEnabled: true,
     artifactCodeFirst: parseBoolean(readString(ARTIFACT_CODE_FIRST_KEY), false),
     verboseAgentChat: parseBoolean(readString(VERBOSE_AGENT_CHAT_KEY), true),
     conversationWidth: parseConversationWidth(readString(CONVERSATION_WIDTH_KEY)),
@@ -321,7 +317,6 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(CODE_TEXT_SIZE_KEY, prefs.codeTextSize);
   writeString(CODE_WRAP_KEY, String(prefs.codeWrap));
   writeString(WORK_DETAILS_EXPANDED_KEY, prefs.workDetailsExpanded);
-  writeString(ARTIFACT_PREVIEW_KEY, 'true');
   writeString(ARTIFACT_CODE_FIRST_KEY, String(prefs.artifactCodeFirst));
   writeString(VERBOSE_AGENT_CHAT_KEY, String(prefs.verboseAgentChat));
   writeString(CONVERSATION_WIDTH_KEY, prefs.conversationWidth);

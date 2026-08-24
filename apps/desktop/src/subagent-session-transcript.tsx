@@ -48,7 +48,7 @@ export type SubagentSessionTranscriptProps = {
   onOpenDocument?: (input: DocumentOpenInput) => void;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  artifactPreviewEnabled?: boolean;
+  artifactPreviewEnabled: boolean;
   artifactMaxBytes?: number;
   onPermission?: (
     prompt: import('./chat-reducer').PermissionPromptUi,
@@ -91,7 +91,7 @@ function SubagentInspectorAssistant({
   onOpenDocument?: (input: DocumentOpenInput) => void;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
-  artifactPreviewEnabled?: boolean;
+  artifactPreviewEnabled: boolean;
   artifactMaxBytes?: number;
 }): ReactElement {
   const imageGenerationStatus = getGenerationStatus(message, 'image');
@@ -119,7 +119,7 @@ function SubagentInspectorAssistant({
             renderingPhase={streaming ? 'streaming' : 'completed'}
             showStreamingCaret={streaming && message.text.trim().length > 0}
             locale={locale}
-            {...(artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+            artifactPreviewEnabled={artifactPreviewEnabled}
             {...(artifactMaxBytes !== undefined ? { artifactMaxBytes } : {})}
             {...(onArtifactAction ? { onArtifactAction } : {})}
             {...(childSessionId
@@ -354,7 +354,7 @@ function sharedAssistantProps(props: SubagentSessionTranscriptProps) {
     ...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {}),
     ...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {}),
     ...(props.onOpenArtifactCanvas ? { onOpenArtifactCanvas: props.onOpenArtifactCanvas } : {}),
-    ...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true as const } : {}),
+    artifactPreviewEnabled: props.artifactPreviewEnabled,
     ...(props.artifactMaxBytes !== undefined ? { artifactMaxBytes: props.artifactMaxBytes } : {}),
   };
 }

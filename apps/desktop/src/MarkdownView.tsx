@@ -67,7 +67,8 @@ type MarkdownViewProps = {
   /** Opens an explicitly declared Canvas artifact in the workspace panel. */
   onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   /**
-   * When true (default), HTML Artifact capability is enabled.
+   * Artifact capability. Workbench forwards `config.artifact.enabled`.
+   * Isolated tests may omit it (defaults to true).
    */
   artifactPreviewEnabled?: boolean;
   /**

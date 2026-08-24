@@ -349,7 +349,7 @@ export function ConversationResponseContent(props: {
   configProviders?: readonly ModelProviderConfig[];
   usageChip?: ConversationUsageChipData | null;
   isStreaming?: boolean;
-  artifactPreviewEnabled?: boolean;
+  artifactPreviewEnabled: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
@@ -539,7 +539,7 @@ export function ConversationResponseContent(props: {
           artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
           showStreamingCaret={props.showStreamingCaret}
           locale={locale}
-          {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+          artifactPreviewEnabled={props.artifactPreviewEnabled}
           {...(props.artifactCodeFirst !== undefined
             ? { artifactCodeFirst: props.artifactCodeFirst }
             : {})}

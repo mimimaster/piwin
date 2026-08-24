@@ -70,7 +70,6 @@ describe('DesktopPreferences loading', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: true,
       artifactCodeFirst: false,
       verboseAgentChat: true,
       conversationWidth: 'default',
@@ -95,7 +94,6 @@ describe('DesktopPreferences loading', () => {
       codeWrap: true,
       toolDensity: 'compact',
       workDetailsExpanded: 'always',
-      artifactPreviewEnabled: true,
       artifactCodeFirst: true,
       verboseAgentChat: true,
       conversationWidth: 'default',
@@ -114,7 +112,6 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.codeWrap).toBe(false);
     expect(prefs.toolDensity).toBe('comfortable');
     expect(prefs.workDetailsExpanded).toBe('auto');
-    expect(prefs.artifactPreviewEnabled).toBe(true);
     expect(prefs.artifactCodeFirst).toBe(false);
     expect(prefs.conversationWidth).toBe('default');
   });
@@ -151,7 +148,6 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.codeWrap).toBe(false);
     expect(prefs.toolDensity).toBe('comfortable');
     expect(prefs.workDetailsExpanded).toBe('auto');
-    expect(prefs.artifactPreviewEnabled).toBe(true);
     expect(prefs.artifactCodeFirst).toBe(false);
     expect(prefs.conversationWidth).toBe('default');
   });
@@ -180,7 +176,6 @@ describe('DesktopPreferences saving and roundtrip', () => {
       codeWrap: true,
       toolDensity: 'compact',
       workDetailsExpanded: 'collapsed',
-      artifactPreviewEnabled: true,
       artifactCodeFirst: true,
       verboseAgentChat: false,
       conversationWidth: 'narrow',
@@ -211,7 +206,6 @@ describe('DesktopPreferences saving and roundtrip', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: true,
       artifactCodeFirst: false,
       verboseAgentChat: true,
       conversationWidth: 'default',
@@ -343,7 +337,6 @@ describe('artifactCodeFirst', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: true,
       artifactCodeFirst: true,
       verboseAgentChat: true,
       conversationWidth: 'wide',
@@ -362,5 +355,18 @@ describe('artifactCodeFirst', () => {
       },
     });
     expect(loadDesktopPreferences().artifactCodeFirst).toBe(true);
+  });
+
+  it('does not persist a desktop artifactPreviewEnabled preference', () => {
+    const prefs = loadDesktopPreferences();
+    expect('artifactPreviewEnabled' in prefs).toBe(false);
+    saveDesktopPreferences(prefs);
+    expect(localStorage.getItem(`piwin.desktop.${'artifactPreviewEnabled'}`)).toBeNull();
+  });
+
+  it('ignores a leftover artifactPreviewEnabled localStorage key', () => {
+    setLocalStorage('artifactPreviewEnabled', 'false');
+    const prefs = loadDesktopPreferences();
+    expect('artifactPreviewEnabled' in prefs).toBe(false);
   });
 });

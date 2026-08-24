@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-03; amended 2026-08-22)
+Accepted (2026-08-03; amended 2026-08-22; amended 2026-08-24)
 
 ## Context
 
@@ -59,8 +59,11 @@ export type ArtifactSurface = 'inline' | 'canvas';
 - Inline fences do not receive a generic "Open in Canvas" action.
 - Canvas does not auto-open while a response is streaming. Streaming remains
   source-only under ADR 0005.
-- Completed Canvas launchers open the right panel only after user action.
-  Model output must not unexpectedly rearrange the shell.
+- A completed explicit `surface="canvas"` fence auto-opens the Canvas tab once
+  for the live message that was observed streaming. Hydrated history and
+  session switches do not rearrange the shell. Code-first is Inline-only and
+  does not suppress that auto-reveal. The transcript launcher reopens the same
+  stable target id without stealing keyboard focus.
 
 ### 2. Inline is the default and flows with the transcript
 
@@ -164,8 +167,9 @@ Runtime guarantees:
 - **Session-scoped**: switching sessions clears the active target so old
   session content cannot appear attached to the new conversation.
 - **Opened deliberately only**: the Canvas tab is hidden from the generic
-  right-panel home and `+` picker; it is opened from a Canvas launcher or an
-  explicit product command only.
+  right-panel home and `+` picker. It is opened from a Canvas launcher, an
+  explicit product command, or one-shot auto-reveal of a live explicit
+  `surface="canvas"` fence.
 - **Uses the existing right-panel resize system**: on desktop, opening Canvas
   ensures a useful minimum width (target 520–560 px, bounded by the existing
   viewport clamp); compact mode continues to use the 92vw overlay.
@@ -176,8 +180,8 @@ Runtime guarantees:
   classification, iframe sandbox, CSP, theme injection, external-resource
   policy, and action validation remain mandatory and identical. Canvas does not
   participate in Inline sizing or its bounded load-fallback lifecycle.
-- **Streaming stays source-only** (ADR 0005); Canvas mounts only after user
-  action on a completed message.
+- **Streaming stays source-only** (ADR 0005). A completed live explicit Canvas
+  fence auto-opens once; hydrated history does not.
 
 ### 7. Composer proposal capability
 
@@ -211,7 +215,9 @@ Ordinary `html`/`htm`/`svg` fences are not declarations, so they stay source-fir
 
 - a native component fragment may be previewed Inline after user action;
 - a native full document or viewport-coupled page may be previewed only in Canvas;
-- this is a user command, not runtime auto-promotion, and Canvas never auto-opens;
+- this is a user command, not runtime auto-promotion; native fences never
+  auto-open Canvas (explicit `surface="canvas"` still auto-reveals on live
+  completion);
 - an explicit `surface="inline"` fence that violates the Inline component
   contract remains source with a diagnostic. The UI may offer a deliberate
   Canvas preview, but runtime does not mutate the descriptor or silently reroute.

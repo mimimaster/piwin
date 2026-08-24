@@ -556,6 +556,7 @@ describe('ConversationResponseContent', () => {
         runRecordsById={{}}
         activeRunId={null}
         locale="zh-CN"
+        artifactPreviewEnabled={true}
         showHeader={false}
       />,
     );
