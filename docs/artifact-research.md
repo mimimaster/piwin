@@ -26,8 +26,9 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   copy/export use original model source.
 - **Code-first is Inline-only.** Explicit `surface="canvas"` still auto-reveals
   once on live completion when capability is on.
-- **Streaming:** ordinary code and Mermaid stay source. HTML/SVG may
-  stream-preview in one sandbox iframe; identity is sticky
+- **Streaming:** ordinary code, Mermaid, and native `html`/`htm`/`svg` stay
+  source. Explicit Inline HTML/SVG may stream-preview in one sandbox iframe
+  from the first recognizable fence; identity is sticky
   (`<messageId>-artifact-<ordinal>`). Canvas launchers stay source while
   streaming.
 - **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
