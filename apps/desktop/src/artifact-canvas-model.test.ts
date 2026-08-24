@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { indexArtifactFences } from '@piwin/artifact';
+import { collectMobileArtifacts } from '../../mobile/src/mobile-artifact-preview';
 import {
   buildArtifactCanvasTargetId,
   collectArtifactCanvasTargets,
@@ -89,6 +90,51 @@ describe('createArtifactCanvasTarget', () => {
 });
 
 describe('collectArtifactCanvasTargets', () => {
+  it('agrees with the fence index and Mobile collector on ordinal, metadata, and source', () => {
+    const markdown = [
+      '```artifact-html title="Inline card"',
+      '<section><h1>Hello</h1></section>',
+      '```',
+      '',
+      '```artifact-html title="Workspace" surface="canvas"',
+      '<main>workspace</main>',
+      '```',
+    ].join('\n');
+    const fences = indexArtifactFences(markdown);
+    const mobile = collectMobileArtifacts(markdown);
+    const canvas = collectArtifactCanvasTargets({
+      sessionId: 's1',
+      messageId: 'm1',
+      markdown,
+    });
+
+    expect(fences).toHaveLength(2);
+    expect(fences.map((fence) => fence.ordinal)).toEqual([0, 1]);
+    expect(fences.map((fence) => fence.source)).toEqual([
+      '<section><h1>Hello</h1></section>',
+      '<main>workspace</main>',
+    ]);
+    expect(fences[0]?.info).toContain('title="Inline card"');
+    expect(fences[1]?.info).toContain('surface="canvas"');
+
+    expect(mobile).toHaveLength(2);
+    expect(mobile.map((item) => item.title)).toEqual(['Inline card', 'Workspace']);
+    expect(mobile.map((item) => item.decision.descriptor.source)).toEqual(
+      fences.map((fence) => fence.source),
+    );
+    expect(mobile.map((item) => item.decision.descriptor.surface)).toEqual(['inline', 'canvas']);
+
+    expect(canvas).toHaveLength(1);
+    expect(canvas[0]).toMatchObject({
+      fenceIndex: 1,
+      title: 'Workspace',
+      source: '<main>workspace</main>',
+      surface: 'canvas',
+    });
+    expect(canvas[0]?.fenceIndex).toBe(fences[1]?.ordinal);
+    expect(canvas[0]?.source).toBe(fences[1]?.source);
+  });
+
   it('uses the shared fence index ordinals and returns only explicit Canvas declarations', () => {
     const markdown = [
       '```ts',

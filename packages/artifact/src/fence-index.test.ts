@@ -1,16 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getArtifactFixture } from '../fixtures/index.js';
 import { indexArtifactFences } from './fence-index.js';
 import { parseFenceSurface, parseFenceTitle } from './fence-syntax.js';
-
-function identity(markdown: string) {
-  return indexArtifactFences(markdown).map((fence) => ({
-    ordinal: fence.ordinal,
-    info: fence.info,
-    language: fence.language,
-    source: fence.source,
-  }));
-}
 
 describe('indexArtifactFences', () => {
   it('indexes a backtick fence at offset 0', () => {
@@ -118,16 +108,4 @@ describe('indexArtifactFences', () => {
     expect(fence?.source).toBe('<div></div>');
   });
 
-  it('yields the same identity fields for a fixture used by Desktop and Mobile collectors', () => {
-    const fixture = getArtifactFixture('explicit-canvas');
-    const fields = identity(fixture.markdown);
-    expect(fields).toEqual(identity(fixture.markdown));
-    expect(fields).toHaveLength(1);
-    expect(fields[0]).toMatchObject({
-      ordinal: 0,
-      language: 'artifact-html',
-      source: fixture.source,
-    });
-    expect(fields[0]?.info).toContain('surface="canvas"');
-  });
 });

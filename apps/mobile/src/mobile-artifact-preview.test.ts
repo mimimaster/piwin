@@ -28,6 +28,27 @@ describe('collectMobileArtifacts', () => {
     }
   });
 
+  it('keeps Mobile ordinals and source aligned with the shared fence index', () => {
+    const text = [
+      '```artifact-html title="Inline card"',
+      '<section><h1>Hello</h1></section>',
+      '```',
+      '',
+      '```artifact-html title="Workspace" surface="canvas"',
+      '<main>workspace</main>',
+      '```',
+    ].join('\n');
+    const fences = indexArtifactFences(text);
+    const items = collectMobileArtifacts(text);
+    expect(fences.map((fence) => fence.ordinal)).toEqual([0, 1]);
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.title)).toEqual(['Inline card', 'Workspace']);
+    expect(items.map((item) => item.decision.descriptor.source)).toEqual(
+      fences.map((fence) => fence.source),
+    );
+    expect(items.map((item) => item.decision.descriptor.surface)).toEqual(['inline', 'canvas']);
+  });
+
   it('blocks external resources instead of rendering them', () => {
     const text = [
       '```artifact-html',

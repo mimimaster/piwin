@@ -133,6 +133,29 @@ describe('MarkdownView artifact preview policy', () => {
     expect(wrapper?.querySelector('iframe')).toBeNull();
   });
 
+  it('assigns distinct canonical ordinals to two artifact fences', () => {
+    const text = [
+      '```artifact-html title="First"',
+      '<section><h1>One</h1></section>',
+      '```',
+      '',
+      '```artifact-html title="Second"',
+      '<section><h1>Two</h1></section>',
+      '```',
+    ].join('\n');
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={text}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-two', messageId: 'message-two' }}
+      />,
+    );
+    const ids = [...container.querySelectorAll('[data-artifact-id]')].map((element) =>
+      element.getAttribute('data-artifact-id'),
+    );
+    expect(ids).toEqual(['message-two-artifact-0', 'message-two-artifact-1']);
+  });
+
   it('routes an explicit Canvas fence to a launcher with stable message origin', () => {
     const onOpenArtifactCanvas = vi.fn();
     const { container } = renderMarkdown(

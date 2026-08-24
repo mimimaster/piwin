@@ -27,7 +27,8 @@ export type MarkdownCodeFenceProps = {
   fenceInfo: string;
   source: string;
   htmlUiModeEnabled: boolean;
-  fenceIndex: number;
+  /** Canonical index ordinal. Null means this fence is not bound — render as ordinary code. */
+  fenceIndex: number | null;
   renderingPhase: MarkdownRenderingPhase;
   artifactTheme?: ArtifactThemeVariables;
   initPriority: number;
@@ -204,11 +205,12 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
   const nativeSourceFence = /^(?:html|htm|svg)$/i.test(props.language.trim());
+  const boundFenceIndex = props.fenceIndex;
   // Freeze fence identity on first mount. Source growth must not remount an iframe.
   const stickyFenceIdRef = useRef<string | null>(null);
-  if (stickyFenceIdRef.current === null) {
+  if (stickyFenceIdRef.current === null && boundFenceIndex !== null) {
     const origin = props.artifactOrigin?.messageId ?? 'local';
-    stickyFenceIdRef.current = `${origin}-artifact-${props.fenceIndex}`;
+    stickyFenceIdRef.current = `${origin}-artifact-${boundFenceIndex}`;
   }
   const stickyFenceId = stickyFenceIdRef.current;
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
@@ -234,6 +236,17 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
 
   if (isMathFenceLanguage(props.language)) {
     return <MathView tex={props.source} display />;
+  }
+
+  if (boundFenceIndex === null || stickyFenceId === null) {
+    return (
+      <SourceCodeBlock
+        language={props.language}
+        source={props.source}
+        isShell={isShellLanguage(props.language)}
+        streaming={streamMode}
+      />
+    );
   }
 
   const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
@@ -340,7 +353,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
     ) {
       const target = createArtifactCanvasTarget({
         ...props.artifactOrigin,
-        fenceIndex: props.fenceIndex,
+        fenceIndex: boundFenceIndex,
         descriptor: decision.descriptor,
       });
       return (
@@ -365,7 +378,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
       props.onOpenArtifactCanvas(
         createArtifactCanvasTarget({
           ...props.artifactOrigin,
-          fenceIndex: props.fenceIndex,
+          fenceIndex: boundFenceIndex,
           descriptor: decision.descriptor,
         }),
       );
@@ -392,6 +405,7 @@ function CodeFenceView(props: MarkdownCodeFenceProps): ReactElement {
             ? 'artifact-with-source artifact-with-source--preview'
             : 'artifact-with-source'
         }
+        data-artifact-id={stickyFenceId}
       >
         {artifactPreviewOpen && canPreviewInline ? (
           <>

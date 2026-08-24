@@ -11,8 +11,10 @@ import {
 import { cjk } from '@streamdown/cjk';
 import { createMathPlugin } from '@streamdown/math';
 import {
+  STREAMING_ARTIFACT_FENCE_MARKER,
   projectArtifactMarkdownForRender,
   type ArtifactActionMessage,
+  type ArtifactFenceRecord,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { Streamdown, type Components, type ExtraProps } from 'streamdown';
@@ -160,7 +162,36 @@ type StreamdownRendererOptions = {
   projectPath: string | null | undefined;
   /** Canonical fence ordinal keyed by Streamdown `node.position.start.offset`. */
   ordinalByProjectedStartOffset: ReadonlyMap<number, number>;
+  fences: readonly ArtifactFenceRecord[];
 };
+
+function lookupIndexedFence(
+  options: StreamdownRendererOptions,
+  startOffset: number | undefined,
+): ArtifactFenceRecord | null {
+  if (typeof startOffset !== 'number') {
+    return null;
+  }
+  const ordinal = options.ordinalByProjectedStartOffset.get(startOffset);
+  if (ordinal === undefined) {
+    return null;
+  }
+  return options.fences.find((fence) => fence.ordinal === ordinal) ?? null;
+}
+
+function streamingFenceInfo(record: ArtifactFenceRecord, streaming: boolean): string {
+  if (!streaming || !record.open) {
+    return record.info;
+  }
+  const alias = record.language.toLowerCase();
+  if (alias !== 'html' && alias !== 'htm' && alias !== 'svg') {
+    return record.info;
+  }
+  if (record.info.includes(STREAMING_ARTIFACT_FENCE_MARKER)) {
+    return record.info;
+  }
+  return `${record.info} ${STREAMING_ARTIFACT_FENCE_MARKER}`;
+}
 
 type StreamdownElementProps<Tag extends keyof JSX.IntrinsicElements> = ComponentProps<Tag> &
   ExtraProps;
@@ -348,26 +379,22 @@ function createStreamdownComponents(optionsRef: {
       );
     }
 
-    const source = plainTextFromReactNode(children).replace(/\n$/, '');
-    const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
-    const language = languageMatch?.[1] ?? '';
-    const rawMetadata = node?.properties?.['metastring'];
-    const metadata = typeof rawMetadata === 'string' ? rawMetadata.trim() : '';
-    const fenceInfo = metadata ? `${language} ${metadata}` : language;
     const startOffset = node?.position?.start?.offset;
-    const ordinal =
-      typeof startOffset === 'number'
-        ? (options.ordinalByProjectedStartOffset.get(startOffset) ?? 0)
-        : 0;
+    const record = lookupIndexedFence(options, startOffset);
     const originKey = options.artifactOrigin?.messageId ?? 'local';
+    const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
+    const fallbackLanguage = languageMatch?.[1] ?? '';
     const fenceProps: MarkdownCodeFenceProps = {
-      language,
-      fenceInfo,
-      source,
+      language: record?.language ?? fallbackLanguage,
+      fenceInfo: record
+        ? streamingFenceInfo(record, options.phase === 'streaming')
+        : fallbackLanguage,
+      source: record?.source ?? plainTextFromReactNode(children).replace(/\n$/, ''),
       htmlUiModeEnabled: options.htmlUiModeEnabled,
-      fenceIndex: ordinal,
+      fenceIndex: record?.ordinal ?? null,
       renderingPhase: options.phase,
-      initPriority: options.initPriorityBase + ordinal,
+      initPriority:
+        record === null ? options.initPriorityBase : options.initPriorityBase + record.ordinal,
       artifactThemeKey: options.artifactThemeKey,
       artifactPreviewEnabled: options.artifactPreviewEnabled,
       artifactCodeFirst: options.artifactCodeFirst,
@@ -383,7 +410,11 @@ function createStreamdownComponents(optionsRef: {
       fenceProps.artifactMaxBytes = options.artifactMaxBytes;
     }
     // Stable React key (owi __displayKey): never include source body.
-    return <MarkdownCodeFence key={`${originKey}:artifact-${ordinal}`} {...fenceProps} />;
+    const fenceKey =
+      record === null
+        ? `${originKey}:code-unbound:${typeof startOffset === 'number' ? String(startOffset) : 'none'}`
+        : `${originKey}:artifact-${record.ordinal}`;
+    return <MarkdownCodeFence key={fenceKey} {...fenceProps} />;
   };
 
   const renderAnchor = ({
@@ -648,6 +679,7 @@ export function MarkdownView({
     artifactMaxBytes,
     locale,
     ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
+    fences: artifactProjection.fences,
     onOpenDocument,
     projectPath,
   });
@@ -665,6 +697,7 @@ export function MarkdownView({
     artifactMaxBytes,
     locale,
     ordinalByProjectedStartOffset: artifactProjection.ordinalByProjectedStartOffset,
+    fences: artifactProjection.fences,
     onOpenDocument,
     projectPath,
   };
