@@ -57,6 +57,8 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('window.ResizeObserver');
     expect(srcdoc).toContain('heightObserver.observe(root)');
     expect(srcdoc).toContain('root.getBoundingClientRect().height');
+    expect(srcdoc).not.toContain('document.body.getBoundingClientRect');
+    expect(srcdoc).not.toContain('document.documentElement.scrollHeight');
     expect(srcdoc).toContain('revision: sizeRevision');
     expect(srcdoc).toContain('height === lastReportedHeight');
     expect(srcdoc).not.toContain("window.addEventListener('resize', scheduleHeight)");
@@ -116,6 +118,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('html[data-frame-mode="canvas"]');
     expect(srcdoc).toContain('overflow-y: auto !important');
     expect(srcdoc).toContain('overflow: hidden !important');
+    expect(srcdoc).toContain('overscroll-behavior: contain !important');
     expect(srcdoc).not.toContain('<div class="piwin-artifact-root">');
     expect(srcdoc).toContain("currentFrameMode !== 'canvas'");
   });
@@ -255,6 +258,53 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(session.scriptActivateCount()).toBe(1);
     expect(session.observerCount()).toBe(0);
   });
+
+  it('posts at most one distinct height per animation frame', () => {
+    const root = createMeasuredRoot(240);
+    const session = runBridgeSession(root);
+    expect(session.messages).toHaveLength(1);
+
+    root.height = 300;
+    session.observeWithoutFlush();
+    root.height = 360;
+    session.observeWithoutFlush();
+    expect(session.messages).toHaveLength(1);
+
+    session.flushAnimationFrames();
+    expect(session.messages).toEqual([
+      expect.objectContaining({ height: 240, revision: 0 }),
+      expect.objectContaining({ height: 360, revision: 1 }),
+    ]);
+  });
+
+  it('switches flow to overflow: data-frame-mode, observer disconnect, no downgrade', () => {
+    const root = createMeasuredRoot(20_000);
+    const session = runBridgeSession(root, { enableRenderCommand: true });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-flow');
+    expect(session.messages.at(-1)).toMatchObject({ height: 20_000, revision: 0 });
+    expect(session.observerCount()).toBe(1);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 0,
+      source: '<div>tall</div>',
+      frameMode: 'inline-overflow',
+      final: false,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-overflow');
+    expect(session.observerCount()).toBe(0);
+
+    session.dispatchRenderCommand({
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId: 'test-channel',
+      revision: 1,
+      source: '<div>back</div>',
+      frameMode: 'inline-flow',
+      final: false,
+    });
+    expect(session.documentElement.attributes['data-frame-mode']).toBe('inline-overflow');
+  });
 });
 
 type MeasuredRoot = {
@@ -287,6 +337,8 @@ function runBridgeSession(
   observerCount: () => number;
   listenerCount: () => number;
   scriptActivateCount: () => number;
+  observeWithoutFlush: () => void;
+  flushAnimationFrames: () => void;
   remeasure: () => void;
   dispatchRenderCommand: (data: unknown) => void;
 } {
@@ -401,6 +453,10 @@ function runBridgeSession(
     observerCount: () => resizeCallbacks.size,
     listenerCount: () => messageListeners.length,
     scriptActivateCount: () => scriptActivations,
+    observeWithoutFlush: (): void => {
+      for (const callback of [...resizeCallbacks]) callback();
+    },
+    flushAnimationFrames,
     remeasure: (): void => {
       for (const callback of [...resizeCallbacks]) callback();
       flushAnimationFrames();

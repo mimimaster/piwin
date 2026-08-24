@@ -78,6 +78,7 @@ export function ArtifactFrame({
         <ArtifactStatic
           source={document.source}
           type={plan.intent.descriptor.type}
+          locale={locale}
           {...(theme ? { theme } : {})}
         />
       </div>

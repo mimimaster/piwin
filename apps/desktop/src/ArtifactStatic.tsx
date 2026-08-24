@@ -1,11 +1,17 @@
-import { useLayoutEffect, useMemo, useRef, type ReactElement } from 'react';
-import type { ArtifactThemeVariables } from '@piwin/artifact';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  resolveArtifactViewportFrameHeight,
+  shouldEnterArtifactInlineOverflow,
+  type ArtifactThemeVariables,
+} from '@piwin/artifact';
+import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
 import { sanitizeStaticArtifactSource } from './artifact-static-sanitizer.js';
 
 export type ArtifactStaticProps = {
   source: string;
   type: 'html' | 'svg';
   theme?: ArtifactThemeVariables;
+  locale?: 'zh-CN' | 'en';
 };
 
 const ARTIFACT_THEME_VARIABLES = [
@@ -26,7 +32,7 @@ const STATIC_ARTIFACT_BASE_CSS = `
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  contain: layout paint;
+  contain: layout;
   color: var(--piwin-artifact-text, inherit);
   font-family: var(--piwin-artifact-font, inherit);
 }
@@ -40,7 +46,8 @@ const STATIC_ARTIFACT_BASE_CSS = `
   min-width: 0;
   max-width: 100%;
   padding: 4px 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   overflow-wrap: break-word;
   background: transparent;
   color: var(--piwin-artifact-text, inherit);
@@ -94,8 +101,14 @@ function buildThemeCss(theme: ArtifactThemeVariables | undefined): string {
  * Render inert Artifact markup in normal transcript flow. Shadow DOM isolates
  * model CSS; DOMPurify is defense-in-depth after the render plan chooses static.
  */
-export function ArtifactStatic({ source, type, theme }: ArtifactStaticProps): ReactElement {
+export function ArtifactStatic({
+  source,
+  type,
+  theme,
+  locale = 'en',
+}: ArtifactStaticProps): ReactElement {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const [overflows, setOverflows] = useState(false);
   const sanitizedSource = useMemo(() => sanitizeStaticArtifactSource(source), [source]);
   const themeCss = useMemo(() => buildThemeCss(theme), [theme]);
 
@@ -110,14 +123,58 @@ export function ArtifactStatic({ source, type, theme }: ArtifactStaticProps): Re
     content.className = 'piwin-artifact-root';
     content.innerHTML = sanitizedSource;
     shadowRoot.replaceChildren(baseStyle, content);
+    const measure = (): void => {
+      setOverflows(shouldEnterArtifactInlineOverflow(content.getBoundingClientRect().height));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    return () => observer.disconnect();
   }, [sanitizedSource, themeCss]);
+
+  const chrome = resolveArtifactViewportFrameHeight(
+    typeof window === 'undefined' ? 640 : window.innerHeight,
+  );
+  const hint = artifactOverflowHintCopy(locale);
 
   return (
     <div
-      ref={hostRef}
-      className="artifact-static"
-      data-testid="artifact-static"
-      data-artifact-type={type}
-    />
+      className={overflows ? 'artifact-static-overflow-shell' : undefined}
+      {...(overflows
+        ? {
+            'data-testid': 'artifact-static-overflow-shell',
+            tabIndex: 0,
+            role: 'region',
+            'aria-label': hint,
+            style: {
+              height: chrome,
+              maxHeight: chrome,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              overscrollBehavior: 'contain',
+            },
+          }
+        : {})}
+    >
+      {overflows ? (
+        <p
+          className="artifact-overflow-hint"
+          data-testid="artifact-overflow-hint"
+          role="status"
+          aria-live="polite"
+        >
+          {hint}
+        </p>
+      ) : null}
+      <div
+        ref={hostRef}
+        className="artifact-static"
+        data-testid="artifact-static"
+        data-artifact-type={type}
+      />
+    </div>
   );
 }

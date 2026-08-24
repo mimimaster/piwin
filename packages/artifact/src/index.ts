@@ -114,6 +114,7 @@ export {
   normalizeArtifactHeight,
   clampArtifactHeight,
   resolveArtifactViewportFrameHeight,
+  shouldEnterArtifactInlineOverflow,
 } from './height-policy.js';
 
 export { parseSvgFenceIntrinsicSize, estimateSvgFenceHeight } from './svg-intrinsic-size.js';

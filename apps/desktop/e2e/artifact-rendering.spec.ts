@@ -4,12 +4,11 @@
  * hide `#/e2e/artifacts`; use PIWIN_E2E_PORT to start a dedicated server.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { MAX_ARTIFACT_INLINE_FLOW_HEIGHT } from '@piwin/artifact';
+import { resolveArtifactViewportFrameHeight } from '@piwin/artifact';
 import { ARTIFACT_TRAILING_MARKDOWN } from '@piwin/artifact/fixtures';
 
 const GALLERY = '/#/e2e/artifacts';
 const MAX_TRAILING_GAP_PX = 120;
-const INLINE_FLOW_CAP_PX = `${String(MAX_ARTIFACT_INLINE_FLOW_HEIGHT)}px`;
 
 async function openFixture(page: Page, id: string): Promise<Locator> {
   await page.setViewportSize({ width: 1280, height: 840 });
@@ -52,12 +51,18 @@ async function trailingGapPx(section: Locator, artifact: Locator): Promise<numbe
 async function userScrollIframeToBottom(
   page: Page,
   css: string,
-): Promise<{ overflowY: string; scrollTop: number }> {
-  return page.frameLocator(css).locator(':root').evaluate(() => {
-    const scrolling = document.scrollingElement ?? document.documentElement;
+): Promise<{ overflowY: string; htmlOverflowY: string; scrollTop: number }> {
+  return page.frameLocator(css).locator('body').evaluate((body) => {
+    const html = document.documentElement;
+    const bodyOverflowY = getComputedStyle(body).overflowY;
+    const scrolling =
+      bodyOverflowY === 'auto' || bodyOverflowY === 'scroll'
+        ? body
+        : (document.scrollingElement ?? html);
     scrolling.scrollTop = scrolling.scrollHeight;
     return {
       overflowY: getComputedStyle(scrolling).overflowY,
+      htmlOverflowY: getComputedStyle(html).overflowY,
       scrollTop: scrolling.scrollTop,
     };
   });
@@ -135,33 +140,46 @@ test('6,000px flow: iframe last marker is reachable and trailing Markdown is con
   expect(gap).toBeLessThan(MAX_TRAILING_GAP_PX);
 });
 
-test('20,000px overflow clamps the Inline stage at 16384px with overflow hidden', async ({
+test('20,000px overflow uses host viewport chrome instead of a 16384px hidden crop', async ({
   page,
 }) => {
   const section = await openFixture(page, 'overflow-20000');
   await waitForSandboxFrame(section);
+  const frame = section.getByTestId('artifact-frame');
+  await expect(frame).toHaveAttribute('data-frame-mode', 'inline-overflow', { timeout: 15_000 });
+  const chromePx = `${String(resolveArtifactViewportFrameHeight(840))}px`;
   const stage = section.locator('.artifact-iframe-stage');
-  await expect(stage).toHaveCSS('overflow', 'hidden');
-  await expect(stage).toHaveCSS('height', INLINE_FLOW_CAP_PX);
-  await expect(stage).toHaveCSS('max-height', INLINE_FLOW_CAP_PX);
+  await expect(stage).toHaveCSS('height', chromePx);
+  await expect(stage).toHaveCSS('max-height', chromePx);
+  await expect(section.getByTestId('artifact-overflow-hint')).toBeVisible();
   const gap = await trailingGapPx(section, section.getByTestId('artifact-frame'));
   expect(gap).toBeGreaterThanOrEqual(0);
   expect(gap).toBeLessThan(MAX_TRAILING_GAP_PX);
 });
 
-test.fail(
-  '20,000px overflow: end marker intersects the iframe viewport after a user-like scroll',
-  async ({ page }) => {
-    const section = await openFixture(page, 'overflow-20000');
-    await waitForSandboxFrame(section);
-    const css = iframeCss('overflow-20000', false);
-    const scroll = await userScrollIframeToBottom(page, css);
-    expect(scroll.overflowY).toBe('auto');
-    expect(
-      await markerIntersectsIframeViewport(page, css, '[data-artifact-end="overflow-20000"]'),
-    ).toBe(true);
-  },
-);
+test('20,000px overflow: end marker intersects the iframe viewport after a user-like scroll', async ({
+  page,
+}) => {
+  const section = await openFixture(page, 'overflow-20000');
+  await waitForSandboxFrame(section);
+  await expect(section.getByTestId('artifact-frame')).toHaveAttribute(
+    'data-frame-mode',
+    'inline-overflow',
+    { timeout: 15_000 },
+  );
+  const css = iframeCss('overflow-20000', false);
+  await expect(page.frameLocator(css).locator('html')).toHaveAttribute(
+    'data-frame-mode',
+    'inline-overflow',
+    { timeout: 15_000 },
+  );
+  const scroll = await userScrollIframeToBottom(page, css);
+  expect(scroll.htmlOverflowY).toBe('hidden');
+  expect(scroll.overflowY).toBe('auto');
+  expect(
+    await markerIntersectsIframeViewport(page, css, '[data-artifact-end="overflow-20000"]'),
+  ).toBe(true);
+});
 
 test('full HTML document stays source-first with trailing Markdown visible', async ({ page }) => {
   const section = await openFixture(page, 'full-html-document');

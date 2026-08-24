@@ -151,8 +151,10 @@ describe('ArtifactCanvasPanel', () => {
     const src = iframe?.getAttribute('src') ?? '';
     const encoded = src.slice(src.indexOf('base64,') + 'base64,'.length);
     const srcdoc = atob(encoded);
-    expect(srcdoc).toContain('overflow-x: auto !important');
+    expect(srcdoc).toContain('overflow: hidden !important');
+    expect(srcdoc).toContain('overflow-x: hidden !important');
     expect(srcdoc).toContain('overflow-y: auto !important');
+    expect(srcdoc).toContain('overscroll-behavior: contain !important');
     expect(analysis.intent.layout).toBe('viewport');
     expect(analysis.intent.surface).toBe('inline');
   });

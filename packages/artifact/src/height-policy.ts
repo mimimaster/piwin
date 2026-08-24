@@ -3,6 +3,7 @@ import {
   ARTIFACT_INLINE_VIEWPORT_HEIGHT_VH,
   ARTIFACT_INLINE_VIEWPORT_MAX_HEIGHT,
   ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT,
+  MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
 } from './constants.js';
 
 export function normalizeArtifactHeight(
@@ -33,4 +34,12 @@ export function resolveArtifactViewportFrameHeight(viewportHeight: number): numb
       Math.max(ARTIFACT_INLINE_VIEWPORT_MIN_HEIGHT, raw),
     ),
   );
+}
+
+/**
+ * Runtime-only overflow trigger. Analyzer / materializer never emit
+ * `inline-overflow`; the parent upgrades from raw contentHeight.
+ */
+export function shouldEnterArtifactInlineOverflow(contentHeight: number): boolean {
+  return Number.isFinite(contentHeight) && contentHeight > MAX_ARTIFACT_INLINE_FLOW_HEIGHT;
 }

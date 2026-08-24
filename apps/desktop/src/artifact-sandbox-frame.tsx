@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import {
   ARTIFACT_BOOTSTRAP_HEIGHT,
   MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
@@ -18,6 +18,7 @@ import {
   useArtifactStreamPublisher,
   type ArtifactSandboxView,
 } from './artifact-frame-stream.js';
+import { artifactOverflowHintCopy } from './artifact-overflow-hint.js';
 import { useTranscriptScrollPort } from './transcript-scroll-port.js';
 
 const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
@@ -62,6 +63,28 @@ function requestedFrameMode(
   return presentation === 'canvas' ? 'canvas' : plan.frameMode;
 }
 
+function hostOwnsViewport(frameMode: ArtifactFrameMode, overflowsInlineFlow: boolean): boolean {
+  return (
+    frameMode === 'inline-viewport' || frameMode === 'inline-overflow' || overflowsInlineFlow
+  );
+}
+
+function inlineStageStyle(
+  height: number,
+  frameMode: ArtifactFrameMode,
+  overflowsInlineFlow: boolean,
+): CSSProperties {
+  const viewport = hostOwnsViewport(frameMode, overflowsInlineFlow);
+  return {
+    minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+    height,
+    maxHeight: viewport ? height : MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
+    width: '100%',
+    overflow: 'hidden',
+    overscrollBehavior: viewport ? 'contain' : undefined,
+  };
+}
+
 export function ArtifactSandboxFrame(props: {
   plan: ArtifactSandboxPlan;
   initPriority: number;
@@ -104,6 +127,12 @@ export function ArtifactSandboxFrame(props: {
     ...(props.onComposerProposal ? { onComposerProposal: props.onComposerProposal } : {}),
     ...(scrollPort ? { onContentGrew: scrollPort.notifyContentGrew } : {}),
   });
+  useEffect(() => {
+    if (!bridge.overflowsInlineFlow) {
+      return;
+    }
+    setRuntimeFrameMode((current) => advanceArtifactFrameMode(current, 'inline-overflow'));
+  }, [bridge.overflowsInlineFlow]);
   const streamPublisher = useArtifactStreamPublisher({
     channelId,
     decision: view,
@@ -113,6 +142,8 @@ export function ArtifactSandboxFrame(props: {
     streamLifecycle: document.streamLifecycle,
   });
   const canvas = props.presentation === 'canvas';
+  const viewportChrome = hostOwnsViewport(runtimeFrameMode, bridge.overflowsInlineFlow);
+  const showOverflowHint = !canvas && viewportChrome && runtimeFrameMode !== 'inline-viewport';
   const toolStatus = bridge.status === 'ready' || bridge.status === 'fallback' ? 'done' : 'running';
   const pausedLabel =
     props.locale === 'zh-CN' ? '预览已暂停以节省内存' : 'Preview paused to save memory';
@@ -129,6 +160,7 @@ export function ArtifactSandboxFrame(props: {
       data-artifact-renderer="sandbox"
       data-artifact-layout={canvas ? 'canvas' : 'inline'}
       data-frame-mode={runtimeFrameMode}
+      data-content-height={String(bridge.contentHeight)}
       className={`artifact-frame${canvas ? ' presentation-canvas' : ''}${props.extraHeaderAction ? ' has-artifact-action' : ''}${lease.hostIframe ? '' : ' is-recycled'}`}
     >
       {props.extraHeaderAction ? (
@@ -142,7 +174,7 @@ export function ArtifactSandboxFrame(props: {
           style={{
             minHeight: Math.max(bridge.height, 88),
             height: Math.max(bridge.height, 88),
-            maxHeight: MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
+            maxHeight: viewportChrome ? bridge.height : MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
             width: '100%',
           }}
         >
@@ -160,54 +192,67 @@ export function ArtifactSandboxFrame(props: {
           </div>
         </div>
       ) : (
-        <div
-          className="artifact-iframe-stage"
-          style={
-            canvas
-              ? { minHeight: '100%', height: '100%', maxHeight: '100%', width: '100%' }
-              : {
-                  minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
-                  height: bridge.height,
-                  maxHeight: MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
-                  width: '100%',
-                  overflow: 'hidden',
-                }
-          }
-        >
-          {lease.initGranted ? (
-            <iframe
-              ref={iframeRef}
-              className="artifact-iframe"
-              title={view.descriptor.title}
-              src={document.documentUrl}
-              sandbox="allow-scripts"
-              referrerPolicy="no-referrer"
-              data-frame-mode={runtimeFrameMode}
-              onLoad={() => {
-                lease.markIframeLoaded();
-                bridge.onIframeLoad();
-                streamPublisher.onIframeLoad();
-              }}
-              style={
-                canvas
-                  ? {
-                      minHeight: '100%',
-                      height: '100%',
-                      maxHeight: '100%',
-                      width: '100%',
-                      border: 0,
-                    }
-                  : {
-                      minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
-                      height: '100%',
-                      maxHeight: '100%',
-                      width: '100%',
-                      border: 0,
-                    }
-              }
-            />
+        <>
+          {showOverflowHint ? (
+            <p
+              className="artifact-overflow-hint"
+              data-testid="artifact-overflow-hint"
+              role="status"
+              aria-live="polite"
+            >
+              {artifactOverflowHintCopy(props.locale)}
+            </p>
           ) : null}
-        </div>
+          <div
+            className="artifact-iframe-stage"
+            style={
+              canvas
+                ? {
+                    minHeight: '100%',
+                    height: '100%',
+                    maxHeight: '100%',
+                    width: '100%',
+                    overflow: 'hidden',
+                    overscrollBehavior: 'contain',
+                  }
+                : inlineStageStyle(bridge.height, runtimeFrameMode, bridge.overflowsInlineFlow)
+            }
+          >
+            {lease.initGranted ? (
+              <iframe
+                ref={iframeRef}
+                className={`artifact-iframe${viewportChrome || canvas ? ' artifact-iframe--scroll-owner' : ''}`}
+                title={view.descriptor.title}
+                src={document.documentUrl}
+                sandbox="allow-scripts"
+                referrerPolicy="no-referrer"
+                data-frame-mode={runtimeFrameMode}
+                onLoad={() => {
+                  lease.markIframeLoaded();
+                  bridge.onIframeLoad();
+                  streamPublisher.onIframeLoad();
+                }}
+                style={
+                  canvas
+                    ? {
+                        minHeight: '100%',
+                        height: '100%',
+                        maxHeight: '100%',
+                        width: '100%',
+                        border: 0,
+                      }
+                    : {
+                        minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+                        height: '100%',
+                        maxHeight: '100%',
+                        width: '100%',
+                        border: 0,
+                      }
+                }
+              />
+            ) : null}
+          </div>
+        </>
       )}
     </div>
   );
