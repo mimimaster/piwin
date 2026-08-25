@@ -26,9 +26,9 @@ ADRs: [0005](./adr/0005-artifact-and-media.md), [0029](./adr/0029-artifact-surfa
   copy/export use original model source.
 - **Code-first is Inline-only.** Explicit `surface="canvas"` still auto-reveals
   once on live completion when capability is on.
-- **Streaming:** ordinary code, Mermaid, and native `html`/`htm`/`svg` stay
-  source. Explicit Inline HTML/SVG may stream-preview in one sandbox iframe
-  from the first recognizable fence; identity is sticky
+- **Streaming:** ordinary code and Mermaid stay source. Native `html`/`htm`/`svg`
+  and explicit Inline HTML/SVG may stream-preview in one sandbox iframe from
+  the first recognizable fence; identity is sticky
   (`<messageId>-artifact-<ordinal>`). Canvas launchers stay source while
   streaming.
 - **16 384 px overflow:** Inline flow that exceeds the defensive ceiling
@@ -153,7 +153,7 @@ apps/desktop UI adapter (React/WebView)
 | Default body | Markdown (GFM-ish) |
 | Ordinary code | Always source + Copy |
 | Explicit `artifact-html` | RenderIntent; compatible Inline may auto-preview when capability is on and code-first is off |
-| Native `html`/`svg` | Source-first; Preview after user action when capability is on |
+| Native `html`/`svg` | Same default Inline path as explicit Artifact when capability is on; `artifactCodeFirst` keeps source-first |
 | Canvas | Explicit `surface="canvas"` launcher; auto-reveal on live complete |
 
 ---
@@ -221,7 +221,7 @@ dimensions: 1280x720
 ## 5. Acceptance for artifact/media MVP
 
 1. Markdown messages render cleanly
-2. Native ` ```html ` stays source-first; explicit compatible Artifact may preview Inline
+2. Native ` ```html `/` ```svg ` and explicit compatible Artifact use the default Inline path when capability is on; `artifactCodeFirst` keeps source-first
 3. Blocked states show reason (empty/too-large/external)
 4. Paste image → disk → chip → send → text model receives absolute path
 5. Chat shows image preview for that attachment
@@ -265,11 +265,10 @@ The 2026-08-22 height-chain notes and the 2026-08-24 overlay/streaming/canvas
 amendments are superseded by the convergence plan. Current contract:
 
 - Native `html`/`htm`/`svg` vs explicit `artifact-html` is recorded as
-  `declaration`. Native source stays source-first; compatible fragments preview
-  Inline after user action (or auto-preview when code-first is off and the
-  fence is explicit + flow).
-- Full documents and viewport-coupled source preview in Canvas after user
-  action; explicit `surface="canvas"` auto-reveals once on live completion.
+  `declaration`. Both compatible declarations use the default Inline path;
+  `artifactCodeFirst` is the sole source-first preference for Inline.
+- Full documents and viewport-coupled source use `inline-viewport` in the
+  transcript; explicit `surface="canvas"` auto-reveals once on live completion.
 - Canvas has no Inline height bridge. Sandboxed Inline observes one root
   rectangle and emits one revisioned size stream. Overflow above 16 384 px
   switches to `inline-overflow` with a host-owned viewport — content is not

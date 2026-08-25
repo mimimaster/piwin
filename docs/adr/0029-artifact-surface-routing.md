@@ -218,17 +218,14 @@ Canvas is only for explicit `surface="canvas"`. Runtime measurements, full
 documents, `100vh`, and four-edge fixed shells do **not** auto-promote Inline
 to Canvas.
 
-Ordinary `html`/`htm`/`svg` fences are not declarations, so they stay source-first:
-
-- a native component fragment may be previewed Inline after user action;
-- a native full document or viewport-coupled page is Previewed as
-  `inline-viewport` in the transcript, not Canvas;
-- this is a user command, not runtime auto-promotion; native fences never
-  auto-open Canvas (explicit `surface="canvas"` still auto-reveals on live
-  completion);
-- an explicit `surface="inline"` fence that needs a page viewport uses
-  `inline-viewport` rather than a Canvas reroute. The runtime does not mutate
-  the descriptor or silently change `surface`.
+Native `html`/`htm`/`svg` fences retain their `declaration: native` provenance,
+yet compatible content uses the same default Inline path as explicit Artifact
+fences when the capability is enabled. `artifactCodeFirst` is the Inline
+source-first preference. Native fences never auto-open Canvas; explicit
+`surface="canvas"` still auto-reveals on live completion. An explicit
+`surface="inline"` fence that needs a page viewport uses `inline-viewport`
+rather than a Canvas reroute. The runtime does not mutate the descriptor or
+silently change `surface`.
 
 Inline compatibility is conservative and deterministic. Full documents,
 viewport-height CSS units, JavaScript that reads viewport height, and fixed page
