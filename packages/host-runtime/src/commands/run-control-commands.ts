@@ -292,19 +292,32 @@ async function finalizePausedRun(
     await finalizeCancelledRun(context, sessionId, runId);
     return;
   }
-  const cleanupResults = await Promise.allSettled([
+  const cleanupPromise = Promise.allSettled([
     abortLiveSession(context, sessionId),
     context.stopProcessesForSession(sessionId),
   ]);
-  for (const cleanupResult of cleanupResults) {
-    if (cleanupResult.status === 'rejected') {
-      const detail = formatError(cleanupResult.reason);
-      context.push({
-        type: 'host/log',
-        level: 'warn',
-        message: `session pause cleanup failed: ${detail}`,
-      });
+  const cleanupSettled = await settlesWithin(
+    cleanupPromise,
+    context.abortCleanupTimeoutMs ?? DEFAULT_ABORT_CLEANUP_TIMEOUT_MS,
+  );
+  if (cleanupSettled) {
+    const cleanupResults = await cleanupPromise;
+    for (const cleanupResult of cleanupResults) {
+      if (cleanupResult.status === 'rejected') {
+        const detail = formatError(cleanupResult.reason);
+        context.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `session pause cleanup failed: ${detail}`,
+        });
+      }
     }
+  } else {
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `session pause cleanup timed out: ${sessionId}/${runId}`,
+    });
   }
   if (context.getForegroundRun(sessionId)?.runId !== runId) {
     return;
@@ -338,13 +351,17 @@ async function finalizePausedRun(
       });
     });
     context.attachResumeCheckpoint(runId, checkpoint.checkpointId);
-    await context.terminateRun(
-      sessionId,
-      runId,
-      'paused',
-      'paused',
-      'Run paused; a resumable checkpoint was saved.',
-    );
+    const terminalMessage = cleanupSettled
+      ? 'Run paused; a resumable checkpoint was saved.'
+      : 'Run paused from durable output after the runtime missed the cleanup deadline. The next prompt will use a fresh runtime.';
+    if (cleanupSettled) {
+      await context.terminateRun(sessionId, runId, 'paused', 'paused', terminalMessage);
+    } else {
+      await context.terminateRun(sessionId, runId, 'paused', 'paused', terminalMessage, {
+        skipJobCleanup: true,
+      });
+      context.quarantineSessionRuntime(sessionId, runId);
+    }
   } catch (error) {
     const message = formatError(error);
     context.push({
@@ -352,13 +369,25 @@ async function finalizePausedRun(
       level: 'error',
       message: `pause checkpoint creation failed: ${message}`,
     });
-    await context.terminateRun(
-      sessionId,
-      runId,
-      'failed',
-      'failed',
-      `Pause could not be saved: ${message}`,
-    );
+    if (cleanupSettled) {
+      await context.terminateRun(
+        sessionId,
+        runId,
+        'failed',
+        'failed',
+        `Pause could not be saved: ${message}`,
+      );
+    } else {
+      await context.terminateRun(
+        sessionId,
+        runId,
+        'failed',
+        'failed',
+        `Pause could not be saved: ${message}`,
+        { skipJobCleanup: true },
+      );
+      context.quarantineSessionRuntime(sessionId, runId);
+    }
   }
 }
 

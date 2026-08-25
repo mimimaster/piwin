@@ -51,7 +51,8 @@ import {
   DEFAULT_PLUGIN_REGISTRY_URL,
 } from '@piwin/marketplace';
 import { pluginSecretRef, type PluginInstallSource } from '@piwin/contracts';
-import { HostEgressHub } from '@piwin/host-server';
+import { admitAndExecuteHostCommand, createDeviceToolBrokerForHost } from '@piwin/host-server';
+import { createSidecarHostAuthority, LOCAL_JSONL_CLIENT_ID } from './sidecar-host-authority.js';
 import { collectRefArgs, buildCliContextRefs } from './context-ref-args.js';
 
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
@@ -68,12 +69,12 @@ import {
   type WalkthroughHostClient,
 } from './walkthrough-command.js';
 import {
+  bindSideChatHostClient,
   runSideChatList,
   runSideChatOpen,
   runSideChatSync,
   runSideChatSend,
   runSideChatResume,
-  type SideChatHostClient,
 } from './side-chat-command.js';
 import { runSessionLifecycleApply, runSessionLifecyclePlan } from './session-lifecycle-command.js';
 import {
@@ -1256,10 +1257,15 @@ async function commandChat(argv: string[]): Promise<void> {
       }
     });
     try {
-      const createResponse = await client.request({
-        type: 'session/create',
-        input: projectPath ? { projectId: projectPath } : { scope: { kind: 'general' } },
-      });
+      const createResponse = await client.request(
+        {
+          type: 'session/create',
+          input: projectPath
+            ? { projectId: projectPath }
+            : { scope: { kind: 'general' } },
+        },
+        { idempotencyKey: randomUUID() },
+      );
       if (!createResponse.success) {
         throw new Error(createResponse.error);
       }
@@ -2555,12 +2561,6 @@ async function commandHostServe(argv: string[]): Promise<void> {
   const testFixture = parseHostServeTestFixture(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
   const transport = createJsonlStdioTransport();
-  const egressHub = new HostEgressHub({
-    hostInstanceId: `cli-${process.pid}`,
-    maxClientQueueItems: 4_096,
-    maxClientQueueBytes: 8 * 1024 * 1024,
-    onError: (error) => console.error(`[piwin host serve] egress error: ${error.message}`),
-  });
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,
@@ -2578,10 +2578,16 @@ async function commandHostServe(argv: string[]): Promise<void> {
   if (permissionModeOverride !== undefined) {
     runtimeOptions.permissionModeOverride = permissionModeOverride;
   }
+  const clientToolBroker = await createDeviceToolBrokerForHost(getPiwinRoot());
+  if (clientToolBroker !== undefined) {
+    runtimeOptions.clientToolExecution = clientToolBroker;
+  }
   const runtime = new HostRuntime(runtimeOptions);
-  const detachEgress = runtime.attachPushSink(egressHub.createPushSink('local-jsonl'));
+  const authority = createSidecarHostAuthority(runtime);
+  authority.start();
+  const egressHub = authority.egressHub;
   const egressChannel = egressHub.addClient({
-    id: 'local-jsonl',
+    id: LOCAL_JSONL_CLIENT_ID,
     initialSeq: 0,
     supportsBatch: true,
     canSend: () => true,
@@ -2613,14 +2619,25 @@ async function commandHostServe(argv: string[]): Promise<void> {
     runtime,
     send: (message) => transport.send(message),
     commandTimeoutMs: 45_000,
+    admit: (request, execute) =>
+      admitAndExecuteHostCommand({
+        registry: authority.idempotencyRegistry,
+        principalId: request.clientPrincipalId ?? LOCAL_JSONL_CLIENT_ID,
+        idempotencyKey: request.idempotencyKey,
+        command: request.command,
+        execute,
+      }),
   });
-  const hostInstanceId = `cli-${process.pid}`;
+  const hostInstanceId = authority.hostInstanceId;
   let mobileAccess: Awaited<ReturnType<typeof createSidecarMobileAccess>> | undefined;
   try {
     mobileAccess = await createSidecarMobileAccess({
       runtime,
       instanceId: hostInstanceId,
       piwinRoot: getPiwinRoot(),
+      egressHub,
+      idempotencyRegistry: authority.idempotencyRegistry,
+      ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
     });
   } catch (error) {
     console.error(
@@ -2641,8 +2658,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
       await mobileAccess?.dispose();
       egressHub.flush();
       egressChannel.flushNow();
-      detachEgress();
-      egressHub.dispose();
+      authority.dispose();
       await runtime.dispose();
     })();
     return shutdownPromise;
@@ -2652,12 +2668,12 @@ async function commandHostServe(argv: string[]): Promise<void> {
     void shutdown().then(() => process.exit(0));
   });
 
-  await transport.start((command) => {
-    void interceptSidecarMobileAccess(mobileAccess, command, (message) =>
+  await transport.start((request) => {
+    void interceptSidecarMobileAccess(mobileAccess, request.command, (message) =>
       transport.send(message),
     ).then((handled) => {
       if (!handled) {
-        dispatcher.dispatch(command);
+        dispatcher.dispatch(request);
       }
     });
   });
@@ -3110,16 +3126,7 @@ async function createSideChatHostClient(
       }
     },
   });
-  return {
-    handleCommand: (command) => host.handleCommand(command),
-    onPush: (handler) => {
-      pushHandlers.add(handler);
-      return () => {
-        pushHandlers.delete(handler);
-      };
-    },
-    dispose: () => host.dispose(),
-  };
+  return bindSideChatHostClient(host, pushHandlers);
 }
 
 /**

@@ -697,6 +697,42 @@ describe('mapPiSessionEvent', () => {
     expect(end).toMatchObject({ presentation: { kind: 'other', title: 'piwin_toolbox' } });
   });
 
+  it('copies Health details from tool_execution_end onto presentation', () => {
+    const endEvents = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call_health_1',
+      toolName: 'health_read_context',
+      isError: false,
+      result: {
+        content: [{ type: 'text', text: 'These values are user-authorized Apple Health summaries.' }],
+        details: {
+          sensitivity: 'health',
+          health: {
+            metrics: ['steps'],
+            periodLabel: '今天',
+            status: 'completed',
+            freshnessLabel: '2026-08-23T12:00:00.000Z',
+          },
+        },
+      },
+    });
+    expect(endEvents).toHaveLength(1);
+    expect(endEvents[0]).toMatchObject({
+      type: 'tool/end',
+      toolCallId: 'call_health_1',
+      presentation: {
+        kind: 'health',
+        sensitivity: 'health',
+        health: {
+          metrics: ['steps'],
+          periodLabel: '今天',
+          status: 'completed',
+          freshnessLabel: '2026-08-23T12:00:00.000Z',
+        },
+      },
+    });
+  });
+
   it('extracts text from Pi AgentToolResult on tool_execution_end', () => {
     // Pi 0.80 custom tools (including MCP) emit result as AgentToolResult,
     // not a plain string. Without content extraction the UI shows "No output".

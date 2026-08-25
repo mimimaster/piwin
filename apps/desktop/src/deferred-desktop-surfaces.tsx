@@ -26,11 +26,6 @@ export const DeferredFlashcardsPanel = lazy(async () => {
   return { default: module.FlashcardsPanel };
 });
 
-export const DeferredCanvasPanel = lazy(async () => {
-  const module = await import('./canvas-panel');
-  return { default: module.CanvasPanel };
-});
-
 export const DeferredBrowserSessionPanel = lazy(async () => {
   const module = await import('./browser-session-panel');
   return { default: module.BrowserSessionPanel };

@@ -10,6 +10,8 @@ import { SettingsModal } from './components/modals/SettingsModal.js';
 import { ModelPickerModal } from './components/modals/ModelPickerModal.js';
 import { MobileShareModal } from './components/modals/MobileShareModal.js';
 import { MobileArtifactSheet } from './components/modals/MobileArtifactSheet.js';
+import { ProjectFilesSheet } from './components/modals/ProjectFilesSheet.js';
+import { SkillsInspectorSheet } from './components/modals/SkillsInspectorSheet.js';
 import { MobileQuickActionsBar } from './components/chat/MobileQuickActionsBar.js';
 import { MobileDiffViewer } from './components/chat/MobileDiffViewer.js';
 import { ConversationSurface } from './surfaces/conversation/ConversationSurface.js';
@@ -57,8 +59,8 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('Test Project Session');
-    const menuBtn = container.querySelector('.mobile-top-btn') as HTMLButtonElement;
+    expect(document.body.textContent).toContain('Test Project Session');
+    const menuBtn = document.body.querySelector('.mobile-top-btn') as HTMLButtonElement;
     expect(menuBtn).not.toBeNull();
     act(() => {
       menuBtn.click();
@@ -92,11 +94,11 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('Host 已就绪');
-    expect(container.textContent).toContain('Refactor Core');
-    expect(container.textContent).toContain('Fix Bug');
+    expect(document.body.textContent).toContain('Host 已就绪');
+    expect(document.body.textContent).toContain('Refactor Core');
+    expect(document.body.textContent).toContain('Fix Bug');
 
-    const sessionItems = container.querySelectorAll('.mobile-drawer-session-item-btn');
+    const sessionItems = document.body.querySelectorAll('.mobile-drawer-session-item-btn');
     expect(sessionItems.length).toBe(2);
 
     act(() => {
@@ -128,18 +130,59 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('设置与外观');
-    expect(container.textContent).toContain('深色暗夜');
-    expect(container.textContent).toContain('清爽宣白');
-    expect(container.textContent).toContain('砚夜泼墨');
+    expect(document.body.textContent).toContain('设置与外观');
+    expect(document.body.textContent).toContain('Obsidian');
+    expect(document.body.textContent).toContain('Bone');
+    expect(document.body.textContent).toContain('砚夜泼墨');
 
-    const themeButtons = container.querySelectorAll('.mobile-theme-card-tile');
+    const themeButtons = document.body.querySelectorAll('.mobile-theme-card-tile');
     expect(themeButtons.length).toBe(4);
 
     act(() => {
       (themeButtons[3] as HTMLButtonElement).click();
     });
     expect(onSelectTheme).toHaveBeenCalledWith('ink-wash');
+  });
+
+  it('mounts Health settings with connect and disconnect actions', () => {
+    const onConnectHealth = vi.fn();
+    const onDisconnectHealth = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <SettingsModal
+            isOpen={true}
+            onClose={() => undefined}
+            connectionState={{ kind: 'ready' }}
+            endpoint="ws://127.0.0.1:8787"
+            projectCount={1}
+            sessionCount={1}
+            themeMode="dark"
+            onSelectTheme={() => undefined}
+            onDisconnect={() => undefined}
+            onOpenConnection={() => undefined}
+            healthAvailable={true}
+            healthUseMode="ask-every-time"
+            onConnectHealth={onConnectHealth}
+            onDisconnectHealth={onDisconnectHealth}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(document.body.querySelector('[data-testid="health-settings"]')).not.toBeNull();
+    expect(document.body.textContent).toContain('本机能力 · Apple Health');
+    const connect = Array.from(document.body.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('连接 Apple Health'),
+    );
+    const disconnect = Array.from(document.body.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('断开 Piwin 的 Health 访问'),
+    );
+    act(() => {
+      connect?.click();
+      disconnect?.click();
+    });
+    expect(onConnectHealth).toHaveBeenCalled();
+    expect(onDisconnectHealth).toHaveBeenCalled();
   });
 
   it('renders ModelPickerModal and selects model and reasoning levels', () => {
@@ -178,11 +221,11 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('模型与推理配置');
-    expect(container.textContent).toContain('DeepSeek V4 Flash');
-    expect(container.textContent).toContain('GPT-4o');
+    expect(document.body.textContent).toContain('模型与推理配置');
+    expect(document.body.textContent).toContain('DeepSeek V4 Flash');
+    expect(document.body.textContent).toContain('GPT-4o');
 
-    const modelCards = container.querySelectorAll('.mobile-model-card-item');
+    const modelCards = document.body.querySelectorAll('.mobile-model-card-item');
     expect(modelCards.length).toBe(2);
 
     act(() => {
@@ -202,11 +245,11 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('解释代码');
-    expect(container.textContent).toContain('排查 Bug');
-    expect(container.textContent).toContain('/goal 深度长任务');
+    expect(document.body.textContent).toContain('解释代码');
+    expect(document.body.textContent).toContain('排查 Bug');
+    expect(document.body.textContent).toContain('/goal 深度长任务');
 
-    const buttons = container.querySelectorAll('.quick-action-pill');
+    const buttons = document.body.querySelectorAll('.quick-action-pill');
     expect(buttons.length).toBeGreaterThanOrEqual(6);
 
     act(() => {
@@ -226,11 +269,11 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.querySelector('.mobile-diff-viewer')).not.toBeNull();
-    expect(container.querySelector('.diff-line.delete')).not.toBeNull();
-    expect(container.querySelector('.diff-line.add')).not.toBeNull();
-    expect(container.textContent).toContain('const a = 1;');
-    expect(container.textContent).toContain('const a = 2;');
+    expect(document.body.querySelector('.mobile-diff-viewer')).not.toBeNull();
+    expect(document.body.querySelector('.diff-line.delete')).not.toBeNull();
+    expect(document.body.querySelector('.diff-line.add')).not.toBeNull();
+    expect(document.body.textContent).toContain('const a = 1;');
+    expect(document.body.textContent).toContain('const a = 2;');
   });
 
   it('renders MobileShareModal and formats markdown', () => {
@@ -252,10 +295,10 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('导出与分享会话');
-    expect(container.textContent).toContain('重构核心逻辑');
-    expect(container.textContent).toContain('系统原生分享');
-    expect(container.textContent).toContain('复制完整 Markdown');
+    expect(document.body.textContent).toContain('导出与分享会话');
+    expect(document.body.textContent).toContain('重构核心逻辑');
+    expect(document.body.textContent).toContain('系统原生分享');
+    expect(document.body.textContent).toContain('复制完整 Markdown');
   });
 
   it('renders MobileArtifactSheet with sandboxed iframe', () => {
@@ -274,8 +317,8 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       );
     });
 
-    expect(container.textContent).toContain('Landing Page Demo');
-    const iframe = container.querySelector('iframe');
+    expect(document.body.textContent).toContain('Landing Page Demo');
+    const iframe = document.body.querySelector('iframe');
     expect(iframe).not.toBeNull();
     expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
     expect(iframe?.getAttribute('sandbox')).not.toContain('allow-same-origin');
@@ -298,9 +341,9 @@ describe('Mobile Shell Navigation & Surfaces', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.querySelector('.modern-chat-turn')).not.toBeNull();
-    expect(container.textContent).toContain('Piwin Agent');
-    expect(container.textContent).toContain('Hello World');
+    expect(document.body.querySelector('.modern-chat-turn')).not.toBeNull();
+    expect(document.body.textContent).toContain('Piwin Agent');
+    expect(document.body.textContent).toContain('Hello World');
 
     act(() => {
       root.render(
@@ -318,8 +361,43 @@ describe('Mobile Shell Navigation & Surfaces', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.querySelector('.modern-user-bubble-wrapper')).not.toBeNull();
-    expect(container.textContent).toContain('你好！');
+    expect(document.body.querySelector('.modern-user-bubble-wrapper')).not.toBeNull();
+    expect(document.body.textContent).toContain('你好！');
+  });
+
+  it('renders a bounded Artifact stage instead of the HTML source', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <MobileMessageItem
+            message={{
+              id: 'msg-artifact',
+              role: 'assistant',
+              text: [
+                '说明',
+                '```html',
+                '<section><h1>Hello Artifact</h1></section>',
+                '```',
+                'FIXED_DONE',
+              ].join('\n'),
+              createdAt: '2026-08-16T12:00:00Z',
+              status: 'done',
+            }}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(document.body.textContent).toContain('说明');
+    expect(document.body.textContent).toContain('FIXED_DONE');
+    expect(document.body.textContent).not.toContain('<section><h1>Hello Artifact</h1></section>');
+    expect(document.body.querySelector('[data-testid="mobile-artifact-stage"]')).not.toBeNull();
+    const iframe = document.body.querySelector('iframe');
+    expect(iframe).not.toBeNull();
+    expect(iframe?.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(iframe?.getAttribute('srcdoc') ?? iframe?.getAttribute('srcDoc') ?? '').toContain(
+      '<h1>Hello Artifact</h1>',
+    );
   });
 
   it('renders a chat-canvas send error and a replace-run action', () => {
@@ -351,8 +429,8 @@ describe('Mobile Shell Navigation & Surfaces', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.textContent).toContain('foreground-run-mismatch: session is busy');
-    const replace = Array.from(container.querySelectorAll('button')).find((button) =>
+    expect(document.body.textContent).toContain('foreground-run-mismatch: session is busy');
+    const replace = Array.from(document.body.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('中断并发送'),
     );
     expect(replace).toBeDefined();
@@ -360,5 +438,81 @@ describe('Mobile Shell Navigation & Surfaces', () => {
       replace?.click();
     });
     expect(onReplaceAndSend).toHaveBeenCalled();
+  });
+
+  it('shows the @Health chip and toggles includeAppleHealth', () => {
+    const onToggleAppleHealth = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <ConversationSurface
+            activeSessionId="s1"
+            sessions={[{ sessionId: 's1', scope: 'general' }]}
+            messages={[]}
+            composerText="分析睡眠"
+            setComposerText={() => undefined}
+            attachments={[]}
+            onRemoveAttachment={() => undefined}
+            onFileSelected={() => undefined}
+            onSend={() => undefined}
+            onAbort={() => undefined}
+            isSending={false}
+            isUploadingMedia={false}
+            isResolvingPermission={false}
+            onResolvePermission={() => undefined}
+            onNavigateToSessions={() => undefined}
+            healthEnabled={true}
+            includeAppleHealth={false}
+            onToggleAppleHealth={onToggleAppleHealth}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const chip = document.body.querySelector('[data-testid="mobile-health-chip"]') as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toContain('@Health');
+    act(() => {
+      chip.click();
+    });
+    expect(onToggleAppleHealth).toHaveBeenCalled();
+  });
+
+  it('renders ProjectFilesSheet and displays changed files and projects', () => {
+    const onClose = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <ProjectFilesSheet
+            isOpen={true}
+            onClose={onClose}
+            projects={[{ projectId: 'proj-1', displayName: 'Piwin Core' }]}
+            activeProjectId="proj-1"
+            activeProjectName="Piwin Core"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(document.body.textContent).toContain('工作区文件与变更');
+    expect(document.body.textContent).toContain('Piwin Core');
+    expect(document.body.textContent).toContain('工作区变更');
+    expect(document.body.textContent).toContain('src/App.tsx');
+  });
+
+  it('renders SkillsInspectorSheet and lists active skills and MCP servers', () => {
+    const onClose = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <SkillsInspectorSheet
+            isOpen={true}
+            onClose={onClose}
+            endpoint="ws://127.0.0.1:8787"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(document.body.textContent).toContain('技能与 MCP 工具');
+    expect(document.body.textContent).toContain('UI/UX Pro Max');
+    expect(document.body.textContent).toContain('已加载技能');
   });
 });

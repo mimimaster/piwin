@@ -233,13 +233,6 @@
   margin: 0;
 }
 
-.artifact-inline-incompatible {
-  margin: var(--s-4) var(--s-5) var(--s-5);
-  color: var(--text-3);
-  font-size: var(--fs-chrome);
-  line-height: 1.45;
-}
-
 .artifact-iframe-placeholder {
   position: relative;
   display: grid;

@@ -377,10 +377,15 @@ export type ChatUiState = {
     parentSessionId?: string;
   } | null;
   /**
-   * idle | streaming | aborting — replaces overloaded boolean for Stop UI.
-   * `streaming` remains true for both streaming and aborting so existing guards keep working.
+   * idle | streaming | pausing | aborting — explicit live-control feedback.
+   * `streaming` remains true during both control transitions so existing guards keep working.
    */
-  runPhase: 'idle' | 'streaming' | 'aborting';
+  runPhase: 'idle' | 'streaming' | 'pausing' | 'aborting';
+  /**
+   * Host-owned selected-session admission. Send/run controls stay off while
+   * unknown or reconciling so a false idle cannot issue if-idle.
+   */
+  foregroundAdmission: 'unknown' | 'reconciling' | 'ready';
   activeRunId: string | null;
   activeRunPhase: SessionRunPhase | null;
   /** Optional detail from latest run/phase (e.g. "Describing image…"). */
@@ -550,11 +555,14 @@ export type ChatUiAction =
       targetRunId?: string;
     }
   | { type: 'user/send-rollback'; clientMessageId: string }
+  | { type: 'run/pausing' }
+  | { type: 'run/pause-failed' }
   | { type: 'run/aborting' }
   | { type: 'run/abort-failed' }
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
   | { type: 'run/updated'; run: ExecutionRunRecord }
   | { type: 'run/terminal'; run: ExecutionRunRecord }
+  | { type: 'foreground/admission'; admission: 'unknown' | 'reconciling' | 'ready' }
   | {
       /** ADR 0038 reconciliation: Host authority says no run exists, but the
        * UI still shows one streaming (lost terminal push). */
@@ -660,6 +668,11 @@ export function createInitialChatUiState(): ChatUiState {
     transcriptOwnerSessionId: null,
     activeSessionMetadata: null,
     runPhase: 'idle',
+    /**
+     * Host-owned selected-session admission. Send/run controls stay off while
+     * unknown or reconciling so a false idle cannot issue if-idle.
+     */
+    foregroundAdmission: 'unknown' as const,
     activeRunId: null,
     activeRunPhase: null,
     activeRunPhaseDetail: null,
@@ -1243,6 +1256,7 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
             ? state.userMessageIndexEpoch
             : state.userMessageIndexEpoch + 1,
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
+        foregroundAdmission: preserveOptimisticDraftSend ? 'ready' : 'reconciling',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
         activeRunPhaseDetail: preserveOptimisticDraftSend ? state.activeRunPhaseDetail : null,
@@ -1292,6 +1306,12 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
       if (state.activeSessionId !== null && state.activeSessionId !== action.sessionId) {
         return state;
       }
+      // Session hydration can race the foreground-run admission query. A
+      // Host-confirmed active Run is authoritative for the composer, so a
+      // transcript read must not turn Stop back into Send while replacing
+      // the visible history.
+      const preserveRunProjection = action.preserveActiveTail || state.activeRunId !== null;
+      const hasConfirmedActiveRun = state.activeRunId !== null;
       const refreshedMessages = mapTranscriptMessagesToUi(action.messages);
       const candidateMessages = action.preserveActiveTail
         ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
@@ -1321,22 +1341,22 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
               cacheLimitReached: bounded.cacheLimitReached,
             }
           : null,
-        runPhase: action.preserveActiveTail ? state.runPhase : 'idle',
-        activeRunId: action.preserveActiveTail ? state.activeRunId : null,
-        activeRunPhase: action.preserveActiveTail ? state.activeRunPhase : null,
-        activeRunPhaseDetail: action.preserveActiveTail ? state.activeRunPhaseDetail : null,
-        activeRunStartedAt: action.preserveActiveTail ? state.activeRunStartedAt : null,
-        lastTerminalRunId: action.preserveActiveTail ? state.lastTerminalRunId : null,
-        streaming: action.preserveActiveTail ? state.streaming : false,
-        activeSkill: action.preserveActiveTail ? state.activeSkill : null,
+        runPhase: preserveRunProjection ? state.runPhase : 'idle',
+        activeRunId: preserveRunProjection ? state.activeRunId : null,
+        activeRunPhase: preserveRunProjection ? state.activeRunPhase : null,
+        activeRunPhaseDetail: preserveRunProjection ? state.activeRunPhaseDetail : null,
+        activeRunStartedAt: preserveRunProjection ? state.activeRunStartedAt : null,
+        lastTerminalRunId: preserveRunProjection ? state.lastTerminalRunId : null,
+        streaming: preserveRunProjection ? state.streaming : false,
+        activeSkill: preserveRunProjection ? state.activeSkill : null,
         outline: action.outline ?? [],
-        activeSessionArchived: action.preserveActiveTail ? state.activeSessionArchived : false,
+        activeSessionArchived: preserveRunProjection ? state.activeSessionArchived : false,
         awaitingTranscript: false,
         transcriptOwnerSessionId: action.sessionId,
         contextUsage: action.contextUsage !== undefined ? action.contextUsage : state.contextUsage,
-        runTerminal: action.preserveActiveTail ? state.runTerminal : { kind: 'none' },
+        runTerminal: preserveRunProjection ? state.runTerminal : { kind: 'none' },
         error: null,
-        runRecordsById: action.preserveActiveTail
+        runRecordsById: preserveRunProjection
           ? { ...hydratedRunRecords, ...state.runRecordsById }
           : hydratedRunRecords,
         // Walkthrough artifacts are hydrated separately via walkthrough/list
@@ -1344,13 +1364,15 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         // before load-messages) already clears it, and a walkthrough/list
         // response may resolve before load-messages is dispatched — clearing
         // here would wipe the freshly-hydrated map.
-        // `live` means the session handle can accept a future prompt. It does
-        // not mean that a prompt is currently running, so never add a working
-        // marker while restoring transcript history.
+        // `live` means the session handle can accept a future prompt, not that
+        // a prompt is currently running. Keep the marker only when the active
+        // Run projection already proves that this session is working.
         workingSessionIds:
-          action.live === false
+          action.live === false && !hasConfirmedActiveRun
             ? removeWorkingSessionId(state.workingSessionIds, action.sessionId)
-            : { ...state.workingSessionIds },
+            : hasConfirmedActiveRun
+              ? { ...state.workingSessionIds, [action.sessionId]: true }
+              : { ...state.workingSessionIds },
       };
     }
     case 'session/prepend-messages': {
@@ -1989,6 +2011,21 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           : {}),
       };
     }
+    case 'run/pausing':
+      return {
+        ...state,
+        runPhase: 'pausing',
+        streaming: true,
+      };
+    case 'run/pause-failed':
+      if (state.runPhase !== 'pausing') {
+        return state;
+      }
+      return {
+        ...state,
+        runPhase: 'streaming',
+        streaming: true,
+      };
     case 'run/aborting':
       return {
         ...state,
@@ -2034,6 +2071,8 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
           },
         };
       }
+    case 'foreground/admission':
+      return { ...state, foregroundAdmission: action.admission };
     case 'run/updated':
       if (state.activeSessionId !== action.run.sessionId) return state;
       return applyRunRecord(state, action.run, false);
@@ -2204,7 +2243,12 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         ),
       };
     case 'host/status':
-      return { ...state, hostReady: action.ready, hostMock: action.mock };
+      return {
+        ...state,
+        hostReady: action.ready,
+        hostMock: action.mock,
+        foregroundAdmission: action.ready ? state.foregroundAdmission : 'unknown',
+      };
     case 'permission/show':
       if (action.prompt.runId !== undefined && isStaleRunEvent(state, action.prompt.runId)) {
         return state;
@@ -2270,7 +2314,24 @@ function chatUiReducerCore(state: ChatUiState, action: ChatUiAction): ChatUiStat
         return state;
       }
       if (state.messages.some((item) => item.id === action.message.id)) {
-        return state;
+        if (!action.message.model) {
+          return state;
+        }
+        return {
+          ...state,
+          messages: state.messages.map((item) => {
+            if (item.id === action.message.id && !item.model && action.message.model) {
+              return {
+                ...item,
+                model: action.message.model,
+                ...(action.message.createdAt && !item.createdAt
+                  ? { createdAt: action.message.createdAt }
+                  : {}),
+              };
+            }
+            return item;
+          }),
+        };
       }
       const [nextMessage] = mapTranscriptMessagesToUi([action.message], {
         keepStreamingStatus: true,
@@ -3198,11 +3259,11 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       const hasRunningTool = next.messages.some((message) =>
         message.tools.some((tool) => tool.status === 'running'),
       );
-      if (event.runId !== undefined) {
+      if (event.runId !== undefined || state.activeRunId !== null) {
         return enforceBoundedTranscriptWindow({
           ...next,
-          activeRunPhase: hasRunningTool ? 'tool-running' : 'streaming',
-          runPhase: 'streaming',
+          activeRunPhase: hasRunningTool ? 'tool-running' : state.activeRunPhase ?? 'streaming',
+          runPhase: state.runPhase === 'idle' ? 'streaming' : state.runPhase,
           streaming: true,
         });
       }
@@ -3624,16 +3685,25 @@ function applyRunRecord(
     return { ...state, runRecordsById: records };
   }
   if (outcome === undefined) {
+    if (state.activeRunId !== null && state.activeRunId !== run.runId && run.status === 'cancelling') {
+      return { ...state, runRecordsById: records };
+    }
     return {
       ...state,
       activeRunId: run.runId,
       activeRunPhase: run.phase ?? state.activeRunPhase,
       activeRunPhaseDetail: run.phaseDetail ?? null,
       activeRunStartedAt: run.startedAt ? parseEventTime(run.startedAt) : state.activeRunStartedAt,
-      runPhase: run.status === 'cancelling' ? 'aborting' : 'streaming',
+      runPhase:
+        run.phase === 'pausing'
+          ? 'pausing'
+          : run.status === 'cancelling'
+            ? 'aborting'
+            : 'streaming',
       streaming: true,
       lastTerminalRunId: null,
       runTerminal: { kind: 'none' },
+      workingSessionIds: { ...state.workingSessionIds, [run.sessionId]: true },
       runRecordsById: records,
     };
   }

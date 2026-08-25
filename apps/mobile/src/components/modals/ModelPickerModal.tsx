@@ -6,6 +6,7 @@ import {
   IconClose,
   IconSpark,
 } from '@piwin/ui-kit';
+import { MobileLayer } from '../../mobile-portal.js';
 
 export type { ThinkingLevel };
 
@@ -47,10 +48,6 @@ export function ModelPickerModal({
 }: ModelPickerModalProps): ReactElement | null {
   const [activeTab, setActiveTab] = useState<'model' | 'thinking'>('model');
 
-  if (!isOpen) {
-    return null;
-  }
-
   const currentModel =
     models.find(
       (model) => model.providerId === selectedProviderId && model.modelId === selectedModelId,
@@ -61,8 +58,8 @@ export function ModelPickerModal({
   const showThinkingTab = thinkingOptions.length > 0;
 
   return (
-    <div className="mobile-drawer-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="mobile-model-picker-sheet" onClick={(e) => e.stopPropagation()}>
+    <MobileLayer isOpen={isOpen} onClose={onClose}>
+      <div className="mobile-model-picker-sheet">
         <div className="mobile-sheet-header">
           <div className="mobile-sheet-title-group">
             <div className="mobile-sheet-icon-wrap">
@@ -168,6 +165,6 @@ export function ModelPickerModal({
           )}
         </div>
       </div>
-    </div>
+    </MobileLayer>
   );
 }

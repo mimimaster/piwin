@@ -1,7 +1,16 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { IconChat, IconMcp, IconStop } from './shell-icons.js';
+import {
+  IconChat,
+  IconClock,
+  IconDatabase,
+  IconFlame,
+  IconMcp,
+  IconServer,
+  IconStop,
+  IconTable,
+} from './shell-icons.js';
 
 describe('shared shell icons', () => {
   it('preserves the shared outline defaults', () => {
@@ -13,6 +22,33 @@ describe('shared shell icons', () => {
     expect(markup).toContain('stroke="currentColor"');
     expect(markup).toContain('stroke-width="1.6"');
     expect(markup).toContain('class="tabler-icon"');
+  });
+
+  it('renders IconFlame and IconTable with outline defaults', () => {
+    const flameMarkup = renderToStaticMarkup(createElement(IconFlame));
+    const tableMarkup = renderToStaticMarkup(createElement(IconTable));
+
+    expect(flameMarkup).toContain('viewBox="0 0 24 24"');
+    expect(flameMarkup).toContain('class="tabler-icon"');
+    expect(tableMarkup).toContain('viewBox="0 0 24 24"');
+    expect(tableMarkup).toContain('class="tabler-icon"');
+  });
+
+  it('renders IconServer as a paired location glyph', () => {
+    const markup = renderToStaticMarkup(createElement(IconServer));
+    expect(markup).toContain('viewBox="0 0 24 24"');
+    expect(markup).toContain('class="tabler-icon"');
+    expect(markup).toContain('rect');
+  });
+
+  it('renders telemetry icons in the shared outline family', () => {
+    const clockMarkup = renderToStaticMarkup(createElement(IconClock));
+    const databaseMarkup = renderToStaticMarkup(createElement(IconDatabase));
+
+    expect(clockMarkup).toContain('class="tabler-icon"');
+    expect(clockMarkup).toContain('<circle');
+    expect(databaseMarkup).toContain('class="tabler-icon"');
+    expect(databaseMarkup).toContain('<ellipse');
   });
 
   it('allows callers to override dimensions and presentation attributes', () => {

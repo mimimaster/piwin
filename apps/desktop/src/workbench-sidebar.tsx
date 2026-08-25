@@ -50,6 +50,10 @@ export type WorkbenchSidebarProps = {
   setShowArchivedSessions: Dispatch<SetStateAction<boolean>>;
   hydrateSessions: WorkbenchSidebarHydrateSessions;
   settingsOpen: boolean;
+  activeSubPage?: 'chat' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  onOpenImages?: () => void;
+  onOpenVideos?: () => void;
+  onOpenFlashcards?: () => void;
   knowledgeOpen: boolean;
   setKnowledgeOpen: Dispatch<SetStateAction<boolean>>;
   onOpenWorkspace: () => void | Promise<void>;
@@ -198,6 +202,10 @@ export function WorkbenchSidebar(props: WorkbenchSidebarProps): ReactElement {
         );
       }}
       onOpenSettings={() => openSettingsSection('general')}
+      activeSubPage={props.activeSubPage}
+      onOpenImages={props.onOpenImages}
+      onOpenVideos={props.onOpenVideos}
+      onOpenFlashcards={props.onOpenFlashcards}
       knowledgeOpen={knowledgeOpen}
       {...(hostClient.supportsCommand('doccards/scan-folder')
         ? { onToggleKnowledge: () => setKnowledgeOpen((current) => !current) }

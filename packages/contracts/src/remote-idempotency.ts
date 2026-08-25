@@ -7,6 +7,7 @@ export const REMOTE_IDEMPOTENT_MUTATION_TYPES = [
   'session/replace-run',
   'session/abort',
   'session/delete',
+  'session/create',
   'permission/resolve',
   'settings/apply',
   'notes/write',

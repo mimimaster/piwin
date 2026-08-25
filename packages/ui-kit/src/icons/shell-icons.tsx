@@ -7,7 +7,16 @@ export type IconProps = Omit<SVGProps<SVGSVGElement>, 'stroke'> & {
 
 function createIcon(children: ReactNode): (props: IconProps) => ReactElement {
   return function ShellIcon(props: IconProps): ReactElement {
-    const { className = '', children: overrideChildren, size, stroke, strokeWidth, width, height, ...rest } = props;
+    const {
+      className = '',
+      children: overrideChildren,
+      size,
+      stroke,
+      strokeWidth,
+      width,
+      height,
+      ...rest
+    } = props;
     const computedStrokeWidth = typeof stroke === 'number' ? stroke : (strokeWidth ?? 1.6);
     const computedStroke = typeof stroke === 'string' ? stroke : 'currentColor';
     const computedWidth = size ?? width ?? '1em';
@@ -48,9 +57,7 @@ export const IconPanelRight = createIcon(
   </>,
 );
 
-export const IconClose = createIcon(
-  <path d="M6.75 6.75l10.5 10.5M17.25 6.75l-10.5 10.5" />,
-);
+export const IconClose = createIcon(<path d="M6.75 6.75l10.5 10.5M17.25 6.75l-10.5 10.5" />);
 
 export const IconBack = createIcon(
   <>
@@ -59,21 +66,13 @@ export const IconBack = createIcon(
   </>,
 );
 
-export const IconChevronLeft = createIcon(
-  <path d="M14.5 6.5 9 12l5.5 5.5" />,
-);
+export const IconChevronLeft = createIcon(<path d="M14.5 6.5 9 12l5.5 5.5" />);
 
-export const IconChevronRight = createIcon(
-  <path d="M9.5 6.5 15 12l-5.5 5.5" />,
-);
+export const IconChevronRight = createIcon(<path d="M9.5 6.5 15 12l-5.5 5.5" />);
 
-export const IconChevronUp = createIcon(
-  <path d="M6.5 14.75 12 9.25l5.5 5.5" />,
-);
+export const IconChevronUp = createIcon(<path d="M6.5 14.75 12 9.25l5.5 5.5" />);
 
-export const IconChevronDown = createIcon(
-  <path d="M6.5 9.25 12 14.75l5.5-5.5" />,
-);
+export const IconChevronDown = createIcon(<path d="M6.5 9.25 12 14.75l5.5-5.5" />);
 
 export const IconMore = createIcon(
   <>
@@ -91,9 +90,7 @@ export const IconMoreVertical = createIcon(
   </>,
 );
 
-export const IconMenuList = createIcon(
-  <path d="M4.5 7h15M4.5 12h15M4.5 17h15" />,
-);
+export const IconMenuList = createIcon(<path d="M4.5 7h15M4.5 12h15M4.5 17h15" />);
 
 export const IconExpand = createIcon(
   <>
@@ -120,9 +117,7 @@ export const IconSearch = createIcon(
   </>,
 );
 
-export const IconPlus = createIcon(
-  <path d="M12 5.25v13.5M5.25 12h13.5" />,
-);
+export const IconPlus = createIcon(<path d="M12 5.25v13.5M5.25 12h13.5" />);
 
 export const IconRefresh = createIcon(
   <>
@@ -141,9 +136,7 @@ export const IconSettings = createIcon(
   </>,
 );
 
-export const IconSliders = createIcon(
-  <path d="M4.75 7h14.5M7.75 12h8.5M10.75 17h2.5" />,
-);
+export const IconSliders = createIcon(<path d="M4.75 7h14.5M7.75 12h8.5M10.75 17h2.5" />);
 
 /* ── G2 Conversation & Input ── */
 export const IconChat = createIcon(
@@ -174,7 +167,10 @@ export const IconCommentOutline = createIcon(
 );
 
 export const IconCommentFilled = createIcon(
-  <path d="M7.5 4.75h9a2.75 2.75 0 0 1 2.75 2.75v5a2.75 2.75 0 0 1-2.75 2.75H11l-3.75 3.4v-3.4h.25A2.75 2.75 0 0 1 4.75 12.5v-5A2.75 2.75 0 0 1 7.5 4.75Z" fill="currentColor" />,
+  <path
+    d="M7.5 4.75h9a2.75 2.75 0 0 1 2.75 2.75v5a2.75 2.75 0 0 1-2.75 2.75H11l-3.75 3.4v-3.4h.25A2.75 2.75 0 0 1 4.75 12.5v-5A2.75 2.75 0 0 1 7.5 4.75Z"
+    fill="currentColor"
+  />,
 );
 
 export const IconCommentAction = createIcon(
@@ -187,9 +183,7 @@ export const IconCommentAction = createIcon(
 
 /* Send is the composer's up-arrow; it shares IconArrowUp's geometry exactly so
    the primary action never looks like a different glyph at a different size. */
-export const IconSend = createIcon(
-  <path d="M12 19.25V4.75M5.85 10.9 12 4.75l6.15 6.15" />,
-);
+export const IconSend = createIcon(<path d="M12 19.25V4.75M5.85 10.9 12 4.75l6.15 6.15" />);
 
 export const IconPaperPlane = createIcon(
   <>
@@ -223,9 +217,7 @@ export const IconStop = createIcon(
   <rect x="7" y="7" width="10" height="10" rx="2.4" fill="currentColor" stroke="none" />,
 );
 
-export const IconPause = createIcon(
-  <path d="M9.25 6.75v10.5M14.75 6.75v10.5" />,
-);
+export const IconPause = createIcon(<path d="M9.25 6.75v10.5M14.75 6.75v10.5" />);
 
 export const IconSpark = createIcon(
   <>
@@ -328,6 +320,17 @@ export const IconImage = createIcon(
   </>,
 );
 
+export const IconVideo = createIcon(
+  <>
+    <rect x="3.75" y="5.75" width="12.5" height="12.5" rx="2.5" />
+    <path d="M16.25 10l4-2.5v9l-4-2.5" />
+  </>,
+);
+
+export const IconPlay = createIcon(
+  <path d="M7 5.5l12 6.5-12 6.5V5.5Z" fill="currentColor" stroke="none" />,
+);
+
 export const IconListTree = createIcon(
   <>
     <path d="M4.75 5.9h14.5" />
@@ -413,8 +416,32 @@ export const IconSkill = createIcon(
   <path d="M13.4 3.75 6.25 12.8h4.4l-1.05 7.45 7.15-9.05h-4.4Z" />,
 );
 
-export const IconActivity = createIcon(
-  <path d="M3.75 12h3.35l2.4-5.7 4.05 11.4 2.35-5.7h4.35" />,
+export const IconFlame = createIcon(
+  <path d="M12 12c2-2.96 0-7-1-8 0 3.04-1.77 4.74-3 6-1.23 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.53-1.06-3.94-2-5-1.79 3-2.79 3-4 2Z" />,
+);
+
+export const IconTable = createIcon(
+  <>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <path d="M3.5 10h17M10 4.5v15" />
+  </>,
+);
+
+export const IconActivity = createIcon(<path d="M3.75 12h3.35l2.4-5.7 4.05 11.4 2.35-5.7h4.35" />);
+
+export const IconClock = createIcon(
+  <>
+    <circle cx="12" cy="12" r="8.25" />
+    <path d="M12 7.25v5.1l3.4 2.05" />
+  </>,
+);
+
+export const IconDatabase = createIcon(
+  <>
+    <ellipse cx="12" cy="6.25" rx="7.75" ry="3" />
+    <path d="M4.25 6.25V12c0 1.65 3.47 3 7.75 3s7.75-1.35 7.75-3V6.25" />
+    <path d="M4.25 12v5.75c0 1.65 3.47 3 7.75 3s7.75-1.35 7.75-3V12" />
+  </>,
 );
 
 export const IconChartBar = createIcon(
@@ -433,6 +460,14 @@ export const IconLaptop = createIcon(
   </>,
 );
 
+export const IconServer = createIcon(
+  <>
+    <rect x="3.75" y="4.25" width="16.5" height="6.5" rx="1.9" />
+    <rect x="3.75" y="13.25" width="16.5" height="6.5" rx="1.9" />
+    <path d="M7.4 7.5h.01M7.4 16.5h.01" />
+  </>,
+);
+
 export const IconCloud = createIcon(
   <path d="M7.1 17.9h9.6a3.9 3.9 0 0 0 .5-7.77 5.3 5.3 0 0 0-10.3-1.45A3.85 3.85 0 0 0 7.1 17.9Z" />,
 );
@@ -446,9 +481,7 @@ export const IconKeyboard = createIcon(
 );
 
 /* ── G5 Actions & Feedback ── */
-export const IconCheck = createIcon(
-  <path d="M4.9 12.9l4.95 4.7L19.1 7.3" />,
-);
+export const IconCheck = createIcon(<path d="M4.9 12.9l4.95 4.7L19.1 7.3" />);
 
 export const IconCheckCircle = createIcon(
   <>

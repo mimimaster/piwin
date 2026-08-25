@@ -62,6 +62,11 @@ import {
 } from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
 import { createModelPromptAssembly } from './model-context-assembly.js';
+import { HealthToolRunBudget } from './health-tool-run-budget.js';
+import {
+  healthProviderDisclosure,
+  isExplicitAppleHealthTurn,
+} from './health-turn-display.js';
 import { persistAndPushAssembly } from './model-context-record.js';
 import {
   assertInsideMediaRoot,
@@ -449,6 +454,8 @@ export type HostRuntimeOptions = {
    * over `config.permissions.mode` without persisting to disk.
    */
   permissionModeOverride?: PermissionMode;
+  /** Shared DeviceToolBroker from the composition root. */
+  clientToolExecution?: import('@piwin/contracts').ClientToolExecutionPort;
 };
 
 export type HostRuntimeTestFixture =
@@ -561,6 +568,7 @@ export class HostRuntime {
   private readonly modelRequestOrdinalTails = new Map<string, Promise<void>>();
   /** CE-NAME: ModelRef used for the most recent prompt, for auto-naming. */
   private readonly sessionModels = new Map<string, ModelRef>();
+  private readonly healthTurnBySession = new Map<string, { explicit: boolean }>();
   /** CE-NAME: latest assistant reply text per session (captured from events). */
   private readonly sessionLastAssistantReply = new Map<string, string>();
   /** CE-NAME: in-flight assistant text per messageId (text_delta accumulation). */
@@ -586,6 +594,7 @@ export class HostRuntime {
   >();
   /** Structured lifecycle authority for every foreground and descendant Run. */
   private readonly runRegistry: RunRegistry;
+  private readonly healthToolRunBudget = new HealthToolRunBudget();
   /** Host-owned normal next-turn and Replace Run authority. */
   private readonly queuedTurnController: QueuedTurnController;
   /** Preserves the run identity across asynchronous SDK event callbacks. */
@@ -790,6 +799,7 @@ export class HostRuntime {
         onRunUpdated: (run) => this.push({ type: 'run/updated', run }),
         onRunTerminal: (run) => {
           this.sessionHostToolPort?.releaseRun(run.sessionId, run.runId);
+          this.healthToolRunBudget.release(run.runId);
           void this.browserSession?.releaseAgentControlIfHeldBy(run.runId);
           this.push({ type: 'run/terminal', run });
           this.queuedTurnController.notifyRunTerminal(run);
@@ -1380,6 +1390,7 @@ export class HostRuntime {
     this.sessionUsage.clear();
     this.sessionLastPromptText.clear();
     this.sessionModels.clear();
+    this.healthTurnBySession.clear();
     this.sessionLastAssistantReply.clear();
     this.assistantTextBuffers.clear();
     this.sessionAutoCompactionOverrides.clear();
@@ -3883,6 +3894,23 @@ export class HostRuntime {
             const seam = this.getSubagentSeam(sessionId);
             return seam ? { subagentSeam: seam } : {};
           })()),
+      ...(this.options.clientToolExecution === undefined || childContext
+        ? {}
+        : {
+            clientToolExecution: this.options.clientToolExecution,
+            healthToolRunBudget: this.healthToolRunBudget,
+            resolveHealthDisplay: (context) => {
+              const stored = this.healthTurnBySession.get(context.sessionId);
+              const provider = healthProviderDisclosure(
+                this.sessionModels.get(context.sessionId),
+                config,
+              );
+              return {
+                explicitTurnIntent: stored?.explicit === true,
+                ...(provider === undefined ? {} : { provider }),
+              };
+            },
+          }),
     });
     // Repair spec WP3: the permission admission gate is bound to the frozen
     // generation snapshot (rules + MCP allowlist) and reads the dynamic
@@ -5767,6 +5795,9 @@ export class HostRuntime {
         ? { contextRefs: input.contextRefs.map((ref) => ({ ...ref })) }
         : {}),
     };
+    this.healthTurnBySession.set(sessionId, {
+      explicit: isExplicitAppleHealthTurn(input.contextRefs),
+    });
     this.push(transcriptAppendPush(sessionId, message));
     // Await text naming so name-updated is ordered with the user turn and the
     // session becomes listable before the model stream starts.
@@ -7561,6 +7592,17 @@ export class HostRuntime {
     return () => {
       this.pushSinks.delete(sink.id);
     };
+  }
+
+  /** Non-legacy production sinks. Composition must keep this at one. */
+  countProductionPushSinks(): number {
+    let count = 0;
+    for (const id of this.pushSinks.keys()) {
+      if (id !== LEGACY_LOCAL_SINK_ID) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   /** ADR 0027: detach a push sink by id. The legacy sink id cannot be removed. */

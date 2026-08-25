@@ -1,4 +1,5 @@
 dist/
 src-tauri/gen/
 src-tauri/target/
+src-tauri/plugins/**/target/
 *.tsbuildinfo

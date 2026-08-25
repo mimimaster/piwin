@@ -1,10 +1,9 @@
 import type { Dispatch, SetStateAction } from 'react';
-import {
-  parseFlashcardDisplayPayload,
-  type FlashcardDisplayPayload,
-  type HostPush,
-  type MediaAttachmentRef,
-  type RemoteTranscriptMessage,
+import type {
+  HostPush,
+  MediaAttachmentRef,
+  RemoteTranscriptMessage,
+  ToolPresentation,
 } from '@piwin/contracts';
 
 export type MobileMediaAttachment = MediaAttachmentRef;
@@ -22,7 +21,7 @@ export type MobileToolCall = {
   output?: string | undefined;
   error?: string | undefined;
   durationMs?: number | undefined;
-  flashcard?: FlashcardDisplayPayload | undefined;
+  presentation?: ToolPresentation | undefined;
 };
 
 export type MobileTranscriptMessage = RemoteTranscriptMessage & {
@@ -31,10 +30,7 @@ export type MobileTranscriptMessage = RemoteTranscriptMessage & {
   attachments?: MobileMediaAttachment[] | undefined;
 };
 
-export function readSessionMessages(response: {
-  success: boolean;
-  data?: unknown;
-}): MobileTranscriptMessage[] {
+export function readSessionMessages(response: { success: boolean; data?: unknown }): MobileTranscriptMessage[] {
   if (!response.success || !isRecord(response.data) || !Array.isArray(response.data.messages)) {
     return [];
   }
@@ -45,7 +41,6 @@ export function handleRemotePush(
   push: HostPush,
   activeSessionRef: { current: string | undefined },
   setMessages: Dispatch<SetStateAction<MobileTranscriptMessage[]>>,
-  setRunId: Dispatch<SetStateAction<string | undefined>>,
   setPausedCheckpointId: Dispatch<SetStateAction<string | undefined>>,
   setPermissionRequest: Dispatch<SetStateAction<RemotePermissionRequest | undefined>>,
 ): void {
@@ -61,7 +56,6 @@ export function handleRemotePush(
   }
 
   if (push.type === 'run/terminal' && push.run.sessionId === activeSessionId) {
-    setRunId(undefined);
     setPausedCheckpointId(undefined);
     return;
   }
@@ -69,7 +63,7 @@ export function handleRemotePush(
   if (push.type === 'transcript/append' && push.sessionId === activeSessionId) {
     const candidate = push.message as unknown;
     if (isRemoteTranscriptMessage(candidate)) {
-      setMessages((current) => upsertMessage(current, candidate));
+      setMessages((current) => upsertMessage(current, projectTranscriptMessage(candidate)));
     }
     return;
   }
@@ -107,7 +101,6 @@ export function handleRemotePush(
     };
     if (event.runId !== undefined) {
       message.runId = event.runId;
-      setRunId(event.runId);
     }
     setMessages((current) => upsertMessage(current, message));
   } else if (event.type === 'message/thinking_delta') {
@@ -138,23 +131,23 @@ export function handleRemotePush(
     setMessages((current) =>
       updateMessage(current, event.messageId, (message) => ({ ...message, status: 'done' })),
     );
-    setRunId(undefined);
   } else if (event.type === 'tool/start') {
-    const toolCall: MobileToolCall = {
-      id: event.toolCallId,
-      name: event.toolName,
-      status: 'running',
-      summary: event.presentation?.summary,
-      actionVerb: event.presentation?.actionVerb,
-      command: event.presentation?.command,
-      targetPaths: event.presentation?.targetPaths,
-      durationMs: event.presentation?.durationMs,
-      flashcard: event.presentation?.flashcard,
-    };
+    const toolCall: MobileToolCall = withToolPresentation(
+      {
+        id: event.toolCallId,
+        name: event.toolName,
+        status: 'running',
+        summary: event.presentation?.summary,
+        actionVerb: event.presentation?.actionVerb,
+        command: event.presentation?.command,
+        targetPaths: event.presentation?.targetPaths,
+        durationMs: event.presentation?.durationMs,
+      },
+      event.presentation,
+    );
     setMessages((current) => {
       const msgId =
-        event.responseMessageId ??
-        current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
@@ -171,21 +164,22 @@ export function handleRemotePush(
   } else if (event.type === 'tool/update') {
     setMessages((current) => {
       const msgId =
-        event.responseMessageId ??
-        current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
         const updated = existing.map((item: MobileToolCall) => {
           if (item.id !== event.toolCallId) return item;
-          return {
-            ...item,
-            summary: event.presentation?.summary ?? item.summary,
-            actionVerb: event.presentation?.actionVerb ?? item.actionVerb,
-            command: event.presentation?.command ?? item.command,
-            output: event.presentation?.output?.text ?? `${item.output ?? ''}${event.delta}`,
-            flashcard: event.presentation?.flashcard ?? item.flashcard,
-          };
+          return withToolPresentation(
+            {
+              ...item,
+              summary: event.presentation?.summary ?? item.summary,
+              actionVerb: event.presentation?.actionVerb ?? item.actionVerb,
+              command: event.presentation?.command ?? item.command,
+              output: event.presentation?.output?.text ?? `${item.output ?? ''}${event.delta}`,
+            },
+            event.presentation ?? item.presentation,
+          );
         });
         return { ...message, toolCalls: updated };
       });
@@ -193,31 +187,30 @@ export function handleRemotePush(
   } else if (event.type === 'tool/end') {
     setMessages((current) => {
       const msgId =
-        event.responseMessageId ??
-        current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
+        event.responseMessageId ?? current.filter((item) => item.role === 'assistant').slice(-1)[0]?.id;
       if (!msgId) return current;
       return updateMessage(current, msgId, (message) => {
         const existing = message.toolCalls ?? [];
         const updated = existing.map((item: MobileToolCall) => {
           if (item.id !== event.toolCallId) return item;
-          return {
-            ...item,
-            status: (event.isError ? 'error' : 'done') as 'done' | 'error',
-            summary: event.presentation?.summary ?? item.summary,
-            actionVerb: event.presentation?.actionVerb ?? item.actionVerb,
-            command: event.presentation?.command ?? item.command,
-            targetPaths: event.presentation?.targetPaths ?? item.targetPaths,
-            output: event.presentation?.output?.text ?? item.output,
-            error: event.presentation?.error?.message ?? (event.isError ? '执行失败' : undefined),
-            durationMs: event.presentation?.durationMs ?? item.durationMs,
-            flashcard: event.presentation?.flashcard ?? item.flashcard,
-          };
+          return withToolPresentation(
+            {
+              ...item,
+              status: (event.isError ? 'error' : 'done') as 'done' | 'error',
+              summary: event.presentation?.summary ?? item.summary,
+              actionVerb: event.presentation?.actionVerb ?? item.actionVerb,
+              command: event.presentation?.command ?? item.command,
+              targetPaths: event.presentation?.targetPaths ?? item.targetPaths,
+              output: event.presentation?.output?.text ?? item.output,
+              error: event.presentation?.error?.message ?? (event.isError ? '执行失败' : undefined),
+              durationMs: event.presentation?.durationMs ?? item.durationMs,
+            },
+            event.presentation ?? item.presentation,
+          );
         });
         return { ...message, toolCalls: updated };
       });
     });
-  } else if (event.type === 'session/aborted') {
-    setRunId(undefined);
   }
 }
 
@@ -227,55 +220,57 @@ function projectTranscriptMessage(raw: unknown): MobileTranscriptMessage {
   const toolCalls: MobileToolCall[] | undefined = Array.isArray(rawTools)
     ? rawTools.map((rawTool: unknown) => {
         const tool = rawTool as Record<string, unknown>;
-        const pres = isRecord(tool.presentation) ? tool.presentation : undefined;
-        const outputPres = pres && isRecord(pres.output) ? (pres.output.text as string) : undefined;
-        const errorPres = pres && isRecord(pres.error) ? (pres.error.message as string) : undefined;
-        return {
-          id:
-            typeof tool.toolCallId === 'string'
-              ? tool.toolCallId
-              : String(tool.id || Math.random()),
-          name:
-            typeof tool.toolName === 'string'
-              ? tool.toolName
-              : typeof tool.name === 'string'
-                ? tool.name
-                : 'tool',
-          status: (tool.status === 'running' || tool.status === 'error' ? tool.status : 'done') as
-            'running' | 'done' | 'error',
-          summary:
-            typeof pres?.summary === 'string'
-              ? pres.summary
-              : typeof tool.summary === 'string'
-                ? tool.summary
+        const presentation = isToolPresentation(tool.presentation) ? tool.presentation : undefined;
+        const pres = presentation;
+        const outputPres = pres?.output?.text;
+        const errorPres = pres?.error?.message;
+        return withToolPresentation(
+          {
+            id: typeof tool.toolCallId === 'string' ? tool.toolCallId : String(tool.id || Math.random()),
+            name:
+              typeof tool.toolName === 'string'
+                ? tool.toolName
+                : typeof tool.name === 'string'
+                  ? tool.name
+                  : 'tool',
+            status: (tool.status === 'running' || tool.status === 'error' ? tool.status : 'done') as
+              | 'running'
+              | 'done'
+              | 'error',
+            summary:
+              typeof pres?.summary === 'string'
+                ? pres.summary
+                : typeof tool.summary === 'string'
+                  ? tool.summary
+                  : undefined,
+            actionVerb:
+              typeof pres?.actionVerb === 'string'
+                ? pres.actionVerb
+                : typeof tool.actionVerb === 'string'
+                  ? tool.actionVerb
+                  : undefined,
+            command:
+              typeof pres?.command === 'string'
+                ? pres.command
+                : typeof tool.command === 'string'
+                  ? tool.command
+                  : undefined,
+            targetPaths: Array.isArray(pres?.targetPaths)
+              ? pres.targetPaths
+              : Array.isArray(tool.targetPaths)
+                ? (tool.targetPaths as string[])
                 : undefined,
-          actionVerb:
-            typeof pres?.actionVerb === 'string'
-              ? pres.actionVerb
-              : typeof tool.actionVerb === 'string'
-                ? tool.actionVerb
-                : undefined,
-          command:
-            typeof pres?.command === 'string'
-              ? pres.command
-              : typeof tool.command === 'string'
-                ? tool.command
-                : undefined,
-          targetPaths: Array.isArray(pres?.targetPaths)
-            ? (pres.targetPaths as string[])
-            : Array.isArray(tool.targetPaths)
-              ? (tool.targetPaths as string[])
-              : undefined,
-          output: outputPres ?? (typeof tool.output === 'string' ? tool.output : undefined),
-          error: errorPres ?? (tool.status === 'error' ? '执行失败' : undefined),
-          durationMs:
-            typeof pres?.durationMs === 'number'
-              ? pres.durationMs
-              : typeof tool.durationMs === 'number'
-                ? tool.durationMs
-                : undefined,
-          flashcard: pres ? (parseFlashcardDisplayPayload(pres.flashcard) ?? undefined) : undefined,
-        };
+            output: outputPres ?? (typeof tool.output === 'string' ? tool.output : undefined),
+            error: errorPres ?? (tool.status === 'error' ? '执行失败' : undefined),
+            durationMs:
+              typeof pres?.durationMs === 'number'
+                ? pres.durationMs
+                : typeof tool.durationMs === 'number'
+                  ? tool.durationMs
+                  : undefined,
+          },
+          presentation,
+        );
       })
     : undefined;
 
@@ -329,6 +324,20 @@ function isRemoteTranscriptMessage(value: unknown): value is RemoteTranscriptMes
     typeof value.createdAt === 'string' &&
     (value.status === 'streaming' || value.status === 'done' || value.status === 'error')
   );
+}
+
+function withToolPresentation(
+  tool: MobileToolCall,
+  presentation: ToolPresentation | undefined,
+): MobileToolCall {
+  if (presentation === undefined) {
+    return tool;
+  }
+  return { ...tool, presentation };
+}
+
+function isToolPresentation(value: unknown): value is ToolPresentation {
+  return isRecord(value) && typeof value.kind === 'string' && typeof value.title === 'string';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

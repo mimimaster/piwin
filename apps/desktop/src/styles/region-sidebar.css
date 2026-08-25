@@ -157,6 +157,16 @@
   color: var(--text-1);
 }
 
+.sidebar-action-row.active {
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.sidebar-action-row.active svg {
+  color: var(--iris);
+}
+
 .sidebar-action-row:active:not(:disabled) {
   background: var(--active);
 }

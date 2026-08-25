@@ -14,6 +14,14 @@ import {
   type MessageChangedFileStat,
 } from './collect-message-changed-files';
 import { IconChevronDown, IconFileDiff, IconMore } from './shell-icons';
+import {
+  formatDisplayPathParts,
+  getRelativeFilePath,
+  type DisplayPathParts,
+} from './truncate-relative-path';
+
+export { formatDisplayPathParts, getRelativeFilePath };
+export type { DisplayPathParts };
 
 export type FilesChangedBarRequest = (command: {
   type: 'git/diff-summary';
@@ -92,43 +100,6 @@ export type FilesChangedBarProps = {
   onReview?: () => void;
   locale?: 'zh-CN' | 'en';
 };
-
-export type DisplayPathParts = {
-  fileName: string;
-  dirPath: string;
-  fullDisplayPath: string;
-};
-
-export function getRelativeFilePath(fullPath: string, projectPath?: string | null): string {
-  if (!fullPath) return '';
-  const normPath = fullPath.replace(/\\/g, '/');
-  if (!projectPath) {
-    return normPath;
-  }
-  const normProj = projectPath.replace(/\\/g, '/').replace(/\/+$/, '');
-  if (normPath === normProj) {
-    return '.';
-  }
-  if (normPath.startsWith(normProj + '/')) {
-    return normPath.slice(normProj.length + 1);
-  }
-  return normPath;
-}
-
-export function formatDisplayPathParts(
-  fullPath: string,
-  projectPath?: string | null,
-): DisplayPathParts {
-  const relPath = getRelativeFilePath(fullPath, projectPath);
-  const parts = relPath.split('/');
-  const fileName = parts[parts.length - 1] || relPath;
-  const dirPath = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : '';
-  return {
-    fileName,
-    dirPath,
-    fullDisplayPath: relPath,
-  };
-}
 
 function formatCountLabel(count: number, isZh: boolean): string {
   if (isZh) {

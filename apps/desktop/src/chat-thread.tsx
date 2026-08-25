@@ -241,16 +241,37 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
       }),
     [props.messages],
   );
+  const effectiveMessages = useMemo(() => {
+    if (!props.isConversationSession || !props.streaming) {
+      return transcriptMessages;
+    }
+    const tail = transcriptMessages[transcriptMessages.length - 1];
+    if (tail?.role === 'user') {
+      const pendingAssistantMessage: ChatMessageUi = {
+        id: `pending-assistant-${tail.id}`,
+        role: 'assistant',
+        text: '',
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'streaming',
+        createdAt: new Date().toISOString(),
+        ...(props.livePromptModel ? { model: props.livePromptModel } : {}),
+      };
+      return [...transcriptMessages, pendingAssistantMessage];
+    }
+    return transcriptMessages;
+  }, [props.isConversationSession, props.streaming, props.livePromptModel, transcriptMessages]);
   const docCardSequence = useMemo(
-    () => transcriptMessages.find((message) => message.docCardSequence)?.docCardSequence,
-    [transcriptMessages],
+    () => effectiveMessages.find((message) => message.docCardSequence)?.docCardSequence,
+    [effectiveMessages],
   );
   const chatMessages = useMemo(
     () =>
       docCardSequence
-        ? transcriptMessages.filter((message) => !message.docCardSequence)
-        : transcriptMessages,
-    [docCardSequence, transcriptMessages],
+        ? effectiveMessages.filter((message) => !message.docCardSequence)
+        : effectiveMessages,
+    [docCardSequence, effectiveMessages],
   );
 
   const activeToolName = useMemo(() => {
@@ -294,12 +315,19 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     transcriptTail !== undefined &&
     transcriptTail.status === 'streaming' &&
     isAssistantContentEmpty(transcriptTail);
+  const conversationSession = props.isConversationSession === true;
+  const effectiveTail = chatMessages[chatMessages.length - 1];
+  const effectiveTailAwaitsFirstOutput =
+    effectiveTail !== undefined &&
+    effectiveTail.status === 'streaming' &&
+    isAssistantContentEmpty(effectiveTail);
   const showRunActivity =
     props.streaming &&
     props.activeRunId != null &&
     !props.permissionPrompt &&
-    (transcriptMessages.length === 0 || transcriptTail?.role === 'user' || tailAwaitsFirstOutput);
-  const conversationSession = props.isConversationSession === true;
+    (conversationSession
+      ? chatMessages.length === 0 || (effectiveTail?.role === 'user' && !effectiveTailAwaitsFirstOutput)
+      : transcriptMessages.length === 0 || transcriptTail?.role === 'user' || tailAwaitsFirstOutput);
   const conversationActivityKind = conversationSession
     ? resolveConversationActivityKind({
         streaming: props.streaming,

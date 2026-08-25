@@ -124,6 +124,7 @@ export {
   streamTranscriptExport,
   suggestSessionExportBasename,
   TOOL_OUTPUT_REDACTED_PLACEHOLDER,
+  HEALTH_TOOL_OUTPUT_OMITTED_PLACEHOLDER,
 } from './export-transcript.js';
 export type {
   ExportTranscriptOptions,

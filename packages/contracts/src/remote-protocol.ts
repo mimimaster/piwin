@@ -5,8 +5,20 @@ import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './
 import type { QueuedTurnRecord } from './queued-turn.js';
 import type { TrustedDeviceCredential } from './remote.js';
 import type { SessionListPageResult } from './session-list-page.js';
+import type {
+  ClientToolCancelFrame,
+  ClientToolCapabilitiesFrame,
+  ClientToolCapabilityAdvertisement,
+  ClientToolRequestFrame,
+  ClientToolResultFrame,
+} from './client-tool.js';
 
-/** The first version of the private shell-to-host wire protocol. */
+/**
+ * The first version of the private shell-to-host wire protocol.
+ * Client-tool frames are additive optional fields/types under version 1:
+ * they are sent only after bilateral capability negotiation. Changing frame
+ * meaning or authentication requires a new protocol version.
+ */
 export const HOST_PROTOCOL_VERSION = 1 as const;
 
 export type HostProtocolVersion = typeof HOST_PROTOCOL_VERSION;
@@ -19,6 +31,13 @@ export type HostClientCapabilities = {
   cursorBatches?: boolean;
   boundedReplay?: boolean;
   hydration?: boolean;
+  /**
+   * Client will send `client/subscriptions` and accepts filtered live
+   * session streams. Absent on old clients (full fan-out).
+   */
+  liveSubscriptions?: boolean;
+  /** Bounded device-tool advertisements. Absent on old clients. */
+  clientTools?: readonly ClientToolCapabilityAdvertisement[];
 };
 
 export type HostClientHello = {
@@ -171,6 +190,13 @@ export type RemoteCapabilitySummary = {
   logicalProjectRefs?: boolean;
   /** Host can hydrate activity/run state for reconnecting shells. */
   activityHydration?: boolean;
+  /**
+   * Host will send targeted client-tool request/cancel frames to this
+   * connection. Absent on old Hosts; never implied by protocol version alone.
+   */
+  clientToolRequests?: boolean;
+  /** Host accepts `client/subscriptions` and filters high-rate session pushes. */
+  liveSubscriptions?: boolean;
   /**
    * OS family of the Host process (`process.platform`). Shells use this for
    * Host-path placeholders and joins — never the client OS.
@@ -346,6 +372,23 @@ export type HostCommandFrame = {
   idempotencyKey?: string;
 };
 
+/** One Desktop Conversation workspace may keep all eight visible panes live. */
+export const LIVE_SUBSCRIPTION_MAX_SESSION_IDS = 8 as const;
+
+export type HostClientSubscriptionsFrame = {
+  type: 'client/subscriptions';
+  requestId: string;
+  revision: number;
+  subscriptions: HostClientSubscriptions;
+};
+
+export type HostSubscriptionsAppliedFrame = {
+  type: 'subscriptions/applied';
+  requestId: string;
+  revision: number;
+  fenceSeq: number;
+};
+
 export type HostResponseFrame = {
   type: 'response';
   requestId: string;
@@ -437,4 +480,21 @@ export type HostWireMessage =
   | HostReplayDoneFrame
   | HostSnapshotFrame
   | HostHydrationFrame
-  | HostErrorFrame;
+  | HostErrorFrame
+  | HostClientSubscriptionsFrame
+  | HostSubscriptionsAppliedFrame
+  | ClientToolRequestFrame
+  | ClientToolResultFrame
+  | ClientToolCancelFrame
+  | ClientToolCapabilitiesFrame;
+
+/**
+ * Frames a client transport may send. Host-to-client request/cancel are
+ * intentionally absent so the client outbound API cannot express them.
+ */
+export type HostClientOutboundFrame =
+  | HostCommandFrame
+  | HostReplayFrame
+  | HostClientSubscriptionsFrame
+  | ClientToolResultFrame
+  | ClientToolCapabilitiesFrame;

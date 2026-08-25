@@ -73,6 +73,7 @@ export function sessionRunPhaseToActivityKind(phase: SessionRunPhase): RunStatus
       return 'working';
     case 'waiting-permission':
       return 'waiting-permission';
+    case 'pausing':
     case 'cancelling':
       return 'stopping';
     default:

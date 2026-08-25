@@ -8,7 +8,8 @@
  * `HostRuntime` unchanged. See ADR 0027 §3.
  */
 import { createInterface } from 'node:readline';
-import type { HostCommand, HostServerMessage } from '@piwin/contracts';
+import type { HostCommandRequest, HostServerMessage } from '@piwin/contracts';
+import { parseHostCommandRequest } from '@piwin/contracts';
 import { createJsonlWriter, type JsonlWriter } from './host-serve-jsonl-writer.js';
 
 /**
@@ -22,7 +23,7 @@ export type Transport = {
   /** Write one framed message to the output side. */
   send: (message: HostServerMessage) => Promise<void>;
   /** Begin reading commands; call `onCommand` for each parsed frame. Resolves on EOF/stop. */
-  start: (onCommand: (command: HostCommand) => void) => Promise<void>;
+  start: (onCommand: (request: HostCommandRequest) => void) => Promise<void>;
   /** Stop reading commands and flush the output side. Idempotent. */
   stop: () => Promise<void>;
 };
@@ -34,8 +35,8 @@ export type JsonlStdioTransportOptions = {
 
 /**
  * JSONL over stdin/stdout transport — the default and currently only transport.
- * Each line on input is one `HostCommand` JSON; each `send` writes one
- * `HostServerMessage` JSON line on output.
+ * Each line on input is one `HostCommand` or versioned request envelope JSON;
+ * each `send` writes one `HostServerMessage` JSON line on output.
  */
 export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = {}): Transport {
   const input = options.input ?? process.stdin;
@@ -63,7 +64,7 @@ export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = 
     return stopPromise;
   }
 
-  function start(onCommand: (command: HostCommand) => void): Promise<void> {
+  function start(onCommand: (request: HostCommandRequest) => void): Promise<void> {
     if (readlineInterface !== undefined) {
       // Transport already started; a single transport serves one serve loop.
       return Promise.resolve();
@@ -76,9 +77,9 @@ export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = 
         if (!trimmed) {
           return;
         }
-        let command: HostCommand;
+        let parsed: unknown;
         try {
-          command = JSON.parse(trimmed) as HostCommand;
+          parsed = JSON.parse(trimmed) as unknown;
         } catch {
           void send({
             type: 'response',
@@ -88,7 +89,17 @@ export function createJsonlStdioTransport(options: JsonlStdioTransportOptions = 
           });
           return;
         }
-        onCommand(command);
+        const request = parseHostCommandRequest(parsed);
+        if ('error' in request) {
+          void send({
+            type: 'response',
+            command: 'parse',
+            success: false,
+            error: request.error,
+          });
+          return;
+        }
+        onCommand(request);
       });
       readlineInterface?.on('close', () => {
         if (startResolve !== undefined) {

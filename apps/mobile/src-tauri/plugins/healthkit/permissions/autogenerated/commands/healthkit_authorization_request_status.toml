@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-healthkit-authorization-request-status"
+description = "Enables the healthkit_authorization_request_status command without any pre-configured scope."
+commands.allow = ["healthkit_authorization_request_status"]
+
+[[permission]]
+identifier = "deny-healthkit-authorization-request-status"
+description = "Denies the healthkit_authorization_request_status command without any pre-configured scope."
+commands.deny = ["healthkit_authorization_request_status"]

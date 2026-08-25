@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-10
-- Updated: 2026-08-21
+- Updated: 2026-08-25
 - Related: ADR 0012, ADR 0015, ADR 0040, `docs/specs/runtime-refactor.md`
 
 ## Context
@@ -40,19 +40,20 @@ The first version only pauses a foreground session turn with no active child
 Runs. A request with active descendants is rejected with a stable error rather
 than partially pausing a Run tree.
 
-### Product UI (shells) — non-negotiable
+### Product UI (shells)
 
-Desktop / primary coding-agent shells follow Cursor and Claude Code:
+Desktop exposes the checkpoint workflow without adding parallel composer chrome:
 
-1. **One interrupt control while a run is live.** Label and affordance are
-   **Stop**. Not Pause. Not Pause+Stop. Not “click pauses, Esc stops”.
-2. Clicking that control issues the Host interrupt the shell uses for Stop
-   (`session/abort`). Esc / `stop-run` shortcuts call the same path.
-3. `session/pause` and `session/resume-run` remain Host/CLI (and any explicit
-   advanced) APIs for checkpoint workflows. They are **not** a second composer
-   button or a second user-facing interrupt semantic next to Stop.
-4. Do not invent dual interrupt semantics in the composer because the Host has
-   two commands. Protocol richness ≠ product chrome.
+1. **One primary run control while a Run is live.** Label and icon are
+   **Pause**; there is no adjacent Pause+Stop pair.
+2. Clicking Pause sends `session/pause` with the exact foreground `runId` and
+   shows `pausing` until the Host publishes the terminal checkpoint.
+3. Once paused, the same action slot shows **Continue** and an irreversible
+   discard action. Continue sends `session/resume-run`; discard clears the
+   checkpoint through `session/abort`.
+4. Esc / the explicit `stop-run` command remain irreversible Stop gestures for
+   emergency cancellation. They are deliberately named Stop and are not shown
+   as a second live composer button.
 
 ## Consequences
 
@@ -64,13 +65,13 @@ Desktop / primary coding-agent shells follow Cursor and Claude Code:
   abort/cancel mechanisms; no new Pi-native worker protocol is required.
 - The paused Run remains terminal and immutable, which keeps late-event
   filtering, restart behavior, and multi-client projections deterministic.
-- Shell UX stays one Stop. Checkpoint pause stays an implementation / CLI
-  capability, not a parallel Desktop interrupt button.
+- Desktop keeps one primary live control while making checkpoint pause and
+  continue directly usable. Irreversible Stop remains an explicit command.
 
 ## Future replacement point
 
 If Pi later adds native pause/resume, the Host command and checkpoint contract
 remain stable. Only the agent-host backend operation and continuation policy
 need to gain a native implementation; the RunRegistry and durable checkpoint
-authority do not move into Pi. Product shells still expose one Stop unless a
-future ADR explicitly changes that UX.
+authority do not move into Pi. The primary shell control remains one Pause even
+if its backend later becomes provider-native.

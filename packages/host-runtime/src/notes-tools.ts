@@ -11,6 +11,7 @@ import type {
   NoteWriteInput,
   ToolResult,
 } from '@piwin/contracts';
+import { HEALTH_MODEL_OUTPUT_PREAMBLE, isHealthSensitiveToolResult } from '@piwin/contracts';
 import type { NoteIndex, NoteStore, SearchNotesOptions } from '@piwin/notes';
 import { searchNotes } from '@piwin/notes';
 import type { NotesPermissionAction } from './permission-policy.js';
@@ -49,6 +50,26 @@ function notesPermissionSpec(
 
 function invalidNotesInput(message: string): ToolResult {
   return { ok: false, code: 'invalid-input', message };
+}
+
+function rejectHealthSensitiveNoteSource(args: Record<string, unknown>): ToolResult | undefined {
+  const source = isNotesRecord(args.sourceDetails) ? args.sourceDetails : args;
+  const content = typeof args.content === 'string' ? args.content : '';
+  if (
+    !isHealthSensitiveToolResult(source) &&
+    !content.includes(HEALTH_MODEL_OUTPUT_PREAMBLE)
+  ) {
+    return undefined;
+  }
+  return {
+    ok: false,
+    code: 'permission-denied',
+    message: 'Health-sensitive tool results cannot be stored in Notes.',
+  };
+}
+
+function isNotesRecord(value: unknown): value is { sensitivity?: string } {
+  return typeof value === 'object' && value !== null;
 }
 
 export function buildNotesTools(options: BuildNotesToolsOptions): HostToolRegistration[] {
@@ -213,6 +234,8 @@ function createNotesToolDefinitions(
       permissionSpec: notesPermissionSpec('note_write', true),
       prepareArgs: passThroughPrepareArgs,
       async execute(args) {
+        const blocked = rejectHealthSensitiveNoteSource(args);
+        if (blocked) return blocked;
         const writeInput: NoteWriteInput = {
           title: String(args.title ?? ''),
           content: String(args.content ?? ''),
@@ -252,6 +275,8 @@ function createNotesToolDefinitions(
       permissionSpec: notesPermissionSpec('note_update', true),
       prepareArgs: passThroughPrepareArgs,
       async execute(args) {
+        const blocked = rejectHealthSensitiveNoteSource(args);
+        if (blocked) return blocked;
         const noteId = String(args.noteId ?? '').trim();
         if (!noteId) return invalidNotesInput('noteId is required');
         const updateInput: NoteUpdateInput = { id: noteId };

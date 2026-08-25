@@ -179,7 +179,10 @@ export function useWorkbenchHostRuntime(args: UseWorkbenchHostRuntimeArgs) {
     dispatch,
     activeSessionId: state.activeSessionId,
     activeRunId: state.activeRunId,
-    runLive: state.runPhase === 'streaming' || state.runPhase === 'aborting',
+    runLive:
+      state.runPhase === 'streaming' ||
+      state.runPhase === 'pausing' ||
+      state.runPhase === 'aborting',
     hostReady: state.hostReady,
     catchUpEpoch: remoteCatchUpEpoch,
   });

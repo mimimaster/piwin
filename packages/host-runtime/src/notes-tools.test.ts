@@ -118,6 +118,30 @@ describe('buildNotesTools', () => {
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
+  it('rejects Notes writes sourced from health-sensitive tool results', async () => {
+    const { store, index } = await setup();
+    const tools = buildNotesTools({ store, index, enabled: true });
+    const writeTool = tools.find((tool) => tool.descriptor.name === 'note_write');
+    if (!writeTool) throw new Error('note_write missing');
+    const result = await executeTool(writeTool, {
+      title: '睡眠',
+      content: 'sleep-duration 420',
+      sourceDetails: { sensitivity: 'health' },
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      code: 'permission-denied',
+      message: 'Health-sensitive tool results cannot be stored in Notes.',
+    });
+
+    const fromOutput = await executeTool(writeTool, {
+      title: '睡眠',
+      content:
+        'These values are user-authorized Apple Health summaries. Missing metrics are unknown, not zero.\nsleep-duration 420',
+    });
+    expect(fromOutput).toMatchObject({ ok: false, code: 'permission-denied' });
+  });
+
   it('denies mutating tools without a permission gate (non-interactive)', async () => {
     const { store, index } = await setup();
     const tools = buildNotesTools({ store, index, enabled: true });

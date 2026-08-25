@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type {
   HostClientHello,
+  HostClientOutboundFrame,
   HostCommandFrame,
   HostHello,
   HostHydrationFrame,
@@ -10,6 +11,7 @@ import type {
   HostResponseFrame,
   HostWireMessage,
 } from '@piwin/contracts';
+import { APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID } from '@piwin/contracts';
 import {
   WebSocketHostTransport,
   type HostTransport,
@@ -21,7 +23,7 @@ import {
 import { HostClient, MAX_PENDING_PUSH_FRAMES } from './host-client.js';
 
 class FakeTransport implements HostTransport {
-  public readonly sent: Array<HostCommandFrame | HostReplayFrame> = [];
+  public readonly sent: HostClientOutboundFrame[] = [];
   public nextHello: HostHello | undefined;
   public helloAtConnect: HostClientHello | undefined;
   /** When true, connect() returns hello before emitting replay/done. */
@@ -78,8 +80,17 @@ class FakeTransport implements HostTransport {
     });
   }
 
-  public send(message: HostCommandFrame | HostReplayFrame): void {
+  public send(message: HostClientOutboundFrame): void {
     this.sent.push(message);
+    if (message.type === 'client/subscriptions') {
+      this.emit({
+        type: 'subscriptions/applied',
+        requestId: message.requestId,
+        revision: message.revision,
+        fenceSeq: 12,
+      });
+      return;
+    }
     if (message.type === 'command') {
       const response: HostResponseFrame = {
         type: 'response',
@@ -167,6 +178,22 @@ describe('HostClient', () => {
     expect(response).toMatchObject({ success: true, command: 'host/ping' });
     expect(transport.sent[0]).toMatchObject({ command: { type: 'host/ping' } });
 
+    await client.close();
+  });
+
+  it('sends a live subscription update and resolves the applied fence', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'mobile-sub',
+      clientType: 'mobile',
+      clientVersion: 'test',
+      capabilities: { liveSubscriptions: true },
+    });
+    await client.connect();
+    const applied = await client.updateSubscriptions(['session-b']);
+    expect(applied).toMatchObject({ type: 'subscriptions/applied', revision: 1, fenceSeq: 12 });
+    expect(transport.sent.some((frame) => frame.type === 'client/subscriptions')).toBe(true);
     await client.close();
   });
 
@@ -663,6 +690,122 @@ describe('HostClient', () => {
     second.emitHello('host-late');
     await expect(pending).resolves.toMatchObject({ hostInstanceId: 'host-late' });
     expect(client.getHostHello()?.hostInstanceId).toBe('host-late');
+    await client.close();
+  });
+});
+
+describe('HostClient client-tool frames', () => {
+  it('dispatches request/cancel without advancing the push cursor', async () => {
+    const transport = new FakeTransport();
+    transport.nextHello = {
+      type: 'host/hello',
+      protocolVersion: 1,
+      hostInstanceId: 'host-tools',
+      currentSeq: 4,
+      authRequired: true,
+      authenticated: true,
+      capabilities: {
+        pushSequencing: true,
+        replay: true,
+        snapshot: true,
+        sessionRead: true,
+        sessionControl: true,
+        permissionResolve: true,
+        mediaUpload: false,
+        clientToolRequests: true,
+      },
+    };
+    const client = new HostClient({
+      transport,
+      clientId: 'mobile-test',
+      clientType: 'mobile',
+      clientVersion: 'test',
+    });
+    await client.connect();
+    transport.emitPush(client.getLastSeq() + 1);
+    const cursorAfterPush = client.getLastSeq();
+    expect(cursorAfterPush).toBeGreaterThan(0);
+    const requests: string[] = [];
+    const cancels: string[] = [];
+    client.subscribeClientToolRequests((frame) => {
+      requests.push(frame.requestId);
+    });
+    client.subscribeClientToolCancellations((frame) => {
+      cancels.push(frame.requestId);
+    });
+    transport.emit({
+      type: 'client-tool/request',
+      requestId: 'req-health',
+      capabilityId: APPLE_HEALTH_READ_CONTEXT_CAPABILITY_ID,
+      sessionId: 'session-1',
+      runId: 'run-1',
+      toolCallId: 'tool-1',
+      arguments: { metrics: ['steps'] },
+      deadlineAt: '2026-08-23T12:02:00.000Z',
+      timeoutMs: 120_000,
+      display: {
+        title: '读取 Apple Health',
+        metricLabels: ['步数'],
+        periodLabel: '今天',
+        explicitTurnIntent: false,
+      },
+    });
+    transport.emit({
+      type: 'client-tool/cancel',
+      requestId: 'req-health',
+      reason: 'run-aborted',
+    });
+    expect(requests).toEqual(['req-health']);
+    expect(cancels).toEqual(['req-health']);
+    expect(client.getLastSeq()).toBe(cursorAfterPush);
+    await client.close();
+  });
+
+  it('sends a result only when ready and the Host negotiated client tools', async () => {
+    const transport = new FakeTransport();
+    const client = new HostClient({
+      transport,
+      clientId: 'mobile-test',
+      clientType: 'mobile',
+      clientVersion: 'test',
+    });
+    expect(() =>
+      client.sendClientToolResult({
+        type: 'client-tool/result',
+        requestId: 'req-1',
+        status: 'cancelled',
+        completedAt: '2026-08-23T12:00:00.000Z',
+        errorCode: 'cancelled',
+      }),
+    ).toThrow(/authenticated ready/i);
+
+    transport.nextHello = {
+      type: 'host/hello',
+      protocolVersion: 1,
+      hostInstanceId: 'host-old',
+      currentSeq: 0,
+      authRequired: false,
+      authenticated: true,
+      capabilities: {
+        pushSequencing: true,
+        replay: true,
+        snapshot: true,
+        sessionRead: true,
+        sessionControl: false,
+        permissionResolve: false,
+        mediaUpload: false,
+      },
+    };
+    await client.connect();
+    expect(() =>
+      client.sendClientToolResult({
+        type: 'client-tool/result',
+        requestId: 'req-1',
+        status: 'cancelled',
+        completedAt: '2026-08-23T12:00:00.000Z',
+        errorCode: 'cancelled',
+      }),
+    ).toThrow(/does not support client-tool/i);
     await client.close();
   });
 });

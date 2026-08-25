@@ -15,6 +15,22 @@ import {
   formatCardMarkdown,
   copyToClipboard,
 } from './knowledge-export';
+import {
+  IconAlertCircle,
+  IconCards,
+  IconChat,
+  IconCheckCircle,
+  IconClose,
+  IconCopy,
+  IconDocument,
+  IconEye,
+  IconFlame,
+  IconNarrowRight,
+  IconRefresh,
+  IconSpark,
+  IconTable,
+  IconTrash,
+} from './shell-icons';
 
 export type FlashcardsPanelProps = {
   request: (command:
@@ -242,75 +258,107 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
     <div className="flashcards-panel-container" data-testid="flashcards-panel">
       {/* Top Controls Bar */}
       <div className="flashcards-toolbar-card">
-        <div className="flashcards-toolbar-left">
-          <label className="flashcards-deck-select-label">
-            <span>{t('Deck:', '卡组：')}</span>
+        <div className="flashcards-toolbar-top">
+          <div className="flashcards-deck-picker">
+            <IconCards className="flashcards-deck-icon" />
             <select
               value={deckFilter}
               onChange={(event) => setDeckFilter(event.target.value)}
               data-testid="flashcards-deck-select"
               className="flashcards-deck-select"
+              aria-label={t('Filter by Deck', '按卡组筛选')}
             >
-              <option value="">{t('All Decks', '全部卡组')}</option>
+              <option value="">{t('All Decks', '全部卡组')} ({cards.length})</option>
               {decks.map((deck) => (
                 <option key={deck} value={deck}>
                   {deck}
                 </option>
               ))}
             </select>
-          </label>
-        </div>
+          </div>
 
-        <div className="flashcards-toolbar-actions">
-          <Button
-            variant="primary"
-            disabled={queue.length === 0 || reviewing}
-            data-testid="flashcards-review-start"
-            onClick={() => {
-              setPosition(0);
-              setRevealed(false);
-              setReviewing(true);
-              setInfo(null);
-            }}
-          >
-            🔥 {t(`Review ${queue.length} Due`, `开始复习 (${queue.length} 张到期)`)}
-          </Button>
+          <div className="flashcards-toolbar-actions">
+            <Button
+              variant={queue.length > 0 ? 'primary' : 'secondary'}
+              disabled={queue.length === 0 || reviewing}
+              data-testid="flashcards-review-start"
+              onClick={() => {
+                setPosition(0);
+                setRevealed(false);
+                setReviewing(true);
+                setInfo(null);
+              }}
+              className="flashcards-btn-review"
+            >
+              <IconFlame className="flashcards-btn-icon" />
+              <span>{t(`Review (${queue.length} Due)`, `开始复习 (${queue.length} 张到期)`)}</span>
+            </Button>
 
-          <Button variant="secondary" onClick={() => void loadData()}>
-            🔄 {t('Refresh', '刷新')}
-          </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void loadData()}
+              title={t('Refresh flashcards', '刷新卡片与队列')}
+              aria-label={t('Refresh', '刷新')}
+            >
+              <IconRefresh className="flashcards-btn-icon" />
+              <span>{t('Refresh', '刷新')}</span>
+            </Button>
 
-          <Button
-            variant="secondary"
-            disabled={cards.length === 0}
-            onClick={handleExportMarkdown}
-            title={t('Export as Markdown Document', '导出为 Markdown 知识库')}
-          >
-            📄 {t('Export .MD', '导出 MD')}
-          </Button>
+            <Button
+              variant="secondary"
+              disabled={cards.length === 0}
+              onClick={handleExportMarkdown}
+              title={t('Export as Markdown Document', '导出为 Markdown 知识库')}
+            >
+              <IconDocument className="flashcards-btn-icon" />
+              <span>{t('Export .MD', '导出 MD')}</span>
+            </Button>
 
-          <Button
-            variant="ghost"
-            data-testid="flashcards-export"
-            disabled={cards.length === 0}
-            onClick={handleExportAnkiTsv}
-            title={t('Export as Anki-importable TSV', '导出为 Anki 兼容的 TSV 格式')}
-          >
-            📤 {t('Export TSV', '导出 TSV')}
-          </Button>
+            <Button
+              variant="ghost"
+              data-testid="flashcards-export"
+              disabled={cards.length === 0}
+              onClick={handleExportAnkiTsv}
+              title={t('Export as Anki-importable TSV', '导出为 Anki 兼容的 TSV 格式')}
+            >
+              <IconTable className="flashcards-btn-icon" />
+              <span>{t('Export TSV', '导出 TSV')}</span>
+            </Button>
+          </div>
         </div>
 
         <div className="flashcards-stats-strip">
-          <span>{t(`Total ${cards.length} cards`, `共 ${cards.length} 张卡片`)}</span>
-          <span>·</span>
-          <span>{t(`${queue.length} due today`, `今日待复习 ${queue.length} 张`)}</span>
-          <span>·</span>
-          <span>{t('FSRS Algorithm Engine', 'FSRS 间隔重复记忆算法驱动')}</span>
+          <div className="flashcards-stat-item">
+            <span className="flashcards-stat-label">{t('Total Cards', '卡片总数')}</span>
+            <span className="flashcards-stat-value">{cards.length}</span>
+          </div>
+          <div className="flashcards-stat-divider" />
+          <div className="flashcards-stat-item">
+            <span className="flashcards-stat-label">{t('Due Today', '今日待复习')}</span>
+            <span className={`flashcards-stat-value ${queue.length > 0 ? 'is-due' : ''}`}>
+              {queue.length}
+            </span>
+          </div>
+          <div className="flashcards-stat-divider" />
+          <div className="flashcards-algorithm-tag" title={t('Free Spaced Repetition Scheduler Algorithm', 'FSRS 间隔重复记忆算法驱动')}>
+            <IconSpark className="flashcards-algo-icon" />
+            <span>FSRS Engine</span>
+          </div>
         </div>
       </div>
 
-      {error && <div className="doc-cards-error-banner" role="alert">⚠️ {error}</div>}
-      {info && <div className="doc-cards-info-banner" role="status">ℹ️ {info}</div>}
+      {error && (
+        <div className="flashcards-status-banner is-error" role="alert">
+          <IconAlertCircle className="flashcards-status-icon" />
+          <span>{error}</span>
+        </div>
+      )}
+      {info && (
+        <div className="flashcards-status-banner is-info" role="status">
+          <IconCheckCircle className="flashcards-status-icon" />
+          <span>{info}</span>
+        </div>
+      )}
 
       {/* Review Stage */}
       {reviewing && currentItem ? (
@@ -325,16 +373,26 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                   {t('New Card', '新卡片')}
                 </span>
               )}
-              <span className="flashcards-deck-tag">🗂️ {currentItem.card.deck}</span>
+              <span className="flashcards-deck-tag">
+                <IconCards className="flashcards-deck-tag-icon" />
+                {currentItem.card.deck}
+              </span>
             </div>
             <div className="flashcards-keyboard-hints">
-              <span>{t('Space: Flip', '空格: 查看答案')}</span>
+              <span className="flashcards-kbd-hint"><kbd>Space</kbd> {t('Flip', '翻转')}</span>
               <span>·</span>
-              <span>{t('1–4: Rate', '1–4: 评分')}</span>
+              <span className="flashcards-kbd-hint"><kbd>1–4</kbd> {t('Rate', '评分')}</span>
               <span>·</span>
-              <span>{t('Esc: Exit', 'Esc: 退出')}</span>
+              <span className="flashcards-kbd-hint"><kbd>Esc</kbd> {t('Exit', '退出')}</span>
             </div>
           </header>
+
+          <div className="flashcards-progress-bar-track">
+            <div
+              className="flashcards-progress-bar-fill"
+              style={{ width: `${Math.round(((position + 1) / queue.length) * 100)}%` }}
+            />
+          </div>
 
           <div className="flashcards-card-box">
             <div className="flashcards-question-side">
@@ -351,9 +409,10 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                   {currentItem.card.back}
                 </div>
                 {currentItem.card.sourceExcerpt && (
-                  <p className="flashcards-box-source-quote">
-                    “{currentItem.card.sourceExcerpt}”
-                  </p>
+                  <div className="flashcards-box-source-quote">
+                    <IconDocument className="flashcards-quote-icon" />
+                    <p>“{currentItem.card.sourceExcerpt}”</p>
+                  </div>
                 )}
               </div>
             ) : null}
@@ -365,27 +424,60 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                 variant="primary"
                 data-testid="flashcards-reveal"
                 onClick={() => setRevealed(true)}
+                className="flashcards-reveal-btn"
               >
-                👀 {t('Reveal Answer (Space)', '查看答案 (空格)')}
+                <IconEye className="flashcards-btn-icon" />
+                <span>{t('Reveal Answer', '查看答案')}</span>
+                <kbd className="flashcards-btn-kbd">Space</kbd>
               </Button>
             ) : (
               <div className="flashcards-rate-group">
-                <Button variant="danger" onClick={() => void handleRate('again')}>
-                  1 {t('Again', '忘了')}
-                </Button>
-                <Button variant="secondary" onClick={() => void handleRate('hard')}>
-                  2 {t('Hard', '较难')}
-                </Button>
-                <Button variant="primary" onClick={() => void handleRate('good')}>
-                  3 {t('Good', '记住了')}
-                </Button>
-                <Button variant="ghost" onClick={() => void handleRate('easy')}>
-                  4 {t('Easy', '简单')}
-                </Button>
+                <button
+                  type="button"
+                  className="flashcards-rate-btn tone-again"
+                  onClick={() => void handleRate('again')}
+                  title={t('Forgot / Again', '忘了 (按键 1)')}
+                >
+                  <kbd className="flashcards-rate-kbd">1</kbd>
+                  <span className="flashcards-rate-label">{t('Again', '忘了')}</span>
+                </button>
+                <button
+                  type="button"
+                  className="flashcards-rate-btn tone-hard"
+                  onClick={() => void handleRate('hard')}
+                  title={t('Hard', '较难 (按键 2)')}
+                >
+                  <kbd className="flashcards-rate-kbd">2</kbd>
+                  <span className="flashcards-rate-label">{t('Hard', '较难')}</span>
+                </button>
+                <button
+                  type="button"
+                  className="flashcards-rate-btn tone-good"
+                  onClick={() => void handleRate('good')}
+                  title={t('Good', '记住了 (按键 3)')}
+                >
+                  <kbd className="flashcards-rate-kbd">3</kbd>
+                  <span className="flashcards-rate-label">{t('Good', '记住了')}</span>
+                </button>
+                <button
+                  type="button"
+                  className="flashcards-rate-btn tone-easy"
+                  onClick={() => void handleRate('easy')}
+                  title={t('Easy', '简单 (按键 4)')}
+                >
+                  <kbd className="flashcards-rate-kbd">4</kbd>
+                  <span className="flashcards-rate-label">{t('Easy', '简单')}</span>
+                </button>
               </div>
             )}
-            <Button variant="ghost" size="compact" onClick={() => setReviewing(false)}>
-              {t('Exit Review', '结束复习')}
+            <Button
+              variant="ghost"
+              size="compact"
+              onClick={() => setReviewing(false)}
+              className="flashcards-exit-btn"
+            >
+              <IconClose className="flashcards-btn-icon" />
+              <span>{t('Exit Review', '结束复习')}</span>
             </Button>
           </footer>
         </div>
@@ -393,13 +485,19 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
         /* Cards List View */
         <div className="flashcards-list-section">
           {loading ? (
-            <p className="muted">{t('Loading cards…', '正在加载闪卡…')}</p>
+            <p className="flashcards-loading-hint">{t('Loading cards…', '正在加载闪卡…')}</p>
           ) : cards.length === 0 ? (
             <div className="flashcards-empty-card">
-              <p className="muted">
+              <div className="flashcards-empty-icon-wrap">
+                <IconCards className="flashcards-empty-icon" />
+              </div>
+              <h4 className="flashcards-empty-title">
+                {t('No Flashcards Yet', '暂无记忆闪卡')}
+              </h4>
+              <p className="flashcards-empty-desc">
                 {t(
-                  'No flashcards yet. You can generate them from "Doc Cards" tab or during chat conversations with Agent.',
-                  '暂无闪卡。你可以在「文档闪卡」标签页中一键提炼，或在对话中让 Agent 制作记忆闪卡。',
+                  'You can generate flashcards from "Doc Cards" tab or during chat conversations with Agent.',
+                  '你可以在「文档闪卡」标签页中一键提炼，或在对话中让 Agent 制作记忆闪卡。',
                 )}
               </p>
             </div>
@@ -408,55 +506,67 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
               {cards.map((card) => (
                 <li key={card.id} className="flashcards-grid-item">
                   <div className="flashcards-item-header">
-                    <span className="flashcards-item-deck">🗂️ {card.deck}</span>
+                    <span className="flashcards-item-deck">
+                      <IconCards className="flashcards-item-deck-icon" />
+                      {card.deck}
+                    </span>
                     <div className="flashcards-item-card-actions">
                       <button
                         type="button"
-                        className="doc-card-action-icon-btn"
+                        className="flashcards-action-icon-btn"
                         onClick={() => void handleCopyCardMarkdown(card)}
                         title={t('Copy Markdown', '复制 Markdown')}
+                        aria-label={t('Copy Markdown', '复制 Markdown')}
                       >
-                        📋
+                        <IconCopy />
                       </button>
                       {props.onSendToChat && (
                         <button
                           type="button"
-                          className="doc-card-action-icon-btn"
+                          className="flashcards-action-icon-btn"
                           onClick={() => handleSendCardToChat(card)}
                           title={t('Discuss in Chat', '在对话中讨论')}
+                          aria-label={t('Discuss in Chat', '在对话中讨论')}
                         >
-                          💬
+                          <IconChat />
                         </button>
                       )}
                       <button
                         type="button"
-                        className="doc-card-action-icon-btn"
+                        className="flashcards-action-icon-btn is-danger"
                         onClick={() => void handleDelete(card.id)}
                         title={t('Delete Card', '删除卡片')}
+                        aria-label={t('Delete Card', '删除卡片')}
                       >
-                        🗑️
+                        <IconTrash />
                       </button>
                     </div>
                   </div>
 
                   <div className="flashcards-item-body">
-                    <p className="flashcards-item-front">
-                      <strong>Q:</strong> {itemPreviewText(card)}
-                    </p>
-                    <p className="flashcards-item-back">
-                      <strong>A:</strong> {card.back ?? card.text ?? ''}
-                    </p>
+                    <div className="flashcards-item-qa-row">
+                      <span className="flashcards-qa-tag is-q">Q</span>
+                      <p className="flashcards-item-front">{itemPreviewText(card)}</p>
+                    </div>
+                    <div className="flashcards-item-qa-row">
+                      <span className="flashcards-qa-tag is-a">A</span>
+                      <p className="flashcards-item-back">{card.back ?? card.text ?? ''}</p>
+                    </div>
                   </div>
 
                   {card.sourceFile && (
                     <footer
                       className="flashcards-item-footer"
                       onClick={() => void handleOpenSource(card.id)}
+                      title={t('Click to open in local editor', '点击在本地编辑器中打开')}
                     >
-                      <span className="doc-card-source-badge" title={t('Click to open in local editor', '点击在本地编辑器中打开')}>
-                        📄 {card.sourceFile}
-                        {typeof card.sourceLine === 'number' ? `:${card.sourceLine}` : ''}
-                        <span className="doc-card-source-open-hint">↗️</span>
+                      <span className="flashcards-source-badge">
+                        <IconDocument className="flashcards-source-icon" />
+                        <span className="flashcards-source-path">
+                          {card.sourceFile}
+                          {typeof card.sourceLine === 'number' ? `:${card.sourceLine}` : ''}
+                        </span>
+                        <IconNarrowRight className="flashcards-source-arrow" />
                       </span>
                     </footer>
                   )}

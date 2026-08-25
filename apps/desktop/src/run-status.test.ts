@@ -14,6 +14,19 @@ describe('deriveRunStatus', () => {
     expect(status.canStop).toBe(false);
   });
 
+  it('describes pausing as checkpoint persistence', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      runPhase: 'pausing' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
+    expect(status.kind).toBe('stopping');
+    expect(status.label).toBe('Pausing');
+    expect(status.summary).toContain('checkpoint');
+    expect(status.canStop).toBe(false);
+  });
+
   it('maps permission prompt to waiting-permission', () => {
     const chat = {
       ...createInitialChatUiState(),
@@ -60,7 +73,7 @@ describe('deriveRunStatus', () => {
     expect(status.kind).toBe('stopped');
   });
 
-  it('makes slow model phases visible and keeps Stop enabled', () => {
+  it('makes slow model phases visible and keeps the live run control enabled', () => {
     const chat = {
       ...createInitialChatUiState(),
       activeRunId: 'run-1',

@@ -92,7 +92,7 @@ Lock down the reviewed failure modes before behavior changes so regressions are 
 
 ### Goal
 
-Make the session list, active transcript, Stop button, and streamed output represent one consistent lifecycle in SDK, RPC fallback, host mock, and browser mock modes.
+Make the session list, active transcript, live run control, and streamed output represent one consistent lifecycle in SDK, RPC fallback, host mock, and browser mock modes.
 
 ### Contract design
 

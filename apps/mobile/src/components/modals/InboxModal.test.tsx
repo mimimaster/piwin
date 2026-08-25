@@ -53,8 +53,8 @@ describe('InboxModal', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container.textContent).toContain('后台任务');
-    expect(container.textContent).toContain('run-other');
-    expect(container.textContent).not.toContain('暂无进行中的任务');
+    expect(document.body.textContent).toContain('后台任务');
+    expect(document.body.textContent).toContain('run-other');
+    expect(document.body.textContent).not.toContain('暂无进行中的任务');
   });
 });

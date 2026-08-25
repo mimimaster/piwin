@@ -3,7 +3,11 @@
  * Enhanced with per-file Accept / Reject actions (Cursor-style inline review).
  */
 import { useMemo, useState, type ReactElement } from 'react';
-import { computeDiffLineNumbers } from './diff-line-numbers';
+import {
+  computeDiffLineNumbers,
+  computeOmittedLineCounts,
+  type DiffLineNumbers,
+} from './diff-line-numbers';
 import {
   useHighlightLines,
   languageFromPath,
@@ -22,6 +26,12 @@ export type DiffViewProps = {
   isBinary?: boolean;
   truncated?: boolean;
   emptyMessage?: string;
+  /** When true, omits the internal path header (useful when a wrapper provides its own chrome). */
+  hideHeader?: boolean;
+  /** Omits raw git prelude lines when the surrounding view already identifies the file. */
+  hideMetadata?: boolean;
+  /** Localizes compact hunk summaries. */
+  locale?: 'zh-CN' | 'en' | undefined;
   /** When provided, renders Accept / Reject action bar. */
   onAction?: (action: DiffAction, path?: string) => void;
   /** Current review state for this file. */
@@ -32,6 +42,20 @@ export type ParsedDiffLine = {
   kind: 'meta' | 'hunk' | 'context' | 'add' | 'del' | 'blank';
   text: string;
 };
+
+export function isHighlightableDiffLine(line: ParsedDiffLine): boolean {
+  return line.kind === 'context' || line.kind === 'add' || line.kind === 'del';
+}
+
+export function selectUnifiedLineNumber(
+  line: ParsedDiffLine,
+  numbers: DiffLineNumbers | undefined,
+): number | null {
+  if (!numbers) return null;
+  if (line.kind === 'del') return numbers.old;
+  if (line.kind === 'add' || line.kind === 'context') return numbers.new;
+  return null;
+}
 
 export function parseUnifiedDiff(patch: string): ParsedDiffLine[] {
   if (!patch.trim()) return [];
@@ -131,6 +155,7 @@ export function DiffView(props: DiffViewProps): ReactElement {
   const lines = useMemo(() => parseUnifiedDiff(props.patch), [props.patch]);
   const splitRows = useMemo(() => buildSplitRows(lines), [lines]);
   const lineNumbers = useMemo(() => computeDiffLineNumbers(lines), [lines]);
+  const omittedLineCounts = useMemo(() => computeOmittedLineCounts(lines), [lines]);
   const sourceLang = useMemo(
     () => (props.path ? languageFromPath(props.path) : 'typescript'),
     [props.path],
@@ -149,7 +174,7 @@ export function DiffView(props: DiffViewProps): ReactElement {
     for (let index = 0; index < contentTexts.length; index += 1) {
       const text = contentTexts[index];
       const tokens = tokenMap.get(index);
-      if (text && tokens && !map.has(text)) map.set(text, tokens);
+      if (text && tokens && tokens.length > 0 && !map.has(text)) map.set(text, tokens);
     }
     return map;
   }, [tokenMap, contentTexts]);
@@ -187,7 +212,7 @@ export function DiffView(props: DiffViewProps): ReactElement {
       data-mode={props.mode}
       data-review={reviewState}
     >
-      {props.path ? (
+      {props.path && !props.hideHeader ? (
         <header className="diff-view-header">
           <code>{props.path}</code>
           <span className="diff-view-header-right">
@@ -251,21 +276,53 @@ export function DiffView(props: DiffViewProps): ReactElement {
       {props.mode === 'unified' ? (
         <pre className="diff-unified">
           {lines.map((line, lineIndex) => {
+            if (props.hideMetadata && line.kind === 'meta') return null;
             const nums = lineNumbers[lineIndex];
-            const tokens = tokenMap?.get(lineIndex) ?? null;
+            const lineNumber = selectUnifiedLineNumber(line, nums);
+            const omittedLineCount = omittedLineCounts[lineIndex];
+            if (line.kind === 'hunk') {
+              if (!omittedLineCount) return null;
+              const omittedLineLabel =
+                props.locale === 'zh-CN'
+                  ? `未修改 ${omittedLineCount} 行`
+                  : `${omittedLineCount} unmodified lines`;
+              return (
+                <div
+                  key={`${line.kind}-${lineIndex}`}
+                  className="diff-line kind-hunk"
+                  role="separator"
+                  aria-label={omittedLineLabel}
+                >
+                  <span className="diff-hunk-marker" aria-hidden>
+                    …
+                  </span>
+                  <span className="diff-hunk-summary">{omittedLineLabel}</span>
+                </div>
+              );
+            }
+            const tokens = isHighlightableDiffLine(line)
+              ? (tokenMap?.get(lineIndex) ?? null)
+              : null;
             return (
               <div key={`${line.kind}-${lineIndex}`} className={`diff-line kind-${line.kind}`}>
-                <span className="diff-lineno old" aria-hidden>
-                  {nums?.old ?? ''}
-                </span>
-                <span className="diff-lineno new" aria-hidden>
-                  {nums?.new ?? ''}
+                <span
+                  className="diff-lineno"
+                  data-line-source={
+                    line.kind === 'del'
+                      ? 'old'
+                      : line.kind === 'add' || line.kind === 'context'
+                        ? 'new'
+                        : undefined
+                  }
+                  aria-hidden
+                >
+                  {lineNumber ?? ''}
                 </span>
                 <span className="diff-gutter" aria-hidden>
                   {line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' '}
                 </span>
                 <span className="diff-text">
-                  {tokens ? <TokenSpans tokens={tokens} /> : line.text}
+                  {tokens && tokens.length > 0 ? <TokenSpans tokens={tokens} /> : line.text}
                 </span>
               </div>
             );

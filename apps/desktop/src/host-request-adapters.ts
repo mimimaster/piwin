@@ -666,11 +666,14 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         });
       }
       if (command.type === 'session/delete') {
-        return hostClient.request({
-          type: 'session/delete',
-          sessionId: command.sessionId ?? '',
-          ...(command.force !== undefined ? { force: command.force } : {}),
-        });
+        return hostClient.request(
+          {
+            type: 'session/delete',
+            sessionId: command.sessionId ?? '',
+            ...(command.force !== undefined ? { force: command.force } : {}),
+          },
+          { idempotencyKey: createGestureIdempotencyKey() },
+        );
       }
       if (!command.config) {
         return {

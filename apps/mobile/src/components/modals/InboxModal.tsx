@@ -5,6 +5,7 @@ import {
   describeActivityItem,
   resolveActivitySessionName,
 } from '../../mobile-activity-summary.js';
+import { MobileLayer } from '../../mobile-portal.js';
 
 export type InboxModalProps = {
   isOpen: boolean;
@@ -27,11 +28,9 @@ export function InboxModal({
   onAbortRun,
   onNavigateToSession,
 }: InboxModalProps): ReactElement | null {
-  if (!isOpen) return null;
-
   return (
-    <div className="mobile-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="mobile-modal-sheet" onClick={(event) => event.stopPropagation()}>
+    <MobileLayer isOpen={isOpen} onClose={onClose} overlayClassName="mobile-modal-overlay">
+      <div className="mobile-modal-sheet">
         <div className="mobile-modal-header">
           <div className="mobile-modal-header-left">
             <IconListTree size={18} />
@@ -67,7 +66,7 @@ export function InboxModal({
           )}
         </div>
       </div>
-    </div>
+    </MobileLayer>
   );
 }
 

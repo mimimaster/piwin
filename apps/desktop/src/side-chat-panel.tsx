@@ -26,7 +26,9 @@ import {
   appendBoundedLiveText,
   STREAMING_TEXT_RETENTION_OPTIONS,
 } from './chat-reducer';
-import { foregroundMismatchNotice, readForegroundProblem, requestPromptWithForeground } from './prompt-foreground';
+import { foregroundMismatchNotice, readForegroundProblem } from './prompt-foreground';
+import { abortSideChatRun, sendSideChatPrompt } from './side-chat-host-requests.js';
+import { createGestureIdempotencyKey } from './gesture-idempotency.js';
 import { useDesktopLocale } from './desktop-locale-context';
 
 /* ------------------------------------------------------------------ */
@@ -79,6 +81,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
   const [sourceState, setSourceState] = useState<string>('active');
   const [error, setError] = useState<string | null>(null);
   const [assistantBuffer, setAssistantBuffer] = useState('');
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
   // Refresh side chat list when the main session changes.
   const refreshList = useCallback(async () => {
@@ -104,6 +107,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     setMessages([]);
     setContextVersion(0);
     setSourceState('active');
+    setActiveRunId(null);
   }, [sessionId, refreshList]);
 
   // Subscribe to agent events for the active side chat.
@@ -113,8 +117,11 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
       if (message.type === 'event' && message.sessionId === activeSideChatId) {
         handleAgentEvent(message.event);
+      } else if (message.type === 'run/updated' && message.run.sessionId === activeSideChatId) {
+        setActiveRunId(message.run.runId);
       } else if (message.type === 'run/terminal' && message.run.sessionId === activeSideChatId) {
         setStreaming(false);
+        setActiveRunId(null);
         // Flush any remaining assistant buffer.
         setAssistantBuffer((buffer) => {
           if (buffer) {
@@ -206,6 +213,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     setMessages([]);
     setContextVersion(selected.sideChatRelation?.contextVersion ?? 0);
     setSourceState(selected.sideChatRelation?.sourceState ?? 'active');
+    setActiveRunId(null);
     setError(null);
 
     // Resume the session in the host.
@@ -284,17 +292,22 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
     setError(null);
 
     try {
-      const response = await requestPromptWithForeground({
-        request: (command) => hostClient.request(command),
+      const response = await sendSideChatPrompt({
+        request: (command, options) => hostClient.request(command, options),
         sessionId: activeSideChatId,
-        input: { text },
-        allowReplaceConfirm: false,
+        text,
+        createIdempotencyKey: createGestureIdempotencyKey,
         remoteForegroundAdmission: hostClient.supportsForegroundAdmission(),
       });
       if (!response.success) {
         const problem = readForegroundProblem(response);
         setError(problem ? foregroundMismatchNotice(problem, locale) : response.error);
         setStreaming(false);
+        return;
+      }
+      const runId = (response.data as { runId?: string } | undefined)?.runId;
+      if (typeof runId === 'string' && runId.length > 0) {
+        setActiveRunId(runId);
       }
     } catch (err) {
       setError(formatError(err));
@@ -305,9 +318,23 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
   async function handleStop(): Promise<void> {
     if (!activeSideChatId) return;
     try {
-      await hostClient.request({
-        type: 'session/abort',
+      let runId = activeRunId;
+      if (runId === null) {
+        const foreground = await hostClient.request({
+          type: 'session/foreground-run',
+          sessionId: activeSideChatId,
+        });
+        const run =
+          foreground.success
+            ? ((foreground.data as { run?: { runId?: string } | null } | undefined)?.run ?? null)
+            : null;
+        runId = typeof run?.runId === 'string' ? run.runId : null;
+      }
+      await abortSideChatRun({
+        request: (command, options) => hostClient.request(command, options),
         sessionId: activeSideChatId,
+        runId,
+        createIdempotencyKey: createGestureIdempotencyKey,
       });
     } catch {
       // Abort is best-effort.

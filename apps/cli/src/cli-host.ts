@@ -1,14 +1,29 @@
-import { randomUUID } from 'node:crypto';
 import type { HostCommand, HostResponse } from '@piwin/contracts';
 import { remoteCommandRequiresIdempotencyKey } from '@piwin/contracts';
+import {
+  createHostRequestAttempt,
+  createIdempotencyKey,
+  executeHostRequestAttempt,
+} from '@piwin/host-client';
 import { HostRuntime } from '@piwin/host-runtime';
 import { connectCliAttachedHost, readCliHostAttachTarget } from './attach-existing-host.js';
 
+export type CliHostRequestOptions = {
+  idempotencyKey?: string;
+};
+
 export type CliHostHandle = {
-  handleCommand: (command: HostCommand) => Promise<HostResponse>;
+  handleCommand: (
+    command: HostCommand,
+    options?: CliHostRequestOptions,
+  ) => Promise<HostResponse>;
   dispose: () => Promise<void>;
   transport: 'in-process' | 'attached';
 };
+
+export function newCliGestureKey(): CliHostRequestOptions {
+  return { idempotencyKey: createIdempotencyKey() };
+}
 
 /**
  * One Host per `~/.piwin`. When `PIWIN_HOST_URL` is set, attach instead of
@@ -19,7 +34,7 @@ export async function openCliHost(
 ): Promise<CliHostHandle> {
   const target = readCliHostAttachTarget();
   if (target) {
-    const client = await connectCliAttachedHost(target);
+    const client = await connectCliAttachedHost(target, options.piwinRoot);
     const unsubscribe =
       options.onPush === undefined
         ? () => undefined
@@ -28,12 +43,9 @@ export async function openCliHost(
           });
     return {
       transport: 'attached',
-      handleCommand: (command) => {
-        if (remoteCommandRequiresIdempotencyKey(command.type)) {
-          return client.request(command, { idempotencyKey: randomUUID() });
-        }
-        return client.request(command);
-      },
+      handleCommand: createAttachedCliCommandHandler((command, options) =>
+        client.request(command, options),
+      ),
       dispose: async () => {
         unsubscribe();
         await client.close();
@@ -45,5 +57,29 @@ export async function openCliHost(
     transport: 'in-process',
     handleCommand: (command) => runtime.handleCommand(command),
     dispose: () => runtime.dispose(),
+  };
+}
+
+export function createAttachedCliCommandHandler(
+  request: (command: HostCommand, options?: { idempotencyKey?: string }) => Promise<HostResponse>,
+): CliHostHandle['handleCommand'] {
+  return (command, options) => {
+    if (!remoteCommandRequiresIdempotencyKey(command.type)) {
+      return request(command);
+    }
+    const key = options?.idempotencyKey?.trim();
+    if (key === undefined || key.length === 0) {
+      return Promise.resolve({
+        type: 'response',
+        command: command.type,
+        success: false,
+        error: 'idempotency-key-required',
+        problem: { code: 'idempotency-key-required' },
+      });
+    }
+    return executeHostRequestAttempt(
+      (sent, requestOptions) => request(sent, requestOptions),
+      createHostRequestAttempt(command, key),
+    );
   };
 }

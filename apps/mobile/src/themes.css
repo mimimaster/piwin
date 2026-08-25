@@ -1,159 +1,305 @@
 /* ═══════════════════════════════════════════════════════════════
-   Piwin Mobile Theme Definitions (Dark, Light, Ink-Wash / 水墨画)
+   Piwin Mobile — Deck Design System Theme Definitions
+   Matches Desktop Obsidian (Dark), Bone (Light), & Ink-Wash (水墨)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── 1. Default Dark Theme (深色主题) ── */
+/* ── 1. Obsidian (Default Deck Dark) ── */
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg: #090d12;
-  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(56, 139, 253, 0.09), transparent 30rem),
-    radial-gradient(circle at 80% 90%, rgba(35, 134, 54, 0.04), transparent 24rem),
-    #090d12;
-  --panel: #131720;
-  --panel2: #1c222e;
-  --border: rgba(255, 255, 255, 0.08);
-  --line: rgba(255, 255, 255, 0.05);
-  --text: #f0f6fc;
+
+  /* Deck Color Ramps */
+  --void: #08080b;
+  --surface-1: #101014;
+  --surface-2: #141419;
+  --surface-3: #1a1a21;
+  --surface-4: #22222b;
+
+  --text-1: #ededf2;
+  --text-2: #9a9aa8;
+  --text-3: #62626f;
+  --text-4: #414150;
+
+  --line-1: rgba(255, 255, 255, 0.055);
+  --line-2: rgba(255, 255, 255, 0.09);
+  --line-3: rgba(255, 255, 255, 0.15);
+
+  /* Semantic Signal Language */
+  --iris: #6e5dff;
+  --iris-lift: #8b7cff;
+  --iris-press: #5847e8;
+  --on-iris: #ffffff;
+  --iris-soft: rgba(110, 93, 255, 0.16);
+  --iris-glow: 0 0 16px rgba(110, 93, 255, 0.45);
+  --iris-gradient: linear-gradient(135deg, #7c6dff 0%, #5847e8 100%);
+
+  /* Ember is RESERVED for active agent execution */
+  --ember: #ff8a4c;
+  --ember-soft: rgba(255, 138, 76, 0.16);
+  --ember-glow: 0 0 14px rgba(255, 138, 76, 0.45);
+
+  --mint: #3ecf8e;
+  --mint-soft: rgba(62, 207, 142, 0.15);
+  --amber: #f5b544;
+  --amber-soft: rgba(245, 181, 68, 0.15);
+  --coral: #ff5f56;
+  --coral-soft: rgba(255, 95, 86, 0.16);
+  --sky: #4cc2ff;
+  --sky-soft: rgba(76, 194, 255, 0.16);
+
+  /* Depth Through Light (Elevations) */
+  --elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  --elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  --elev-3: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 12px 32px -8px rgba(0, 0, 0, 0.7);
+  --elev-4: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.65),
+    0 24px 64px -12px rgba(0, 0, 0, 0.85);
+
+  /* Legacy & Semantic Aliases for Compatibility */
+  --bg: var(--void);
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(110, 93, 255, 0.08), transparent 32rem),
+    radial-gradient(circle at 80% 90%, rgba(255, 138, 76, 0.03), transparent 26rem),
+    var(--void);
+  --panel: var(--surface-1);
+  --panel2: var(--surface-3);
+  --border: var(--line-2);
+  --line: var(--line-1);
+  --text: var(--text-1);
   --text-strong: #ffffff;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --accent-soft: rgba(56, 139, 253, 0.15);
-  --accent-glow: 0 0 12px rgba(88, 166, 255, 0.4);
-  --accent-gradient: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
-  --danger: #f85149;
-  --danger-soft: rgba(248, 81, 73, 0.14);
-  --warning: #d29922;
-  --warning-soft: rgba(210, 153, 34, 0.14);
-  --ok: #3fb950;
-  --ok-soft: rgba(63, 185, 80, 0.14);
-  --surface-control: #1c222e;
-  --surface-control-hover: #262e3d;
-  --surface-inset: #06090d;
-  --surface-hover: #171d27;
-  --header-bg: rgba(9, 13, 18, 0.88);
-  --tabbar-bg: rgba(19, 23, 32, 0.94);
-  --composer-bg: rgba(9, 13, 18, 0.96);
-  --user-bubble-bg: linear-gradient(135deg, rgba(56, 139, 253, 0.22) 0%, rgba(31, 111, 235, 0.12) 100%);
-  --user-bubble-border: rgba(88, 166, 255, 0.28);
+  --muted: var(--text-2);
+  --accent: var(--iris);
+  --accent-soft: var(--iris-soft);
+  --accent-glow: var(--iris-glow);
+  --accent-gradient: var(--iris-gradient);
+  --danger: var(--coral);
+  --danger-soft: var(--coral-soft);
+  --warning: var(--amber);
+  --warning-soft: var(--amber-soft);
+  --ok: var(--mint);
+  --ok-soft: var(--mint-soft);
+
+  --surface-control: var(--surface-3);
+  --surface-control-hover: var(--surface-4);
+  --surface-inset: var(--void);
+  --surface-hover: var(--surface-3);
+
+  --header-bg: rgba(16, 16, 20, 0.88);
+  --tabbar-bg: rgba(16, 16, 20, 0.94);
+  --composer-bg: rgba(26, 26, 33, 0.92);
+
+  --user-bubble-bg: linear-gradient(135deg, rgba(110, 93, 255, 0.22) 0%, rgba(88, 71, 232, 0.12) 100%);
+  --user-bubble-border: rgba(110, 93, 255, 0.32);
   --user-bubble-text: #ffffff;
-  --assistant-bubble-bg: #131720;
-  --assistant-bubble-border: rgba(255, 255, 255, 0.08);
-  --assistant-bubble-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-  --code-card-bg: #06090d;
+  --assistant-bubble-bg: var(--surface-2);
+  --assistant-bubble-border: var(--line-2);
+  --assistant-bubble-shadow: var(--elev-2);
+
+  --code-card-bg: var(--void);
   --code-header-bg: rgba(255, 255, 255, 0.03);
 }
 
-/* ── 2. Pure Light Theme (浅色主题) ── */
+/* ── 2. Bone (Deck Light) ── */
 [data-theme='light'] {
   color-scheme: light;
-  --bg: #f6f8fa;
-  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(9, 105, 218, 0.05), transparent 30rem),
-    #f6f8fa;
-  --panel: #ffffff;
-  --panel2: #f0f2f5;
-  --border: rgba(0, 0, 0, 0.09);
-  --line: rgba(0, 0, 0, 0.06);
-  --text: #1f2328;
+
+  /* Deck Color Ramps */
+  --void: #e5e2dc;
+  --surface-1: #f3f1ed;
+  --surface-2: #fbfaf8;
+  --surface-3: #ffffff;
+  --surface-4: #ffffff;
+
+  --text-1: #17161b;
+  --text-2: #5c5a66;
+  --text-3: #8b8896;
+  --text-4: #b4b1bc;
+
+  --line-1: rgba(20, 18, 30, 0.06);
+  --line-2: rgba(20, 18, 30, 0.10);
+  --line-3: rgba(20, 18, 30, 0.17);
+
+  /* Semantic Signal Language */
+  --iris: #5b4bd6;
+  --iris-lift: #4a3bc4;
+  --iris-press: #3f31ad;
+  --on-iris: #ffffff;
+  --iris-soft: rgba(91, 75, 214, 0.12);
+  --iris-glow: 0 0 16px rgba(91, 75, 214, 0.3);
+  --iris-gradient: linear-gradient(135deg, #6e5eff 0%, #5b4bd6 100%);
+
+  --ember: #dd6318;
+  --ember-soft: rgba(221, 99, 24, 0.14);
+  --ember-glow: 0 0 14px rgba(221, 99, 24, 0.35);
+
+  --mint: #17a672;
+  --mint-soft: rgba(23, 166, 114, 0.14);
+  --amber: #c7860b;
+  --amber-soft: rgba(199, 134, 11, 0.14);
+  --coral: #dc4438;
+  --coral-soft: rgba(220, 68, 56, 0.14);
+  --sky: #1a8fd0;
+  --sky-soft: rgba(26, 143, 208, 0.14);
+
+  /* Depth Through Light */
+  --elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 1px rgba(20, 18, 30, 0.08);
+  --elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(20, 18, 30, 0.10),
+    0 2px 8px -2px rgba(20, 18, 30, 0.08);
+  --elev-3: inset 0 1px 0 rgba(255, 255, 255, 1), 0 0 0 1px rgba(20, 18, 30, 0.12),
+    0 12px 32px -8px rgba(20, 18, 30, 0.12);
+  --elev-4: inset 0 1px 0 rgba(255, 255, 255, 1), 0 0 0 1px rgba(20, 18, 30, 0.14),
+    0 24px 64px -12px rgba(20, 18, 30, 0.18);
+
+  --bg: var(--void);
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(91, 75, 214, 0.04), transparent 32rem),
+    var(--void);
+  --panel: var(--surface-1);
+  --panel2: var(--surface-3);
+  --border: var(--line-2);
+  --line: var(--line-1);
+  --text: var(--text-1);
   --text-strong: #000000;
-  --muted: #656d76;
-  --accent: #0969da;
-  --accent-soft: rgba(9, 105, 218, 0.1);
-  --accent-glow: 0 0 12px rgba(9, 105, 218, 0.25);
-  --accent-gradient: linear-gradient(135deg, #218bff 0%, #0969da 100%);
-  --danger: #cf222e;
-  --danger-soft: rgba(207, 34, 46, 0.1);
-  --warning: #9a6700;
-  --warning-soft: rgba(154, 103, 0, 0.1);
-  --ok: #1a7f37;
-  --ok-soft: rgba(26, 127, 55, 0.1);
-  --surface-control: #eaeff4;
-  --surface-control-hover: #dfe5eb;
-  --surface-inset: #f3f5f8;
-  --surface-hover: #ebf0f5;
-  --header-bg: rgba(246, 248, 250, 0.88);
-  --tabbar-bg: rgba(255, 255, 255, 0.94);
-  --composer-bg: rgba(246, 248, 250, 0.96);
-  --user-bubble-bg: linear-gradient(135deg, #0969da 0%, #0550ae 100%);
+  --muted: var(--text-2);
+  --accent: var(--iris);
+  --accent-soft: var(--iris-soft);
+  --accent-glow: var(--iris-glow);
+  --accent-gradient: var(--iris-gradient);
+  --danger: var(--coral);
+  --danger-soft: var(--coral-soft);
+  --warning: var(--amber);
+  --warning-soft: var(--amber-soft);
+  --ok: var(--mint);
+  --ok-soft: var(--mint-soft);
+
+  --surface-control: #ebe8e2;
+  --surface-control-hover: #e0dcd4;
+  --surface-inset: #edeae4;
+  --surface-hover: #f0ece6;
+
+  --header-bg: rgba(243, 241, 237, 0.88);
+  --tabbar-bg: rgba(243, 241, 237, 0.94);
+  --composer-bg: rgba(255, 255, 255, 0.94);
+
+  --user-bubble-bg: linear-gradient(135deg, #5b4bd6 0%, #4a3bc4 100%);
   --user-bubble-border: transparent;
   --user-bubble-text: #ffffff;
-  --assistant-bubble-bg: #ffffff;
-  --assistant-bubble-border: rgba(0, 0, 0, 0.08);
-  --assistant-bubble-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  --code-card-bg: #f6f8fa;
-  --code-header-bg: rgba(0, 0, 0, 0.03);
+  --assistant-bubble-bg: var(--surface-3);
+  --assistant-bubble-border: var(--line-2);
+  --assistant-bubble-shadow: var(--elev-2);
+
+  --code-card-bg: #ece9e3;
+  --code-header-bg: rgba(20, 18, 30, 0.03);
 }
 
-/* ── 3. Ink Wash Theme (砚夜泼墨 · 水墨画主题) ── */
+/* ── 3. Ink Wash (砚夜泼墨 · 水墨画主题) ── */
 [data-theme='ink-wash'] {
   color-scheme: dark;
-  --bg: #191a1d;
-  --bg-gradient: radial-gradient(circle at 40% 10%, rgba(112, 166, 180, 0.12), transparent 32rem),
+
+  --void: #141517;
+  --surface-1: #191a1d;
+  --surface-2: #212226;
+  --surface-3: #282a30;
+  --surface-4: #33353d;
+
+  --text-1: #f4efe6;
+  --text-2: #a49c8f;
+  --text-3: #746c60;
+  --text-4: #504a40;
+
+  --line-1: rgba(214, 205, 190, 0.09);
+  --line-2: rgba(214, 205, 190, 0.16);
+  --line-3: rgba(214, 205, 190, 0.24);
+
+  --iris: #78a9b7;
+  --iris-lift: #95c2cf;
+  --iris-press: #5e8e9c;
+  --on-iris: #141517;
+  --iris-soft: rgba(120, 169, 183, 0.18);
+  --iris-glow: 0 0 16px rgba(120, 169, 183, 0.35);
+  --iris-gradient: linear-gradient(135deg, #78a9b7 0%, #527c88 100%);
+
+  --ember: #c24d43; /* 朱砂钤印 */
+  --ember-soft: rgba(194, 77, 67, 0.2);
+  --ember-glow: 0 0 14px rgba(194, 77, 67, 0.45);
+
+  --mint: #6e9479;
+  --mint-soft: rgba(110, 148, 121, 0.18);
+  --amber: #d4a359;
+  --amber-soft: rgba(212, 163, 89, 0.18);
+  --coral: #c24d43;
+  --coral-soft: rgba(194, 77, 67, 0.18);
+  --sky: #78a9b7;
+  --sky-soft: rgba(120, 169, 183, 0.18);
+
+  --elev-1: inset 0 1px 0 rgba(214, 205, 190, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.5);
+  --elev-2: inset 0 1px 0 rgba(214, 205, 190, 0.10), 0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 8px -2px rgba(0, 0, 0, 0.5);
+  --elev-3: inset 0 1px 0 rgba(214, 205, 190, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 12px 32px -8px rgba(0, 0, 0, 0.7);
+  --elev-4: inset 0 1px 0 rgba(214, 205, 190, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.65),
+    0 24px 64px -12px rgba(0, 0, 0, 0.85);
+
+  --bg: var(--void);
+  --bg-gradient: radial-gradient(circle at 40% 10%, rgba(120, 169, 183, 0.12), transparent 32rem),
     radial-gradient(circle at 85% 85%, rgba(194, 77, 67, 0.07), transparent 26rem),
-    linear-gradient(180deg, #161719 0%, #1c1d21 100%);
-  --panel: #212226;
-  --panel2: #282a30;
-  --border: rgba(214, 205, 190, 0.16);
-  --line: rgba(214, 205, 190, 0.09);
-  --text: #f4efe6;
+    linear-gradient(180deg, #141517 0%, #191a1d 100%);
+  --panel: var(--surface-1);
+  --panel2: var(--surface-3);
+  --border: var(--line-2);
+  --line: var(--line-1);
+  --text: var(--text-1);
   --text-strong: #ffffff;
-  --muted: #a49c8f;
-  --accent: #78a9b7;
-  --accent-soft: rgba(120, 169, 183, 0.18);
-  --accent-glow: 0 0 12px rgba(120, 169, 183, 0.35);
-  --accent-gradient: linear-gradient(135deg, #78a9b7 0%, #527c88 100%);
-  --danger: #c24d43;
-  --danger-soft: rgba(194, 77, 67, 0.18);
-  --warning: #d4a359;
-  --warning-soft: rgba(212, 163, 89, 0.18);
-  --ok: #6e9479;
-  --ok-soft: rgba(110, 148, 121, 0.18);
-  --surface-control: #292a30;
-  --surface-control-hover: #33353d;
-  --surface-inset: #131416;
-  --surface-hover: #2d2e35;
+  --muted: var(--text-2);
+  --accent: var(--iris);
+  --accent-soft: var(--iris-soft);
+  --accent-glow: var(--iris-glow);
+  --accent-gradient: var(--iris-gradient);
+  --danger: var(--coral);
+  --danger-soft: var(--coral-soft);
+  --warning: var(--amber);
+  --warning-soft: var(--amber-soft);
+  --ok: var(--mint);
+  --ok-soft: var(--mint-soft);
+
+  --surface-control: var(--surface-3);
+  --surface-control-hover: var(--surface-4);
+  --surface-inset: var(--void);
+  --surface-hover: var(--surface-3);
+
   --header-bg: rgba(25, 26, 29, 0.90);
-  --tabbar-bg: rgba(33, 34, 38, 0.95);
-  --composer-bg: rgba(25, 26, 29, 0.96);
+  --tabbar-bg: rgba(25, 26, 29, 0.95);
+  --composer-bg: rgba(33, 34, 38, 0.94);
+
   --user-bubble-bg: linear-gradient(135deg, rgba(120, 169, 183, 0.25) 0%, rgba(82, 124, 136, 0.15) 100%);
   --user-bubble-border: rgba(120, 169, 183, 0.35);
   --user-bubble-text: #ffffff;
-  --assistant-bubble-bg: #212226;
-  --assistant-bubble-border: rgba(214, 205, 190, 0.16);
-  --assistant-bubble-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-  --code-card-bg: #141517;
+  --assistant-bubble-bg: var(--surface-2);
+  --assistant-bubble-border: var(--line-2);
+  --assistant-bubble-shadow: var(--elev-2);
+
+  --code-card-bg: #101113;
   --code-header-bg: rgba(214, 205, 190, 0.04);
 }
 
-/* ── Water-Ink Specific Elements (水墨特定印章与宣纸质感) ── */
-[data-theme='ink-wash'] .mobile-status-indicator.success {
-  background: #c24d43;
-  box-shadow: 0 0 8px rgba(194, 77, 67, 0.7);
+/* ── Shared Animations: The Breath (2.4s) ── */
+@keyframes breath {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
 }
 
-[data-theme='ink-wash'] .mobile-role-name {
-  font-family: STKaiti, KaiTi, "PingFang SC", serif;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-}
-
-[data-theme='ink-wash'] .mobile-header-eyebrow {
-  font-family: STKaiti, KaiTi, "PingFang SC", serif;
-  letter-spacing: 0.15em;
-}
-
-[data-theme='ink-wash'] .mobile-project-chip.active {
-  background: rgba(120, 169, 183, 0.2);
-  border-color: #78a9b7;
-  color: #f4efe6;
-}
-
-[data-theme='ink-wash'] .mobile-tool-card {
-  border-style: dashed;
-  border-color: rgba(214, 205, 190, 0.2);
-}
-
-[data-theme='ink-wash'] .mobile-slice-card {
-  border-color: rgba(214, 205, 190, 0.15);
-  background: rgba(33, 34, 38, 0.85);
+@keyframes emberPulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 12px var(--ember-glow);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 4px var(--ember-glow);
+  }
 }

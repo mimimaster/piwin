@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   Piwin Mobile Tool Call Chain & Execution Cards (Desktop Paper/Noir Theme)
+   Piwin Mobile — Tool Call Chain & Execution Cards (Deck Theme)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Tool Chain Container ── */
@@ -17,11 +17,12 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
-  background: var(--panel2);
-  border: 1px solid var(--border);
-  color: var(--text-strong);
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--elev-1);
+  color: var(--text-1);
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -29,7 +30,8 @@
 }
 
 .mobile-tool-batch-header-btn:active {
-  background: var(--surface-control-hover);
+  background: var(--surface-4);
+  border-color: var(--iris);
 }
 
 .mobile-batch-left {
@@ -40,15 +42,18 @@
 
 .mobile-batch-icon {
   font-size: 13px;
+  color: var(--iris);
 }
 
 .mobile-batch-count-pill {
   font-size: 10px;
   font-weight: 500;
-  color: var(--muted);
-  background: var(--surface-control);
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  background: var(--void);
   padding: 1px 6px;
   border-radius: var(--radius-full);
+  border: 1px solid var(--line-1);
 }
 
 .mobile-batch-right {
@@ -63,18 +68,18 @@
 }
 
 .mobile-batch-status.running {
-  color: var(--accent);
+  color: var(--ember);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .mobile-batch-status.done {
-  color: var(--ok);
+  color: var(--mint);
 }
 
 .mobile-batch-status.error {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .mobile-tool-batch-list {
@@ -87,14 +92,15 @@
 /* ── Individual Tool Call Card ── */
 .mobile-tool-call-card {
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-inset);
+  border: 1px solid var(--line-2);
+  background: var(--surface-3);
+  box-shadow: var(--elev-1);
   overflow: hidden;
   transition: border-color var(--motion-quick) var(--motion-ease), box-shadow var(--motion-quick) var(--motion-ease);
-  animation: tool-in 0.18s var(--motion-ease) both;
+  animation: toolIn 0.18s var(--motion-ease) both;
 }
 
-@keyframes tool-in {
+@keyframes toolIn {
   from {
     opacity: 0;
     transform: translateY(2px);
@@ -106,23 +112,24 @@
 }
 
 .mobile-tool-call-card.running {
-  border-color: var(--accent);
+  border-color: var(--ember);
+  box-shadow: 0 0 10px var(--ember-soft);
 }
 
 .mobile-tool-call-card.error {
-  border-color: var(--danger);
+  border-color: var(--coral);
 }
 
 /* Tool Summary Button / Accordion Trigger */
 .mobile-tool-summary-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
-  color: var(--text);
+  color: var(--text-1);
   font-size: 12px;
   text-align: left;
   cursor: pointer;
@@ -130,35 +137,36 @@
 }
 
 .mobile-tool-summary-btn:active {
-  background: var(--surface-control);
+  background: var(--surface-4);
 }
 
 .mobile-tool-kind-icon {
   display: flex;
   align-items: center;
-  color: var(--accent);
+  color: var(--iris);
   flex-shrink: 0;
 }
 
 .mobile-tool-verb {
   font-weight: 600;
-  color: var(--text-strong);
+  color: var(--text-1);
   font-size: 12px;
   letter-spacing: -0.01em;
   flex-shrink: 0;
 }
 
 .mobile-tool-pill {
-  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--muted);
-  background: var(--surface-control);
+  color: var(--text-2);
+  background: var(--void);
+  border: 1px solid var(--line-1);
   padding: 2px 6px;
   border-radius: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 130px;
+  max-width: 140px;
   flex-shrink: 1;
 }
 
@@ -174,33 +182,34 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 
 .mobile-tool-status-badge.running {
-  color: var(--accent);
+  color: var(--ember);
 }
 
 .mobile-tool-status-badge.done {
-  color: var(--ok);
+  color: var(--mint);
 }
 
 .mobile-tool-status-badge.error {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .mobile-tool-ok-icon {
-  color: var(--ok);
+  color: var(--mint);
 }
 
 .mobile-tool-err-icon {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .mobile-tool-duration {
   font-size: 10px;
-  color: var(--muted);
+  font-family: var(--font-mono);
+  color: var(--text-3);
   font-weight: 500;
 }
 
@@ -208,14 +217,14 @@
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);
-  background: var(--accent);
-  animation: pulse-dot 1.2s infinite ease-in-out;
+  background: var(--ember);
+  animation: emberPulse 1.4s infinite ease-in-out;
 }
 
 .mobile-tool-chevron {
   display: flex;
   align-items: center;
-  color: var(--muted);
+  color: var(--text-3);
   transition: transform var(--motion-quick) var(--motion-ease);
 }
 
@@ -223,35 +232,38 @@
   transform: rotate(180deg);
 }
 
-/* ── Tool Body / Terminal Output ── */
+/* ── Tool Body / Output ── */
 .mobile-tool-body {
-  padding: 8px 10px 10px;
-  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  border-top: 1px solid var(--line-1);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: var(--panel2);
+  gap: 8px;
+  background: var(--void);
 }
 
 .mobile-tool-command-preview,
 .mobile-tool-paths-preview {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   font-size: 11px;
 }
 
 .mobile-tool-subhead {
-  font-weight: 600;
-  color: var(--muted);
-  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  font-size: 9.5px;
 }
 
 .mobile-tool-command-preview code {
-  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--accent);
-  background: var(--surface-inset);
+  color: var(--iris);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
   padding: 4px 6px;
   border-radius: 4px;
   word-break: break-all;
@@ -264,10 +276,11 @@
 }
 
 .mobile-tool-paths-list code {
-  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--text);
-  background: var(--surface-inset);
+  color: var(--text-1);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
   padding: 2px 5px;
   border-radius: 4px;
 }
@@ -275,8 +288,8 @@
 .mobile-tool-terminal-wrapper {
   margin-top: 4px;
   border-radius: 6px;
-  background: var(--surface-inset);
-  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border: 1px solid var(--line-1);
   overflow: hidden;
 }
 
@@ -285,20 +298,22 @@
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.15);
-  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .mobile-tool-terminal-label {
   font-size: 10px;
-  font-weight: 600;
-  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
 }
 
 .mobile-tool-copy-btn {
-  background: none;
+  background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--text-3);
   cursor: pointer;
   padding: 2px 4px;
   display: flex;
@@ -308,11 +323,11 @@
 }
 
 .mobile-tool-copy-btn:active {
-  color: var(--text-strong);
+  color: var(--text-1);
 }
 
 .copied-tag {
-  color: var(--ok);
+  color: var(--mint);
   font-size: 10px;
   font-weight: 600;
 }
@@ -320,10 +335,10 @@
 .mobile-tool-output-pre {
   margin: 0;
   padding: 8px 10px;
-  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
-  line-height: 1.45;
-  color: var(--text);
+  line-height: 1.5;
+  color: var(--text-2);
   max-height: 220px;
   overflow-y: auto;
   overflow-x: auto;
@@ -333,7 +348,7 @@
 }
 
 .mobile-tool-output-pre.has-error {
-  color: var(--danger);
+  color: var(--coral);
 }
 
 .mobile-tool-running-placeholder {
@@ -342,15 +357,17 @@
   gap: 6px;
   padding: 6px 0;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--ember);
 }
 
 /* ── Mobile Diff Viewer ── */
 .mobile-diff-viewer {
-  font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.45;
-  background: var(--surface-inset);
+  background: var(--void);
+  border-radius: 6px;
+  border: 1px solid var(--line-1);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -368,29 +385,30 @@
 }
 
 .diff-line.header {
-  background: var(--surface-control);
-  color: var(--accent);
+  background: var(--surface-3);
+  color: var(--iris);
   font-weight: 600;
   padding: 4px 8px;
+  border-bottom: 1px solid var(--line-1);
 }
 
 .diff-line.add {
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
+  background: rgba(62, 207, 142, 0.12);
+  color: #3ecf8e;
 }
 
 .diff-line.delete {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background: rgba(255, 95, 86, 0.12);
+  color: #ff5f56;
 }
 
 .diff-line.context {
-  color: var(--text);
+  color: var(--text-2);
 }
 
 .diff-num {
   width: 24px;
-  color: var(--muted);
+  color: var(--text-3);
   text-align: right;
   padding-right: 4px;
   user-select: none;
@@ -407,14 +425,13 @@
 }
 
 .diff-line.add .diff-sign {
-  color: #22c55e;
+  color: var(--mint);
 }
 
 .diff-line.delete .diff-sign {
-  color: #ef4444;
+  color: var(--coral);
 }
 
 .diff-text {
   flex: 1;
 }
-

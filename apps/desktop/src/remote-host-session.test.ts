@@ -5,6 +5,7 @@ import {
   createDesktopRemoteHostClient,
   createDesktopRemoteHostProbeClientId,
   DESKTOP_REMOTE_HOST_CLIENT_CAPABILITIES,
+  formatDesktopRemoteHostDisplay,
   loadDesktopRemoteHostTarget,
   resolveDesktopRemoteHostClientOptions,
   sameDesktopRemoteHostTarget,
@@ -16,6 +17,13 @@ const STORAGE_KEY = 'piwin.desktop.remote-host-target';
 describe('desktop remote host target', () => {
   afterEach(() => {
     localStorage.clear();
+  });
+
+  it('formats an attached Host as hostname:port', () => {
+    expect(formatDesktopRemoteHostDisplay('ws://nas.local:8787')).toBe('nas.local:8787');
+    expect(formatDesktopRemoteHostDisplay('wss://host.example')).toBe('host.example');
+    expect(formatDesktopRemoteHostDisplay('ws://[::1]:8787')).toBe('[::1]:8787');
+    expect(formatDesktopRemoteHostDisplay('not-a-url')).toBeUndefined();
   });
 
   it('returns undefined when no remote target is saved', () => {

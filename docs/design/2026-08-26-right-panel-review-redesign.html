@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>piwin · 右侧栏 Review 面板重设计 proposal v1</title>
+<style>
+  :root {
+    --void: #e5e2dc;
+    --surface-1: #f3f1ed;
+    --surface-2: #fbfaf8;
+    --surface-3: #ffffff;
+    --text-1: #17161b;
+    --text-2: #5c5a66;
+    --text-3: #8b8896;
+    --text-4: #b4b1bc;
+    --line-1: rgba(20, 18, 30, 0.06);
+    --line-2: rgba(20, 18, 30, 0.10);
+    --iris: #5b4bd6;
+    --iris-wash: rgba(91, 75, 214, 0.09);
+    --mint: #17a672;
+    --amber: #c7860b;
+    --coral: #dc4438;
+    --sky: #1a8fd0;
+    --hover: rgba(20, 18, 30, 0.04);
+    --r-control: 7px;
+    --r-card: 10px;
+    --r-panel: 14px;
+    --s-2: 4px; --s-3: 6px; --s-4: 8px; --s-5: 12px; --s-6: 16px; --s-7: 22px;
+    --h-sm: 28px; --h-md: 32px;
+    --fs-micro: 10px; --fs-mono: 11.5px; --fs-chrome: 12.5px; --fs-body: 13.5px;
+    --font: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+    --mono: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+    --t-1: 90ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 48px 80px; background: var(--void); color: var(--text-1);
+    font-family: var(--font); font-size: 14px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .head { max-width: 1180px; margin: 0 auto 28px; }
+  .head h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .head .meta { color: var(--text-3); font-size: 12.5px; }
+  .head .meta b { color: var(--amber); font-weight: 600; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 1180px; margin: 0 auto; }
+  @media (max-width: 1080px) { .compare { grid-template-columns: 1fr; } }
+  .col h2 { margin: 0 0 10px; font-size: 13px; font-weight: 700; color: var(--text-2);
+    text-transform: uppercase; letter-spacing: 0.08em; }
+  .col h2.bad { color: var(--coral); }
+  .col h2.good { color: var(--mint); }
+
+  /* ── 面板外框：模拟右侧栏在产品中的样子 ─────────────────────── */
+  .panel {
+    height: 640px; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--surface-1); border-radius: 0 0 var(--r-panel) var(--r-panel);
+    box-shadow: 0 1px 2px rgba(20,18,30,.08), 0 8px 28px rgba(20,18,30,.10);
+  }
+  .tabstrip {
+    display: flex; align-items: center; gap: var(--s-3);
+    height: 38px; padding: 0 var(--s-4) 0 var(--s-3); flex-shrink: 0;
+  }
+  .plus-btn { width: 24px; height: 24px; border: 0; border-radius: var(--r-control);
+    background: transparent; color: var(--text-3); font-size: 15px; cursor: pointer; }
+  .plus-btn:hover { background: var(--hover); }
+  .rtab { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 4px 0 9px;
+    border-radius: var(--r-control); background: var(--surface-3);
+    box-shadow: 0 1px 2px rgba(20,18,30,.10); font-size: var(--fs-chrome); font-weight: 600; }
+  .rtab .x { width: 16px; height: 16px; display: grid; place-items: center;
+    color: var(--text-4); font-size: 11px; border-radius: 4px; cursor: pointer; }
+  .rtab .x:hover { background: var(--hover); color: var(--text-2); }
+  .tabstrip .spacer { flex: 1; }
+  .ts-icon { width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent;
+    color: var(--text-3); cursor: pointer; font-size: 12px; }
+  .ts-icon.on { background: var(--surface-3); box-shadow: 0 1px 2px rgba(20,18,30,.10); color: var(--text-1); }
+
+  .subtabs { display: flex; gap: var(--s-2); padding: var(--s-3) var(--s-5) var(--s-4); flex-shrink: 0; }
+  .subtab { height: var(--h-md); padding: 0 var(--s-5); border: 0; border-radius: var(--r-control);
+    background: transparent; color: var(--text-3); cursor: pointer;
+    font-family: var(--font); font-size: var(--fs-chrome);
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: background-color var(--t-1) var(--ease-out), color var(--t-1) var(--ease-out); }
+  .subtab:hover:not(.active) { background: var(--hover); color: var(--text-1); }
+  .subtab.active { background: var(--surface-3); box-shadow: 0 1px 2px rgba(20,18,30,.10);
+    color: var(--text-1); font-weight: 600; }
+  .count { min-width: 17px; height: 16px; padding: 0 5px; border-radius: 999px;
+    background: var(--iris-wash); color: var(--iris); font-size: var(--fs-micro);
+    font-weight: 700; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }
+
+  .pbody { flex: 1; min-height: 0; overflow: auto; position: relative; }
+  .pbody::-webkit-scrollbar { width: 10px; height: 10px; }
+  .pbody::-webkit-scrollbar-thumb { background: rgba(20,18,30,.14); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+  .pbody::-webkit-scrollbar-track { background: transparent; }
+
+  /* ── CURRENT：还原线上问题态 ─────────────────────────────── */
+  .cur h4 { margin: 0; padding: 14px 12px 6px; font-size: var(--fs-chrome); color: var(--text-1); }
+  .cur ul.dump { margin: 0; padding: 0 12px 10px; list-style: disc; color: var(--text-3);
+    font-size: var(--fs-chrome); }
+  .cur ul.dump li { margin: 3px 0 0 16px; }
+  .cur ul.dump code { font-family: var(--mono); font-size: var(--fs-mono); color: var(--text-2);
+    overflow-wrap: anywhere; }
+  .cur .files { padding: 0 12px; }
+  .cur .frow { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+  .cur .cb { width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--line-2);
+    background: var(--surface-3); flex-shrink: 0; display: grid; place-items: center;
+    color: var(--iris); font-size: 9px; }
+  .cur .pill { padding: 1px 7px; border-radius: 5px; background: var(--iris-wash);
+    color: var(--iris); font-size: var(--fs-micro); font-weight: 600; white-space: nowrap; }
+  .cur .pill.gray { background: var(--hover); color: var(--text-3); }
+  .cur .path { font-family: var(--mono); font-size: var(--fs-mono); color: var(--text-2);
+    white-space: nowrap; }
+  .cur .btnrow { display: flex; gap: 8px; padding: 10px 12px; }
+  .cur .btn { height: 30px; padding: 0 14px; border: 0; border-radius: var(--r-control);
+    background: var(--surface-3); box-shadow: 0 1px 2px rgba(20,18,30,.10);
+    font-family: var(--font); font-size: var(--fs-chrome); color: var(--text-1); cursor: pointer; }
+  .cur .btn.primary { background: var(--iris); color: #fff; }
+  .cur textarea { width: calc(100% - 24px); margin: 0 12px; height: 54px; resize: none;
+    border: 1px solid var(--line-2); border-radius: var(--r-control); background: var(--surface-2);
+    font-family: var(--font); font-size: var(--fs-chrome); color: var(--text-2); padding: 7px 9px; }
+  .cur label { display: block; padding: 8px 12px 0; font-size: var(--fs-micro);
+    color: var(--text-3); font-weight: 600; }
+  .cur input { width: calc(100% - 24px); margin: 4px 12px 0; height: 30px;
+    border: 1px solid var(--line-2); border-radius: var(--r-control); background: var(--surface-2);
+    font-size: var(--fs-chrome); color: var(--text-2); padding: 0 9px; }
+
+  /* 问题标注 */
+  .flag { position: relative; }
+  .flag::after {
+    content: attr(data-n); position: absolute; top: -7px; right: -9px; width: 15px; height: 15px;
+    border-radius: 50%; background: var(--coral); color: #fff; font-size: 9.5px; font-weight: 700;
+    display: grid; place-items: center; font-family: var(--font);
+  }
+  .legend { margin: 12px 2px 0; }
+  .legend li { color: var(--text-2); font-size: 12.5px; margin-top: 5px; list-style: none;
+    padding-left: 20px; position: relative; }
+  .legend li::before { content: attr(data-n); position: absolute; left: 0; top: 3px;
+    width: 14px; height: 14px; border-radius: 50%; background: var(--coral); color: #fff;
+    font-size: 9px; font-weight: 700; display: grid; place-items: center; }
+
+  /* ── PROPOSED ────────────────────────────────────────────── */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
+    min-height: 38px; padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--line-1); flex-shrink: 0; }
+  .toolbar .t { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .toolbar strong { font-size: var(--fs-chrome); font-weight: 600; letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .branch-line { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3);
+    font-size: var(--fs-micro); white-space: nowrap; overflow: hidden; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mint); flex-shrink: 0; }
+  .dot.dirty { background: var(--amber); }
+  .icon-btn { width: 26px; height: 26px; border: 0; border-radius: var(--r-control);
+    background: transparent; color: var(--text-3); cursor: pointer; font-size: 13px; flex-shrink: 0; }
+  .icon-btn:hover { background: var(--hover); color: var(--text-1); }
+
+  .totals { padding: var(--s-3) var(--s-5) var(--s-2); color: var(--text-4);
+    font-size: var(--fs-micro); font-variant-numeric: tabular-nums; }
+
+  .rows { list-style: none; margin: 0; padding: 0 var(--s-3) var(--s-3); }
+  .row { display: flex; align-items: center; gap: var(--s-2); height: var(--h-sm);
+    padding: 0 var(--s-2) 0 var(--s-3); border-radius: var(--r-control); cursor: pointer;
+    color: var(--text-3); font-family: var(--mono); font-size: var(--fs-mono); }
+  .row:hover { background: var(--hover); color: var(--text-1); }
+  .row.sel { background: var(--iris-wash); box-shadow: inset 0 0 0 1px rgba(91,75,214,.28); color: var(--text-1); }
+  .row .cb { width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--line-2);
+    background: var(--surface-3); flex-shrink: 0; opacity: 0; transition: opacity var(--t-1);
+    display: grid; place-items: center; color: var(--iris); font-size: 9px; }
+  .row:hover .cb, .row .cb.checked { opacity: 1; }
+  .row .cb.checked { background: var(--iris); border-color: var(--iris); color: #fff; }
+  .st { width: 14px; text-align: center; font-weight: 700; font-size: var(--fs-mono); flex-shrink: 0; }
+  .st.M { color: var(--amber); } .st.U { color: var(--mint); } .st.D { color: var(--coral); }
+  .st.R { color: var(--sky); }
+  .pth { min-width: 0; flex: 1; display: flex; align-items: baseline; gap: 2px;
+    white-space: nowrap; overflow: hidden; }
+  .pth .dir { color: var(--text-4); overflow: hidden; text-overflow: ellipsis; }
+  .pth .file { color: inherit; font-weight: 500; flex-shrink: 0; }
+  .stats { margin-left: auto; display: inline-flex; gap: 5px; font-size: var(--fs-micro);
+    font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .stats .add { color: var(--mint); } .stats .del { color: var(--coral); }
+  .sdot { width: 5px; height: 5px; border-radius: 50%; background: var(--mint); flex-shrink: 0; }
+
+  /* 文件类型 tile（与 ui-kit 新版 FileTypeIcon 一致） */
+  .ft { width: 15px; height: 15px; border-radius: 4.5px; display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 6.5px; flex-shrink: 0; letter-spacing: 0; }
+
+  .commitbar { border-top: 1px solid var(--line-1); padding: var(--s-3) var(--s-4);
+    display: flex; flex-direction: column; gap: var(--s-2); flex-shrink: 0; background: var(--surface-1); }
+  .commitbar .hint { font-size: var(--fs-micro); color: var(--text-3); display: flex;
+    justify-content: space-between; align-items: center; }
+  .commitbar .hint b { color: var(--text-2); font-weight: 600; }
+  .commitbar .line { display: flex; gap: var(--s-2); }
+  .commitbar input { flex: 1; height: var(--h-sm); border: 1px solid var(--line-2);
+    border-radius: var(--r-control); background: var(--surface-2); padding: 0 9px;
+    font-family: var(--font); font-size: var(--fs-chrome); color: var(--text-1); }
+  .commitbar input::placeholder { color: var(--text-4); }
+  .mini-btn { height: var(--h-sm); padding: 0 10px; border: 0; border-radius: var(--r-control);
+    background: var(--surface-3); box-shadow: 0 1px 2px rgba(20,18,30,.10); cursor: pointer;
+    font-family: var(--font); font-size: var(--fs-chrome); color: var(--text-1); white-space: nowrap; }
+  .mini-btn.primary { background: var(--iris); color: #fff; }
+  .mini-btn:disabled { opacity: .45; cursor: default; }
+
+  /* History：branch strip + timeline */
+  .branchstrip { display: flex; align-items: center; gap: var(--s-3); min-height: 38px;
+    padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--line-1); flex-shrink: 0; }
+  .branchstrip .name { font-size: var(--fs-chrome); font-weight: 700; display: inline-flex;
+    align-items: center; gap: 6px; }
+  .branchstrip .up { color: var(--text-3); font-size: var(--fs-micro);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .branchstrip .spacer { flex: 1; }
+  .seclabel { padding: var(--s-4) var(--s-5) var(--s-2); font-size: var(--fs-micro); font-weight: 700;
+    color: var(--text-4); text-transform: uppercase; letter-spacing: .07em; }
+  .timeline { list-style: none; margin: 0; padding: 0 var(--s-3) var(--s-3); position: relative; }
+  .timeline::before { content: ''; position: absolute; left: calc(var(--s-3) + 13px); top: 14px; bottom: 14px;
+    width: 1px; background: var(--line-2); }
+  .tl { position: relative; }
+  .tl button { position: relative; display: flex; align-items: center; gap: 8px; width: 100%;
+    height: var(--h-sm); padding: 0 var(--s-2) 0 var(--s-3); border: 0; border-radius: var(--r-control);
+    background: transparent; cursor: pointer; font-family: var(--font); font-size: var(--fs-chrome);
+    color: var(--text-2); text-align: left; }
+  .tl button:hover { background: var(--hover); color: var(--text-1); }
+  .tl.sel button { background: var(--iris-wash); box-shadow: inset 0 0 0 1px rgba(91,75,214,.28); color: var(--text-1); }
+  .tl .node { width: 7px; height: 7px; border-radius: 50%; background: var(--text-4); flex-shrink: 0;
+    z-index: 1; box-shadow: 0 0 0 3px var(--surface-1); }
+  .tl.head .node { background: var(--iris); }
+  .tl.sel .node { background: var(--iris); }
+  .tl .hash { font-family: var(--mono); font-size: var(--fs-micro); color: var(--text-4); flex-shrink: 0; }
+  .tl .subj { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl.head .subj { font-weight: 600; color: var(--text-1); }
+  .tl .tag { font-size: 9px; font-weight: 700; color: var(--iris); background: var(--iris-wash);
+    border-radius: 4px; padding: 0 4px; flex-shrink: 0; }
+  .tl .when { color: var(--text-4); font-size: var(--fs-micro); flex-shrink: 0; }
+  .cdetail { margin: 0 var(--s-3) var(--s-3); padding: var(--s-4) var(--s-5);
+    background: var(--surface-2); border: 1px solid var(--line-1); border-radius: var(--r-card); }
+  .cdetail .subj { font-size: var(--fs-chrome); font-weight: 600; }
+  .cdetail .meta { margin-top: 3px; color: var(--text-3); font-size: var(--fs-micro); }
+  .cdetail .meta code { font-family: var(--mono); }
+  .cdetail .files { margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--line-1);
+    display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-micro); color: var(--text-3); }
+  .cdetail .files .stats { margin-left: 0; }
+
+  /* 骨架加载态 */
+  .skeleton { padding: var(--s-3) var(--s-5); }
+  .sk { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--hover) 25%, rgba(20,18,30,.09) 45%, var(--hover) 65%);
+    background-size: 240% 100%; animation: sh 1.4s infinite var(--ease-out); margin-top: 10px; }
+  @keyframes sh { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+
+  .notes { max-width: 1180px; margin: 36px auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  @media (max-width: 1080px) { .notes { grid-template-columns: 1fr; } }
+  .card { background: var(--surface-2); border: 1px solid var(--line-1); border-radius: var(--r-card);
+    padding: var(--s-6) var(--s-6) var(--s-5); }
+  .card h3 { margin: 0 0 10px; font-size: 13.5px; }
+  .card ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 12.5px; }
+  .card li { margin-top: 6px; }
+  .card li b { color: var(--text-1); font-weight: 600; }
+  code.k { font-family: var(--mono); font-size: 11px; background: var(--hover);
+    padding: 1px 5px; border-radius: 4px; color: var(--text-2); }
+  .view-switch { display: flex; gap: 8px; margin-bottom: 20px; }
+  .view-btn { padding: 6px 14px; border-radius: var(--r-control); border: 1px solid var(--line-2);
+    background: var(--surface-2); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-2); }
+  .view-btn.active { background: var(--surface-3); color: var(--text-1); box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-color: transparent; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>piwin · 右侧栏 Review 面板重设计</h1>
+  <div class="meta">proposal v1 · 2026-08-26 · <b>仅预览，未接入产品</b> · 范围：右侧栏「变更」tab 的 Changes / History 两个子面板（GitPanel embedded 重做 + Changes 微调）</div>
+</div>
+
+<div class="view-switch">
+  <button class="view-btn" onclick="setView('all')">并排对比</button>
+  <button class="view-btn active" onclick="setView('proposed')">⭐ 仅看提案 (Proposed)</button>
+  <button class="view-btn" onclick="setView('current')">仅看现状 (Current)</button>
+</div>
+<script>
+function setView(mode) {
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  if (event) event.target.classList.add('active');
+  const comp = document.querySelector('.compare');
+  const cols = document.querySelectorAll('.compare > .col');
+  if (mode === 'all') {
+    comp.style.gridTemplateColumns = '1fr 1fr';
+    cols[0].style.display = 'block';
+    cols[1].style.display = 'block';
+  } else if (mode === 'proposed') {
+    comp.style.gridTemplateColumns = '1fr';
+    cols[0].style.display = 'none';
+    cols[1].style.display = 'block';
+  } else {
+    comp.style.gridTemplateColumns = '1fr';
+    cols[0].style.display = 'block';
+    cols[1].style.display = 'none';
+  }
+}
+</script>
+<div class="compare" style="grid-template-columns: 1fr;">
+  <!-- ══════════════ CURRENT ══════════════ -->
+  <div class="col" style="display:none">
+    <h2 class="bad">现状 Current</h2>
+    <div class="panel">
+      <div class="tabstrip">
+        <button class="plus-btn">+</button>
+        <div class="rtab">变更 <span class="x">✕</span></div>
+        <div class="spacer"></div>
+        <button class="ts-icon">⤢</button>
+        <button class="ts-icon on">▭</button>
+      </div>
+      <div class="subtabs">
+        <button class="subtab">Changes</button>
+        <button class="subtab active">History</button>
+      </div>
+      <div class="pbody cur">
+        <div class="files">
+          <h4 class="flag" data-n="1" style="padding-left:0">Branch</h4>
+          <ul class="dump">
+            <li>root: <code>/Users/yorickjue/Developer/piwin</code></li>
+            <li>branch: main</li>
+            <li>tracking: origin/main (↑0 ↓0)</li>
+            <li>dirty: yes</li>
+          </ul>
+          <h4 class="flag" data-n="2" style="padding-left:0">Changed files</h4>
+          <div class="frow"><span class="cb">✓</span><span class="pill">modified</span><span class="pill gray">unstaged</span><span class="path">apps/cli/src/attach-existing-host.test.ts</span></div>
+          <div class="frow"><span class="cb">✓</span><span class="pill">modified</span><span class="pill gray">unstaged</span><span class="path">apps/cli/src/attach-existing-host.ts</span></div>
+          <div class="frow"><span class="cb">✓</span><span class="pill">modified</span><span class="pill gray">unstaged</span><span class="path">apps/cli/src/cli-host.test.ts</span></div>
+          <div class="frow"><span class="cb">✓</span><span class="pill">modified</span><span class="pill gray">unstaged</span><span class="path">apps/cli/src/host-serve-dispatcher.ts</span></div>
+          <div class="frow"><span class="cb">✓</span><span class="pill">modified</span><span class="pill gray">unstaged</span><span class="path">apps/desktop/src/artifact-canvas-panel.tsx</span></div>
+          <div class="frow"><span class="cb">✓</span><span class="pill">deleted</span><span class="pill gray">unstaged</span><span class="path">apps/desktop/src/canvas-panel.tsx</span></div>
+          <div class="frow"><span class="cb">✓</span><span class="pill">modified</span><span class="pill gray">unstaged</span><span class="path">packages/ui-kit/src/icons/file-type-icon.tsx</span></div>
+          <h4 style="padding-left:0">Commit</h4>
+          <label>Commit message *</label>
+          <textarea>Summarize the staged changes</textarea>
+          <div class="btnrow"><button class="btn primary">Commit staged</button></div>
+          <h4 style="padding-left:0">Branch / checkout</h4>
+          <label>New branch name</label>
+          <input value="feature/my-change">
+          <div class="btnrow"><button class="btn">Create+checkout</button></div>
+          <label>Checkout ref</label>
+          <input value="main">
+          <div class="btnrow"><button class="btn">Checkout</button></div>
+          <h4 class="flag" data-n="3" style="padding-left:0">Diff summary (+1284 / -356)</h4>
+          <div class="frow"><span class="path">apps/cli/src/cli-host.ts</span>&nbsp;<span style="color:var(--text-4);font-size:10px">+96 / -12</span></div>
+          <div class="frow"><span class="path">apps/desktop/src/artifact-canvas-model.ts</span>&nbsp;<span style="color:var(--text-4);font-size:10px">+210 / -88</span></div>
+          <h4 class="flag" data-n="4" style="padding-left:0">Commit graph (not session tree)</h4>
+          <div class="frow"><span class="path">507ab878</span>&nbsp;<span style="color:var(--text-3);font-size:11px">docs: tell people to build the Mac bundle…</span></div>
+          <div class="frow"><span class="path">cc00fb6c</span>&nbsp;<span style="color:var(--text-3);font-size:11px">docs: add Chinese first-release README</span></div>
+        </div>
+      </div>
+    </div>
+    <ul class="legend">
+      <li data-n="1"><b>Branch 是原始 dump</b>：4 行 bullet，root 全路径独占一行，高频信息（分支名/领先落后）和低频信息（root）平铺同权重。</li>
+      <li data-n="2"><b>文件行噪音大、信息少</b>：每行重复 "modified / unstaged" 两个灰 pill（18 行 = 36 个），没有 +/− 统计、没有文件类型图标、路径不分层；长路径把面板撑出<b>横向滚动条</b>（截图底部），双轴滚动是缺陷。</li>
+      <li data-n="3"><b>Diff summary 区块与文件列表信息重复</b>：+/− 应该长在每一行上，而不是单独一个区块再列一遍路径。</li>
+      <li data-n="4"><b>写操作与读模型混排 + 开发向文案</b>：Commit / Branch / Checkout 表单直接堆在读模型主流里，把"看状态"变成"填表单"；"Commit graph (not session tree)" 是给开发者看的注释不是 UI 文案。</li>
+      <li><b>加载态是文本闪烁</b>："Loading git…" 段落挂载/卸载导致整块内容上下跳（抖动 bug 的可见面，代码层已修）。</li>
+    </ul>
+  </div>
+
+  <!-- ══════════════ PROPOSED ══════════════ -->
+  <div class="col">
+    <h2 class="good">提案 Proposed — 点子 tab 可切换</h2>
+    <div class="panel" id="pp">
+      <div class="tabstrip">
+        <button class="plus-btn">+</button>
+        <div class="rtab">变更 <span class="x">✕</span></div>
+        <div class="spacer"></div>
+        <button class="ts-icon">⤢</button>
+        <button class="ts-icon on">▭</button>
+      </div>
+      <div class="subtabs" role="tablist">
+        <button class="subtab active" data-p="changes">Changes <span class="count">18</span></button>
+        <button class="subtab" data-p="history">History</button>
+      </div>
+
+      <!-- Changes -->
+      <div data-view="changes" style="display:flex;flex-direction:column;flex:1;min-height:0">
+        <div class="toolbar">
+          <div class="t">
+            <strong>Uncommitted changes</strong>
+            <span class="branch-line"><span class="dot dirty"></span>main · origin/main ↑0 ↓0</span>
+          </div>
+          <button class="icon-btn" title="刷新">⟳</button>
+        </div>
+        <div class="totals">18 files · +1,284 −356</div>
+        <div class="pbody" style="overflow:auto">
+          <ul class="rows">
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">attach-existing-host.test.ts</span></span><span class="stats"><span class="add">+12</span><span class="del">−1</span></span></li>
+            <li class="row sel"><span class="cb checked">✓</span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">attach-existing-host.ts</span></span><span class="stats"><span class="add">+38</span><span class="del">−9</span></span><span class="sdot" title="staged"></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">cli-host.test.ts</span></span><span class="stats"><span class="add">+6</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">host-serve-dispatcher.ts</span></span><span class="stats"><span class="add">+21</span><span class="del">−4</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">host-serve-transport.ts</span></span><span class="stats"><span class="add">+9</span><span class="del">−2</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">session-queue-command.ts</span></span><span class="stats"><span class="add">+14</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/cli/src/</span><span class="file">side-chat-command.ts</span></span><span class="stats"><span class="add">+31</span><span class="del">−18</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(20,18,30,.08);color:#6E7780">RS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/desktop/src-tauri/src/</span><span class="file">host_bridge.rs</span></span><span class="stats"><span class="add">+44</span><span class="del">−12</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TSX</span><span class="st M">M</span><span class="pth"><span class="dir">apps/desktop/src/</span><span class="file">ArtifactFrame.tsx</span></span><span class="stats"><span class="add">+52</span><span class="del">−30</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TSX</span><span class="st M">M</span><span class="pth"><span class="dir">apps/desktop/src/</span><span class="file">FlashcardsPanel.tsx</span></span><span class="stats"><span class="add">+8</span><span class="del">−3</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TS</span><span class="st M">M</span><span class="pth"><span class="dir">apps/desktop/src/</span><span class="file">artifact-canvas-model.ts</span></span><span class="stats"><span class="add">+210</span><span class="del">−88</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(49,120,198,.15);color:#3178C6">TSX</span><span class="st D">D</span><span class="pth"><span class="dir">apps/desktop/src/</span><span class="file">canvas-panel.tsx</span></span><span class="stats"><span class="del">−412</span></span></li>
+            <li class="row"><span class="cb"></span><span class="ft" style="background:rgba(78,138,117,.15);color:#4E8A75">MD</span><span class="st U">U</span><span class="pth"><span class="dir">docs/specs/</span><span class="file">conversation-multi-pane-workspace.md</span></span><span class="stats"><span class="add">+186</span></span></li>
+          </ul>
+        </div>
+        <div class="commitbar">
+          <div class="hint"><span>已暂存 <b>1</b> / 18 个文件</span><span>+38 −9</span></div>
+          <div class="line">
+            <input placeholder="Summarize the staged changes">
+            <button class="mini-btn">Stage ⌄</button>
+            <button class="mini-btn primary">Commit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div data-view="history" style="display:none;flex-direction:column;flex:1;min-height:0">
+        <div class="branchstrip">
+          <span class="name"><span class="dot dirty"></span>main</span>
+          <span class="up">origin/main ↑0 ↓0</span>
+          <span class="spacer"></span>
+          <button class="icon-btn" title="新建分支">⎇</button>
+          <button class="icon-btn" title="更多">⋯</button>
+        </div>
+        <div class="seclabel">最近提交</div>
+        <div class="pbody">
+          <ul class="timeline">
+            <li class="tl head sel"><button><span class="node"></span><span class="hash">507ab87</span><span class="subj">docs: tell people to build the Mac bundle locally</span><span class="tag">HEAD</span><span class="when">2 天前</span></button></li>
+            <li class="tl"><button><span class="node"></span><span class="hash">cc00fb6</span><span class="subj">docs: add Chinese first-release README</span><span class="when">2 天前</span></button></li>
+            <li class="tl"><button><span class="node"></span><span class="hash">438c197</span><span class="subj">feat(desktop): land current host-and-shell workbench changes</span><span class="when">2 天前</span></button></li>
+            <li class="tl"><button><span class="node"></span><span class="hash">4dbaf42</span><span class="subj">chore: keep private agent docs and plans out of the public tree</span><span class="when">2 天前</span></button></li>
+            <li class="tl"><button><span class="node"></span><span class="hash">7c509f0</span><span class="subj">feat(desktop): adopt Deck design system with Obsidian and Bone</span><span class="when">2 天前</span></button></li>
+            <li class="tl"><button><span class="node"></span><span class="hash">ca27111</span><span class="subj">feat: follow Pi native packages and expand knowledge workbench</span><span class="when">2 天前</span></button></li>
+          </ul>
+          <div class="cdetail">
+            <div class="subj">docs: tell people to build the Mac bundle locally and drop a private note</div>
+            <div class="meta"><code>507ab878</code> · Yorick Jue · 2 天前 · parent <code>cc00fb6c</code></div>
+            <div class="files">
+              <span>变更 2 个文件</span>
+              <span class="stats"><span class="add">+24</span><span class="del">−2</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="legend">
+      <li data-n="1" style="--c:var(--mint)"><b>Branch 压成一条 strip</b>：` main · origin/main ↑0 ↓0 · 脏点`，root 收进 hover tooltip；新建分支 / checkout 收进右侧两个图标入口，不再占主流表单。</li>
+      <li data-n="2"><b>文件行向 Changes 看齐</b>：文件类型 tile + 状态字母（amber=改 / mint=增 / coral=删 / sky=移，与文件树、diff gutter 同语义色）+ dir/ 文件名分层 + 行内 +/− + staged 绿点；checkbox 仅 hover 出现；路径恒 ellipsis，<b>横向滚动条消失</b>。</li>
+      <li data-n="3"><b>Commit 归位到 Changes</b>：底部常驻 commit bar（已暂存 N / message / Commit），形成 stage → commit 闭环；History 保持纯只读时间线。</li>
+      <li data-n="4"><b>History = 时间线</b>：lane 节点 + 竖线 + hash + subject + 相对时间，HEAD 有标记；选中提交展开 inset 详情卡（作者/父提交/变更规模）；"Diff summary" 重复区块删除。</li>
+      <li><b>加载态 = 骨架条</b>：高度恒定，内容零位移（配合已修的 effect 依赖 bug，双保险）。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="card">
+    <h3>信息架构</h3>
+    <ul>
+      <li><b>Changes = 工作区写路径</b>：看什么变了 → 选 → stage → commit，一个 tab 内闭环。</li>
+      <li><b>History = 只读时间线</b>：branch 状态一条 strip + 提交时间线 + 选中详情；写操作（建分支/checkout）收进 strip 右侧入口，全部保留 confirm。</li>
+      <li>两个子面板共用同一套<b>文件行组件语言</b>（tile + 状态字母 + 分层路径 + +/−），现状是两套（ChangesPanel 一套、GitPanel 一套）——落地时抽成一个共享行组件。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>落地范围（建议）</h3>
+    <ul>
+      <li><code class="k">GitPanel.tsx</code> embedded 变体重做：branch strip + timeline + detail inset；modal 变体（设置页入口）同步换肤。</li>
+      <li><code class="k">changes-panel.tsx</code>：底部 commit bar（复用 confirm）；checkbox hover-reveal。</li>
+      <li>抽出共享的 <code class="k">git-file-row</code> 组件（ChangesPanel / GitPanel 共用），状态字母语义色复用 <code class="k">--amber/--mint/--coral/--sky</code> token。</li>
+      <li>加载态骨架条；<code class="k">overflow-x</code> 防线（路径 ellipsis + <code class="k">min-width:0</code>）。</li>
+      <li>已修：<code class="k">reload</code> effect 依赖（[props] → 字段），消除输入时的请求轰炸与 Loading 闪烁。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // PROPOSED 面板的子 tab 切换
+  const panel = document.getElementById('pp');
+  const tabs = panel.querySelectorAll('.subtab[data-p]');
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      tabs.forEach((t) => t.classList.toggle('active', t === tab));
+      panel.querySelectorAll('[data-view]').forEach((v) => {
+        const on = v.dataset.view === tab.dataset.p;
+        v.style.display = on ? 'flex' : 'none';
+      });
+    });
+  });
+  // 文件行选中态（仅预览交互）
+  document.querySelectorAll('#pp .rows .row').forEach((row) => {
+    row.addEventListener('click', (e) => {
+      if (e.target.classList.contains('cb')) {
+        e.target.classList.toggle('checked');
+        e.stopPropagation();
+        return;
+      }
+      document.querySelectorAll('#pp .rows .row').forEach((r) => r.classList.remove('sel'));
+      row.classList.add('sel');
+    });
+  });
+  // 时间线选中态
+  document.querySelectorAll('#pp .timeline .tl').forEach((item) => {
+    item.querySelector('button').addEventListener('click', () => {
+      document.querySelectorAll('#pp .timeline .tl').forEach((t) => t.classList.remove('sel'));
+      item.classList.add('sel');
+    });
+  });
+</script>
+</body>
+</html>

@@ -31,6 +31,23 @@ describe('isSafeRemoteContextRef', () => {
     ).toBe(true);
   });
 
+  it('accepts only the exact Apple Health connected-source ref', () => {
+    expect(
+      isSafeRemoteContextRef({
+        kind: 'connected-source',
+        source: 'apple-health',
+        label: 'Apple Health',
+      }),
+    ).toBe(true);
+    expect(
+      isSafeRemoteContextRef({
+        kind: 'connected-source',
+        source: 'apple-health',
+        label: 'Health',
+      } as unknown as Parameters<typeof isSafeRemoteContextRef>[0]),
+    ).toBe(false);
+  });
+
   it('still rejects a raw Host filesystem file ref', () => {
     expect(
       isSafeRemoteContextRef({

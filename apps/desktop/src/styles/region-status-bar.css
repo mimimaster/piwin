@@ -1,152 +1,223 @@
-/* Region: status bar (status-bar.tsx). Owns every .status-bar-* selector.
+/* Region: turn telemetry (status-bar.tsx).
+   A compact, minimalist instrument rail attached to the Composer. */
 
-   The bar itself is hidden by product decision — the stage ember wash and the
-   composer carry run state instead. Rules below stay token-correct so the
-   surface is coherent the moment it is switched back on. */
+/* Move the Composer's bottom inset onto the telemetry cluster so both pieces
+   read as one cohesive object. */
+.chat-stage > .composer-dock:has(+ .status-bar),
+.chat-column-empty .chat-stage > .composer-dock.layout-centered:has(+ .status-bar) {
+  padding-bottom: 0;
+}
 
 .status-bar {
-  display: none;
-  align-items: center;
-  gap: var(--s-5);
-  flex-shrink: 0;
-  height: var(--statusline-height);
-  padding: 0 var(--s-5);
-  background: transparent;
+  --telemetry-icon-size: 12px;
+
+  container-name: turn-telemetry;
+  container-type: inline-size;
+  flex: 0 0 auto;
+  width: var(--chat-max);
+  max-width: calc(100% - var(--chat-inline-pad) - var(--chat-inline-pad));
+  min-width: 0;
+  min-height: var(--h-xs);
+  margin: var(--s-2) auto var(--s-5);
+  padding: 0;
   color: var(--text-3);
   font-size: var(--fs-mono);
   font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
-.status-bar-left,
-.status-bar-right {
-  display: flex;
-  align-items: center;
-  gap: var(--s-5);
-  min-width: 0;
+.chat-column-empty .status-bar {
+  margin-top: var(--s-3);
+  margin-bottom: 0;
 }
 
-.status-bar-right {
-  margin-left: auto;
-}
-
-/* ── Agent state ──────────────────────────────────────────────────── */
-
-.status-bar-agent {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  font-weight: 400;
-}
-
-.status-bar-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-4);
-}
-
-/* Ember is reserved for "the agent is running" everywhere in the shell. */
-.status-bar-agent.state-running {
-  color: var(--ember);
-}
-
-.status-bar-agent.state-running .status-bar-dot {
-  background: var(--ember);
-  animation: breath var(--breath) var(--ease-in-out) infinite;
-}
-
-/* Terminal output arriving while the panel is collapsed. */
-.status-bar-agent.has-terminal-attention .status-bar-dot {
-  background: var(--sky);
-  animation: breath var(--breath) var(--ease-in-out) infinite;
-}
-
-.status-bar-agent.state-error {
-  color: var(--coral);
-}
-
-.status-bar-agent.state-error .status-bar-dot {
-  background: var(--coral);
-}
-
-/* ── Readouts ─────────────────────────────────────────────────────── */
-
-.status-bar-branch,
-.status-bar-model {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-3);
-}
-
-.status-bar-context {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-variant-numeric: tabular-nums;
-}
-
-button.status-bar-context {
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.status-bar-context.tone-ok {
-  color: var(--mint);
-}
-.status-bar-context.tone-warn {
-  color: var(--amber);
-}
-.status-bar-context.tone-critical {
-  color: var(--coral);
-}
-
-.status-bar-chip {
+.status-bar-rail {
   display: inline-flex;
   align-items: center;
-  gap: var(--s-2);
-  height: 18px;
+  width: max-content;
+  max-width: 100%;
+  height: 24px;
   padding: 0 var(--s-3);
-  border: none;
-  border-radius: var(--r-chip);
-  background: transparent;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  border: 1px solid var(--line-1);
+  transition: border-color var(--t-2) var(--ease-out), background-color var(--t-2) var(--ease-out);
+  animation: deck-fade-in var(--t-2) var(--ease-out) both;
+}
+
+.status-bar-rail:hover {
+  background: var(--surface-3);
+  border-color: var(--line-2);
+}
+
+/* ── Semantic run state ─────────────────────────────────────────── */
+
+.status-bar-agent {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-2);
+  height: 100%;
+  padding: 0 var(--s-1);
+  white-space: nowrap;
+}
+
+.status-bar-agent-icon {
+  display: grid;
+  place-items: center;
+  width: var(--telemetry-icon-size);
+  height: var(--telemetry-icon-size);
   color: var(--text-3);
-  font-size: var(--fs-mono);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition:
-    color var(--t-1) var(--ease-out),
-    background-color var(--t-1) var(--ease-out);
+  transition: color var(--t-2) var(--ease-out), transform var(--t-2) var(--ease-out);
 }
 
-.status-bar-chip img {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  flex-shrink: 0;
+.status-bar-agent-icon svg,
+.status-bar-metric-icon svg {
+  width: var(--telemetry-icon-size);
+  height: var(--telemetry-icon-size);
+  stroke-width: 1.7;
 }
 
-.status-bar-chip:hover {
+.status-bar-agent-label {
+  color: var(--text-3);
+  font-family: var(--font, var(--font-sans));
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color var(--t-2) var(--ease-out);
+}
+
+.status-bar-agent.state-running .status-bar-agent-icon {
+  color: var(--ember);
+  filter: drop-shadow(0 0 4px var(--ember-wash));
+  animation: breath var(--breath) var(--ease-in-out) infinite;
+}
+
+.status-bar-agent.state-running .status-bar-agent-label {
   color: var(--text-1);
-  background: var(--hover);
+  font-weight: 550;
+}
+
+.status-bar-agent.state-idle .status-bar-agent-icon {
+  color: var(--mint);
+  opacity: 0.9;
+}
+
+.status-bar-agent.state-idle .status-bar-agent-label {
+  color: var(--text-3);
+}
+
+.status-bar-agent.state-error .status-bar-agent-icon {
+  color: var(--coral);
+}
+
+.status-bar-agent.state-error .status-bar-agent-label {
+  color: var(--coral);
+}
+
+.status-bar-agent.state-attention .status-bar-agent-icon {
+  color: var(--sky);
+}
+
+.status-bar-agent.state-attention .status-bar-agent-label {
+  color: var(--sky);
+}
+
+.status-bar-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 10px;
+  margin: 0 var(--s-2);
+  background: var(--line-2);
+  opacity: 0.7;
+}
+
+/* ── Turn metrics ───────────────────────────────────────────────── */
+
+.status-bar-metrics {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  gap: var(--s-1);
+}
+
+.status-bar-metric {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-1);
+  height: 100%;
+  padding: 0 var(--s-1);
+  white-space: nowrap;
+}
+
+.status-bar-metric + .status-bar-metric::before {
+  content: '·';
+  display: inline-block;
+  margin-right: var(--s-1);
+  color: var(--text-4);
+  font-size: var(--fs-mono);
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.status-bar-metric-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--text-3);
+  opacity: 0.85;
+}
+
+.status-bar-metric-label {
+  color: var(--text-3);
+  font-family: var(--font, var(--font-sans));
+  font-size: var(--fs-micro);
+  font-weight: 450;
+}
+
+.status-bar-metric-value {
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-mono);
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  transition: color var(--t-2) var(--ease-out);
+}
+
+.status-bar-rail:hover .status-bar-metric-value {
+  color: var(--text-1);
+}
+
+@container turn-telemetry (max-width: 520px) {
+  .status-bar-metric {
+    gap: var(--s-1);
+    padding: 0 2px;
+  }
+
+  .status-bar-metric-label {
+    display: none;
+  }
+}
+
+@container turn-telemetry (max-width: 360px) {
+  .status-bar-metric[data-kind='input'],
+  .status-bar-metric[data-kind='output'] {
+    display: none;
+  }
+}
+
+@container turn-telemetry (max-width: 260px) {
+  .status-bar-agent-label {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-bar-agent .status-bar-dot {
+  .status-bar-rail,
+  .status-bar-agent.state-running .status-bar-agent-icon {
     animation: none;
-    opacity: 1;
-  }
-
-  .status-bar-chip {
-    transition: none;
   }
 }

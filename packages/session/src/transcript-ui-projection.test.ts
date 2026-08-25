@@ -48,6 +48,46 @@ describe('projectTranscriptMessagesForUi', () => {
     expect(slimSize).toBeLessThan(fullSize / 10);
   });
 
+  it('keeps Health card fields when slimming UI hydrate', () => {
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: 'done',
+        createdAt: '2026-08-23T00:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 't1',
+            toolName: 'health_read_context',
+            status: 'done',
+            output: 'secret health series',
+            presentation: {
+              kind: 'health',
+              title: 'health_read_context',
+              sensitivity: 'health',
+              health: {
+                metrics: ['steps'],
+                periodLabel: '今天',
+                status: 'completed',
+              },
+              output: { text: 'secret health series' },
+            },
+          },
+        ],
+      },
+    ];
+    const tool = projectTranscriptMessagesForUi(messages)[0]?.tools?.[0];
+    expect(tool?.output).toBe('');
+    expect(tool?.presentation?.output).toBeUndefined();
+    expect(tool?.presentation?.sensitivity).toBe('health');
+    expect(tool?.presentation?.health).toEqual({
+      metrics: ['steps'],
+      periodLabel: '今天',
+      status: 'completed',
+    });
+  });
+
   it('leaves messages without tools unchanged by reference shape', () => {
     const messages: SessionTranscriptMessage[] = [
       {

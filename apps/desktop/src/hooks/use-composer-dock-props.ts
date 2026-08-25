@@ -35,7 +35,10 @@ import type {
 import type { ExtensionUiRequestState } from './use-host-bootstrap';
 import type { PendingComposerAttachment } from '../media-utils';
 import type { OrchestrationSchemeOption } from '../OrchestrationSchemeControl';
-import { clearDesktopRemoteHostTarget } from '../remote-host-session';
+import {
+  clearDesktopRemoteHostTarget,
+  formatDesktopRemoteHostDisplay,
+} from '../remote-host-session';
 import type { RightPanelTab } from '../right-panel';
 import type { ShellSettingsSection } from '../shell-navigation';
 import type { SteerQueueMessage } from '../steer-queue';
@@ -44,6 +47,7 @@ import {
   listSessionUserPrompts,
   resolveComposerLayoutMode,
 } from '../composer-dock-assembly';
+import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
 
 export type UseComposerDockPropsArgs = {
   hostClient: HostClient;
@@ -89,6 +93,8 @@ export type UseComposerDockPropsArgs = {
   onSendWithComments: () => void | Promise<unknown>;
   onSteer: () => void | Promise<unknown>;
   onFollowUp: () => void | Promise<unknown>;
+  onPause: () => void | Promise<unknown>;
+  onResumeRun: () => void | Promise<unknown>;
   onAbort: () => void | Promise<unknown>;
   onCompact: () => void | Promise<unknown>;
   onOpenProject: (path: string) => void | Promise<void>;
@@ -172,6 +178,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
     onSendWithComments,
     onSteer,
     onFollowUp,
+    onPause,
+    onResumeRun,
     onAbort,
     onCompact,
     onOpenProject,
@@ -264,6 +272,12 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
   const handleComposerFollowUp = useCallback((): void => {
     void onFollowUp();
   }, [onFollowUp]);
+  const handleComposerPause = useCallback((): void => {
+    void onPause();
+  }, [onPause]);
+  const handleComposerResumeRun = useCallback((): void => {
+    void onResumeRun();
+  }, [onResumeRun]);
   const handleComposerExtensionUiResolve = useCallback(
     (payload: { confirmed?: boolean; value?: string; cancelled?: boolean }): void => {
       void onExtensionUiResolve(payload);
@@ -310,6 +324,11 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       setAgentMode('agent');
     }
   }, [agentMode, goalExtensionEnabled, setAgentMode]);
+
+  const runtimeRemoteConnected = hostClient.getTransport() === 'remote';
+  const runtimeRemoteHostLabel = runtimeRemoteConnected
+    ? formatDesktopRemoteHostDisplay(hostClient.getRemoteTarget()?.endpoint ?? '')
+    : undefined;
 
   const composerCard: ComposerDockProps = useMemo(
     () => ({
@@ -368,8 +387,12 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onPaste: handleComposerPasteEvent,
       onDrop: handleComposerDropEvent,
       onSend: handleComposerSend,
+      mutationsEnabled: desktopForegroundMutationsEnabled(state),
       onSteer: handleComposerSteer,
       onFollowUp: handleComposerFollowUp,
+      onPause: handleComposerPause,
+      onResume: handleComposerResumeRun,
+      paused: state.runTerminal.kind === 'paused',
       steerQueueMessages,
       onSteerQueueSendNow,
       onSteerQueueEdit,
@@ -416,7 +439,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       onOpenProject: (path) => {
         void onOpenProject(path);
       },
-      runtimeRemoteConnected: hostClient.getTransport() === 'remote',
+      runtimeRemoteConnected,
+      ...(runtimeRemoteHostLabel ? { runtimeRemoteHostLabel } : {}),
       onSelectLocalRuntime: handleSelectLocalRuntime,
       onSelectAttachRuntime: handleSelectAttachRuntime,
     }),
@@ -442,7 +466,9 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       handleComposerExtensionUiAbort,
       handleComposerExtensionUiResolve,
       handleComposerFollowUp,
+      handleComposerPause,
       handleComposerPasteEvent,
+      handleComposerResumeRun,
       handleComposerSend,
       handleComposerSteer,
       handleOpenHostSettings,
@@ -483,6 +509,8 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       retryFailedAttachments,
       retryPendingAttachment,
       revokePending,
+      runtimeRemoteConnected,
+      runtimeRemoteHostLabel,
       runModePreset,
       selectedModelContextWindow,
       selectedModelKey,
@@ -500,6 +528,7 @@ export function useComposerDockProps(args: UseComposerDockPropsArgs): {
       speechRequest,
       state.activeScope.kind,
       state.activeSessionId,
+      state.foregroundAdmission,
       state.compacting,
       state.contextUsage,
       state.hostMock,

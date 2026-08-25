@@ -75,6 +75,7 @@ const composerCard: ComposerDockProps = {
   onPaste: noop,
   onDrop: noop,
   onSend: noop,
+  onPause: noop,
   onAbort: noop,
   onCompact: noop,
   contextUsage: null,
@@ -318,6 +319,7 @@ function ChatThreadRenderHarness(props: ChatThreadRenderHarnessProps): ReactElem
           onPaste: noop,
           onDrop: noop,
           onSend: noop,
+          onPause: noop,
           onAbort: noop,
           onCompact: noop,
           contextUsage: null,
@@ -2264,6 +2266,25 @@ describe('Conversation ChatThread presentation (CHT-401~407)', () => {
     );
     expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
     expect(container.querySelector('[data-testid="agent-locator"]')).toBeNull();
+  });
+
+  it('immediately renders assistant avatar, header, and thinking indicator upon user send while streaming', () => {
+    renderConversation([createUserMessage('u-live', 'solve this problem')], {
+      streaming: true,
+      activeRunId: 'run-live',
+      livePromptModel: {
+        protocol: 'anthropic-compatible',
+        providerId: 'anthropic',
+        modelId: 'claude-3-7-sonnet',
+      },
+      locale: 'zh-CN',
+    });
+
+    expect(container.querySelector('[data-testid="conversation-message-header"]')).not.toBeNull();
+    expect(container.querySelector('.conversation-message-provider-icon')).not.toBeNull();
+    expect(container.querySelector('[data-testid="conversation-activity"]')?.textContent).toBe(
+      '正在思考…',
+    );
   });
 
   it('keeps Conversation activity while the opened reply has no content yet', () => {

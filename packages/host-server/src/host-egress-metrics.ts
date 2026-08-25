@@ -14,6 +14,8 @@ export type HostEgressClientStats = {
   diagnosticsEvicted: number;
   oversizedItems: number;
   slowConsumerDisconnects: number;
+  filteredItems: number;
+  subscriptionCount: number;
   closed: boolean;
 };
 

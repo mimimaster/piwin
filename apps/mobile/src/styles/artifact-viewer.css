@@ -1,0 +1,180 @@
+/* Artifact stage (transcript) and fullscreen sandbox sheet. */
+
+.mobile-artifact-stage {
+  margin: 10px 0 10px 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--elev-1);
+  overflow: hidden;
+}
+
+.mobile-artifact-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.mobile-artifact-stage-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mobile-artifact-stage-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--iris-soft);
+  color: var(--iris);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mobile-artifact-stage-copy {
+  min-width: 0;
+}
+
+.mobile-artifact-stage-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-artifact-stage-meta {
+  margin: 2px 0 0;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.mobile-artifact-stage-expand,
+.artifact-header-btn,
+.mobile-drawer-close-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.mobile-artifact-stage-expand {
+  border: none;
+  background: var(--surface-control);
+  color: var(--text-1);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-artifact-stage-expand:active {
+  background: var(--surface-4);
+}
+
+.mobile-artifact-stage-blocked {
+  margin: 0;
+  padding: 0 14px 14px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.mobile-artifact-stage-viewport {
+  height: min(52svh, 28rem);
+  min-height: 12rem;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  isolation: isolate;
+  background: var(--void);
+  touch-action: pan-y;
+}
+
+.mobile-artifact-stage-iframe,
+.mobile-artifact-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
+
+.mobile-artifact-sheet {
+  position: absolute;
+  inset: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--surface-1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 90;
+}
+
+.mobile-artifact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 8px 16px;
+  border-bottom: 1px solid var(--line-1);
+  background: var(--surface-1);
+  flex-shrink: 0;
+}
+
+.mobile-artifact-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobile-artifact-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.mobile-artifact-subtitle {
+  margin: 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.mobile-artifact-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.artifact-header-btn {
+  border: 1px solid var(--line-2);
+  background: var(--surface-3);
+  color: var(--text-1);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.artifact-header-btn:active {
+  background: var(--surface-4);
+}
+
+.mobile-artifact-viewport-wrap {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  background: var(--void);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.mobile-artifact-blocked {
+  margin: 24px 16px;
+}

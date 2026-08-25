@@ -22,6 +22,10 @@ describe('sessionRunPhaseToActivityKind', () => {
   it('maps cancelling to stopping', () => {
     expect(sessionRunPhaseToActivityKind('cancelling')).toBe('stopping');
   });
+
+  it('maps pausing to the same control-transition activity', () => {
+    expect(sessionRunPhaseToActivityKind('pausing')).toBe('stopping');
+  });
 });
 
 describe('runStatusToActivityInput', () => {

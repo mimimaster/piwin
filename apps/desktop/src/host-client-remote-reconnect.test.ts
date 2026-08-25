@@ -293,11 +293,15 @@ describe('HostClient remote reconnect', () => {
     const remote = remotes[0];
     remote?.drop();
     const before = remote?.requests.length ?? 0;
-    const response = await client.request({
-      type: 'session/prompt',
-      sessionId: 'session-1',
-      input: { text: 'hi' },
-    });
+    const response = await client.request(
+      {
+        type: 'session/prompt',
+        sessionId: 'session-1',
+        input: { text: 'hi' },
+        foreground: { kind: 'if-idle' },
+      },
+      { idempotencyKey: 'reconnect-click' },
+    );
     expect(response).toMatchObject({
       success: false,
       error: 'Host transport is not open',

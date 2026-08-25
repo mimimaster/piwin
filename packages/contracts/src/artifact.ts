@@ -99,8 +99,8 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="3" applies="artifacts-enabled"]',
-  '<artifact-decision-policy name="piwin-proactive-inline">',
+  '[piwin-prompt-meta kind="artifact:decision" version="4" applies="artifacts-enabled"]',
+  '<artifact-decision-policy name="piwin-proactive-surfaces">',
   '## Artifact Decision Policy',
   '',
   '## Primary rule',
@@ -126,7 +126,9 @@ export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
   '',
   '### Output choice',
   'If the answer is between a long Markdown response and a compact searchable, copyable, or visually grouped Artifact, choose the Artifact.',
-  'Use Inline Artifact by default. Use Canvas only for full-page layouts, app-like prototypes, complex local state, or a workspace that needs to remain beside the conversation.',
+  'Use Inline Artifact when the result fits naturally inside the conversation.',
+  'Choose Canvas proactively when the primary deliverable is an app/page prototype, a multi-step flow with local state, a coordinated workspace, a result that should remain beside the conversation, or a layout whose utility requires sustained width.',
+  'Declare Canvas explicitly with `surface="canvas"`. A completed Canvas opens the right workspace automatically, so do not ask the user to click a second launcher before using it.',
   '',
   '### Generation strategy',
   '- Short explanations that fit in one or two paragraphs stay ordinary Markdown. Do not emit an artifact fence.',

@@ -139,8 +139,10 @@ describe('resolveToolPolicy', () => {
   });
 
   it('Artifact instructions are main-session only', () => {
-    const unavailable = resolveToolPolicy(baseExposure({ artifact: true }));
-    expect(unavailable.enabledFamilies).toContain('artifact');
+    const unavailable = resolveToolPolicy(
+      baseExposure({ artifact: true, availableFamilies: new Set() }),
+    );
+    expect(unavailable.enabledFamilies).not.toContain('artifact');
 
     const available = resolveToolPolicy(
       baseExposure({ artifact: true, availableFamilies: new Set(['artifact']) }),
@@ -148,7 +150,11 @@ describe('resolveToolPolicy', () => {
     expect(available.enabledFamilies).toContain('artifact');
 
     const subagent = resolveToolPolicy(
-      baseExposure({ artifact: true, capabilities: ['read'], availableFamilies: new Set(['artifact']) }),
+      baseExposure({
+        artifact: true,
+        capabilities: ['read'],
+        availableFamilies: new Set(['artifact']),
+      }),
     );
     expect(subagent.enabledFamilies).not.toContain('artifact');
   });

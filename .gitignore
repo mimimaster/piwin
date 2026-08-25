@@ -59,9 +59,13 @@ packages/pet/generated/
 /b4bdb4b3-51f4-4307-9df8-90c7192d1ac0.png
 /左侧栏.png
 /右侧栏.png
-
+/user-message-hover.png
+/user-message-hover-v2.png
+/user-message-idle.png
+/user-message-idle-v2.png
 
 # Not for the public tree
+.agents/
 .superpowers/
 .cursor/
 .devin/

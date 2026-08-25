@@ -30,6 +30,7 @@ import { IconBrain, IconChevronRight } from './shell-icons';
 import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 import { buildTurnPresentation } from './run-presentation.js';
 import { runtimeStatusText } from './run-activity-strings.js';
+import { conversationActivityLabel } from './conversation-activity.js';
 
 export {
   collectFlashcardToolsFromMessages,
@@ -138,6 +139,12 @@ export function ConversationResponseContent(props: {
 
   const showHeader = props.showHeader !== false;
 
+  const isAwaitingFirstToken =
+    (props.isStreaming ?? message.status === 'streaming') &&
+    message.text.trim().length === 0 &&
+    message.thinking.trim().length === 0 &&
+    getMessageTools(message, props.sourceTools).length === 0;
+
   return (
     <div
       className={`conversation-response${showHeader ? '' : ' is-continuation'}`}
@@ -159,6 +166,36 @@ export function ConversationResponseContent(props: {
           {...(props.usageChip !== undefined ? { usageChip: props.usageChip } : {})}
           locale={locale}
         />
+      ) : null}
+      {isAwaitingFirstToken ? (
+        <div
+          className="conversation-thinking-wrapper is-open"
+          data-testid="conversation-activity"
+        >
+          <div
+            className="turn-work-details-summary conversation-thinking-summary"
+            data-activity-id="thinking"
+            data-tool-status="running"
+          >
+            <span
+              className="turn-summary-active-animation"
+              data-testid="conversation-thinking-active-animation"
+              aria-hidden="true"
+            >
+              <RadialBellow
+                size="sm"
+                label={conversationActivityLabel('thinking', locale)}
+                testId="conversation-thinking-radial-bellow"
+              />
+            </span>
+            <span
+              className="turn-work-details-label turn-work-details-label--running agent-locator-copy--shimmer"
+              data-testid="conversation-activity-copy"
+            >
+              {conversationActivityLabel('thinking', locale)}
+            </span>
+          </div>
+        </div>
       ) : null}
       {hasThinking ? (
         <div

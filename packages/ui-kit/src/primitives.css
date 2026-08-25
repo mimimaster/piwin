@@ -18,16 +18,30 @@
 .piwin-button--compact {
   min-height: var(--control-height-compact);
 }
-.piwin-button--primary {
+.piwin-button--primary:not(:disabled):not([data-disabled='true']) {
   box-shadow: none;
   /* On-accent ink: white on blue/orange, black on Noir white accent. */
   color: var(--accent-fg, var(--content-on-accent, #ffffff));
 }
-.piwin-button--primary .mantine-Button-label {
+.piwin-button--primary:not(:disabled):not([data-disabled='true']) .mantine-Button-label {
   color: var(--accent-fg, var(--content-on-accent, #ffffff));
 }
-.piwin-button--primary svg {
+.piwin-button--primary:not(:disabled):not([data-disabled='true']) svg {
   color: var(--accent-fg, var(--content-on-accent, #ffffff));
+  stroke: currentColor;
+}
+.piwin-button:disabled,
+.piwin-button[data-disabled='true'] {
+  color: var(--text-4, var(--muted, #8e8e93)) !important;
+  cursor: not-allowed;
+}
+.piwin-button:disabled .mantine-Button-label,
+.piwin-button[data-disabled='true'] .mantine-Button-label {
+  color: var(--text-4, var(--muted, #8e8e93)) !important;
+}
+.piwin-button:disabled svg,
+.piwin-button[data-disabled='true'] svg {
+  color: var(--text-4, var(--muted, #8e8e93)) !important;
   stroke: currentColor;
 }
 .piwin-button--secondary {

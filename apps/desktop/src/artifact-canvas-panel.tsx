@@ -71,8 +71,8 @@ export function ArtifactCanvasPanel(props: ArtifactCanvasPanelProps): ReactEleme
     return (
       <div className="artifact-canvas-panel" data-testid="artifact-canvas-panel">
         <div className="artifact-canvas-empty muted" data-testid="artifact-canvas-empty">
-          No Canvas artifact open. Open a Canvas launcher in the conversation to load an interactive
-          workspace here.
+          No Canvas artifact open. A new Canvas appears here automatically; use its conversation
+          launcher to reopen it later.
         </div>
       </div>
     );

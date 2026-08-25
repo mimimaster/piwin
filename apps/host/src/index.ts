@@ -7,6 +7,7 @@ import {
   HostDevicePairingFileStore,
   HostServer,
   assertPairingBindIsAdvertisable,
+  createDeviceToolBrokerForHost,
   type HostConnectionEvent,
 } from '@piwin/host-server';
 import { createHostPairingAnnouncement, resolveAdvertisedEndpoint } from './pairing-print.js';
@@ -28,12 +29,15 @@ const minClientVersion = process.env.PIWIN_HOST_MIN_CLIENT_VERSION?.trim() || un
 const allowCleartext = process.env.PIWIN_HOST_ALLOW_CLEARTEXT === '1';
 
 const agentWorkerScript = resolveAgentWorkerScript();
+const clientToolBroker = await createDeviceToolBrokerForHost(resolvePiwinRoot());
 const runtime = new HostRuntime({
   mode,
   mock,
   ...(process.env.PIWIN_ROOT === undefined ? {} : { piwinRoot: process.env.PIWIN_ROOT }),
   ...(agentWorkerScript === undefined ? {} : { agentWorkerScript }),
+  ...(clientToolBroker === undefined ? {} : { clientToolExecution: clientToolBroker }),
 });
+const hostInstanceId = runtime.getHostInstanceId();
 
 let devicePairing: HostDevicePairing | undefined;
 let devicePairingStore: HostDevicePairingFileStore | undefined;
@@ -71,12 +75,14 @@ const server = new HostServer({
   mode,
   host,
   port,
+  instanceId: hostInstanceId,
   hostBuildId,
   ...(minClientVersion === undefined ? {} : { minClientVersion }),
   ...(authToken === undefined ? {} : { authToken }),
   ...(devicePairing === undefined ? {} : { devicePairing }),
   ...(devicePairingStore === undefined ? {} : { devicePairingStore }),
   allowRemoteExtensionActivation,
+  ...(clientToolBroker === undefined ? {} : { clientToolBroker }),
   onError: (error) => console.error(`[piwin-host] ${error.message}`),
   onConnectionEvent: (event) => logConnectionEvent(event),
 });
@@ -96,7 +102,7 @@ try {
         address.url,
       ),
       pairingToken: minted.token,
-      hostInstanceId: server.getInstanceId(),
+      hostInstanceId,
       expiresAt: minted.expiresAt,
     });
     console.log(announcement.text);

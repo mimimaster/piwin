@@ -317,9 +317,9 @@ for lifecycle and config-reload invariants.
 
 #### Lazy Host toolbox (ADR 0044 / ADR 0053)
 
-High-frequency filesystem, shell, web, planning, delegation, Artifact
+High-frequency filesystem, shell, web, browser, planning, delegation, Artifact
 instruction tools, and pinned MCP tools stay directly visible. Low-frequency
-process, browser, notes, flashcards, image, and video schemas, plus unpinned
+process, notes, flashcards, image, and video schemas, plus unpinned
 MCP tools, are discovered through `piwin_toolbox search` and invoked through
 `piwin_toolbox call`. The session execution port dispatches a Host call through
 the target's original registration and permission gate; MCP calls stay trusted
@@ -593,6 +593,27 @@ Optional renderer surfaces follow the same ownership rule:
 These are renderer safety invariants, not transcript truncation. History and
 recovery continue to use the Host-owned canonical state.
 
+### 7.2 Conversation multi-pane ownership
+
+Desktop general Conversation may replace the single stage with a recursive,
+binary pane tree (ADR 0063). The tree contains only device-local presentation
+state: stable pane ids, general-scope session bindings, split orientation and
+ratio, active pane, and optional maximized pane. It is versioned in Desktop
+storage, never in `~/.piwin` Host settings or a transcript.
+
+The primary leaf reuses the existing Conversation column. Supplementary leaves
+resume their own Host session and maintain isolated transcript, foreground Run,
+and composer state. All leaves still issue the same `HostCommand`s and consume
+normalized `HostPush` values; no Desktop pane owns Pi or creates a second Host
+authority. Project Agent scope deliberately retains the single-stage workbench.
+
+For remote Hosts, Desktop publishes one deduplicated live-subscription union
+for all visible leaf session ids. The protocol ceiling is eight, equal to the
+per-window pane ceiling. Closing or shrinking a layout removes only that
+client-side view and subscription; it never aborts, archives, or deletes a Host
+session. See
+[`conversation-multi-pane-workspace.md`](./specs/conversation-multi-pane-workspace.md).
+
 ## 8. Browser Session
 
 A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) that
@@ -605,6 +626,8 @@ no panel pushes, then the same Readability extract.
   the same Chromium: CDP `Page.startScreencast` (~12–15 fps, JPEG) falling back
   to screenshot frames, plus pointer/IME forwarding (`browser/input`). Default
   mode is Interact; pick remains a modifier that attaches a composer chip.
+  Desktop opens the right-sidebar Browser tab when the agent acquires the page
+  or navigates, and the Playwright viewport tracks the panel box.
 - **Controller lock** — `idle | user | agent` (ADR 0057). Write tools auto-acquire
   `agent` from idle. The human takes over explicitly; the agent never auto-steals.
   If the user holds the page, write tools return `browser-user-has-control`.
@@ -613,7 +636,8 @@ no panel pushes, then the same Readability extract.
 - **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
   `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
   `browser_find` / `browser_back` / `browser_forward` / `browser_wait` /
-  `browser_lock`, registered by `@piwin/host-runtime` (`browser-tools.ts`). Snapshots
+  `browser_lock` are first-class model-visible tools (not `piwin_toolbox`
+  targets), registered by `@piwin/host-runtime` (`browser-tools.ts`). Snapshots
   use the **same ref grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({
   mode: 'ai', boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and
   refs resolve via `locator('aria-ref=e5')`. The snapshot output is **not** parseable

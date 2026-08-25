@@ -70,7 +70,7 @@ describe('RuntimeTargetChip', () => {
     expect(local?.textContent).toContain('This Mac');
   });
 
-  it('shows Remote Host as the active trigger when a remote target is connected', () => {
+  it('shows Attached Host as the active trigger when a remote target is connected', () => {
     const rendered = renderChip(<RuntimeTargetChip remoteConnected />, 'zh-CN');
     root = rendered.root;
     container = rendered.container;
@@ -78,7 +78,50 @@ describe('RuntimeTargetChip', () => {
     const remote = container.querySelector(
       '[data-testid="composer-runtime-remote"]',
     ) as HTMLElement | null;
-    expect(remote?.textContent).toContain('远程 Host');
+    expect(remote?.textContent).toContain('已连接的 Host');
+  });
+
+  it('prefers the attached host address over the generic label', () => {
+    const rendered = renderChip(
+      <RuntimeTargetChip remoteConnected hostLabel="nas.local:8787" />,
+      'zh-CN',
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const remote = container.querySelector(
+      '[data-testid="composer-runtime-remote"]',
+    ) as HTMLElement | null;
+    expect(remote?.textContent).toContain('nas.local:8787');
+    expect(remote?.textContent).not.toContain('已连接的 Host');
+  });
+
+  it('shows Attached Host in English', () => {
+    const rendered = renderChip(<RuntimeTargetChip remoteConnected />, 'en');
+    root = rendered.root;
+    container = rendered.container;
+    const remote = container.querySelector(
+      '[data-testid="composer-runtime-remote"]',
+    ) as HTMLElement | null;
+    expect(remote?.textContent).toContain('Attached Host');
+  });
+
+  it('does not offer a locked remote destination while on this Mac', () => {
+    const rendered = renderChip(<RuntimeTargetChip />, 'zh-CN');
+    root = rendered.root;
+    container = rendered.container;
+
+    const trigger = container.querySelector(
+      '[data-testid="composer-runtime-target"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      trigger?.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false }),
+      );
+    });
+
+    expect(document.querySelector('[data-testid="composer-runtime-remote-item"]')).toBeNull();
+    expect(document.querySelector('[data-testid="composer-runtime-attach-item"]')).not.toBeNull();
   });
 
   it('keeps Local available to switch back when remote is connected', () => {
@@ -104,6 +147,8 @@ describe('RuntimeTargetChip', () => {
     ) as HTMLElement | null;
     expect(localItem).not.toBeNull();
     expect(localItem?.hasAttribute('data-disabled')).toBe(false);
+    expect(document.querySelector('[data-testid="composer-runtime-attach-item"]')).toBeNull();
+    expect(document.querySelector('[data-testid="composer-runtime-remote-item"]')).not.toBeNull();
 
     act(() => {
       localItem?.click();

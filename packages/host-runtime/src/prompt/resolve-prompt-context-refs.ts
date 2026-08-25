@@ -169,6 +169,13 @@ export async function resolvePromptContextRefs(
           `[error-reference: ${ref.title}]\n${ref.detail.slice(0, MAX_CONTEXT_REF_TEXT_CHARS)}`,
         );
         break;
+      case 'connected-source':
+        if (ref.source === 'apple-health') {
+          blocks.push(
+            '[connected-source: Apple Health]\nThe user explicitly selected Apple Health for this turn. Call health_read_context only if this question needs personal Apple Health data, with the minimum metrics and shortest useful range. Do not diagnose.',
+          );
+        }
+        break;
       default:
         break;
     }

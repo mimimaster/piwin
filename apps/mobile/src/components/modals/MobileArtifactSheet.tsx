@@ -1,5 +1,6 @@
-import { useState, useRef, type ReactElement } from 'react';
-import { IconClose } from '@piwin/ui-kit';
+import { useState, type ReactElement } from 'react';
+import { IconClose, IconRefresh } from '@piwin/ui-kit';
+import { MobileLayer } from '../../mobile-portal.js';
 
 export type MobileArtifactSheetProps = {
   isOpen: boolean;
@@ -16,55 +17,28 @@ export function MobileArtifactSheet({
   srcdoc,
   blockedReason,
 }: MobileArtifactSheetProps): ReactElement | null {
-  const [viewportMode, setViewportMode] = useState<'mobile' | 'full'>('full');
   const [refreshKey, setRefreshKey] = useState(0);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-
-  if (!isOpen) {
-    return null;
-  }
 
   return (
-    <div className="mobile-drawer-overlay" onClick={onClose} role="dialog" aria-modal="true">
+    <MobileLayer isOpen={isOpen} onClose={onClose}>
       <div className="mobile-artifact-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="mobile-artifact-header">
           <div className="mobile-artifact-title-group">
-            <span className="artifact-icon">📱</span>
             <div>
               <h3 className="mobile-artifact-title">{title}</h3>
-              <p className="mobile-artifact-subtitle">独立安全沙箱 (Sandboxed Iframe)</p>
+              <p className="mobile-artifact-subtitle">沙箱预览 · 默认拦截外连</p>
             </div>
           </div>
 
           <div className="mobile-artifact-actions">
-            <div className="artifact-viewport-toggle">
-              <button
-                type="button"
-                className={`viewport-btn ${viewportMode === 'mobile' ? 'active' : ''}`}
-                onClick={() => setViewportMode('mobile')}
-                aria-label="手机视口"
-              >
-                📱
-              </button>
-              <button
-                type="button"
-                className={`viewport-btn ${viewportMode === 'full' ? 'active' : ''}`}
-                onClick={() => setViewportMode('full')}
-                aria-label="满屏自适应"
-              >
-                🖥️
-              </button>
-            </div>
-
             <button
               type="button"
               className="artifact-header-btn"
               onClick={() => setRefreshKey((key) => key + 1)}
               aria-label="重新加载"
             >
-              🔄
+              <IconRefresh size={16} />
             </button>
-
             <button
               type="button"
               className="mobile-drawer-close-btn"
@@ -76,13 +50,12 @@ export function MobileArtifactSheet({
           </div>
         </div>
 
-        <div className={`mobile-artifact-viewport-wrap ${viewportMode}`}>
+        <div className="mobile-artifact-viewport-wrap full">
           {blockedReason !== undefined || srcdoc === undefined ? (
             <p className="mobile-artifact-blocked">{blockedReason ?? '无法预览该产物。'}</p>
           ) : (
             <iframe
               key={refreshKey}
-              ref={iframeRef}
               title={title}
               srcDoc={srcdoc}
               className="mobile-artifact-iframe"
@@ -92,6 +65,6 @@ export function MobileArtifactSheet({
           )}
         </div>
       </div>
-    </div>
+    </MobileLayer>
   );
 }

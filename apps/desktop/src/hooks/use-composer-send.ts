@@ -31,6 +31,8 @@ import {
 import { createGestureIdempotencyKey } from '../gesture-idempotency.js';
 import { hostFailureNotice, hostReconnectNotice } from '../host-problem-copy.js';
 import { shouldBlockRemoteHostGesture } from '../host-reconnect-gate.js';
+import { desktopForegroundMutationsEnabled } from '../foreground-admission.js';
+import { buildPausedRunAbortCommand } from '../paused-run-abort.js';
 import { flattenUnsafeRemoteContextRefs } from '../remote-context-refs.js';
 import { isImagePromptAttachment, useComposerPromptInput } from './use-composer-prompt-input.js';
 import type { UseComposerMediaArgs } from './composer-media-args.js';
@@ -259,18 +261,20 @@ export function useComposerSend(params: UseComposerSendArgs) {
       if (promptSubmissionInProgress.current) {
         return;
       }
+      if (!desktopForegroundMutationsEnabled(args.state)) {
+        return;
+      }
       if (shouldBlockRemoteHostGesture(args.hostClient)) {
         notifyError(hostReconnectNotice(locale));
         return;
       }
       if (args.state.runTerminal.kind === 'paused') {
-        const sessionId = args.state.activeSessionId;
-        if (!sessionId) {
+        const abortPaused = buildPausedRunAbortCommand(args.state);
+        if (abortPaused === undefined) {
           return;
         }
-        const clearPause = await args.hostClient.request({
-          type: 'session/abort',
-          sessionId,
+        const clearPause = await args.hostClient.request(abortPaused, {
+          idempotencyKey: createGestureIdempotencyKey(),
         });
         if (!clearPause.success) {
           notifyError(hostFailureNotice(clearPause, locale));

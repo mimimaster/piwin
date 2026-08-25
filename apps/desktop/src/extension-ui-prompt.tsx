@@ -5,9 +5,9 @@
  * turn, so it must remain visible next to the place where the user answers and
  * must not trap the user away from the run controls.
  *
- * Stop is intentionally NOT rendered here — the composer toolbar owns the
- * sole Stop control. Cancel dismisses the question only; it does not abort
- * the run.
+ * A second run control is intentionally NOT rendered here — the composer
+ * toolbar owns the sole live Pause control. Cancel dismisses the question
+ * only; it does not abort the run.
  */
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';

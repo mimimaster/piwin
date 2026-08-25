@@ -1,6 +1,11 @@
 import type { HostCommand, HostServerMessage } from '@piwin/contracts';
 import { isLocalMobileAccessCommand, isLocalMobileAccessCommandType } from '@piwin/contracts';
-import { createMobileAccessController, type MobileAccessController } from '@piwin/host-server';
+import {
+  createMobileAccessController,
+  type HostCommandIdempotencyRegistry,
+  type HostEgressHub,
+  type MobileAccessController,
+} from '@piwin/host-server';
 import type { HostRuntime } from '@piwin/host-runtime';
 
 export type MobileAccessServeSend = (message: HostServerMessage) => Promise<void>;
@@ -9,6 +14,9 @@ export async function createSidecarMobileAccess(options: {
   runtime: Pick<HostRuntime, 'handleCommand' | 'attachPushSink'>;
   instanceId: string;
   piwinRoot: string;
+  clientToolBroker?: import('@piwin/host-server').DeviceToolBroker;
+  egressHub?: HostEgressHub;
+  idempotencyRegistry?: HostCommandIdempotencyRegistry;
 }): Promise<MobileAccessController> {
   const bindPort = parseMobileAccessBindPort(process.env.PIWIN_MOBILE_ACCESS_PORT);
   return createMobileAccessController({
@@ -20,6 +28,11 @@ export async function createSidecarMobileAccess(options: {
     onError: (error) => {
       console.error(`[piwin host serve] phone-access error: ${error.message}`);
     },
+    ...(options.clientToolBroker === undefined ? {} : { clientToolBroker: options.clientToolBroker }),
+    ...(options.egressHub === undefined ? {} : { egressHub: options.egressHub }),
+    ...(options.idempotencyRegistry === undefined
+      ? {}
+      : { idempotencyRegistry: options.idempotencyRegistry }),
   });
 }
 

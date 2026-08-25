@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostClient } from './host-client.js';
 import {
   allowedRemoteSettingsMutations,
   composerProfileSettingsMutations,
+  createHostRequestAdapters,
   settingsMutationsForHostApply,
 } from './host-request-adapters.js';
 import {
@@ -83,5 +86,26 @@ describe('allowedRemoteSettingsMutations', () => {
       { kind: 'replace-domain', domain: 'thinking', value: { ultraEnabled: true } },
     ]);
     expect(allowed?.map((mutation) => mutation.domain)).toEqual(['thinking']);
+  });
+});
+
+describe('createHostRequestAdapters archive delete', () => {
+  it('passes a caller-owned idempotency key for session/delete', async () => {
+    const sent: Array<{ type: string; key?: string }> = [];
+    const fake = {
+      request: async (command: HostCommand, options?: { idempotencyKey?: string }) => {
+        sent.push({
+          type: command.type,
+          ...(options?.idempotencyKey === undefined ? {} : { key: options.idempotencyKey }),
+        });
+        return { type: 'response', command: command.type, success: true } satisfies HostResponse;
+      },
+    } as unknown as HostClient;
+    const adapters = createHostRequestAdapters(fake);
+    const response = await adapters.requestConfig({ type: 'session/delete', sessionId: 's-archived-1' });
+    expect(response.success).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.type).toBe('session/delete');
+    expect(sent[0]?.key?.length).toBeGreaterThan(0);
   });
 });

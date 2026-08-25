@@ -72,6 +72,35 @@ describe('ModernComposer hold-to-talk', () => {
     vi.useRealTimers();
   });
 
+  it('shows the @Health chip only when Health is enabled', () => {
+    const onToggleAppleHealth = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={MOBILE_THEME}>
+          <ModernComposer
+            composerText="分析睡眠"
+            setComposerText={() => undefined}
+            attachments={[]}
+            onRemoveAttachment={() => undefined}
+            onFileSelected={() => undefined}
+            onSend={() => undefined}
+            isSending={false}
+            isUploadingMedia={false}
+            healthEnabled={true}
+            includeAppleHealth={false}
+            onToggleAppleHealth={onToggleAppleHealth}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const chip = container.querySelector('[data-testid="mobile-health-chip"]');
+    expect(chip).not.toBeNull();
+    act(() => {
+      (chip as HTMLButtonElement).click();
+    });
+    expect(onToggleAppleHealth).toHaveBeenCalled();
+  });
+
   it('hides the mic when SpeechRecognition is unavailable', () => {
     act(() => {
       root.render(

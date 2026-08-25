@@ -65,6 +65,8 @@ export function isSafeRemoteContextRef(ref: PromptContextRef): boolean {
         ref.title.length <= MAX_LABEL_CHARS &&
         ref.detail.length <= MAX_SNAPSHOT_CHARS
       );
+    case 'connected-source':
+      return ref.source === 'apple-health' && ref.label === 'Apple Health';
     default: {
       const exhaustive: never = ref;
       void exhaustive;
@@ -86,6 +88,8 @@ function flattenRefText(ref: PromptContextRef): string {
       return ref.snapshotText.trim().length > 0 ? `${ref.label}\n${ref.snapshotText}` : ref.label;
     case 'error':
       return [ref.label, ref.title, ref.detail].filter((part) => part.trim().length > 0).join('\n');
+    case 'connected-source':
+      return ref.label;
     default: {
       const exhaustive: never = ref;
       void exhaustive;

@@ -70,3 +70,11 @@ export type IdempotencyKeyRequiredProblem = {
 export type IdempotencyConflictProblem = {
   code: 'idempotency-conflict';
 };
+
+export type IdempotencyRegistryCapacityProblem = {
+  code: 'idempotency-registry-capacity';
+};
+
+export type IdempotencyReplayOmittedProblem = {
+  code: 'idempotency-replay-omitted';
+};

@@ -125,6 +125,21 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
     };
   }
 
+  if (input.chat.runPhase === 'pausing') {
+    const isZh = input.locale === 'zh-CN';
+    return {
+      kind: 'stopping',
+      label: isZh ? '正在暂停' : 'Pausing',
+      summary: isZh ? '正在保存可继续的检查点…' : 'Saving a resumable checkpoint…',
+      ...baseCounts,
+      canStop: false,
+      ...(runningTool ? { activeToolName: runningTool.toolName } : {}),
+      ...(input.chat.activeRunStartedAt !== null
+        ? { elapsedMs: Math.max(0, Date.now() - input.chat.activeRunStartedAt) }
+        : {}),
+    };
+  }
+
   if (input.chat.permissionPrompt) {
     return {
       kind: 'waiting-permission',

@@ -2,7 +2,10 @@ import type { ReactElement } from 'react';
 import type { HostClientState } from '@piwin/host-client';
 import type { RemoteHostStatusData } from '@piwin/contracts';
 import { Button, IconClose, IconCheck, IconSettings } from '@piwin/ui-kit';
+import type { HealthForegroundUseMode } from '../../client-tools/client-tool-preferences.js';
+import { HealthSettingsPanel } from '../../health/HealthSettingsPanel.js';
 import type { MobileThemeMode } from '../../hooks/use-theme.js';
+import { MobileLayer } from '../../mobile-portal.js';
 
 export type SettingsModalProps = {
   isOpen: boolean;
@@ -16,6 +19,11 @@ export type SettingsModalProps = {
   onSelectTheme: (mode: MobileThemeMode) => void;
   onDisconnect: () => void;
   onOpenConnection: () => void;
+  healthAvailable?: boolean;
+  healthUseMode?: HealthForegroundUseMode;
+  onChangeHealthUseMode?: (mode: HealthForegroundUseMode) => void;
+  onConnectHealth?: () => void;
+  onDisconnectHealth?: () => void;
 };
 
 const THEME_OPTIONS: Array<{
@@ -32,30 +40,31 @@ const THEME_OPTIONS: Array<{
     name: '系统跟随',
     desc: '自动跟随 iOS 系统深浅色外观',
     icon: '🌗',
-    previewBg: 'linear-gradient(135deg, #090d12 50%, #ffffff 50%)',
-    previewAccent: '#58a6ff',
+    previewBg: 'linear-gradient(135deg, #08080b 50%, #e5e2dc 50%)',
+    previewAccent: '#6e5dff',
   },
   {
     id: 'dark',
-    name: '深色暗夜',
-    desc: '经典深空黑与极光蓝光效',
+    name: 'Obsidian 黑曜石',
+    desc: '黑曜石暗夜，视爵紫与琥珀暖橙信号',
     icon: '🌙',
-    badge: '推荐',
-    previewBg: '#090d12',
-    previewAccent: '#58a6ff',
+    badge: 'Deck 暗色',
+    previewBg: '#08080b',
+    previewAccent: '#6e5dff',
   },
   {
     id: 'light',
-    name: '清爽宣白',
-    desc: '高对比度纯净浅色，排版通透',
+    name: 'Bone 骨白纸感',
+    desc: '纸感暖灰与纯白卡片，通透温润',
     icon: '☀️',
-    previewBg: '#ffffff',
-    previewAccent: '#0969da',
+    badge: 'Deck 浅色',
+    previewBg: '#e5e2dc',
+    previewAccent: '#5b4bd6',
   },
   {
     id: 'ink-wash',
     name: '砚夜泼墨',
-    desc: '水墨山水，淡竹墨韵与朱砂钤印',
+    desc: '水墨意境，淡竹墨韵与朱砂钤印',
     icon: '🖌️',
     badge: '水墨画',
     previewBg: '#191a1d',
@@ -75,21 +84,24 @@ export function SettingsModal({
   onSelectTheme,
   onDisconnect,
   onOpenConnection,
+  healthAvailable = false,
+  healthUseMode = 'ask-every-time',
+  onChangeHealthUseMode,
+  onConnectHealth,
+  onDisconnectHealth,
 }: SettingsModalProps): ReactElement | null {
-  if (!isOpen) return null;
-
   const isConnected = connectionState.kind === 'ready';
 
   return (
-    <div className="mobile-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="mobile-modal-sheet" onClick={(e) => e.stopPropagation()}>
+    <MobileLayer isOpen={isOpen} onClose={onClose} overlayClassName="mobile-modal-overlay">
+      <div className="mobile-modal-sheet">
         {/* Modal Header */}
         <div className="mobile-modal-header">
           <div className="mobile-modal-header-left">
             <IconSettings size={18} />
             <h2 className="mobile-modal-title">设置与外观</h2>
           </div>
-          <button type="button" className="mobile-modal-close-btn" onClick={onClose}>
+          <button type="button" className="mobile-modal-close-btn" onClick={onClose} aria-label="关闭">
             <IconClose size={18} />
           </button>
         </div>
@@ -186,8 +198,19 @@ export function SettingsModal({
               </div>
             ) : null}
           </div>
+
+          <div className="mobile-modal-section">
+            <HealthSettingsPanel
+              available={healthAvailable && isConnected}
+              hostLabel={endpoint || '当前 Host'}
+              useMode={healthUseMode}
+              onChangeUseMode={onChangeHealthUseMode ?? (() => undefined)}
+              onConnect={onConnectHealth ?? (() => undefined)}
+              onDisconnect={onDisconnectHealth ?? (() => undefined)}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </MobileLayer>
   );
 }

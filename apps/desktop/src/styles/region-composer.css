@@ -570,6 +570,16 @@
   cursor: default;
 }
 
+/* Pause is reversible; reserve coral for irreversible checkpoint discard. */
+.composer-v2-stop-btn.is-pause:not(:disabled) {
+  background: var(--iris-wash);
+  color: var(--iris-lift);
+}
+
+.composer-v2-stop-btn.is-pause:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--iris-lift) 20%, transparent);
+}
+
 .composer-v2-streaming-actions {
   display: flex;
   align-items: center;

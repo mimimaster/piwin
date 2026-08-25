@@ -144,6 +144,8 @@ function formatContextRefLine(ref: SideChatContextRef): string {
     }
     case 'folder':
       return `- folder: ${ref.label} (${ref.relativePath === '' ? '.' : ref.relativePath})`;
+    case 'connected-source':
+      return `- connected-source: ${ref.label} (${ref.source})`;
   }
 }
 

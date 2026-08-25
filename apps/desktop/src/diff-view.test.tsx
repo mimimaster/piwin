@@ -2,7 +2,7 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { buildSplitRows, DiffView, parseUnifiedDiff } from './diff-view';
+import { buildSplitRows, DiffView, isHighlightableDiffLine, parseUnifiedDiff } from './diff-view';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -36,6 +36,12 @@ describe('diff-view parse', () => {
     expect(rows[0]?.right?.kind).toBe('add');
     expect(rows[2]?.left?.text).toBe('keep');
   });
+
+  it('only sends source lines through syntax highlighting', () => {
+    expect(isHighlightableDiffLine({ kind: 'hunk', text: '@@ -1 +1 @@' })).toBe(false);
+    expect(isHighlightableDiffLine({ kind: 'meta', text: 'diff --git a/a b/a' })).toBe(false);
+    expect(isHighlightableDiffLine({ kind: 'add', text: 'const next = true;' })).toBe(true);
+  });
 });
 
 describe('DiffView render', () => {
@@ -53,7 +59,7 @@ describe('DiffView render', () => {
     container = undefined;
   });
 
-  it('renders real old/new line-number gutters in unified mode', () => {
+  it('renders one contextual line-number gutter in unified mode', () => {
     const patch = ['@@ -10,2 +12,3 @@', ' same', '-old', '+new', '+new2'].join('\n');
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -62,13 +68,48 @@ describe('DiffView render', () => {
       root?.render(<DiffView patch={patch} mode="unified" path="foo.ts" />);
     });
 
-    const oldNums = container.querySelectorAll('.diff-lineno.old');
-    const newNums = container.querySelectorAll('.diff-lineno.new');
-    // context: old 10 / new 12 ; del: old 11 ; add: new 13 ; add: new 14
-    expect(oldNums[1]?.textContent).toBe('10'); // context
-    expect(newNums[1]?.textContent).toBe('12'); // context
-    expect(oldNums[2]?.textContent).toBe('11'); // del
-    expect(newNums[3]?.textContent).toBe('13'); // add
-    expect(newNums[4]?.textContent).toBe('14'); // add
+    const numbers = Array.from(container.querySelectorAll('.diff-lineno'));
+    expect(numbers.map((number) => number.textContent)).toEqual(['12', '11', '13', '14']);
+    expect(numbers.map((number) => number.getAttribute('data-line-source'))).toEqual([
+      'new',
+      'old',
+      'new',
+      'new',
+    ]);
+  });
+
+  it('hides redundant metadata and replaces raw hunk headers with localized summaries', () => {
+    const patch = [
+      'diff --git a/foo.ts b/foo.ts',
+      'index 1111111..2222222 100644',
+      '--- a/foo.ts',
+      '+++ b/foo.ts',
+      '@@ -1,2 +1,2 @@',
+      '-old',
+      '+new',
+      ' same',
+      '@@ -10 +10 @@',
+      ' later',
+    ].join('\n');
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <DiffView
+          patch={patch}
+          mode="unified"
+          path="foo.ts"
+          hideHeader
+          hideMetadata
+          locale="zh-CN"
+        />,
+      );
+    });
+
+    expect(container.querySelector('.diff-line.kind-meta')).toBeNull();
+    expect(container.querySelectorAll('.diff-line.kind-hunk')).toHaveLength(1);
+    expect(container.querySelector('.diff-hunk-summary')?.textContent).toBe('未修改 7 行');
+    expect(container.textContent).not.toContain('@@');
   });
 });

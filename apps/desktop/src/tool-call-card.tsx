@@ -42,6 +42,7 @@ import {
 import { recoverToolArgsFromInputPreview } from './tool-call-arg-recovery';
 import { toolOutputDuplicatesError } from './tool-output-duplicates-error.js';
 import { useToolEditDiffStats } from './use-tool-edit-diff-stats';
+import { DesktopHealthToolCard } from './health-tool-card.js';
 
 
 export type ToolCallCardProps = {
@@ -505,6 +506,17 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         canRerun: false,
       }
     : null;
+
+  if (kind === 'health') {
+    return (
+      <div data-testid="tool-call-card" data-tool-kind="health" data-tool-name={tool.toolName}>
+        <DesktopHealthToolCard
+          {...(tool.presentation === undefined ? {} : { presentation: tool.presentation })}
+          toolStatus={tool.status}
+        />
+      </div>
+    );
+  }
 
   const card = (
     <div

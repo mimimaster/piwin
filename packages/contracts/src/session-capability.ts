@@ -38,7 +38,8 @@ export type SessionToolFamily =
   | 'artifact'
   | 'toolbox'
   | 'image-generation'
-  | 'video-generation';
+  | 'video-generation'
+  | 'device-health';
 
 /** Compiled tool policy for one session (spec §9.3). */
 export type SessionToolPolicy = {

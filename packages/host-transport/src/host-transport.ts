@@ -1,8 +1,7 @@
 import type {
   HostClientHello,
-  HostCommandFrame,
+  HostClientOutboundFrame,
   HostHello,
-  HostReplayFrame,
   HostWireMessage,
 } from '@piwin/contracts';
 
@@ -21,7 +20,7 @@ export type HostTransport = {
   setHelloFactory(factory: HostClientHelloFactory): void;
   setLastSeq(lastSeq: number): void;
   connect(): Promise<HostHello>;
-  send(message: HostCommandFrame | HostReplayFrame): void;
+  send(message: HostClientOutboundFrame): void;
   subscribe(listener: HostTransportMessageListener): () => void;
   subscribeState(listener: HostTransportStateListener): () => void;
   close(): Promise<void>;

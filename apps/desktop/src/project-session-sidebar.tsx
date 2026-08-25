@@ -19,9 +19,11 @@ import { createSessionListScopeState } from './session-list-scope';
 import { SessionRowItem } from './session-row-item';
 import {
   buildSidebarTreeRows,
+  DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
   sidebarTreeRowKey,
   type SidebarTreeRow,
 } from './sidebar-tree-rows';
+import { getProjectSessionDisclosureCopy } from './project-session-disclosure-copy';
 import {
   Button,
   ContextMenu,
@@ -38,6 +40,7 @@ import {
 import { projectDisplayName } from './project-display-name';
 import {
   IconBook,
+  IconCards,
   IconChat,
   IconCheck,
   IconChevronDown,
@@ -45,12 +48,14 @@ import {
   IconFolder,
   IconFolderOpen,
   IconFolderPlus,
+  IconImage,
   IconPlus,
   IconPaperPlane,
   IconSearch,
   IconSettings,
   IconSliders,
   IconTrash,
+  IconVideo,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
@@ -71,6 +76,8 @@ function estimateSidebarTreeRowSize(row: SidebarTreeRow | undefined): number {
       return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'session':
       return SIDEBAR_SESSION_ROW_ESTIMATE_PX;
+    case 'project-show-more':
+      return SIDEBAR_FOLDER_ROW_ESTIMATE_PX;
     case 'empty-hint':
     case 'truncation-hint':
       return SIDEBAR_HINT_ROW_ESTIMATE_PX;
@@ -124,6 +131,10 @@ export type ProjectSessionSidebarProps = {
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
   onDeleteSession?: ((sessionId: string) => void) | undefined;
   onOpenSettings: () => void;
+  activeSubPage?: 'chat' | 'images' | 'videos' | 'flashcards' | null | undefined;
+  onOpenImages?: (() => void) | undefined;
+  onOpenVideos?: (() => void) | undefined;
+  onOpenFlashcards?: (() => void) | undefined;
   knowledgeOpen?: boolean;
   onToggleKnowledge?: () => void;
   isOverlayPresentation?: boolean;
@@ -158,12 +169,18 @@ export type ProjectSessionSidebarProps = {
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
   const sidebarCopy = copy.sidebar;
+  const disclosureCopy = getProjectSessionDisclosureCopy(props.locale ?? 'zh-CN');
+  const newConversationLabel = props.locale === 'en' ? 'New Chat' : '新建 Chat';
+  const newSessionLabel = props.generalActive ? newConversationLabel : copy.newSession;
   const [localSortBy, setLocalSortBy] = useState<SessionListOrder>('updated');
   const sortBy = props.sessionListOrder ?? localSortBy;
   const [groupBy, setGroupBy] = useState<'time' | 'none'>('time');
   const [projectsSectionExpanded, setProjectsSectionExpanded] = useState(true);
   const [conversationsSectionExpanded, setConversationsSectionExpanded] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
+  const [projectSessionVisibleCounts, setProjectSessionVisibleCounts] = useState<
+    Record<string, number>
+  >({});
   const sidebarRef = useRef<HTMLElement>(null);
   const folderTreeRef = useRef<HTMLDivElement>(null);
   const [folderTreeElement, setFolderTreeElement] = useState<HTMLDivElement | null>(null);
@@ -202,6 +219,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         projectsSectionExpanded,
         conversationsSectionExpanded,
         collapsedProjects,
+        projectSessionVisibleCounts,
         sessionListScopes: props.sessionListScopes ?? createSessionListScopeState(),
         activeProjectPath: props.projectPath,
         activeProjectSessions: props.filteredSessions,
@@ -210,6 +228,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       collapsedProjects,
       conversationsSectionExpanded,
       projectsSectionExpanded,
+      projectSessionVisibleCounts,
       props.draftSessions,
       props.filteredSessions,
       props.generalSessions,
@@ -223,8 +242,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   );
   const virtualizeTree = shouldVirtualizeSidebar(treeRows.length);
   const sessionRowIndexes = useMemo(
-    () =>
-      treeRows.flatMap((row, index) => (row.kind === 'session' ? [index] : [])),
+    () => treeRows.flatMap((row, index) => (row.kind === 'session' ? [index] : [])),
     [treeRows],
   );
 
@@ -232,7 +250,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     count: treeRows.length,
     getScrollElement: () => folderTreeElement,
     estimateSize: (index) => estimateSidebarTreeRowSize(treeRows[index]),
-    getItemKey: (index) => sidebarTreeRowKey(treeRows[index] ?? { kind: 'section-header', sectionId: 'projects', key: `missing:${index}` }),
+    getItemKey: (index) =>
+      sidebarTreeRowKey(
+        treeRows[index] ?? {
+          kind: 'section-header',
+          sectionId: 'projects',
+          key: `missing:${index}`,
+        },
+      ),
     measureElement: (element) => Math.max(element.getBoundingClientRect().height, 1),
     overscan: SIDEBAR_VIRTUAL_OVERSCAN,
     useFlushSync: false,
@@ -522,8 +547,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           <div className="sidebar-section-label-actions">
             <IconButton
               className="sidebar-icon-btn"
-              label={copy.newSession}
-              title={copy.newSession}
+              label={newConversationLabel}
+              title={newConversationLabel}
               data-testid="general-workspace-btn"
               onClick={() => props.onNewGeneralSession()}
             >
@@ -540,6 +565,16 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       const isActiveProject = row.projectPath === props.projectPath;
       const projectScope: SessionScope = { kind: 'project', projectPath: row.projectPath };
       const toggleProjectCollapsed = (): void => {
+        if (!row.collapsed) {
+          setProjectSessionVisibleCounts((previous) => {
+            if (previous[row.projectPath] === undefined) {
+              return previous;
+            }
+            const next = { ...previous };
+            delete next[row.projectPath];
+            return next;
+          });
+        }
         setCollapsedProjects((previous) => ({
           ...previous,
           [row.projectPath]: !(previous[row.projectPath] ?? false),
@@ -645,6 +680,30 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       );
     }
 
+    if (row.kind === 'project-show-more') {
+      return (
+        <div className="sidebar-tree-row sidebar-tree-row--project-session">
+          <button
+            type="button"
+            className="project-session-show-more"
+            data-testid="project-session-show-more"
+            aria-label={disclosureCopy.showMoreSessions(row.batchSize)}
+            onClick={() =>
+              setProjectSessionVisibleCounts((previous) => ({
+                ...previous,
+                [row.projectPath]: Math.max(
+                  previous[row.projectPath] ?? DEFAULT_PROJECT_SESSION_VISIBLE_COUNT,
+                  row.nextVisibleCount,
+                ),
+              }))
+            }
+          >
+            {disclosureCopy.showMore}
+          </button>
+        </div>
+      );
+    }
+
     if (row.kind === 'empty-hint') {
       return (
         <div className="sidebar-empty-hint muted" data-testid="sidebar-empty-hint">
@@ -705,14 +764,50 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         <div className="sidebar-primary-actions">
           <button
             type="button"
-            className="sidebar-action-row"
+            className={`sidebar-action-row${!props.activeSubPage || props.activeSubPage === 'chat' ? ' active' : ''}`}
             data-testid="new-session-btn"
             onClick={() => props.onNewSession()}
-            title={copy.newSession}
-            aria-label={copy.newSession}
+            title={newSessionLabel}
+            aria-label={newSessionLabel}
           >
             <IconPaperPlane />
-            <span>{copy.newSession}</span>
+            <span>{newSessionLabel}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-action-row${props.activeSubPage === 'images' ? ' active' : ''}`}
+            data-testid="sidebar-images-btn"
+            onClick={() => props.onOpenImages?.()}
+            title={sidebarCopy.images}
+            aria-label={sidebarCopy.images}
+          >
+            <IconImage />
+            <span>{sidebarCopy.images}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-action-row${props.activeSubPage === 'videos' ? ' active' : ''}`}
+            data-testid="sidebar-videos-btn"
+            onClick={() => props.onOpenVideos?.()}
+            title={sidebarCopy.videos}
+            aria-label={sidebarCopy.videos}
+          >
+            <IconVideo />
+            <span>{sidebarCopy.videos}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-action-row${props.activeSubPage === 'flashcards' ? ' active' : ''}`}
+            data-testid="sidebar-flashcards-btn"
+            onClick={() => props.onOpenFlashcards?.()}
+            title={sidebarCopy.flashcards}
+            aria-label={sidebarCopy.flashcards}
+          >
+            <IconCards />
+            <span>{sidebarCopy.flashcards}</span>
           </button>
 
           {sessionSearchExpanded || hasActiveSessionSearch ? (

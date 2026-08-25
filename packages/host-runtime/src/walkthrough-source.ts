@@ -18,7 +18,7 @@ import type {
   SessionTranscriptMessage,
   WalkthroughMode,
 } from '@piwin/contracts';
-import { DEFAULT_WALKTHROUGH_PROMPT } from '@piwin/contracts';
+import { DEFAULT_WALKTHROUGH_PROMPT, isHealthSensitiveToolResult } from '@piwin/contracts';
 import { redactToolText } from '@piwin/agent-host';
 
 /* ------------------------------------------------------------------ */
@@ -242,6 +242,14 @@ function collectToolEvidence(
   for (const card of toolCards) {
     const presentation = card.presentation;
     const status: 'done' | 'error' = card.status === 'error' ? 'error' : 'done';
+    if (isHealthSensitiveToolResult(presentation)) {
+      result.push({
+        toolName: card.toolName,
+        status,
+        summary: 'Apple Health summary omitted',
+      });
+      continue;
+    }
     const entry: WalkthroughEvidence['tools'][number] = {
       toolName: card.toolName,
       status,

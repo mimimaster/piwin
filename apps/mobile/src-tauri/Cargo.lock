@@ -2562,11 +2562,13 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 name = "piwin-mobile"
 version = "0.0.0"
 dependencies = [
+ "objc2",
  "sha2 0.10.9",
  "tauri",
  "tauri-build",
  "tauri-plugin-barcode-scanner",
  "tauri-plugin-keyring-store",
+ "tauri-plugin-piwin-healthkit",
 ]
 
 [[package]]
@@ -3622,6 +3624,16 @@ dependencies = [
  "thiserror 2.0.20",
  "windows-native-keyring-store",
  "zeroize",
+]
+
+[[package]]
+name = "tauri-plugin-piwin-healthkit"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

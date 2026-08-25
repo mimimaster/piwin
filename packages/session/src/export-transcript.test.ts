@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
 import {
+  HEALTH_TOOL_OUTPUT_OMITTED_PLACEHOLDER,
   TOOL_OUTPUT_REDACTED_PLACEHOLDER,
   exportTranscript,
   streamTranscriptExport,
@@ -142,6 +143,38 @@ describe('exportTranscript', () => {
     });
     expect(redacted.content).toContain(TOOL_OUTPUT_REDACTED_PLACEHOLDER);
     expect(redacted.content).not.toContain('alert(1)');
+  });
+
+  it('omits Apple Health tool output from exports', () => {
+    const messages: SessionTranscriptMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: '睡眠摘要',
+        createdAt: '2026-08-23T10:00:00.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'h1',
+            toolName: 'health_read_context',
+            status: 'done',
+            output: 'sleep-duration 420 min',
+            presentation: {
+              kind: 'health',
+              title: 'health_read_context',
+              sensitivity: 'health',
+            },
+          },
+        ],
+      },
+    ];
+    const result = exportTranscript(messages, {
+      format: 'md',
+      sessionId: 'health-export',
+      exportedAt: '2026-08-23T12:00:00.000Z',
+    });
+    expect(result.content).toContain(HEALTH_TOOL_OUTPUT_OMITTED_PLACEHOLDER);
+    expect(result.content).not.toContain('sleep-duration 420 min');
   });
 
   it('handles empty transcript', () => {

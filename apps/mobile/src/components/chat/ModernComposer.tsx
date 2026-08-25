@@ -12,6 +12,9 @@ export type ModernComposerProps = {
   onRemoveAttachment: (id: string) => void;
   onFileSelected: (event: ChangeEvent<HTMLInputElement>) => void;
   onSend: (text?: string) => void;
+  healthEnabled?: boolean;
+  includeAppleHealth?: boolean;
+  onToggleAppleHealth?: () => void;
   onAbort?: (() => void) | undefined;
   onSpeechError?: ((message: string) => void) | undefined;
   isSending: boolean;
@@ -33,6 +36,9 @@ export function ModernComposer({
   isUploadingMedia,
   activeRunId,
   disabled = false,
+  healthEnabled = false,
+  includeAppleHealth = false,
+  onToggleAppleHealth,
 }: ModernComposerProps): ReactElement {
   const albumInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -136,6 +142,18 @@ export function ModernComposer({
           onChange={onFileSelected}
         />
 
+        {healthEnabled ? (
+          <button
+            type="button"
+            className={`modern-composer-health-chip${includeAppleHealth ? ' is-active' : ''}`}
+            data-testid="mobile-health-chip"
+            aria-pressed={includeAppleHealth}
+            onClick={onToggleAppleHealth}
+          >
+            @Health
+          </button>
+        ) : null}
+
         <textarea
           ref={textareaRef}
           className="modern-composer-textarea"
@@ -156,7 +174,8 @@ export function ModernComposer({
           >
             <IconStop size={14} />
           </button>
-        ) : hasContent ? (
+        ) : null}
+        {hasContent ? (
           <button
             type="button"
             className={`modern-composer-action-btn ${canSend ? 'send-active' : 'send-disabled'}`}
@@ -166,7 +185,7 @@ export function ModernComposer({
           >
             <IconArrowUp size={16} />
           </button>
-        ) : hold.supported ? (
+        ) : !isRunning && hold.supported ? (
           <button
             type="button"
             className={`modern-composer-action-btn mic-idle${hold.phase === 'listening' ? ' mic-listening' : ''}`}

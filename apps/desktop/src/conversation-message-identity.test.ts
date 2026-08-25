@@ -142,20 +142,11 @@ describe('conversation-message-identity', () => {
       expect(resolved).toEqual(liveModel);
     });
 
-    it('does not backfill completed historic rows from the current composer model', () => {
+    it('does not backfill livePromptModel onto completed rows without a snapshot', () => {
       const resolved = resolveConversationMessageModel({
         message: { ...baseMessage, status: 'done' },
         livePromptModel: liveModel,
         isStreaming: false,
-      });
-      expect(resolved).toBeUndefined();
-    });
-
-    it('does not backfill historic rows when the session-level streaming flag is on', () => {
-      const resolved = resolveConversationMessageModel({
-        message: { ...baseMessage, status: 'done' },
-        livePromptModel: liveModel,
-        isStreaming: true,
       });
       expect(resolved).toBeUndefined();
     });

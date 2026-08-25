@@ -1,210 +1,140 @@
-/**
- * Status bar — persistent bottom strip showing agent state, skills/MCP counts,
- * model info, and context usage at a glance.
- */
-import { useState, type ReactElement } from 'react';
+/** Compact turn telemetry attached to the Composer. */
+import { useEffect, useState, type ReactElement } from 'react';
 import type { ContextUsageSnapshot } from '@piwin/contracts';
-import { Popover } from '@piwin/ui-kit';
-import { IconSpark, IconMcp, IconSkill } from './shell-icons';
-import { ConversationUsageDetails } from './conversation-usage-details.js';
-import { formatContextOccupancyCopy } from './conversation-usage-copy.js';
 import {
-  resolveContextTokensLimit,
-  resolveContextTokensUsed,
-} from './context-usage-ring.js';
+  IconActivity,
+  IconAlertCircle,
+  IconArrowDown,
+  IconArrowUp,
+  IconCheckCircle,
+  IconClock,
+  IconDatabase,
+  IconTerminal,
+} from '@piwin/ui-kit';
+import { buildStatusBarMetrics, type StatusBarMetric } from './status-bar-metrics.js';
 
 export type StatusBarProps = {
-  /** Active model label */
-  modelLabel?: string;
-  /** Number of enabled skills */
-  skillsCount?: number;
-  /** Number of running MCP servers */
-  mcpCount?: number;
-  /** Number of enabled extensions */
-  extensionsCount?: number;
-  /** Agent run state */
   agentState?: 'idle' | 'running' | 'error';
-  /**
-   * Quiet workbench: terminal produced output while the work panel is on
-   * directory home or collapsed — pulse the ready dot; never auto-open panel.
-   */
+  /** Host-authoritative foreground Run start, used only for the live elapsed clock. */
+  runStartedAt?: number;
+  /** Terminal output arrived while its panel was collapsed. */
   terminalAttention?: boolean;
-  /** Current branch name */
-  branch?: string;
-  /**
-   * Context usage percent (0–100). Omit until the first Host usage sample so
-   * empty sessions do not show a fake 0% ring.
-   */
-  contextPercent?: number;
-  /** Latest Host usage sample; Conversation shows used/limit + last-turn details. */
+  /** Latest Host usage sample; absent fields remain absent in the rail. */
   contextUsage?: ContextUsageSnapshot | null;
-  modelContextWindow?: number;
-  /** Click handlers */
-  onOpenSkills?: () => void;
-  onOpenMcp?: () => void;
-  onOpenExtensions?: () => void;
   locale?: 'zh-CN' | 'en';
-  /** Hide Agent chrome (branch / skills / MCP) for general Conversation. */
-  isConversationSession?: boolean;
 };
 
-export function StatusBar(props: StatusBarProps): ReactElement {
-  const locale = props.locale ?? 'zh-CN';
-  const contextPercent =
-    typeof props.contextPercent === 'number' ? props.contextPercent : undefined;
-  const contextTone =
-    contextPercent === undefined
-      ? 'ok'
-      : contextPercent >= 90
-        ? 'critical'
-        : contextPercent >= 70
-          ? 'warn'
-          : 'ok';
+const STATE_LABELS = {
+  'zh-CN': {
+    running: '运行中',
+    error: '异常',
+    lastTurn: '上一轮',
+    terminalAttention: '有新输出',
+    rail: '本轮运行统计',
+  },
+  en: {
+    running: 'Running',
+    error: 'Error',
+    lastTurn: 'Last turn',
+    terminalAttention: 'New output',
+    rail: 'Turn telemetry',
+  },
+} as const;
 
+function MetricIcon(props: { id: StatusBarMetric['id'] }): ReactElement {
+  const iconProps = { 'aria-hidden': true } as const;
+  switch (props.id) {
+    case 'duration':
+      return <IconClock {...iconProps} />;
+    case 'input':
+      return <IconArrowDown {...iconProps} />;
+    case 'output':
+      return <IconArrowUp {...iconProps} />;
+    case 'cache':
+      return <IconDatabase {...iconProps} />;
+  }
+}
+
+export function StatusBar(props: StatusBarProps): ReactElement | null {
+  const locale = props.locale ?? 'zh-CN';
+  const labels = STATE_LABELS[locale];
   const agentState = props.agentState ?? 'idle';
   const terminalAttention = props.terminalAttention === true && agentState !== 'running';
-  const [contextDetailsOpen, setContextDetailsOpen] = useState(false);
-  const conversationUsage = props.isConversationSession === true ? (props.contextUsage ?? null) : null;
-  const conversationUsed = resolveContextTokensUsed(conversationUsage);
-  const conversationLimit =
-    conversationUsed === undefined
-      ? undefined
-      : resolveContextTokensLimit(conversationUsage, props.modelContextWindow);
-  const occupancyCopy =
-    conversationUsed !== undefined && conversationLimit !== undefined
-      ? formatContextOccupancyCopy(conversationUsed, conversationLimit)
-      : undefined;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (agentState !== 'running' || typeof props.runStartedAt !== 'number') {
+      return undefined;
+    }
+    setNow(Date.now());
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [agentState, props.runStartedAt]);
+
+  const metrics = buildStatusBarMetrics({
+    usage: props.contextUsage,
+    agentState,
+    runStartedAt: props.runStartedAt,
+    now,
+    locale,
+  });
+
+  if (agentState === 'idle' && !terminalAttention && metrics.length === 0) {
+    return null;
+  }
+
+  const stateTone = terminalAttention ? 'attention' : agentState;
+  const stateLabel = terminalAttention
+    ? labels.terminalAttention
+    : agentState === 'running'
+      ? labels.running
+      : agentState === 'error'
+        ? labels.error
+        : labels.lastTurn;
+  const StateIcon = terminalAttention
+    ? IconTerminal
+    : agentState === 'running'
+      ? IconActivity
+      : agentState === 'error'
+        ? IconAlertCircle
+        : IconCheckCircle;
 
   return (
-    <footer
-      className="status-bar"
-      data-testid="status-bar"
-      data-terminal-attention={terminalAttention ? 'true' : 'false'}
-    >
-      <div className="status-bar-left">
-        {/* Agent state */}
+    <footer className="status-bar" data-testid="status-bar" aria-label={labels.rail}>
+      <div className="status-bar-rail">
         <span
-          className={`status-bar-agent state-${agentState}${
-            terminalAttention ? ' has-terminal-attention' : ''
-          }`}
+          className={`status-bar-agent state-${stateTone}`}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
         >
-          <i className="status-bar-dot" aria-hidden />
-          <span>
-            {agentState === 'running'
-              ? locale === 'zh-CN' ? '运行中' : 'Running'
-              : agentState === 'error'
-                ? locale === 'zh-CN' ? '异常' : 'Error'
-                : locale === 'zh-CN' ? '就绪' : 'Ready'}
+          <span className="status-bar-agent-icon" aria-hidden>
+            <StateIcon />
           </span>
+          <span className="status-bar-agent-label">{stateLabel}</span>
         </span>
 
-        {/* Branch — Project/Agent only */}
-        {props.branch && props.isConversationSession !== true ? (
-          <span className="status-bar-branch" title={props.branch}>
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden>
-              <circle cx="4" cy="4" r="1.5" />
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="4" cy="12" r="1.5" />
-              <path d="M4 5.5v5M4 8h5.5a2.5 2.5 0 0 1 2.5 2.5" />
-            </svg>
-            {props.branch}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="status-bar-right">
-        {/* Context usage — only after the first measured usage sample */}
-        {typeof contextPercent === 'number' ? (
-          occupancyCopy &&
-          conversationUsed !== undefined &&
-          conversationLimit !== undefined &&
-          conversationUsage ? (
-            <Popover
-              open={contextDetailsOpen}
-              onOpenChange={setContextDetailsOpen}
-              side="top"
-              align="end"
-              label="Context usage"
-              testId="status-bar-context-popover"
-              contentClassName="context-usage-popover"
-              trigger={
-                <button
-                  type="button"
-                  className={`status-bar-context tone-${contextTone}`}
-                  title={`Context ${occupancyCopy} (${contextPercent}%)`}
-                  data-testid="status-bar-context"
-                >
-                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
-                    <circle
-                      cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5"
-                      strokeDasharray={`${2 * Math.PI * 6}`}
-                      strokeDashoffset={`${2 * Math.PI * 6 * (1 - contextPercent / 100)}`}
-                      strokeLinecap="round"
-                      transform="rotate(-90 8 8)"
-                    />
-                  </svg>
-                  {occupancyCopy} · {contextPercent}%
-                </button>
-              }
-            >
-              <ConversationUsageDetails
-                usage={conversationUsage}
-                used={conversationUsed}
-                limit={conversationLimit}
-                locale={locale}
-              />
-            </Popover>
-          ) : (
-            <span
-              className={`status-bar-context tone-${contextTone}`}
-              title={`Context ${contextPercent}%`}
-              data-testid="status-bar-context"
-            >
-              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-                <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
-                <circle
-                  cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.5"
-                  strokeDasharray={`${2 * Math.PI * 6}`}
-                  strokeDashoffset={`${2 * Math.PI * 6 * (1 - contextPercent / 100)}`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 8 8)"
-                />
-              </svg>
-              {contextPercent}%
-            </span>
-          )
-        ) : null}
-
-        {props.isConversationSession !== true ? (
+        {metrics.length > 0 ? (
           <>
-            <button
-              type="button"
-              className="status-bar-chip"
-              title={locale === 'zh-CN' ? `技能: ${props.skillsCount ?? 0}` : `Skills: ${props.skillsCount ?? 0}`}
-              onClick={props.onOpenSkills}
-            >
-              <IconSkill width={14} height={14} />
-              <span>{props.skillsCount ?? 0}</span>
-            </button>
-            <button
-              type="button"
-              className="status-bar-chip"
-              title={locale === 'zh-CN' ? `MCP 服务: ${props.mcpCount ?? 0}` : `MCP servers: ${props.mcpCount ?? 0}`}
-              onClick={props.onOpenMcp}
-            >
-              <IconMcp width={14} height={14} />
-              <span>{props.mcpCount ?? 0}</span>
-            </button>
+            <span className="status-bar-divider" aria-hidden />
+            <div className="status-bar-metrics" data-testid="status-bar-metrics">
+              {metrics.map((metric) => (
+                <span
+                  className="status-bar-metric"
+                  data-kind={metric.id}
+                  data-testid={`status-bar-metric-${metric.id}`}
+                  aria-label={`${metric.label} ${metric.value}`}
+                  key={metric.id}
+                >
+                  <span className="status-bar-metric-icon">
+                    <MetricIcon id={metric.id} />
+                  </span>
+                  <span className="status-bar-metric-label">{metric.label}</span>
+                  <strong className="status-bar-metric-value">{metric.value}</strong>
+                </span>
+              ))}
+            </div>
           </>
-        ) : null}
-
-        {/* Model label */}
-        {props.modelLabel ? (
-          <span className="status-bar-model" title={props.modelLabel}>
-            <IconSpark width={12} height={12} />
-            {props.modelLabel}
-          </span>
         ) : null}
       </div>
     </footer>

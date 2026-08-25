@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-11)
+Accepted (2026-08-11) · browser family moved to direct 2026-08-23
 
 ## Context
 
@@ -15,10 +15,13 @@ permission admission.
 
 ## Decision
 
-Keep these high-frequency families direct: filesystem, shell, web, planning,
-delegation, Artifact instructions, and explicitly pinned MCP tools.
+Keep these high-frequency families direct: filesystem, shell, web, browser,
+planning, delegation, Artifact instructions, and explicitly pinned MCP tools.
+The Browser workbench is a first-class Agent surface (ADR 0020 / 0057): models
+must be able to call `browser_*` without a catalog round-trip, and Desktop
+opens the right sidebar when the agent acquires the page.
 
-Expose low-frequency process, browser, notes, flashcards, image-generation, and
+Expose low-frequency process, notes, flashcards, image-generation, and
 video-generation tools through one `piwin_toolbox` descriptor. Unpinned MCP
 tools share that same shell ([ADR 0053](./0053-progressive-tool-catalog.md)):
 

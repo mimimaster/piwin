@@ -1,8 +1,9 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import type { HostClientState } from '@piwin/host-client';
 import type { RemoteHostStatusData } from '@piwin/contracts';
 import { Button, Card, IconCheck, IconSettings } from '@piwin/ui-kit';
 import type { MobileThemeMode } from '../../hooks/use-theme.js';
+import { HealthSettingsPanel } from '../../health/HealthSettingsPanel.js';
 
 export type SettingsSurfaceProps = {
   hostStatus?: RemoteHostStatusData | undefined;
@@ -14,6 +15,7 @@ export type SettingsSurfaceProps = {
   onSelectTheme: (mode: MobileThemeMode) => void;
   onDisconnect: () => void;
   onOpenConnection: () => void;
+  healthAvailable?: boolean;
 };
 
 const THEME_OPTIONS: Array<{
@@ -71,8 +73,12 @@ export function SettingsSurface({
   onSelectTheme,
   onDisconnect,
   onOpenConnection,
+  healthAvailable = false,
 }: SettingsSurfaceProps): ReactElement {
   const isConnected = connectionState.kind === 'ready';
+  const [healthUseMode, setHealthUseMode] = useState<
+    import('../../client-tools/client-tool-preferences.js').HealthForegroundUseMode
+  >('ask-every-time');
 
   return (
     <div className="mobile-surface-container settings-surface">
@@ -175,6 +181,17 @@ export function SettingsSurface({
             </Button>
           </div>
         ) : null}
+      </Card>
+
+      <Card className="mobile-slice-card" withBorder>
+        <HealthSettingsPanel
+          available={healthAvailable && isConnected}
+          hostLabel={endpoint || '当前 Host'}
+          useMode={healthUseMode}
+          onChangeUseMode={setHealthUseMode}
+          onConnect={() => undefined}
+          onDisconnect={() => undefined}
+        />
       </Card>
 
       {/* 3. Mobile Shell Specification */}

@@ -3,6 +3,7 @@ import {
   createMemoryMobileDeviceCredentialVault,
   createMobileDeviceCredentialVault,
   createTauriMobileDeviceCredentialVault,
+  readMobileDeviceCredential,
 } from './mobile-device-credential-vault.js';
 
 describe('mobile device credential vault', () => {
@@ -43,5 +44,13 @@ describe('mobile device credential vault', () => {
 
     const broken = createTauriMobileDeviceCredentialVault(async () => '{not-json');
     await expect(broken.read('ws://host')).resolves.toBeUndefined();
+  });
+
+  it('continues without a stored credential when the native store rejects', async () => {
+    const unavailable = createTauriMobileDeviceCredentialVault(async () => {
+      throw new Error('keychain unavailable');
+    });
+
+    await expect(readMobileDeviceCredential(unavailable, 'ws://host')).resolves.toBeUndefined();
   });
 });

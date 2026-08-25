@@ -139,6 +139,68 @@ describe('collectWalkthroughEvidence', () => {
     expect(evidence.outcome).toBe('completed');
   });
 
+  it('omits Health-sensitive tool output from walkthrough evidence', () => {
+    const messages: SessionTranscriptMessage[] = [
+      makeMessage({
+        id: 'user-1',
+        role: 'user',
+        text: '分析我最近的睡眠',
+        status: 'done',
+      }),
+      makeMessage({
+        id: 'assistant-1',
+        role: 'assistant',
+        text: '这是摘要。',
+        runId: 'run-1',
+        status: 'done',
+        outcome: 'completed',
+        endedAt: '2026-01-01T00:01:00Z',
+        tools: [
+          makeToolCard({
+            toolCallId: 'health-1',
+            toolName: 'health_read_context',
+            output: 'sleep-duration 2026-08-22 420 min',
+            presentation: makePresentation({
+              kind: 'health',
+              title: 'health_read_context',
+              sensitivity: 'health',
+              output: { text: 'sleep-duration 2026-08-22 420 min' },
+              health: {
+                metrics: ['sleep-duration'],
+                periodLabel: '最近 7 天',
+                status: 'completed',
+              },
+            }),
+          }),
+          makeToolCard({
+            toolCallId: 'bash-1',
+            toolName: 'bash',
+            presentation: makePresentation({
+              kind: 'shell',
+              title: 'bash',
+              output: { text: 'ok' },
+            }),
+          }),
+        ],
+      }),
+    ];
+    const evidence = collectWalkthroughEvidence(messages, 'assistant-1', {
+      sessionId: 'session-1',
+    });
+    expect(evidence.tools).toEqual([
+      {
+        toolName: 'health_read_context',
+        status: 'done',
+        summary: 'Apple Health summary omitted',
+      },
+      {
+        toolName: 'bash',
+        status: 'done',
+        output: 'ok',
+      },
+    ]);
+  });
+
   it('only collects tools from the target assistant message', () => {
     const messages: SessionTranscriptMessage[] = [
       makeMessage({

@@ -1,0 +1,10 @@
+[[permission]]
+identifier = "default"
+description = "Allow the Mobile app to call the read-only HealthKit plugin commands."
+commands.allow = [
+  "healthkit_is_available",
+  "healthkit_authorization_request_status",
+  "healthkit_request_read_authorization",
+  "healthkit_read_context",
+  "healthkit_cancel_read",
+]

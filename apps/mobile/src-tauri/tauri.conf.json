@@ -27,16 +27,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; font-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; font-src 'self' data:; frame-src 'self' blob: data: about:"
     }
   },
   "bundle": {
     "iOS": {
-      "infoPlist": {
-        "NSCameraUsageDescription": "Piwin uses the camera to scan a Host pairing QR code and to attach photos to a chat.",
-        "NSMicrophoneUsageDescription": "Piwin uses the microphone while you hold the mic button to dictate a message.",
-        "NSSpeechRecognitionUsageDescription": "Piwin converts your held speech into text on this device, then sends that text to your Host."
-      }
+      "infoPlist": "Info.plist"
     }
   }
 }

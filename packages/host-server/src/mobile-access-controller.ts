@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import type {
   HostResponse,
   LocalMobileAccessCommand,
@@ -18,6 +17,8 @@ import {
   type HostRuntimePort,
   type HostServerAddress,
 } from './host-server.js';
+import type { HostCommandIdempotencyRegistry } from './host-command-idempotency-registry.js';
+import type { HostEgressHub } from './host-egress-hub.js';
 import {
   assertPairingBindIsAdvertisable,
   createPairingQrPayload,
@@ -37,12 +38,15 @@ export type MobileAccessControllerOptions = {
   bindHost?: string;
   bindPort?: number;
   onError?: (error: Error) => void;
+  clientToolBroker?: import('./device-tool-broker.js').DeviceToolBroker;
+  egressHub?: HostEgressHub;
+  idempotencyRegistry?: HostCommandIdempotencyRegistry;
 };
 
 /**
- * Owns one HostServer for the sidecar lifetime. Listen toggles keep pairing
- * records; stop destroys the server and rotates hostInstanceId so clients
- * treat the next start as a new Host (fresh journal) instead of a future cursor.
+ * Owns the phone-access WebSocket listener for the sidecar lifetime.
+ * Stop removes only that listener and its clients. Host identity and a
+ * shared injected egress hub stay with the sidecar process.
  */
 export class MobileAccessController {
   private readonly runtime: HostRuntimePort;
@@ -52,6 +56,9 @@ export class MobileAccessController {
   private readonly bindHost: string;
   private readonly bindPort: number;
   private readonly onError: ((error: Error) => void) | undefined;
+  private readonly clientToolBroker: import('./device-tool-broker.js').DeviceToolBroker | undefined;
+  private readonly egressHub: HostEgressHub | undefined;
+  private readonly idempotencyRegistry: HostCommandIdempotencyRegistry | undefined;
   private server: HostServer | undefined;
   private listening = false;
   private bindAddress: HostServerAddress | undefined;
@@ -66,6 +73,9 @@ export class MobileAccessController {
     this.bindHost = options.bindHost ?? DEFAULT_BIND_HOST;
     this.bindPort = options.bindPort ?? DEFAULT_BIND_PORT;
     this.onError = options.onError;
+    this.clientToolBroker = options.clientToolBroker;
+    this.egressHub = options.egressHub;
+    this.idempotencyRegistry = options.idempotencyRegistry;
   }
 
   public async handle(command: LocalMobileAccessCommand): Promise<HostResponse> {
@@ -169,9 +179,6 @@ export class MobileAccessController {
     await this.persist();
     await this.server.stop(PHONE_ACCESS_DISABLED_REASON);
     this.server = undefined;
-    // Pairing records stay; journal does not. Rotate identity so reconnecting
-    // shells see host-instance-changed instead of a future cursor on seq 0.
-    this.instanceId = randomUUID();
     this.listening = false;
     this.bindAddress = undefined;
     this.advertisedEndpoint = undefined;
@@ -213,6 +220,7 @@ export class MobileAccessController {
   private async revokeDevice(deviceId: string): Promise<{ revoked: boolean }> {
     const revoked = this.pairing.revoke(deviceId.trim());
     if (revoked) {
+      this.clientToolBroker?.forgetDevice(deviceId.trim());
       this.server?.disconnectDevice(deviceId.trim(), DEVICE_REVOKED_REASON);
       await this.persist();
     }
@@ -231,6 +239,11 @@ export class MobileAccessController {
       devicePairing: this.pairing,
       ...(this.pairingStore === undefined ? {} : { devicePairingStore: this.pairingStore }),
       ...(this.onError === undefined ? {} : { onError: this.onError }),
+      ...(this.clientToolBroker === undefined ? {} : { clientToolBroker: this.clientToolBroker }),
+      ...(this.egressHub === undefined ? {} : { egressHub: this.egressHub }),
+      ...(this.idempotencyRegistry === undefined
+        ? {}
+        : { idempotencyRegistry: this.idempotencyRegistry }),
     });
     return this.server;
   }
@@ -250,6 +263,9 @@ export async function createMobileAccessController(options: {
   bindHost?: string;
   bindPort?: number;
   onError?: (error: Error) => void;
+  clientToolBroker?: import('./device-tool-broker.js').DeviceToolBroker;
+  egressHub?: HostEgressHub;
+  idempotencyRegistry?: HostCommandIdempotencyRegistry;
 }): Promise<MobileAccessController> {
   const pairing = new HostDevicePairing();
   const pairingStore = new HostDevicePairingFileStore(join(options.piwinRoot, 'devices', 'pairing.json'));
@@ -262,6 +278,11 @@ export async function createMobileAccessController(options: {
     ...(options.bindHost === undefined ? {} : { bindHost: options.bindHost }),
     ...(options.bindPort === undefined ? {} : { bindPort: options.bindPort }),
     ...(options.onError === undefined ? {} : { onError: options.onError }),
+    ...(options.clientToolBroker === undefined ? {} : { clientToolBroker: options.clientToolBroker }),
+    ...(options.egressHub === undefined ? {} : { egressHub: options.egressHub }),
+    ...(options.idempotencyRegistry === undefined
+      ? {}
+      : { idempotencyRegistry: options.idempotencyRegistry }),
   });
 }
 

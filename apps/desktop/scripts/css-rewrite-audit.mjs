@@ -144,6 +144,30 @@ const DELIBERATE_SELECTOR_DROPS = new Map([
     "html[data-theme-mode='dark'] .user-message-wrapper.is-conversation .user-message-collapsible",
     'token ramp is mode-aware',
   ],
+  // Turn telemetry was deliberately re-scoped from a full-width shell footer
+  // to an icon-led rail attached to the Composer. Duplicate model, context,
+  // branch, Skills, and MCP chrome no longer exists in its markup.
+  ['.status-bar-left', 'replaced by the single turn telemetry rail'],
+  ['.status-bar-right', 'replaced by the single turn telemetry rail'],
+  ['.status-bar-dot', 'run state now uses shared outline icons'],
+  ['.status-bar-agent.state-running', 'tone now targets the state icon and label'],
+  [
+    '.status-bar-agent.has-terminal-attention .status-bar-dot',
+    'terminal attention now uses IconTerminal',
+  ],
+  ['.status-bar-agent.state-error', 'tone now targets the state icon'],
+  ['.status-bar-agent.state-error .status-bar-dot', 'error now uses IconAlertCircle'],
+  ['.status-bar-branch', 'branch is not turn telemetry'],
+  ['.status-bar-model', 'model already lives in the Composer'],
+  ['.status-bar-context', 'context already lives in the Composer'],
+  ['button.status-bar-context', 'context already lives in the Composer'],
+  ['.status-bar-context.tone-ok', 'context already lives in the Composer'],
+  ['.status-bar-context.tone-warn', 'context already lives in the Composer'],
+  ['.status-bar-context.tone-critical', 'context already lives in the Composer'],
+  ['.status-bar-chip', 'Skills and MCP are not turn telemetry'],
+  ['.status-bar-chip img', 'Skills and MCP are not turn telemetry'],
+  ['.status-bar-chip:hover', 'turn metrics are static labels, not controls'],
+  ['.status-bar-agent .status-bar-dot', 'run state now uses shared outline icons'],
 ]);
 
 function stripComments(css) {

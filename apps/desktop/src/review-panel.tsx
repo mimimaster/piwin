@@ -6,6 +6,8 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 export type ReviewPanelProps = {
   changesContent: ReactNode;
   gitContent: ReactNode;
+  changesCount?: number;
+  locale?: 'zh-CN' | 'en';
 };
 
 type ReviewSubTab = 'changes' | 'history';
@@ -24,6 +26,9 @@ export function ReviewPanel(props: ReviewPanelProps): ReactElement {
           onClick={() => setSubTab('changes')}
         >
           Changes
+          {typeof props.changesCount === 'number' && props.changesCount > 0 ? (
+            <span className="review-subtab-badge">{props.changesCount}</span>
+          ) : null}
         </button>
         <button
           type="button"

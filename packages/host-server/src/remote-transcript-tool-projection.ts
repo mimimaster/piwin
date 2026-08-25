@@ -2,23 +2,12 @@
  * Remote session/resume tool cards. Live HostPush already carries presentation
  * heads; hydrate used to drop them and leave a bare localized verb.
  */
-import type { RemoteTranscriptTool, ToolKind, ToolPresentation } from '@piwin/contracts';
+import type { RemoteTranscriptTool, ToolPresentation } from '@piwin/contracts';
+import { isToolKind, projectBoundedHealthToolCardSummary } from '@piwin/contracts';
 import { redactRemoteHostPaths } from './remote-redact.js';
 
 const MAX_REMOTE_TRANSCRIPT_TOOLS = 24;
 const MAX_REMOTE_TOOL_OUTPUT_BYTES = 16_384;
-const TOOL_KINDS = new Set<ToolKind>([
-  'filesystem',
-  'shell',
-  'git',
-  'web',
-  'mcp',
-  'process',
-  'image',
-  'video',
-  'subagent',
-  'other',
-]);
 
 export function projectRemoteTranscriptTools(value: unknown): RemoteTranscriptTool[] {
   if (!Array.isArray(value)) {
@@ -105,6 +94,13 @@ function projectRemoteToolPresentation(value: unknown): ToolPresentation | undef
       message: boundedString(redactRemoteHostPaths(error.message), 240),
     };
   }
+  if (record.sensitivity === 'health') {
+    presentation.sensitivity = 'health';
+  }
+  const health = projectBoundedHealthToolCardSummary(record.health);
+  if (health !== undefined) {
+    presentation.health = health;
+  }
   return presentation;
 }
 
@@ -141,10 +137,6 @@ function projectRemotePathBasenames(value: unknown): string[] | undefined {
     }
   }
   return names.length > 0 ? names : undefined;
-}
-
-function isToolKind(value: unknown): value is ToolKind {
-  return typeof value === 'string' && TOOL_KINDS.has(value as ToolKind);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

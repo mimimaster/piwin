@@ -11,7 +11,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadSessionPlan, openSessionTranscriptStore, saveSessionPlan } from '@piwin/session';
+import {
+  loadSessionPlan,
+  openSessionTranscriptStore,
+  saveSessionPlan,
+  type SessionTranscriptStore,
+} from '@piwin/session';
 import { openOrCreateProject } from '@piwin/project';
 import { getPiwinProjectsPath, getPiwinRoot, getPiwinSessionPlanPath } from '../paths.js';
 import { createRemoteProjectId } from '../remote-project-id.js';
@@ -685,6 +690,70 @@ describe('session live control commands', () => {
       expect.stringContaining('fresh runtime'),
       { skipJobCleanup: true },
     );
+    expect(registry.getForegroundRun(session.id)).toBeUndefined();
+  });
+
+  it('saves a pause checkpoint and unblocks the run when provider cleanup never settles', async () => {
+    const baseSession = createDelayedSessionHandle();
+    const session: SessionHandle = {
+      ...baseSession,
+      async abort(): Promise<void> {
+        await new Promise<void>(() => {
+          // Provider regression fixture: pause cleanup never acknowledges abort.
+        });
+      },
+    };
+    const { context, activeRun, registry } = createControlContext(session);
+    // finalizePausedRun touches only these transcript operations in this control fixture.
+    const transcriptStore = {
+      lastMessageByRole: async () => undefined,
+      getRevision: async () => 3,
+      createPauseCheckpoint: async (
+        input: Parameters<SessionTranscriptStore['createPauseCheckpoint']>[0],
+      ) => ({
+        ...input,
+        checkpointId: 'checkpoint-timeout',
+        status: 'active' as const,
+      }),
+    } as unknown as SessionTranscriptStore;
+    context.withTranscriptStore = async (_sessionId, operation) => operation(transcriptStore);
+    const quarantineSessionRuntime = vi.fn();
+    const terminateRun = vi.fn(context.terminateRun);
+    context.abortCleanupTimeoutMs = 10;
+    context.quarantineSessionRuntime = quarantineSessionRuntime;
+    context.terminateRun = terminateRun;
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/pause',
+        sessionId: session.id,
+        runId: activeRun.runId,
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({
+      success: true,
+      data: { state: 'pausing', runId: activeRun.runId },
+    });
+    await vi.waitFor(() => {
+      expect(registry.get(activeRun.runId)).toMatchObject({
+        status: 'interrupted',
+        terminalCode: 'paused',
+        resumeCheckpointId: 'checkpoint-timeout',
+        error: expect.stringContaining('fresh runtime'),
+      });
+    });
+    expect(terminateRun).toHaveBeenCalledWith(
+      session.id,
+      activeRun.runId,
+      'paused',
+      'paused',
+      expect.stringContaining('fresh runtime'),
+      { skipJobCleanup: true },
+    );
+    expect(quarantineSessionRuntime).toHaveBeenCalledWith(session.id, activeRun.runId);
     expect(registry.getForegroundRun(session.id)).toBeUndefined();
   });
 

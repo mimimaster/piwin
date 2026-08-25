@@ -5,7 +5,7 @@
  */
 import type { DesktopCommandId } from './desktop-commands';
 
-export type ShortcutGroupId = 'recommended' | 'navigation' | 'panels' | 'run';
+export type ShortcutGroupId = 'recommended' | 'navigation' | 'chat-panes' | 'panels' | 'run';
 
 export type ShortcutCatalogEntry = {
   id: string;
@@ -18,6 +18,8 @@ export type ShortcutCatalogEntry = {
    * Non-Apple platforms remap glyphs at render time.
    */
   chord: string;
+  /** Optional distinct chord where macOS's Control and Command would collapse to one Ctrl. */
+  pcChord?: string;
 };
 
 export type ShortcutCatalogGroup = {
@@ -134,6 +136,62 @@ export const SHORTCUT_CATALOG: readonly ShortcutCatalogGroup[] = [
         titleEn: 'Switch to Document',
         titleZh: '切换到文档',
         chord: '⌘5',
+      },
+    ],
+  },
+  {
+    id: 'chat-panes',
+    labelEn: 'Chat panes',
+    labelZh: 'Chat 分窗',
+    entries: [
+      {
+        id: 'pane-split-right',
+        titleEn: 'Split active Chat right',
+        titleZh: '向右拆分当前 Chat',
+        chord: '⌘D',
+      },
+      {
+        id: 'pane-split-down',
+        titleEn: 'Split active Chat down',
+        titleZh: '向下拆分当前 Chat',
+        chord: '⇧⌘D',
+      },
+      {
+        id: 'pane-focus-previous',
+        titleEn: 'Focus previous Chat',
+        titleZh: '聚焦上一个 Chat',
+        chord: '⌘[',
+      },
+      {
+        id: 'pane-focus-next',
+        titleEn: 'Focus next Chat',
+        titleZh: '聚焦下一个 Chat',
+        chord: '⌘]',
+      },
+      {
+        id: 'pane-focus-direction',
+        titleEn: 'Focus Chat by direction',
+        titleZh: '按方向聚焦 Chat',
+        chord: '⌥⌘Arrow',
+      },
+      {
+        id: 'pane-resize',
+        titleEn: 'Resize active Chat',
+        titleZh: '调整当前 Chat 大小',
+        chord: '⌃⌘Arrow',
+        pcChord: '⇧⌥⌘Arrow',
+      },
+      {
+        id: 'pane-maximize',
+        titleEn: 'Maximize or restore Chat',
+        titleZh: '最大化或恢复 Chat',
+        chord: '⇧⌘Enter',
+      },
+      {
+        id: 'pane-close',
+        titleEn: 'Close supplementary Chat pane',
+        titleZh: '关闭附加 Chat 窗格',
+        chord: '⌥⌘W',
       },
     ],
   },

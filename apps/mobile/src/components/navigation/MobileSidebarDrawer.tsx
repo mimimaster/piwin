@@ -7,7 +7,10 @@ import {
   IconChat,
   IconSettings,
   IconListTree,
+  IconFolder,
+  IconSpark,
 } from '@piwin/ui-kit';
+import { MobileLayer } from '../../mobile-portal.js';
 
 export type MobileSidebarDrawerProps = {
   isOpen: boolean;
@@ -22,6 +25,8 @@ export type MobileSidebarDrawerProps = {
   onDeleteSession?: ((sessionId: string) => void) | undefined;
   onOpenSettings: () => void;
   onOpenInbox: () => void;
+  onOpenFiles?: (() => void) | undefined;
+  onOpenSkills?: (() => void) | undefined;
   onOpenShare?: (() => void) | undefined;
   activeRunCount?: number | undefined;
   endpoint?: string | undefined;
@@ -41,6 +46,8 @@ export function MobileSidebarDrawer({
   onDeleteSession,
   onOpenSettings,
   onOpenInbox,
+  onOpenFiles,
+  onOpenSkills,
   onOpenShare,
   activeRunCount = 0,
   endpoint,
@@ -50,10 +57,6 @@ export function MobileSidebarDrawer({
   const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(undefined);
   const [editingSessionId, setEditingSessionId] = useState<string | undefined>(undefined);
   const [editingName, setEditingName] = useState('');
-
-  if (!isOpen) {
-    return null;
-  }
 
   const handleStartRename = (session: RemoteSessionSummary, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -83,8 +86,8 @@ export function MobileSidebarDrawer({
   });
 
   return (
-    <aside className="mobile-drawer-overlay" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="mobile-drawer-panel" onClick={(e) => e.stopPropagation()}>
+    <MobileLayer isOpen={isOpen} onClose={onClose}>
+      <div className="mobile-drawer-panel">
         {/* 1. Drawer Header */}
         <div className="mobile-drawer-header">
           <div className="mobile-drawer-host-info">
@@ -195,7 +198,7 @@ export function MobileSidebarDrawer({
                       }}
                     >
                       <IconChat size={15} className="mobile-session-item-icon" />
-                      <span className="mobile-session-item-name">
+                      <span className="mobile-drawer-session-item-name">
                         {session.pinned ? '📌 ' : ''}{session.name ?? session.sessionId}
                       </span>
                       {session.messageCount !== undefined ? (
@@ -252,7 +255,7 @@ export function MobileSidebarDrawer({
           )}
         </div>
 
-        {/* 6. Drawer Bottom Actions */}
+        {/* 6. Drawer Bottom Navigation Hub */}
         <div className="mobile-drawer-footer">
           <button
             type="button"
@@ -271,6 +274,34 @@ export function MobileSidebarDrawer({
               <span className="mobile-footer-count-tag">{activeRunCount} 运行中</span>
             ) : null}
           </button>
+
+          {onOpenFiles ? (
+            <button
+              type="button"
+              className="mobile-drawer-footer-btn"
+              onClick={() => {
+                onOpenFiles();
+                onClose();
+              }}
+            >
+              <IconFolder size={16} />
+              <span>工作区文件与变更</span>
+            </button>
+          ) : null}
+
+          {onOpenSkills ? (
+            <button
+              type="button"
+              className="mobile-drawer-footer-btn"
+              onClick={() => {
+                onOpenSkills();
+                onClose();
+              }}
+            >
+              <IconSpark size={16} />
+              <span>技能与 MCP 状态</span>
+            </button>
+          ) : null}
 
           {onOpenShare ? (
             <button
@@ -299,6 +330,6 @@ export function MobileSidebarDrawer({
           </button>
         </div>
       </div>
-    </aside>
+    </MobileLayer>
   );
 }

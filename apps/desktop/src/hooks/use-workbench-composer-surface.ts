@@ -111,6 +111,8 @@ export function useWorkbenchComposerSurface(args: UseWorkbenchComposerSurfaceArg
     onSendWithComments,
     onSteer: composer.handleSteer,
     onFollowUp: composer.handleFollowUp,
+    onPause: session.handlePause,
+    onResumeRun: session.handleResumeRun,
     onAbort: session.handleAbort,
     onCompact: session.handleCompact,
     onOpenProject: session.handleOpenProject,

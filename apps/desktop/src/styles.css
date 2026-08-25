@@ -38,10 +38,14 @@
 @import './styles/transcript-ink-wash.css';
 @import './styles/artifact.css';
 @import './styles/region-conversation-message.css';
+@import './styles/region-conversation-panes.css';
+@import './styles/conversation-pane-session.css';
 @import './styles/region-doccards.css';
 @import './styles/doccards-file-manifest.css';
 @import './styles/doccards-grid.css';
 @import './styles/region-flashcards.css';
+@import './styles/region-flashcards-workspace.css';
+@import './styles/region-media-workspaces.css';
 @import './styles/flashcard-inline-card.css';
 @import './styles/region-notes.css';
 @import './styles/region-knowledge.css';
