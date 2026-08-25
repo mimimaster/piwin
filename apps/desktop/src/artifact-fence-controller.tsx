@@ -19,7 +19,6 @@ import type { MarkdownCodeFenceProps } from './markdown-code-fence.js';
 export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
-  const nativeSourceFence = /^(?:html|htm|svg)$/i.test(props.language.trim());
   const boundFenceIndex = props.fenceIndex;
   // Freeze fence identity on first mount. Source growth must not remount an iframe.
   const stickyFenceIdRef = useRef<string | null>(null);
@@ -30,7 +29,7 @@ export function ArtifactFenceController(props: MarkdownCodeFenceProps): ReactEle
   const stickyFenceId = stickyFenceIdRef.current;
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
     props.renderingPhase === 'explicit-artifact-review' ||
-      (!artifactCodeFirst && !nativeSourceFence),
+      !artifactCodeFirst,
   );
   const [artifactSourceExpanded, setArtifactSourceExpanded] = useState(false);
   const showArtifactSource = (): void => {

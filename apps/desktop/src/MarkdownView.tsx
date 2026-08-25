@@ -30,8 +30,7 @@ type MarkdownViewProps = {
    * streaming — Streamdown repair + caret; ordinary code and Mermaid stay
    * source. HTML/SVG may stream-preview in one sandbox iframe when capability
    * is on and code-first is off.
-   * completed — full Markdown; explicit compatible Inline Artifacts may
-   * auto-preview. Native html/svg stay source-first.
+   * completed — full Markdown; compatible Inline HTML/SVG may auto-preview.
    * explicit-artifact-review — open preview for completed HTML candidates.
    */
   renderingPhase?: MarkdownRenderingPhase;

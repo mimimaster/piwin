@@ -183,13 +183,12 @@ test('20,000px overflow: end marker intersects the iframe viewport after a user-
   ).toBe(true);
 });
 
-test('full HTML document Preview mounts an inline-viewport iframe with a unique inner scrollport', async ({
+test('full HTML document auto-mounts an inline-viewport iframe with a unique inner scrollport', async ({
   page,
 }) => {
   const section = await openFixture(page, 'full-html-document');
-  await expect(section.getByTestId('code-fence-source')).toBeVisible();
-  await section.getByTestId('artifact-preview-toggle').click();
   await waitForInlineViewport(section);
+  await expect(section.getByTestId('code-fence-source')).toHaveCount(0);
   const chromePx = `${String(resolveArtifactViewportFrameHeight(840))}px`;
   await expect(section.locator('.artifact-iframe-stage')).toHaveCSS('height', chromePx);
   const css = iframeCss('full-html-document', false);

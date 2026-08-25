@@ -18,15 +18,14 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
    - **Master switch:** `PiwinConfig.artifact.enabled`. Desktop forwards it as
      `artifactPreviewEnabled`. Leftover `piwin.desktop.artifactPreviewEnabled`
      localStorage keys are ignored.
-   - **Streaming Inline:** explicit HTML/SVG fences auto stream-preview from
-     the first recognizable fence (no source flash). Native `html`/`htm`/`svg`
-     stay source while streaming unless `renderingPhase` is
-     `explicit-artifact-review`. Ordinary code and Mermaid stay source.
+   - **Streaming Inline:** compatible explicit and native HTML/SVG fences auto
+     stream-preview from the first recognizable fence (no source flash).
+     Ordinary code and Mermaid stay source.
      Canvas fences stay source until completion.
    - **Completed Inline:** compatible inert flow may render in a sanitized
-     Shadow DOM; sandboxed content uses one height stream. Native `html`/`svg`
-     stays source-first with an explicit Preview action; explicit compatible
-     `artifact-html` may auto-preview. `artifactCodeFirst` is Inline-only.
+     Shadow DOM; sandboxed content uses one height stream. Native and explicit
+     HTML/SVG use the same default Inline path. `artifactCodeFirst` is
+     Inline-only and is the source-first preference.
    - **Canvas:** `surface="canvas"` auto-opens once on live completion when
      capability is on. Hydrated history does not rearrange the shell.
    - **Overflow:** 16,384 px is a defensive ceiling that enters
@@ -83,10 +82,10 @@ are deleted.
 
 ## Amendment (2026-07-31): SVG fences use the heavy Artifact path
 
-**Superseded by the 2026-08-24 amendment** for the capability switch. SVG uses
-the same Artifact sandbox as HTML (not a parent-document renderer). A separate
-light pan/zoom SVG renderer remains deferred. Native SVG stays source-first
-while streaming; see the lead Decision.
+**Superseded by the 2026-08-24 lead decision** for the capability switch and
+native streaming policy. SVG uses the same Artifact sandbox as HTML (not a
+parent-document renderer). A separate light pan/zoom SVG renderer remains
+deferred.
 
 ## Amendment (2026-08-09): Stable streaming Artifact materialization
 
@@ -157,18 +156,17 @@ This amendment supersedes the source-only streaming clauses in the 2026-07-25,
 
 ## Amendment (2026-08-22): Source declaration and stable height contract
 
-This amendment supersedes earlier clauses that treated native `html`/`htm`/`svg`
-fences as if the model had explicitly declared an Artifact, and it narrows the
-2026-08-13 height observer contract.
+This amendment is superseded by the 2026-08-24 rendering convergence decision.
+The current contract still records native versus explicit provenance and keeps
+the 2026-08-13 height observer bounds.
 
 - Parsed descriptors record both `declaration: explicit | native` and
   `documentKind: fragment | document`. An `artifact-html`/Artifact marker is an
   explicit product declaration; an ordinary language fence is native source.
-- Native HTML/SVG is source-first even when Artifact capability is enabled.
-  Compatible fragments may be previewed Inline after user action. Full HTML
-  documents and viewport-coupled source are offered only as a user-triggered
-  Canvas preview. Merely writing ` ```html ` never auto-mounts an application in
-  the conversation.
+- Native HTML/SVG uses the same compatible Inline path as explicit Artifact
+  when the capability is enabled. `artifactCodeFirst` is the user-triggered
+  source-first mode; full documents and viewport-coupled source remain
+  `inline-viewport` in the transcript rather than being rerouted to Canvas.
 - Explicit Inline Artifacts may materialize automatically only when they satisfy
   the component contract. Full documents, viewport-height units/scripts, and
   fixed-position page shells are incompatible with parent-driven Inline sizing.
@@ -200,8 +198,9 @@ fences as if the model had explicitly declared an Artifact, and it narrows the
 This amendment **is the lead Decision**. It supersedes the 2026-07-25
 Preview-only iframe policy, the 2026-07-30 opt-in preference,
 `evaluateCodeFence` / `splitMarkdownBlocks` as live APIs, the flashcard HTML
-exception, and `MarkdownView.streamComplete`. Native fences remain source-first
-while streaming; only explicit Inline auto stream-previews.
+exception, and `MarkdownView.streamComplete`. Compatible native and explicit
+Inline fences auto stream-preview; only ordinary code, Mermaid, and Canvas
+remain source-first during streaming.
 
 See the lead Decision for the live contract. Details: ADR 0029 and
 `docs/plans/2026-08-24-artifact-rendering-convergence-execution-plan.md`.

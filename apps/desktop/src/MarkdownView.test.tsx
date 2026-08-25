@@ -163,7 +163,7 @@ describe('MarkdownView artifact preview policy', () => {
     expect(ids).toEqual(['message-two-artifact-0', 'message-two-artifact-1']);
   });
 
-  it('does not materialize srcdoc until an inline frame or Canvas panel will mount', () => {
+  it('materializes only when the selected presentation will mount', () => {
     const spy = vi.spyOn(artifact, 'materializeArtifact');
     renderMarkdown(
       <MarkdownView
@@ -184,7 +184,7 @@ describe('MarkdownView artifact preview policy', () => {
         onOpenArtifactCanvas={vi.fn()}
       />,
     );
-    expect(spy).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
     spy.mockClear();
 
     renderMarkdown(
@@ -391,14 +391,15 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
-  it('ordinary HTML with data-card-id follows native html source-first when capability is on', () => {
+  it('ordinary HTML with data-card-id stays generic Artifact content', async () => {
     const { container } = renderMarkdown(
       <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" />,
     );
+    await flushMarkdownEffects();
     expect(container.querySelector('[data-testid="flashcard-preview-card"]')).toBeNull();
     expect(container.querySelector('[data-testid="chat-flashcard"]')).toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
-    expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
   });
 
   it('mermaid still renders (mounts MermaidBlock) when capability off', () => {
@@ -432,23 +433,25 @@ describe('MarkdownView artifact preview policy', () => {
     expect(toggle?.textContent).toContain('Preview SVG');
   });
 
-  it('streaming mode keeps native SVG source-first', () => {
+  it('streams native SVG directly as an Inline Artifact', async () => {
     const { container } = renderMarkdown(
       <MarkdownView text={SVG_FENCE} renderingPhase="streaming" />,
     );
-    expect(container.querySelector('.artifact-frame')).toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    await flushMarkdownEffects();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
   });
 
-  it('keeps an incomplete native SVG in the streaming source view', () => {
+  it('streams an incomplete native SVG through the safe Inline preview', async () => {
     const { container } = renderMarkdown(
       <MarkdownView text={'```svg\n<svg'} renderingPhase="streaming" locale="zh-CN" />,
     );
-    expect(container.querySelector('[data-testid="artifact-frame"]')).toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    await flushMarkdownEffects();
+    expect(container.querySelector('[data-testid="artifact-frame"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
   });
 
-  it('previews a native full HTML document as inline-viewport, not Canvas', async () => {
+  it('auto-previews a native full HTML document as inline-viewport, not Canvas', async () => {
     const onOpenArtifactCanvas = vi.fn();
     const { container } = renderMarkdown(
       <MarkdownView
@@ -459,14 +462,6 @@ describe('MarkdownView artifact preview policy', () => {
       />,
     );
 
-    expect(container.querySelector('.artifact-frame')).toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
-    const preview = container.querySelector<HTMLButtonElement>(
-      '[data-testid="artifact-preview-toggle"]',
-    );
-    expect(preview?.textContent).toContain('Preview');
-    expect(preview?.textContent).not.toContain('Canvas');
-    act(() => preview?.click());
     await flushMarkdownEffects();
     expect(onOpenArtifactCanvas).not.toHaveBeenCalled();
     const frame = container.querySelector('[data-testid="artifact-frame"]');
@@ -500,6 +495,19 @@ describe('MarkdownView artifact preview policy', () => {
     );
     expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
+  it('streams native HTML directly as an Inline Artifact', async () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={'```html\n<!doctype html><html><body><main>START-NATIVE-HTML'}
+        renderingPhase="streaming"
+      />,
+    );
+    await flushMarkdownEffects();
+    expect(container.querySelector('[data-testid="artifact-stream-live"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+    expect(container.querySelector('[data-testid="artifact-frame"]')).not.toBeNull();
   });
 
   it('byte-stability: artifact-html language label identical in both modes', () => {
